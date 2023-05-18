@@ -62,3 +62,32 @@ model VerificationToken {
 
     @@unique([identifier, token])
 }
+
+model Trace {
+    id            String         @id @default(cuid())
+    timestamp     DateTime
+    name          String
+    attributes    Json
+    status        String
+    statusMessage String?        @map("status_message")
+    Observations  Observations[]
+
+    @@map("traces")
+}
+
+model Observations {
+    id      String @id @default(cuid())
+    traceId String
+    trace   Trace  @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+    type                String
+    name                String
+    startTime           DateTime       @map("start_time")
+    endTime             DateTime       @map("end_time")
+    attributes          Json
+    parentObservationId String?        @map("parent_observation_id")
+    parent              Observations?  @relation("ParentChilds", fields: [parentObservationId], references: [id])
+    childs              Observations[] @relation("ParentChilds")
+
+    @@map("observations")
+}
