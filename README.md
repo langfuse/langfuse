@@ -1,4 +1,4 @@
-# Brent
+# Langfuse
 
 ## About
 
@@ -63,30 +63,6 @@ supabase start
 
 pnpm dev
 ```
-
-## Development
-
-GitHub notifies the application about events via webhooks. We use ngrok to expose our local development machine to the internet. These are the detailed steps that you need to take.
-
-Cloudflared
-
-1. Install cloudflared: `brew install cloudflared`
-2. Login and authorize finto.app: `cloudflared tunnel login`
-3. [Only for new tunnels] Create tunnel `cloudflared tunnel create brent-web-local`
-4. Get tunnel credentials to access existing tunnel `cloudflared tunnel token  --cred-file ~/.cloudflared/9aeaee39-b445-4659-8f05-2e033d5a0bc9.json  brent-web-local`
-5. Configure subdomain `cloudflared tunnel route dns brent-web-local brent-web-local`
-6. Run `cloudflared tunnel --config ./.cloudflared/config.yml run brent-web-local`
-
-Ngrok
-
-1. Install negrok `brew install ngrok`
-2. Run development `pnpm dev`
-3. Run ngrok `ngrok http 3000`
-4. Udate [GitHub development app](https://github.com/organizations/finto-technologies/settings/apps/brent-codegen-dev#:~:text=hook%20is%20triggered.-,Webhook%20URL,-Events%20will%20POST) to point to current ngrok public url + `/api/github/webhooks`
-5. Update DOMAIN in .env to the current ngrok domain, e.g. 35da-2601-645-8700-6b90-b9ca-87d4-daff-8b84.ngrok.io
-6. Experiment with [finto-technologies/demo-local](https://github.com/finto-technologies/demo-local)
-7. View logs and replay webhooks by visiting: http://127.0.0.1:4040
-8. View local database: http://localhost:54323
 
 ## Deployment
 
