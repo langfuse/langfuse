@@ -33,3 +33,11 @@ npx prisma db seed
 ```bash
 npm run dev
 ```
+
+### Generate SDKs
+
+```bash
+for lang in python typescript; do
+  openapi-generator generate -i http://localhost:3000/api/doc -g $lang -o ./sdk/$lang;
+done
+```
