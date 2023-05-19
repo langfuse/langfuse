@@ -31,6 +31,5 @@
   "python.formatting.provider": "black",
   "[yaml]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "prettier.configPath": ".prettierrc.js"
+  }
 }
