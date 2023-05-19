@@ -15,7 +15,7 @@ async function main() {
     },
   });
 
-  const span = await prisma.observations.create({
+  const span = await prisma.observation.create({
     data: {
       id: "57a266de-df34-4cea-b4e4-087bb6a3eac0",
       trace: { connect: { id: trace.id } },
