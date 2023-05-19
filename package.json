@@ -9,6 +9,9 @@
     "lint": "next lint",
     "start": "next start"
   },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
@@ -34,7 +37,7 @@
   },
   "devDependencies": {
     "@types/eslint": "^8.21.3",
-    "@types/node": "^18.15.5",
+    "@types/node": "^18.16.13",
     "@types/prettier": "^2.7.2",
     "@types/react": "^18.0.28",
     "@types/react-dom": "^18.0.11",
@@ -48,7 +51,8 @@
     "prettier-plugin-tailwindcss": "^0.2.6",
     "prisma": "^4.11.0",
     "tailwindcss": "^3.3.0",
-    "typescript": "^5.0.2"
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
