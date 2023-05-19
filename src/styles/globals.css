@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  body > div:first-child,
+  div#__next,
+  div#__next > div {
+    height: 100%;
+  }
+}
