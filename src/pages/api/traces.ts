@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 const TraceSchema = z.object({
   name: z.string(),
   attributes: z.record(z.string(), z.any()),
-  status: z.string(),
+  status: z.literal("success").or(z.literal("error")).or(z.literal("running")),
   statusMessage: z.string().optional(),
 });
 
@@ -35,11 +35,15 @@ export default async function handler(
     });
 
     res.status(201).json({ trace: newTrace });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: "Invalid request data",
-      error: error.message,
-    });
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "An unknown error occurred";
+    res
+      .status(400)
+      .json({
+        success: false,
+        message: "Invalid request data",
+        error: errorMessage,
+      });
   }
 }
