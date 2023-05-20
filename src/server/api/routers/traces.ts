@@ -19,6 +19,9 @@ export const traceRouter = createTRPCRouter({
       where: {
         id: input,
       },
+      include: {
+        Observations: true,
+      },
     });
   }),
 });

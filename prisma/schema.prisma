@@ -76,18 +76,23 @@ model Trace {
 }
 
 model Observation {
-    id      String @id @default(cuid())
-    traceId String
-    trace   Trace  @relation(fields: [traceId], references: [id], onDelete: Cascade)
-
-    type                String
+    id                  String          @id @default(cuid())
+    traceId             String
+    trace               Trace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    type                ObservationType
     name                String
-    startTime           DateTime      @map("start_time")
-    endTime             DateTime      @map("end_time")
+    startTime           DateTime        @map("start_time")
+    endTime             DateTime        @map("end_time")
     attributes          Json
-    parentObservationId String?       @map("parent_observation_id")
-    parent              Observation?  @relation("ParentChilds", fields: [parentObservationId], references: [id])
-    childs              Observation[] @relation("ParentChilds")
+    parentObservationId String?         @map("parent_observation_id")
+    parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
+    childs              Observation[]   @relation("ParentChilds")
 
     @@map("observations")
+}
+
+enum ObservationType {
+    SPAN
+    EVENT
+    LLMCALL
 }

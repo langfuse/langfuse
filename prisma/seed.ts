@@ -19,12 +19,42 @@ async function main() {
     data: {
       id: "57a266de-df34-4cea-b4e4-087bb6a3eac0",
       trace: { connect: { id: trace.id } },
-      type: "span",
+      type: "SPAN",
       name: "sales-pilot-retrieval",
       attributes: {
         user: "user@lanfgfuse.com",
       },
       startTime: new Date(new Date().setMinutes(new Date().getMinutes() - 1)),
+      endTime: new Date(),
+    },
+  });
+
+  const llmCall = await prisma.observation.create({
+    data: {
+      id: "57a266de-df34-4cea-b4e4-678fdshj3678",
+      trace: { connect: { id: trace.id } },
+      type: "LLMCALL",
+      name: "sales-pilot-retrieval-llm",
+      attributes: {
+        user: "user@lanfgfuse.com",
+        prompt: "Hello world",
+        completion: "Completion",
+        tokens: {
+          prompt: 2500,
+          completion: 100,
+        },
+        model: {
+          name: "gpt-3.5-turbo",
+          provider: "OpenAI",
+          temperature: 0,
+        },
+      },
+      parent: {
+        connect: {
+          id: span.id,
+        },
+      },
+      startTime: new Date(new Date().setMinutes(new Date().getMinutes() - 0.5)),
       endTime: new Date(),
     },
   });

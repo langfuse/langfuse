@@ -15,11 +15,12 @@ import {
 } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { classNames } from "~/utils/tailwind";
 
 const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
   { name: "Traces", href: "/traces", icon: UsersIcon },
-  { name: "LLM Completions", href: "#", icon: DocumentDuplicateIcon },
+  { name: "LLM Calls", href: "/llm-calls", icon: DocumentDuplicateIcon },
 ];
 const teams = [
   { id: 1, name: "Heroicons", href: "#", initial: "H", current: false },
@@ -30,10 +31,6 @@ const userNavigation = [
   { name: "Your profile", href: "#" },
   { name: "Sign out", href: "#" },
 ];
-
-function classNames(...classes: string[]) {
-  return classes.filter(Boolean).join(" ");
-}
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);

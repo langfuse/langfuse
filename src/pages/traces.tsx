@@ -74,6 +74,7 @@ export default function Traces() {
         rows={rows}
         columns={columns}
         slots={{ toolbar: GridToolbar }}
+        loading={traces.isLoading}
       />
     </>
   );
