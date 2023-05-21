@@ -5,23 +5,23 @@ import { classNames } from "~/utils/tailwind";
 
 const items = [
   {
-    name: "API reference",
+    name: "API",
     description: "Integrate with the langfuse REST API",
-    href: "#",
+    href: "/api-doc",
     iconColor: "bg-purple-500",
     icon: MegaphoneIcon,
   },
   {
     name: "Typescript SDK",
     description: "npm install langfuse",
-    href: "#",
+    href: "https://www.npmjs.com/package/langfuse",
     iconColor: "bg-blue-500",
     icon: CommandLineIcon,
   },
   {
     name: "Python SDK",
     description: "pip install langfuse",
-    href: "#",
+    href: "https://pypi.org/project/langfuse/",
     iconColor: "bg-yellow-500",
     icon: SiPython,
   },
