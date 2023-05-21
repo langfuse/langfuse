@@ -1,0 +1,69 @@
+openapi: 3.0.1
+info:
+  title: langfuse
+  version: ''
+paths:
+  /traces/create:
+    post:
+      description: Add a trace to the database
+      operationId: trace_create
+      tags:
+        - Trace
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trace'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTraceRequest'
+components:
+  schemas:
+    TraceId:
+      title: TraceId
+      type: string
+      format: uuid
+    CreateTraceRequest:
+      title: CreateTraceRequest
+      type: object
+      properties:
+        name:
+          type: string
+        attributes: {}
+        status:
+          type: string
+        statusMessage:
+          type: string
+      required:
+        - name
+        - attributes
+        - status
+    Trace:
+      title: Trace
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        name:
+          type: string
+        attributes: {}
+        status:
+          type: string
+        statusMessage:
+          type: string
+      required:
+        - id
+        - timestamp
+        - name
+        - attributes
+        - status
+  securitySchemes: {}
