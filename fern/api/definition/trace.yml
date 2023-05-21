@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: false
+  base-path: /traces
+  endpoints:
+    create:
+      docs: Add a trace to the database
+      method: POST
+      path: /create
+      request: CreateTraceRequest
+      response: Trace
+
+types:
+  TraceId: uuid
+  CreateTraceRequest:
+    properties:
+      name: string
+      attributes: unknown
+      status: string
+      statusMessage: optional<string>
+  Trace:
+    properties:
+      id: string
+      timestamp: datetime
+      name: string
+      attributes: unknown
+      status: string
+      statusMessage: optional<string>
