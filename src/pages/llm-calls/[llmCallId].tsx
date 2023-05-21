@@ -1,3 +1,8 @@
+import { Button } from "@/src/components/ui/button";
+import { CodeView, JSONview } from "@/src/components/ui/code";
+import DescriptionList from "@/src/components/ui/descriptionLists";
+import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import Header from "~/components/layouts/header";
 
@@ -20,26 +25,65 @@ export default function LlmCallPage() {
           { name: llmCallId as string },
         ]}
       />
-      {llmCall.isSuccess ? (
-        <>
-          <div className="flex w-full space-x-3">
-            <div className="flex-1 border-2 border-gray-300 p-2">
-              <div className="font-semibold">Prompt</div>
-              {llmCall.data.attributes.prompt ?? ""}
-            </div>
-            <div className="flex-1 border-2 border-gray-300 p-2">
-              <div className="font-semibold">Completion</div>
-              {llmCall.data.attributes.completion ?? ""}
-            </div>
-          </div>
-          <div className="mt-2">
-            Tokens: {llmCall.data.attributes.tokens.prompt} prompt tokens,{" "}
-            {llmCall.data.attributes.tokens.completion} completion tokens
-          </div>
-        </>
+      {llmCall.data ? (
+        <DescriptionList
+          items={[
+            {
+              label: "Trace",
+              value: (
+                <Button variant="secondary" asChild>
+                  <Link href={`/traces/${llmCall.data.traceId}`}>
+                    {llmCall.data.traceId}
+                    <ArrowUpRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              ),
+            },
+            {
+              label: "Time",
+              value:
+                llmCall.data.startTime.toLocaleString() +
+                (llmCall.data.endTime
+                  ? ` - ${
+                      llmCall.data.endTime.getTime() -
+                      llmCall.data.startTime.getTime()
+                    }ms`
+                  : ""),
+            },
+            {
+              label: "Name",
+              value: llmCall.data.name,
+            },
+            {
+              label: "Tokens",
+              value: [
+                llmCall.data.attributes.tokens.prompt &&
+                  `${llmCall.data.attributes.tokens.prompt} prompt tokens`,
+                llmCall.data.attributes.tokens.completion &&
+                  `${llmCall.data.attributes.tokens.completion} completion tokens`,
+              ]
+                .filter(Boolean)
+                .join(", "),
+            },
+            {
+              label: "Prompt",
+              value: <CodeView>{llmCall.data.attributes.prompt}</CodeView>,
+            },
+            {
+              label: "Completion",
+              value: <CodeView>{llmCall.data.attributes.completion}</CodeView>,
+            },
+            {
+              label: "Model",
+              value: <JSONview json={llmCall.data.attributes.model} />,
+            },
+            {
+              label: "Attributes",
+              value: <JSONview json={llmCall.data.attributes} />,
+            },
+          ]}
+        />
       ) : null}
-
-      <pre>{JSON.stringify(llmCall.data, null, 2)}</pre>
     </>
   );
 }

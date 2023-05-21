@@ -7,11 +7,12 @@ import {
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
 import { api } from "~/utils/api";
-import { ChevronsUpDown, ArrowUpRight } from "lucide-react";
+import { ChevronsUpDown, ChevronsDownUp, ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { type NestedObservation } from "@/src/utils/types";
 import Link from "next/link";
 import DescriptionList from "@/src/components/ui/descriptionLists";
+import { JSONview } from "@/src/components/ui/code";
 
 export default function TracePage() {
   const router = useRouter();
@@ -88,6 +89,16 @@ function ObservationDisplay(props: { obs: NestedObservation }) {
               props.obs.endTime.getTime() - props.obs.startTime.getTime()
             } ms`}</span>
           ) : null}
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-9 p-0">
+              {isOpen ? (
+                <ChevronsDownUp className="h-4 w-4" />
+              ) : (
+                <ChevronsUpDown className="h-4 w-4" />
+              )}
+              <span className="sr-only">Toggle</span>
+            </Button>
+          </CollapsibleTrigger>
           {props.obs.type === "LLMCALL" ? (
             <Button size="sm" variant="ghost" asChild>
               <Link href={`/llm-calls/${props.obs.id}`}>
@@ -95,18 +106,10 @@ function ObservationDisplay(props: { obs: NestedObservation }) {
               </Link>
             </Button>
           ) : null}
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-9 p-0">
-              <ChevronsUpDown className="h-4 w-4" />
-              <span className="sr-only">Toggle</span>
-            </Button>
-          </CollapsibleTrigger>
         </div>
         <CollapsibleContent className="ml-6  space-y-2">
           <span className="text-sm font-semibold">Attributes</span>
-          <pre className="rounded-md border px-4 py-3 font-mono text-sm">
-            {JSON.stringify(props.obs.attributes, null, 2)}
-          </pre>
+          <JSONview json={props.obs.attributes} />
         </CollapsibleContent>
       </Collapsible>
       <div className="ml-5">
