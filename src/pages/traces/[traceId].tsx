@@ -1,7 +1,17 @@
 import { useRouter } from "next/router";
 import Header from "~/components/layouts/header";
-
+import { Button } from "~/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "~/components/ui/collapsible";
 import { api } from "~/utils/api";
+import { ChevronsUpDown, ArrowUpRight } from "lucide-react";
+import { useState } from "react";
+import { type NestedObservation } from "@/src/utils/types";
+import Link from "next/link";
+import DescriptionList from "@/src/components/ui/descriptionLists";
 
 export default function TracePage() {
   const router = useRouter();
@@ -11,39 +21,94 @@ export default function TracePage() {
     enabled: traceId !== undefined,
   });
 
-  const obs =
-    trace.data?.Observations.map(({ id, name, type, parentObservationId }) => ({
-      id,
-      name,
-      type,
-      parentId: parentObservationId ?? undefined,
-    })) ?? [];
-  const nestedObs = transformToNestedObservations(obs);
-
   return (
     <>
       <Header
-        title="Traces"
+        title="Trace Detail"
         breadcrumb={[
           { name: "Traces", href: "/traces" },
           { name: traceId as string },
         ]}
       />
-      <div>
-        {nestedObs.map((obs) => (
-          <ObservationDisplay key={obs.id} obs={obs} />
-        ))}
-      </div>
-      <pre>{JSON.stringify(nestedObs, null, 2)}</pre>
-      <pre>{JSON.stringify(trace.data, null, 2)}</pre>
+      {trace.data ? (
+        <DescriptionList
+          items={[
+            {
+              label: "Timestamp",
+              value: trace.data.timestamp.toLocaleString(),
+            },
+            {
+              label: "Name",
+              value: trace.data.name,
+            },
+            {
+              label: "Status",
+              value:
+                trace.data.status +
+                (trace.data.statusMessage
+                  ? ` (${trace.data.statusMessage})`
+                  : ""),
+            },
+            {
+              label: "Attributes",
+              value: (
+                <span className="font-mono">
+                  {JSON.stringify(trace.data.attributes, null, 2)}
+                </span>
+              ),
+            },
+            {
+              label: "Detailed trace",
+              value: (
+                <div className="space-y-2">
+                  {trace.data?.nestedObservations.map((obs) => (
+                    <ObservationDisplay key={obs.id} obs={obs} />
+                  )) ?? null}
+                </div>
+              ),
+            },
+          ]}
+        />
+      ) : null}
     </>
   );
 }
 
 function ObservationDisplay(props: { obs: NestedObservation }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <div>
-      <div>{props.obs.name}</div>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+        <div className="flex items-center  space-x-2 px-4">
+          <span className="p-2 text-xs text-gray-500">{props.obs.type}:</span>
+          <h4 className="text-sm font-semibold">{props.obs.name}</h4>
+          {props.obs.endTime ? (
+            <span className="text-gray-500">{`${
+              props.obs.endTime.getTime() - props.obs.startTime.getTime()
+            } ms`}</span>
+          ) : null}
+          {props.obs.type === "LLMCALL" ? (
+            <Button size="sm" variant="ghost" asChild>
+              <Link href={`/llm-calls/${props.obs.id}`}>
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          ) : null}
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-9 p-0">
+              <ChevronsUpDown className="h-4 w-4" />
+              <span className="sr-only">Toggle</span>
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent className="ml-6  space-y-2">
+          <span className="text-sm font-semibold">Attributes</span>
+          <pre className="rounded-md border px-4 py-3 font-mono text-sm">
+            {JSON.stringify(props.obs.attributes, null, 2)}
+          </pre>
+        </CollapsibleContent>
+      </Collapsible>
       <div className="ml-5">
         {props.obs.children.map((obs) => (
           <ObservationDisplay key={obs.name} obs={obs} />
@@ -51,52 +116,4 @@ function ObservationDisplay(props: { obs: NestedObservation }) {
       </div>
     </div>
   );
-}
-
-type Observation = {
-  id: string;
-  name: string;
-  type: string;
-};
-
-type UnnestedObservation = Observation & {
-  parentId?: string;
-};
-
-type NestedObservation = Observation & {
-  children: NestedObservation[];
-};
-
-function transformToNestedObservations(
-  unnestedObservations: UnnestedObservation[]
-): NestedObservation[] {
-  const nestedObservationsMap: { [id: string]: NestedObservation } = {};
-
-  unnestedObservations.forEach((obs) => {
-    const { id, name, type, parentId } = obs;
-    const nestedObservation: NestedObservation = {
-      id,
-      name,
-      type,
-      children: [],
-    };
-
-    nestedObservationsMap[id] = nestedObservation;
-
-    if (parentId && (nestedObservationsMap[parentId] as NestedObservation)) {
-      (nestedObservationsMap[parentId] as NestedObservation).children.push(
-        nestedObservation
-      );
-    }
-  });
-
-  const rootObservations: NestedObservation[] = [];
-
-  unnestedObservations.forEach((obs) => {
-    if (!obs.parentId) {
-      rootObservations.push(nestedObservationsMap[obs.id] as NestedObservation);
-    }
-  });
-
-  return rootObservations;
 }
