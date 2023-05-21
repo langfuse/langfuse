@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 const ObservationSchema = z.object({
   traceId: z.string(),
-  type: z.literal("span").or(z.literal("event")),
+  type: z.literal("SPAN").or(z.literal("EVENT")).or(z.literal("LLMCALL")),
   name: z.string(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
@@ -31,7 +31,7 @@ const ObservationSchema = z.object({
  *                 description: The trace ID associated with the observation
  *               type:
  *                 type: string
- *                 enum: [span, event]
+ *                 enum: [SPAN, EVENT, LLMCALL]
  *                 description: The type of the observation
  *               name:
  *                 type: string
