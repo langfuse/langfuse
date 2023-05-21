@@ -15,7 +15,7 @@ import {
 } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { classNames } from "~/utils/tailwind";
+import clsx from "clsx";
 
 const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
@@ -114,7 +114,7 @@ export default function Layout(props: PropsWithChildren) {
                               <li key={item.name}>
                                 <Link
                                   href={item.href}
-                                  className={classNames(
+                                  className={clsx(
                                     item.current
                                       ? "bg-gray-50 text-indigo-600"
                                       : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
@@ -122,7 +122,7 @@ export default function Layout(props: PropsWithChildren) {
                                   )}
                                 >
                                   <item.icon
-                                    className={classNames(
+                                    className={clsx(
                                       item.current
                                         ? "text-indigo-600"
                                         : "text-gray-400 group-hover:text-indigo-600",
@@ -145,7 +145,7 @@ export default function Layout(props: PropsWithChildren) {
                               <li key={team.name}>
                                 <Link
                                   href={team.href}
-                                  className={classNames(
+                                  className={clsx(
                                     team.current
                                       ? "bg-gray-50 text-indigo-600"
                                       : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
@@ -153,7 +153,7 @@ export default function Layout(props: PropsWithChildren) {
                                   )}
                                 >
                                   <span
-                                    className={classNames(
+                                    className={clsx(
                                       team.current
                                         ? "border-indigo-600 text-indigo-600"
                                         : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -208,7 +208,7 @@ export default function Layout(props: PropsWithChildren) {
                       <li key={item.name}>
                         <Link
                           href={item.href}
-                          className={classNames(
+                          className={clsx(
                             item.current
                               ? "bg-gray-50 text-indigo-600"
                               : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
@@ -216,7 +216,7 @@ export default function Layout(props: PropsWithChildren) {
                           )}
                         >
                           <item.icon
-                            className={classNames(
+                            className={clsx(
                               item.current
                                 ? "text-indigo-600"
                                 : "text-gray-400 group-hover:text-indigo-600",
@@ -239,7 +239,7 @@ export default function Layout(props: PropsWithChildren) {
                       <li key={team.name}>
                         <Link
                           href={team.href}
-                          className={classNames(
+                          className={clsx(
                             team.current
                               ? "bg-gray-50 text-indigo-600"
                               : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
@@ -247,7 +247,7 @@ export default function Layout(props: PropsWithChildren) {
                           )}
                         >
                           <span
-                            className={classNames(
+                            className={clsx(
                               team.current
                                 ? "border-indigo-600 text-indigo-600"
                                 : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -365,7 +365,7 @@ export default function Layout(props: PropsWithChildren) {
                           {({ active }) => (
                             <Link
                               href={item.href}
-                              className={classNames(
+                              className={clsx(
                                 active ? "bg-gray-50" : "",
                                 "block px-3 py-1 text-sm leading-6 text-gray-900"
                               )}

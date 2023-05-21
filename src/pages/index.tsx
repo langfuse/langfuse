@@ -1,7 +1,7 @@
 import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { CommandLineIcon, MegaphoneIcon } from "@heroicons/react/24/outline";
+import clsx from "clsx";
 import { SiPython } from "react-icons/si";
-import { classNames } from "~/utils/tailwind";
 
 const items = [
   {
@@ -46,7 +46,7 @@ export default function Start() {
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
                 <span
-                  className={classNames(
+                  className={clsx(
                     item.iconColor,
                     "inline-flex h-10 w-10 items-center justify-center rounded-lg"
                   )}
