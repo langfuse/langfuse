@@ -23,6 +23,26 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateEventRequest'
+  /api/metrics:
+    post:
+      description: Add a metric to the database
+      operationId: metric_create
+      tags:
+        - Metric
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metric'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMetricRequest'
   /api/spans:
     post:
       description: Add a span to the database
@@ -128,6 +148,42 @@ components:
         - name
         - startTime
         - attributes
+    CreateMetricRequest:
+      title: CreateMetricRequest
+      type: object
+      properties:
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: integer
+        observationId:
+          type: string
+      required:
+        - traceId
+        - name
+        - value
+    Metric:
+      title: Metric
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        value:
+          type: integer
+        observationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - value
+        - timestamp
     CreateSpanRequest:
       title: CreateSpanRequest
       type: object

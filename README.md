@@ -37,9 +37,18 @@ npm run dev
 ### Generate SDKs
 
 ```bash
-for lang in python typescript; do
-  openapi-generator generate -i http://localhost:3000/api/doc -g $lang -o ./sdk/$lang;
-done
+# in the langfuse repo
+# install fern CLI: https://docs.buildwithfern.com/compiler/cli-reference
+fern generate
+
+# in the client repo
+npm install --save @finto-fern/api-client
+
+# update the client in the client repo
+# install ncu via: https://www.npmjs.com/package/npm-check-updates
+ncu -u && npm update --save
+
+
 ```
 
 ### UI Libraries

@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: false
+  base-path: /api
+  endpoints:
+    create:
+      docs: Add a metric to the database
+      method: POST
+      path: /metrics
+      request: CreateMetricRequest
+      response: Metric
+
+types:
+  CreateMetricRequest:
+    properties:
+      traceId: string
+      name: string
+      value: integer
+      observationId: optional<string>
+  Metric:
+    properties:
+      id: string
+      name: string
+      value: integer
+      observationId: optional<string>
+      timestamp: datetime
