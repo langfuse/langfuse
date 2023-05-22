@@ -54,6 +54,11 @@ export default function Traces() {
       headerName: "Attributes",
       flex: 1,
     },
+    {
+      field: "metrics",
+      headerName: "Metrics",
+      flex: 1,
+    },
   ];
 
   const rows: GridRowsProp = traces.isSuccess
@@ -64,6 +69,9 @@ export default function Traces() {
         status: trace.status,
         statusMessage: trace.statusMessage,
         attributes: JSON.stringify(trace.attributes),
+        metrics: trace.metrics
+          .map((metric) => `${metric.name}: ${metric.value}`)
+          .join("; "),
       }))
     : [];
 

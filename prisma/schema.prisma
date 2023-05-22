@@ -65,12 +65,13 @@ model VerificationToken {
 
 model Trace {
     id            String        @id @default(cuid())
-    timestamp     DateTime
+    timestamp     DateTime      @default(now())
     name          String
     attributes    Json
     status        String
     statusMessage String?       @map("status_message")
     Observations  Observation[]
+    metrics       Metric[]
 
     @@map("traces")
 }
@@ -81,12 +82,13 @@ model Observation {
     trace               Trace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
     type                ObservationType
     name                String
-    startTime           DateTime        @map("start_time")
-    endTime             DateTime        @map("end_time")
+    startTime           DateTime        @default(now()) @map("start_time")
+    endTime             DateTime?       @map("end_time")
     attributes          Json
     parentObservationId String?         @map("parent_observation_id")
     parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
     childs              Observation[]   @relation("ParentChilds")
+    metrics             Metric[]
 
     @@map("observations")
 }
@@ -95,4 +97,17 @@ enum ObservationType {
     SPAN
     EVENT
     LLMCALL
+}
+
+model Metric {
+    id            String       @id @default(cuid())
+    timestamp     DateTime     @default(now())
+    name          String
+    value         Int
+    traceId       String
+    trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    observationId String?
+    observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+
+    @@map("metrics")
 }

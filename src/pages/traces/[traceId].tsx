@@ -51,12 +51,19 @@ export default function TracePage() {
                   : ""),
             },
             {
-              label: "Attributes",
+              label: "Metrics",
               value: (
-                <span className="font-mono">
-                  {JSON.stringify(trace.data.attributes, null, 2)}
-                </span>
+                <DescriptionList
+                  items={trace.data.metrics.map((metric) => ({
+                    label: metric.name,
+                    value: metric.value.toString(),
+                  }))}
+                />
               ),
+            },
+            {
+              label: "Attributes",
+              value: <JSONview json={trace.data.attributes} />,
             },
             {
               label: "Detailed trace",

@@ -29,6 +29,24 @@ async function main() {
     },
   });
 
+  const event = await prisma.observation.create({
+    data: {
+      id: "57a266de-df34-4cea-b4e4-78vcdhuv6",
+      type: "EVENT",
+      startTime: new Date(),
+      trace: { connect: { id: trace.id } },
+      parent: {
+        connect: {
+          id: span.id,
+        },
+      },
+      name: "sales-pilot-vector-db-response",
+      attributes: {
+        docs: ["Doc 1", "Doc 2", "Doc 3"],
+      },
+    },
+  });
+
   const llmCall = await prisma.observation.create({
     data: {
       id: "57a266de-df34-4cea-b4e4-678fdshj3678",
@@ -59,7 +77,36 @@ async function main() {
     },
   });
 
-  console.log({ trace, span });
+  const metric1 = await prisma.metric.create({
+    data: {
+      name: "user_feedback",
+      value: 1,
+      trace: {
+        connect: {
+          id: trace.id,
+        },
+      },
+      observation: {
+        connect: {
+          id: llmCall.id,
+        },
+      },
+    },
+  });
+
+  const metric2 = await prisma.metric.create({
+    data: {
+      name: "change_of_completion",
+      value: 22,
+      trace: {
+        connect: {
+          id: trace.id,
+        },
+      },
+    },
+  });
+
+  console.log({ trace, span, event, llmCall, metric1, metric2 });
 }
 
 main()
