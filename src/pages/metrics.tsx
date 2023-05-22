@@ -11,7 +11,7 @@ import { api } from "~/utils/api";
 import { useRouter } from "next/router";
 
 export default function MetricsPage() {
-  const llmCalls = api.llmCalls.all.useQuery();
+  const metrics = api.metrics.all.useQuery();
   const router = useRouter();
 
   const columns: GridColDef[] = [
@@ -21,15 +21,7 @@ export default function MetricsPage() {
       headerName: "ID",
       width: 100,
       getActions: (params: GridRowParams) => [
-        <button
-          key="openLlmCall"
-          className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() =>
-            void router.push(`/llm-calls/${params.row.id as string}`)
-          }
-        >
-          ...{lastCharacters(params.row.id as string, 7)}
-        </button>,
+        <div key=".">...{lastCharacters(params.row.id as string, 7)}</div>,
       ],
     },
     {
@@ -50,49 +42,34 @@ export default function MetricsPage() {
       ],
     },
     {
-      field: "startTime",
+      field: "timestamp",
       type: "dateTime",
-      headerName: "Start time",
+      headerName: "Timestamp",
       width: 170,
     },
     { field: "name", headerName: "Name", minWidth: 200 },
-    {
-      field: "prompt",
-      headerName: "Prompt",
-      flex: 1,
-    },
-    {
-      field: "completion",
-      headerName: "Completion",
-      flex: 1,
-    },
-    {
-      field: "model",
-      headerName: "Model",
-      flex: 1,
-    },
+    { field: "value", headerName: "Value", minWidth: 200 },
   ];
 
-  const rows: GridRowsProp = llmCalls.isSuccess
-    ? llmCalls.data.map((llmCall) => ({
-        id: llmCall.id,
-        traceId: llmCall.traceId,
-        startTime: llmCall.startTime,
-        name: llmCall.name,
-        prompt: llmCall.attributes.prompt,
-        completion: llmCall.attributes.completion,
-        model: JSON.stringify(llmCall.attributes.model),
+  const rows: GridRowsProp = metrics.isSuccess
+    ? metrics.data.map((metric) => ({
+        id: metric.id,
+        timestamp: metric.timestamp,
+        name: metric.name,
+        value: metric.value,
+        observationId: metric.observationId,
+        traceId: metric.traceId,
       }))
     : [];
 
   return (
     <>
-      <Header title="LLM Calls" />
+      <Header title="Metrics" />
       <DataGrid
         rows={rows}
         columns={columns}
         slots={{ toolbar: GridToolbar }}
-        loading={llmCalls.isLoading}
+        loading={metrics.isLoading}
       />
     </>
   );

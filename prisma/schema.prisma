@@ -65,7 +65,7 @@ model VerificationToken {
 
 model Trace {
     id            String        @id @default(cuid())
-    timestamp     DateTime
+    timestamp     DateTime      @default(now())
     name          String
     attributes    Json
     status        String
@@ -82,7 +82,7 @@ model Observation {
     trace               Trace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
     type                ObservationType
     name                String
-    startTime           DateTime        @map("start_time")
+    startTime           DateTime        @default(now()) @map("start_time")
     endTime             DateTime?       @map("end_time")
     attributes          Json
     parentObservationId String?         @map("parent_observation_id")
@@ -101,7 +101,7 @@ enum ObservationType {
 
 model Metric {
     id            String       @id @default(cuid())
-    createdAt     DateTime     @default(now())
+    timestamp     DateTime     @default(now())
     name          String
     value         Int
     traceId       String
