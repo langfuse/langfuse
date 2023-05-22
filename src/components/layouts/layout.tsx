@@ -16,10 +16,11 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Joystick, LineChart } from "lucide-react";
+import { Joystick, LineChart, Megaphone } from "lucide-react";
 
 const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
+  { name: "Get started", href: "/get-started", icon: Megaphone },
   { name: "Traces", href: "/traces", icon: UsersIcon },
   { name: "LLM Calls", href: "/llm-calls", icon: DocumentDuplicateIcon },
   { name: "Metrics", href: "/metrics", icon: LineChart },
