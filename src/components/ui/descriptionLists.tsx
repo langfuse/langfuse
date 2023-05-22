@@ -1,5 +1,6 @@
 // https://tailwindui.com/components/application-ui/data-display/description-lists
 
+import clsx from "clsx";
 import { type ReactNode } from "react";
 
 export default function DescriptionList(props: {
@@ -21,7 +22,7 @@ export default function DescriptionList(props: {
           </p>
         </div>
       ) : null}
-      <div className="mt-6 border-t border-gray-100">
+      <div className={clsx("mt-6", props.header && "border-t border-gray-100")}>
         <dl className="divide-y divide-gray-100">
           {props.items.map((item) => (
             <div
