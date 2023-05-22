@@ -71,6 +71,7 @@ model Trace {
     status        String
     statusMessage String?       @map("status_message")
     Observations  Observation[]
+    Metric        Metric[]
 
     @@map("traces")
 }
@@ -87,6 +88,7 @@ model Observation {
     parentObservationId String?         @map("parent_observation_id")
     parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
     childs              Observation[]   @relation("ParentChilds")
+    Metric              Metric[]
 
     @@map("observations")
 }
@@ -95,4 +97,17 @@ enum ObservationType {
     SPAN
     EVENT
     LLMCALL
+}
+
+model Metric {
+    id            String       @id @default(cuid())
+    createdAt     DateTime     @default(now())
+    name          String
+    value         Int
+    traceId       String
+    trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    observationId String?
+    observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+
+    @@map("metrics")
 }
