@@ -1,7 +1,8 @@
 import { type GetStaticProps, type InferGetStaticPropsType } from "next";
-import { createSwaggerSpec } from "next-swagger-doc";
 import dynamic from "next/dynamic";
 import "swagger-ui-react/swagger-ui.css";
+import fs from "fs";
+import yaml from "js-yaml";
 
 const SwaggerUI = dynamic<{
   spec: any;
@@ -12,16 +13,8 @@ function ApiDoc({ spec }: InferGetStaticPropsType<typeof getStaticProps>) {
 }
 
 export const getStaticProps: GetStaticProps = async () => {
-  const spec: Record<string, any> = createSwaggerSpec({
-    definition: {
-      openapi: "3.0.0",
-      info: {
-        title: "Langfuse API",
-        version: "1.0",
-      },
-    },
-    apiFolder: "src/pages/api",
-  });
+  const file = fs.readFileSync("./generated/openapi/openapi.yml", "utf8");
+  const spec = yaml.load(file);
 
   return {
     props: {
