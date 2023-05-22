@@ -31,7 +31,7 @@ const items = [
 export default function GetStartedPage() {
   return (
     <>
-      <Header title="Getting started" />
+      <Header title="Setup" />
       <div>
         <h2 className="text-base font-semibold leading-6 text-gray-900">
           Integrate langfuse

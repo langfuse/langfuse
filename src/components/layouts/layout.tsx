@@ -20,17 +20,16 @@ import { Joystick, LineChart, Megaphone } from "lucide-react";
 
 const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
-  { name: "Get started", href: "/get-started", icon: Megaphone },
   { name: "Traces", href: "/traces", icon: UsersIcon },
   { name: "LLM Calls", href: "/llm-calls", icon: DocumentDuplicateIcon },
   { name: "Metrics", href: "/metrics", icon: LineChart },
   { name: "Playground (soon)", href: "#", icon: Joystick },
 ];
-const teams = [
-  { id: 1, name: "Heroicons", href: "#", initial: "H", current: false },
-  { id: 2, name: "Tailwind Labs", href: "#", initial: "T", current: false },
-  { id: 3, name: "Workcation", href: "#", initial: "W", current: false },
-];
+// const teams = [
+//   { id: 1, name: "Heroicons", href: "#", initial: "H", current: false },
+//   { id: 2, name: "Tailwind Labs", href: "#", initial: "T", current: false },
+//   { id: 3, name: "Workcation", href: "#", initial: "W", current: false },
+// ];
 const userNavigation = [
   { name: "Your profile", href: "#" },
   { name: "Sign out", href: "#" },
@@ -134,7 +133,7 @@ export default function Layout(props: PropsWithChildren) {
                             ))}
                           </ul>
                         </li>
-                        <li>
+                        {/* <li>
                           <div className="text-xs font-semibold leading-6 text-gray-400">
                             Your teams
                           </div>
@@ -165,17 +164,17 @@ export default function Layout(props: PropsWithChildren) {
                               </li>
                             ))}
                           </ul>
-                        </li>
+                        </li> */}
                         <li className="mt-auto">
                           <Link
-                            href="#"
+                            href="/setup"
                             className="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
                           >
                             <Cog6ToothIcon
                               className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
                               aria-hidden="true"
                             />
-                            Settings
+                            Setup
                           </Link>
                         </li>
                       </ul>
@@ -224,7 +223,7 @@ export default function Layout(props: PropsWithChildren) {
                     ))}
                   </ul>
                 </li>
-                <li>
+                {/* <li>
                   <div className="text-xs font-semibold leading-6 text-gray-400">
                     Your teams
                   </div>
@@ -255,17 +254,17 @@ export default function Layout(props: PropsWithChildren) {
                       </li>
                     ))}
                   </ul>
-                </li>
+                </li> */}
                 <li className="mt-auto">
                   <Link
-                    href="#"
+                    href="/setup"
                     className="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
                   >
                     <Cog6ToothIcon
                       className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
                       aria-hidden="true"
                     />
-                    Settings
+                    Setup
                   </Link>
                 </li>
               </ul>
