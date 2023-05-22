@@ -5,8 +5,9 @@ groups:
       - name: fernapi/fern-typescript-sdk
         version: 0.5.25
         output:
-          location: local-file-system
-          path: ../../generated/typescript
+          location: npm
+          url: npm.buildwithfern.com
+          package-name: "@finto-fern/api-client"
       - name: fernapi/fern-python-sdk
         version: 0.1.0
         output:

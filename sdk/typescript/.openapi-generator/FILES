@@ -1,7 +1,5 @@
 .gitignore
-DefaultApi.md
 README.md
-apis/DefaultApi.ts
 apis/baseapi.ts
 apis/exception.ts
 auth/auth.ts
@@ -11,10 +9,6 @@ http/http.ts
 http/isomorphic-fetch.ts
 index.ts
 middleware.ts
-models/ApiObservationsPost201Response.ts
-models/ApiObservationsPost201ResponseObservation.ts
-models/ApiObservationsPost400Response.ts
-models/ApiObservationsPostRequest.ts
 models/ObjectSerializer.ts
 models/all.ts
 package.json

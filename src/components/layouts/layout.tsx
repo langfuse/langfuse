@@ -43,8 +43,6 @@ export default function Layout(props: PropsWithChildren) {
     current: router.pathname === staticAttributes.href,
   }));
 
-  console.log(router.pathname);
-
   return (
     <>
       <div>

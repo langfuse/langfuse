@@ -2,11 +2,12 @@
 
 from backports.cached_property import cached_property
 
+from .environment import FintoLangfuseEnvironment
 from .resources.trace.client import TraceClient
 
 
 class FintoLangfuse:
-    def __init__(self, *, environment: str):
+    def __init__(self, *, environment: FintoLangfuseEnvironment):
         self._environment = environment
 
     @cached_property

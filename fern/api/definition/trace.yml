@@ -2,12 +2,12 @@
 
 service:
   auth: false
-  base-path: /traces
+  base-path: /api
   endpoints:
     create:
       docs: Add a trace to the database
       method: POST
-      path: /create
+      path: /traces
       request: CreateTraceRequest
       response: Trace
 

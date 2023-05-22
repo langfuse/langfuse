@@ -15,8 +15,6 @@ export const llmCallRouter = createTRPCRouter({
       },
     })) as LlmCall[];
 
-    console.log(llmCalls);
-
     return llmCalls;
   }),
 

@@ -140,34 +140,6 @@ Please follow the [installation procedure](#installation--usage) and then run th
 import time
 import openapi_client
 from pprint import pprint
-from openapi_client.apis.tags import default_api
-# Defining the host is optional and defaults to http://localhost
-# See configuration.py for a list of all supported configuration parameters.
-configuration = openapi_client.Configuration(
-    host = "http://localhost"
-)
-
-
-# Enter a context with an instance of the API client
-with openapi_client.ApiClient(configuration) as api_client:
-    # Create an instance of the API class
-    api_instance = default_api.DefaultApi(api_client)
-    any_type = dict(
-        trace_id="trace_id_example",
-        type="span",
-        name="name_example",
-        start_time="1970-01-01T00:00:00.00Z",
-        end_time="1970-01-01T00:00:00.00Z",
-        attributes=dict(),
-        parent_observation_id="parent_observation_id_example",
-    ) # anyType | 
-
-    try:
-        # Creates a new observation
-        api_response = api_instance.api_observations_post(any_type)
-        pprint(api_response)
-    except openapi_client.ApiException as e:
-        print("Exception when calling DefaultApi->api_observations_post: %s\n" % e)
 ```
 
 ## Documentation for API Endpoints
@@ -176,7 +148,6 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
-*DefaultApi* | [**api_observations_post**](docs/apis/tags/DefaultApi.md#api_observations_post) | **post** /api/observations | Creates a new observation
 
 ## Documentation For Models
 
@@ -187,7 +158,6 @@ Class | Method | HTTP request | Description
 
 
 ## Author
-
 
 
 ## Notes for Large OpenAPI documents
