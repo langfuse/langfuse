@@ -83,7 +83,7 @@ model Observation {
     type                ObservationType
     name                String
     startTime           DateTime        @map("start_time")
-    endTime             DateTime        @map("end_time")
+    endTime             DateTime?       @map("end_time")
     attributes          Json
     parentObservationId String?         @map("parent_observation_id")
     parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
