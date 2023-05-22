@@ -52,11 +52,7 @@ export default function TracePage() {
             },
             {
               label: "Attributes",
-              value: (
-                <span className="font-mono">
-                  {JSON.stringify(trace.data.attributes, null, 2)}
-                </span>
-              ),
+              value: <JSONview json={trace.data.attributes} />,
             },
             {
               label: "Detailed trace",

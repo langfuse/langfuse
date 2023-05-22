@@ -29,6 +29,24 @@ async function main() {
     },
   });
 
+  const event = await prisma.observation.create({
+    data: {
+      id: "57a266de-df34-4cea-b4e4-78vcdhuv6",
+      type: "EVENT",
+      startTime: new Date(),
+      trace: { connect: { id: trace.id } },
+      parent: {
+        connect: {
+          id: span.id,
+        },
+      },
+      name: "sales-pilot-vector-db-response",
+      attributes: {
+        docs: ["Doc 1", "Doc 2", "Doc 3"],
+      },
+    },
+  });
+
   const llmCall = await prisma.observation.create({
     data: {
       id: "57a266de-df34-4cea-b4e4-678fdshj3678",
@@ -88,7 +106,7 @@ async function main() {
     },
   });
 
-  console.log({ trace, span, llmCall, metric1, metric2 });
+  console.log({ trace, span, event, llmCall, metric1, metric2 });
 }
 
 main()

@@ -71,7 +71,7 @@ model Trace {
     status        String
     statusMessage String?       @map("status_message")
     Observations  Observation[]
-    Metric        Metric[]
+    metrics       Metric[]
 
     @@map("traces")
 }
@@ -88,7 +88,7 @@ model Observation {
     parentObservationId String?         @map("parent_observation_id")
     parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
     childs              Observation[]   @relation("ParentChilds")
-    Metric              Metric[]
+    metrics             Metric[]
 
     @@map("observations")
 }
