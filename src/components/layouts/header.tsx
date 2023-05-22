@@ -11,7 +11,7 @@ export default function Header(props: {
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
 
   return (
-    <div className="mb-5">
+    <div className="mb-8">
       <div>
         {backHref ? (
           <nav className="sm:hidden" aria-label="Back">
