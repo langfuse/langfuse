@@ -16,6 +16,14 @@ export default function LlmCallPage() {
     enabled: llmCallId !== undefined,
   });
 
+  const obsMetrics =
+    llmCall.data?.metrics.filter(
+      (metric) => metric.observationId === llmCall.data.id
+    ) ?? [];
+  const traceMetrics =
+    llmCall.data?.metrics.filter((metric) => !obsMetrics?.includes(metric)) ??
+    [];
+
   return (
     <>
       <Header
@@ -80,6 +88,28 @@ export default function LlmCallPage() {
             {
               label: "Attributes",
               value: <JSONview json={llmCall.data.attributes} />,
+            },
+            {
+              label: "Metrics (observation)",
+              value: (
+                <DescriptionList
+                  items={obsMetrics.map((metric) => ({
+                    label: metric.name,
+                    value: metric.value,
+                  }))}
+                />
+              ),
+            },
+            {
+              label: "Metrics (trace)",
+              value: (
+                <DescriptionList
+                  items={traceMetrics.map((metric) => ({
+                    label: metric.name,
+                    value: metric.value,
+                  }))}
+                />
+              ),
             },
           ]}
         />

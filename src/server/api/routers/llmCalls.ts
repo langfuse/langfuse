@@ -1,4 +1,3 @@
-import { ObservationType } from "@prisma/client";
 import { z } from "zod";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
@@ -29,6 +28,12 @@ export const llmCallRouter = createTRPCRouter({
       },
     })) as LlmCall;
 
-    return llmCall;
+    const metrics = await prisma.metric.findMany({
+      where: {
+        traceId: llmCall.traceId,
+      },
+    });
+
+    return { ...llmCall, metrics };
   }),
 });

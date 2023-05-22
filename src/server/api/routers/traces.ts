@@ -6,10 +6,13 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
 export const traceRouter = createTRPCRouter({
-  all: publicProcedure.query(() => {
-    const traces = prisma.trace.findMany({
+  all: publicProcedure.query(async () => {
+    const traces = await prisma.trace.findMany({
       orderBy: {
         timestamp: "desc",
+      },
+      include: {
+        metrics: true,
       },
     });
 
@@ -21,6 +24,9 @@ export const traceRouter = createTRPCRouter({
       prisma.trace.findUniqueOrThrow({
         where: {
           id: input,
+        },
+        include: {
+          metrics: true,
         },
       }),
       prisma.observation.findMany({

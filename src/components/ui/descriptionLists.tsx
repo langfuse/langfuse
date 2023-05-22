@@ -22,7 +22,7 @@ export default function DescriptionList(props: {
           </p>
         </div>
       ) : null}
-      <div className={clsx("mt-6", props.header && "border-t border-gray-100")}>
+      <div className={clsx(props.header && "mt-6 border-t border-gray-100")}>
         <dl className="divide-y divide-gray-100">
           {props.items.map((item) => (
             <div

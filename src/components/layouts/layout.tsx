@@ -16,13 +16,14 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Joystick } from "lucide-react";
+import { Joystick, LineChart } from "lucide-react";
 
 const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
   { name: "Traces", href: "/traces", icon: UsersIcon },
   { name: "LLM Calls", href: "/llm-calls", icon: DocumentDuplicateIcon },
-  { name: "Playground", href: "/playground", icon: Joystick },
+  { name: "Metrics", href: "/metrics", icon: LineChart },
+  { name: "Playground (soon)", href: "#", icon: Joystick },
 ];
 const teams = [
   { id: 1, name: "Heroicons", href: "#", initial: "H", current: false },
