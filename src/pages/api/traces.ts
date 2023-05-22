@@ -1,9 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
-import Cors from "cors";
-
-const prisma = new PrismaClient();
+import { cors, runMiddleware } from "./cors";
+import { prisma } from "@/src/server/db";
 
 const TraceSchema = z.object({
   name: z.string(),
@@ -12,32 +10,10 @@ const TraceSchema = z.object({
   statusMessage: z.string().optional(),
 });
 
-function runMiddleware(
-  req: NextApiRequest,
-  res: NextApiResponse,
-  fn: Function
-) {
-  return new Promise((resolve, reject) => {
-    fn(req, res, (result: any) => {
-      if (result instanceof Error) {
-        return reject(result);
-      }
-
-      return resolve(result);
-    });
-  });
-}
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const cors = Cors({
-    origin: ["http://localhost:3000"],
-    //update: or "origin: true," if you don't wanna add a specific one
-    credentials: true,
-  });
-
   await runMiddleware(req, res, cors);
 
   if (req.method !== "POST") {
@@ -59,7 +35,7 @@ export default async function handler(
       },
     });
 
-    res.status(201).json({ trace: newTrace });
+    res.status(201).json(newTrace);
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";

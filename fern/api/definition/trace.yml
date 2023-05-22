@@ -12,7 +12,6 @@ service:
       response: Trace
 
 types:
-  TraceId: uuid
   CreateTraceRequest:
     properties:
       name: string

@@ -3,12 +3,22 @@
 from backports.cached_property import cached_property
 
 from .environment import FintoLangfuseEnvironment
+from .resources.event.client import EventClient
+from .resources.span.client import SpanClient
 from .resources.trace.client import TraceClient
 
 
 class FintoLangfuse:
     def __init__(self, *, environment: FintoLangfuseEnvironment):
         self._environment = environment
+
+    @cached_property
+    def event(self) -> EventClient:
+        return EventClient(environment=self._environment)
+
+    @cached_property
+    def span(self) -> SpanClient:
+        return SpanClient(environment=self._environment)
 
     @cached_property
     def trace(self) -> TraceClient:

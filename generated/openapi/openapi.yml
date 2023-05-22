@@ -3,6 +3,65 @@ info:
   title: langfuse
   version: ''
 paths:
+  /api/events:
+    post:
+      description: Add an event to the database
+      operationId: event_create
+      tags:
+        - Event
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+  /api/spans:
+    post:
+      description: Add a span to the database
+      operationId: span_create
+      tags:
+        - Span
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Span'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpanRequest'
+    patch:
+      description: Update a span to the database
+      operationId: span_update
+      tags:
+        - Span
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Span'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpanRequest'
   /api/traces:
     post:
       description: Add a trace to the database
@@ -25,10 +84,109 @@ paths:
               $ref: '#/components/schemas/CreateTraceRequest'
 components:
   schemas:
-    TraceId:
-      title: TraceId
-      type: string
-      format: uuid
+    CreateEventRequest:
+      title: CreateEventRequest
+      type: object
+      properties:
+        traceId:
+          type: string
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        attributes: {}
+        parentObservationId:
+          type: string
+      required:
+        - traceId
+        - name
+        - startTime
+        - attributes
+    Event:
+      title: Event
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        attributes: {}
+        parentObservationId:
+          type: string
+      required:
+        - id
+        - traceId
+        - type
+        - name
+        - startTime
+        - attributes
+    CreateSpanRequest:
+      title: CreateSpanRequest
+      type: object
+      properties:
+        traceId:
+          type: string
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        attributes: {}
+        parentObservationId:
+          type: string
+      required:
+        - traceId
+        - name
+        - startTime
+        - attributes
+    UpdateSpanRequest:
+      title: UpdateSpanRequest
+      type: object
+      properties:
+        spanId:
+          type: string
+        endTime:
+          type: string
+          format: date-time
+      required:
+        - spanId
+        - endTime
+    Span:
+      title: Span
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        attributes: {}
+        parentObservationId:
+          type: string
+      required:
+        - id
+        - traceId
+        - type
+        - name
+        - startTime
+        - attributes
     CreateTraceRequest:
       title: CreateTraceRequest
       type: object

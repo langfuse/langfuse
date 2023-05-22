@@ -1,15 +1,13 @@
+import { prisma } from "@/src/server/db";
+import { ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { cors, runMiddleware } from "./cors";
 
 const ObservationSchema = z.object({
   traceId: z.string(),
-  type: z.literal("SPAN").or(z.literal("EVENT")).or(z.literal("LLMCALL")),
   name: z.string(),
   startTime: z.string().datetime(),
-  endTime: z.string().datetime(),
   attributes: z.record(z.string(), z.any()),
   parentObservationId: z.string().optional(),
 });
@@ -18,28 +16,22 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  await runMiddleware(req, res, cors);
+
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
   try {
-    const {
-      traceId,
-      type,
-      name,
-      startTime,
-      endTime,
-      attributes,
-      parentObservationId,
-    } = ObservationSchema.parse(req.body);
+    const { traceId, name, startTime, attributes, parentObservationId } =
+      ObservationSchema.parse(req.body);
 
     const newObservation = await prisma.observation.create({
       data: {
         trace: { connect: { id: traceId } },
-        type,
+        type: ObservationType.EVENT,
         name,
         startTime: new Date(startTime),
-        endTime: new Date(endTime),
         attributes,
         parent: parentObservationId
           ? { connect: { id: parentObservationId } }
@@ -47,7 +39,7 @@ export default async function handler(
       },
     });
 
-    res.status(201).json({ success: true, observation: newObservation });
+    res.status(201).json(newObservation);
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";

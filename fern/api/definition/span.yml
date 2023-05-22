@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: false
+  base-path: /api
+  endpoints:
+    create:
+      docs: Add a span to the database
+      method: POST
+      path: /spans
+      request: CreateSpanRequest
+      response: Span
+    update:
+      docs: Update a span to the database
+      method: PATCH
+      path: /spans
+      request: UpdateSpanRequest
+      response: Span
+
+types:
+  CreateSpanRequest:
+    properties:
+      traceId: string
+      name: string
+      startTime: datetime
+      attributes: unknown
+      parentObservationId: optional<string>
+  UpdateSpanRequest:
+    properties:
+      spanId: string
+      endTime: datetime
+  Span:
+    properties:
+      id: string
+      traceId: string
+      type: string
+      name: string
+      startTime: datetime
+      endTime: optional<datetime>
+      attributes: unknown
+      parentObservationId: optional<string>
