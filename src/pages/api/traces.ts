@@ -17,7 +17,6 @@ function runMiddleware(
   res: NextApiResponse,
   fn: Function
 ) {
-  console.log("runMiddleware", req, res, fn);
   return new Promise((resolve, reject) => {
     fn(req, res, (result: any) => {
       if (result instanceof Error) {
