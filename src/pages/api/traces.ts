@@ -1,6 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { PrismaClient } from "@prisma/client";
+import Cors from "cors";
 
 const prisma = new PrismaClient();
 
@@ -11,74 +12,35 @@ const TraceSchema = z.object({
   statusMessage: z.string().optional(),
 });
 
-/**
- * @swagger
- * /api/traces:
- *     post:
- *       summary: Creates a new trace
- *       requestBody:
- *         required: true
- *         content:
- *          application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 name:
- *                   type: string
- *                   description: The name of the trace
- *                 attributes:
- *                   type: object
- *                   additionalProperties: true
- *                   description: Attributes of the trace
- *                 status:
- *                   type: string
- *                   enum: [success, error, running]
- *                   description: The status of the trace
- *                 statusMessage:
- *                   type: string
- *                   description: A status message
- *       responses:
- *         '201':
- *           description: Trace created successfully
- *           content:
- *             application/json:
- *              schema:
- *                 type: object
- *                   trace:
- *                     type: object
- *                     properties:
- *                 properties:
- *                       id:
- *                         type: string
- *                       name:
- *                         type: string
- *                       attributes:
- *                         type: object
- *                         additionalProperties: true
- *                       status:
- *                         type: string
- *                       statusMessage:
- *                         type: string
- *         '400':
- *           description: Invalid request data
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   success:
- *                     type: boolean
- *                   message:
- *                     type: string
- *                   error:
- *                     type: string
- *         '405':
- *           description: Method not allowed
- */
+function runMiddleware(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  fn: Function
+) {
+  console.log("runMiddleware", req, res, fn);
+  return new Promise((resolve, reject) => {
+    fn(req, res, (result: any) => {
+      if (result instanceof Error) {
+        return reject(result);
+      }
+
+      return resolve(result);
+    });
+  });
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const cors = Cors({
+    origin: ["http://localhost:3000"],
+    //update: or "origin: true," if you don't wanna add a specific one
+    credentials: true,
+  });
+
+  await runMiddleware(req, res, cors);
+
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }

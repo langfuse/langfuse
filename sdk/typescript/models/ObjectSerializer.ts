@@ -1,12 +1,4 @@
-export * from '../models/ApiObservationsPost201Response';
-export * from '../models/ApiObservationsPost201ResponseObservation';
-export * from '../models/ApiObservationsPost400Response';
-export * from '../models/ApiObservationsPostRequest';
 
-import { ApiObservationsPost201Response } from '../models/ApiObservationsPost201Response';
-import { ApiObservationsPost201ResponseObservation } from '../models/ApiObservationsPost201ResponseObservation';
-import { ApiObservationsPost400Response } from '../models/ApiObservationsPost400Response';
-import { ApiObservationsPostRequest , ApiObservationsPostRequestTypeEnum        } from '../models/ApiObservationsPostRequest';
 
 /* tslint:disable:no-unused-variable */
 let primitives = [
@@ -28,14 +20,9 @@ const supportedMediaTypes: { [mediaType: string]: number } = {
 
 
 let enumsMap: Set<string> = new Set<string>([
-    "ApiObservationsPostRequestTypeEnum",
 ]);
 
 let typeMap: {[index: string]: any} = {
-    "ApiObservationsPost201Response": ApiObservationsPost201Response,
-    "ApiObservationsPost201ResponseObservation": ApiObservationsPost201ResponseObservation,
-    "ApiObservationsPost400Response": ApiObservationsPost400Response,
-    "ApiObservationsPostRequest": ApiObservationsPostRequest,
 }
 
 export class ObjectSerializer {

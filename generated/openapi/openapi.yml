@@ -3,7 +3,7 @@ info:
   title: langfuse
   version: ''
 paths:
-  /traces/create:
+  /api/traces:
     post:
       description: Add a trace to the database
       operationId: trace_create
@@ -67,3 +67,10 @@ components:
         - attributes
         - status
   securitySchemes: {}
+servers:
+  - url: https://www.yoursite.com
+    description: production
+  - url: https://www.staging.yoursite.com
+    description: staging (This staging environment is helpful for testing!)
+  - url: http://localhost:3001
+    description: local (This local environment is helpful for testing locally!)
