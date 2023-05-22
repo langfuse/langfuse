@@ -17,7 +17,7 @@ import { useRouter } from "next/router";
 // ];
 
 export default function Traces() {
-  const traces = api.traces.all.useQuery();
+  const traces = api.traces.all.useQuery(undefined, { refetchInterval: 1000 });
   const router = useRouter();
 
   const columns: GridColDef[] = [
@@ -77,7 +77,7 @@ export default function Traces() {
 
   return (
     <>
-      <Header title="Traces" />
+      <Header title="Traces" live />
       <DataGrid
         rows={rows}
         columns={columns}

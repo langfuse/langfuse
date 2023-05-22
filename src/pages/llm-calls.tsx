@@ -11,7 +11,9 @@ import { api } from "~/utils/api";
 import { useRouter } from "next/router";
 
 export default function Traces() {
-  const llmCalls = api.llmCalls.all.useQuery();
+  const llmCalls = api.llmCalls.all.useQuery(undefined, {
+    refetchInterval: 1000,
+  });
   const router = useRouter();
 
   const columns: GridColDef[] = [
@@ -87,7 +89,7 @@ export default function Traces() {
 
   return (
     <>
-      <Header title="LLM Calls" />
+      <Header title="LLM Calls" live />
       <DataGrid
         rows={rows}
         columns={columns}

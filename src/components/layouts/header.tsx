@@ -4,6 +4,7 @@ import Link from "next/link";
 export default function Header(props: {
   title: string;
   breadcrumb?: { name: string; href?: string }[];
+  live?: boolean;
 }) {
   const backHref =
     props.breadcrumb &&
@@ -57,12 +58,24 @@ export default function Header(props: {
           </nav>
         ) : null}
       </div>
-      <div className="mt-2 md:flex md:items-center md:justify-between">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
-            {props.title}
-          </h2>
+      <div className="mt-2 md:flex md:items-center md:justify-between md:gap-5">
+        <div className="flex items-center gap-3 md:gap-5">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+              {props.title}
+            </h2>
+          </div>
+          {props.live ? (
+            <div className="flex items-center gap-2 rounded-sm bg-green-100 px-3  text-green-600">
+              <span className="relative flex h-2 w-2 ">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-600"></span>
+              </span>
+              Live
+            </div>
+          ) : null}
         </div>
+        <div className="md:flex-1" />
         {/* <div className="mt-4 flex flex-shrink-0 md:ml-4 md:mt-0">
           <button
             type="button"

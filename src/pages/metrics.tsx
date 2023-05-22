@@ -11,7 +11,9 @@ import { api } from "~/utils/api";
 import { useRouter } from "next/router";
 
 export default function MetricsPage() {
-  const metrics = api.metrics.all.useQuery();
+  const metrics = api.metrics.all.useQuery(undefined, {
+    refetchInterval: 1000,
+  });
   const router = useRouter();
 
   const columns: GridColDef[] = [
@@ -64,7 +66,7 @@ export default function MetricsPage() {
 
   return (
     <>
-      <Header title="Metrics" />
+      <Header title="Metrics" live />
       <DataGrid
         rows={rows}
         columns={columns}
