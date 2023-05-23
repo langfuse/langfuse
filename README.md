@@ -50,7 +50,19 @@ npm install --save @finto-fern/api-client
 ncu -u && npm update --save
 ```
 
+### Build a Docker container
+
+```bash
+# build the container
+docker build -t langfuse .
+# run the container
+docker run -dp 3000:3000 langfuse
+```
+
+```
+
 ### UI Libraries
 
 - https://ui.shadcn.com/
 - https://tailwindui.com/
+```
