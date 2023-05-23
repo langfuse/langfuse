@@ -2,10 +2,13 @@
 
 from .resources import (
     CreateEventRequest,
+    CreateLLMSpanRequest,
     CreateScoreRequest,
     CreateSpanRequest,
     CreateTraceRequest,
     Event,
+    LLMAttributes,
+    LLMTokens,
     Score,
     Span,
     Trace,
@@ -19,10 +22,13 @@ from .resources import (
 
 __all__ = [
     "CreateEventRequest",
+    "CreateLLMSpanRequest",
     "CreateScoreRequest",
     "CreateSpanRequest",
     "CreateTraceRequest",
     "Event",
+    "LLMAttributes",
+    "LLMTokens",
     "Score",
     "Span",
     "Trace",

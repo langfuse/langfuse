@@ -4,6 +4,12 @@ service:
   auth: false
   base-path: /api
   endpoints:
+    createLLMCall:
+      docs: a
+      method: POST
+      path: /llm-span
+      request: CreateLLMSpanRequest
+      response: Span
     create:
       docs: Add a span to the database
       method: POST
@@ -25,10 +31,12 @@ types:
       startTime: datetime
       attributes: unknown
       parentObservationId: optional<string>
+
   UpdateSpanRequest:
     properties:
       spanId: string
       endTime: datetime
+
   Span:
     properties:
       id: string
@@ -39,3 +47,23 @@ types:
       endTime: optional<datetime>
       attributes: unknown
       parentObservationId: optional<string>
+
+  CreateLLMSpanRequest:
+    properties:
+      traceId: string
+      name: string
+      startTime: datetime
+      attributes: LLMAttributes
+      parentObservationId: optional<string>
+
+  LLMAttributes:
+    properties:
+      model: unknown
+      prompt: optional<string>
+      completion: optional<string>
+      tokens: LLMTokens
+
+  LLMTokens:
+    properties:
+      prompt_amount: optional<integer>
+      completion_amount: optional<integer>

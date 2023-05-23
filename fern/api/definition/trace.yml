@@ -26,7 +26,7 @@ types:
       statusMessage: optional<string>
   UpdateTraceRequest:
     properties:
-      traceId: string
+      id: string
       status: string
       statusMessage: optional<string>
   Trace:

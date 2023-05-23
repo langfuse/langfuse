@@ -3,15 +3,18 @@
 from . import event, score, span, trace
 from .event import CreateEventRequest, Event
 from .score import CreateScoreRequest, Score
-from .span import CreateSpanRequest, Span, UpdateSpanRequest
+from .span import CreateLLMSpanRequest, CreateSpanRequest, LLMAttributes, LLMTokens, Span, UpdateSpanRequest
 from .trace import CreateTraceRequest, Trace, UpdateTraceRequest
 
 __all__ = [
     "CreateEventRequest",
+    "CreateLLMSpanRequest",
     "CreateScoreRequest",
     "CreateSpanRequest",
     "CreateTraceRequest",
     "Event",
+    "LLMAttributes",
+    "LLMTokens",
     "Score",
     "Span",
     "Trace",

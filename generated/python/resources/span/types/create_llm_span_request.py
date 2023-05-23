@@ -6,12 +6,15 @@ import typing
 import pydantic
 
 from ....core.datetime_utils import serialize_datetime
+from .llm_attributes import LLMAttributes
 
 
-class UpdateTraceRequest(pydantic.BaseModel):
-    id: str
-    status: str
-    status_message: typing.Optional[str] = pydantic.Field(alias="statusMessage")
+class CreateLLMSpanRequest(pydantic.BaseModel):
+    trace_id: str = pydantic.Field(alias="traceId")
+    name: str
+    start_time: dt.datetime = pydantic.Field(alias="startTime")
+    attributes: LLMAttributes
+    parent_observation_id: typing.Optional[str] = pydantic.Field(alias="parentObservationId")
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}

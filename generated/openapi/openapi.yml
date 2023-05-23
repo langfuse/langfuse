@@ -43,6 +43,26 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateScoreRequest'
+  /api/llm-span:
+    post:
+      description: a
+      operationId: span_createLLMCall
+      tags:
+        - Span
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Span'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLLMSpanRequest'
   /api/spans:
     post:
       description: Add a span to the database
@@ -262,6 +282,48 @@ components:
         - name
         - startTime
         - attributes
+    CreateLLMSpanRequest:
+      title: CreateLLMSpanRequest
+      type: object
+      properties:
+        traceId:
+          type: string
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        attributes:
+          $ref: '#/components/schemas/LLMAttributes'
+        parentObservationId:
+          type: string
+      required:
+        - traceId
+        - name
+        - startTime
+        - attributes
+    LLMAttributes:
+      title: LLMAttributes
+      type: object
+      properties:
+        model: {}
+        prompt:
+          type: string
+        completion:
+          type: string
+        tokens:
+          $ref: '#/components/schemas/LLMTokens'
+      required:
+        - model
+        - tokens
+    LLMTokens:
+      title: LLMTokens
+      type: object
+      properties:
+        prompt_amount:
+          type: integer
+        completion_amount:
+          type: integer
     CreateTraceRequest:
       title: CreateTraceRequest
       type: object
@@ -281,14 +343,14 @@ components:
       title: UpdateTraceRequest
       type: object
       properties:
-        traceId:
+        id:
           type: string
         status:
           type: string
         statusMessage:
           type: string
       required:
-        - traceId
+        - id
         - status
     Trace:
       title: Trace
