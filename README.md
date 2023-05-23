@@ -2,6 +2,17 @@
 
 Langfuse is an observability platform for LLM native applications.
 
+## Use locally
+
+Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
+
+```bash
+# create env file
+cp .env.local .env
+# execute docker-compoer
+docker-compose -f docker-compose.local.yml up
+```
+
 ## Development
 
 Follow the steps below to setup the development environment.
@@ -25,15 +36,6 @@ npx prisma migrate dev
 npx prisma db seed
 # Start the server
 npm run dev
-```
-
-Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
-
-```bash
-# create env file
-cp .env.local .env
-# execute docker-compoer
-docker-compose -f docker-compose.local.yml up
 ```
 
 ## Production Deployment
