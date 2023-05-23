@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: langfuse
-  version: ''
+  version: ""
 paths:
   /api/events:
     post:
@@ -11,38 +11,38 @@ paths:
         - Event
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Event'
+                $ref: "#/components/schemas/Event"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateEventRequest'
-  /api/metrics:
+              $ref: "#/components/schemas/CreateEventRequest"
+  /api/scores:
     post:
-      description: Add a metric to the database
-      operationId: metric_create
+      description: Add a score to the database
+      operationId: score_create
       tags:
-        - Metric
+        - Score
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Metric'
+                $ref: "#/components/schemas/Score"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateMetricRequest'
+              $ref: "#/components/schemas/CreateScoreRequest"
   /api/spans:
     post:
       description: Add a span to the database
@@ -51,18 +51,18 @@ paths:
         - Span
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Span'
+                $ref: "#/components/schemas/Span"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateSpanRequest'
+              $ref: "#/components/schemas/CreateSpanRequest"
     patch:
       description: Update a span to the database
       operationId: span_update
@@ -70,18 +70,18 @@ paths:
         - Span
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Span'
+                $ref: "#/components/schemas/Span"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateSpanRequest'
+              $ref: "#/components/schemas/UpdateSpanRequest"
   /api/traces:
     post:
       description: Add a trace to the database
@@ -90,18 +90,18 @@ paths:
         - Trace
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Trace'
+                $ref: "#/components/schemas/Trace"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTraceRequest'
+              $ref: "#/components/schemas/CreateTraceRequest"
 components:
   schemas:
     CreateEventRequest:
@@ -148,8 +148,8 @@ components:
         - name
         - startTime
         - attributes
-    CreateMetricRequest:
-      title: CreateMetricRequest
+    CreateScoreRequest:
+      title: CreateScoreRequest
       type: object
       properties:
         traceId:
@@ -164,8 +164,8 @@ components:
         - traceId
         - name
         - value
-    Metric:
-      title: Metric
+    Score:
+      title: Score
       type: object
       properties:
         id:

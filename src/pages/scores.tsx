@@ -19,8 +19,8 @@ interface RowData {
   observationId?: string;
 }
 
-export default function MetricsPage() {
-  const metrics = api.scores.all.useQuery(undefined, {
+export default function ScoresPage() {
+  const scores = api.scores.all.useQuery(undefined, {
     refetchInterval: 1000,
   });
   const router = useRouter();
@@ -60,14 +60,14 @@ export default function MetricsPage() {
     { field: "value", headerName: "Value", minWidth: 200 },
   ];
 
-  const rows: GridRowsProp = metrics.isSuccess
-    ? metrics.data.map((metric) => ({
-        id: metric.id,
-        timestamp: metric.timestamp,
-        name: metric.name,
-        value: metric.value,
-        observationId: metric.observationId,
-        traceId: metric.traceId,
+  const rows: GridRowsProp = scores.isSuccess
+    ? scores.data.map((scores) => ({
+        id: scores.id,
+        timestamp: scores.timestamp,
+        name: scores.name,
+        value: scores.value,
+        observationId: scores.observationId,
+        traceId: scores.traceId,
       }))
     : [];
 
@@ -78,7 +78,7 @@ export default function MetricsPage() {
         rows={rows}
         columns={columns}
         slots={{ toolbar: GridToolbar }}
-        loading={metrics.isLoading}
+        loading={scores.isLoading}
       />
     </>
   );

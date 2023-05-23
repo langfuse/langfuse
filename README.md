@@ -4,35 +4,36 @@ Langfuse is an observability platform for LLM native applications.
 
 ## Development
 
-To get it running, follow the steps below
+Follow the steps below to setup the development environment.
 
 ### Setup env variables
 
 Copy the `.env.example` file to `.env` and fill in the values.
 
-### Install dependencies
+### Set up the application locally
+
+Follow the steps below to set up a dev environment. You will have a postgres database running in a docker container. The server will be started using NPM.
 
 ```bash
+# Install dependencies
 npm install
-```
-
-### Migration
-
-```bash
+# Run the db
+docker-compose up
+# Migration
 npx prisma migrate dev
-```
-
-### Seed the database
-
-```bash
+# Seed the database
 npx prisma db seed
-```
-
-### Start the server
-
-```bash
+# Start the server
 npm run dev
 ```
+
+Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
+
+```bash
+docker-compose -f docker-compose.local.yml up
+```
+
+## Production Deployment
 
 ### Generate SDKs
 
@@ -47,8 +48,6 @@ npm install --save @finto-fern/api-client
 # update the client in the client repo
 # install ncu via: https://www.npmjs.com/package/npm-check-updates
 ncu -u && npm update --save
-
-
 ```
 
 ### UI Libraries

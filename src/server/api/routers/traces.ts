@@ -12,7 +12,7 @@ export const traceRouter = createTRPCRouter({
         timestamp: "desc",
       },
       include: {
-        metrics: true,
+        scores: true,
       },
     });
 
@@ -26,7 +26,7 @@ export const traceRouter = createTRPCRouter({
           id: input,
         },
         include: {
-          metrics: true,
+          
         },
       }),
       prisma.observation.findMany({

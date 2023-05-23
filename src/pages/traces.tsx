@@ -54,8 +54,8 @@ export default function Traces() {
       flex: 1,
     },
     {
-      field: "metrics",
-      headerName: "Metrics",
+      field: "scores",
+      headerName: "Scores",
       flex: 1,
     },
   ];
@@ -68,8 +68,8 @@ export default function Traces() {
         status: trace.status,
         statusMessage: trace.statusMessage,
         attributes: JSON.stringify(trace.attributes),
-        metrics: trace.metrics
-          .map((metric) => `${metric.name}: ${metric.value}`)
+        scores: trace.scores
+          .map((score) => `${score.name}: ${score.value}`)
           .join("; "),
       }))
     : [];

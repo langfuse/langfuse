@@ -4,7 +4,7 @@ from backports.cached_property import cached_property
 
 from .environment import FintoLangfuseEnvironment
 from .resources.event.client import EventClient
-from .resources.metric.client import MetricClient
+from .resources.score.client import ScoreClient
 from .resources.span.client import SpanClient
 from .resources.trace.client import TraceClient
 
@@ -18,8 +18,8 @@ class FintoLangfuse:
         return EventClient(environment=self._environment)
 
     @cached_property
-    def metric(self) -> MetricClient:
-        return MetricClient(environment=self._environment)
+    def score(self) -> ScoreClient:
+        return ScoreClient(environment=self._environment)
 
     @cached_property
     def span(self) -> SpanClient:

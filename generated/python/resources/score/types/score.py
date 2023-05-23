@@ -8,11 +8,12 @@ import pydantic
 from ....core.datetime_utils import serialize_datetime
 
 
-class CreateMetricRequest(pydantic.BaseModel):
-    trace_id: str = pydantic.Field(alias="traceId")
+class Score(pydantic.BaseModel):
+    id: str
     name: str
     value: int
     observation_id: typing.Optional[str] = pydantic.Field(alias="observationId")
+    timestamp: dt.datetime
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}

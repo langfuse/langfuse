@@ -4,7 +4,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "./cors";
 
-const MetricSchema = z.object({
+const ScoreSchema = z.object({
   name: z.string(),
   value: z.number().int(),
   traceId: z.string(),
@@ -22,7 +22,7 @@ export default async function handler(
   }
 
   try {
-    const obj = MetricSchema.parse(req.body);
+    const obj = ScoreSchema.parse(req.body);
 
     const data: Prisma.ScoreCreateInput = {
       timestamp: new Date(),
@@ -35,9 +35,9 @@ export default async function handler(
     };
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const newObservation = await prisma.score.create({ data });
+    const newScore = await prisma.score.create({ data });
 
-    res.status(201).json(newObservation);
+    res.status(201).json(newScore);
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";

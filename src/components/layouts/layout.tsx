@@ -18,7 +18,7 @@ const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
   { name: "Traces", href: "/traces", icon: UsersIcon },
   { name: "LLM Calls", href: "/llm-calls", icon: DocumentDuplicateIcon },
-  { name: "Metrics", href: "/metrics", icon: LineChart },
+  { name: "Scores", href: "/scores", icon: LineChart },
   { name: "Playground (soon)", href: "#", icon: Joystick },
 ];
 

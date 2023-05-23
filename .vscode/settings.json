@@ -1,0 +1,27 @@
+{
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": true
+    },
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.rulers": [100],
+    "editor.tabSize": 2,
+  
+    "eslint.validate": [
+      "javascript",
+      "javascriptreact",
+      "astro",
+      "typescript",
+      "typescriptreact"
+    ],
+  
+    "eslint.rules.customizations": [{ "rule": "*", "severity": "warn" }],
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "prettier.documentSelectors": [
+      "**/*.{cjs,mjs,ts,tsx,astro,md,mdx,json,yaml,yml}"
+    ],
+    "mdx.experimentalLanguageServer": true,
+    "[astro]": {
+      "editor.defaultFormatter": "astro-build.astro-vscode"
+    }
+  }

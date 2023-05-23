@@ -2,32 +2,32 @@
 
 from .resources import (
     CreateEventRequest,
-    CreateMetricRequest,
+    CreateScoreRequest,
     CreateSpanRequest,
     CreateTraceRequest,
     Event,
-    Metric,
+    Score,
     Span,
     Trace,
     UpdateSpanRequest,
     event,
-    metric,
+    score,
     span,
     trace,
 )
 
 __all__ = [
     "CreateEventRequest",
-    "CreateMetricRequest",
+    "CreateScoreRequest",
     "CreateSpanRequest",
     "CreateTraceRequest",
     "Event",
-    "Metric",
+    "Score",
     "Span",
     "Trace",
     "UpdateSpanRequest",
     "event",
-    "metric",
+    "score",
     "span",
     "trace",
 ]

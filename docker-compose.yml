@@ -1,19 +1,6 @@
 version: '3.5'
 
 services:
-
-  server:
-    build: 
-      dockerfile: Dockerfile
-    command: ["sh", "-c", "npx prisma migrate deploy && node server.js"]
-    depends_on:
-      - db
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-      - DIRECT_URL=postgresql://postgres:postgres@db:5432/postgres
   db:
     image: postgres
     restart: always

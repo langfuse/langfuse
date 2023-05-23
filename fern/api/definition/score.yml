@@ -5,20 +5,20 @@ service:
   base-path: /api
   endpoints:
     create:
-      docs: Add a metric to the database
+      docs: Add a score to the database
       method: POST
-      path: /metrics
-      request: CreateMetricRequest
-      response: Metric
+      path: /scores
+      request: CreateScoreRequest
+      response: Score
 
 types:
-  CreateMetricRequest:
+  CreateScoreRequest:
     properties:
       traceId: string
       name: string
       value: integer
       observationId: optional<string>
-  Metric:
+  Score:
     properties:
       id: string
       name: string

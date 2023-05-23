@@ -20,7 +20,8 @@ export default function LlmCallPage() {
     llmCall.data?.scores.filter(
       (score) => score.observationId === llmCall.data.id
     ) ?? [];
-    const traceScores = llmCall.data?.scores.filter((score) => !obsMetrics?.includes(score)) ??[];
+  const traceScores =
+    llmCall.data?.scores.filter((score) => !obsMetrics?.includes(score)) ?? [];
 
   return (
     <>

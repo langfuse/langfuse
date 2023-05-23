@@ -7,6 +7,7 @@
     "dev": "next dev",
     "postinstall": "prisma generate",
     "lint": "next lint",
+    "clean": "rm -rf node_modules",
     "start": "next start"
   },
   "prisma": {
