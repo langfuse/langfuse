@@ -10,10 +10,9 @@ import {
 import { api } from "~/utils/api";
 import { useRouter } from "next/router";
 
-
 interface TraceRowData {
   id: string;
-  traceId: string
+  traceId: string;
 }
 
 export default function Traces() {
@@ -32,9 +31,7 @@ export default function Traces() {
         <button
           key="openLlmCall"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() =>
-            void router.push(`/llm-calls/${params.row.id}`)
-          }
+          onClick={() => void router.push(`/llm-calls/${params.row.id}`)}
         >
           ...{lastCharacters(params.row.id, 7)}
         </button>,
@@ -49,9 +46,7 @@ export default function Traces() {
         <button
           key="openTrace"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() =>
-            void router.push(`/traces/${params.row.traceId}`)
-          }
+          onClick={() => void router.push(`/traces/${params.row.traceId}`)}
         >
           ...{lastCharacters(params.row.traceId, 7)}
         </button>,

@@ -30,6 +30,9 @@ npm run dev
 Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
 
 ```bash
+# create env file
+cp .env.local .env
+# execute docker-compoer
 docker-compose -f docker-compose.local.yml up
 ```
 
@@ -52,7 +55,11 @@ ncu -u && npm update --save
 
 ### Build a Docker container
 
+The following instructions explain how to create a single container for deployment. The container will contain the server but no database.
+
 ```bash
+# create env file
+cp .env.dev .env
 # build the container
 docker build -t langfuse .
 # run the container
