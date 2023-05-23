@@ -8,8 +8,8 @@ Follow the steps below to set up the environment via docker-compose. Both the se
 
 ```bash
 # create env file
-cp .env.local .env
-# execute docker-compoer
+cp .env.local.example .env
+# execute docker-compose
 docker-compose -f docker-compose.local.yml up
 ```
 
@@ -19,7 +19,7 @@ Follow the steps below to setup the development environment.
 
 ### Setup env variables
 
-Copy the `.env.example` file to `.env` and fill in the values.
+Copy the `.env.dev.example` file to `.env` and fill in the values.
 
 ### Set up the application locally
 
@@ -61,7 +61,7 @@ The following instructions explain how to create a single container for deployme
 
 ```bash
 # create env file
-cp .env.dev .env
+cp .env.dev.example .env
 # build the container
 docker build -t langfuse .
 # run the container

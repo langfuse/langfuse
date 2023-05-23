@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: langfuse
-  version: ""
+  version: ''
 paths:
   /api/events:
     post:
@@ -11,18 +11,18 @@ paths:
         - Event
       parameters: []
       responses:
-        "200":
-          description: ""
+        '200':
+          description: ''
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Event"
+                $ref: '#/components/schemas/Event'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateEventRequest"
+              $ref: '#/components/schemas/CreateEventRequest'
   /api/scores:
     post:
       description: Add a score to the database
@@ -31,18 +31,18 @@ paths:
         - Score
       parameters: []
       responses:
-        "200":
-          description: ""
+        '200':
+          description: ''
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Score"
+                $ref: '#/components/schemas/Score'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateScoreRequest"
+              $ref: '#/components/schemas/CreateScoreRequest'
   /api/spans:
     post:
       description: Add a span to the database
@@ -51,18 +51,18 @@ paths:
         - Span
       parameters: []
       responses:
-        "200":
-          description: ""
+        '200':
+          description: ''
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Span"
+                $ref: '#/components/schemas/Span'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateSpanRequest"
+              $ref: '#/components/schemas/CreateSpanRequest'
     patch:
       description: Update a span to the database
       operationId: span_update
@@ -70,18 +70,18 @@ paths:
         - Span
       parameters: []
       responses:
-        "200":
-          description: ""
+        '200':
+          description: ''
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Span"
+                $ref: '#/components/schemas/Span'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateSpanRequest"
+              $ref: '#/components/schemas/UpdateSpanRequest'
   /api/traces:
     post:
       description: Add a trace to the database
@@ -90,18 +90,37 @@ paths:
         - Trace
       parameters: []
       responses:
-        "200":
-          description: ""
+        '200':
+          description: ''
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Trace"
+                $ref: '#/components/schemas/Trace'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateTraceRequest"
+              $ref: '#/components/schemas/CreateTraceRequest'
+    patch:
+      description: Update the status of a trace
+      operationId: trace_update
+      tags:
+        - Trace
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trace'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTraceRequest'
 components:
   schemas:
     CreateEventRequest:
@@ -257,6 +276,19 @@ components:
       required:
         - name
         - attributes
+        - status
+    UpdateTraceRequest:
+      title: UpdateTraceRequest
+      type: object
+      properties:
+        traceId:
+          type: string
+        status:
+          type: string
+        statusMessage:
+          type: string
+      required:
+        - traceId
         - status
     Trace:
       title: Trace

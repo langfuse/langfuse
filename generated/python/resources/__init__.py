@@ -4,7 +4,7 @@ from . import event, score, span, trace
 from .event import CreateEventRequest, Event
 from .score import CreateScoreRequest, Score
 from .span import CreateSpanRequest, Span, UpdateSpanRequest
-from .trace import CreateTraceRequest, Trace
+from .trace import CreateTraceRequest, Trace, UpdateTraceRequest
 
 __all__ = [
     "CreateEventRequest",
@@ -16,6 +16,7 @@ __all__ = [
     "Span",
     "Trace",
     "UpdateSpanRequest",
+    "UpdateTraceRequest",
     "event",
     "score",
     "span",

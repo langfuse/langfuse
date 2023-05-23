@@ -11,6 +11,7 @@ from ...core.jsonable_encoder import jsonable_encoder
 from ...environment import FintoLangfuseEnvironment
 from .types.create_trace_request import CreateTraceRequest
 from .types.trace import Trace
+from .types.update_trace_request import UpdateTraceRequest
 
 
 class TraceClient:
@@ -20,6 +21,18 @@ class TraceClient:
     def create(self, *, request: CreateTraceRequest) -> Trace:
         _response = httpx.request(
             "POST", urllib.parse.urljoin(f"{self._environment}/", "api/traces"), json=jsonable_encoder(request)
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(Trace, _response.json())  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update(self, *, request: UpdateTraceRequest) -> Trace:
+        _response = httpx.request(
+            "PATCH", urllib.parse.urljoin(f"{self._environment}/", "api/traces"), json=jsonable_encoder(request)
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Trace, _response.json())  # type: ignore

@@ -2,5 +2,6 @@
 
 from .create_trace_request import CreateTraceRequest
 from .trace import Trace
+from .update_trace_request import UpdateTraceRequest
 
-__all__ = ["CreateTraceRequest", "Trace"]
+__all__ = ["CreateTraceRequest", "Trace", "UpdateTraceRequest"]

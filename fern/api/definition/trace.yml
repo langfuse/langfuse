@@ -10,12 +10,23 @@ service:
       path: /traces
       request: CreateTraceRequest
       response: Trace
+    update:
+      docs: Update the status of a trace
+      method: PATCH
+      path: /traces
+      request: UpdateTraceRequest
+      response: Trace
 
 types:
   CreateTraceRequest:
     properties:
       name: string
       attributes: unknown
+      status: string
+      statusMessage: optional<string>
+  UpdateTraceRequest:
+    properties:
+      traceId: string
       status: string
       statusMessage: optional<string>
   Trace:
