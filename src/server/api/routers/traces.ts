@@ -26,7 +26,7 @@ export const traceRouter = createTRPCRouter({
           id: input,
         },
         include: {
-          
+          scores: true,
         },
       }),
       prisma.observation.findMany({

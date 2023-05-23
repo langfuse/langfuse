@@ -54,7 +54,7 @@ export default function TracePage() {
               label: "Metrics",
               value: (
                 <DescriptionList
-                  items={trace.data.metrics.map((metric) => ({
+                  items={trace.data.scores.map((metric) => ({
                     label: metric.name,
                     value: metric.value.toString(),
                   }))}
