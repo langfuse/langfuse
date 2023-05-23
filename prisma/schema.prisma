@@ -71,7 +71,7 @@ model Trace {
     status        String
     statusMessage String?       @map("status_message")
     Observations  Observation[]
-    metrics       Metric[]
+    metrics       Score[]
 
     @@map("traces")
 }
@@ -88,7 +88,7 @@ model Observation {
     parentObservationId String?         @map("parent_observation_id")
     parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
     childs              Observation[]   @relation("ParentChilds")
-    metrics             Metric[]
+    metrics             Score[]
 
     @@map("observations")
 }
@@ -99,7 +99,7 @@ enum ObservationType {
     LLMCALL
 }
 
-model Metric {
+model Score {
     id            String       @id @default(cuid())
     timestamp     DateTime     @default(now())
     name          String
@@ -109,5 +109,5 @@ model Metric {
     observationId String?
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
-    @@map("metrics")
+    @@map("scores")
 }

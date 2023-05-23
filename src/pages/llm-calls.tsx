@@ -10,6 +10,12 @@ import {
 import { api } from "~/utils/api";
 import { useRouter } from "next/router";
 
+
+interface TraceRowData {
+  id: string;
+  traceId: string
+}
+
 export default function Traces() {
   const llmCalls = api.llmCalls.all.useQuery(undefined, {
     refetchInterval: 1000,
@@ -22,15 +28,15 @@ export default function Traces() {
       type: "actions",
       headerName: "ID",
       width: 100,
-      getActions: (params: GridRowParams) => [
+      getActions: (params: GridRowParams<TraceRowData>) => [
         <button
           key="openLlmCall"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
           onClick={() =>
-            void router.push(`/llm-calls/${params.row.id as string}`)
+            void router.push(`/llm-calls/${params.row.id}`)
           }
         >
-          ...{lastCharacters(params.row.id as string, 7)}
+          ...{lastCharacters(params.row.id, 7)}
         </button>,
       ],
     },
@@ -39,15 +45,15 @@ export default function Traces() {
       type: "actions",
       headerName: "Trace",
       width: 100,
-      getActions: (params: GridRowParams) => [
+      getActions: (params: GridRowParams<TraceRowData>) => [
         <button
           key="openTrace"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
           onClick={() =>
-            void router.push(`/traces/${params.row.traceId as string}`)
+            void router.push(`/traces/${params.row.traceId}`)
           }
         >
-          ...{lastCharacters(params.row.traceId as string, 7)}
+          ...{lastCharacters(params.row.traceId, 7)}
         </button>,
       ],
     },

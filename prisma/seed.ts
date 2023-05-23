@@ -77,7 +77,7 @@ async function main() {
     },
   });
 
-  const metric1 = await prisma.metric.create({
+  const score1 = await prisma.score.create({
     data: {
       name: "user_feedback",
       value: 1,
@@ -94,7 +94,7 @@ async function main() {
     },
   });
 
-  const metric2 = await prisma.metric.create({
+  const score2 = await prisma.score.create({
     data: {
       name: "change_of_completion",
       value: 22,
@@ -106,7 +106,7 @@ async function main() {
     },
   });
 
-  console.log({ trace, span, event, llmCall, metric1, metric2 });
+  console.log({ trace, span, event, llmCall, grading1: score1, grading2: score2 });
 }
 
 main()

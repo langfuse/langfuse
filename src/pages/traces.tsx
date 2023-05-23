@@ -10,11 +10,10 @@ import {
 import { api } from "~/utils/api";
 import { useRouter } from "next/router";
 
-// const rows: GridRowsProp = [
-//   { id: 1, col1: "Hello", col2: "World" },
-//   { id: 2, col1: "DataGridPro", col2: "is Awesome" },
-//   { id: 3, col1: "MUI", col2: "is Amazing" },
-// ];
+interface TraceRowData {
+  id: string;
+}
+
 
 export default function Traces() {
   const traces = api.traces.all.useQuery(undefined, { refetchInterval: 1000 });
@@ -26,13 +25,13 @@ export default function Traces() {
       type: "actions",
       headerName: "ID",
       width: 100,
-      getActions: (params: GridRowParams) => [
+      getActions: (params: GridRowParams<TraceRowData>) => [
         <button
           key="openTrace"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() => void router.push(`/traces/${params.row.id as string}`)}
+          onClick={() => void router.push(`/traces/${params.row.id}`)}
         >
-          ...{lastCharacters(params.row.id as string, 7)}
+          ...{lastCharacters(params.row.id, 7)}
         </button>,
       ],
     },

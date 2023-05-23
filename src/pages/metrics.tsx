@@ -10,8 +10,17 @@ import {
 import { api } from "~/utils/api";
 import { useRouter } from "next/router";
 
+interface RowData {
+  id: string;
+  traceId: string;
+  timestamp: string;
+  name: string;
+  value: number;
+  observationId?: string;
+}
+
 export default function MetricsPage() {
-  const metrics = api.metrics.all.useQuery(undefined, {
+  const metrics = api.scores.all.useQuery(undefined, {
     refetchInterval: 1000,
   });
   const router = useRouter();
@@ -22,8 +31,8 @@ export default function MetricsPage() {
       type: "actions",
       headerName: "ID",
       width: 100,
-      getActions: (params: GridRowParams) => [
-        <div key=".">...{lastCharacters(params.row.id as string, 7)}</div>,
+      getActions: (params: GridRowParams<RowData>) => [
+        <div key=".">...{lastCharacters(params.row.id, 7)}</div>,
       ],
     },
     {
@@ -31,15 +40,13 @@ export default function MetricsPage() {
       type: "actions",
       headerName: "Trace",
       width: 100,
-      getActions: (params: GridRowParams) => [
+      getActions: (params: GridRowParams<RowData>) => [
         <button
           key="openTrace"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() =>
-            void router.push(`/traces/${params.row.traceId as string}`)
-          }
+          onClick={() => void router.push(`/traces/${params.row.traceId}`)}
         >
-          ...{lastCharacters(params.row.traceId as string, 7)}
+          ...{lastCharacters(params.row.traceId, 7)}
         </button>,
       ],
     },

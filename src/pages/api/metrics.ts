@@ -24,7 +24,7 @@ export default async function handler(
   try {
     const obj = MetricSchema.parse(req.body);
 
-    const data: Prisma.MetricCreateInput = {
+    const data: Prisma.ScoreCreateInput = {
       timestamp: new Date(),
       value: obj.value,
       name: obj.name,
@@ -34,7 +34,8 @@ export default async function handler(
       }),
     };
 
-    const newObservation = await prisma.metric.create({ data });
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const newObservation = await prisma.score.create({ data });
 
     res.status(201).json(newObservation);
   } catch (error: unknown) {

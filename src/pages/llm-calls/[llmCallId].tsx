@@ -17,12 +17,10 @@ export default function LlmCallPage() {
   });
 
   const obsMetrics =
-    llmCall.data?.metrics.filter(
-      (metric) => metric.observationId === llmCall.data.id
+    llmCall.data?.scores.filter(
+      (score) => score.observationId === llmCall.data.id
     ) ?? [];
-  const traceMetrics =
-    llmCall.data?.metrics.filter((metric) => !obsMetrics?.includes(metric)) ??
-    [];
+    const traceScores = llmCall.data?.scores.filter((score) => !obsMetrics?.includes(score)) ??[];
 
   return (
     <>
@@ -104,7 +102,7 @@ export default function LlmCallPage() {
               label: "Metrics (trace)",
               value: (
                 <DescriptionList
-                  items={traceMetrics.map((metric) => ({
+                  items={traceScores.map((metric) => ({
                     label: metric.name,
                     value: metric.value,
                   }))}

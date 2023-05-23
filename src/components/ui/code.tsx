@@ -1,5 +1,6 @@
 import { type PropsWithChildren } from "react";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function JSONview(props: { json: string | any }) {
   const text =
     typeof props.json === "string"

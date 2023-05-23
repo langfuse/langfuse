@@ -18,20 +18,22 @@ export const llmCallRouter = createTRPCRouter({
     return llmCalls;
   }),
 
-  byId: publicProcedure.input(z.string()).query(async ({ input }) => {
-    // also works for other observations
-    const llmCall = (await prisma.observation.findUnique({
-      where: {
-        id: input,
-      },
-    })) as LlmCall;
+  byId: publicProcedure
+    .input(z.string())
+    .query(async ({ input }) => {
+      // also works for other observations
+      const llmCall = (await prisma.observation.findUnique({
+        where: {
+          id: input,
+        },
+      })) as LlmCall;
 
-    const metrics = await prisma.metric.findMany({
+    const scores = await prisma.score.findMany({
       where: {
         traceId: llmCall.traceId,
       },
     });
 
-    return { ...llmCall, metrics };
-  }),
+      return { ...llmCall, scores };
+    }),
 });

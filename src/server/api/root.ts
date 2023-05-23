@@ -2,7 +2,7 @@ import { createTRPCRouter } from "~/server/api/trpc";
 import { exampleRouter } from "~/server/api/routers/example";
 import { traceRouter } from "./routers/traces";
 import { llmCallRouter } from "./routers/llmCalls";
-import { metricsRouter } from "./routers/metrics";
+import { scoresRouter } from "./routers/scores";
 
 /**
  * This is the primary router for your server.
@@ -13,7 +13,7 @@ export const appRouter = createTRPCRouter({
   example: exampleRouter,
   traces: traceRouter,
   llmCalls: llmCallRouter,
-  metrics: metricsRouter,
+  scores: scoresRouter,
 });
 
 // export type definition of API
