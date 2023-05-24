@@ -64,9 +64,9 @@ export default function LlmCallPage() {
             {
               label: "Tokens",
               value: [
-                llmCall.data.attributes.tokens.prompt &&
+                llmCall.data.attributes.tokens?.prompt &&
                   `${llmCall.data.attributes.tokens.prompt} prompt tokens`,
-                llmCall.data.attributes.tokens.completion &&
+                llmCall.data.attributes.tokens?.completion &&
                   `${llmCall.data.attributes.tokens.completion} completion tokens`,
               ]
                 .filter(Boolean)

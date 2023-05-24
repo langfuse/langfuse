@@ -22,7 +22,7 @@ export type LlmCall = Observation & {
   attributes: {
     prompt?: string;
     completion?: string;
-    tokens: {
+    tokens?: {
       prompt?: number;
       completion?: number;
     };
