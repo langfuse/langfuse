@@ -1,5 +1,5 @@
 import { prisma } from "@/src/server/db";
-import { ObservationType, type Prisma } from "@prisma/client";
+import { ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "./cors";
