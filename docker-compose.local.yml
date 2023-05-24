@@ -8,7 +8,7 @@ services:
     depends_on:
       - db
     ports:
-      - "3000:3000"
+      - "3030:3000"
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
@@ -21,7 +21,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=postgres
     ports:
-      - 5432:5432
+      - 54322:5432
     volumes:
       - database_data:/var/lib/postgresql/data
 
