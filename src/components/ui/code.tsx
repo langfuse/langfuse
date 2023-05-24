@@ -12,7 +12,7 @@ export function JSONview(props: { json: string | any }) {
 
 export function CodeView(props: PropsWithChildren) {
   return (
-    <pre className="rounded-md border px-4 py-3 font-mono text-sm">
+    <pre className="whitespace-pre-wrap rounded-md border px-4 py-3 font-mono text-sm">
       {props.children}
     </pre>
   );
