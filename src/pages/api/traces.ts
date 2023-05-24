@@ -6,19 +6,13 @@ import { prisma } from "@/src/server/db";
 const CreateTraceSchema = z.object({
   name: z.string(),
   attributes: z.record(z.string(), z.any()),
-  status: z
-    .literal("success")
-    .or(z.literal("error"))
-    .or(z.literal("executing")),
+  status: z.enum(["success", "error", "executing"]),
   statusMessage: z.string().optional(),
 });
 
 const UpdateTraceSchema = z.object({
   id: z.string(),
-  status: z
-    .literal("success")
-    .or(z.literal("error"))
-    .or(z.literal("executing")),
+  status: z.enum(["success", "error", "executing"]),
   statusMessage: z.string().optional(),
 });
 
@@ -29,6 +23,7 @@ export default async function handler(
   await runMiddleware(req, res, cors);
 
   if (req.method !== "POST" && req.method !== "PATCH") {
+    console.log(req.method, req.body);
     return res.status(405).json({ message: "Method not allowed" });
   }
 

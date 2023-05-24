@@ -5,6 +5,15 @@ from .create_span_request import CreateSpanRequest
 from .llm_attributes import LLMAttributes
 from .llm_tokens import LLMTokens
 from .span import Span
+from .update_llm_span_request import UpdateLLMSpanRequest
 from .update_span_request import UpdateSpanRequest
 
-__all__ = ["CreateLLMSpanRequest", "CreateSpanRequest", "LLMAttributes", "LLMTokens", "Span", "UpdateSpanRequest"]
+__all__ = [
+    "CreateLLMSpanRequest",
+    "CreateSpanRequest",
+    "LLMAttributes",
+    "LLMTokens",
+    "Span",
+    "UpdateLLMSpanRequest",
+    "UpdateSpanRequest",
+]
