@@ -10,7 +10,7 @@ Follow the steps below to set up the environment via docker-compose. Both the se
 # create env file
 cp .env.local.example .env
 # execute docker-compose
-docker-compose -f docker-compose.local.yml up
+docker-compose up
 ```
 
 ## Development
@@ -29,7 +29,7 @@ Follow the steps below to set up a dev environment. You will have a postgres dat
 # Install dependencies
 npm install
 # Run the db
-docker-compose up
+docker-compose -f docker-compose.dev.yml up
 # Migration
 npx prisma migrate dev
 # Seed the database
