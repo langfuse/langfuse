@@ -65,7 +65,7 @@ cp .env.dev.example .env
 # build the container
 docker build -t langfuse .
 # run the container
-docker run -dp 3000:3000 langfuse
+docker run -dp 3030:3000 langfuse
 ```
 
 ```
