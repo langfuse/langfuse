@@ -10,6 +10,12 @@ service:
       path: /llm-span
       request: CreateLLMSpanRequest
       response: Span
+    updateLLMCall:
+      docs: Update a span to the database
+      method: PATCH
+      path: /llm-span
+      request: UpdateLLMSpanRequest
+      response: Span
     create:
       docs: Add a span to the database
       method: POST
@@ -37,6 +43,12 @@ types:
       spanId: string
       endTime: datetime
 
+  UpdateLLMSpanRequest:
+    properties:
+      spanId: string
+      endTime: datetime
+      attributes: LLMAttributes
+
   Span:
     properties:
       id: string
@@ -53,15 +65,15 @@ types:
       traceId: string
       name: string
       startTime: datetime
-      attributes: LLMAttributes
       parentObservationId: optional<string>
+      attributes: LLMAttributes
 
   LLMAttributes:
     properties:
       model: unknown
       prompt: optional<string>
       completion: optional<string>
-      tokens: LLMTokens
+      tokens: optional<LLMTokens>
 
   LLMTokens:
     properties:

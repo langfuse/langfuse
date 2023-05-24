@@ -13,8 +13,8 @@ class CreateLLMSpanRequest(pydantic.BaseModel):
     trace_id: str = pydantic.Field(alias="traceId")
     name: str
     start_time: dt.datetime = pydantic.Field(alias="startTime")
-    attributes: LLMAttributes
     parent_observation_id: typing.Optional[str] = pydantic.Field(alias="parentObservationId")
+    attributes: LLMAttributes
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}

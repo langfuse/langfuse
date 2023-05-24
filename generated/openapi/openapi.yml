@@ -63,6 +63,25 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateLLMSpanRequest'
+    patch:
+      description: Update a span to the database
+      operationId: span_updateLLMCall
+      tags:
+        - Span
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Span'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLLMSpanRequest'
   /api/spans:
     post:
       description: Add a span to the database
@@ -254,6 +273,21 @@ components:
       required:
         - spanId
         - endTime
+    UpdateLLMSpanRequest:
+      title: UpdateLLMSpanRequest
+      type: object
+      properties:
+        spanId:
+          type: string
+        endTime:
+          type: string
+          format: date-time
+        attributes:
+          $ref: '#/components/schemas/LLMAttributes'
+      required:
+        - spanId
+        - endTime
+        - attributes
     Span:
       title: Span
       type: object
@@ -293,10 +327,10 @@ components:
         startTime:
           type: string
           format: date-time
-        attributes:
-          $ref: '#/components/schemas/LLMAttributes'
         parentObservationId:
           type: string
+        attributes:
+          $ref: '#/components/schemas/LLMAttributes'
       required:
         - traceId
         - name
@@ -315,7 +349,6 @@ components:
           $ref: '#/components/schemas/LLMTokens'
       required:
         - model
-        - tokens
     LLMTokens:
       title: LLMTokens
       type: object
