@@ -2,11 +2,7 @@ name: langfuse
 error-discrimination:
   strategy: status-code
 environments:
-  production: https://www.yoursite.com
-  staging:
-    docs: This staging environment is helpful for testing!
-    url: https://www.staging.yoursite.com
   local:
     docs: This local environment is helpful for testing locally!
-    url: http://localhost:3001
+    url: http://localhost:3030
 default-environment: local
