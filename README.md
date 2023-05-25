@@ -2,6 +2,8 @@
 
 Langfuse is an observability platform for LLM native applications.
 
+For more information, see the [Langfuse documentation](https://docs.langfuse.com).
+
 ## Use locally
 
 Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
