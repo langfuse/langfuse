@@ -19,15 +19,13 @@ docker-compose up
 
 Follow the steps below to setup the development environment.
 
-### Setup env variables
-
-Copy the `.env.dev.example` file to `.env` and fill in the values.
-
 ### Set up the application locally
 
 Follow the steps below to set up a dev environment. You will have a postgres database running in a docker container. The server will be started using NPM.
 
 ```bash
+# create env file
+cp .env.dev.example .env
 # Install dependencies
 npm install
 # Run the db
@@ -41,6 +39,19 @@ npm run dev
 ```
 
 ## Production Deployment
+
+### Build a Docker container
+
+The following instructions explain how to create a single container for deployment. The container will contain the server but no database.
+
+```bash
+# create env file
+cp .env.dev.example .env
+# build the container
+docker build -t langfuse .
+# run the container
+docker run -dp 3030:3000 langfuse
+```
 
 ### Generate SDKs
 
@@ -57,23 +68,7 @@ npm install --save @finto-fern/api-client
 ncu -u && npm update --save
 ```
 
-### Build a Docker container
-
-The following instructions explain how to create a single container for deployment. The container will contain the server but no database.
-
-```bash
-# create env file
-cp .env.dev.example .env
-# build the container
-docker build -t langfuse .
-# run the container
-docker run -dp 3030:3000 langfuse
-```
-
-```
-
 ### UI Libraries
 
 - https://ui.shadcn.com/
 - https://tailwindui.com/
-```
