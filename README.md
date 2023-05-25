@@ -1,8 +1,24 @@
 # Langfuse
 
-Langfuse is an observability platform for LLM native applications.
+Langfuse is open-source tracing and feedback collection for LLM applications
 
-## Use locally
+## Goal
+
+Debug and improve your LLM-based application by logging/analyzing all user interactions, backend traces, and explicit/implicit user feedback.
+
+## Features
+
+1. Data collection
+   - Tracing LLM application, chain, agent via backend SDK
+   - Feedback collection from users via frontend SDKs
+2. Data exploration
+   - Identify issues
+   - Debug LLM application
+3. Store user-generated prompt/completion/feedback sets
+   - For few-shot prompts
+   - For fine-tuning
+
+## Run locally
 
 Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
 
@@ -12,6 +28,8 @@ cp .env.local.example .env
 # execute docker-compose
 docker-compose up
 ```
+
+Use the API or SDKs to integrate langfuse with your application --> [Quickstart](https://langfuse.com/docs/get-started)
 
 ## Development
 
@@ -68,10 +86,18 @@ docker build -t langfuse .
 docker run -dp 3030:3000 langfuse
 ```
 
-```
+## Contributing
 
-### UI Libraries
+Send us a PR, github issue, or email at contributing@langfuse.com
 
-- https://ui.shadcn.com/
-- https://tailwindui.com/
-```
+Join the community [Discord](https://discord.com/invite/DNDAarxE).
+
+## Authors
+
+- Max Deichmann (@maxdeichmann)
+- Marc Klingen (@marcklingen)
+- Clemens Rawert (@clemra)
+
+## License
+
+MIT License, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
