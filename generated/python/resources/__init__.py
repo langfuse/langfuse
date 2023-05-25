@@ -12,7 +12,7 @@ from .span import (
     UpdateLLMSpanRequest,
     UpdateSpanRequest,
 )
-from .trace import CreateTraceRequest, Trace, UpdateTraceRequest
+from .trace import CreateTraceRequest, Trace, TraceStatus, UpdateTraceRequest
 
 __all__ = [
     "CreateEventRequest",
@@ -26,6 +26,7 @@ __all__ = [
     "Score",
     "Span",
     "Trace",
+    "TraceStatus",
     "UpdateLLMSpanRequest",
     "UpdateSpanRequest",
     "UpdateTraceRequest",

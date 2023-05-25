@@ -6,11 +6,12 @@ import typing
 import pydantic
 
 from ....core.datetime_utils import serialize_datetime
+from .trace_status import TraceStatus
 
 
 class UpdateTraceRequest(pydantic.BaseModel):
     id: str
-    status: str
+    status: TraceStatus
     status_message: typing.Optional[str] = pydantic.Field(alias="statusMessage")
 
     def json(self, **kwargs: typing.Any) -> str:
