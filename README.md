@@ -1,6 +1,6 @@
-# Langfuse
+![langfuse - open-source tracing and feedback collection for LLM applications](readme.png)
 
-Langfuse is open-source tracing and feedback collection for LLM applications
+[langfuse.com](https://langfuse.com) | [Discord](https://discord.com/invite/DNDAarxE) | help@langfuse.com
 
 ## Goal
 
@@ -92,9 +92,9 @@ Join the community [Discord](https://discord.com/invite/DNDAarxE).
 
 ## Authors
 
-- Max Deichmann (@maxdeichmann)
-- Marc Klingen (@marcklingen)
-- Clemens Rawert (@clemra)
+- Max Deichmann ([@maxdeichmann](https://github.com/maxdeichmann))
+- Marc Klingen ([@marcklingen](https://github.com/marcklingen))
+- Clemens Rawert ([@clemra](https://github.com/clemra))
 
 ## License
 
