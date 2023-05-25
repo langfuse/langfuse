@@ -18,6 +18,11 @@ Debug and improve your LLM-based application by logging/analyzing all user inter
    - For few-shot prompts
    - For fine-tuning
 
+## Get started
+
+- [Quickstart](https://langfuse.com/docs/get-started)
+- [Demo](https://langfuse.com/#walkthrough-3-min)
+
 ## Run locally
 
 Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
@@ -29,7 +34,7 @@ cp .env.local.example .env
 docker-compose up
 ```
 
-Use the API or SDKs to integrate langfuse with your application --> [Quickstart](https://langfuse.com/docs/get-started)
+Use the API or SDKs to integrate langfuse with your application
 
 ## Development
 
