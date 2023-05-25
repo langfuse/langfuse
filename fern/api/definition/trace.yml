@@ -22,12 +22,12 @@ types:
     properties:
       name: string
       attributes: unknown
-      status: string
+      status: TraceStatus
       statusMessage: optional<string>
   UpdateTraceRequest:
     properties:
       id: string
-      status: string
+      status: TraceStatus
       statusMessage: optional<string>
   Trace:
     properties:
@@ -37,3 +37,9 @@ types:
       attributes: unknown
       status: string
       statusMessage: optional<string>
+
+  TraceStatus:
+    enum:
+      - EXECUTING
+      - SUCCESS
+      - ERROR
