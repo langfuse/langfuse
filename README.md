@@ -42,7 +42,7 @@ npm run dev
 
 ### Build a Docker container
 
-The following instructions explain how to create a single container for deployment. The container will contain the server but no database.
+The following instructions explain how to create a single container for deployment. The container will contain the server but no database. Please adjust the db url in the .env file to point to your database.
 
 ```bash
 # create env file
