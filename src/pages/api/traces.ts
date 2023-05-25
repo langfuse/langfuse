@@ -6,13 +6,13 @@ import { prisma } from "@/src/server/db";
 const CreateTraceSchema = z.object({
   name: z.string(),
   attributes: z.record(z.string(), z.any()),
-  status: z.enum(["success", "error", "executing"]),
+  status: z.enum(["SUCCESS", "ERROR", "EXECUTING"]),
   statusMessage: z.string().optional(),
 });
 
 const UpdateTraceSchema = z.object({
   id: z.string(),
-  status: z.enum(["success", "error", "executing"]),
+  status: z.enum(["SUCCESS", "ERROR", "EXECUTING"]),
   statusMessage: z.string().optional(),
 });
 

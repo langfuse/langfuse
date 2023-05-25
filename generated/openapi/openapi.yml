@@ -365,7 +365,7 @@ components:
           type: string
         attributes: {}
         status:
-          type: string
+          $ref: '#/components/schemas/TraceStatus'
         statusMessage:
           type: string
       required:
@@ -379,7 +379,7 @@ components:
         id:
           type: string
         status:
-          type: string
+          $ref: '#/components/schemas/TraceStatus'
         statusMessage:
           type: string
       required:
@@ -407,6 +407,13 @@ components:
         - name
         - attributes
         - status
+    TraceStatus:
+      title: TraceStatus
+      type: string
+      enum:
+        - EXECUTING
+        - SUCCESS
+        - ERROR
   securitySchemes: {}
 servers:
   - url: http://localhost:3030
