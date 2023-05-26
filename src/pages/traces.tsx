@@ -35,6 +35,12 @@ import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 
+interface CustomToolbarProps {
+  setFilterButtonEl: React.Dispatch<
+    React.SetStateAction<HTMLButtonElement | null>
+  >;
+}
+
 function InputKeyValue(props: GridFilterInputValueProps) {
   const { item, applyValue, focusElementRef = null } = props;
 
@@ -218,8 +224,6 @@ export default function Traces() {
   ];
 
   const onFilterChange = React.useCallback((filterModel: GridFilterModel) => {
-    console.log("hello", filterModel);
-
     let filterOptions: TraceFilterInput = { attributes: {} };
 
     filterModel.items.forEach((item) => {
@@ -238,12 +242,15 @@ export default function Traces() {
           },
         };
       }
-      console.log("filterOptions", filterOptions);
+
       setFilterModel(filterModel);
     });
 
     setQueryOptions(filterOptions);
   }, []);
+
+  const [filterButtonEl, setFilterButtonEl] =
+    React.useState<HTMLButtonElement | null>(null);
 
   const rows: GridRowsProp = traces.isSuccess
     ? traces.data.map((trace) => ({
@@ -276,16 +283,48 @@ export default function Traces() {
             filterMode="server"
             onFilterModelChange={onFilterChange}
             slots={{
-              row: Single,
               toolbar: CustomToolbar,
             }}
-            // slotProps={{
-            //   row: { trace: traces.data },
-            // }}
+            slotProps={{
+              panel: {
+                anchorEl: filterButtonEl,
+              },
+              toolbar: {
+                setFilterButtonEl,
+              },
+            }}
             autoHeight
           />
         </TabsContent>
         <TabsContent value="sidebyside">
+          <DataGrid
+            sx={{
+              ".MuiDataGrid-columnHeaders": {
+                display: "none",
+              },
+            }}
+            rows={[]}
+            columns={columns}
+            loading={traces.isLoading}
+            filterModel={filterModel}
+            filterMode="server"
+            slots={{
+              toolbar: CustomToolbar,
+              noRowsOverlay: () => null,
+              noResultsOverlay: () => null,
+            }}
+            slotProps={{
+              panel: {
+                anchorEl: filterButtonEl,
+              },
+              toolbar: {
+                setFilterButtonEl,
+              },
+            }}
+            hideFooter={true}
+            hideFooterPagination={true}
+            hideFooterSelectedRowCount={true}
+          />
           <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
             {traces.data?.map((trace) => (
               <Single key={trace.id} trace={trace} />
@@ -297,14 +336,10 @@ export default function Traces() {
   );
 }
 
-const CustomRow = (props: GridRowsProp) => {
-  return <GridRow {...other}></GridRow>;
-};
-
-function CustomToolbar() {
+function CustomToolbar({ setFilterButtonEl }: CustomToolbarProps) {
   return (
     <GridToolbarContainer>
-      <GridToolbarFilterButton />
+      <GridToolbarFilterButton ref={setFilterButtonEl} />
       <GridToolbarExport />
     </GridToolbarContainer>
   );
@@ -316,8 +351,6 @@ function lastCharacters(str: string, n: number) {
 
 const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
   const { trace } = props;
-
-  console.log(props);
 
   if (trace.nestedObservation)
     return (
