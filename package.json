@@ -25,6 +25,7 @@
     "@prisma/client": "^4.14.1",
     "@radix-ui/react-collapsible": "^1.0.2",
     "@radix-ui/react-slot": "^1.0.1",
+    "@radix-ui/react-tabs": "^1.0.4",
     "@t3-oss/env-nextjs": "^0.3.1",
     "@tailwindcss/forms": "^0.5.3",
     "@tanstack/react-query": "^4.29.7",
