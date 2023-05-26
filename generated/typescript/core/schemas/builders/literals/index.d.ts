@@ -1,1 +1,0 @@
-export { stringLiteral } from "./stringLiteral";
