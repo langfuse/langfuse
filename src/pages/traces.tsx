@@ -5,12 +5,17 @@ import {
   type GridRowsProp,
   type GridColDef,
   type GridRowParams,
-  GridToolbar,
   type GridFilterItem,
   type GridFilterOperator,
   type GridFilterInputValueProps,
   SUBMIT_FILTER_STROKE_TIME,
   type GridFilterModel,
+  GridToolbarContainer,
+  GridToolbarExport,
+  GridToolbarFilterButton,
+  GridCell,
+  type GridCellProps,
+  GridRow,
 } from "@mui/x-data-grid";
 import { api } from "~/utils/api";
 import { useRouter } from "next/router";
@@ -23,12 +28,23 @@ import {
 import { type RouterInput, type RouterOutput } from "../utils/types";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Copy } from "lucide-react";
 import ObservationDisplay from "../components/observationDisplay";
-import { type TextFieldProps, TextField, Box } from "@mui/material";
+import {
+  type TextFieldProps,
+  TextField,
+  Box,
+  tableCellClasses,
+} from "@mui/material";
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+
+interface CustomToolbarProps {
+  setFilterButtonEl: React.Dispatch<
+    React.SetStateAction<HTMLButtonElement | null>
+  >;
+}
 
 function InputKeyValue(props: GridFilterInputValueProps) {
   const { item, applyValue, focusElementRef = null } = props;
@@ -180,36 +196,69 @@ export default function Traces() {
           ...{lastCharacters(params.row.id, 7)}
         </button>,
       ],
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
     {
       field: "timestamp",
+      hideable: false,
       type: "dateTime",
       headerName: "Timestamp",
       width: 170,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
-    { field: "name", headerName: "Name", minWidth: 200 },
-    { field: "status", headerName: "Status", minWidth: 100 },
+    {
+      field: "name",
+      hideable: false,
+      headerName: "Name",
+      minWidth: 200,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
+    },
+    {
+      field: "status",
+      hideable: false,
+      headerName: "Status",
+      minWidth: 100,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
+    },
     {
       field: "statusMessage",
+      hideable: false,
       headerName: "Status Message",
       width: 200,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
     {
       field: "attributes",
+      hideable: false,
       headerName: "Attributes",
       flex: 1,
       filterOperators: quantityOnlyOperators,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
     {
       field: "scores",
+      hideable: false,
       headerName: "Scores",
       flex: 1,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
   ];
 
   const onFilterChange = React.useCallback((filterModel: GridFilterModel) => {
-    console.log("hello", filterModel);
-
     let filterOptions: TraceFilterInput = { attributes: {} };
 
     filterModel.items.forEach((item) => {
@@ -228,12 +277,15 @@ export default function Traces() {
           },
         };
       }
-      console.log("filterOptions", filterOptions);
+
       setFilterModel(filterModel);
     });
 
     setQueryOptions(filterOptions);
   }, []);
+
+  const [filterButtonEl, setFilterButtonEl] =
+    React.useState<HTMLButtonElement | null>(null);
 
   const rows: GridRowsProp = traces.isSuccess
     ? traces.data.map((trace) => ({
@@ -259,17 +311,95 @@ export default function Traces() {
         </TabsList>
         <TabsContent value="table">
           <DataGrid
+            sx={{
+              ".MuiDataGrid-columnHeader:focus": {
+                outline: "none",
+              },
+              "& .MuiDataGrid-cell:focus": {
+                outline: "none",
+              },
+              ".MuiDataGrid-root": {
+                ".MuiDataGrid-cell:focus .MuiDataGrid-cell:focus-within .MuiDataGrid-columnHeader:focus .MuiDataGrid-columnHeader:focus-within":
+                  {
+                    outline: "none",
+                  },
+              },
+              "& .hideRightSeparator > .MuiDataGrid-columnSeparator": {
+                display: "none",
+              },
+            }}
             rows={rows}
             columns={columns}
-            slots={{ toolbar: GridToolbar }}
             loading={traces.isLoading}
             filterModel={filterModel}
             filterMode="server"
             onFilterModelChange={onFilterChange}
+            disableColumnMenu={true}
+            disableRowSelectionOnClick={true}
+            slots={{
+              toolbar: CustomToolbar,
+            }}
+            slotProps={{
+              panel: {
+                anchorEl: filterButtonEl,
+              },
+              toolbar: {
+                setFilterButtonEl,
+              },
+            }}
+            getRowClassName={(params) =>
+              `whitespace-nowrap  text-sm text-gray-500`
+            }
             autoHeight
           />
         </TabsContent>
         <TabsContent value="sidebyside">
+          <DataGrid
+            sx={{
+              ".MuiDataGrid-columnHeader:focus": {
+                outline: "none",
+              },
+              "& .MuiDataGrid-cell:focus": {
+                outline: "none",
+              },
+              ".MuiDataGrid-root": {
+                ".MuiDataGrid-cell:focus .MuiDataGrid-cell:focus-within .MuiDataGrid-columnHeader:focus .MuiDataGrid-columnHeader:focus-within":
+                  {
+                    outline: "none",
+                  },
+              },
+              "& .hideRightSeparator > .MuiDataGrid-columnSeparator": {
+                display: "none",
+              },
+            }}
+            rows={[]}
+            columns={columns}
+            loading={traces.isLoading}
+            filterModel={filterModel}
+            filterMode="server"
+            onFilterModelChange={onFilterChange}
+            disableColumnMenu={true}
+            disableRowSelectionOnClick={true}
+            getRowClassName={(params) =>
+              `whitespace-nowrap  text-sm text-gray-500`
+            }
+            slots={{
+              toolbar: CustomToolbar,
+              noRowsOverlay: () => null,
+              noResultsOverlay: () => null,
+            }}
+            slotProps={{
+              panel: {
+                anchorEl: filterButtonEl,
+              },
+              toolbar: {
+                setFilterButtonEl,
+              },
+            }}
+            hideFooter={true}
+            hideFooterPagination={true}
+            hideFooterSelectedRowCount={true}
+          />
           <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
             {traces.data?.map((trace) => (
               <Single key={trace.id} trace={trace} />
@@ -278,6 +408,15 @@ export default function Traces() {
         </TabsContent>
       </Tabs>
     </>
+  );
+}
+
+function CustomToolbar({ setFilterButtonEl }: CustomToolbarProps) {
+  return (
+    <GridToolbarContainer>
+      <GridToolbarFilterButton ref={setFilterButtonEl} />
+      <GridToolbarExport />
+    </GridToolbarContainer>
   );
 }
 
@@ -308,3 +447,39 @@ const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
     );
   else return null;
 };
+
+function ColumnHeaders() {
+  return (
+    <thead>
+      <tr>
+        <th
+          scope="col"
+          className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900"
+        >
+          Name
+        </th>
+        <th
+          scope="col"
+          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+        >
+          Title
+        </th>
+        <th
+          scope="col"
+          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+        >
+          Email
+        </th>
+        <th
+          scope="col"
+          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+        >
+          Role
+        </th>
+        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-0">
+          <span className="sr-only">Edit</span>
+        </th>
+      </tr>
+    </thead>
+  );
+}
