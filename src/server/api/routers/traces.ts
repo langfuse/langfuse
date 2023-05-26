@@ -6,22 +6,40 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
 export const traceRouter = createTRPCRouter({
-  all: publicProcedure.query(async () => {
-    const traces = await prisma.trace.findMany({
-      orderBy: {
-        timestamp: "desc",
-      },
-      include: {
-        scores: true,
-        observations: true,
-      },
-    });
+  all: publicProcedure
+    .input(
+      z.object({
+        attributes: z
+          .object({
+            path: z.array(z.string()).optional(),
+            equals: z.string().optional(),
+            string_contains: z.string().optional(),
+            string_starts_with: z.string().optional(),
+            string_ends_with: z.string().optional(),
+          })
+          .nullable(),
+      })
+    )
+    .query(async ({ input }) => {
+      const traces = await prisma.trace.findMany({
+        ...(input.attributes?.path
+          ? {
+              where: {
+                attributes: input.attributes,
+              },
+            }
+          : undefined),
+        orderBy: {
+          timestamp: "desc",
+        },
+        include: {
+          scores: true,
+          observations: true,
+        },
+      });
 
-    return traces.map((trace) => ({
-      ...trace,
-      nestedObservation: nestObservations(trace.observations),
-    }));
-  }),
+      return traces;
+    }),
 
   byId: publicProcedure.input(z.string()).query(async ({ input }) => {
     const [trace, observations] = await Promise.all([
