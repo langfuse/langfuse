@@ -30,7 +30,12 @@ import { Button } from "../components/ui/button";
 import Link from "next/link";
 import { ArrowUpRight, Copy } from "lucide-react";
 import ObservationDisplay from "../components/observationDisplay";
-import { type TextFieldProps, TextField, Box } from "@mui/material";
+import {
+  type TextFieldProps,
+  TextField,
+  Box,
+  tableCellClasses,
+} from "@mui/material";
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
@@ -179,7 +184,6 @@ export default function Traces() {
   const columns: GridColDef[] = [
     {
       field: "id",
-      headerClassName: "super-app-theme--header",
       type: "actions",
       headerName: "ID",
       width: 100,
@@ -192,6 +196,9 @@ export default function Traces() {
           ...{lastCharacters(params.row.id, 7)}
         </button>,
       ],
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
     {
       field: "timestamp",
@@ -199,14 +206,36 @@ export default function Traces() {
       type: "dateTime",
       headerName: "Timestamp",
       width: 170,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
-    { field: "name", hideable: false, headerName: "Name", minWidth: 200 },
-    { field: "status", hideable: false, headerName: "Status", minWidth: 100 },
+    {
+      field: "name",
+      hideable: false,
+      headerName: "Name",
+      minWidth: 200,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
+    },
+    {
+      field: "status",
+      hideable: false,
+      headerName: "Status",
+      minWidth: 100,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
+    },
     {
       field: "statusMessage",
       hideable: false,
       headerName: "Status Message",
       width: 200,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
     {
       field: "attributes",
@@ -214,12 +243,18 @@ export default function Traces() {
       headerName: "Attributes",
       flex: 1,
       filterOperators: quantityOnlyOperators,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
     {
       field: "scores",
       hideable: false,
       headerName: "Scores",
       flex: 1,
+      headerClassName:
+        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
+      sortable: false,
     },
   ];
 
@@ -276,12 +311,31 @@ export default function Traces() {
         </TabsList>
         <TabsContent value="table">
           <DataGrid
+            sx={{
+              ".MuiDataGrid-columnHeader:focus": {
+                outline: "none",
+              },
+              "& .MuiDataGrid-cell:focus": {
+                outline: "none",
+              },
+              ".MuiDataGrid-root": {
+                ".MuiDataGrid-cell:focus .MuiDataGrid-cell:focus-within .MuiDataGrid-columnHeader:focus .MuiDataGrid-columnHeader:focus-within":
+                  {
+                    outline: "none",
+                  },
+              },
+              "& .hideRightSeparator > .MuiDataGrid-columnSeparator": {
+                display: "none",
+              },
+            }}
             rows={rows}
             columns={columns}
             loading={traces.isLoading}
             filterModel={filterModel}
             filterMode="server"
             onFilterModelChange={onFilterChange}
+            disableColumnMenu={true}
+            disableRowSelectionOnClick={true}
             slots={{
               toolbar: CustomToolbar,
             }}
@@ -293,13 +347,28 @@ export default function Traces() {
                 setFilterButtonEl,
               },
             }}
+            getRowClassName={(params) =>
+              `whitespace-nowrap  text-sm text-gray-500`
+            }
             autoHeight
           />
         </TabsContent>
         <TabsContent value="sidebyside">
           <DataGrid
             sx={{
-              ".MuiDataGrid-columnHeaders": {
+              ".MuiDataGrid-columnHeader:focus": {
+                outline: "none",
+              },
+              "& .MuiDataGrid-cell:focus": {
+                outline: "none",
+              },
+              ".MuiDataGrid-root": {
+                ".MuiDataGrid-cell:focus .MuiDataGrid-cell:focus-within .MuiDataGrid-columnHeader:focus .MuiDataGrid-columnHeader:focus-within":
+                  {
+                    outline: "none",
+                  },
+              },
+              "& .hideRightSeparator > .MuiDataGrid-columnSeparator": {
                 display: "none",
               },
             }}
@@ -308,6 +377,12 @@ export default function Traces() {
             loading={traces.isLoading}
             filterModel={filterModel}
             filterMode="server"
+            onFilterModelChange={onFilterChange}
+            disableColumnMenu={true}
+            disableRowSelectionOnClick={true}
+            getRowClassName={(params) =>
+              `whitespace-nowrap  text-sm text-gray-500`
+            }
             slots={{
               toolbar: CustomToolbar,
               noRowsOverlay: () => null,
@@ -372,3 +447,39 @@ const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
     );
   else return null;
 };
+
+function ColumnHeaders() {
+  return (
+    <thead>
+      <tr>
+        <th
+          scope="col"
+          className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900"
+        >
+          Name
+        </th>
+        <th
+          scope="col"
+          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+        >
+          Title
+        </th>
+        <th
+          scope="col"
+          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+        >
+          Email
+        </th>
+        <th
+          scope="col"
+          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+        >
+          Role
+        </th>
+        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-0">
+          <span className="sr-only">Edit</span>
+        </th>
+      </tr>
+    </thead>
+  );
+}
