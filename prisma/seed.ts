@@ -106,6 +106,48 @@ async function main() {
     },
   });
 
+  const trace2 = await prisma.trace.create({
+    data: {
+      id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53c",
+      timestamp: new Date(),
+      name: "sales-pilot",
+      attributes: {
+        user: "Nima",
+      },
+      status: "success",
+    },
+  });
+
+  const span2 = await prisma.observation.create({
+    data: {
+      id: "57a266de-df34-4cea-b4e4-087bb6a3eac1",
+      trace: { connect: { id: trace2.id } },
+      type: "SPAN",
+      name: "sales-pilot-retrieval",
+      attributes: { user: "Nima" },
+      startTime: new Date(new Date().setMinutes(new Date().getMinutes() - 1)),
+      endTime: new Date(),
+    },
+  });
+
+  const event2 = await prisma.observation.create({
+    data: {
+      id: "57a266de-df34-4cea-b4e4-78vcdhuv7",
+      type: "EVENT",
+      startTime: new Date(),
+      trace: { connect: { id: trace2.id } },
+      parent: {
+        connect: {
+          id: span2.id,
+        },
+      },
+      name: "sales-pilot-vector-db-response",
+      attributes: {
+        docs: ["Doc 1", "Doc 2", "Doc 3"],
+      },
+    },
+  });
+
   console.log({
     trace,
     span,

@@ -14,7 +14,6 @@ interface TraceRowData {
   id: string;
 }
 
-
 export default function Traces() {
   const traces = api.traces.all.useQuery(undefined, { refetchInterval: 1000 });
   const router = useRouter();
