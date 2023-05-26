@@ -27,8 +27,6 @@ import { ArrowUpRight } from "lucide-react";
 import ObservationDisplay from "../components/observationDisplay";
 import { type TextFieldProps, TextField, Box } from "@mui/material";
 import React from "react";
-import { type inferRouterInputs } from "@trpc/server";
-import { type AppRouter } from "../server/api/root";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 
