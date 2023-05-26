@@ -38,7 +38,10 @@ export const traceRouter = createTRPCRouter({
         },
       });
 
-      return traces;
+      return traces.map((trace) => ({
+        ...trace,
+        nestedObservation: nestObservations(trace.observations),
+      }));
     }),
 
   byId: publicProcedure.input(z.string()).query(async ({ input }) => {
