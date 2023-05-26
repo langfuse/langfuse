@@ -53,3 +53,26 @@ export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
     </Card>
   );
 }
+
+export function ChartScores(props: { agg: DateTimeAggregationOption }) {
+  const data = api.dashboard.scores.useQuery({ agg: props.agg });
+
+  console.log(data.data);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Scores</CardTitle>
+        <CardDescription>Average</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <TimeSeriesChart agg={props.agg} data={data.data ?? []} />
+      </CardContent>
+      <CardFooter>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/traces">See all traces</Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}

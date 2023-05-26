@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { ChartLlmCalls, ChartTraces } from "../components/charts/charts";
+import {
+  ChartLlmCalls,
+  ChartScores,
+  ChartTraces,
+} from "../components/charts/charts";
 import Header from "../components/layouts/header";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
@@ -29,6 +33,9 @@ export default function Start() {
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartTraces agg={agg} />
         <ChartLlmCalls agg={agg} />
+        <div className="col-span-full">
+          <ChartScores agg={agg} />
+        </div>
       </div>
     </>
   );
