@@ -32,3 +32,5 @@ export type LlmCall = Observation & {
 
 export type RouterInput = inferRouterInputs<AppRouter>;
 export type RouterOutput = inferRouterOutputs<AppRouter>;
+
+export type TimeseriesAggregation = "hour" | "day" | "week" | "month" | "year";
