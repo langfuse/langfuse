@@ -70,7 +70,7 @@ export function ChartScores(props: { agg: DateTimeAggregationOption }) {
       </CardContent>
       <CardFooter>
         <Button variant="secondary" size="sm" asChild>
-          <Link href="/traces">See all traces</Link>
+          <Link href="/scores">See all scores</Link>
         </Button>
       </CardFooter>
     </Card>
