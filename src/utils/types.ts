@@ -1,10 +1,10 @@
 import { type Observation, type Prisma } from "@prisma/client";
+import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
+import { type AppRouter } from "../server/api/root";
 
 export type NestedObservation = Observation & {
   children: NestedObservation[];
 };
-
-// TODO: Marc add types for span and event
 
 export type TypedObservation = Event | Span | LlmCall;
 
@@ -29,3 +29,6 @@ export type LlmCall = Observation & {
     model: Prisma.JsonValue;
   };
 };
+
+export type RouterInput = inferRouterInputs<AppRouter>;
+export type RouterOutput = inferRouterOutputs<AppRouter>;

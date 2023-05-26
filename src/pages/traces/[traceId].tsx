@@ -1,18 +1,9 @@
 import { useRouter } from "next/router";
 import Header from "~/components/layouts/header";
-import { Button } from "~/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "~/components/ui/collapsible";
 import { api } from "~/utils/api";
-import { ChevronsUpDown, ChevronsDownUp, ArrowUpRight } from "lucide-react";
-import { useState } from "react";
-import { type NestedObservation } from "@/src/utils/types";
-import Link from "next/link";
 import DescriptionList from "@/src/components/ui/descriptionLists";
 import { JSONview } from "@/src/components/ui/code";
+import ObservationDisplay from "@/src/components/observationDisplay";
 
 export default function TracePage() {
   const router = useRouter();
@@ -67,63 +58,16 @@ export default function TracePage() {
             },
             {
               label: "Detailed trace",
-              value: (
-                <div className="space-y-2">
-                  {trace.data?.nestedObservations.map((obs) => (
-                    <ObservationDisplay key={obs.id} obs={obs} />
-                  )) ?? null}
-                </div>
-              ),
+              value: trace.data.nestedObservation ? (
+                <ObservationDisplay
+                  key={trace.data.id}
+                  obs={trace.data.nestedObservation}
+                />
+              ) : null,
             },
           ]}
         />
       ) : null}
     </>
-  );
-}
-
-function ObservationDisplay(props: { obs: NestedObservation }) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
-        <div className="flex items-center  space-x-2 px-4">
-          <span className="p-2 text-xs text-gray-500">{props.obs.type}:</span>
-          <h4 className="text-sm font-semibold">{props.obs.name}</h4>
-          {props.obs.endTime ? (
-            <span className="text-gray-500">{`${
-              props.obs.endTime.getTime() - props.obs.startTime.getTime()
-            } ms`}</span>
-          ) : null}
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-9 p-0">
-              {isOpen ? (
-                <ChevronsDownUp className="h-4 w-4" />
-              ) : (
-                <ChevronsUpDown className="h-4 w-4" />
-              )}
-              <span className="sr-only">Toggle</span>
-            </Button>
-          </CollapsibleTrigger>
-          {props.obs.type === "LLMCALL" ? (
-            <Button size="sm" variant="ghost" asChild>
-              <Link href={`/llm-calls/${props.obs.id}`}>
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          ) : null}
-        </div>
-        <CollapsibleContent className="ml-6  space-y-2">
-          <span className="text-sm font-semibold">Attributes</span>
-          <JSONview json={props.obs.attributes} />
-        </CollapsibleContent>
-      </Collapsible>
-      <div className="ml-5">
-        {props.obs.children.map((obs) => (
-          <ObservationDisplay key={obs.name} obs={obs} />
-        ))}
-      </div>
-    </div>
   );
 }

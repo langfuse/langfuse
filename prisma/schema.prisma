@@ -70,7 +70,7 @@ model Trace {
     attributes    Json
     status        String
     statusMessage String?       @map("status_message")
-    Observations  Observation[]
+    observations  Observation[]
     scores        Score[]
 
     @@map("traces")
