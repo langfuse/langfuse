@@ -106,7 +106,14 @@ async function main() {
     },
   });
 
-  console.log({ trace, span, event, llmCall, grading1: score1, grading2: score2 });
+  console.log({
+    trace,
+    span,
+    event,
+    llmCall,
+    grading1: score1,
+    grading2: score2,
+  });
 }
 
 main()
