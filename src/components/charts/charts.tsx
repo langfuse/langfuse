@@ -34,12 +34,12 @@ export function ChartLlmCalls(props: { agg: DateTimeAggregationOption }) {
 }
 
 export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
-  const data = api.dashboard.llmCalls.useQuery({ agg: props.agg });
+  const data = api.dashboard.traces.useQuery({ agg: props.agg });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>LLM calls</CardTitle>
+        <CardTitle>Traces</CardTitle>
         <CardDescription>Count</CardDescription>
       </CardHeader>
       <CardContent>
@@ -47,7 +47,7 @@ export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
       </CardContent>
       <CardFooter>
         <Button variant="secondary" size="sm" asChild>
-          <Link href="/llm-calls">See all LLM calls</Link>
+          <Link href="/traces">See all traces</Link>
         </Button>
       </CardFooter>
     </Card>

@@ -27,8 +27,8 @@ export default function Start() {
         </TabsList>
       </Tabs>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartLlmCalls agg={agg} />
         <ChartTraces agg={agg} />
+        <ChartLlmCalls agg={agg} />
       </div>
     </>
   );
