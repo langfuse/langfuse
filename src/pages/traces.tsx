@@ -5,12 +5,17 @@ import {
   type GridRowsProp,
   type GridColDef,
   type GridRowParams,
-  GridToolbar,
   type GridFilterItem,
   type GridFilterOperator,
   type GridFilterInputValueProps,
   SUBMIT_FILTER_STROKE_TIME,
   type GridFilterModel,
+  GridToolbarContainer,
+  GridToolbarExport,
+  GridToolbarFilterButton,
+  GridCell,
+  type GridCellProps,
+  GridRow,
 } from "@mui/x-data-grid";
 import { api } from "~/utils/api";
 import { useRouter } from "next/router";
@@ -23,12 +28,10 @@ import {
 import { type RouterInput, type RouterOutput } from "../utils/types";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Copy } from "lucide-react";
 import ObservationDisplay from "../components/observationDisplay";
 import { type TextFieldProps, TextField, Box } from "@mui/material";
 import React from "react";
-import { type inferRouterInputs } from "@trpc/server";
-import { type AppRouter } from "../server/api/root";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 
@@ -170,6 +173,7 @@ export default function Traces() {
   const columns: GridColDef[] = [
     {
       field: "id",
+      headerClassName: "super-app-theme--header",
       type: "actions",
       headerName: "ID",
       width: 100,
@@ -185,25 +189,29 @@ export default function Traces() {
     },
     {
       field: "timestamp",
+      hideable: false,
       type: "dateTime",
       headerName: "Timestamp",
       width: 170,
     },
-    { field: "name", headerName: "Name", minWidth: 200 },
-    { field: "status", headerName: "Status", minWidth: 100 },
+    { field: "name", hideable: false, headerName: "Name", minWidth: 200 },
+    { field: "status", hideable: false, headerName: "Status", minWidth: 100 },
     {
       field: "statusMessage",
+      hideable: false,
       headerName: "Status Message",
       width: 200,
     },
     {
       field: "attributes",
+      hideable: false,
       headerName: "Attributes",
       flex: 1,
       filterOperators: quantityOnlyOperators,
     },
     {
       field: "scores",
+      hideable: false,
       headerName: "Scores",
       flex: 1,
     },
@@ -263,11 +271,17 @@ export default function Traces() {
           <DataGrid
             rows={rows}
             columns={columns}
-            slots={{ toolbar: GridToolbar }}
             loading={traces.isLoading}
             filterModel={filterModel}
             filterMode="server"
             onFilterModelChange={onFilterChange}
+            slots={{
+              row: Single,
+              toolbar: CustomToolbar,
+            }}
+            // slotProps={{
+            //   row: { trace: traces.data },
+            // }}
             autoHeight
           />
         </TabsContent>
@@ -283,12 +297,27 @@ export default function Traces() {
   );
 }
 
+const CustomRow = (props: GridRowsProp) => {
+  return <GridRow {...other}></GridRow>;
+};
+
+function CustomToolbar() {
+  return (
+    <GridToolbarContainer>
+      <GridToolbarFilterButton />
+      <GridToolbarExport />
+    </GridToolbarContainer>
+  );
+}
+
 function lastCharacters(str: string, n: number) {
   return str.substring(str.length - n);
 }
 
 const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
   const { trace } = props;
+
+  console.log(props);
 
   if (trace.nestedObservation)
     return (
