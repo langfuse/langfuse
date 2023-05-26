@@ -20,7 +20,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "../components/ui/tabs";
-import { type RouterOutput } from "../utils/types";
+import { type RouterInput, type RouterOutput } from "../utils/types";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
@@ -117,8 +117,6 @@ function InputKeyValue(props: GridFilterInputValueProps) {
 interface TraceRowData {
   id: string;
 }
-
-type RouterInput = inferRouterInputs<AppRouter>;
 
 type TraceFilterInput = RouterInput["traces"]["all"];
 
@@ -275,15 +273,6 @@ export default function Traces() {
         </TabsContent>
         <TabsContent value="sidebyside">
           <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
-            {traces.data?.map((trace) => (
-              <Single key={trace.id} trace={trace} />
-            ))}
-            {traces.data?.map((trace) => (
-              <Single key={trace.id} trace={trace} />
-            ))}
-            {traces.data?.map((trace) => (
-              <Single key={trace.id} trace={trace} />
-            ))}
             {traces.data?.map((trace) => (
               <Single key={trace.id} trace={trace} />
             ))}
