@@ -57,8 +57,6 @@ export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
 export function ChartScores(props: { agg: DateTimeAggregationOption }) {
   const data = api.dashboard.scores.useQuery({ agg: props.agg });
 
-  console.log(data.data);
-
   return (
     <Card>
       <CardHeader>

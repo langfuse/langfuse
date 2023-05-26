@@ -54,8 +54,6 @@ export const dashboardRouter = createTRPCRouter({
       ORDER BY 1
       `);
 
-      console.log(output);
-
       return output.map((row) => ({
         ...row,
         values: [
@@ -112,8 +110,6 @@ export const dashboardRouter = createTRPCRouter({
       GROUP BY 1
       ORDER BY 1
       `);
-
-      console.log(output);
 
       return output.map((row) => ({
         ...row,
@@ -178,8 +174,6 @@ export const dashboardRouter = createTRPCRouter({
       LEFT JOIN json_metrics ON timeseries.date_trunc = json_metrics.date_trunc
       ORDER BY 1
       `);
-
-      console.log(output);
 
       return output.map((row) => ({
         ...row,
