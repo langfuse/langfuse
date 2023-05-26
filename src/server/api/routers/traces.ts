@@ -13,10 +13,14 @@ export const traceRouter = createTRPCRouter({
       },
       include: {
         scores: true,
+        observations: true,
       },
     });
 
-    return traces;
+    return traces.map((trace) => ({
+      ...trace,
+      nestedObservation: nestObservations(trace.observations),
+    }));
   }),
 
   byId: publicProcedure.input(z.string()).query(async ({ input }) => {
@@ -36,16 +40,14 @@ export const traceRouter = createTRPCRouter({
       }),
     ]);
 
-    const nestedObservations = nestObservations(observations);
-
     return {
       ...trace,
-      nestedObservations,
+      nestedObservation: nestObservations(observations),
     };
   }),
 });
 
-function nestObservations(list: Observation[]): NestedObservation[] {
+function nestObservations(list: Observation[]): NestedObservation | null {
   // Step 1: Create a map where the keys are object IDs, and the values are
   // the corresponding objects with an added 'children' property.
   const map = new Map<string, NestedObservation>();
@@ -68,6 +70,11 @@ function nestObservations(list: Observation[]): NestedObservation[] {
     }
   }
 
-  // Step 4: Return the roots as an array.
-  return Array.from(roots.values());
+  // Step 4: Assert that there is only one root.
+  if (roots.size > 1)
+    console.error("Expected exactly one root, but got:", roots.size);
+  if (roots.size === 0) return null;
+
+  // Step 5: Return the root.
+  return Array.from(roots.values())[0] as NestedObservation;
 }
