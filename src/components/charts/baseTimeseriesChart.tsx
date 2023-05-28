@@ -2,7 +2,6 @@ import {
   dateTimeAggregationSettings,
   type DateTimeAggregationOption,
 } from "@/src/utils/types";
-import { set } from "lodash";
 import {
   LineChart,
   Line,
