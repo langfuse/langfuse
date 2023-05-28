@@ -12,6 +12,10 @@ jobs:
   ci:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/langfuse
+      NEXT_AUTH_SECRET: "secret"
+      NEXT_PUBLIC_API_URL: "http://localhost:3000/api"
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -21,6 +25,9 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+
+      - name: Start containers
+        run: docker-compose -f "docker-compose.dev.yml" up -d --build
 
       - name: install dependencies
         run: |
