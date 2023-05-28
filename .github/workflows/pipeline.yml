@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/langfuse
-      NEXT_AUTH_SECRET: "secret"
-      NEXT_PUBLIC_API_URL: "http://localhost:3000/api"
+      NEXTAUTH_SECRET: "secret"
+      NEXTAUTH_URL: "http://localhost:3000/api"
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
