@@ -22,16 +22,15 @@ jobs:
         with:
           node-version: 18
 
-      - name: pnpm install
+      - name: install dependencies
         run: |
-          npm i -g pnpm
-          pnpm install
+          npm install
 
       - name: lint
-        run: pnpm lint
+        run: npm run lint
 
       - name: test
-        run: pnpm test
+        run: npm run test
 
   cd:
     needs: ci
@@ -47,15 +46,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: pnpm install
+      - name: install dependencies
         run: |
-          npm i -g pnpm && 
-          pnpm install
+          npm install
 
       # Build ts
       - name: Build
         run: |
-          yarn build
+          npm build
 
       - name: Build Docker image
         run: docker build . -t langfuse
