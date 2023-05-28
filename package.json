@@ -33,6 +33,7 @@
     "@t3-oss/env-nextjs": "^0.3.1",
     "@tailwindcss/forms": "^0.5.3",
     "@tanstack/react-query": "^4.29.7",
+    "@tanstack/react-table": "^8.9.1",
     "@trpc/client": "^10.28.0",
     "@trpc/next": "^10.28.0",
     "@trpc/react-query": "^10.28.0",
