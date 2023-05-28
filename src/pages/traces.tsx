@@ -13,9 +13,6 @@ import {
   GridToolbarContainer,
   GridToolbarExport,
   GridToolbarFilterButton,
-  GridCell,
-  type GridCellProps,
-  GridRow,
 } from "@mui/x-data-grid";
 import { api } from "~/utils/api";
 import { useRouter } from "next/router";
@@ -28,14 +25,9 @@ import {
 import { type RouterInput, type RouterOutput } from "../utils/types";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
-import { ArrowUpRight, Copy } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import ObservationDisplay from "../components/observationDisplay";
-import {
-  type TextFieldProps,
-  TextField,
-  Box,
-  tableCellClasses,
-} from "@mui/material";
+import { type TextFieldProps, TextField, Box } from "@mui/material";
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
@@ -49,25 +41,31 @@ interface CustomToolbarProps {
 function InputKeyValue(props: GridFilterInputValueProps) {
   const { item, applyValue, focusElementRef = null } = props;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filterTimeout = React.useRef<any>();
   const [filterValueState, setFilterValueState] = React.useState<
     [string, string]
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   >(item.value ?? "");
 
   const [applying, setIsApplying] = React.useState(false);
 
   React.useEffect(() => {
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       clearTimeout(filterTimeout.current);
     };
   }, []);
 
   React.useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const itemValue = item.value ?? [undefined, undefined];
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     setFilterValueState(itemValue);
   }, [item.value]);
 
   const updateFilterValue = (key: string, value: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     clearTimeout(filterTimeout.current);
     setFilterValueState([key, value]);
 
@@ -157,11 +155,14 @@ export default function Traces() {
         }
 
         return ({ value }) => {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument
           const jsonObj = JSON.parse(value);
 
           return (
             value !== null &&
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             jsonObj[filterItem.value[0]] !== undefined &&
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             jsonObj[filterItem.value[0]] === filterItem.value[1]
           );
         };
@@ -295,7 +296,9 @@ export default function Traces() {
         status: trace.status,
         statusMessage: trace.statusMessage,
         attributes: JSON.stringify(trace.attributes),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
         scores: trace.scores
+          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-member-access
           .map((score) => `${score.name}: ${score.value}`)
           .join("; "),
       }))
@@ -347,9 +350,7 @@ export default function Traces() {
                 setFilterButtonEl,
               },
             }}
-            getRowClassName={(params) =>
-              `whitespace-nowrap  text-sm text-gray-500`
-            }
+            getRowClassName={() => `whitespace-nowrap  text-sm text-gray-500`}
             autoHeight
           />
         </TabsContent>
@@ -380,9 +381,7 @@ export default function Traces() {
             onFilterModelChange={onFilterChange}
             disableColumnMenu={true}
             disableRowSelectionOnClick={true}
-            getRowClassName={(params) =>
-              `whitespace-nowrap  text-sm text-gray-500`
-            }
+            getRowClassName={() => `whitespace-nowrap  text-sm text-gray-500`}
             slots={{
               toolbar: CustomToolbar,
               noRowsOverlay: () => null,
@@ -447,39 +446,3 @@ const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
     );
   else return null;
 };
-
-function ColumnHeaders() {
-  return (
-    <thead>
-      <tr>
-        <th
-          scope="col"
-          className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900"
-        >
-          Name
-        </th>
-        <th
-          scope="col"
-          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-        >
-          Title
-        </th>
-        <th
-          scope="col"
-          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-        >
-          Email
-        </th>
-        <th
-          scope="col"
-          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-        >
-          Role
-        </th>
-        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-0">
-          <span className="sr-only">Edit</span>
-        </th>
-      </tr>
-    </thead>
-  );
-}
