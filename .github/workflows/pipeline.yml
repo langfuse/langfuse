@@ -1,0 +1,56 @@
+name: CI/CD
+
+on: push
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/langfuse
+      NEXTAUTH_SECRET: "secret"
+      NEXTAUTH_URL: "http://localhost:3000/api"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Start containers
+        run: docker-compose -f "docker-compose.dev.yml" up -d --build
+
+      - name: install dependencies
+        run: |
+          npm install
+
+      - name: lint
+        run: npm run lint
+
+      # - name: test
+      #   run: npm run test
+
+  cd:
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: install dependencies
+        run: |
+          npm install
+
+      - name: Build
+        run: |
+          npm build
+
+      - name: Build Docker image
+        run: docker build . -t langfuse
