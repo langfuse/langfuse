@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { type DateTimeAggregationOption } from "@/src/utils/types";
 import {
   Card,
   CardHeader,
@@ -7,10 +6,11 @@ import {
   CardDescription,
   CardFooter,
   CardTitle,
-} from "../ui/card";
-import { Button } from "../ui/button";
+} from "~/components/ui/card";
+import { Button } from "~/components/ui/button";
 import Link from "next/link";
-import { TimeSeriesChart } from "./baseTimeseriesChart";
+import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
+import { type DateTimeAggregationOption } from "../lib/timeseriesAggregation";
 
 export function ChartLlmCalls(props: { agg: DateTimeAggregationOption }) {
   const data = api.dashboard.llmCalls.useQuery({ agg: props.agg });
@@ -22,7 +22,7 @@ export function ChartLlmCalls(props: { agg: DateTimeAggregationOption }) {
         <CardDescription>Count</CardDescription>
       </CardHeader>
       <CardContent>
-        <TimeSeriesChart agg={props.agg} data={data.data ?? []} />
+        <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
       <CardFooter>
         <Button variant="secondary" size="sm" asChild>
@@ -43,7 +43,7 @@ export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
         <CardDescription>Count</CardDescription>
       </CardHeader>
       <CardContent>
-        <TimeSeriesChart agg={props.agg} data={data.data ?? []} />
+        <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
       <CardFooter>
         <Button variant="secondary" size="sm" asChild>
@@ -64,7 +64,7 @@ export function ChartScores(props: { agg: DateTimeAggregationOption }) {
         <CardDescription>Average</CardDescription>
       </CardHeader>
       <CardContent>
-        <TimeSeriesChart agg={props.agg} data={data.data ?? []} />
+        <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
       <CardFooter>
         <Button variant="secondary" size="sm" asChild>
