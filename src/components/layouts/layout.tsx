@@ -1,5 +1,5 @@
 import { Fragment, type PropsWithChildren, useState } from "react";
-import { Dialog, Transition } from "@headlessui/react";
+import { Dialog, Menu, Transition } from "@headlessui/react";
 import {
   Bars3Icon,
   Cog6ToothIcon,
@@ -13,6 +13,15 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
 import { Joystick, LineChart } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import { cn } from "@/src/utils/tailwind";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/src/components/ui/avatar";
+import { string } from "zod";
 
 const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
@@ -23,6 +32,10 @@ const navigationPaths = [
   { name: "Setup", href: "/setup", icon: Cog6ToothIcon },
 ];
 
+const userNavigation = [{ name: "Sign out", onClick: () => signOut() }];
+
+const pathsWithoutSidebar = ["/auth/sign-in", "/auth/sign-up"];
+
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
@@ -30,6 +43,33 @@ export default function Layout(props: PropsWithChildren) {
     ...staticAttributes,
     current: router.pathname === staticAttributes.href,
   }));
+
+  const session = useSession();
+  console.log(session);
+
+  const showNavigation = !pathsWithoutSidebar.includes(router.pathname);
+  if (!showNavigation)
+    return (
+      <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+        {props.children}
+      </main>
+    );
+
+  if (session.status === "loading")
+    return (
+      <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <span className="block text-center font-mono text-4xl font-bold motion-safe:animate-spin">
+            🪢
+          </span>
+          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+            Loading ...
+          </h2>
+        </div>
+      </div>
+    );
+
+  // if (session.status === "unauthenticated") void router.push("/auth/sign-in");
 
   return (
     <>
@@ -169,18 +209,57 @@ export default function Layout(props: PropsWithChildren) {
                 </li>
 
                 <li className="-mx-6 mt-auto">
-                  <a
-                    href="#"
-                    className="flex items-center gap-x-4 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50"
-                  >
-                    <img
-                      className="h-8 w-8 rounded-full bg-gray-50"
-                      src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                      alt=""
-                    />
-                    <span className="sr-only">Your profile</span>
-                    <span aria-hidden="true">Tom Cook</span>
-                  </a>
+                  <Menu as="div" className="relative">
+                    <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+                      <span className="sr-only">Open user menu</span>
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={session.data?.user.image ?? undefined}
+                        />
+                        <AvatarFallback>
+                          {session.data?.user.name
+                            .split(" ")
+                            .map((word) => word[0])
+                            .slice(0, 2)
+                            .concat("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                        {session.data?.user.name}
+                      </span>
+                      <ChevronDownIcon
+                        className="h-5 w-5 text-gray-400"
+                        aria-hidden="true"
+                      />
+                    </Menu.Button>
+                    <Transition
+                      as={Fragment}
+                      enter="transition ease-out duration-100"
+                      enterFrom="transform opacity-0 scale-95"
+                      enterTo="transform opacity-100 scale-100"
+                      leave="transition ease-in duration-75"
+                      leaveFrom="transform opacity-100 scale-100"
+                      leaveTo="transform opacity-0 scale-95"
+                    >
+                      <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                        {userNavigation.map((item) => (
+                          <Menu.Item key={item.name}>
+                            {({ active }) => (
+                              <a
+                                onClick={() => void item.onClick()}
+                                className={cn(
+                                  active ? "bg-gray-50" : "",
+                                  "block px-3 py-1 text-sm leading-6 text-gray-900"
+                                )}
+                              >
+                                {item.name}
+                              </a>
+                            )}
+                          </Menu.Item>
+                        ))}
+                      </Menu.Items>
+                    </Transition>
+                  </Menu>
                 </li>
               </ul>
             </nav>
@@ -199,14 +278,48 @@ export default function Layout(props: PropsWithChildren) {
           <div className="flex-1 font-mono text-sm font-bold leading-6 text-gray-900">
             🪢 langfuse
           </div>
-          <a href="#">
-            <span className="sr-only">Your profile</span>
-            <img
-              className="h-8 w-8 rounded-full bg-gray-50"
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-              alt=""
-            />
-          </a>
+          <Menu as="div" className="relative">
+            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
+              <span className="sr-only">Open user menu</span>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={session.data?.user.image ?? undefined} />
+                <AvatarFallback>
+                  {session.data?.user.name
+                    .split(" ")
+                    .map((word) => word[0])
+                    .slice(0, 2)
+                    .concat("")}
+                </AvatarFallback>
+              </Avatar>
+            </Menu.Button>
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-100"
+              enterFrom="transform opacity-0 scale-95"
+              enterTo="transform opacity-100 scale-100"
+              leave="transition ease-in duration-75"
+              leaveFrom="transform opacity-100 scale-100"
+              leaveTo="transform opacity-0 scale-95"
+            >
+              <Menu.Items className="absolute right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                {userNavigation.map((item) => (
+                  <Menu.Item key={item.name}>
+                    {({ active }) => (
+                      <a
+                        onClick={() => void item.onClick()}
+                        className={cn(
+                          active ? "bg-gray-50" : "",
+                          "block px-3 py-1 text-sm leading-6 text-gray-900"
+                        )}
+                      >
+                        {item.name}
+                      </a>
+                    )}
+                  </Menu.Item>
+                ))}
+              </Menu.Items>
+            </Transition>
+          </Menu>
         </div>
         <div className="lg:pl-72">
           <main className="py-4">
