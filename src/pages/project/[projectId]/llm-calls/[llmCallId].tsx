@@ -10,9 +10,10 @@ import { api } from "@/src/utils/api";
 
 export default function LlmCallPage() {
   const router = useRouter();
-  const { llmCallId } = router.query;
+  const llmCallId = router.query.llmCallId as string;
+  const projectId = router.query.projectId as string;
 
-  const llmCall = api.llmCalls.byId.useQuery(llmCallId as string, {
+  const llmCall = api.llmCalls.byId.useQuery(llmCallId, {
     enabled: llmCallId !== undefined,
   });
 
@@ -28,8 +29,8 @@ export default function LlmCallPage() {
       <Header
         title="LLM Call"
         breadcrumb={[
-          { name: "LLM Calls", href: "/llm-calls" },
-          { name: llmCallId as string },
+          { name: "LLM Calls", href: `/project/${projectId}/llm-calls` },
+          { name: llmCallId },
         ]}
       />
       {llmCall.data ? (
@@ -39,7 +40,9 @@ export default function LlmCallPage() {
               label: "Trace",
               value: (
                 <Button variant="secondary" asChild>
-                  <Link href={`/traces/${llmCall.data.traceId}`}>
+                  <Link
+                    href={`/project/${projectId}/traces/${llmCall.data.traceId}`}
+                  >
                     {llmCall.data.traceId}
                     <ArrowUpRight className="ml-2 h-4 w-4" />
                   </Link>

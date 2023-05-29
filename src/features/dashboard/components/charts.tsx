@@ -12,8 +12,14 @@ import Link from "next/link";
 import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
 
-export function ChartLlmCalls(props: { agg: DateTimeAggregationOption }) {
-  const data = api.dashboard.llmCalls.useQuery({ agg: props.agg });
+export function ChartLlmCalls(props: {
+  agg: DateTimeAggregationOption;
+  projectId: string;
+}) {
+  const data = api.dashboard.llmCalls.useQuery({
+    agg: props.agg,
+    projectId: props.projectId,
+  });
 
   return (
     <Card>
@@ -24,17 +30,18 @@ export function ChartLlmCalls(props: { agg: DateTimeAggregationOption }) {
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
-      <CardFooter>
-        <Button variant="secondary" size="sm" asChild>
-          <Link href="/llm-calls">See all LLM calls</Link>
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
 
-export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
-  const data = api.dashboard.traces.useQuery({ agg: props.agg });
+export function ChartTraces(props: {
+  agg: DateTimeAggregationOption;
+  projectId: string;
+}) {
+  const data = api.dashboard.traces.useQuery({
+    agg: props.agg,
+    projectId: props.projectId,
+  });
 
   return (
     <Card>
@@ -45,17 +52,18 @@ export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
-      <CardFooter>
-        <Button variant="secondary" size="sm" asChild>
-          <Link href="/traces">See all traces</Link>
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
 
-export function ChartScores(props: { agg: DateTimeAggregationOption }) {
-  const data = api.dashboard.scores.useQuery({ agg: props.agg });
+export function ChartScores(props: {
+  agg: DateTimeAggregationOption;
+  projectId: string;
+}) {
+  const data = api.dashboard.scores.useQuery({
+    agg: props.agg,
+    projectId: props.projectId,
+  });
 
   return (
     <Card>
@@ -66,11 +74,6 @@ export function ChartScores(props: { agg: DateTimeAggregationOption }) {
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
-      <CardFooter>
-        <Button variant="secondary" size="sm" asChild>
-          <Link href="/scores">See all scores</Link>
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

@@ -21,7 +21,7 @@ model Example {
 // Necessary for Next auth
 model Account {
     id                String  @id @default(cuid())
-    userId            String
+    userId            String  @map("user_id")
     type              String
     provider          String
     providerAccountId String
@@ -40,7 +40,7 @@ model Account {
 model Session {
     id           String   @id @default(cuid())
     sessionToken String   @unique
-    userId       String
+    userId       String   @map("user_id")
     expires      DateTime
     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -76,9 +76,9 @@ model Project {
 }
 
 model Membership {
-    projectId String
+    projectId String         @map("project_id")
     project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    userId    String
+    userId    String         @map("user_id")
     user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
     role      MembershipRole
 
@@ -99,7 +99,7 @@ model Trace {
     attributes    Json
     status        String
     statusMessage String?  @map("status_message")
-    projectId     String
+    projectId     String   @map("project_id")
     project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
     observations Observation[]
@@ -110,7 +110,7 @@ model Trace {
 
 model Observation {
     id                  String          @id @default(cuid())
-    traceId             String
+    traceId             String          @map("trace_id")
     trace               Trace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
     type                ObservationType
     name                String
@@ -136,9 +136,9 @@ model Score {
     timestamp     DateTime     @default(now())
     name          String
     value         Int
-    traceId       String
+    traceId       String       @map("trace_id")
     trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
-    observationId String?
+    observationId String?      @map("observation_id")
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
     @@map("scores")

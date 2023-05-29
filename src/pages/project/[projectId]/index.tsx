@@ -10,9 +10,12 @@ import {
   ChartScores,
   ChartTraces,
 } from "@/src/features/dashboard/components/charts";
+import { useRouter } from "next/router";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
 
   return (
     <>
@@ -31,10 +34,10 @@ export default function Start() {
         </TabsList>
       </Tabs>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartTraces agg={agg} />
-        <ChartLlmCalls agg={agg} />
+        <ChartTraces agg={agg} projectId={projectId} />
+        <ChartLlmCalls agg={agg} projectId={projectId} />
         <div className="col-span-full">
-          <ChartScores agg={agg} />
+          <ChartScores agg={agg} projectId={projectId} />
         </div>
       </div>
     </>

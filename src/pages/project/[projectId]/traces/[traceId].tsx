@@ -7,19 +7,18 @@ import ObservationDisplay from "@/src/components/observationDisplay";
 
 export default function TracePage() {
   const router = useRouter();
-  const { traceId } = router.query;
+  const traceId = router.query.traceId as string;
+  const projectId = router.query.projectId as string;
 
-  const trace = api.traces.byId.useQuery(traceId as string, {
-    enabled: traceId !== undefined,
-  });
+  const trace = api.traces.byId.useQuery(traceId);
 
   return (
     <>
       <Header
         title="Trace Detail"
         breadcrumb={[
-          { name: "Traces", href: "/traces" },
-          { name: traceId as string },
+          { name: "Traces", href: `/project/${projectId}/traces` },
+          { name: traceId },
         ]}
       />
       {trace.data ? (
@@ -61,6 +60,7 @@ export default function TracePage() {
               value: trace.data.nestedObservation ? (
                 <ObservationDisplay
                   key={trace.data.id}
+                  projectId={projectId}
                   obs={trace.data.nestedObservation}
                 />
               ) : null,

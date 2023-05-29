@@ -20,10 +20,14 @@ interface RowData {
 }
 
 export default function ScoresPage() {
-  const scores = api.scores.all.useQuery(undefined, {
-    refetchInterval: 1000,
-  });
   const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const scores = api.scores.all.useQuery(
+    { projectId },
+    {
+      refetchInterval: 1000,
+    }
+  );
 
   const columns: GridColDef[] = [
     {
@@ -44,7 +48,11 @@ export default function ScoresPage() {
         <button
           key="openTrace"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() => void router.push(`/traces/${params.row.traceId}`)}
+          onClick={() =>
+            void router.push(
+              `/project/${projectId}/traces/${params.row.traceId}`
+            )
+          }
         >
           ...{lastCharacters(params.row.traceId, 7)}
         </button>,

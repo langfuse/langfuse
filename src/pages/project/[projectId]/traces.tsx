@@ -130,17 +130,21 @@ interface TraceRowData {
   id: string;
 }
 
-type TraceFilterInput = RouterInput["traces"]["all"];
+type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
 
 export default function Traces() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
   const [queryOptions, setQueryOptions] = React.useState<TraceFilterInput>({
     attributes: {},
   });
 
-  const traces = api.traces.all.useQuery(queryOptions, {
-    refetchInterval: 2000,
-  });
-  const router = useRouter();
+  const traces = api.traces.all.useQuery(
+    { ...queryOptions, projectId },
+    {
+      refetchInterval: 2000,
+    }
+  );
 
   const quantityOnlyOperators: GridFilterOperator[] = [
     {
@@ -192,7 +196,9 @@ export default function Traces() {
         <button
           key="openTrace"
           className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() => void router.push(`/traces/${params.row.id}`)}
+          onClick={() =>
+            void router.push(`/project/${projectId}/traces/${params.row.id}`)
+          }
         >
           ...{lastCharacters(params.row.id, 7)}
         </button>,
@@ -401,7 +407,7 @@ export default function Traces() {
           />
           <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
             {traces.data?.map((trace) => (
-              <Single key={trace.id} trace={trace} />
+              <Single key={trace.id} trace={trace} projectId={projectId} />
             ))}
           </div>
         </TabsContent>
@@ -423,7 +429,10 @@ function lastCharacters(str: string, n: number) {
   return str.substring(str.length - n);
 }
 
-const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
+const Single = (props: {
+  trace: RouterOutput["traces"]["all"][number];
+  projectId: string;
+}) => {
   const { trace } = props;
 
   if (trace.nestedObservation)
@@ -431,7 +440,7 @@ const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
       <div className="w-[550px] flex-none rounded-md border px-3">
         <div className="mt-4 font-bold">Trace</div>
         <Button variant="ghost" size="sm" asChild>
-          <Link href={`/traces/${trace.id}`}>
+          <Link href={`/project/${props.projectId}/traces/${trace.id}`}>
             {trace.id}
             <ArrowUpRight className="ml-2 h-4 w-4" />
           </Link>
@@ -441,7 +450,11 @@ const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
         <div className="mt-4 text-sm font-bold">Name</div>
         <div>{trace.name}</div>
         <div className="mt-4 text-sm font-bold">Observations:</div>
-        <ObservationDisplay key={trace.id} obs={trace.nestedObservation} />
+        <ObservationDisplay
+          key={trace.id}
+          obs={trace.nestedObservation}
+          projectId={props.projectId}
+        />
       </div>
     );
   else return null;

@@ -3,12 +3,12 @@ import { type Observation } from "@prisma/client";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
 
 export const traceRouter = createTRPCRouter({
   all: protectedProcedure
     .input(
       z.object({
+        projectId: z.string(),
         attributes: z
           .object({
             path: z.array(z.string()).optional(),
@@ -20,15 +20,21 @@ export const traceRouter = createTRPCRouter({
           .nullable(),
       })
     )
-    .query(async ({ input }) => {
-      const traces = await prisma.trace.findMany({
-        ...(input.attributes?.path
-          ? {
-              where: {
-                attributes: input.attributes,
+    .query(async ({ input, ctx }) => {
+      const traces = await ctx.prisma.trace.findMany({
+        where: {
+          ...(input.attributes?.path
+            ? { attributes: input.attributes }
+            : undefined),
+          projectId: input.projectId,
+          project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
               },
-            }
-          : undefined),
+            },
+          },
+        },
         orderBy: {
           timestamp: "desc",
         },
@@ -44,19 +50,35 @@ export const traceRouter = createTRPCRouter({
       }));
     }),
 
-  byId: protectedProcedure.input(z.string()).query(async ({ input }) => {
+  byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     const [trace, observations] = await Promise.all([
-      prisma.trace.findUniqueOrThrow({
+      ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input,
+          project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
+              },
+            },
+          },
         },
         include: {
           scores: true,
         },
       }),
-      prisma.observation.findMany({
+      ctx.prisma.observation.findMany({
         where: {
           traceId: input,
+          trace: {
+            project: {
+              members: {
+                some: {
+                  userId: ctx.session.user.id,
+                },
+              },
+            },
+          },
         },
       }),
     ]);

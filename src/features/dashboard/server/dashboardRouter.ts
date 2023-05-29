@@ -5,18 +5,18 @@ import {
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
 
 export const dashboardRouter = createTRPCRouter({
   llmCalls: protectedProcedure
     .input(
       z.object({
+        projectId: z.string(),
         agg: z.enum(dateTimeAggregationOptions),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       // queryRawUnsafe to add input.agg to the WHERE clause
-      const output = await prisma.$queryRawUnsafe<
+      const output = await ctx.prisma.$queryRawUnsafe<
         {
           date_trunc: Date;
           value: number;
@@ -41,7 +41,15 @@ export const dashboardRouter = createTRPCRouter({
           }', start_time) as date_trunc,
           count(*)::integer as value
         FROM observations
-        WHERE type = 'LLMCALL' AND start_time > NOW() - INTERVAL '${input.agg}'
+        LEFT JOIN traces ON observations.trace_id = traces.id
+        LEFT JOIN memberships ON traces.project_id = memberships.project_id
+
+        WHERE
+        type = 'LLMCALL'
+        AND start_time > NOW() - INTERVAL '${input.agg}'
+        AND traces.project_id = '${input.projectId}'
+        AND memberships.user_id = '${ctx.session.user.id}'
+
         GROUP BY 1
       )
 
@@ -68,12 +76,13 @@ export const dashboardRouter = createTRPCRouter({
   traces: protectedProcedure
     .input(
       z.object({
+        projectId: z.string(),
         agg: z.enum(dateTimeAggregationOptions),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       // queryRawUnsafe to add input.agg to the WHERE clause
-      const output = await prisma.$queryRawUnsafe<
+      const output = await ctx.prisma.$queryRawUnsafe<
         {
           date_trunc: Date;
           value: number;
@@ -98,7 +107,10 @@ export const dashboardRouter = createTRPCRouter({
           }', timestamp) as date_trunc,
           count(*)::integer as value
         FROM traces
+        LEFT JOIN memberships ON traces.project_id = memberships.project_id
         WHERE timestamp > NOW() - INTERVAL '${input.agg}'
+        AND traces.project_id = '${input.projectId}'
+        AND memberships.user_id = '${ctx.session.user.id}'
         GROUP BY 1
       )
 
@@ -125,12 +137,13 @@ export const dashboardRouter = createTRPCRouter({
   scores: protectedProcedure
     .input(
       z.object({
+        projectId: z.string(),
         agg: z.enum(dateTimeAggregationOptions),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       // queryRawUnsafe to add input.agg to the WHERE clause
-      const output = await prisma.$queryRawUnsafe<
+      const output = await ctx.prisma.$queryRawUnsafe<
         {
           date_trunc: Date;
           values: {
@@ -153,11 +166,15 @@ export const dashboardRouter = createTRPCRouter({
         SELECT 
           date_trunc('${
             dateTimeAggregationSettings[input.agg].date_trunc
-          }', timestamp) as date_trunc,
-          name as metric_name,
+          }', scores.timestamp) as date_trunc,
+          scores.name as metric_name,
           AVG(value) as avg_value
         FROM scores
-        WHERE timestamp > NOW() - INTERVAL '${input.agg}'
+        LEFT JOIN traces ON scores.trace_id = traces.id
+        LEFT JOIN memberships ON traces.project_id = memberships.project_id
+        WHERE scores.timestamp > NOW() - INTERVAL '${input.agg}'
+        AND traces.project_id = '${input.projectId}'
+        AND memberships.user_id = '${ctx.session.user.id}'
         GROUP BY 1,2
       ),
       json_metrics AS (

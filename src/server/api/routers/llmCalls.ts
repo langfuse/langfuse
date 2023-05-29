@@ -1,32 +1,58 @@
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
 import { type LlmCall } from "@/src/utils/types";
 
 export const llmCallRouter = createTRPCRouter({
-  all: protectedProcedure.query(async () => {
-    const llmCalls = (await prisma.observation.findMany({
-      where: {
-        type: "LLMCALL",
-      },
-      orderBy: {
-        startTime: "desc",
-      },
-    })) as LlmCall[];
+  all: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const llmCalls = (await ctx.prisma.observation.findMany({
+        where: {
+          type: "LLMCALL",
+          trace: {
+            projectId: input.projectId,
+            project: {
+              members: {
+                some: {
+                  userId: ctx.session.user.id,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          startTime: "desc",
+        },
+      })) as LlmCall[];
 
-    return llmCalls;
-  }),
+      return llmCalls;
+    }),
 
-  byId: protectedProcedure.input(z.string()).query(async ({ input }) => {
+  byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     // also works for other observations
-    const llmCall = (await prisma.observation.findUnique({
+    const llmCall = (await ctx.prisma.observation.findFirstOrThrow({
       where: {
         id: input,
+        type: "LLMCALL",
+        trace: {
+          project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
+              },
+            },
+          },
+        },
       },
     })) as LlmCall;
 
-    const scores = await prisma.score.findMany({
+    // No need to check for permissions as user has access to the trace
+    const scores = await ctx.prisma.score.findMany({
       where: {
         traceId: llmCall.traceId,
       },

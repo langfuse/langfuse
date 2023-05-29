@@ -1,20 +1,42 @@
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
 
 export const scoresRouter = createTRPCRouter({
-  all: protectedProcedure.query(() =>
-    prisma.score.findMany({
-      orderBy: {
-        timestamp: "desc",
-      },
-    })
-  ),
-  byId: protectedProcedure.input(z.string()).query(({ input }) =>
-    prisma.score.findUniqueOrThrow({
+  all: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ input, ctx }) =>
+      ctx.prisma.score.findMany({
+        where: {
+          trace: {
+            projectId: input.projectId,
+            project: {
+              members: {
+                some: {
+                  userId: ctx.session.user.id,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          timestamp: "desc",
+        },
+      })
+    ),
+  byId: protectedProcedure.input(z.string()).query(({ input, ctx }) =>
+    ctx.prisma.score.findFirstOrThrow({
       where: {
         id: input,
+        trace: {
+          project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
+              },
+            },
+          },
+        },
       },
     })
   ),
