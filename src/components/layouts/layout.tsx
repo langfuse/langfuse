@@ -20,6 +20,7 @@ const navigationPaths = [
   { name: "LLM Calls", href: "/llm-calls", icon: DocumentDuplicateIcon },
   { name: "Scores", href: "/scores", icon: LineChart },
   { name: "Playground (soon)", href: "#", icon: Joystick },
+  { name: "Setup", href: "/setup", icon: Cog6ToothIcon },
 ];
 
 export default function Layout(props: PropsWithChildren) {
@@ -120,19 +121,6 @@ export default function Layout(props: PropsWithChildren) {
                             ))}
                           </ul>
                         </li>
-
-                        <li className="mt-auto">
-                          <Link
-                            href="/setup"
-                            className="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
-                          >
-                            <Cog6ToothIcon
-                              className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-                              aria-hidden="true"
-                            />
-                            Setup
-                          </Link>
-                        </li>
                       </ul>
                     </nav>
                   </div>
@@ -145,7 +133,7 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4">
+          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6">
             <div className="flex h-16 shrink-0 items-center font-mono text-xl font-bold">
               🪢 langfuse
             </div>
@@ -180,17 +168,19 @@ export default function Layout(props: PropsWithChildren) {
                   </ul>
                 </li>
 
-                <li className="mt-auto">
-                  <Link
-                    href="/setup"
-                    className="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
+                <li className="-mx-6 mt-auto">
+                  <a
+                    href="#"
+                    className="flex items-center gap-x-4 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50"
                   >
-                    <Cog6ToothIcon
-                      className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-                      aria-hidden="true"
+                    <img
+                      className="h-8 w-8 rounded-full bg-gray-50"
+                      src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                      alt=""
                     />
-                    Setup
-                  </Link>
+                    <span className="sr-only">Your profile</span>
+                    <span aria-hidden="true">Tom Cook</span>
+                  </a>
                 </li>
               </ul>
             </nav>
@@ -209,6 +199,14 @@ export default function Layout(props: PropsWithChildren) {
           <div className="flex-1 font-mono text-sm font-bold leading-6 text-gray-900">
             🪢 langfuse
           </div>
+          <a href="#">
+            <span className="sr-only">Your profile</span>
+            <img
+              className="h-8 w-8 rounded-full bg-gray-50"
+              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+              alt=""
+            />
+          </a>
         </div>
         <div className="lg:pl-72">
           <main className="py-4">
