@@ -6,7 +6,6 @@ import { type TraceTableRow } from "./traces";
 export const columns: ColumnDef<TraceTableRow>[] = [
   {
     accessorKey: "id",
-    header: "ID",
     cell: ({ row }) => {
       return (
         <div>

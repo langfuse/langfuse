@@ -23,5 +23,13 @@
   "mdx.experimentalLanguageServer": true,
   "[astro]": {
     "editor.defaultFormatter": "astro-build.astro-vscode"
-  }
+  },
+  "cSpell.words": [
+    "fontawesome",
+    "fortawesome",
+    "langfuse",
+    "lucide",
+    "tanstack",
+    "TRPC"
+  ]
 }

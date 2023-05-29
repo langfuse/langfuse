@@ -5,43 +5,71 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
+const FilterOptions = z.object({
+  attributes: z
+    .object({
+      path: z.array(z.string()).optional(),
+      equals: z.string().optional(),
+      string_contains: z.string().optional(),
+      string_starts_with: z.string().optional(),
+      string_ends_with: z.string().optional(),
+    })
+    .nullable(),
+  names: z.array(z.string()).nullable(),
+});
+
 export const traceRouter = createTRPCRouter({
-  all: publicProcedure
-    .input(
-      z.object({
-        attributes: z
-          .object({
-            path: z.array(z.string()).optional(),
-            equals: z.string().optional(),
-            string_contains: z.string().optional(),
-            string_starts_with: z.string().optional(),
-            string_ends_with: z.string().optional(),
-          })
-          .nullable(),
-      })
-    )
-    .query(async ({ input }) => {
-      const traces = await prisma.trace.findMany({
+  all: publicProcedure.input(FilterOptions).query(async ({ input }) => {
+    const traces = await prisma.trace.findMany({
+      where: {
         ...(input.attributes?.path
           ? {
-              where: {
-                attributes: input.attributes,
+              attributes: input.attributes,
+            }
+          : undefined),
+        ...(input.names
+          ? {
+              id: {
+                in: input.names,
               },
             }
           : undefined),
-        orderBy: {
-          timestamp: "desc",
+      },
+      orderBy: {
+        timestamp: "desc",
+      },
+      include: {
+        scores: true,
+        observations: true,
+      },
+    });
+
+    return traces.map((trace) => ({
+      ...trace,
+      nestedObservation: nestObservations(trace.observations),
+    }));
+  }),
+
+  availableFilterOptions: publicProcedure
+    .input(FilterOptions)
+    .query(async ({ input }) => {
+      const options = await prisma.trace.groupBy({
+        where: {
+          ...(input.names
+            ? {
+                id: {
+                  in: input.names,
+                },
+              }
+            : undefined),
         },
-        include: {
-          scores: true,
-          observations: true,
+        by: ["name", "timestamp"],
+        _count: {
+          _all: true,
         },
       });
 
-      return traces.map((trace) => ({
-        ...trace,
-        nestedObservation: nestObservations(trace.observations),
-      }));
+      return options;
     }),
 
   byId: publicProcedure.input(z.string()).query(async ({ input }) => {

@@ -4,6 +4,7 @@ import { type RouterInput } from "../utils/types";
 import { DataTable } from "../components/data-table";
 import { columns } from "./columns";
 import { type Trace, type Score } from "@prisma/client";
+import { AccessibilityIcon, type LucideIcon } from "lucide-react";
 
 export type TraceTableRow = {
   id: string;
@@ -15,18 +16,45 @@ export type TraceTableRow = {
   scores: string;
 };
 
-type TraceFilterInput = RouterInput["traces"]["all"];
+export type TraceFilterInput = RouterInput["traces"]["all"];
 
-export default function Tabl() {
+export type Option = { label: string; value: string; icon?: LucideIcon };
+
+export type TraceRowOptions = {
+  name: Option[];
+  status: Option[];
+  id: Option[];
+};
+
+export default function Traces() {
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     attributes: {},
+    names: null,
   });
+
+  const updateQueryOptions = (options: TraceFilterInput) => {
+    setQueryOptions(options);
+  };
 
   // {
   //   refetchInterval: 2000,
   // }
 
   const traces = api.traces.all.useQuery(queryOptions);
+
+  // const options = api.traces.availableFilterOptions.useQuery(queryOptions);
+
+  const options = {
+    name: [
+      { label: "sample-name", value: "10", icon: AccessibilityIcon },
+      { label: "whoop", value: "130" },
+    ],
+    status: [
+      { label: "executing", value: "9" },
+      { label: "successful", value: "3" },
+    ],
+    id: [{ label: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53b", value: "1" }],
+  };
 
   const convertToTableRow = (
     trace: Trace & { scores: Score[] }
@@ -59,6 +87,9 @@ export default function Tabl() {
         <DataTable
           columns={columns}
           data={traces.data?.map((t) => convertToTableRow(t))}
+          options={options}
+          queryOptions={queryOptions}
+          updateQueryOptions={updateQueryOptions}
         />
       )}
     </div>
