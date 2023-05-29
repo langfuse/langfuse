@@ -21,7 +21,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { string } from "zod";
 
 const navigationPaths = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
@@ -35,6 +34,7 @@ const navigationPaths = [
 const userNavigation = [{ name: "Sign out", onClick: () => signOut() }];
 
 const pathsWithoutSidebar = ["/auth/sign-in", "/auth/sign-up"];
+const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -46,14 +46,6 @@ export default function Layout(props: PropsWithChildren) {
 
   const session = useSession();
   console.log(session);
-
-  const showNavigation = !pathsWithoutSidebar.includes(router.pathname);
-  if (!showNavigation)
-    return (
-      <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
-        {props.children}
-      </main>
-    );
 
   if (session.status === "loading")
     return (
@@ -69,7 +61,25 @@ export default function Layout(props: PropsWithChildren) {
       </div>
     );
 
-  if (session.status === "unauthenticated") void router.push("/auth/sign-in");
+  if (
+    session.status === "unauthenticated" &&
+    !unauthenticatedPaths.includes(router.pathname)
+  )
+    void router.push("/auth/sign-in");
+
+  if (
+    session.status === "authenticated" &&
+    unauthenticatedPaths.includes(router.pathname)
+  )
+    void router.push("/");
+
+  const showNavigation = !pathsWithoutSidebar.includes(router.pathname);
+  if (!showNavigation)
+    return (
+      <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+        {props.children}
+      </main>
+    );
 
   return (
     <>

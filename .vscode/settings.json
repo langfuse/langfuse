@@ -25,5 +25,8 @@
     "editor.defaultFormatter": "astro-build.astro-vscode"
   },
   "typescript.preferences.importModuleSpecifier": "non-relative",
-  "docwriter.style": "JSDoc"
+  "docwriter.style": "JSDoc",
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma"
+  }
 }

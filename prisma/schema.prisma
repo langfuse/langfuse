@@ -46,14 +46,15 @@ model Session {
 }
 
 model User {
-    id            String    @id @default(cuid())
+    id            String       @id @default(cuid())
     name          String?
-    email         String?   @unique
+    email         String?      @unique
     emailVerified DateTime?
     password      String?
     image         String?
     accounts      Account[]
     sessions      Session[]
+    memberships   Membership[]
 }
 
 model VerificationToken {
@@ -62,6 +63,32 @@ model VerificationToken {
     expires    DateTime
 
     @@unique([identifier, token])
+}
+
+model Organization {
+    id        String       @id @default(cuid())
+    createdAt DateTime     @default(now())
+    name      String
+    members   Membership[]
+
+    @@map("organizations")
+}
+
+model Membership {
+    organizationId String
+    organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+    userId         String
+    user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+    role           MembershipRole
+
+    @@id([organizationId, userId])
+    @@map("memberships")
+}
+
+enum MembershipRole {
+    OWNER
+    ADMIN
+    MEMBER
 }
 
 model Trace {

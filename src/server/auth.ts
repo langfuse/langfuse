@@ -1,35 +1,9 @@
 import { type GetServerSidePropsContext } from "next";
-import {
-  getServerSession,
-  type NextAuthOptions,
-  type DefaultSession,
-} from "next-auth";
+import { getServerSession, type User, type NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "~/server/db";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
-
-/**
- * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
- * object and keep type safety.
- *
- * @see https://next-auth.js.org/getting-started/typescript#module-augmentation
- */
-declare module "next-auth" {
-  interface Session extends DefaultSession {
-    user: {
-      id: string;
-      name: string;
-      // ...other properties
-      // role: UserRole;
-    } & DefaultSession["user"];
-  }
-
-  // interface User {
-  //   // ...other properties
-  //   // role: UserRole;
-  // }
-}
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
@@ -41,16 +15,41 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    session: ({ session, token }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        name: token.name,
-        email: token.email,
-        picture: token.picture,
-        id: token.id,
-      },
-    }),
+    async session({ session, token }) {
+      const dbUser = await prisma.user.findUnique({
+        where: {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          email: token.email!,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          memberships: {
+            include: {
+              organization: true,
+            },
+          },
+        },
+      });
+
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id: dbUser?.id,
+          name: dbUser?.name ?? token.name,
+          email: dbUser?.email ?? token.email,
+          image: dbUser?.image ?? token.image,
+          organizations: dbUser?.memberships.map((membership) => ({
+            id: membership.organization.id,
+            name: membership.organization.name,
+            role: membership.role,
+          })),
+        },
+      };
+    },
   },
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -81,33 +80,35 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials, _req) {
         if (!credentials) throw new Error("No credentials");
 
-        const user = await prisma.user.findUnique({
+        const dbUser = await prisma.user.findUnique({
           where: {
             email: credentials.email.toLowerCase(),
           },
         });
 
-        if (!user) throw new Error("Invalid credentials");
-        if (user.password === null) throw new Error("Invalid credentials");
+        if (!dbUser) throw new Error("Invalid credentials");
+        if (dbUser.password === null) throw new Error("Invalid credentials");
 
         const isValidPassword = await verifyPassword(
           credentials.password,
-          user.password
+          dbUser.password
         );
         if (!isValidPassword) throw new Error("Invalid credentials");
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          emailVerified: user.emailVerified,
+        const userObj: User = {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          image: dbUser.image,
+          emailVerified: dbUser.emailVerified,
         };
+
+        return userObj;
       },
     }),
   ],
   pages: {
-    // signIn: "/auth/sign-in",
+    signIn: "/auth/sign-in",
   },
 };
 
