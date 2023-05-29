@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { api } from "../utils/api";
-import { type RouterInput } from "../utils/types";
+import { type RouterOutput, type RouterInput } from "../utils/types";
 import { DataTable } from "../components/data-table";
 import { columns } from "./columns";
 import { type Trace, type Score } from "@prisma/client";
-import { AccessibilityIcon, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 export type TraceTableRow = {
   id: string;
@@ -21,15 +21,16 @@ export type TraceFilterInput = RouterInput["traces"]["all"];
 export type Option = { label: string; value: string; icon?: LucideIcon };
 
 export type TraceRowOptions = {
-  name: Option[];
-  status: Option[];
-  id: Option[];
+  names: Option[];
+  statuses: Option[];
+  ids: Option[];
 };
 
 export default function Traces() {
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     attributes: {},
     names: null,
+    ids: null,
   });
 
   const updateQueryOptions = (options: TraceFilterInput) => {
@@ -42,19 +43,7 @@ export default function Traces() {
 
   const traces = api.traces.all.useQuery(queryOptions);
 
-  // const options = api.traces.availableFilterOptions.useQuery(queryOptions);
-
-  const options = {
-    name: [
-      { label: "sample-name", value: "10", icon: AccessibilityIcon },
-      { label: "whoop", value: "130" },
-    ],
-    status: [
-      { label: "executing", value: "9" },
-      { label: "successful", value: "3" },
-    ],
-    id: [{ label: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53b", value: "1" }],
-  };
+  const options = api.traces.availableFilterOptions.useQuery(queryOptions);
 
   const convertToTableRow = (
     trace: Trace & { scores: Score[] }
@@ -73,9 +62,29 @@ export default function Traces() {
     };
   };
 
+  const convertToOptions = (
+    options: RouterOutput["traces"]["availableFilterOptions"]
+  ): TraceRowOptions => {
+    console.log(options);
+    return {
+      names: options.names.map((n) => {
+        return { label: n.name, value: n._count.toString() };
+      }),
+      statuses: options.statuses.map((n) => {
+        return { label: n.status, value: n._count.toString() };
+      }),
+      ids: options.ids.map((n) => {
+        return { label: n.id, value: n._count.toString() };
+      }),
+    };
+  };
+
   return (
     <div className="container mx-auto py-10">
-      {traces.isLoading || !traces.data ? (
+      {options.isLoading ||
+      !options.data ||
+      traces.isLoading ||
+      !traces.data ? (
         <div className="flex h-[150px] flex-col items-center justify-center text-sm font-light uppercase text-neutral-500">
           Loading...
         </div>
@@ -87,7 +96,7 @@ export default function Traces() {
         <DataTable
           columns={columns}
           data={traces.data?.map((t) => convertToTableRow(t))}
-          options={options}
+          options={convertToOptions(options.data)}
           queryOptions={queryOptions}
           updateQueryOptions={updateQueryOptions}
         />

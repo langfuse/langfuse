@@ -22,8 +22,6 @@ export function DataTableToolbar<TData>({
 }: DataTableToolbarProps<TData>) {
   const isFiltered = queryOptions.names !== null;
 
-  console.log("hello");
-
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
@@ -31,7 +29,7 @@ export function DataTableToolbar<TData>({
           <DataTableFacetedFilter
             column={table.getColumn("id")}
             title="ID"
-            options={options.id}
+            options={options.ids}
             queryOptions={queryOptions}
             updateQueryOptions={updateQueryOptions}
           />

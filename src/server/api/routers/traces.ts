@@ -16,6 +16,7 @@ const FilterOptions = z.object({
     })
     .nullable(),
   names: z.array(z.string()).nullable(),
+  ids: z.array(z.string()).nullable(),
 });
 
 export const traceRouter = createTRPCRouter({
@@ -29,8 +30,15 @@ export const traceRouter = createTRPCRouter({
           : undefined),
         ...(input.names
           ? {
-              id: {
+              name: {
                 in: input.names,
+              },
+            }
+          : undefined),
+        ...(input.ids
+          ? {
+              id: {
+                in: input.ids,
               },
             }
           : undefined),
@@ -53,23 +61,61 @@ export const traceRouter = createTRPCRouter({
   availableFilterOptions: publicProcedure
     .input(FilterOptions)
     .query(async ({ input }) => {
-      const options = await prisma.trace.groupBy({
-        where: {
-          ...(input.names
-            ? {
-                id: {
-                  in: input.names,
-                },
-              }
-            : undefined),
-        },
-        by: ["name", "timestamp"],
-        _count: {
-          _all: true,
-        },
-      });
+      const [ids, names, statuses] = await Promise.all([
+        await prisma.trace.groupBy({
+          where: {
+            ...(input.ids
+              ? {
+                  id: {
+                    in: input.ids,
+                  },
+                }
+              : undefined),
+          },
+          by: ["id"],
+          _count: {
+            _all: true,
+          },
+        }),
 
-      return options;
+        await prisma.trace.groupBy({
+          where: {
+            ...(input.names
+              ? {
+                  name: {
+                    in: input.names,
+                  },
+                }
+              : undefined),
+          },
+          by: ["name"],
+          _count: {
+            _all: true,
+          },
+        }),
+
+        await prisma.trace.groupBy({
+          where: {
+            ...(input.names
+              ? {
+                  name: {
+                    in: input.names,
+                  },
+                }
+              : undefined),
+          },
+          by: ["status"],
+          _count: {
+            _all: true,
+          },
+        }),
+      ]);
+
+      return {
+        ids: ids,
+        names: names,
+        statuses: statuses,
+      };
     }),
 
   byId: publicProcedure.input(z.string()).query(async ({ input }) => {

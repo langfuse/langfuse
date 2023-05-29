@@ -21,7 +21,6 @@ import {
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
 import { type TraceFilterInput } from "../pages/traces";
-import lodash from "lodash";
 
 interface DataTableFacetedFilter<TData, TValue> {
   column?: Column<TData, TValue>;
@@ -43,13 +42,11 @@ export function DataTableFacetedFilter<TData, TValue>({
   updateQueryOptions,
 }: DataTableFacetedFilter<TData, TValue>) {
   const facets = column?.getFacetedUniqueValues();
-  const selectedValues = new Set(column?.getFilterValue() as string[]);
+  const selectedValues = new Set(queryOptions.ids as string[]);
 
-  const updateName = (newName?: string[]) => {
-    updateQueryOptions(lodash.merge(queryOptions, { name: newName }));
+  const updateIds = (newIds: string[] | null) => {
+    updateQueryOptions({ ...queryOptions, ids: newIds });
   };
-
-  console.log("DataTableFacetedFilter");
 
   return (
     <Popover>
@@ -99,21 +96,19 @@ export function DataTableFacetedFilter<TData, TValue>({
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
-                const isSelected = selectedValues.has(option.value);
+                const isSelected = selectedValues.has(option.label);
                 return (
                   <CommandItem
-                    key={option.value}
+                    key={option.label}
                     onSelect={() => {
                       if (isSelected) {
-                        selectedValues.delete(option.value);
+                        selectedValues.delete(option.label);
                       } else {
-                        selectedValues.add(option.value);
+                        selectedValues.add(option.label);
                       }
                       const filterValues = Array.from(selectedValues);
 
-                      updateName(
-                        filterValues.length ? filterValues : undefined
-                      );
+                      updateIds(filterValues.length ? filterValues : null);
                     }}
                   >
                     <div
@@ -144,7 +139,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
-                    onSelect={() => column?.setFilterValue(undefined)}
+                    onSelect={() => updateIds(null)}
                     className="justify-center text-center"
                   >
                     Clear filters
