@@ -69,7 +69,7 @@ export default function Layout(props: PropsWithChildren) {
       </div>
     );
 
-  // if (session.status === "unauthenticated") void router.push("/auth/sign-in");
+  if (session.status === "unauthenticated") void router.push("/auth/sign-in");
 
   return (
     <>

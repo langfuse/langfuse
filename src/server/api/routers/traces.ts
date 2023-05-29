@@ -2,11 +2,11 @@ import { type NestedObservation } from "@/src/utils/types";
 import { type Observation } from "@prisma/client";
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
 export const traceRouter = createTRPCRouter({
-  all: publicProcedure
+  all: protectedProcedure
     .input(
       z.object({
         attributes: z
@@ -44,7 +44,7 @@ export const traceRouter = createTRPCRouter({
       }));
     }),
 
-  byId: publicProcedure.input(z.string()).query(async ({ input }) => {
+  byId: protectedProcedure.input(z.string()).query(async ({ input }) => {
     const [trace, observations] = await Promise.all([
       prisma.trace.findUniqueOrThrow({
         where: {

@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 import { type LlmCall } from "~/utils/types";
 
 export const llmCallRouter = createTRPCRouter({
-  all: publicProcedure.query(async () => {
+  all: protectedProcedure.query(async () => {
     const llmCalls = (await prisma.observation.findMany({
       where: {
         type: "LLMCALL",
@@ -18,15 +18,13 @@ export const llmCallRouter = createTRPCRouter({
     return llmCalls;
   }),
 
-  byId: publicProcedure
-    .input(z.string())
-    .query(async ({ input }) => {
-      // also works for other observations
-      const llmCall = (await prisma.observation.findUnique({
-        where: {
-          id: input,
-        },
-      })) as LlmCall;
+  byId: protectedProcedure.input(z.string()).query(async ({ input }) => {
+    // also works for other observations
+    const llmCall = (await prisma.observation.findUnique({
+      where: {
+        id: input,
+      },
+    })) as LlmCall;
 
     const scores = await prisma.score.findMany({
       where: {
@@ -34,6 +32,6 @@ export const llmCallRouter = createTRPCRouter({
       },
     });
 
-      return { ...llmCall, scores };
-    }),
+    return { ...llmCall, scores };
+  }),
 });

@@ -4,11 +4,11 @@ import {
 } from "@/src/features/dashboard/lib/timeseriesAggregation";
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
 export const dashboardRouter = createTRPCRouter({
-  llmCalls: publicProcedure
+  llmCalls: protectedProcedure
     .input(
       z.object({
         agg: z.enum(dateTimeAggregationOptions),
@@ -65,7 +65,7 @@ export const dashboardRouter = createTRPCRouter({
         ts: row.date_trunc.getTime(),
       }));
     }),
-  traces: publicProcedure
+  traces: protectedProcedure
     .input(
       z.object({
         agg: z.enum(dateTimeAggregationOptions),
@@ -122,7 +122,7 @@ export const dashboardRouter = createTRPCRouter({
         ts: row.date_trunc.getTime(),
       }));
     }),
-  scores: publicProcedure
+  scores: protectedProcedure
     .input(
       z.object({
         agg: z.enum(dateTimeAggregationOptions),
