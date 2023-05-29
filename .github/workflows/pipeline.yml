@@ -34,6 +34,10 @@ jobs:
     needs: ci
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/langfuse
+      NEXTAUTH_SECRET: "secret"
+      NEXTAUTH_URL: "http://localhost:3000/api"
 
     steps:
       - name: Setup node
@@ -50,7 +54,7 @@ jobs:
 
       - name: Build
         run: |
-          npm build
+          npm run build
 
       - name: Build Docker image
         run: docker build . -t langfuse
