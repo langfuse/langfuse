@@ -1,8 +1,4 @@
 import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/utils/types";
-import {
   LineChart,
   Line,
   XAxis,
@@ -12,8 +8,12 @@ import {
   Label,
   Legend,
 } from "recharts";
+import {
+  dateTimeAggregationSettings,
+  type DateTimeAggregationOption,
+} from "../lib/timeseriesAggregation";
 
-export function TimeSeriesChart(props: {
+export function BaseTimeSeriesChart(props: {
   agg: DateTimeAggregationOption;
   data: { ts: number; values: { label: string; value: number }[] }[];
 }) {

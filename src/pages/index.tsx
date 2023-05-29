@@ -1,15 +1,15 @@
 import { useState } from "react";
-import {
-  ChartLlmCalls,
-  ChartScores,
-  ChartTraces,
-} from "../components/charts/charts";
 import Header from "../components/layouts/header";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
   dateTimeAggregationOptions,
   type DateTimeAggregationOption,
-} from "../utils/types";
+} from "@/src/features/dashboard/lib/timeseriesAggregation";
+import {
+  ChartLlmCalls,
+  ChartScores,
+  ChartTraces,
+} from "@/src/features/dashboard/components/charts";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
