@@ -1,4 +1,3 @@
-import { Button } from "@/src/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 

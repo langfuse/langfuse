@@ -80,7 +80,10 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
       </DialogTrigger>
       <DialogContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <form
+            onSubmit={() => form.handleSubmit(onSubmit)}
+            className="space-y-8"
+          >
             <DialogHeader>
               <DialogTitle className="mb-5">New project</DialogTitle>
               <DialogDescription>
