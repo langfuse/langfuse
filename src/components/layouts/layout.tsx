@@ -22,10 +22,17 @@ import {
   AvatarImage,
 } from "@/src/components/ui/avatar";
 import { api } from "@/src/utils/api";
-import { Button } from "@/src/components/ui/button";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 
-const userNavigation = [{ name: "Sign out", onClick: () => signOut() }];
+const userNavigation = [
+  {
+    name: "Sign out",
+    onClick: () =>
+      signOut({
+        callbackUrl: "/auth/sign-in",
+      }),
+  },
+];
 
 const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
