@@ -1,4 +1,4 @@
-import Header from "../components/layouts/header";
+import Header from "@/src/components/layouts/header";
 
 export default function Playground() {
   return <Header title="Playground" />;

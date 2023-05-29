@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { prisma } from "~/server/db";
-import { type LlmCall } from "~/utils/types";
+import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import { prisma } from "@/src/server/db";
+import { type LlmCall } from "@/src/utils/types";
 
 export const llmCallRouter = createTRPCRouter({
   all: protectedProcedure.query(async () => {

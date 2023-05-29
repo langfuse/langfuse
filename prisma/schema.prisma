@@ -65,23 +65,23 @@ model VerificationToken {
     @@unique([identifier, token])
 }
 
-model Organization {
+model Project {
     id        String       @id @default(cuid())
     createdAt DateTime     @default(now())
     name      String
     members   Membership[]
 
-    @@map("organizations")
+    @@map("projects")
 }
 
 model Membership {
-    organizationId String
-    organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-    userId         String
-    user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-    role           MembershipRole
+    projectId String
+    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userId    String
+    user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+    role      MembershipRole
 
-    @@id([organizationId, userId])
+    @@id([projectId, userId])
     @@map("memberships")
 }
 

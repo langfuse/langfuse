@@ -2,7 +2,7 @@ import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { CommandLineIcon, MegaphoneIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { SiPython } from "react-icons/si";
-import Header from "../components/layouts/header";
+import Header from "@/src/components/layouts/header";
 
 const items = [
   {

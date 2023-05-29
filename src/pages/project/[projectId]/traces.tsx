@@ -1,4 +1,4 @@
-import Header from "~/components/layouts/header";
+import Header from "@/src/components/layouts/header";
 
 import {
   DataGrid,
@@ -14,19 +14,19 @@ import {
   GridToolbarExport,
   GridToolbarFilterButton,
 } from "@mui/x-data-grid";
-import { api } from "~/utils/api";
+import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "../components/ui/tabs";
-import { type RouterInput, type RouterOutput } from "../utils/types";
-import { Button } from "../components/ui/button";
+} from "@/src/components/ui/tabs";
+import { type RouterInput, type RouterOutput } from "@/src/utils/types";
+import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import ObservationDisplay from "../components/observationDisplay";
+import ObservationDisplay from "@/src/components/observationDisplay";
 import { type TextFieldProps, TextField, Box } from "@mui/material";
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";

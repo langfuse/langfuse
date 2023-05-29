@@ -1,4 +1,9 @@
-import { Fragment, type PropsWithChildren, useState } from "react";
+import {
+  Fragment,
+  type PropsWithChildren,
+  useState,
+  type ReactNode,
+} from "react";
 import { Dialog, Menu, Transition } from "@headlessui/react";
 import {
   Bars3Icon,
@@ -12,7 +17,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Joystick, LineChart } from "lucide-react";
+import { Code, Joystick, LineChart } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
@@ -21,33 +26,50 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-
-const navigationPaths = [
-  { name: "Dashboard", href: "/", icon: HomeIcon },
-  { name: "Traces", href: "/traces", icon: UsersIcon },
-  { name: "LLM Calls", href: "/llm-calls", icon: DocumentDuplicateIcon },
-  { name: "Scores", href: "/scores", icon: LineChart },
-  { name: "Playground (soon)", href: "#", icon: Joystick },
-  { name: "Setup", href: "/setup", icon: Cog6ToothIcon },
-];
+import { api } from "@/src/utils/api";
 
 const userNavigation = [{ name: "Sign out", onClick: () => signOut() }];
 
-const pathsWithoutSidebar = ["/auth/sign-in", "/auth/sign-up"];
+const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
-  const navigation = navigationPaths.map((staticAttributes) => ({
+  const projectId = router.query.projectId as string | undefined;
+  const navigation = [
+    { name: "Setup", href: "/setup", icon: Cog6ToothIcon },
+    ...(projectId
+      ? [
+          { name: "Dashboard", href: `/project/${projectId}`, icon: HomeIcon },
+          {
+            name: "Traces",
+            href: `/project/${projectId}/traces`,
+            icon: UsersIcon,
+          },
+          {
+            name: "LLM Calls",
+            href: `/project/${projectId}/llm-calls`,
+            icon: DocumentDuplicateIcon,
+          },
+          {
+            name: "Scores",
+            href: `/project/${projectId}/scores`,
+            icon: LineChart,
+          },
+          { name: "Playground (soon)", href: "#", icon: Joystick },
+        ]
+      : []),
+  ].map((staticAttributes) => ({
     ...staticAttributes,
     current: router.pathname === staticAttributes.href,
   }));
 
   const session = useSession();
-  console.log(session);
 
-  if (session.status === "loading")
+  const projects = api.projects.all.useQuery();
+
+  if (session.status === "loading" || projects.status === "loading")
     return (
       <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -73,8 +95,10 @@ export default function Layout(props: PropsWithChildren) {
   )
     void router.push("/");
 
-  const showNavigation = !pathsWithoutSidebar.includes(router.pathname);
-  if (!showNavigation)
+  const hideNavigation =
+    session.status === "unauthenticated" ||
+    pathsWithoutNavigation.includes(router.pathname);
+  if (hideNavigation)
     return (
       <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
         {props.children}
@@ -171,6 +195,40 @@ export default function Layout(props: PropsWithChildren) {
                             ))}
                           </ul>
                         </li>
+                        <li>
+                          <div className="text-xs font-semibold leading-6 text-gray-400">
+                            Projects
+                          </div>
+                          <ul role="list" className="-mx-2 mt-2 space-y-1">
+                            {projects.data?.map((project) => (
+                              <li key={project.name}>
+                                <Link
+                                  href={`/project/${project.id}`}
+                                  className={cn(
+                                    true
+                                      ? "bg-gray-50 text-indigo-600"
+                                      : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                                    "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      true
+                                        ? "border-indigo-600 text-indigo-600"
+                                        : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium"
+                                    )}
+                                  >
+                                    <Code />
+                                  </span>
+                                  <span className="truncate">
+                                    {project.name}
+                                  </span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
                       </ul>
                     </nav>
                   </div>
@@ -218,6 +276,39 @@ export default function Layout(props: PropsWithChildren) {
                   </ul>
                 </li>
 
+                <li>
+                  <div className="text-xs font-semibold leading-6 text-gray-400">
+                    Projects
+                  </div>
+                  <ul role="list" className="-mx-2 mt-2 space-y-1">
+                    {projects.data?.map((project) => (
+                      <li key={project.name}>
+                        <Link
+                          href={`/project/${project.id}`}
+                          className={cn(
+                            true
+                              ? "bg-gray-50 text-indigo-600"
+                              : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                            "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              true
+                                ? "border-indigo-600 text-indigo-600"
+                                : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                              "w-6shrink-0 flex h-6 w-6 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium"
+                            )}
+                          >
+                            <Code />
+                          </span>
+                          <span className="truncate">{project.name}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+
                 <li className="-mx-6 mt-auto">
                   <Menu as="div" className="relative">
                     <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
@@ -228,10 +319,12 @@ export default function Layout(props: PropsWithChildren) {
                         />
                         <AvatarFallback>
                           {session.data?.user.name
-                            .split(" ")
-                            .map((word) => word[0])
-                            .slice(0, 2)
-                            .concat("")}
+                            ? session.data.user.name
+                                .split(" ")
+                                .map((word) => word[0])
+                                .slice(0, 2)
+                                .concat("")
+                            : null}
                         </AvatarFallback>
                       </Avatar>
                       <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
@@ -295,10 +388,12 @@ export default function Layout(props: PropsWithChildren) {
                 <AvatarImage src={session.data?.user.image ?? undefined} />
                 <AvatarFallback>
                   {session.data?.user.name
-                    .split(" ")
-                    .map((word) => word[0])
-                    .slice(0, 2)
-                    .concat("")}
+                    ? session.data.user.name
+                        .split(" ")
+                        .map((word) => word[0])
+                        .slice(0, 2)
+                        .concat("")
+                    : null}
                 </AvatarFallback>
               </Avatar>
             </Menu.Button>

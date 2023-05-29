@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
-import Header from "~/components/layouts/header";
-import { api } from "~/utils/api";
+import Header from "@/src/components/layouts/header";
+import { api } from "@/src/utils/api";
 import DescriptionList from "@/src/components/ui/descriptionLists";
 import { JSONview } from "@/src/components/ui/code";
 import ObservationDisplay from "@/src/components/observationDisplay";

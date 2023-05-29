@@ -6,11 +6,11 @@ import {
   CardDescription,
   CardFooter,
   CardTitle,
-} from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
+} from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
-import { type DateTimeAggregationOption } from "../lib/timeseriesAggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
 
 export function ChartLlmCalls(props: { agg: DateTimeAggregationOption }) {
   const data = api.dashboard.llmCalls.useQuery({ agg: props.agg });

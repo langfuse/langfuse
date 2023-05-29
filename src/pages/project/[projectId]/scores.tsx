@@ -1,4 +1,4 @@
-import Header from "~/components/layouts/header";
+import Header from "@/src/components/layouts/header";
 
 import {
   DataGrid,
@@ -7,7 +7,7 @@ import {
   type GridRowParams,
   GridToolbar,
 } from "@mui/x-data-grid";
-import { api } from "~/utils/api";
+import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 
 interface RowData {

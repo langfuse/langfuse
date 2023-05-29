@@ -4,8 +4,8 @@ import {
 } from "@/src/features/dashboard/lib/timeseriesAggregation";
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { prisma } from "~/server/db";
+import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import { prisma } from "@/src/server/db";
 
 export const dashboardRouter = createTRPCRouter({
   llmCalls: protectedProcedure

@@ -4,9 +4,9 @@ import DescriptionList from "@/src/components/ui/descriptionLists";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import Header from "~/components/layouts/header";
+import Header from "@/src/components/layouts/header";
 
-import { api } from "~/utils/api";
+import { api } from "@/src/utils/api";
 
 export default function LlmCallPage() {
   const router = useRouter();

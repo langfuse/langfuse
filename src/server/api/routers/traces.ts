@@ -2,8 +2,8 @@ import { type NestedObservation } from "@/src/utils/types";
 import { type Observation } from "@prisma/client";
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { prisma } from "~/server/db";
+import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import { prisma } from "@/src/server/db";
 
 export const traceRouter = createTRPCRouter({
   all: protectedProcedure

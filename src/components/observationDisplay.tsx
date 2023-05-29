@@ -1,9 +1,9 @@
-import { Button } from "~/components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "~/components/ui/collapsible";
+} from "@/src/components/ui/collapsible";
 import { ChevronsUpDown, ChevronsDownUp, ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { type NestedObservation } from "@/src/utils/types";

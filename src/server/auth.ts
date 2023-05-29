@@ -1,7 +1,7 @@
 import { type GetServerSidePropsContext } from "next";
 import { getServerSession, type User, type NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "~/server/db";
+import { prisma } from "@/src/server/db";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 
@@ -28,7 +28,7 @@ export const authOptions: NextAuthOptions = {
           image: true,
           memberships: {
             include: {
-              organization: true,
+              project: true,
             },
           },
         },
@@ -42,9 +42,9 @@ export const authOptions: NextAuthOptions = {
           name: dbUser?.name ?? token.name,
           email: dbUser?.email ?? token.email,
           image: dbUser?.image ?? token.image,
-          organizations: dbUser?.memberships.map((membership) => ({
-            id: membership.organization.id,
-            name: membership.organization.name,
+          projects: dbUser?.memberships.map((membership) => ({
+            id: membership.project.id,
+            name: membership.project.name,
             role: membership.role,
           })),
         },

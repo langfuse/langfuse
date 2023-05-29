@@ -2,7 +2,7 @@ import { type DefaultSession, type DefaultUser } from "next-auth";
 import {
   type User as PrismaUser,
   type Membership as PrismaMembership,
-  type Organization as PrismaOrganization,
+  type Project as PrismaProject,
 } from "@prisma/client";
 
 /**
@@ -22,9 +22,9 @@ declare module "next-auth" {
     email?: PrismaUser["email"];
     image?: PrismaUser["image"];
     emailVerified?: PrismaUser["emailVerified"];
-    organizations?: {
-      id: PrismaOrganization["id"];
-      name: PrismaOrganization["name"];
+    projects?: {
+      id: PrismaProject["id"];
+      name: PrismaProject["name"];
       role: PrismaMembership["role"];
     }[];
   }
