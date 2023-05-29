@@ -70,6 +70,7 @@ model Project {
     createdAt DateTime     @default(now())
     name      String
     members   Membership[]
+    traces    Trace[]
 
     @@map("projects")
 }
@@ -92,14 +93,17 @@ enum MembershipRole {
 }
 
 model Trace {
-    id            String        @id @default(cuid())
-    timestamp     DateTime      @default(now())
+    id            String   @id @default(cuid())
+    timestamp     DateTime @default(now())
     name          String
     attributes    Json
     status        String
-    statusMessage String?       @map("status_message")
-    observations  Observation[]
-    scores        Score[]
+    statusMessage String?  @map("status_message")
+    projectId     String
+    project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    observations Observation[]
+    scores       Score[]
 
     @@map("traces")
 }

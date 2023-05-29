@@ -3,6 +3,13 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  const project = await prisma.project.create({
+    data: {
+      id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      name: "llm-app",
+    },
+  });
+
   const trace = await prisma.trace.create({
     data: {
       id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53b",
@@ -12,6 +19,11 @@ async function main() {
         user: "user@langfuse.com",
       },
       status: "success",
+      project: {
+        connect: {
+          id: project.id,
+        },
+      },
     },
   });
 
@@ -115,6 +127,11 @@ async function main() {
         user: "Nima",
       },
       status: "success",
+      project: {
+        connect: {
+          id: project.id,
+        },
+      },
     },
   });
 
@@ -149,12 +166,16 @@ async function main() {
   });
 
   console.log({
+    project,
     trace,
     span,
     event,
     llmCall,
-    grading1: score1,
-    grading2: score2,
+    score1,
+    score2,
+    trace2,
+    span2,
+    event2,
   });
 }
 

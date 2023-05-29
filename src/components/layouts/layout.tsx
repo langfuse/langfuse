@@ -22,6 +22,8 @@ import {
   AvatarImage,
 } from "@/src/components/ui/avatar";
 import { api } from "@/src/utils/api";
+import { Button } from "@/src/components/ui/button";
+import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 
 const userNavigation = [{ name: "Sign out", onClick: () => signOut() }];
 
@@ -69,9 +71,11 @@ export default function Layout(props: PropsWithChildren) {
 
   const session = useSession();
 
-  const projects = api.projects.all.useQuery();
+  const projects = api.projects.all.useQuery(undefined, {
+    enabled: session.status === "authenticated",
+  });
 
-  if (session.status === "loading" || projects.status === "loading")
+  if (session.status === "loading")
     return (
       <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -99,6 +103,7 @@ export default function Layout(props: PropsWithChildren) {
 
   const hideNavigation =
     session.status === "unauthenticated" ||
+    projects.data?.length === 0 ||
     pathsWithoutNavigation.includes(router.pathname);
   if (hideNavigation)
     return (
@@ -198,8 +203,11 @@ export default function Layout(props: PropsWithChildren) {
                           </ul>
                         </li>
                         <li>
-                          <div className="text-xs font-semibold leading-6 text-gray-400">
-                            Projects
+                          <div className="flex flex-row place-content-between items-center">
+                            <div className="text-xs font-semibold leading-6 text-gray-400">
+                              Projects
+                            </div>
+                            <NewProjectButton size="xs" />
                           </div>
                           <ul role="list" className="-mx-2 mt-2 space-y-1">
                             {projects.data?.map((project) => (
@@ -279,8 +287,11 @@ export default function Layout(props: PropsWithChildren) {
                 </li>
 
                 <li className="mt-auto">
-                  <div className="text-xs font-semibold leading-6 text-gray-400">
-                    Projects
+                  <div className="flex flex-row place-content-between items-center">
+                    <div className="text-xs font-semibold leading-6 text-gray-400">
+                      Projects
+                    </div>
+                    <NewProjectButton size="xs" />
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
                     {projects.data?.map((project) => (

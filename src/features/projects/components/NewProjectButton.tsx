@@ -23,6 +23,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
+import { cn } from "@/src/utils/tailwind";
 
 const formSchema = z.object({
   name: z
@@ -35,7 +37,10 @@ const formSchema = z.object({
     ),
 });
 
-export function NewProjectButton() {
+interface NewProjectButtonProps {
+  size?: "xs" | "default";
+}
+export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -43,20 +48,34 @@ export function NewProjectButton() {
     },
   });
   const utils = api.useContext();
-  const newProjectMutation = api.projects.create.useMutation({
+  const router = useRouter();
+  const createProjectMutation = api.projects.create.useMutation({
     onSuccess: () => utils.projects.invalidate(),
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    newProjectMutation.mutate(values);
+    createProjectMutation
+      .mutateAsync(values)
+      .then((project) => {
+        void router.push(`/project/${project.id}/setup`);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   }
 
   return (
     <Dialog>
       <DialogTrigger>
-        <Button>
-          <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-          New project
+        <Button size={size} variant={size === "xs" ? "secondary" : "default"}>
+          <PlusIcon
+            className={cn(
+              "-ml-0.5 mr-1.5",
+              size === "xs" ? "h-4 w-4" : "h-5 w-5"
+            )}
+            aria-hidden="true"
+          />
+          {size !== "xs" ? "New project" : "New"}
         </Button>
       </DialogTrigger>
       <DialogContent>
