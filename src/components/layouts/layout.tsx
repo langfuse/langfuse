@@ -1,9 +1,4 @@
-import {
-  Fragment,
-  type PropsWithChildren,
-  useState,
-  type ReactNode,
-} from "react";
+import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Menu, Transition } from "@headlessui/react";
 import {
   Bars3Icon,
@@ -17,7 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Code, Joystick, LineChart } from "lucide-react";
+import { Code, LineChart } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
@@ -38,32 +33,39 @@ export default function Layout(props: PropsWithChildren) {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
   const navigation = [
-    { name: "Setup", href: "/setup", icon: Cog6ToothIcon },
-    ...(projectId
-      ? [
-          { name: "Dashboard", href: `/project/${projectId}`, icon: HomeIcon },
-          {
-            name: "Traces",
-            href: `/project/${projectId}/traces`,
-            icon: UsersIcon,
-          },
-          {
-            name: "LLM Calls",
-            href: `/project/${projectId}/llm-calls`,
-            icon: DocumentDuplicateIcon,
-          },
-          {
-            name: "Scores",
-            href: `/project/${projectId}/scores`,
-            icon: LineChart,
-          },
-          { name: "Playground (soon)", href: "#", icon: Joystick },
-        ]
-      : []),
-  ].map((staticAttributes) => ({
-    ...staticAttributes,
-    current: router.pathname === staticAttributes.href,
-  }));
+    { name: "Dashboard", pathname: `/project/[projectId]`, icon: HomeIcon },
+    {
+      name: "Traces",
+      pathname: `/project/[projectId]/traces`,
+      icon: UsersIcon,
+    },
+    {
+      name: "LLM Calls",
+      pathname: `/project/[projectId]/llm-calls`,
+      icon: DocumentDuplicateIcon,
+    },
+    {
+      name: "Scores",
+      pathname: `/project/[projectId]/scores`,
+      icon: LineChart,
+    },
+    {
+      name: "Setup",
+      pathname: "/project/[projectId]/setup",
+      icon: Cog6ToothIcon,
+    },
+  ]
+    .filter((nav) => projectId || !nav.pathname.includes("[projectId]"))
+    .map((nav) => ({
+      ...nav,
+      href: nav.pathname.replace("[projectId]", projectId ?? ""),
+    }))
+    .map((staticAttributes) => ({
+      ...staticAttributes,
+      current: router.pathname === staticAttributes.pathname,
+    }));
+
+  console.log(router.pathname);
 
   const session = useSession();
 
@@ -205,7 +207,7 @@ export default function Layout(props: PropsWithChildren) {
                                 <Link
                                   href={`/project/${project.id}`}
                                   className={cn(
-                                    true
+                                    projectId === project.id
                                       ? "bg-gray-50 text-indigo-600"
                                       : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
                                     "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
@@ -213,7 +215,7 @@ export default function Layout(props: PropsWithChildren) {
                                 >
                                   <span
                                     className={cn(
-                                      true
+                                      projectId === project.id
                                         ? "border-indigo-600 text-indigo-600"
                                         : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
                                       "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium"
@@ -246,7 +248,7 @@ export default function Layout(props: PropsWithChildren) {
               🪢 langfuse
             </div>
             <nav className="flex flex-1 flex-col">
-              <ul role="list" className="flex flex-1 flex-col gap-y-7">
+              <ul role="list" className="flex flex-1 flex-col gap-y-4">
                 <li>
                   <ul role="list" className="-mx-2 space-y-1">
                     {navigation.map((item) => (
@@ -276,7 +278,7 @@ export default function Layout(props: PropsWithChildren) {
                   </ul>
                 </li>
 
-                <li>
+                <li className="mt-auto">
                   <div className="text-xs font-semibold leading-6 text-gray-400">
                     Projects
                   </div>
@@ -286,7 +288,7 @@ export default function Layout(props: PropsWithChildren) {
                         <Link
                           href={`/project/${project.id}`}
                           className={cn(
-                            true
+                            projectId === project.id
                               ? "bg-gray-50 text-indigo-600"
                               : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
                             "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
@@ -294,7 +296,7 @@ export default function Layout(props: PropsWithChildren) {
                         >
                           <span
                             className={cn(
-                              true
+                              projectId === project.id
                                 ? "border-indigo-600 text-indigo-600"
                                 : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
                               "w-6shrink-0 flex h-6 w-6 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium"
@@ -309,7 +311,7 @@ export default function Layout(props: PropsWithChildren) {
                   </ul>
                 </li>
 
-                <li className="-mx-6 mt-auto">
+                <li className="-mx-6 ">
                   <Menu as="div" className="relative">
                     <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                       <span className="sr-only">Open user menu</span>
