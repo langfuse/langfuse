@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Header from "../components/layouts/header";
 import { api } from "../utils/api";
 import { type RouterInput } from "../utils/types";
@@ -13,18 +13,20 @@ import { useRouter } from "next/router";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFilter } from "@fortawesome/free-solid-svg-icons";
 
-export default function Playground() {
-  type TraceFilterInput = RouterInput["traces"]["all"];
+type TraceFilterInput = RouterInput["traces"]["all"];
 
+export default function Playground() {
   const router = useRouter();
 
-  const [queryOptions, setQueryOptions] = React.useState<TraceFilterInput>({
+  const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     attributes: {},
   });
 
-  const traces = api.traces.all.useQuery(queryOptions, {
-    refetchInterval: 2000,
-  });
+  // {
+  //   refetchInterval: 2000,
+  // }
+
+  const traces = api.traces.all.useQuery(queryOptions);
 
   type TraceRow = {
     id: string;
@@ -41,22 +43,22 @@ export default function Playground() {
   const table = useReactTable({
     columns: [
       columnHelper.accessor((row) => row.id, {
-        cell: (info) => {
-          return (
-            <button
-              key="openTrace"
-              className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-              onClick={() => void router.push(`/traces/${info.getValue()}`)}
-            >
-              ...{lastCharacters(info.getValue(), 7)}
-            </button>
-          );
-        },
+        cell: (info) => info.getValue(),
+        //   {
+        //     return (
+        //       <button
+        //         key="openTrace"
+        //         className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
+        //         onClick={() => void router.push(`/traces/${info.getValue()}`)}
+        //       >
+        //         ...{lastCharacters(info.getValue(), 7)}
+        //       </button>
+        //     );
+        //   },
         header: () => "id",
         id: "id",
       }),
-      // Accessor Column
-      columnHelper.accessor((row) => row.timestamp.toISOString(), {
+      columnHelper.accessor((row) => row.timestamp, {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         cell: (info) => info.getValue(),
         header: () => "timestamp",
@@ -65,20 +67,21 @@ export default function Playground() {
       columnHelper.accessor((row) => row.name, {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         cell: (info) => info.getValue(),
-        header: () => {
-          return (
-            <div className="group inline-flex">
-              Name
-              <span className="ml-2 flex-none rounded text-gray-900 group-hover:bg-gray-200">
-                <FontAwesomeIcon
-                  className="h-3 w-3"
-                  aria-hidden="true"
-                  icon={faFilter}
-                />
-              </span>
-            </div>
-          );
-        },
+        header: () => "name",
+        // {
+        //   return (
+        //     <div className="group inline-flex">
+        //       Name
+        //       <span className="ml-2 flex-none rounded text-gray-900 group-hover:bg-gray-200">
+        //         <FontAwesomeIcon
+        //           className="h-3 w-3"
+        //           aria-hidden="true"
+        //           icon={faFilter}
+        //         />
+        //       </span>
+        //     </div>
+        //   );
+        // },
         id: "name",
       }),
       columnHelper.accessor((row) => row.status, {
@@ -106,23 +109,23 @@ export default function Playground() {
         id: "scores",
       }),
     ],
-    data: traces.isLoading
-      ? []
-      : traces.data?.map((trace) => {
-          return {
-            id: trace.id,
-            timestamp: trace.timestamp,
-            name: trace.name,
-            status: trace.status,
-            statusMessage: trace.statusMessage ?? undefined,
-            traceAttributes: JSON.stringify(trace.attributes),
-            scores: trace.scores
-              // eslint-disable-next-line @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-member-access
-              .map((score) => `${score.name}: ${score.value}`)
-              .join("; "),
-          };
-        }) || [],
+    data: [], //traces.isLoading ? [] : [],
+    // traces.data!.map((trace) => {
+    //     return {
+    //       id: trace.id,
+    //       timestamp: trace.timestamp,
+    //       name: trace.name,
+    //       status: trace.status,
+    //       statusMessage: trace.statusMessage ?? undefined,
+    //       traceAttributes: JSON.stringify(trace.attributes),
+    //       scores: trace.scores
+    //         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-member-access
+    //         .map((score) => `${score.name}: ${score.value}`)
+    //         .join("; "),
+    //     };
+    //   }),
     getCoreRowModel: getCoreRowModel(),
+    debugAll: true,
   });
 
   return (
@@ -152,7 +155,7 @@ export default function Playground() {
                 ))}
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {traces.isLoading || !traces.data ? (
+                {/* {traces.isLoading || !traces.data ? (
                   <tr>
                     <td colSpan={7}>
                       <div className="flex h-[150px] flex-col items-center justify-center text-sm font-light uppercase text-neutral-500">
@@ -168,23 +171,30 @@ export default function Playground() {
                       </div>
                     </td>
                   </tr>
-                ) : (
-                  table.getRowModel().rows.map((row) => (
-                    <tr key={row.id}>
-                      {row.getVisibleCells().map((cell, i) => (
-                        <td
-                          key={cell.id}
-                          className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6"
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                )}
+                ) : ( */}
+
+                {table.getRowModel().rows.map((r) => {
+                  console.log(r.id);
+                  return <div>hello</div>;
+                })}
+
+                <div>hello</div>
+                {table.getRowModel().rows.map((row) => (
+                  <tr key={row.id}>
+                    {/* {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6"
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </td>
+                    ))} */}
+                  </tr>
+                ))}
+                {/* )} */}
               </tbody>
             </table>
           </div>
