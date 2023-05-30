@@ -339,10 +339,10 @@ export default function Layout(props: PropsWithChildren) {
                       <span className="sr-only">Open user menu</span>
                       <Avatar className="h-8 w-8">
                         <AvatarImage
-                          src={session.data?.user.image ?? undefined}
+                          src={session.data?.user?.image ?? undefined}
                         />
                         <AvatarFallback>
-                          {session.data?.user.name
+                          {session.data?.user?.name
                             ? session.data.user.name
                                 .split(" ")
                                 .map((word) => word[0])
@@ -352,7 +352,7 @@ export default function Layout(props: PropsWithChildren) {
                         </AvatarFallback>
                       </Avatar>
                       <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
-                        {session.data?.user.name}
+                        {session.data?.user?.name}
                       </span>
                       <ChevronDownIcon
                         className="h-5 w-5 text-gray-400"
@@ -409,9 +409,9 @@ export default function Layout(props: PropsWithChildren) {
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>
               <Avatar className="h-8 w-8">
-                <AvatarImage src={session.data?.user.image ?? undefined} />
+                <AvatarImage src={session.data?.user?.image ?? undefined} />
                 <AvatarFallback>
-                  {session.data?.user.name
+                  {session.data?.user?.name
                     ? session.data.user.name
                         .split(" ")
                         .map((word) => word[0])
