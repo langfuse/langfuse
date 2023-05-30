@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
-const FilterOptions = z.object({
+const TraceFilterOptions = z.object({
   attribute: z
     .object({
       path: z.array(z.string()).optional(),
@@ -21,7 +21,7 @@ const FilterOptions = z.object({
 });
 
 export const traceRouter = createTRPCRouter({
-  all: publicProcedure.input(FilterOptions).query(async ({ input }) => {
+  all: publicProcedure.input(TraceFilterOptions).query(async ({ input }) => {
     const traces = await prisma.trace.findMany({
       where: {
         ...(input.attribute?.path
@@ -67,7 +67,7 @@ export const traceRouter = createTRPCRouter({
   }),
 
   availableFilterOptions: publicProcedure
-    .input(FilterOptions)
+    .input(TraceFilterOptions)
     .query(async ({ input }) => {
       const filter = {
         ...(input.attribute?.path

@@ -17,12 +17,12 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { useState } from "react";
-import { type TraceRowOptions } from "../pages/traces";
+import { type RowOptions } from "../../pages/traces";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
-  options: AsyncTableData<TraceRowOptions[]>;
+  options: AsyncTableData<RowOptions[]>;
 }
 
 export interface AsyncTableData<T> {
@@ -35,7 +35,6 @@ export interface AsyncTableData<T> {
 export function DataTable<TData, TValue>({
   columns,
   data,
-  options,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
@@ -75,16 +74,13 @@ export function DataTable<TData, TValue>({
               ))}
             </TableHeader>
             <TableBody>
-              {options.isLoading ||
-              !options.data ||
-              data.isLoading ||
-              !data.data ? (
+              {data.isLoading || !data.data ? (
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
                     className="h-24 text-center"
                   >
-                    Loading.
+                    Loading...
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (

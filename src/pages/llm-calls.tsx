@@ -1,86 +1,137 @@
 import Header from "~/components/layouts/header";
-
-import {
-  DataGrid,
-  type GridRowsProp,
-  type GridColDef,
-  type GridRowParams,
-  GridToolbar,
-} from "@mui/x-data-grid";
 import { api } from "~/utils/api";
-import { useRouter } from "next/router";
+import { type ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/src/components/table/data-table";
+import TableLink from "@/src/components/table/table-link";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { useState } from "react";
+import { type RowOptions as TableRowOptions } from "@/src/pages/traces";
 
-interface TraceRowData {
+type LlmCallTableRow = {
   id: string;
   traceId: string;
-}
+  startTime: Date;
+  endTime?: Date;
+  name: string;
+  prompt?: string;
+  completion?: string;
+  model?: string;
+};
+
+export type LlmCallFilterInput = RouterInput["llmCalls"]["all"];
 
 export default function Traces() {
-  const llmCalls = api.llmCalls.all.useQuery(undefined, {
-    refetchInterval: 1000,
+  const [queryOptions, setQueryOptions] = useState<LlmCallFilterInput>({
+    traceId: null,
+    id: null,
   });
-  const router = useRouter();
 
-  const columns: GridColDef[] = [
+  const llmCalls = api.llmCalls.all.useQuery(queryOptions, {
+    refetchInterval: 2000,
+  });
+
+  const llmCallOptions = api.llmCalls.availableFilterOptions.useQuery(
+    queryOptions,
+    { refetchInterval: 2000 }
+  );
+
+  const columns: ColumnDef<LlmCallTableRow>[] = [
     {
-      field: "id",
-      type: "actions",
-      headerName: "ID",
-      width: 100,
-      getActions: (params: GridRowParams<TraceRowData>) => [
-        <button
-          key="openLlmCall"
-          className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() => void router.push(`/llm-calls/${params.row.id}`)}
-        >
-          ...{lastCharacters(params.row.id, 7)}
-        </button>,
-      ],
+      accessorKey: "id",
+      header: "ID",
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const value = row.getValue("id");
+        return typeof value === "string" ? (
+          <TableLink path={`/llm-calls/${value}`} value={value} />
+        ) : undefined;
+      },
+      meta: {
+        label: "Id",
+        updateFunction: (newValues: string[] | null) => {
+          setQueryOptions({ ...queryOptions, id: newValues });
+        },
+        filter: queryOptions.id,
+      },
     },
     {
-      field: "traceId",
-      type: "actions",
-      headerName: "Trace",
-      width: 100,
-      getActions: (params: GridRowParams<TraceRowData>) => [
-        <button
-          key="openTrace"
-          className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() => void router.push(`/traces/${params.row.traceId}`)}
-        >
-          ...{lastCharacters(params.row.traceId, 7)}
-        </button>,
-      ],
+      accessorKey: "traceId",
+      enableColumnFilter: true,
+      header: "Trace ID",
+      cell: ({ row }) => {
+        const value = row.getValue("traceId");
+        return typeof value === "string" ? (
+          <TableLink path={`/traces/${value}`} value={value} />
+        ) : undefined;
+      },
+      meta: {
+        label: "TraceID",
+        updateFunction: (newValues: string[] | null) => {
+          setQueryOptions({ ...queryOptions, traceId: newValues });
+        },
+        filter: queryOptions.traceId,
+      },
     },
     {
-      field: "startTime",
-      type: "dateTime",
-      headerName: "Start time",
-      width: 170,
-    },
-    { field: "name", headerName: "Name", minWidth: 200 },
-    {
-      field: "prompt",
-      headerName: "Prompt",
-      flex: 1,
+      accessorKey: "startTime",
+      header: "Start Time",
     },
     {
-      field: "completion",
-      headerName: "Completion",
-      flex: 1,
+      accessorKey: "endTime",
+      header: "End Time",
     },
     {
-      field: "model",
-      headerName: "Model",
-      flex: 1,
+      accessorKey: "name",
+      header: "Name",
+    },
+    {
+      accessorKey: "prompt",
+      header: "Prompt",
+    },
+    {
+      accessorKey: "completion",
+      header: "Completion",
+    },
+    {
+      accessorKey: "model",
+      header: "Model",
     },
   ];
 
-  const rows: GridRowsProp = llmCalls.isSuccess
+  const convertToOptions = (
+    options: RouterOutput["llmCalls"]["availableFilterOptions"]
+  ): TableRowOptions[] => {
+    return options.map((o) => {
+      return {
+        columnId: o.key,
+        options: o.occurrences.map((o) => {
+          return { label: o.key, value: o.count._all };
+        }),
+      };
+    });
+  };
+
+  const tableOptions = llmCallOptions.isLoading
+    ? { isLoading: true, isError: false }
+    : llmCallOptions.isError
+    ? {
+        isLoading: false,
+        isError: true,
+        error: llmCallOptions.error.message,
+      }
+    : {
+        isLoading: false,
+        isError: false,
+        data: convertToOptions(llmCallOptions.data),
+      };
+
+  const rows: LlmCallTableRow[] = llmCalls.isSuccess
     ? llmCalls.data.map((llmCall) => ({
         id: llmCall.id,
         traceId: llmCall.traceId,
         startTime: llmCall.startTime,
+        endTime: llmCall.endTime ?? undefined,
         name: llmCall.name,
         prompt: llmCall.attributes.prompt,
         completion: llmCall.attributes.completion,
@@ -88,19 +139,47 @@ export default function Traces() {
       }))
     : [];
 
-  return (
-    <>
-      <Header title="LLM Calls" live />
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        slots={{ toolbar: GridToolbar }}
-        loading={llmCalls.isLoading}
-      />
-    </>
-  );
-}
+  const resetFilters = () =>
+    setQueryOptions({
+      id: null,
+      traceId: null,
+    });
 
-function lastCharacters(str: string, n: number) {
-  return str.substring(str.length - n);
+  const isFiltered = () =>
+    queryOptions.traceId !== null || queryOptions.id !== null;
+
+  return (
+    <div className="container mx-auto py-10">
+      <Header title="LLM Calls" live />
+      {tableOptions.data ? (
+        <div className="my-2">
+          <DataTableToolbar
+            columnDefs={columns}
+            options={tableOptions.data}
+            resetFilters={resetFilters}
+            isFiltered={isFiltered}
+          />
+        </div>
+      ) : undefined}
+      <DataTable
+        columns={columns}
+        data={
+          llmCalls.isLoading
+            ? { isLoading: true, isError: false }
+            : llmCalls.isError
+            ? {
+                isLoading: false,
+                isError: true,
+                error: llmCalls.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: rows,
+              }
+        }
+        options={{ isLoading: true, isError: false }}
+      />
+    </div>
+  );
 }

@@ -3,26 +3,21 @@ import { X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
-import { type TraceFilterInput, type TraceRowOptions } from "../pages/traces";
+import { type RowOptions } from "../../pages/traces";
 
 interface DataTableToolbarProps<TData, TValue> {
   columnDefs: ColumnDef<TData, TValue>[];
-  options: TraceRowOptions[];
-  queryOptions: TraceFilterInput;
-  updateQueryOptions: (options: TraceFilterInput) => void;
+  options: RowOptions[];
+  resetFilters: () => void;
+  isFiltered: () => boolean;
 }
 
 export function DataTableToolbar<TData, TValue>({
   columnDefs,
   options,
-  queryOptions,
-  updateQueryOptions,
+  resetFilters,
+  isFiltered,
 }: DataTableToolbarProps<TData, TValue>) {
-  const isFiltered =
-    queryOptions.name !== null ||
-    queryOptions.id !== null ||
-    queryOptions.status !== null;
-
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
@@ -35,22 +30,14 @@ export function DataTableToolbar<TData, TValue>({
             <DataTableFacetedFilter
               columnDef={column}
               title={column.meta?.label}
-              queryOptions={queryOptions}
               options={columnOptions}
             />
           ) : undefined;
         })}
-        {isFiltered && (
+        {isFiltered() && (
           <Button
             variant="ghost"
-            onClick={() =>
-              updateQueryOptions({
-                attribute: {},
-                name: null,
-                id: null,
-                status: null,
-              })
-            }
+            onClick={() => resetFilters()}
             className="h-8 px-2 lg:px-3"
           >
             Reset
