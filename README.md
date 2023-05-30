@@ -1,12 +1,20 @@
-![langfuse - open-source tracing and feedback collection for LLM applications](readme.png)
+<br />
+<div align="center">
+  <a href="https://langfuse.com">
+    <img alt="langfuse Logo" src="https://github.com/langfuse/langfuse/blob/main/readme.png" alt="Logo" width="400">
+  </a>
 
+<h3 align="center">open source tracing and feedback collection for LLM applications</h3>
+   
+<p align="center">   
 [langfuse.com](https://langfuse.com) | [Discord](https://discord.com/invite/DNDAarxE) | help@langfuse.com
-
-## Goal
+</p>
+   
+# 🧐Introduction
 
 Debug and improve your LLM-based application by logging/analyzing all user interactions, backend traces, and explicit/implicit user feedback.
 
-## Features
+# 🤖Features
 
 1. Data collection
    - Tracing LLM application, chain, agent via backend SDK
@@ -18,12 +26,12 @@ Debug and improve your LLM-based application by logging/analyzing all user inter
    - For few-shot prompts
    - For fine-tuning
 
-## Get started
+# 🚴‍♂️Get started
 
 - [Quickstart](https://langfuse.com/docs/get-started)
 - [Demo](https://langfuse.com/#walkthrough-3-min)
 
-## Run locally
+# 🏡Run locally
 
 Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
 
@@ -34,11 +42,11 @@ docker-compose up
 
 Use the API or SDKs to integrate langfuse with your application
 
-## Development
+# Development
 
 Follow the steps below to setup the development environment.
 
-### Set up the application locally
+## Set up the application locally
 
 Follow the steps below to set up a dev environment. You will have a postgres database running in a docker container. The server will be started using NPM.
 
@@ -57,9 +65,9 @@ npx prisma db seed
 npm run dev
 ```
 
-## Production Deployment
+# Production Deployment
 
-### Build a Docker container
+## Build a Docker container
 
 The following instructions explain how to create a single container for deployment. The container will contain the server but no database. Please adjust the db url in the .env file to point to your database.
 
@@ -79,7 +87,7 @@ docker run \
 -a STDOUT langfuse
 ```
 
-### Generate SDKs
+## Generate SDKs
 
 ```bash
 # in the langfuse repo
@@ -94,18 +102,18 @@ npm install --save @finto-fern/api-client
 ncu -u && npm update --save
 ```
 
-## Contributing
+# Contributing
 
 Send us a PR, github issue, or email at contributing@langfuse.com
 
 Join the community [Discord](https://discord.com/invite/DNDAarxE).
 
-## Authors
+# Authors
 
 - Max Deichmann ([@maxdeichmann](https://github.com/maxdeichmann))
 - Marc Klingen ([@marcklingen](https://github.com/marcklingen))
 - Clemens Rawert ([@clemra](https://github.com/clemra))
 
-## License
+# License
 
 MIT License, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
