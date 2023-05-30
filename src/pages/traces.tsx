@@ -1,11 +1,9 @@
 import React, { useState } from "react";
 import { api } from "../utils/api";
 import { type RouterOutput, type RouterInput } from "../utils/types";
-import { DataTable } from "../components/data-table";
+import { DataTable } from "../components/table/data-table";
 import { type Trace, type Score } from "@prisma/client";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
-import { lastCharacters } from "../utils/string";
-import { useRouter } from "next/router";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   Tabs,
@@ -16,8 +14,9 @@ import {
 import Header from "../components/layouts/header";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
-import ObservationDisplay from "../components/observationDisplay";
-import { DataTableToolbar } from "../components/data-table-toolbar";
+import { DataTableToolbar } from "../components/table/data-table-toolbar";
+import TableLink from "@/src/components/table/table-link";
+import ObservationDisplay from "@/src/components/observationDisplay";
 
 export type TraceTableRow = {
   id: string;
@@ -31,14 +30,12 @@ export type TraceTableRow = {
 
 export type TraceFilterInput = RouterInput["traces"]["all"];
 
-export type TraceRowOptions = {
+export type RowOptions = {
   columnId: string;
   options: { label: string; value: number; icon?: LucideIcon }[];
 };
 
 export default function Traces() {
-  const router = useRouter();
-
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     attribute: {},
     name: null,
@@ -46,13 +43,13 @@ export default function Traces() {
     status: null,
   });
 
-  const updateQueryOptions = (options: TraceFilterInput) => {
-    setQueryOptions(options);
-  };
+  const traces = api.traces.all.useQuery(queryOptions, {
+    refetchInterval: 2000,
+  });
 
-  const traces = api.traces.all.useQuery(queryOptions);
-
-  const options = api.traces.availableFilterOptions.useQuery(queryOptions);
+  const options = api.traces.availableFilterOptions.useQuery(queryOptions, {
+    refetchInterval: 2000,
+  });
 
   const convertToTableRow = (
     trace: Trace & { scores: Score[] }
@@ -73,7 +70,7 @@ export default function Traces() {
 
   const convertToOptions = (
     options: RouterOutput["traces"]["availableFilterOptions"]
-  ): TraceRowOptions[] => {
+  ): RowOptions[] => {
     return options.map((o) => {
       return {
         columnId: o.key,
@@ -88,28 +85,16 @@ export default function Traces() {
     {
       accessorKey: "id",
       cell: ({ row }) => {
-        return (
-          <div>
-            <button
-              key="openTrace"
-              className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
-              onClick={() => {
-                const value = row.getValue("id");
-                typeof value === "string"
-                  ? void router.push(`/traces/${value}`)
-                  : null;
-              }}
-            >
-              ...{lastCharacters(row.getValue("id"), 7)}
-            </button>
-          </div>
-        );
+        const value = row.getValue("id");
+        return typeof value === "string" ? (
+          <TableLink path={`/traces/${value}`} value={value} />
+        ) : undefined;
       },
       enableColumnFilter: true,
       meta: {
         label: "Id",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, id: newValues });
+          setQueryOptions({ ...queryOptions, id: newValues });
         },
         filter: queryOptions.id,
       },
@@ -125,7 +110,7 @@ export default function Traces() {
       meta: {
         label: "Name",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, name: newValues });
+          setQueryOptions({ ...queryOptions, name: newValues });
         },
         filter: queryOptions.name,
       },
@@ -137,7 +122,7 @@ export default function Traces() {
       meta: {
         label: "Status",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, status: newValues });
+          setQueryOptions({ ...queryOptions, status: newValues });
         },
         filter: queryOptions.status,
       },
@@ -170,6 +155,19 @@ export default function Traces() {
         data: convertToOptions(options.data),
       };
 
+  const isFiltered = () =>
+    queryOptions.name !== null ||
+    queryOptions.id !== null ||
+    queryOptions.status !== null;
+
+  const resetFilters = () =>
+    setQueryOptions({
+      attribute: {},
+      name: null,
+      id: null,
+      status: null,
+    });
+
   return (
     <div className="container mx-auto py-10">
       <Header title="Traces" live />
@@ -183,8 +181,8 @@ export default function Traces() {
             <DataTableToolbar
               columnDefs={columns}
               options={tableOptions.data}
-              queryOptions={queryOptions}
-              updateQueryOptions={updateQueryOptions}
+              resetFilters={resetFilters}
+              isFiltered={isFiltered}
             />
           </div>
         ) : undefined}

@@ -20,13 +20,12 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { type TraceRowOptions, type TraceFilterInput } from "../pages/traces";
+import { type RowOptions } from "../../pages/traces";
 
 interface DataTableFacetedFilter<TData, TValue> {
   columnDef: ColumnDef<TData, TValue>;
   title?: string;
-  queryOptions: TraceFilterInput;
-  options: TraceRowOptions;
+  options: RowOptions;
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
