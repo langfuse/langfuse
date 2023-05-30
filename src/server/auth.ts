@@ -1,5 +1,10 @@
 import { type GetServerSidePropsContext } from "next";
-import { getServerSession, type User, type NextAuthOptions } from "next-auth";
+import {
+  getServerSession,
+  type User,
+  type NextAuthOptions,
+  type Session,
+} from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/src/server/db";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -15,7 +20,7 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token }): Promise<Session> {
       const dbUser = await prisma.user.findUnique({
         where: {
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -36,18 +41,21 @@ export const authOptions: NextAuthOptions = {
 
       return {
         ...session,
-        user: {
-          ...session.user,
-          id: dbUser?.id,
-          name: dbUser?.name ?? token.name,
-          email: dbUser?.email ?? token.email,
-          image: dbUser?.image ?? token.image,
-          projects: dbUser?.memberships.map((membership) => ({
-            id: membership.project.id,
-            name: membership.project.name,
-            role: membership.role,
-          })),
-        },
+        user:
+          dbUser !== null
+            ? {
+                ...session.user,
+                id: dbUser.id,
+                name: dbUser.name,
+                email: dbUser.email,
+                image: dbUser.image,
+                projects: dbUser.memberships.map((membership) => ({
+                  id: membership.project.id,
+                  name: membership.project.name,
+                  role: membership.role,
+                })),
+              }
+            : null,
       };
     },
   },

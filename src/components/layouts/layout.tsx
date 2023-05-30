@@ -82,31 +82,35 @@ export default function Layout(props: PropsWithChildren) {
     enabled: session.status === "authenticated",
   });
 
-  if (session.status === "loading")
-    return (
-      <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <span className="block text-center font-mono text-4xl font-bold motion-safe:animate-spin">
-            🪢
-          </span>
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
-            Loading ...
-          </h2>
-        </div>
-      </div>
-    );
+  if (session.status === "loading") return <Spinner message="Loading" />;
+
+  // If the user has a token, but does not exist in the database, sign them out
+  if (
+    session.data &&
+    session.data.user === null &&
+    !unauthenticatedPaths.includes(router.pathname)
+  ) {
+    void signOut({
+      callbackUrl: "/auth/sign-in",
+    });
+    return <Spinner message="Redirecting" />;
+  }
 
   if (
     session.status === "unauthenticated" &&
     !unauthenticatedPaths.includes(router.pathname)
-  )
+  ) {
     void router.push("/auth/sign-in");
+    return <Spinner message="Redirecting" />;
+  }
 
   if (
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
-  )
+  ) {
     void router.push("/");
+    return <Spinner message="Redirecting" />;
+  }
 
   const hideNavigation =
     session.status === "unauthenticated" ||
@@ -453,5 +457,20 @@ export default function Layout(props: PropsWithChildren) {
         </div>
       </div>
     </>
+  );
+}
+
+function Spinner(props: { message: string }) {
+  return (
+    <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <span className="block text-center font-mono text-4xl font-bold motion-safe:animate-spin">
+          🪢
+        </span>
+        <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+          {props.message} ...
+        </h2>
+      </div>
+    </div>
   );
 }

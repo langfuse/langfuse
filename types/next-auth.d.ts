@@ -13,7 +13,7 @@ import {
  */
 declare module "next-auth" {
   interface Session extends DefaultSession {
-    user: User;
+    user: User | null; // null if user does not exist anymore in the database but has active jwt
   }
 
   interface User extends DefaultUser {
@@ -22,7 +22,7 @@ declare module "next-auth" {
     email?: PrismaUser["email"];
     image?: PrismaUser["image"];
     emailVerified?: PrismaUser["emailVerified"];
-    projects?: {
+    projects: {
       id: PrismaProject["id"];
       name: PrismaProject["name"];
       role: PrismaMembership["role"];
