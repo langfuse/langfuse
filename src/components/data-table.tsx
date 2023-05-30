@@ -17,12 +17,12 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { useState } from "react";
-import { type TraceRowOptions } from "../pages/traces";
+import { type RowOptions } from "../pages/traces";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
-  options: AsyncTableData<TraceRowOptions[]>;
+  options: AsyncTableData<RowOptions[]>;
 }
 
 export interface AsyncTableData<T> {

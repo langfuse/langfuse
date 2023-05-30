@@ -30,7 +30,7 @@ export type TraceTableRow = {
 
 export type TraceFilterInput = RouterInput["traces"]["all"];
 
-export type TraceRowOptions = {
+export type RowOptions = {
   columnId: string;
   options: { label: string; value: number; icon?: LucideIcon }[];
 };
@@ -47,9 +47,13 @@ export default function Traces() {
     setQueryOptions(options);
   };
 
-  const traces = api.traces.all.useQuery(queryOptions);
+  const traces = api.traces.all.useQuery(queryOptions, {
+    refetchInterval: 2000,
+  });
 
-  const options = api.traces.availableFilterOptions.useQuery(queryOptions);
+  const options = api.traces.availableFilterOptions.useQuery(queryOptions, {
+    refetchInterval: 2000,
+  });
 
   const convertToTableRow = (
     trace: Trace & { scores: Score[] }
@@ -70,7 +74,7 @@ export default function Traces() {
 
   const convertToOptions = (
     options: RouterOutput["traces"]["availableFilterOptions"]
-  ): TraceRowOptions[] => {
+  ): RowOptions[] => {
     return options.map((o) => {
       return {
         columnId: o.key,
@@ -157,6 +161,19 @@ export default function Traces() {
         data: convertToOptions(options.data),
       };
 
+  const isFiltered = () =>
+    queryOptions.name !== null ||
+    queryOptions.id !== null ||
+    queryOptions.status !== null;
+
+  const resetFilters = () =>
+    updateQueryOptions({
+      attribute: {},
+      name: null,
+      id: null,
+      status: null,
+    });
+
   return (
     <div className="container mx-auto py-10">
       <Header title="Traces" live />
@@ -170,8 +187,8 @@ export default function Traces() {
             <DataTableToolbar
               columnDefs={columns}
               options={tableOptions.data}
-              queryOptions={queryOptions}
-              updateQueryOptions={updateQueryOptions}
+              resetFilters={resetFilters}
+              isFiltered={isFiltered}
             />
           </div>
         ) : undefined}

@@ -1,15 +1,12 @@
 import Header from "~/components/layouts/header";
 import { api } from "~/utils/api";
-import { useRouter } from "next/router";
 import { type ColumnDef } from "@tanstack/react-table";
-import { type Prisma, type Observation } from "@prisma/client";
 import { DataTable } from "@/src/components/data-table";
-import { lastCharacters } from "@/src/utils/string";
 import TableLink from "@/src/components/table-link";
 import { DataTableToolbar } from "@/src/components/data-table-toolbar";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
-import { type TraceRowOptions as TableRowOptions } from "@/src/pages/traces";
+import { type RowOptions as TableRowOptions } from "@/src/pages/traces";
 
 type LlmCallTableRow = {
   id: string;
@@ -30,13 +27,18 @@ export default function Traces() {
     id: null,
   });
 
-  const llmCalls = api.llmCalls.all.useQuery(queryOptions);
-  const llmCallOptions =
-    api.llmCalls.availableFilterOptions.useQuery(queryOptions);
+  const llmCalls = api.llmCalls.all.useQuery(queryOptions, {
+    refetchInterval: 2000,
+  });
 
-  // {
-  //   refetchInterval: 1000,
-  // }
+  const llmCallOptions = api.llmCalls.availableFilterOptions.useQuery(
+    queryOptions,
+    { refetchInterval: 2000 }
+  );
+
+  const updateQueryOptions = (options: LlmCallFilterInput) => {
+    setQueryOptions(options);
+  };
 
   const columns: ColumnDef<LlmCallTableRow>[] = [
     {
@@ -51,11 +53,18 @@ export default function Traces() {
           </>
         ) : undefined;
       },
+      meta: {
+        label: "Id",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, id: newValues });
+        },
+        filter: queryOptions.id,
+      },
     },
     {
       accessorKey: "traceId",
-      header: "Trace ID",
       enableColumnFilter: true,
+      header: "Trace ID",
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
@@ -63,6 +72,13 @@ export default function Traces() {
             <TableLink path={`/traces/${value}`} value={value} />
           </>
         ) : undefined;
+      },
+      meta: {
+        label: "TraceID",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, traceId: newValues });
+        },
+        filter: queryOptions.traceId,
       },
     },
     {
@@ -76,12 +92,10 @@ export default function Traces() {
     {
       accessorKey: "name",
       header: "Name",
-      enableColumnFilter: true,
     },
     {
       accessorKey: "prompt",
       header: "Prompt",
-      enableColumnFilter: true,
     },
     {
       accessorKey: "completion",
@@ -133,16 +147,26 @@ export default function Traces() {
       }))
     : [];
 
+  const resetFilters = () =>
+    updateQueryOptions({
+      id: null,
+      traceId: null,
+    });
+
+  const isFiltered = () =>
+    queryOptions.traceId !== null || queryOptions.id !== null;
+
+  console.log(tableOptions);
   return (
     <div className="container mx-auto py-10">
       <Header title="LLM Calls" live />
       {tableOptions.data ? (
-        <div className="mt-2">
+        <div className="my-2">
           <DataTableToolbar
             columnDefs={columns}
             options={tableOptions.data}
-            queryOptions={queryOptions}
-            updateQueryOptions={updateQueryOptions}
+            resetFilters={resetFilters}
+            isFiltered={isFiltered}
           />
         </div>
       ) : undefined}
