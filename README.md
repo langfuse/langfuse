@@ -16,7 +16,7 @@
 
 # 🧐 Introduction
 
-Debug and improve your LLM-based application by logging/analyzing all user interactions, backend traces, and explicit/implicit user feedback.
+langfuse helps you debug and improve your LLM-based application by logging/analyzing all user interactions, backend traces, and explicit/implicit user feedback.
 
 # 🤖 Features
 
@@ -30,10 +30,10 @@ Debug and improve your LLM-based application by logging/analyzing all user inter
    - For few-shot prompts
    - For fine-tuning
 
-# 🚴‍ ♂️Get started
+# 🚴‍ Get started
 
-- [Quickstart](https://langfuse.com/docs/get-started)
-- [Demo](https://langfuse.com/#walkthrough-3-min)
+[Quickstart](https://langfuse.com/docs/get-started)
+[Demo](https://langfuse.com/#walkthrough-3-min)
 
 # 🏡 Run locally
 
@@ -46,7 +46,7 @@ docker-compose up
 
 Use the API or SDKs to integrate langfuse with your application
 
-# Development
+# 👨‍💻 Development
 
 Follow the steps below to setup the development environment.
 
@@ -69,7 +69,7 @@ npx prisma db seed
 npm run dev
 ```
 
-# Production Deployment
+# 🚜 Production Deployment
 
 ## Build a Docker container
 
@@ -106,18 +106,19 @@ npm install --save @finto-fern/api-client
 ncu -u && npm update --save
 ```
 
-# Contributing
-
-Send us a PR, github issue, or email at contributing@langfuse.com
+# 👫 Contributing
 
 Join the community [on Discord](https://discord.com/invite/DNDAarxE).
 
-# Authors
+To contribute code, send us a PR, raise a github issue, or email at contributing@langfuse.com
+
+
+# 🥷 Authors
 
 - Max Deichmann ([@maxdeichmann](https://github.com/maxdeichmann))
 - Marc Klingen ([@marcklingen](https://github.com/marcklingen))
 - Clemens Rawert ([@clemra](https://github.com/clemra))
 
-# License
+# 📜 License
 
-MIT License, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
