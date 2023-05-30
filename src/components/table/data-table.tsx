@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { useState } from "react";
-import { type RowOptions } from "../pages/traces";
+import { type RowOptions } from "../../pages/traces";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];

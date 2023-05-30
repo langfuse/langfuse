@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../utils/api";
 import { type RouterOutput, type RouterInput } from "../utils/types";
-import { DataTable } from "../components/data-table";
+import { DataTable } from "../components/table/data-table";
 import { type Trace, type Score } from "@prisma/client";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -14,9 +14,9 @@ import {
 import Header from "../components/layouts/header";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
-import ObservationDisplay from "../components/observationDisplay";
-import { DataTableToolbar } from "../components/data-table-toolbar";
-import TableLink from "@/src/components/table-link";
+import { DataTableToolbar } from "../components/table/data-table-toolbar";
+import TableLink from "@/src/components/table/table-link";
+import ObservationDisplay from "@/src/components/observationDisplay";
 
 export type TraceTableRow = {
   id: string;
@@ -42,10 +42,6 @@ export default function Traces() {
     id: null,
     status: null,
   });
-
-  const updateQueryOptions = (options: TraceFilterInput) => {
-    setQueryOptions(options);
-  };
 
   const traces = api.traces.all.useQuery(queryOptions, {
     refetchInterval: 2000,
@@ -98,7 +94,7 @@ export default function Traces() {
       meta: {
         label: "Id",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, id: newValues });
+          setQueryOptions({ ...queryOptions, id: newValues });
         },
         filter: queryOptions.id,
       },
@@ -114,7 +110,7 @@ export default function Traces() {
       meta: {
         label: "Name",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, name: newValues });
+          setQueryOptions({ ...queryOptions, name: newValues });
         },
         filter: queryOptions.name,
       },
@@ -126,7 +122,7 @@ export default function Traces() {
       meta: {
         label: "Status",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, status: newValues });
+          setQueryOptions({ ...queryOptions, status: newValues });
         },
         filter: queryOptions.status,
       },
@@ -165,7 +161,7 @@ export default function Traces() {
     queryOptions.status !== null;
 
   const resetFilters = () =>
-    updateQueryOptions({
+    setQueryOptions({
       attribute: {},
       name: null,
       id: null,

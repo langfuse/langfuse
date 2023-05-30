@@ -4,10 +4,10 @@ import { api } from "~/utils/api";
 import { type ColumnDef } from "@tanstack/react-table";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
-import TableLink from "@/src/components/table-link";
+import TableLink from "@/src/components/table/table-link";
 import { type RowOptions as TableRowOptions } from "@/src/pages/traces";
-import { DataTable } from "@/src/components/data-table";
-import { DataTableToolbar } from "@/src/components/data-table-toolbar";
+import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type Score } from "@prisma/client";
 
 type RowData = {
@@ -36,10 +36,6 @@ export default function ScoresPage() {
     { refetchInterval: 2000 }
   );
 
-  const updateQueryOptions = (options: ScoreFilterInput) => {
-    setQueryOptions(options);
-  };
-
   const columns: ColumnDef<RowData>[] = [
     {
       accessorKey: "id",
@@ -54,7 +50,7 @@ export default function ScoresPage() {
       meta: {
         label: "Id",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, id: newValues });
+          setQueryOptions({ ...queryOptions, id: newValues });
         },
         filter: queryOptions.id,
       },
@@ -74,7 +70,7 @@ export default function ScoresPage() {
       meta: {
         label: "TraceID",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, traceId: newValues });
+          setQueryOptions({ ...queryOptions, traceId: newValues });
         },
         filter: queryOptions.traceId,
       },
@@ -139,7 +135,7 @@ export default function ScoresPage() {
     queryOptions.traceId !== null || queryOptions.id !== null;
 
   const resetFilters = () =>
-    updateQueryOptions({
+    setQueryOptions({
       id: null,
       traceId: null,
     });

@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
-import { type RowOptions } from "../pages/traces";
+import { type RowOptions } from "../../pages/traces";
 
 interface DataTableToolbarProps<TData, TValue> {
   columnDefs: ColumnDef<TData, TValue>[];

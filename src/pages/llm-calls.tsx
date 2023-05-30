@@ -1,9 +1,9 @@
 import Header from "~/components/layouts/header";
 import { api } from "~/utils/api";
 import { type ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@/src/components/data-table";
-import TableLink from "@/src/components/table-link";
-import { DataTableToolbar } from "@/src/components/data-table-toolbar";
+import { DataTable } from "@/src/components/table/data-table";
+import TableLink from "@/src/components/table/table-link";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
 import { type RowOptions as TableRowOptions } from "@/src/pages/traces";
@@ -36,10 +36,6 @@ export default function Traces() {
     { refetchInterval: 2000 }
   );
 
-  const updateQueryOptions = (options: LlmCallFilterInput) => {
-    setQueryOptions(options);
-  };
-
   const columns: ColumnDef<LlmCallTableRow>[] = [
     {
       accessorKey: "id",
@@ -54,7 +50,7 @@ export default function Traces() {
       meta: {
         label: "Id",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, id: newValues });
+          setQueryOptions({ ...queryOptions, id: newValues });
         },
         filter: queryOptions.id,
       },
@@ -72,7 +68,7 @@ export default function Traces() {
       meta: {
         label: "TraceID",
         updateFunction: (newValues: string[] | null) => {
-          updateQueryOptions({ ...queryOptions, traceId: newValues });
+          setQueryOptions({ ...queryOptions, traceId: newValues });
         },
         filter: queryOptions.traceId,
       },
@@ -144,7 +140,7 @@ export default function Traces() {
     : [];
 
   const resetFilters = () =>
-    updateQueryOptions({
+    setQueryOptions({
       id: null,
       traceId: null,
     });

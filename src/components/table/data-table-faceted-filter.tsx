@@ -20,7 +20,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { type RowOptions } from "../pages/traces";
+import { type RowOptions } from "../../pages/traces";
 
 interface DataTableFacetedFilter<TData, TValue> {
   columnDef: ColumnDef<TData, TValue>;
