@@ -7,13 +7,15 @@ import {
 } from "@/src/server/api/trpc";
 import { type LlmCall } from "@/src/utils/types";
 
+const LLMFilterOptions = z.object({
+  traceId: z.array(z.string()).nullable(),
+  id: z.array(z.string()).nullable(),
+  projectId: z.string(), // Required for protectedProjectProcedure
+});
+
 export const llmCallRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-      })
-    )
+    .input(LLMFilterOptions)
     .query(async ({ input, ctx }) => {
       const llmCalls = (await ctx.prisma.observation.findMany({
         where: {
@@ -21,6 +23,16 @@ export const llmCallRouter = createTRPCRouter({
           trace: {
             projectId: input.projectId,
           },
+          ...(input.traceId
+            ? {
+                traceId: { in: input.traceId },
+              }
+            : undefined),
+          ...(input.id
+            ? {
+                id: { in: input.id },
+              }
+            : undefined),
         },
         orderBy: {
           startTime: "desc",
@@ -30,6 +42,63 @@ export const llmCallRouter = createTRPCRouter({
       return llmCalls;
     }),
 
+  availableFilterOptions: protectedProjectProcedure
+    .input(LLMFilterOptions)
+    .query(async ({ input, ctx }) => {
+      const filter = {
+        trace: {
+          projectId: input.projectId,
+        },
+        ...(input.traceId
+          ? {
+              traceId: { in: input.traceId },
+            }
+          : undefined),
+        ...(input.id
+          ? {
+              id: { in: input.id },
+            }
+          : undefined),
+      };
+
+      const [ids, traceIds] = await Promise.all([
+        ctx.prisma.observation.groupBy({
+          where: {
+            type: "LLMCALL",
+            ...filter,
+          },
+          by: ["id"],
+          _count: {
+            _all: true,
+          },
+        }),
+        ctx.prisma.observation.groupBy({
+          where: {
+            type: "LLMCALL",
+            ...filter,
+          },
+          by: ["traceId"],
+          _count: {
+            _all: true,
+          },
+        }),
+      ]);
+
+      return [
+        {
+          key: "id",
+          occurrences: ids.map((i) => {
+            return { key: i.id, count: i._count };
+          }),
+        },
+        {
+          key: "traceId",
+          occurrences: traceIds.map((i) => {
+            return { key: i.traceId, count: i._count };
+          }),
+        },
+      ];
+    }),
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     // also works for other observations
     const llmCall = (await ctx.prisma.observation.findFirstOrThrow({

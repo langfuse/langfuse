@@ -8,29 +8,55 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 
+const TraceFilterOptions = z.object({
+  projectId: z.string(), // Required for protectedProjectProcedure
+  attribute: z
+    .object({
+      path: z.array(z.string()).optional(),
+      equals: z.string().optional(),
+      string_contains: z.string().optional(),
+      string_starts_with: z.string().optional(),
+      string_ends_with: z.string().optional(),
+    })
+    .nullable(),
+  name: z.array(z.string()).nullable(),
+  id: z.array(z.string()).nullable(),
+  status: z.array(z.string()).nullable(),
+});
+
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        attributes: z
-          .object({
-            path: z.array(z.string()).optional(),
-            equals: z.string().optional(),
-            string_contains: z.string().optional(),
-            string_starts_with: z.string().optional(),
-            string_ends_with: z.string().optional(),
-          })
-          .nullable(),
-      })
-    )
+    .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
       const traces = await ctx.prisma.trace.findMany({
         where: {
-          ...(input.attributes?.path
-            ? { attributes: input.attributes }
-            : undefined),
           projectId: input.projectId,
+          ...(input.attribute?.path
+            ? {
+                attributes: input.attribute,
+              }
+            : undefined),
+          ...(input.name
+            ? {
+                name: {
+                  in: input.name,
+                },
+              }
+            : undefined),
+          ...(input.id
+            ? {
+                id: {
+                  in: input.id,
+                },
+              }
+            : undefined),
+          ...(input.status
+            ? {
+                status: {
+                  in: input.status,
+                },
+              }
+            : undefined),
         },
         orderBy: {
           timestamp: "desc",
@@ -40,11 +66,90 @@ export const traceRouter = createTRPCRouter({
           observations: true,
         },
       });
-
       return traces.map((trace) => ({
         ...trace,
         nestedObservation: nestObservations(trace.observations),
       }));
+    }),
+  availableFilterOptions: protectedProjectProcedure
+    .input(TraceFilterOptions)
+    .query(async ({ input, ctx }) => {
+      const filter = {
+        projectId: input.projectId,
+        ...(input.attribute?.path
+          ? {
+              attributes: input.attribute,
+            }
+          : undefined),
+        ...(input.name
+          ? {
+              name: {
+                in: input.name,
+              },
+            }
+          : undefined),
+        ...(input.id
+          ? {
+              id: {
+                in: input.id,
+              },
+            }
+          : undefined),
+        ...(input.status
+          ? {
+              status: {
+                in: input.status,
+              },
+            }
+          : undefined),
+      };
+
+      const [ids, names, statuses] = await Promise.all([
+        ctx.prisma.trace.groupBy({
+          where: filter,
+          by: ["id"],
+          _count: {
+            _all: true,
+          },
+        }),
+
+        ctx.prisma.trace.groupBy({
+          where: filter,
+          by: ["name"],
+          _count: {
+            _all: true,
+          },
+        }),
+
+        ctx.prisma.trace.groupBy({
+          where: filter,
+          by: ["status"],
+          _count: {
+            _all: true,
+          },
+        }),
+      ]);
+
+      return [
+        {
+          key: "id",
+          occurrences: ids.map((i) => {
+            return { key: i.id, count: i._count };
+          }),
+        },
+        {
+          key: "name",
+          occurrences: names.map((i) => {
+            return { key: i.name, count: i._count };
+          }),
+        },
+        {
+          key: "status",
+          occurrences: statuses.map((i) => {
+            return { key: i.status, count: i._count };
+          }),
+        },
+      ];
     }),
 
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
