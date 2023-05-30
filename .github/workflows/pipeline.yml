@@ -35,9 +35,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/langfuse
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       NEXTAUTH_SECRET: "secret"
-      NEXTAUTH_URL: "http://localhost:3000/api"
+      NEXTAUTH_URL: "http://localhost:3030"
 
     steps:
       - name: Setup node
@@ -47,14 +47,6 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v3
-
-      - name: install dependencies
-        run: |
-          npm install
-
-      - name: Build
-        run: |
-          npm run build
 
       - name: Build Docker image
         run: |
