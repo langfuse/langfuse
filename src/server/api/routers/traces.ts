@@ -2,10 +2,14 @@ import { type NestedObservation } from "@/src/utils/types";
 import { type Observation } from "@prisma/client";
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 
 export const traceRouter = createTRPCRouter({
-  all: protectedProcedure
+  all: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -27,13 +31,6 @@ export const traceRouter = createTRPCRouter({
             ? { attributes: input.attributes }
             : undefined),
           projectId: input.projectId,
-          project: {
-            members: {
-              some: {
-                userId: ctx.session.user.id,
-              },
-            },
-          },
         },
         orderBy: {
           timestamp: "desc",

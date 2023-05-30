@@ -4,10 +4,13 @@ import {
 } from "@/src/features/dashboard/lib/timeseriesAggregation";
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 
 export const dashboardRouter = createTRPCRouter({
-  llmCalls: protectedProcedure
+  llmCalls: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -42,13 +45,11 @@ export const dashboardRouter = createTRPCRouter({
           count(*)::integer as value
         FROM observations
         LEFT JOIN traces ON observations.trace_id = traces.id
-        LEFT JOIN memberships ON traces.project_id = memberships.project_id
 
         WHERE
         type = 'LLMCALL'
         AND start_time > NOW() - INTERVAL '${input.agg}'
         AND traces.project_id = '${input.projectId}'
-        AND memberships.user_id = '${ctx.session.user.id}'
 
         GROUP BY 1
       )
@@ -73,7 +74,7 @@ export const dashboardRouter = createTRPCRouter({
         ts: row.date_trunc.getTime(),
       }));
     }),
-  traces: protectedProcedure
+  traces: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -107,10 +108,8 @@ export const dashboardRouter = createTRPCRouter({
           }', timestamp) as date_trunc,
           count(*)::integer as value
         FROM traces
-        LEFT JOIN memberships ON traces.project_id = memberships.project_id
         WHERE timestamp > NOW() - INTERVAL '${input.agg}'
         AND traces.project_id = '${input.projectId}'
-        AND memberships.user_id = '${ctx.session.user.id}'
         GROUP BY 1
       )
 
@@ -134,7 +133,7 @@ export const dashboardRouter = createTRPCRouter({
         ts: row.date_trunc.getTime(),
       }));
     }),
-  scores: protectedProcedure
+  scores: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -171,10 +170,8 @@ export const dashboardRouter = createTRPCRouter({
           AVG(value) as avg_value
         FROM scores
         LEFT JOIN traces ON scores.trace_id = traces.id
-        LEFT JOIN memberships ON traces.project_id = memberships.project_id
         WHERE scores.timestamp > NOW() - INTERVAL '${input.agg}'
         AND traces.project_id = '${input.projectId}'
-        AND memberships.user_id = '${ctx.session.user.id}'
         GROUP BY 1,2
       ),
       json_metrics AS (

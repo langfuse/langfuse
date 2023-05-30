@@ -1,10 +1,14 @@
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { type LlmCall } from "@/src/utils/types";
 
 export const llmCallRouter = createTRPCRouter({
-  all: protectedProcedure
+  all: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -16,13 +20,6 @@ export const llmCallRouter = createTRPCRouter({
           type: "LLMCALL",
           trace: {
             projectId: input.projectId,
-            project: {
-              members: {
-                some: {
-                  userId: ctx.session.user.id,
-                },
-              },
-            },
           },
         },
         orderBy: {

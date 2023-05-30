@@ -1,22 +1,19 @@
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 
 export const scoresRouter = createTRPCRouter({
-  all: protectedProcedure
+  all: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(({ input, ctx }) =>
       ctx.prisma.score.findMany({
         where: {
           trace: {
             projectId: input.projectId,
-            project: {
-              members: {
-                some: {
-                  userId: ctx.session.user.id,
-                },
-              },
-            },
           },
         },
         orderBy: {
