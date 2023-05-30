@@ -2,7 +2,7 @@ import { createTRPCRouter } from "~/server/api/trpc";
 import { traceRouter } from "./routers/traces";
 import { llmCallRouter } from "./routers/llmCalls";
 import { scoresRouter } from "./routers/scores";
-import { dashboardRouter } from "./routers/dashboard";
+import { dashboardRouter } from "../../features/dashboard/dashboardTrpcRouter";
 
 /**
  * This is the primary router for your server.

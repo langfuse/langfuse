@@ -1,7 +1,7 @@
 import {
-  dateTimeAggregationSettings,
   dateTimeAggregationOptions,
-} from "@/src/utils/types";
+  dateTimeAggregationSettings,
+} from "@/src/features/dashboard/lib/timeseriesAggregation";
 import { z } from "zod";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";

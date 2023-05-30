@@ -37,5 +37,6 @@
     "tailwindcss",
     "tanstack",
     "TRPC"
-  ]
+  ],
+  "typescript.preferences.importModuleSpecifier": "non-relative"
 }
