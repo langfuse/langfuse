@@ -48,9 +48,7 @@ export default function Traces() {
       cell: ({ row }) => {
         const value = row.getValue("id");
         return typeof value === "string" ? (
-          <>
-            <TableLink path={`/llm-calls/${value}`} value={value} />
-          </>
+          <TableLink path={`/llm-calls/${value}`} value={value} />
         ) : undefined;
       },
       meta: {
@@ -68,9 +66,7 @@ export default function Traces() {
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
-          <>
-            <TableLink path={`/traces/${value}`} value={value} />
-          </>
+          <TableLink path={`/traces/${value}`} value={value} />
         ) : undefined;
       },
       meta: {
@@ -156,7 +152,6 @@ export default function Traces() {
   const isFiltered = () =>
     queryOptions.traceId !== null || queryOptions.id !== null;
 
-  console.log(tableOptions);
   return (
     <div className="container mx-auto py-10">
       <Header title="LLM Calls" live />

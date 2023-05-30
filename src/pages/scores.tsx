@@ -1,86 +1,182 @@
 import Header from "~/components/layouts/header";
 
-import {
-  DataGrid,
-  type GridRowsProp,
-  type GridColDef,
-  type GridRowParams,
-  GridToolbar,
-} from "@mui/x-data-grid";
 import { api } from "~/utils/api";
-import { useRouter } from "next/router";
+import { type ColumnDef } from "@tanstack/react-table";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { useState } from "react";
+import TableLink from "@/src/components/table-link";
+import { type RowOptions as TableRowOptions } from "@/src/pages/traces";
+import { DataTable } from "@/src/components/data-table";
+import { DataTableToolbar } from "@/src/components/data-table-toolbar";
+import { type Score } from "@prisma/client";
 
-interface RowData {
+type RowData = {
   id: string;
   traceId: string;
-  timestamp: string;
+  timestamp: Date;
   name: string;
   value: number;
   observationId?: string;
-}
+};
+
+export type ScoreFilterInput = RouterInput["scores"]["all"];
 
 export default function ScoresPage() {
-  const scores = api.scores.all.useQuery(undefined, {
-    refetchInterval: 1000,
+  const [queryOptions, setQueryOptions] = useState<ScoreFilterInput>({
+    traceId: null,
+    id: null,
   });
-  const router = useRouter();
 
-  const columns: GridColDef[] = [
+  const scores = api.scores.all.useQuery(queryOptions, {
+    refetchInterval: 2000,
+  });
+
+  const llmCallOptions = api.llmCalls.availableFilterOptions.useQuery(
+    queryOptions,
+    { refetchInterval: 2000 }
+  );
+
+  const updateQueryOptions = (options: ScoreFilterInput) => {
+    setQueryOptions(options);
+  };
+
+  const columns: ColumnDef<RowData>[] = [
     {
-      field: "id",
-      type: "actions",
-      headerName: "ID",
-      width: 100,
-      getActions: (params: GridRowParams<RowData>) => [
-        <div key=".">...{lastCharacters(params.row.id, 7)}</div>,
-      ],
+      accessorKey: "id",
+      header: "ID",
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const value = row.getValue("id");
+        return typeof value === "string" ? (
+          <div key=".">...{lastCharacters(value, 7)}</div>
+        ) : undefined;
+      },
+      meta: {
+        label: "Id",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, id: newValues });
+        },
+        filter: queryOptions.id,
+      },
     },
     {
-      field: "traceId",
-      type: "actions",
-      headerName: "Trace",
-      width: 100,
-      getActions: (params: GridRowParams<RowData>) => [
-        <button
-          key="openTrace"
-          className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() => void router.push(`/traces/${params.row.traceId}`)}
-        >
-          ...{lastCharacters(params.row.traceId, 7)}
-        </button>,
-      ],
+      accessorKey: "traceId",
+      enableColumnFilter: true,
+      header: "Trace ID",
+      cell: ({ row }) => {
+        const value = row.getValue("traceId");
+        return typeof value === "string" ? (
+          <>
+            <TableLink path={`/traces/${value}`} value={value} />
+          </>
+        ) : undefined;
+      },
+      meta: {
+        label: "TraceID",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, traceId: newValues });
+        },
+        filter: queryOptions.traceId,
+      },
     },
     {
-      field: "timestamp",
-      type: "dateTime",
-      headerName: "Timestamp",
-      width: 170,
+      accessorKey: "timestamp",
+      header: "Timestamp",
     },
-    { field: "name", headerName: "Name", minWidth: 200 },
-    { field: "value", headerName: "Value", minWidth: 200 },
+    {
+      accessorKey: "name",
+      header: "Name",
+    },
+    {
+      accessorKey: "value",
+      header: "Value",
+    },
+    {
+      accessorKey: "observationId",
+      header: "Observation ID",
+    },
   ];
 
-  const rows: GridRowsProp = scores.isSuccess
-    ? scores.data.map((scores) => ({
-        id: scores.id,
-        timestamp: scores.timestamp,
-        name: scores.name,
-        value: scores.value,
-        observationId: scores.observationId,
-        traceId: scores.traceId,
-      }))
-    : [];
+  const convertToOptions = (
+    options: RouterOutput["scores"]["availableFilterOptions"]
+  ): TableRowOptions[] => {
+    return options.map((o) => {
+      return {
+        columnId: o.key,
+        options: o.occurrences.map((o) => {
+          return { label: o.key, value: o.count._all };
+        }),
+      };
+    });
+  };
+
+  const tableOptions = llmCallOptions.isLoading
+    ? { isLoading: true, isError: false }
+    : llmCallOptions.isError
+    ? {
+        isLoading: false,
+        isError: true,
+        error: llmCallOptions.error.message,
+      }
+    : {
+        isLoading: false,
+        isError: false,
+        data: convertToOptions(llmCallOptions.data),
+      };
+
+  const convertToTableRow = (score: Score): RowData => {
+    return {
+      id: score.id,
+      timestamp: score.timestamp,
+      name: score.name,
+      value: score.value,
+      observationId: score.observationId ?? undefined,
+      traceId: score.traceId,
+    };
+  };
+
+  const isFiltered = () =>
+    queryOptions.traceId !== null || queryOptions.id !== null;
+
+  const resetFilters = () =>
+    updateQueryOptions({
+      id: null,
+      traceId: null,
+    });
 
   return (
-    <>
-      <Header title="Metrics" live />
-      <DataGrid
-        rows={rows}
+    <div className="container mx-auto py-10">
+      <Header title="Scores" live />
+      {tableOptions.data ? (
+        <div className="my-2">
+          <DataTableToolbar
+            columnDefs={columns}
+            options={tableOptions.data}
+            resetFilters={resetFilters}
+            isFiltered={isFiltered}
+          />
+        </div>
+      ) : undefined}
+      <DataTable
         columns={columns}
-        slots={{ toolbar: GridToolbar }}
-        loading={scores.isLoading}
+        data={
+          scores.isLoading
+            ? { isLoading: true, isError: false }
+            : scores.isError
+            ? {
+                isLoading: false,
+                isError: true,
+                error: scores.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: scores.data?.map((t) => convertToTableRow(t)),
+              }
+        }
+        options={{ isLoading: true, isError: false }}
       />
-    </>
+    </div>
   );
 }
 

@@ -91,9 +91,7 @@ export default function Traces() {
       cell: ({ row }) => {
         const value = row.getValue("id");
         return typeof value === "string" ? (
-          <>
-            <TableLink path={`/traces/${value}`} value={value} />
-          </>
+          <TableLink path={`/traces/${value}`} value={value} />
         ) : undefined;
       },
       enableColumnFilter: true,
