@@ -72,10 +72,11 @@ docker build \
 -t langfuse .
 # run the container
 docker run \
---env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+--env DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/postgres \
 --env NEXTAUTH_SECRET=mysecret \
 --env NEXTAUTH_URL=http:localhost:3030 \
--dp 3030:3000 langfuse
+-p 3030:3000 \
+-a STDOUT langfuse
 ```
 
 ### Generate SDKs
