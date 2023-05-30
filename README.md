@@ -4,17 +4,21 @@
   </a>
 
 <h3 align="center">open source tracing and feedback collection for LLM applications</h3>
-   
-<p align="center">   
-[langfuse.com](https://langfuse.com) | [Discord](https://discord.com/invite/DNDAarxE) | help@langfuse.com
-</p>
 </div>
 
-# 🧐Introduction
+<p align="center">   
+  [Explore the Docs](https://langfuse.com/docs)
+[Website](https://langfuse.com) | [Join our Discord](https://discord.com/invite/DNDAarxE) | help@langfuse.com
+
+</p>
+
+
+
+# 🧐 Introduction
 
 Debug and improve your LLM-based application by logging/analyzing all user interactions, backend traces, and explicit/implicit user feedback.
 
-# 🤖Features
+# 🤖 Features
 
 1. Data collection
    - Tracing LLM application, chain, agent via backend SDK
@@ -26,12 +30,12 @@ Debug and improve your LLM-based application by logging/analyzing all user inter
    - For few-shot prompts
    - For fine-tuning
 
-# 🚴‍♂️Get started
+# 🚴‍ ♂️Get started
 
 - [Quickstart](https://langfuse.com/docs/get-started)
 - [Demo](https://langfuse.com/#walkthrough-3-min)
 
-# 🏡Run locally
+# 🏡 Run locally
 
 Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
 
@@ -106,7 +110,7 @@ ncu -u && npm update --save
 
 Send us a PR, github issue, or email at contributing@langfuse.com
 
-Join the community [Discord](https://discord.com/invite/DNDAarxE).
+Join the community [on Discord](https://discord.com/invite/DNDAarxE).
 
 # Authors
 
