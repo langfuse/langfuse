@@ -18,7 +18,10 @@ export function DataTableToolbar<TData, TValue>({
   queryOptions,
   updateQueryOptions,
 }: DataTableToolbarProps<TData, TValue>) {
-  const isFiltered = queryOptions.name !== null;
+  const isFiltered =
+    queryOptions.name !== null ||
+    queryOptions.id !== null ||
+    queryOptions.status !== null;
 
   return (
     <div className="flex items-center justify-between">
