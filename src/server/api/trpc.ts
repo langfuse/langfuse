@@ -135,6 +135,10 @@ const inputProjectSchema = z.object({
   projectId: z.string(),
 });
 
+/**
+ * Protected (authenticated) procedure with project role
+ */
+
 const enforceUserIsAuthedAndProjectMember = t.middleware(
   ({ ctx, rawInput, next }) => {
     if (!ctx.session || !ctx.session.user) {
