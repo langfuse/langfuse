@@ -25,6 +25,7 @@ import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { cn } from "@/src/utils/tailwind";
+import { useState } from "react";
 
 const formSchema = z.object({
   name: z
@@ -41,6 +42,8 @@ interface NewProjectButtonProps {
   size?: "xs" | "default";
 }
 export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
+  const [open, setOpen] = useState(false);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -57,6 +60,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
     createProjectMutation
       .mutateAsync(values)
       .then((project) => {
+        setOpen(false);
         void router.push(`/project/${project.id}/setup`);
       })
       .catch((error) => {
@@ -65,7 +69,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger>
         <Button size={size} variant={size === "xs" ? "secondary" : "default"}>
           <PlusIcon
@@ -79,37 +83,36 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
         </Button>
       </DialogTrigger>
       <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="mb-5">New project</DialogTitle>
+        </DialogHeader>
         <Form {...form}>
           <form
-            onSubmit={() => form.handleSubmit(onSubmit)}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-8"
           >
-            <DialogHeader>
-              <DialogTitle className="mb-5">New project</DialogTitle>
-              <DialogDescription>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="shadcn" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        This is your public display name.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button type="submit">Create</Button>
-            </DialogFooter>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="shadcn" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    This is your public display name.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </form>
         </Form>
+        <DialogFooter>
+          <Button onClick={() => form.handleSubmit(onSubmit)}>Create</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
