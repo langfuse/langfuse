@@ -41,18 +41,14 @@ export default function Traces() {
 
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     attribute: {},
-    name: [],
-    id: [],
-    status: [],
+    name: null,
+    id: null,
+    status: null,
   });
 
   const updateQueryOptions = (options: TraceFilterInput) => {
     setQueryOptions(options);
   };
-
-  // {
-  //   refetchInterval: 2000,
-  // }
 
   const traces = api.traces.all.useQuery(queryOptions);
 
