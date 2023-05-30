@@ -19,7 +19,6 @@
     "@headlessui/react": "^1.7.14",
     "@heroicons/react": "^2.0.18",
     "@next-auth/prisma-adapter": "^1.0.6",
-    "@openapitools/openapi-generator-cli": "^2.6.0",
     "@prisma/client": "^4.14.1",
     "@radix-ui/react-collapsible": "^1.0.3",
     "@radix-ui/react-dialog": "^1.0.4",
