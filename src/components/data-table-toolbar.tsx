@@ -18,7 +18,7 @@ export function DataTableToolbar<TData>({
   queryOptions,
   updateQueryOptions,
 }: DataTableToolbarProps<TData>) {
-  const isFiltered = queryOptions.names !== null;
+  const isFiltered = queryOptions.name !== null;
 
   return (
     <div className="flex items-center justify-between">
@@ -29,16 +29,22 @@ export function DataTableToolbar<TData>({
             <DataTableFacetedFilter
               column={column}
               title={column.columnDef.meta?.label}
-              options={columnOptions}
               queryOptions={queryOptions}
-              updateQueryOptions={updateQueryOptions}
+              options={columnOptions}
             />
           ) : undefined;
         })}
         {isFiltered && (
           <Button
             variant="ghost"
-            onClick={() => table.resetColumnFilters()}
+            onClick={() =>
+              updateQueryOptions({
+                attribute: {},
+                name: null,
+                id: null,
+                status: null,
+              })
+            }
             className="h-8 px-2 lg:px-3"
           >
             Reset

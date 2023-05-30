@@ -6,7 +6,7 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
 const FilterOptions = z.object({
-  attributes: z
+  attribute: z
     .object({
       path: z.array(z.string()).optional(),
       equals: z.string().optional(),
@@ -15,30 +15,62 @@ const FilterOptions = z.object({
       string_ends_with: z.string().optional(),
     })
     .nullable(),
-  names: z.array(z.string()).nullable(),
-  ids: z.array(z.string()).nullable(),
+  name: z.array(z.string()).nullable(),
+  id: z.array(z.string()).nullable(),
+  status: z.array(z.string()).nullable(),
 });
+
+// const FilterOptions = z
+//   .object({
+//     key: z.string(),
+//     filter: z.discriminatedUnion("type", [
+//       z.object({
+//         type: z.literal('match'),
+//         value: z.array(z.string())
+//       }),
+//       z.object({
+//         type: z.literal('string-compare'),
+//         value: z.object({
+//         path: z.array(z.string()).optional(),
+//         equals: z.string().optional(),
+//         string_contains: z.string().optional(),
+//         string_starts_with: z.string().optional(),
+//         string_ends_with: z.string().optional(),
+//         }),
+//       })
+//     ]),
+//   })
+//   .array();
 
 export const traceRouter = createTRPCRouter({
   all: publicProcedure.input(FilterOptions).query(async ({ input }) => {
+    console.log(input);
+
     const traces = await prisma.trace.findMany({
       where: {
-        ...(input.attributes?.path
+        ...(input.attribute?.path
           ? {
-              attributes: input.attributes,
+              attributes: input.attribute,
             }
           : undefined),
-        ...(input.names
+        ...(input.name
           ? {
               name: {
-                in: input.names,
+                in: input.name,
               },
             }
           : undefined),
-        ...(input.ids
+        ...(input.id
           ? {
               id: {
-                in: input.ids,
+                in: input.id,
+              },
+            }
+          : undefined),
+        ...(input.status
+          ? {
+              status: {
+                in: input.status,
               },
             }
           : undefined),
@@ -64,10 +96,10 @@ export const traceRouter = createTRPCRouter({
       const [ids, names, statuses] = await Promise.all([
         await prisma.trace.groupBy({
           where: {
-            ...(input.ids
+            ...(input.id
               ? {
                   id: {
-                    in: input.ids,
+                    in: input.id,
                   },
                 }
               : undefined),
@@ -80,10 +112,10 @@ export const traceRouter = createTRPCRouter({
 
         await prisma.trace.groupBy({
           where: {
-            ...(input.names
+            ...(input.name
               ? {
                   name: {
-                    in: input.names,
+                    in: input.name,
                   },
                 }
               : undefined),
@@ -96,10 +128,10 @@ export const traceRouter = createTRPCRouter({
 
         await prisma.trace.groupBy({
           where: {
-            ...(input.names
+            ...(input.status
               ? {
-                  name: {
-                    in: input.names,
+                  status: {
+                    in: input.status,
                   },
                 }
               : undefined),

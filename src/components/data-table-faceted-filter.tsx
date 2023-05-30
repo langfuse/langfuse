@@ -1,6 +1,6 @@
 import * as React from "react";
 import { type Column } from "@tanstack/react-table";
-import { Check, type LucideIcon, PlusCircle } from "lucide-react";
+import { Check, PlusCircle } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -27,22 +27,20 @@ interface DataTableFacetedFilter<TData, TValue> {
   title?: string;
   queryOptions: TraceFilterInput;
   options: TraceRowOptions;
-  updateQueryOptions: (options: TraceFilterInput) => void;
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
   options,
-  queryOptions,
-  updateQueryOptions,
 }: DataTableFacetedFilter<TData, TValue>) {
   const facets = column?.getFacetedUniqueValues();
-  const selectedValues = new Set(queryOptions.ids as string[]);
 
-  const updateIds = (newIds: string[] | null) => {
-    updateQueryOptions({ ...queryOptions, ids: newIds });
-  };
+  const selectedValues = column?.columnDef.meta?.filter
+    ? new Set(column?.columnDef.meta?.filter)
+    : new Set<string>();
+
+  console.log("selectedValues", selectedValues, options);
 
   return (
     <Popover>
@@ -69,7 +67,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                   </Badge>
                 ) : (
                   options.options
-                    .filter((option) => selectedValues.has(option.value))
+                    .filter((option) => selectedValues.has(option.label))
                     .map((option) => (
                       <Badge
                         variant="secondary"
@@ -104,7 +102,9 @@ export function DataTableFacetedFilter<TData, TValue>({
                       }
                       const filterValues = Array.from(selectedValues);
 
-                      updateIds(filterValues.length ? filterValues : null);
+                      column?.columnDef?.meta?.updateFunction(
+                        filterValues.length ? filterValues : null
+                      );
                     }}
                   >
                     <div
@@ -121,9 +121,9 @@ export function DataTableFacetedFilter<TData, TValue>({
                       <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />
                     )}
                     <span>{option.label}</span>
-                    {facets?.get(option.value) && (
+                    {option.value && (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">
-                        {facets.get(option.value)}
+                        {option.value}
                       </span>
                     )}
                   </CommandItem>
@@ -135,7 +135,9 @@ export function DataTableFacetedFilter<TData, TValue>({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
-                    onSelect={() => updateIds(null)}
+                    onSelect={() =>
+                      column?.columnDef?.meta?.updateFunction(null)
+                    }
                     className="justify-center text-center"
                   >
                     Clear filters

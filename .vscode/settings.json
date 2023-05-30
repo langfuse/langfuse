@@ -25,10 +25,16 @@
     "editor.defaultFormatter": "astro-build.astro-vscode"
   },
   "cSpell.words": [
+    "clemra",
+    "clsx",
     "fontawesome",
     "fortawesome",
+    "headlessui",
     "langfuse",
+    "LLMCALL",
     "lucide",
+    "superjson",
+    "tailwindcss",
     "tanstack",
     "TRPC"
   ]

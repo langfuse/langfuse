@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import { api } from "../utils/api";
 import { type RouterOutput, type RouterInput } from "../utils/types";
 import { DataTable } from "../components/data-table";
-import { columns } from "./columns";
 import { type Trace, type Score } from "@prisma/client";
 import { type LucideIcon } from "lucide-react";
+import { lastCharacters } from "../utils/string";
+import { useRouter } from "next/router";
+import { type ColumnDef } from "@tanstack/react-table";
 
 export type TraceTableRow = {
   id: string;
@@ -20,14 +22,17 @@ export type TraceFilterInput = RouterInput["traces"]["all"];
 
 export type TraceRowOptions = {
   columnId: string;
-  options: { label: string; value: string; icon?: LucideIcon }[];
+  options: { label: string; value: number; icon?: LucideIcon }[];
 };
 
 export default function Traces() {
+  const router = useRouter();
+
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
-    attributes: {},
-    names: null,
-    ids: null,
+    attribute: {},
+    name: [],
+    id: [],
+    status: [],
   });
 
   const updateQueryOptions = (options: TraceFilterInput) => {
@@ -66,11 +71,78 @@ export default function Traces() {
       return {
         columnId: o.key,
         options: o.occurrences.map((o) => {
-          return { label: o.key, value: o.count.toString() };
+          return { label: o.key, value: o.count._all };
         }),
       };
     });
   };
+
+  const columns: ColumnDef<TraceTableRow>[] = [
+    {
+      accessorKey: "id",
+      cell: ({ row }) => {
+        return (
+          <div>
+            <button
+              key="openTrace"
+              className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
+              onClick={() => void router.push(`/traces/${row.getValue("id")}`)}
+            >
+              ...{lastCharacters(row.getValue("id"), 7)}
+            </button>
+          </div>
+        );
+      },
+      enableColumnFilter: true,
+      meta: {
+        label: "Id",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, id: newValues });
+        },
+        filter: queryOptions.id,
+      },
+    },
+    {
+      accessorKey: "timestamp",
+      header: "Timestamp",
+    },
+    {
+      accessorKey: "name",
+      header: "Name",
+      enableColumnFilter: true,
+      meta: {
+        label: "Name",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, name: newValues });
+        },
+        filter: queryOptions.name,
+      },
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      enableColumnFilter: true,
+      meta: {
+        label: "Status",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, status: newValues });
+        },
+        filter: queryOptions.status,
+      },
+    },
+    {
+      accessorKey: "statusMessage",
+      header: "Status Message",
+    },
+    {
+      accessorKey: "attributes",
+      header: "Attributes",
+    },
+    {
+      accessorKey: "scores",
+      header: "Scores",
+    },
+  ];
 
   return (
     <div className="container mx-auto py-10">
