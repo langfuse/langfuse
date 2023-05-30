@@ -109,6 +109,7 @@ export const authOptions: NextAuthOptions = {
           email: dbUser.email,
           image: dbUser.image,
           emailVerified: dbUser.emailVerified,
+          projects: [],
         };
 
         return userObj;
