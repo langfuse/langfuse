@@ -4,6 +4,10 @@ services:
   server:
     build:
       dockerfile: Dockerfile
+      args:
+        - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+        - NEXTAUTH_SECRET=mysecret
+        - NEXTAUTH_URL=http:localhost:3030
     command: ["sh", "-c", "npx prisma migrate deploy && node server.js"]
     depends_on:
       - db
@@ -12,7 +16,10 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-      - DIRECT_URL=postgresql://postgres:postgres@db:5432/postgres
+      - DIRECT_URL=postgresql://postgres:postgres@db:5432/postgres\
+      - NEXTAUTH_SECRET=mysecret
+      - NEXTAUTH_URL=http:localhost:3030
+
   db:
     image: postgres
     restart: always

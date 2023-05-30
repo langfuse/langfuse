@@ -57,4 +57,9 @@ jobs:
           npm run build
 
       - name: Build Docker image
-        run: docker build . -t langfuse
+        run: |
+          docker build \
+          --build-arg DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+          --build-arg NEXTAUTH_SECRET=mysecret \
+          --build-arg NEXTAUTH_URL=http:localhost:3030 \
+          -t langfuse .
