@@ -7,9 +7,8 @@
 </div>
 
 <p align="center">   
-  [Explore the Docs](https://langfuse.com/docs)
-[Website](https://langfuse.com) | [Join our Discord](https://discord.com/invite/DNDAarxE) | help@langfuse.com
-
+   <a href="https://langfuse.com/docs"><strong>Explore the docs »</strong></a> </br>
+  <a href="https://langfuse.com"><strong>Website »</strong></a> |  <a href="https://discord.com/invite/DNDAarxE"><strong>Join our Discord »</strong></a>  | help@langfuse.com
 </p>
 
 
