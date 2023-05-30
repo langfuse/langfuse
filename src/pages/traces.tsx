@@ -97,7 +97,12 @@ export default function Traces() {
             <button
               key="openTrace"
               className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
-              onClick={() => void router.push(`/traces/${row.getValue("id")}`)}
+              onClick={() => {
+                const value = row.getValue("id");
+                typeof value === "string"
+                  ? void router.push(`/traces/${value}`)
+                  : null;
+              }}
             >
               ...{lastCharacters(row.getValue("id"), 7)}
             </button>
