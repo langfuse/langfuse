@@ -26,7 +26,7 @@ import { Input } from "@/src/components/ui/input";
 import { CodeView } from "@/src/components/ui/code";
 
 const formSchema = z.object({
-  note: z.string(),
+  note: z.string().optional(),
 });
 
 export function CreateApiKeyButton(props: { projectId: string }) {
@@ -51,7 +51,10 @@ export function CreateApiKeyButton(props: { projectId: string }) {
     createApiKey
       .mutateAsync({
         projectId: props.projectId,
-        note: values.note.trim() !== "" ? values.note.trim() : undefined,
+        note:
+          values.note && values.note.trim() !== ""
+            ? values.note.trim()
+            : undefined,
       })
       .then(({ secretKey, publishableKey }) => {
         setGeneratedKeys({
@@ -109,7 +112,10 @@ export function CreateApiKeyButton(props: { projectId: string }) {
               </form>
             </Form>
             <DialogFooter>
-              <Button onClick={() => form.handleSubmit(onSubmit)}>
+              <Button
+                // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                onClick={form.handleSubmit(onSubmit)}
+              >
                 Create
               </Button>
             </DialogFooter>
