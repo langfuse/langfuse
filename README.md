@@ -1,4 +1,4 @@
-<br />
+
 <div align="center">
   <a href="https://langfuse.com">
     <img alt="langfuse Logo" src="https://github.com/langfuse/langfuse/blob/main/readme.png" alt="Logo" width="400">
@@ -9,6 +9,8 @@
 <p align="center">   
 [langfuse.com](https://langfuse.com) | [Discord](https://discord.com/invite/DNDAarxE) | help@langfuse.com
 </p>
+</div>
+
    
 # 🧐Introduction
 
