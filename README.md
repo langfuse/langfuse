@@ -1,4 +1,3 @@
-
 <div align="center">
   <a href="https://langfuse.com">
     <img alt="langfuse Logo" src="https://github.com/langfuse/langfuse/blob/main/readme.png" alt="Logo" width="400">
@@ -11,7 +10,6 @@
 </p>
 </div>
 
-   
 # 🧐Introduction
 
 Debug and improve your LLM-based application by logging/analyzing all user interactions, backend traces, and explicit/implicit user feedback.
@@ -76,7 +74,7 @@ The following instructions explain how to create a single container for deployme
 ```bash
 # build the container
 docker build \
---build-arg DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+--build-arg DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/postgres \
 --build-arg NEXTAUTH_SECRET=mysecret \
 --build-arg NEXTAUTH_URL=http:localhost:3030 \
 -t langfuse .
