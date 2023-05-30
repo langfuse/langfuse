@@ -1,10 +1,9 @@
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
 import * as z from "zod";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
-    const memberships = await prisma.membership.findMany({
+    const memberships = await ctx.prisma.membership.findMany({
       where: {
         userId: ctx.session.user.id,
       },
@@ -28,7 +27,7 @@ export const projectsRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       // check that no project with this name exists
-      const existingProject = await prisma.project.findFirst({
+      const existingProject = await ctx.prisma.project.findFirst({
         where: {
           name: input.name,
         },
@@ -37,7 +36,7 @@ export const projectsRouter = createTRPCRouter({
         throw new Error("Project with this name already exists");
       }
 
-      const project = await prisma.project.create({
+      const project = await ctx.prisma.project.create({
         data: {
           name: input.name,
           members: {
