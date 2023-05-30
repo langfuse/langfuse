@@ -4,8 +4,6 @@ import { type RouterOutput, type RouterInput } from "../utils/types";
 import { DataTable } from "../components/data-table";
 import { type Trace, type Score } from "@prisma/client";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
-import { lastCharacters } from "../utils/string";
-import { useRouter } from "next/router";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   Tabs,
@@ -18,6 +16,7 @@ import { Button } from "../components/ui/button";
 import Link from "next/link";
 import ObservationDisplay from "../components/observationDisplay";
 import { DataTableToolbar } from "../components/data-table-toolbar";
+import TableLink from "@/src/components/table-link";
 
 export type TraceTableRow = {
   id: string;
@@ -37,8 +36,6 @@ export type TraceRowOptions = {
 };
 
 export default function Traces() {
-  const router = useRouter();
-
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     attribute: {},
     name: null,
@@ -88,22 +85,12 @@ export default function Traces() {
     {
       accessorKey: "id",
       cell: ({ row }) => {
-        return (
-          <div>
-            <button
-              key="openTrace"
-              className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
-              onClick={() => {
-                const value = row.getValue("id");
-                typeof value === "string"
-                  ? void router.push(`/traces/${value}`)
-                  : null;
-              }}
-            >
-              ...{lastCharacters(row.getValue("id"), 7)}
-            </button>
-          </div>
-        );
+        const value = row.getValue("id");
+        return typeof value === "string" ? (
+          <>
+            <TableLink path={`/traces/${value}`} value={value} />
+          </>
+        ) : undefined;
       },
       enableColumnFilter: true,
       meta: {
