@@ -18,12 +18,9 @@ export type TraceTableRow = {
 
 export type TraceFilterInput = RouterInput["traces"]["all"];
 
-export type Option = { label: string; value: string; icon?: LucideIcon };
-
 export type TraceRowOptions = {
-  names: Option[];
-  statuses: Option[];
-  ids: Option[];
+  columnId: string;
+  options: { label: string; value: string; icon?: LucideIcon }[];
 };
 
 export default function Traces() {
@@ -64,43 +61,46 @@ export default function Traces() {
 
   const convertToOptions = (
     options: RouterOutput["traces"]["availableFilterOptions"]
-  ): TraceRowOptions => {
-    console.log(options);
-    return {
-      names: options.names.map((n) => {
-        return { label: n.name, value: n._count.toString() };
-      }),
-      statuses: options.statuses.map((n) => {
-        return { label: n.status, value: n._count.toString() };
-      }),
-      ids: options.ids.map((n) => {
-        return { label: n.id, value: n._count.toString() };
-      }),
-    };
+  ): TraceRowOptions[] => {
+    return options.map((o) => {
+      return {
+        columnId: o.key,
+        options: o.occurrences.map((o) => {
+          return { label: o.key, value: o.count.toString() };
+        }),
+      };
+    });
   };
 
   return (
     <div className="container mx-auto py-10">
-      {options.isLoading ||
-      !options.data ||
-      traces.isLoading ||
-      !traces.data ? (
-        <div className="flex h-[150px] flex-col items-center justify-center text-sm font-light uppercase text-neutral-500">
-          Loading...
-        </div>
-      ) : traces.data.length === 0 ? (
-        <div className="flex h-[150px] flex-col items-center justify-center text-sm font-light uppercase text-neutral-500">
-          No traces to show
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={traces.data?.map((t) => convertToTableRow(t))}
-          options={convertToOptions(options.data)}
-          queryOptions={queryOptions}
-          updateQueryOptions={updateQueryOptions}
-        />
-      )}
+      <DataTable
+        columns={columns}
+        data={
+          traces.isLoading
+            ? { isLoading: true, isError: false }
+            : traces.isError
+            ? { isLoading: false, isError: true, error: traces.error.message }
+            : {
+                isLoading: false,
+                isError: false,
+                data: traces.data?.map((t) => convertToTableRow(t)),
+              }
+        }
+        options={
+          options.isLoading
+            ? { isLoading: true, isError: false }
+            : options.isError
+            ? { isLoading: false, isError: true, error: options.error.message }
+            : {
+                isLoading: false,
+                isError: false,
+                data: convertToOptions(options.data),
+              }
+        }
+        queryOptions={queryOptions}
+        updateQueryOptions={updateQueryOptions}
+      />
     </div>
   );
 }

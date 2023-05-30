@@ -111,11 +111,26 @@ export const traceRouter = createTRPCRouter({
         }),
       ]);
 
-      return {
-        ids: ids,
-        names: names,
-        statuses: statuses,
-      };
+      return [
+        {
+          key: "id",
+          occurrences: ids.map((i) => {
+            return { key: i.id, count: i._count };
+          }),
+        },
+        {
+          key: "name",
+          occurrences: names.map((i) => {
+            return { key: i.name, count: i._count };
+          }),
+        },
+        {
+          key: "status",
+          occurrences: statuses.map((i) => {
+            return { key: i.status, count: i._count };
+          }),
+        },
+      ];
     }),
 
   byId: publicProcedure.input(z.string()).query(async ({ input }) => {

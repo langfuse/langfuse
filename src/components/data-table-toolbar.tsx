@@ -1,5 +1,3 @@
-"use client";
-
 import { type Table } from "@tanstack/react-table";
 import { X } from "lucide-react";
 
@@ -9,7 +7,7 @@ import { type TraceFilterInput, type TraceRowOptions } from "../pages/traces";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
-  options: TraceRowOptions;
+  options: TraceRowOptions[];
   queryOptions: TraceFilterInput;
   updateQueryOptions: (options: TraceFilterInput) => void;
 }
@@ -25,31 +23,18 @@ export function DataTableToolbar<TData>({
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
-        {table.getColumn("id") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("id")}
-            title="ID"
-            options={options.ids}
-            queryOptions={queryOptions}
-            updateQueryOptions={updateQueryOptions}
-          />
-        )}
-        {/* {table.getColumn("name") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("name")}
-            title="Name"
-            options={options.name}
-            updateQueryOptions={updateName}
-          />
-        )}
-        {table.getColumn("status") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("status")}
-            title="Status"
-            options={options.status}
-
-          />
-        )} */}
+        {table.getAllColumns().map((column) => {
+          const columnOptions = options.find((o) => o.columnId === column.id);
+          return column.getCanFilter() && columnOptions ? (
+            <DataTableFacetedFilter
+              column={column}
+              title={column.columnDef.meta?.label}
+              options={columnOptions}
+              queryOptions={queryOptions}
+              updateQueryOptions={updateQueryOptions}
+            />
+          ) : undefined;
+        })}
         {isFiltered && (
           <Button
             variant="ghost"

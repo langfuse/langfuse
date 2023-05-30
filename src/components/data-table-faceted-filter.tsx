@@ -20,17 +20,13 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { type TraceFilterInput } from "../pages/traces";
+import { type TraceRowOptions, type TraceFilterInput } from "../pages/traces";
 
 interface DataTableFacetedFilter<TData, TValue> {
   column?: Column<TData, TValue>;
   title?: string;
   queryOptions: TraceFilterInput;
-  options: {
-    label: string;
-    value: string;
-    icon?: LucideIcon;
-  }[];
+  options: TraceRowOptions;
   updateQueryOptions: (options: TraceFilterInput) => void;
 }
 
@@ -72,7 +68,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                     {selectedValues.size} selected
                   </Badge>
                 ) : (
-                  options
+                  options.options
                     .filter((option) => selectedValues.has(option.value))
                     .map((option) => (
                       <Badge
@@ -95,7 +91,7 @@ export function DataTableFacetedFilter<TData, TValue>({
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => {
+              {options.options.map((option) => {
                 const isSelected = selectedValues.has(option.label);
                 return (
                   <CommandItem

@@ -22,10 +22,17 @@ import { DataTableToolbar } from "./data-table-toolbar";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
-  data: TData[];
-  options: TraceRowOptions;
+  data: AsyncTableData<TData[]>;
+  options: AsyncTableData<TraceRowOptions[]>;
   queryOptions: TraceFilterInput;
   updateQueryOptions: (options: TraceFilterInput) => void;
+}
+
+export interface AsyncTableData<T> {
+  isLoading: boolean;
+  isError: boolean;
+  data?: T;
+  error?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -38,7 +45,7 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const table = useReactTable({
-    data,
+    data: data.data ?? [],
     columns,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
@@ -52,12 +59,14 @@ export function DataTable<TData, TValue>({
   return (
     <>
       <div className="space-y-4">
-        <DataTableToolbar
-          table={table}
-          options={options}
-          queryOptions={queryOptions}
-          updateQueryOptions={updateQueryOptions}
-        />
+        {options.data ? (
+          <DataTableToolbar
+            table={table}
+            options={options.data}
+            queryOptions={queryOptions}
+            updateQueryOptions={updateQueryOptions}
+          />
+        ) : undefined}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -79,7 +88,19 @@ export function DataTable<TData, TValue>({
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
+              {options.isLoading ||
+              !options.data ||
+              data.isLoading ||
+              !data.data ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    Loading.
+                  </TableCell>
+                </TableRow>
+              ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
