@@ -1,5 +1,5 @@
 import * as React from "react";
-import { type Column } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { Check, PlusCircle } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
@@ -23,22 +23,20 @@ import { Separator } from "@/src/components/ui/separator";
 import { type TraceRowOptions, type TraceFilterInput } from "../pages/traces";
 
 interface DataTableFacetedFilter<TData, TValue> {
-  column?: Column<TData, TValue>;
+  columnDef: ColumnDef<TData, TValue>;
   title?: string;
   queryOptions: TraceFilterInput;
   options: TraceRowOptions;
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
-  column,
+  columnDef,
   title,
   options,
 }: DataTableFacetedFilter<TData, TValue>) {
-  const selectedValues = column?.columnDef.meta?.filter
-    ? new Set(column?.columnDef.meta?.filter)
+  const selectedValues = columnDef.meta?.filter
+    ? new Set(columnDef.meta?.filter)
     : new Set<string>();
-
-  console.log("selectedValues", selectedValues, options);
 
   return (
     <Popover>
@@ -100,7 +98,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                       }
                       const filterValues = Array.from(selectedValues);
 
-                      column?.columnDef?.meta?.updateFunction(
+                      columnDef?.meta?.updateFunction(
                         filterValues.length ? filterValues : null
                       );
                     }}
@@ -133,9 +131,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
-                    onSelect={() =>
-                      column?.columnDef?.meta?.updateFunction(null)
-                    }
+                    onSelect={() => columnDef?.meta?.updateFunction(null)}
                     className="justify-center text-center"
                   >
                     Clear filters

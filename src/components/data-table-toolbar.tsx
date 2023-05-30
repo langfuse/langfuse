@@ -1,34 +1,37 @@
-import { type Table } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 import { type TraceFilterInput, type TraceRowOptions } from "../pages/traces";
 
-interface DataTableToolbarProps<TData> {
-  table: Table<TData>;
+interface DataTableToolbarProps<TData, TValue> {
+  columnDefs: ColumnDef<TData, TValue>[];
   options: TraceRowOptions[];
   queryOptions: TraceFilterInput;
   updateQueryOptions: (options: TraceFilterInput) => void;
 }
 
-export function DataTableToolbar<TData>({
-  table,
+export function DataTableToolbar<TData, TValue>({
+  columnDefs,
   options,
   queryOptions,
   updateQueryOptions,
-}: DataTableToolbarProps<TData>) {
+}: DataTableToolbarProps<TData, TValue>) {
   const isFiltered = queryOptions.name !== null;
 
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
-        {table.getAllColumns().map((column) => {
-          const columnOptions = options.find((o) => o.columnId === column.id);
-          return column.getCanFilter() && columnOptions ? (
+        {columnDefs.map((column) => {
+          const columnOptions = options.find(
+            (o) =>
+              o.columnId.toLowerCase() === column.meta?.label?.toLowerCase()
+          );
+          return column.enableColumnFilter && columnOptions ? (
             <DataTableFacetedFilter
-              column={column}
-              title={column.columnDef.meta?.label}
+              columnDef={column}
+              title={column.meta?.label}
               queryOptions={queryOptions}
               options={columnOptions}
             />

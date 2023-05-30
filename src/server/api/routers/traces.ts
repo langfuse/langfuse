@@ -22,8 +22,6 @@ const FilterOptions = z.object({
 
 export const traceRouter = createTRPCRouter({
   all: publicProcedure.input(FilterOptions).query(async ({ input }) => {
-    console.log(input);
-
     const traces = await prisma.trace.findMany({
       where: {
         ...(input.attribute?.path

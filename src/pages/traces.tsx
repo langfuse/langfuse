@@ -17,6 +17,7 @@ import Header from "../components/layouts/header";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
 import ObservationDisplay from "../components/observationDisplay";
+import { DataTableToolbar } from "../components/data-table-toolbar";
 
 export type TraceTableRow = {
   id: string;
@@ -154,6 +155,20 @@ export default function Traces() {
     },
   ];
 
+  const tableOptions = options.isLoading
+    ? { isLoading: true, isError: false }
+    : options.isError
+    ? {
+        isLoading: false,
+        isError: true,
+        error: options.error.message,
+      }
+    : {
+        isLoading: false,
+        isError: false,
+        data: convertToOptions(options.data),
+      };
+
   return (
     <div className="container mx-auto py-10">
       <Header title="Traces" live />
@@ -162,6 +177,16 @@ export default function Traces() {
           <TabsTrigger value="table">Table</TabsTrigger>
           <TabsTrigger value="sidebyside">Side-by-side</TabsTrigger>
         </TabsList>
+        {tableOptions.data ? (
+          <div className="mt-2">
+            <DataTableToolbar
+              columnDefs={columns}
+              options={tableOptions.data}
+              queryOptions={queryOptions}
+              updateQueryOptions={updateQueryOptions}
+            />
+          </div>
+        ) : undefined}
         <TabsContent value="table">
           <DataTable
             columns={columns}
@@ -180,30 +205,14 @@ export default function Traces() {
                     data: traces.data?.map((t) => convertToTableRow(t)),
                   }
             }
-            options={
-              options.isLoading
-                ? { isLoading: true, isError: false }
-                : options.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: options.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: convertToOptions(options.data),
-                  }
-            }
-            queryOptions={queryOptions}
-            updateQueryOptions={updateQueryOptions}
+            options={tableOptions}
           />
         </TabsContent>
         <TabsContent value="sidebyside">
           <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
-            {traces.data?.map((trace) => (
-              <Single key={trace.id} trace={trace} />
-            ))}
+            {traces.data?.map((trace) => {
+              return <Single key={trace.id} trace={trace} />;
+            })}
           </div>
         </TabsContent>
       </Tabs>

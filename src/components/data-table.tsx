@@ -17,15 +17,12 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { useState } from "react";
-import { type TraceFilterInput, type TraceRowOptions } from "../pages/traces";
-import { DataTableToolbar } from "./data-table-toolbar";
+import { type TraceRowOptions } from "../pages/traces";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   options: AsyncTableData<TraceRowOptions[]>;
-  queryOptions: TraceFilterInput;
-  updateQueryOptions: (options: TraceFilterInput) => void;
 }
 
 export interface AsyncTableData<T> {
@@ -39,8 +36,6 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   options,
-  queryOptions,
-  updateQueryOptions,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
@@ -59,14 +54,6 @@ export function DataTable<TData, TValue>({
   return (
     <>
       <div className="space-y-4">
-        {options.data ? (
-          <DataTableToolbar
-            table={table}
-            options={options.data}
-            queryOptions={queryOptions}
-            updateQueryOptions={updateQueryOptions}
-          />
-        ) : undefined}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
