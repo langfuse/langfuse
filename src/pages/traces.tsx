@@ -3,10 +3,20 @@ import { api } from "../utils/api";
 import { type RouterOutput, type RouterInput } from "../utils/types";
 import { DataTable } from "../components/data-table";
 import { type Trace, type Score } from "@prisma/client";
-import { type LucideIcon } from "lucide-react";
+import { ArrowUpRight, type LucideIcon } from "lucide-react";
 import { lastCharacters } from "../utils/string";
 import { useRouter } from "next/router";
 import { type ColumnDef } from "@tanstack/react-table";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
+import Header from "../components/layouts/header";
+import { Button } from "../components/ui/button";
+import Link from "next/link";
+import ObservationDisplay from "../components/observationDisplay";
 
 export type TraceTableRow = {
   id: string;
@@ -146,33 +156,81 @@ export default function Traces() {
 
   return (
     <div className="container mx-auto py-10">
-      <DataTable
-        columns={columns}
-        data={
-          traces.isLoading
-            ? { isLoading: true, isError: false }
-            : traces.isError
-            ? { isLoading: false, isError: true, error: traces.error.message }
-            : {
-                isLoading: false,
-                isError: false,
-                data: traces.data?.map((t) => convertToTableRow(t)),
-              }
-        }
-        options={
-          options.isLoading
-            ? { isLoading: true, isError: false }
-            : options.isError
-            ? { isLoading: false, isError: true, error: options.error.message }
-            : {
-                isLoading: false,
-                isError: false,
-                data: convertToOptions(options.data),
-              }
-        }
-        queryOptions={queryOptions}
-        updateQueryOptions={updateQueryOptions}
-      />
+      <Header title="Traces" live />
+      <Tabs defaultValue="table">
+        <TabsList>
+          <TabsTrigger value="table">Table</TabsTrigger>
+          <TabsTrigger value="sidebyside">Side-by-side</TabsTrigger>
+        </TabsList>
+        <TabsContent value="table">
+          <DataTable
+            columns={columns}
+            data={
+              traces.isLoading
+                ? { isLoading: true, isError: false }
+                : traces.isError
+                ? {
+                    isLoading: false,
+                    isError: true,
+                    error: traces.error.message,
+                  }
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: traces.data?.map((t) => convertToTableRow(t)),
+                  }
+            }
+            options={
+              options.isLoading
+                ? { isLoading: true, isError: false }
+                : options.isError
+                ? {
+                    isLoading: false,
+                    isError: true,
+                    error: options.error.message,
+                  }
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: convertToOptions(options.data),
+                  }
+            }
+            queryOptions={queryOptions}
+            updateQueryOptions={updateQueryOptions}
+          />
+        </TabsContent>
+        <TabsContent value="sidebyside">
+          <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
+            {traces.data?.map((trace) => (
+              <Single key={trace.id} trace={trace} />
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
+
+const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
+  const { trace } = props;
+
+  if (trace.nestedObservation)
+    return (
+      <div className="w-[550px] flex-none rounded-md border px-3">
+        <div className="mt-4 font-bold">Trace</div>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/traces/${trace.id}`}>
+            {trace.id}
+            <ArrowUpRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+        <div className="mt-4 text-sm font-bold">Timestamp</div>
+        <div>{trace.timestamp.toLocaleString()}</div>
+        <div className="mt-4 text-sm font-bold">Name</div>
+        <div>{trace.name}</div>
+        <div className="mt-4 text-sm font-bold">Observations:</div>
+        <ObservationDisplay key={trace.id} obs={trace.nestedObservation} />
+      </div>
+    );
+  else return null;
+};
