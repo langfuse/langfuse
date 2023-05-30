@@ -32,7 +32,7 @@ export function ApiKeyList(props: { projectId: string }) {
       <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
         API keys
       </h2>
-      <Card className="mb-2">
+      <Card className="mb-4">
         <Table>
           <TableHeader>
             <TableRow>

@@ -12,9 +12,9 @@ export default function GetStartedPage() {
   return (
     <>
       <Header title="Setup" />
-      <div className="flex flex-col gap-6">
-        <ApiKeyList projectId={projectId} />
+      <div className="flex flex-col gap-10">
         <Instructions />
+        <ApiKeyList projectId={projectId} />
       </div>
     </>
   );
