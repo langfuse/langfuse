@@ -20,28 +20,6 @@ const FilterOptions = z.object({
   status: z.array(z.string()).nullable(),
 });
 
-// const FilterOptions = z
-//   .object({
-//     key: z.string(),
-//     filter: z.discriminatedUnion("type", [
-//       z.object({
-//         type: z.literal('match'),
-//         value: z.array(z.string())
-//       }),
-//       z.object({
-//         type: z.literal('string-compare'),
-//         value: z.object({
-//         path: z.array(z.string()).optional(),
-//         equals: z.string().optional(),
-//         string_contains: z.string().optional(),
-//         string_starts_with: z.string().optional(),
-//         string_ends_with: z.string().optional(),
-//         }),
-//       })
-//     ]),
-//   })
-//   .array();
-
 export const traceRouter = createTRPCRouter({
   all: publicProcedure.input(FilterOptions).query(async ({ input }) => {
     console.log(input);
@@ -93,17 +71,38 @@ export const traceRouter = createTRPCRouter({
   availableFilterOptions: publicProcedure
     .input(FilterOptions)
     .query(async ({ input }) => {
+      const filter = {
+        ...(input.attribute?.path
+          ? {
+              attributes: input.attribute,
+            }
+          : undefined),
+        ...(input.name
+          ? {
+              name: {
+                in: input.name,
+              },
+            }
+          : undefined),
+        ...(input.id
+          ? {
+              id: {
+                in: input.id,
+              },
+            }
+          : undefined),
+        ...(input.status
+          ? {
+              status: {
+                in: input.status,
+              },
+            }
+          : undefined),
+      };
+
       const [ids, names, statuses] = await Promise.all([
         await prisma.trace.groupBy({
-          where: {
-            ...(input.id
-              ? {
-                  id: {
-                    in: input.id,
-                  },
-                }
-              : undefined),
-          },
+          where: filter,
           by: ["id"],
           _count: {
             _all: true,
@@ -111,15 +110,7 @@ export const traceRouter = createTRPCRouter({
         }),
 
         await prisma.trace.groupBy({
-          where: {
-            ...(input.name
-              ? {
-                  name: {
-                    in: input.name,
-                  },
-                }
-              : undefined),
-          },
+          where: filter,
           by: ["name"],
           _count: {
             _all: true,
@@ -127,15 +118,7 @@ export const traceRouter = createTRPCRouter({
         }),
 
         await prisma.trace.groupBy({
-          where: {
-            ...(input.status
-              ? {
-                  status: {
-                    in: input.status,
-                  },
-                }
-              : undefined),
-          },
+          where: filter,
           by: ["status"],
           _count: {
             _all: true,
