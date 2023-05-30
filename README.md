@@ -28,8 +28,6 @@ Debug and improve your LLM-based application by logging/analyzing all user inter
 Follow the steps below to set up the environment via docker-compose. Both the server and the database will be running in docker containers.
 
 ```bash
-# create env file
-cp .env.local.example .env
 # execute docker-compose
 docker-compose up
 ```
@@ -66,12 +64,18 @@ npm run dev
 The following instructions explain how to create a single container for deployment. The container will contain the server but no database. Please adjust the db url in the .env file to point to your database.
 
 ```bash
-# create env file
-cp .env.dev.example .env
 # build the container
-docker build -t langfuse .
+docker build \
+--build-arg DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+--build-arg NEXTAUTH_SECRET=mysecret \
+--build-arg NEXTAUTH_URL=http:localhost:3030 \
+-t langfuse .
 # run the container
-docker run -dp 3030:3000 langfuse
+docker run \
+--env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+--env NEXTAUTH_SECRET=mysecret \
+--env NEXTAUTH_URL=http:localhost:3030 \
+-dp 3030:3000 langfuse
 ```
 
 ### Generate SDKs

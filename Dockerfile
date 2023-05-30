@@ -1,5 +1,8 @@
 # Base image
 FROM node:18-alpine AS base
+ARG DATABASE_URL
+ARG NEXTAUTH_SECRET
+ARG NEXTAUTH_URL
 
 # Install dependencies only when needed
 FROM base AS deps

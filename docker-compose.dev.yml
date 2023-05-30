@@ -12,6 +12,11 @@ services:
       - 5432:5432
     volumes:
       - database_data:/var/lib/postgresql/data
+    networks:
+      - langfuse-network
+
+networks:
+  langfuse-network:
 
 volumes:
   database_data:
