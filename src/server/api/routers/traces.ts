@@ -5,43 +5,145 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { prisma } from "~/server/db";
 
+const FilterOptions = z.object({
+  attribute: z
+    .object({
+      path: z.array(z.string()).optional(),
+      equals: z.string().optional(),
+      string_contains: z.string().optional(),
+      string_starts_with: z.string().optional(),
+      string_ends_with: z.string().optional(),
+    })
+    .nullable(),
+  name: z.array(z.string()).nullable(),
+  id: z.array(z.string()).nullable(),
+  status: z.array(z.string()).nullable(),
+});
+
 export const traceRouter = createTRPCRouter({
-  all: publicProcedure
-    .input(
-      z.object({
-        attributes: z
-          .object({
-            path: z.array(z.string()).optional(),
-            equals: z.string().optional(),
-            string_contains: z.string().optional(),
-            string_starts_with: z.string().optional(),
-            string_ends_with: z.string().optional(),
-          })
-          .nullable(),
-      })
-    )
-    .query(async ({ input }) => {
-      const traces = await prisma.trace.findMany({
-        ...(input.attributes?.path
+  all: publicProcedure.input(FilterOptions).query(async ({ input }) => {
+    const traces = await prisma.trace.findMany({
+      where: {
+        ...(input.attribute?.path
           ? {
-              where: {
-                attributes: input.attributes,
+              attributes: input.attribute,
+            }
+          : undefined),
+        ...(input.name
+          ? {
+              name: {
+                in: input.name,
               },
             }
           : undefined),
-        orderBy: {
-          timestamp: "desc",
-        },
-        include: {
-          scores: true,
-          observations: true,
-        },
-      });
+        ...(input.id
+          ? {
+              id: {
+                in: input.id,
+              },
+            }
+          : undefined),
+        ...(input.status
+          ? {
+              status: {
+                in: input.status,
+              },
+            }
+          : undefined),
+      },
+      orderBy: {
+        timestamp: "desc",
+      },
+      include: {
+        scores: true,
+        observations: true,
+      },
+    });
 
-      return traces.map((trace) => ({
-        ...trace,
-        nestedObservation: nestObservations(trace.observations),
-      }));
+    return traces.map((trace) => ({
+      ...trace,
+      nestedObservation: nestObservations(trace.observations),
+    }));
+  }),
+
+  availableFilterOptions: publicProcedure
+    .input(FilterOptions)
+    .query(async ({ input }) => {
+      const filter = {
+        ...(input.attribute?.path
+          ? {
+              attributes: input.attribute,
+            }
+          : undefined),
+        ...(input.name
+          ? {
+              name: {
+                in: input.name,
+              },
+            }
+          : undefined),
+        ...(input.id
+          ? {
+              id: {
+                in: input.id,
+              },
+            }
+          : undefined),
+        ...(input.status
+          ? {
+              status: {
+                in: input.status,
+              },
+            }
+          : undefined),
+      };
+
+      const [ids, names, statuses] = await Promise.all([
+        await prisma.trace.groupBy({
+          where: filter,
+          by: ["id"],
+          _count: {
+            _all: true,
+          },
+        }),
+
+        await prisma.trace.groupBy({
+          where: filter,
+          by: ["name"],
+          _count: {
+            _all: true,
+          },
+        }),
+
+        await prisma.trace.groupBy({
+          where: filter,
+          by: ["status"],
+          _count: {
+            _all: true,
+          },
+        }),
+      ]);
+
+      return [
+        {
+          key: "id",
+          occurrences: ids.map((i) => {
+            return { key: i.id, count: i._count };
+          }),
+        },
+        {
+          key: "name",
+          occurrences: names.map((i) => {
+            return { key: i.name, count: i._count };
+          }),
+        },
+        {
+          key: "status",
+          occurrences: statuses.map((i) => {
+            return { key: i.status, count: i._count };
+          }),
+        },
+      ];
     }),
 
   byId: publicProcedure.input(z.string()).query(async ({ input }) => {

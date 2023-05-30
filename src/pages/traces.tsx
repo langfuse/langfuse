@@ -1,426 +1,228 @@
-import Header from "~/components/layouts/header";
-
-import {
-  DataGrid,
-  type GridRowsProp,
-  type GridColDef,
-  type GridRowParams,
-  type GridFilterItem,
-  type GridFilterOperator,
-  type GridFilterInputValueProps,
-  SUBMIT_FILTER_STROKE_TIME,
-  type GridFilterModel,
-  GridToolbarContainer,
-  GridToolbarExport,
-  GridToolbarFilterButton,
-} from "@mui/x-data-grid";
-import { api } from "~/utils/api";
+import React, { useState } from "react";
+import { api } from "../utils/api";
+import { type RouterOutput, type RouterInput } from "../utils/types";
+import { DataTable } from "../components/data-table";
+import { type Trace, type Score } from "@prisma/client";
+import { ArrowUpRight, type LucideIcon } from "lucide-react";
+import { lastCharacters } from "../utils/string";
 import { useRouter } from "next/router";
+import { type ColumnDef } from "@tanstack/react-table";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "../components/ui/tabs";
-import { type RouterInput, type RouterOutput } from "../utils/types";
+import Header from "../components/layouts/header";
 import { Button } from "../components/ui/button";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import ObservationDisplay from "../components/observationDisplay";
-import { type TextFieldProps, TextField, Box } from "@mui/material";
-import React from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { DataTableToolbar } from "../components/data-table-toolbar";
 
-interface CustomToolbarProps {
-  setFilterButtonEl: React.Dispatch<
-    React.SetStateAction<HTMLButtonElement | null>
-  >;
-}
-
-function InputKeyValue(props: GridFilterInputValueProps) {
-  const { item, applyValue, focusElementRef = null } = props;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filterTimeout = React.useRef<any>();
-  const [filterValueState, setFilterValueState] = React.useState<
-    [string, string]
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-  >(item.value ?? "");
-
-  const [applying, setIsApplying] = React.useState(false);
-
-  React.useEffect(() => {
-    return () => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      clearTimeout(filterTimeout.current);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const itemValue = item.value ?? [undefined, undefined];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    setFilterValueState(itemValue);
-  }, [item.value]);
-
-  const updateFilterValue = (key: string, value: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    clearTimeout(filterTimeout.current);
-    setFilterValueState([key, value]);
-
-    setIsApplying(true);
-    filterTimeout.current = setTimeout(() => {
-      setIsApplying(false);
-      applyValue({ ...item, value: [key, value] });
-    }, SUBMIT_FILTER_STROKE_TIME);
-  };
-
-  const handleUpperFilterChange: TextFieldProps["onChange"] = (event) => {
-    const newUpperBound = event.target.value;
-    updateFilterValue(filterValueState[0], newUpperBound);
-  };
-  const handleLowerFilterChange: TextFieldProps["onChange"] = (event) => {
-    const newLowerBound = event.target.value;
-    updateFilterValue(newLowerBound, filterValueState[1]);
-  };
-
-  return (
-    <Box
-      sx={{
-        display: "inline-flex",
-        flexDirection: "row",
-        alignItems: "end",
-        height: 48,
-        pl: "20px",
-      }}
-    >
-      <TextField
-        name="lower-bound-input"
-        placeholder="Key"
-        label="key"
-        variant="standard"
-        value={String(filterValueState[0])}
-        onChange={handleLowerFilterChange}
-        type="string"
-        inputRef={focusElementRef}
-        sx={{ mr: 2 }}
-      />
-      <TextField
-        name="upper-bound-input"
-        placeholder="Value"
-        label="value"
-        variant="standard"
-        value={String(filterValueState[1])}
-        onChange={handleUpperFilterChange}
-        type="string"
-        InputProps={
-          applying
-            ? {
-                endAdornment: <FontAwesomeIcon icon={faSpinner} />,
-              }
-            : {}
-        }
-      />
-    </Box>
-  );
-}
-
-interface TraceRowData {
+export type TraceTableRow = {
   id: string;
-}
+  timestamp: Date;
+  name: string;
+  status: string;
+  statusMessage?: string;
+  attributes?: string;
+  scores: string;
+};
 
-type TraceFilterInput = RouterInput["traces"]["all"];
+export type TraceFilterInput = RouterInput["traces"]["all"];
+
+export type TraceRowOptions = {
+  columnId: string;
+  options: { label: string; value: number; icon?: LucideIcon }[];
+};
 
 export default function Traces() {
-  const [queryOptions, setQueryOptions] = React.useState<TraceFilterInput>({
-    attributes: {},
-  });
-
-  const traces = api.traces.all.useQuery(queryOptions, {
-    refetchInterval: 2000,
-  });
   const router = useRouter();
 
-  const quantityOnlyOperators: GridFilterOperator[] = [
-    {
-      label: "Key-Value",
-      value: "key-value",
-      getApplyFilterFn: (filterItem: GridFilterItem) => {
-        if (!Array.isArray(filterItem.value) || filterItem.value.length !== 2) {
-          return null;
-        }
-        if (filterItem.value[0] == null || filterItem.value[1] == null) {
-          return null;
-        }
-
-        return ({ value }) => {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument
-          const jsonObj = JSON.parse(value);
-
-          return (
-            value !== null &&
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            jsonObj[filterItem.value[0]] !== undefined &&
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            jsonObj[filterItem.value[0]] === filterItem.value[1]
-          );
-        };
-      },
-      InputComponent: InputKeyValue,
-    },
-  ];
-
-  const [filterModel, setFilterModel] = React.useState<GridFilterModel>({
-    items: [
-      {
-        id: 1,
-        field: "attributes",
-        value: ["id", "abcd"],
-        operator: "key-value",
-      },
-    ],
+  const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
+    attribute: {},
+    name: [],
+    id: [],
+    status: [],
   });
 
-  const columns: GridColDef[] = [
+  const updateQueryOptions = (options: TraceFilterInput) => {
+    setQueryOptions(options);
+  };
+
+  // {
+  //   refetchInterval: 2000,
+  // }
+
+  const traces = api.traces.all.useQuery(queryOptions);
+
+  const options = api.traces.availableFilterOptions.useQuery(queryOptions);
+
+  const convertToTableRow = (
+    trace: Trace & { scores: Score[] }
+  ): TraceTableRow => {
+    return {
+      id: trace.id,
+      timestamp: trace.timestamp,
+      name: trace.name,
+      status: trace.status,
+      statusMessage: trace.statusMessage ?? undefined,
+      attributes: JSON.stringify(trace.attributes),
+      scores: trace.scores
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-member-access
+        .map((score) => `${score.name}: ${score.value}`)
+        .join("; "),
+    };
+  };
+
+  const convertToOptions = (
+    options: RouterOutput["traces"]["availableFilterOptions"]
+  ): TraceRowOptions[] => {
+    return options.map((o) => {
+      return {
+        columnId: o.key,
+        options: o.occurrences.map((o) => {
+          return { label: o.key, value: o.count._all };
+        }),
+      };
+    });
+  };
+
+  const columns: ColumnDef<TraceTableRow>[] = [
     {
-      field: "id",
-      type: "actions",
-      headerName: "ID",
-      width: 100,
-      getActions: (params: GridRowParams<TraceRowData>) => [
-        <button
-          key="openTrace"
-          className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
-          onClick={() => void router.push(`/traces/${params.row.id}`)}
-        >
-          ...{lastCharacters(params.row.id, 7)}
-        </button>,
-      ],
-      headerClassName:
-        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
-      sortable: false,
+      accessorKey: "id",
+      cell: ({ row }) => {
+        return (
+          <div>
+            <button
+              key="openTrace"
+              className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
+              onClick={() => {
+                const value = row.getValue("id");
+                typeof value === "string"
+                  ? void router.push(`/traces/${value}`)
+                  : null;
+              }}
+            >
+              ...{lastCharacters(row.getValue("id"), 7)}
+            </button>
+          </div>
+        );
+      },
+      enableColumnFilter: true,
+      meta: {
+        label: "Id",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, id: newValues });
+        },
+        filter: queryOptions.id,
+      },
     },
     {
-      field: "timestamp",
-      hideable: false,
-      type: "dateTime",
-      headerName: "Timestamp",
-      width: 170,
-      headerClassName:
-        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
-      sortable: false,
+      accessorKey: "timestamp",
+      header: "Timestamp",
     },
     {
-      field: "name",
-      hideable: false,
-      headerName: "Name",
-      minWidth: 200,
-      headerClassName:
-        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
-      sortable: false,
+      accessorKey: "name",
+      header: "Name",
+      enableColumnFilter: true,
+      meta: {
+        label: "Name",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, name: newValues });
+        },
+        filter: queryOptions.name,
+      },
     },
     {
-      field: "status",
-      hideable: false,
-      headerName: "Status",
-      minWidth: 100,
-      headerClassName:
-        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
-      sortable: false,
+      accessorKey: "status",
+      header: "Status",
+      enableColumnFilter: true,
+      meta: {
+        label: "Status",
+        updateFunction: (newValues: string[] | null) => {
+          updateQueryOptions({ ...queryOptions, status: newValues });
+        },
+        filter: queryOptions.status,
+      },
     },
     {
-      field: "statusMessage",
-      hideable: false,
-      headerName: "Status Message",
-      width: 200,
-      headerClassName:
-        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
-      sortable: false,
+      accessorKey: "statusMessage",
+      header: "Status Message",
     },
     {
-      field: "attributes",
-      hideable: false,
-      headerName: "Attributes",
-      flex: 1,
-      filterOperators: quantityOnlyOperators,
-      headerClassName:
-        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
-      sortable: false,
+      accessorKey: "attributes",
+      header: "Attributes",
     },
     {
-      field: "scores",
-      hideable: false,
-      headerName: "Scores",
-      flex: 1,
-      headerClassName:
-        "px-3 py-3.5 text-left text-sm font-semibold text-gray-900 hideRightSeparator",
-      sortable: false,
+      accessorKey: "scores",
+      header: "Scores",
     },
   ];
 
-  const onFilterChange = React.useCallback((filterModel: GridFilterModel) => {
-    let filterOptions: TraceFilterInput = { attributes: {} };
-
-    filterModel.items.forEach((item) => {
-      if (item.operator === "key-value") {
-        if (!Array.isArray(item.value) || item.value.length !== 2) {
-          return null;
-        }
-        if (item.value[0] == null || item.value[1] == null) {
-          return null;
-        }
-
-        filterOptions = {
-          attributes: {
-            path: [item.value[0]],
-            equals: item.value[1] as string,
-          },
-        };
+  const tableOptions = options.isLoading
+    ? { isLoading: true, isError: false }
+    : options.isError
+    ? {
+        isLoading: false,
+        isError: true,
+        error: options.error.message,
       }
-
-      setFilterModel(filterModel);
-    });
-
-    setQueryOptions(filterOptions);
-  }, []);
-
-  const [filterButtonEl, setFilterButtonEl] =
-    React.useState<HTMLButtonElement | null>(null);
-
-  const rows: GridRowsProp = traces.isSuccess
-    ? traces.data.map((trace) => ({
-        id: trace.id,
-        timestamp: trace.timestamp,
-        name: trace.name,
-        status: trace.status,
-        statusMessage: trace.statusMessage,
-        attributes: JSON.stringify(trace.attributes),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-        scores: trace.scores
-          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-member-access
-          .map((score) => `${score.name}: ${score.value}`)
-          .join("; "),
-      }))
-    : [];
+    : {
+        isLoading: false,
+        isError: false,
+        data: convertToOptions(options.data),
+      };
 
   return (
-    <>
+    <div className="container mx-auto py-10">
       <Header title="Traces" live />
       <Tabs defaultValue="table">
         <TabsList>
           <TabsTrigger value="table">Table</TabsTrigger>
           <TabsTrigger value="sidebyside">Side-by-side</TabsTrigger>
         </TabsList>
+        {tableOptions.data ? (
+          <div className="mt-2">
+            <DataTableToolbar
+              columnDefs={columns}
+              options={tableOptions.data}
+              queryOptions={queryOptions}
+              updateQueryOptions={updateQueryOptions}
+            />
+          </div>
+        ) : undefined}
         <TabsContent value="table">
-          <DataGrid
-            sx={{
-              ".MuiDataGrid-columnHeader:focus": {
-                outline: "none",
-              },
-              "& .MuiDataGrid-cell:focus": {
-                outline: "none",
-              },
-              ".MuiDataGrid-root": {
-                ".MuiDataGrid-cell:focus .MuiDataGrid-cell:focus-within .MuiDataGrid-columnHeader:focus .MuiDataGrid-columnHeader:focus-within":
-                  {
-                    outline: "none",
-                  },
-              },
-              "& .hideRightSeparator > .MuiDataGrid-columnSeparator": {
-                display: "none",
-              },
-            }}
-            rows={rows}
+          <DataTable
             columns={columns}
-            loading={traces.isLoading}
-            filterModel={filterModel}
-            filterMode="server"
-            onFilterModelChange={onFilterChange}
-            disableColumnMenu={true}
-            disableRowSelectionOnClick={true}
-            slots={{
-              toolbar: CustomToolbar,
-            }}
-            slotProps={{
-              panel: {
-                anchorEl: filterButtonEl,
-              },
-              toolbar: {
-                setFilterButtonEl,
-              },
-            }}
-            getRowClassName={() => `whitespace-nowrap  text-sm text-gray-500`}
-            autoHeight
+            data={
+              traces.isLoading
+                ? { isLoading: true, isError: false }
+                : traces.isError
+                ? {
+                    isLoading: false,
+                    isError: true,
+                    error: traces.error.message,
+                  }
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: traces.data?.map((t) => convertToTableRow(t)),
+                  }
+            }
+            options={tableOptions}
           />
         </TabsContent>
         <TabsContent value="sidebyside">
-          <DataGrid
-            sx={{
-              ".MuiDataGrid-columnHeader:focus": {
-                outline: "none",
-              },
-              "& .MuiDataGrid-cell:focus": {
-                outline: "none",
-              },
-              ".MuiDataGrid-root": {
-                ".MuiDataGrid-cell:focus .MuiDataGrid-cell:focus-within .MuiDataGrid-columnHeader:focus .MuiDataGrid-columnHeader:focus-within":
-                  {
-                    outline: "none",
-                  },
-              },
-              "& .hideRightSeparator > .MuiDataGrid-columnSeparator": {
-                display: "none",
-              },
-            }}
-            rows={[]}
-            columns={columns}
-            loading={traces.isLoading}
-            filterModel={filterModel}
-            filterMode="server"
-            onFilterModelChange={onFilterChange}
-            disableColumnMenu={true}
-            disableRowSelectionOnClick={true}
-            getRowClassName={() => `whitespace-nowrap  text-sm text-gray-500`}
-            slots={{
-              toolbar: CustomToolbar,
-              noRowsOverlay: () => null,
-              noResultsOverlay: () => null,
-            }}
-            slotProps={{
-              panel: {
-                anchorEl: filterButtonEl,
-              },
-              toolbar: {
-                setFilterButtonEl,
-              },
-            }}
-            hideFooter={true}
-            hideFooterPagination={true}
-            hideFooterSelectedRowCount={true}
-          />
           <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
-            {traces.data?.map((trace) => (
-              <Single key={trace.id} trace={trace} />
-            ))}
+            {traces.data?.map((trace) => {
+              return <Single key={trace.id} trace={trace} />;
+            })}
           </div>
         </TabsContent>
       </Tabs>
-    </>
+    </div>
   );
-}
-
-function CustomToolbar({ setFilterButtonEl }: CustomToolbarProps) {
-  return (
-    <GridToolbarContainer>
-      <GridToolbarFilterButton ref={setFilterButtonEl} />
-      <GridToolbarExport />
-    </GridToolbarContainer>
-  );
-}
-
-function lastCharacters(str: string, n: number) {
-  return str.substring(str.length - n);
 }
 
 const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
