@@ -3,6 +3,8 @@ import { ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "./cors";
+import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 
 const ObservationSchema = z.object({
   traceId: z.string(),
@@ -22,9 +24,34 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 
+  // CHECK AUTH
+  const authCheck = await verifyAuthHeaderAndReturnScope(
+    req.headers.authorization
+  );
+  if (!authCheck.validKey)
+    return res.status(401).json({
+      success: false,
+      message: authCheck.error,
+    });
+  // END CHECK AUTH
+
   try {
     const { traceId, name, startTime, attributes, parentObservationId } =
       ObservationSchema.parse(req.body);
+
+    // CHECK ACCESS SCOPE
+    const accessCheck = await checkApiAccessScope(authCheck.scope, [
+      { type: "trace", id: traceId },
+      ...(parentObservationId
+        ? [{ type: "observation" as const, id: parentObservationId }]
+        : []),
+    ]);
+    if (!accessCheck)
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    // END CHECK ACCESS SCOPE
 
     const newObservation = await prisma.observation.create({
       data: {
