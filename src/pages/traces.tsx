@@ -224,23 +224,26 @@ export default function Traces() {
 const Single = (props: { trace: RouterOutput["traces"]["all"][number] }) => {
   const { trace } = props;
 
-  if (trace.nestedObservation)
-    return (
-      <div className="w-[550px] flex-none rounded-md border px-3">
-        <div className="mt-4 font-bold">Trace</div>
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/traces/${trace.id}`}>
-            {trace.id}
-            <ArrowUpRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
-        <div className="mt-4 text-sm font-bold">Timestamp</div>
-        <div>{trace.timestamp.toLocaleString()}</div>
-        <div className="mt-4 text-sm font-bold">Name</div>
-        <div>{trace.name}</div>
-        <div className="mt-4 text-sm font-bold">Observations:</div>
-        <ObservationDisplay key={trace.id} obs={trace.nestedObservation} />
-      </div>
-    );
-  else return null;
+  return (
+    <div className="w-[550px] flex-none rounded-md border px-3">
+      <div className="mt-4 font-bold">Trace</div>
+      <Button variant="ghost" size="sm" asChild>
+        <Link href={`/traces/${trace.id}`}>
+          {trace.id}
+          <ArrowUpRight className="ml-2 h-4 w-4" />
+        </Link>
+      </Button>
+      <div className="mt-4 text-sm font-bold">Timestamp</div>
+      <div>{trace.timestamp.toLocaleString()}</div>
+      <div className="mt-4 text-sm font-bold">Name</div>
+      <div>{trace.name}</div>
+
+      {trace.nestedObservation ? (
+        <>
+          <div className="mt-4 text-sm font-bold">Observations:</div>
+          <ObservationDisplay key={trace.id} obs={trace.nestedObservation} />
+        </>
+      ) : undefined}
+    </div>
+  );
 };
