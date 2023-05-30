@@ -48,14 +48,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: install dependencies
-        run: |
-          npm install
-
-      - name: Build
-        run: |
-          npm run build
-
       - name: Build Docker image
         run: |
           docker build \
