@@ -19,8 +19,6 @@
     "@headlessui/react": "^1.7.14",
     "@heroicons/react": "^2.0.18",
     "@hookform/resolvers": "^3.1.0",
-    "@mui/material": "^5.13.2",
-    "@mui/x-data-grid": "^6.5.0",
     "@next-auth/prisma-adapter": "^1.0.6",
     "@prisma/client": "^4.14.1",
     "@radix-ui/react-avatar": "^1.0.3",
