@@ -1,3 +1,7 @@
+import {
+  hashSecretKey,
+  getDisplaySecretKey,
+} from "@/src/features/publicApi/lib/apiKeys";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -7,6 +11,16 @@ async function main() {
     data: {
       id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       name: "llm-app",
+      apiKeys: {
+        create: [
+          {
+            note: "seeded key",
+            hashedSecretKey: await hashSecretKey("sk-lf-1234567890"),
+            displaySecretKey: getDisplaySecretKey("sk-lf-1234567890"),
+            publishableKey: "pk-lf-1234567890",
+          },
+        ],
+      },
     },
   });
 

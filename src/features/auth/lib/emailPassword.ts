@@ -39,7 +39,7 @@ export async function createUserEmailPassword(
 }
 
 export async function hashPassword(password: string) {
-  const hashedPassword = await hash(password, 8);
+  const hashedPassword = await hash(password, 12);
   return hashedPassword;
 }
 

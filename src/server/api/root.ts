@@ -4,6 +4,7 @@ import { llmCallRouter } from "./routers/llmCalls";
 import { scoresRouter } from "./routers/scores";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboardRouter";
 import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
+import { apiKeysRouter } from "@/src/features/publicApi/server/apiKeyRouter";
 
 /**
  * This is the primary router for your server.
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   scores: scoresRouter,
   dashboard: dashboardRouter,
   projects: projectsRouter,
+  apiKeys: apiKeysRouter,
 });
 
 // export type definition of API

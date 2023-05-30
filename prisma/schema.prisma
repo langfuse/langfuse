@@ -14,8 +14,8 @@ datasource db {
 
 model Example {
     id        String   @id @default(cuid())
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
 }
 
 // Necessary for Next auth
@@ -39,7 +39,7 @@ model Account {
 
 model Session {
     id           String   @id @default(cuid())
-    sessionToken String   @unique
+    sessionToken String   @unique @map("session_token")
     userId       String   @map("user_id")
     expires      DateTime
     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -49,12 +49,14 @@ model User {
     id            String       @id @default(cuid())
     name          String?
     email         String?      @unique
-    emailVerified DateTime?
+    emailVerified DateTime?    @map("email_verified")
     password      String?
     image         String?
     accounts      Account[]
     sessions      Session[]
     memberships   Membership[]
+
+    @@map("users")
 }
 
 model VerificationToken {
@@ -63,16 +65,33 @@ model VerificationToken {
     expires    DateTime
 
     @@unique([identifier, token])
+    @@map("verification_tokens")
 }
 
 model Project {
     id        String       @id @default(cuid())
-    createdAt DateTime     @default(now())
+    createdAt DateTime     @default(now()) @map("created_at")
     name      String
     members   Membership[]
     traces    Trace[]
+    apiKeys   ApiKey[]
 
     @@map("projects")
+}
+
+model ApiKey {
+    id               String    @id @unique @default(cuid())
+    createdAt        DateTime  @default(now()) @map("created_at")
+    note             String?
+    publishableKey   String    @unique @map("publishable_key")
+    hashedSecretKey  String    @unique @map("hashed_secret_key")
+    displaySecretKey String    @map("display_secret_key")
+    lastUsedAt       DateTime? @map("last_used_at")
+    expiresAt        DateTime? @map("expires_at")
+    projectId        String    @map("project_id")
+    project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    @@map("api_keys")
 }
 
 model Membership {
