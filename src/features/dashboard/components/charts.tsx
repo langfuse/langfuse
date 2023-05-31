@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/card";
 import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
+import { Loader } from "lucide-react";
 
 export function ChartLlmCalls(props: {
   agg: DateTimeAggregationOption;
@@ -20,9 +21,14 @@ export function ChartLlmCalls(props: {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="relative">
         <CardTitle>LLM calls</CardTitle>
         <CardDescription>Count</CardDescription>
+        {data.isLoading ? (
+          <div className="absolute right-5 top-5 ">
+            <Loader className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
@@ -42,9 +48,14 @@ export function ChartTraces(props: {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="relative">
         <CardTitle>Traces</CardTitle>
         <CardDescription>Count</CardDescription>
+        {data.isLoading ? (
+          <div className="absolute right-5 top-5 ">
+            <Loader className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
@@ -64,9 +75,14 @@ export function ChartScores(props: {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="relative">
         <CardTitle>Scores</CardTitle>
         <CardDescription>Average</CardDescription>
+        {data.isLoading ? (
+          <div className="absolute right-5 top-5 ">
+            <Loader className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
