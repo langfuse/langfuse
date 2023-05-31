@@ -62,11 +62,6 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const filter = {
         projectId: input.projectId,
-        ...(input.attribute?.path
-          ? {
-              attributes: input.attribute,
-            }
-          : undefined),
         ...(input.name
           ? {
               name: {
