@@ -51,6 +51,7 @@ export const traceRouter = createTRPCRouter({
           scores: true,
           observations: true,
         },
+        take: 100, // TODO: pagination
       });
       return traces.map((trace) => ({
         ...trace,

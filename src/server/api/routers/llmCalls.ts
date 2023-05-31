@@ -37,6 +37,7 @@ export const llmCallRouter = createTRPCRouter({
         orderBy: {
           startTime: "desc",
         },
+        take: 100, // TODO: pagination
       })) as LlmCall[];
 
       return llmCalls;
