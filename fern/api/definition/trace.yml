@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 
 service:
-  auth: false
+  auth: true
   base-path: /api
   endpoints:
     create:
