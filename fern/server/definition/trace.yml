@@ -2,7 +2,7 @@
 
 service:
   auth: true
-  base-path: /api
+  base-path: /api/public
   endpoints:
     create:
       docs: Add a trace to the database
