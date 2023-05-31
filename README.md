@@ -11,8 +11,6 @@
   <a href="https://langfuse.com"><strong>Website »</strong></a> |  <a href="https://discord.com/invite/DNDAarxE"><strong>Join our Discord »</strong></a>  | help@langfuse.com
 </p>
 
-
-
 # 🧐 Introduction
 
 langfuse helps you debug and improve your LLM-based application by logging/analyzing all user interactions, backend traces, and explicit/implicit user feedback.
@@ -95,7 +93,8 @@ docker run \
 ```bash
 # in the langfuse repo
 # install fern CLI: https://docs.buildwithfern.com/compiler/cli-reference
-fern generate
+fern generate --api server
+fern generate --api client
 
 # in the client repo
 npm install --save @finto-fern/api-client
@@ -110,7 +109,6 @@ ncu -u && npm update --save
 Join the community [on Discord](https://discord.com/invite/DNDAarxE).
 
 To contribute code, send us a PR, raise a github issue, or email at contributing@langfuse.com
-
 
 # 🥷 Authors
 
