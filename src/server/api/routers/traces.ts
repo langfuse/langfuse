@@ -10,15 +10,6 @@ import {
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  attribute: z
-    .object({
-      path: z.array(z.string()).optional(),
-      equals: z.string().optional(),
-      string_contains: z.string().optional(),
-      string_starts_with: z.string().optional(),
-      string_ends_with: z.string().optional(),
-    })
-    .nullable(),
   name: z.array(z.string()).nullable(),
   id: z.array(z.string()).nullable(),
   status: z.array(z.string()).nullable(),
@@ -31,11 +22,6 @@ export const traceRouter = createTRPCRouter({
       const traces = await ctx.prisma.trace.findMany({
         where: {
           projectId: input.projectId,
-          ...(input.attribute?.path
-            ? {
-                attributes: input.attribute,
-              }
-            : undefined),
           ...(input.name
             ? {
                 name: {

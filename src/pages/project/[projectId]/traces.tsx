@@ -20,6 +20,8 @@ import ObservationDisplay from "@/src/components/observationDisplay";
 import { useRouter } from "next/router";
 import { type TableRowOptions } from "@/src/components/table/types";
 
+export type TableScore = { name: string; value: number };
+
 export type TraceTableRow = {
   id: string;
   timestamp: Date;
@@ -27,7 +29,7 @@ export type TraceTableRow = {
   status: string;
   statusMessage?: string;
   attributes?: string;
-  scores: string;
+  scores: TableScore[];
 };
 
 export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
@@ -36,7 +38,6 @@ export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
-    attribute: {},
     name: null,
     id: null,
     status: null,
@@ -46,10 +47,10 @@ export default function Traces() {
     {
       ...queryOptions,
       projectId,
-    },
-    {
-      refetchInterval: 2000,
     }
+    // {
+    //   refetchInterval: 2000,
+    // }
   );
 
   const options = api.traces.availableFilterOptions.useQuery(
@@ -69,10 +70,9 @@ export default function Traces() {
       status: trace.status,
       statusMessage: trace.statusMessage ?? undefined,
       attributes: JSON.stringify(trace.attributes),
-      scores: trace.scores
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-member-access
-        .map((score) => `${score.name}: ${score.value}`)
-        .join("; "),
+      scores: trace.scores.map((score) => {
+        return { name: score.name, value: score.value };
+      }),
     };
   };
 
@@ -149,6 +149,29 @@ export default function Traces() {
     {
       accessorKey: "scores",
       header: "Scores",
+      cell: ({ row }) => {
+        const values: TableScore[] = row.getValue("scores");
+        return (
+          <div className="flex flex-col gap-2">
+            {values.map((value) => (
+              <div
+                key={value.name}
+                className="relative flex-row items-center rounded-lg border border-gray-300 shadow-sm"
+              >
+                <div className="min-w-1 flex flex-1 items-center gap-2 p-2">
+                  {/* <span className="absolute inset-0" aria-hidden="true" /> */}
+                  <p className=" text-xs font-medium text-gray-900">
+                    {value.name}
+                  </p>
+                  <p className="inline-flex items-baseline rounded-full bg-gray-100 px-2.5 py-0.5 text-lg font-medium text-gray-500 md:mt-2 lg:mt-0">
+                    {value.value}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
   ];
 
@@ -173,7 +196,6 @@ export default function Traces() {
 
   const resetFilters = () =>
     setQueryOptions({
-      attribute: {},
       name: null,
       id: null,
       status: null,
