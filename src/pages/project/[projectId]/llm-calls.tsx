@@ -37,13 +37,13 @@ export default function Traces() {
   const llmCalls = api.llmCalls.all.useQuery(
     { ...queryOptions, projectId },
     {
-      refetchInterval: 2000,
+      refetchInterval: 5000,
     }
   );
 
   const llmCallOptions = api.llmCalls.availableFilterOptions.useQuery(
     { ...queryOptions, projectId },
-    { refetchInterval: 2000 }
+    { refetchInterval: 5000 }
   );
 
   const columns: ColumnDef<LlmCallTableRow>[] = [

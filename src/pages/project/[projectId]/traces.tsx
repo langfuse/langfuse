@@ -47,16 +47,16 @@ export default function Traces() {
     {
       ...queryOptions,
       projectId,
+    },
+    {
+      refetchInterval: 5000,
     }
-    // {
-    //   refetchInterval: 2000,
-    // }
   );
 
   const options = api.traces.availableFilterOptions.useQuery(
     { ...queryOptions, projectId },
     {
-      refetchInterval: 2000,
+      refetchInterval: 5000,
     }
   );
 
