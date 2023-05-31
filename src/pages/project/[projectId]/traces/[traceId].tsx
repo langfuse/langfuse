@@ -13,7 +13,7 @@ export default function TracePage() {
   const trace = api.traces.byId.useQuery(traceId);
 
   return (
-    <>
+    <div className="container">
       <Header
         title="Trace Detail"
         breadcrumb={[
@@ -68,6 +68,6 @@ export default function TracePage() {
           ]}
         />
       ) : null}
-    </>
+    </div>
   );
 }

@@ -156,7 +156,7 @@ export default function ScoresPage() {
     });
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container">
       <Header title="Scores" live />
       {tableOptions.data ? (
         <div className="my-2">

@@ -25,7 +25,7 @@ export default function LlmCallPage() {
     llmCall.data?.scores.filter((score) => !obsMetrics?.includes(score)) ?? [];
 
   return (
-    <>
+    <div className="container">
       <Header
         title="LLM Call"
         breadcrumb={[
@@ -116,6 +116,6 @@ export default function LlmCallPage() {
           ]}
         />
       ) : null}
-    </>
+    </div>
   );
 }

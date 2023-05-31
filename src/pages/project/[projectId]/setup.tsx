@@ -10,13 +10,13 @@ export default function GetStartedPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   return (
-    <>
+    <div className="container">
       <Header title="Setup" />
       <div className="flex flex-col gap-10">
         <Instructions />
         <ApiKeyList projectId={projectId} />
       </div>
-    </>
+    </div>
   );
 }
 

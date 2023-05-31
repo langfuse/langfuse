@@ -184,7 +184,7 @@ export default function Traces() {
     });
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container">
       <Header title="Traces" live />
       <Tabs defaultValue="table">
         <TabsList>

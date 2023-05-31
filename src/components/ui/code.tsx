@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
-export function JSONview(props: { json: string | any }) {
+export function JSONview(props: { json: string | unknown }) {
   const text =
     typeof props.json === "string"
       ? props.json
@@ -12,12 +12,15 @@ export function JSONview(props: { json: string | any }) {
   return <CodeView>{text}</CodeView>;
 }
 
-export function CodeView(props: { children: string; className?: string }) {
+export function CodeView(props: {
+  children: string | undefined;
+  className?: string;
+}) {
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopy = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(props.children);
+    void navigator.clipboard.writeText(props.children ?? "");
     setTimeout(() => setIsCopied(false), 1000);
   };
 

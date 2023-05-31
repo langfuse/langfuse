@@ -165,7 +165,7 @@ export default function Traces() {
     queryOptions.traceId !== null || queryOptions.id !== null;
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container">
       <Header title="LLM Calls" live />
       {tableOptions.data ? (
         <div className="my-2">
