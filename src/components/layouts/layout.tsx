@@ -74,8 +74,6 @@ export default function Layout(props: PropsWithChildren) {
       current: router.pathname === staticAttributes.pathname,
     }));
 
-  console.log(router.pathname);
-
   const session = useSession();
 
   const projects = api.projects.all.useQuery(undefined, {
