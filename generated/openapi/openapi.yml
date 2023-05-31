@@ -135,6 +135,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Trace'
+      security: &ref_0
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -154,6 +156,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Trace'
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -414,7 +417,10 @@ components:
         - EXECUTING
         - SUCCESS
         - ERROR
-  securitySchemes: {}
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
 servers:
   - url: http://localhost:3030
     description: local (This local environment is helpful for testing locally!)
