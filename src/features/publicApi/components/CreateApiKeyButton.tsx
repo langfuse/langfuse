@@ -31,7 +31,7 @@ const formSchema = z.object({
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useContext();
-  const createApiKey = api.apiKeys.create.useMutation({
+  const mutCreateApiKey = api.apiKeys.create.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
   });
   const [open, setOpen] = useState(false);
@@ -48,7 +48,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    createApiKey
+    mutCreateApiKey
       .mutateAsync({
         projectId: props.projectId,
         note:
@@ -115,6 +115,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
               <Button
                 // eslint-disable-next-line @typescript-eslint/no-misused-promises
                 onClick={form.handleSubmit(onSubmit)}
+                loading={mutCreateApiKey.isLoading}
               >
                 Create
               </Button>
@@ -127,7 +128,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
                 <div className="mb-2 text-lg font-semibold">
                   Publishable Key
                 </div>
-                <CodeView>{generatedKeys.publishableKey}</CodeView>
+                <CodeView copy>{generatedKeys.publishableKey}</CodeView>
               </div>
               <div className="mt-6">
                 <div className="text-lg font-semibold">Secret Key</div>
@@ -138,7 +139,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
                   </span>
                   . If you lose it, you will need to generate a new one.
                 </div>
-                <CodeView>{generatedKeys.secretKey}</CodeView>
+                <CodeView copy>{generatedKeys.secretKey}</CodeView>
               </div>
             </div>
           </div>

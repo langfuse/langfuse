@@ -84,7 +84,11 @@ export default function SignIn() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  loading={form.formState.isSubmitting}
+                >
                   Sign in
                 </Button>
               </form>

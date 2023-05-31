@@ -1,5 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
+import { CodeView } from "@/src/components/ui/code";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +55,9 @@ export function ApiKeyList(props: { projectId: string }) {
                 </TableCell>
                 <TableCell>{apiKey.note ?? ""}</TableCell>
                 <TableCell className="font-mono">
-                  {apiKey.publishableKey}
+                  <CodeView className="inline-block">
+                    {apiKey.publishableKey}
+                  </CodeView>
                 </TableCell>
                 <TableCell className="font-mono">
                   {apiKey.displaySecretKey}
@@ -81,7 +84,7 @@ export function ApiKeyList(props: { projectId: string }) {
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const utils = api.useContext();
-  const deleteApiKey = api.apiKeys.delete.useMutation({
+  const mutDeleteApiKey = api.apiKeys.delete.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
   });
   const [open, setOpen] = useState(false);
@@ -105,7 +108,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
           <Button
             variant="destructive"
             onClick={() => {
-              deleteApiKey
+              mutDeleteApiKey
                 .mutateAsync({
                   projectId: props.projectId,
                   id: props.apiKeyId,
@@ -115,6 +118,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
                   console.error(error);
                 });
             }}
+            loading={mutDeleteApiKey.isLoading}
           >
             Permanently delete
           </Button>

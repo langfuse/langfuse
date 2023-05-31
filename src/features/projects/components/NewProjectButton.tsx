@@ -110,7 +110,12 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
           </form>
         </Form>
         <DialogFooter>
-          <Button onClick={() => form.handleSubmit(onSubmit)}>Create</Button>
+          <Button
+            onClick={() => form.handleSubmit(onSubmit)}
+            loading={createProjectMutation.isLoading}
+          >
+            Create
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
