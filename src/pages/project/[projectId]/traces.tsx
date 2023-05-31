@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { DataTable } from "@/src/components/table/data-table";
 import { type Trace, type Score } from "@prisma/client";
-import { ArrowUpRight, type LucideIcon } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   Tabs,
@@ -18,6 +18,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import ObservationDisplay from "@/src/components/observationDisplay";
 import { useRouter } from "next/router";
+import { type TableRowOptions } from "@/src/components/table/types";
 
 export type TraceTableRow = {
   id: string;
@@ -30,11 +31,6 @@ export type TraceTableRow = {
 };
 
 export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
-
-export type RowOptions = {
-  columnId: string;
-  options: { label: string; value: number; icon?: LucideIcon }[];
-};
 
 export default function Traces() {
   const router = useRouter();
@@ -82,7 +78,7 @@ export default function Traces() {
 
   const convertToOptions = (
     options: RouterOutput["traces"]["availableFilterOptions"]
-  ): RowOptions[] => {
+  ): TableRowOptions[] => {
     return options.map((o) => {
       return {
         columnId: o.key,

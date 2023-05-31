@@ -5,7 +5,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
 import TableLink from "@/src/components/table/table-link";
-import { type RowOptions as TableRowOptions } from "@/src/pages/project/[projectId]/traces";
+import { type TableRowOptions } from "@/src/components/table/types";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type Score } from "@prisma/client";

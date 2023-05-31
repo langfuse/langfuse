@@ -6,7 +6,7 @@ import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
-import { type RowOptions as TableRowOptions } from "@/src/pages/project/[projectId]/traces";
+import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
 
 type LlmCallTableRow = {

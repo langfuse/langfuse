@@ -20,12 +20,12 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { type RowOptions } from "@/src/pages/project/[projectId]/traces";
+import { type TableRowOptions } from "@/src/components/table/types";
 
 interface DataTableFacetedFilter<TData, TValue> {
   columnDef: ColumnDef<TData, TValue>;
   title?: string;
-  options: RowOptions;
+  options: TableRowOptions;
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
