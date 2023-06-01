@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { DataTable } from "@/src/components/table/data-table";
-import { type Trace, type Score } from "@prisma/client";
 import { ArrowUpRight } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
@@ -327,6 +326,11 @@ const Single = (props: {
       {trace.nestedObservation ? (
         <>
           <div className="mt-4 text-sm font-bold">Observations:</div>
+          <ObservationDisplay
+            key={trace.id}
+            obs={trace.nestedObservation}
+            projectId={props.projectId}
+          />
           <ObservationDisplay
             key={trace.id}
             obs={trace.nestedObservation}
