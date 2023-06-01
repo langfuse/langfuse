@@ -22,6 +22,7 @@ import {
   type SelectedScoreFilter,
   type ScoreFilter,
 } from "@/src/utils/tanstack";
+import { type Trace, type Score } from "@prisma/client";
 
 export type TableScore = {
   id: string;
