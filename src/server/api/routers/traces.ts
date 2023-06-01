@@ -2,79 +2,67 @@ import { type NestedObservation } from "@/src/utils/types";
 import { type Observation } from "@prisma/client";
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { prisma } from "~/server/db";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 
 const TraceFilterOptions = z.object({
-  attribute: z
-    .object({
-      path: z.array(z.string()).optional(),
-      equals: z.string().optional(),
-      string_contains: z.string().optional(),
-      string_starts_with: z.string().optional(),
-      string_ends_with: z.string().optional(),
-    })
-    .nullable(),
+  projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
   id: z.array(z.string()).nullable(),
   status: z.array(z.string()).nullable(),
 });
 
 export const traceRouter = createTRPCRouter({
-  all: publicProcedure.input(TraceFilterOptions).query(async ({ input }) => {
-    const traces = await prisma.trace.findMany({
-      where: {
-        ...(input.attribute?.path
-          ? {
-              attributes: input.attribute,
-            }
-          : undefined),
-        ...(input.name
-          ? {
-              name: {
-                in: input.name,
-              },
-            }
-          : undefined),
-        ...(input.id
-          ? {
-              id: {
-                in: input.id,
-              },
-            }
-          : undefined),
-        ...(input.status
-          ? {
-              status: {
-                in: input.status,
-              },
-            }
-          : undefined),
-      },
-      orderBy: {
-        timestamp: "desc",
-      },
-      include: {
-        scores: true,
-        observations: true,
-      },
-    });
-
-    return traces.map((trace) => ({
-      ...trace,
-      nestedObservation: nestObservations(trace.observations),
-    }));
-  }),
-
-  availableFilterOptions: publicProcedure
+  all: protectedProjectProcedure
     .input(TraceFilterOptions)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const traces = await ctx.prisma.trace.findMany({
+        where: {
+          projectId: input.projectId,
+          ...(input.name
+            ? {
+                name: {
+                  in: input.name,
+                },
+              }
+            : undefined),
+          ...(input.id
+            ? {
+                id: {
+                  in: input.id,
+                },
+              }
+            : undefined),
+          ...(input.status
+            ? {
+                status: {
+                  in: input.status,
+                },
+              }
+            : undefined),
+        },
+        orderBy: {
+          timestamp: "desc",
+        },
+        include: {
+          scores: true,
+          observations: true,
+        },
+        take: 100, // TODO: pagination
+      });
+      return traces.map((trace) => ({
+        ...trace,
+        nestedObservation: nestObservations(trace.observations),
+      }));
+    }),
+  availableFilterOptions: protectedProjectProcedure
+    .input(TraceFilterOptions)
+    .query(async ({ input, ctx }) => {
       const filter = {
-        ...(input.attribute?.path
-          ? {
-              attributes: input.attribute,
-            }
-          : undefined),
+        projectId: input.projectId,
         ...(input.name
           ? {
               name: {
@@ -99,7 +87,7 @@ export const traceRouter = createTRPCRouter({
       };
 
       const [ids, names, statuses] = await Promise.all([
-        await prisma.trace.groupBy({
+        ctx.prisma.trace.groupBy({
           where: filter,
           by: ["id"],
           _count: {
@@ -107,7 +95,7 @@ export const traceRouter = createTRPCRouter({
           },
         }),
 
-        await prisma.trace.groupBy({
+        ctx.prisma.trace.groupBy({
           where: filter,
           by: ["name"],
           _count: {
@@ -115,7 +103,7 @@ export const traceRouter = createTRPCRouter({
           },
         }),
 
-        await prisma.trace.groupBy({
+        ctx.prisma.trace.groupBy({
           where: filter,
           by: ["status"],
           _count: {
@@ -146,19 +134,35 @@ export const traceRouter = createTRPCRouter({
       ];
     }),
 
-  byId: publicProcedure.input(z.string()).query(async ({ input }) => {
+  byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     const [trace, observations] = await Promise.all([
-      prisma.trace.findUniqueOrThrow({
+      ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input,
+          project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
+              },
+            },
+          },
         },
         include: {
           scores: true,
         },
       }),
-      prisma.observation.findMany({
+      ctx.prisma.observation.findMany({
         where: {
           traceId: input,
+          trace: {
+            project: {
+              members: {
+                some: {
+                  userId: ctx.session.user.id,
+                },
+              },
+            },
+          },
         },
       }),
     ]);

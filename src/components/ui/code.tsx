@@ -1,7 +1,9 @@
-import { type PropsWithChildren } from "react";
+import { useState } from "react";
+import { Button } from "@/src/components/ui/button";
+import { Check, Copy } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function JSONview(props: { json: string | any }) {
+export function JSONview(props: { json: string | unknown }) {
   const text =
     typeof props.json === "string"
       ? props.json
@@ -10,10 +12,38 @@ export function JSONview(props: { json: string | any }) {
   return <CodeView>{text}</CodeView>;
 }
 
-export function CodeView(props: PropsWithChildren) {
+export function CodeView(props: {
+  children: string | undefined;
+  className?: string;
+}) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    setIsCopied(true);
+    void navigator.clipboard.writeText(props.children ?? "");
+    setTimeout(() => setIsCopied(false), 1000);
+  };
+
   return (
-    <pre className="whitespace-pre-wrap rounded-md border px-4 py-3 font-mono text-sm">
+    <code
+      className={cn(
+        "relative block max-w-full whitespace-pre-wrap break-words rounded-md border px-4 py-3 pr-12 font-mono text-sm",
+        props.className
+      )}
+    >
       {props.children}
-    </pre>
+      <Button
+        className="absolute right-2 top-2"
+        variant="secondary"
+        size="xs"
+        onClick={handleCopy}
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
+    </code>
   );
 }

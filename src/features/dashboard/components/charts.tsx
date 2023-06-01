@@ -4,73 +4,89 @@ import {
   CardHeader,
   CardContent,
   CardDescription,
-  CardFooter,
   CardTitle,
-} from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import Link from "next/link";
+} from "@/src/components/ui/card";
 import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
-import { type DateTimeAggregationOption } from "../lib/timeseriesAggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
+import { Loader } from "lucide-react";
 
-export function ChartLlmCalls(props: { agg: DateTimeAggregationOption }) {
-  const data = api.dashboard.llmCalls.useQuery({ agg: props.agg });
+export function ChartLlmCalls(props: {
+  agg: DateTimeAggregationOption;
+  projectId: string;
+}) {
+  const data = api.dashboard.llmCalls.useQuery({
+    agg: props.agg,
+    projectId: props.projectId,
+  });
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="relative">
         <CardTitle>LLM calls</CardTitle>
         <CardDescription>Count</CardDescription>
+        {data.isLoading ? (
+          <div className="absolute right-5 top-5 ">
+            <Loader className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
-      <CardFooter>
-        <Button variant="secondary" size="sm" asChild>
-          <Link href="/llm-calls">See all LLM calls</Link>
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
 
-export function ChartTraces(props: { agg: DateTimeAggregationOption }) {
-  const data = api.dashboard.traces.useQuery({ agg: props.agg });
+export function ChartTraces(props: {
+  agg: DateTimeAggregationOption;
+  projectId: string;
+}) {
+  const data = api.dashboard.traces.useQuery({
+    agg: props.agg,
+    projectId: props.projectId,
+  });
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="relative">
         <CardTitle>Traces</CardTitle>
         <CardDescription>Count</CardDescription>
+        {data.isLoading ? (
+          <div className="absolute right-5 top-5 ">
+            <Loader className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
-      <CardFooter>
-        <Button variant="secondary" size="sm" asChild>
-          <Link href="/traces">See all traces</Link>
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
 
-export function ChartScores(props: { agg: DateTimeAggregationOption }) {
-  const data = api.dashboard.scores.useQuery({ agg: props.agg });
+export function ChartScores(props: {
+  agg: DateTimeAggregationOption;
+  projectId: string;
+}) {
+  const data = api.dashboard.scores.useQuery({
+    agg: props.agg,
+    projectId: props.projectId,
+  });
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="relative">
         <CardTitle>Scores</CardTitle>
         <CardDescription>Average</CardDescription>
+        {data.isLoading ? (
+          <div className="absolute right-5 top-5 ">
+            <Loader className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
       </CardContent>
-      <CardFooter>
-        <Button variant="secondary" size="sm" asChild>
-          <Link href="/scores">See all scores</Link>
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

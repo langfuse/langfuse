@@ -17,8 +17,10 @@
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 
-import { getServerAuthSession } from "~/server/auth";
-import { prisma } from "~/server/db";
+import { getServerAuthSession } from "@/src/server/auth";
+import { prisma } from "@/src/server/db";
+
+import * as z from "zod";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -128,3 +130,53 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
  * @see https://trpc.io/docs/procedures
  */
 export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
+
+const inputProjectSchema = z.object({
+  projectId: z.string(),
+});
+
+/**
+ * Protected (authenticated) procedure with project role
+ */
+
+const enforceUserIsAuthedAndProjectMember = t.middleware(
+  ({ ctx, rawInput, next }) => {
+    if (!ctx.session || !ctx.session.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+
+    const result = inputProjectSchema.safeParse(rawInput);
+    if (!result.success)
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid input, projectId is required",
+      });
+
+    // check that the user is a member of this project
+    const projectId = result.data.projectId;
+    const sessionProject = ctx.session?.user.projects?.find(
+      ({ id }) => id === projectId
+    );
+
+    if (!sessionProject)
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "User is not a member of this project",
+      });
+
+    return next({
+      ctx: {
+        // infers the `session` as non-nullable
+        session: {
+          ...ctx.session,
+          user: ctx.session.user,
+          projectRole: sessionProject.role,
+        },
+      },
+    });
+  }
+);
+
+export const protectedProjectProcedure = t.procedure.use(
+  enforceUserIsAuthedAndProjectMember
+);

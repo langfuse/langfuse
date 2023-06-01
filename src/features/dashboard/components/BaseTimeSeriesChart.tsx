@@ -11,7 +11,7 @@ import {
 import {
   dateTimeAggregationSettings,
   type DateTimeAggregationOption,
-} from "../lib/timeseriesAggregation";
+} from "@/src/features/dashboard/lib/timeseriesAggregation";
 
 export function BaseTimeSeriesChart(props: {
   agg: DateTimeAggregationOption;

@@ -24,17 +24,9 @@
   "[astro]": {
     "editor.defaultFormatter": "astro-build.astro-vscode"
   },
-  "cSpell.words": [
-    "clemra",
-    "clsx",
-    "headlessui",
-    "langfuse",
-    "LLMCALL",
-    "lucide",
-    "superjson",
-    "tailwindcss",
-    "tanstack",
-    "TRPC"
-  ],
-  "typescript.preferences.importModuleSpecifier": "non-relative"
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "docwriter.style": "JSDoc",
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma"
+  }
 }

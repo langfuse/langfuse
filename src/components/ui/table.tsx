@@ -1,5 +1,5 @@
-import * as React from "react";
 import { cn } from "@/src/utils/tailwind";
+import * as React from "react";
 
 const Table = React.forwardRef<
   HTMLTableElement,
