@@ -22,7 +22,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { type SelectFilter } from "@/src/utils/tanstack";
 
-interface DataTableFacetedFilter {
+interface DataTableSelectFilter {
   title?: string;
   meta: SelectFilter;
   options: TableRowOptions;
@@ -32,7 +32,7 @@ export function DataTableSelectFilter({
   title,
   meta,
   options,
-}: DataTableFacetedFilter) {
+}: DataTableSelectFilter) {
   const selectedValues = new Set(meta.values ?? []);
 
   return (
