@@ -37,6 +37,7 @@ export const scoresRouter = createTRPCRouter({
               }
             : undefined),
         },
+        take: 100, // TODO: pagination
       })
     ),
   availableFilterOptions: protectedProjectProcedure

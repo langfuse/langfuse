@@ -36,7 +36,7 @@ export default function ScoresPage() {
       projectId,
     },
     {
-      refetchInterval: 2000,
+      refetchInterval: 5000,
     }
   );
 
@@ -45,7 +45,7 @@ export default function ScoresPage() {
       ...queryOptions,
       projectId,
     },
-    { refetchInterval: 2000 }
+    { refetchInterval: 5000 }
   );
 
   const columns: ColumnDef<RowData>[] = [
