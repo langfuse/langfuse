@@ -20,10 +20,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
 import { type TableRowOptions } from "@/src/components/table/types";
-import {
-  type Operator,
-  type NumberComparisonFilter,
-} from "@/src/utils/tanstack";
+import { type NumberComparisonFilter } from "@/src/utils/tanstack";
 import {
   Select,
   SelectContent,

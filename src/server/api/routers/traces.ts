@@ -7,7 +7,6 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import lodash from "lodash";
 
 const ScoreFilter = z.object({
   name: z.string(),
