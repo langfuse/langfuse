@@ -1,6 +1,6 @@
 import { type Observation, type Prisma } from "@prisma/client";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
-import { type AppRouter } from "../server/api/root";
+import { type AppRouter } from "@/src/server/api/root";
 
 export type NestedObservation = Observation & {
   children: NestedObservation[];

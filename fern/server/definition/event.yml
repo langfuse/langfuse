@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      docs: Add an event to the database
+      method: POST
+      path: /events
+      request: CreateEventRequest
+      response: Event
+
+types:
+  CreateEventRequest:
+    properties:
+      traceId: string
+      name: string
+      startTime: datetime
+      attributes: unknown
+      parentObservationId: optional<string>
+  Event:
+    properties:
+      id: string
+      traceId: string
+      type: string
+      name: string
+      startTime: datetime
+      attributes: unknown
+      parentObservationId: optional<string>

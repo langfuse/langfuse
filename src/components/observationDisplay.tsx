@@ -1,16 +1,19 @@
-import { Button } from "~/components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "~/components/ui/collapsible";
+} from "@/src/components/ui/collapsible";
 import { ChevronsUpDown, ChevronsDownUp, ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { type NestedObservation } from "@/src/utils/types";
 import Link from "next/link";
 import { JSONview } from "@/src/components/ui/code";
 
-export default function ObservationDisplay(props: { obs: NestedObservation }) {
+export default function ObservationDisplay(props: {
+  obs: NestedObservation;
+  projectId: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -36,7 +39,9 @@ export default function ObservationDisplay(props: { obs: NestedObservation }) {
           </CollapsibleTrigger>
           {props.obs.type === "LLMCALL" ? (
             <Button size="sm" variant="ghost" asChild>
-              <Link href={`/llm-calls/${props.obs.id}`}>
+              <Link
+                href={`/project/${props.projectId}/llm-calls/${props.obs.id}`}
+              >
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -51,7 +56,11 @@ export default function ObservationDisplay(props: { obs: NestedObservation }) {
       </Collapsible>
       <div className="ml-5">
         {props.obs.children.map((obs) => (
-          <ObservationDisplay key={obs.name} obs={obs} />
+          <ObservationDisplay
+            key={obs.name}
+            obs={obs}
+            projectId={props.projectId}
+          />
         ))}
       </div>
     </div>

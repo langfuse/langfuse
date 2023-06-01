@@ -1,6 +1,5 @@
-import * as React from "react";
-
 import { cn } from "@/src/utils/tailwind";
+import * as React from "react";
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 

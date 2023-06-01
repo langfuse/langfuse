@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      docs: Add a score to the database
+      method: POST
+      path: /scores
+      request: CreateScoreRequest
+      response: Score
+
+types:
+  CreateScoreRequest:
+    properties:
+      traceId: string
+      name: string
+      value: integer
+      observationId: optional<string>
+  Score:
+    properties:
+      id: string
+      name: string
+      value: integer
+      observationId: optional<string>
+      timestamp: datetime
