@@ -164,8 +164,36 @@ async function main() {
             name: `llm-call-${i}-${j}-${k}`,
             attributes: {
               user: `user-${i}@langfuse.com`,
-              prompt: "PROMPT TEXT SEEDED",
-              completion: "COMPLETION TEXT SEEDED",
+              prompt: "How can i create a React component?",
+              completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
+
+              1.  **Functional Component**:
+              
+              A functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:
+              
+              
+              'import React from 'react';  function Greeting(props) {   return <h1>Hello, {props.name}</h1>; }  export default Greeting;'
+              
+              To use this component in another file, you can do:
+              
+              
+              'import Greeting from './Greeting';  function App() {   return (     <div>       <Greeting name="John" />     </div>   ); }  export default App;'
+              
+              2.  **Class Component**:
+              
+              You can also define components as classes in React. These have some additional features compared to functional components:
+              
+              
+              'import React, { Component } from 'react';  class Greeting extends Component {   render() {     return <h1>Hello, {this.props.name}</h1>;   } }  export default Greeting;'
+              
+              And here's how to use this component:
+              
+              
+              'import Greeting from './Greeting';  class App extends Component {   render() {     return (       <div>         <Greeting name="John" />       </div>     );   } }  export default App;'
+              
+              With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
+              
+              Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
               model: {
                 name: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
                 temperature: 0,
