@@ -155,7 +155,7 @@ async function main() {
             )
         );
 
-        const llmCall = await prisma.observation.create({
+        await prisma.observation.create({
           data: {
             type: "LLMCALL",
             id: `llm-call-${Math.floor(Math.random() * 1000000000)}`,
@@ -197,7 +197,7 @@ async function main() {
               )
           );
 
-          const event = await prisma.observation.create({
+          await prisma.observation.create({
             data: {
               type: "EVENT",
               id: `event-${Math.floor(Math.random() * 1000000000)}`,
