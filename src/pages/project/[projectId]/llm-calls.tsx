@@ -62,10 +62,13 @@ export default function Traces() {
       },
       meta: {
         label: "Id",
-        updateFunction: (newValues: string[] | null) => {
-          setQueryOptions({ ...queryOptions, id: newValues });
+        filter: {
+          type: "select",
+          values: queryOptions.id,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, id: newValues });
+          },
         },
-        filter: queryOptions.id,
       },
     },
     {
@@ -82,11 +85,14 @@ export default function Traces() {
         ) : undefined;
       },
       meta: {
-        label: "TraceID",
-        updateFunction: (newValues: string[] | null) => {
-          setQueryOptions({ ...queryOptions, traceId: newValues });
+        label: "TraceId",
+        filter: {
+          type: "select",
+          values: queryOptions.traceId,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, traceId: newValues });
+          },
         },
-        filter: queryOptions.traceId,
       },
     },
     {
