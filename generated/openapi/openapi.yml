@@ -427,6 +427,3 @@ components:
     BasicAuth:
       type: http
       scheme: basic
-servers:
-  - url: http://localhost:3030
-    description: local (This local environment is helpful for testing locally!)

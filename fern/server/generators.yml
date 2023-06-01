@@ -30,10 +30,5 @@ groups:
         output:
           location: local-file-system
           path: ../../generated/python
-      - name: fernapi/fern-typescript-sdk
-        version: 0.5.25
-        output:
-          location: local-file-system
-          path: ../../generated/python
         config:
           namespaceExport: Langfuse
