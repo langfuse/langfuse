@@ -10,7 +10,6 @@ import React from "react";
 interface DataTableToolbarProps<TData, TValue> {
   columnDefs: ColumnDef<TData, TValue>[];
   options: TableRowOptions[];
-  options: TableRowOptions[];
   resetFilters: () => void;
   isFiltered: () => boolean;
 }
