@@ -2,7 +2,34 @@ export declare module "@tanstack/table-core" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   export interface ColumnMeta<TData extends RowData, TValue> {
     label?: string;
-    updateFunction: (newValues: string[] | null) => void;
-    filter: string[] | null;
+    filter: SelectFilter | NumberComparisonFilter;
   }
 }
+
+type SelectFilter = {
+  type: "select";
+  values: string[] | null;
+  updateFunction: (newValues: string[] | null) => void;
+};
+
+type Operator = "gt" | "gte" | "lt" | "lte" | "equals";
+
+type ScoreFilter = {
+  name: string;
+  operator: Operator;
+  value: number;
+};
+
+type SelectedScoreFilter = {
+  name: string | null;
+  operator: Operator | null;
+  value: number | null;
+};
+
+type NumberComparisonFilter = {
+  type: "number-comparison";
+  values: ScoreFilter | null;
+  selectedValues: SelectedScoreFilter;
+  updateSelectedScores: (newValues: SelectedScoreFilter) => void;
+  updateFunction: (newValues: ScoreFilter | null) => void;
+};

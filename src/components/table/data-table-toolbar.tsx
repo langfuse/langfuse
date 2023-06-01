@@ -2,8 +2,10 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 import { type TableRowOptions } from "@/src/components/table/types";
+import { DataTableSelectFilter } from "@/src/components/table/data-table-select-filter";
+import { DataTableNumberFilter } from "@/src/components/table/data-table-number-filter";
+import React from "react";
 
 interface DataTableToolbarProps<TData, TValue> {
   columnDefs: ColumnDef<TData, TValue>[];
@@ -27,11 +29,19 @@ export function DataTableToolbar<TData, TValue>({
               o.columnId.toLowerCase() === column.meta?.label?.toLowerCase()
           );
           return column.enableColumnFilter && columnOptions ? (
-            <DataTableFacetedFilter
-              columnDef={column}
-              title={column.meta?.label}
-              options={columnOptions}
-            />
+            column.meta?.filter?.type === "select" ? (
+              <DataTableSelectFilter
+                title={column.meta?.label}
+                meta={column.meta?.filter}
+                options={columnOptions}
+              />
+            ) : column.meta?.filter?.type === "number-comparison" ? (
+              <DataTableNumberFilter
+                title={column.meta?.label}
+                meta={column.meta?.filter}
+                options={columnOptions}
+              />
+            ) : undefined
           ) : undefined;
         })}
         {isFiltered() && (

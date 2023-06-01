@@ -61,10 +61,13 @@ export default function ScoresPage() {
       },
       meta: {
         label: "Id",
-        updateFunction: (newValues: string[] | null) => {
-          setQueryOptions({ ...queryOptions, id: newValues });
+        filter: {
+          type: "select",
+          values: queryOptions.id,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, id: newValues });
+          },
         },
-        filter: queryOptions.id,
       },
     },
     {
@@ -84,10 +87,13 @@ export default function ScoresPage() {
       },
       meta: {
         label: "TraceID",
-        updateFunction: (newValues: string[] | null) => {
-          setQueryOptions({ ...queryOptions, traceId: newValues });
+        filter: {
+          type: "select",
+          values: queryOptions.traceId,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, traceId: newValues });
+          },
         },
-        filter: queryOptions.traceId,
       },
     },
     {

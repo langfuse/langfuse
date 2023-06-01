@@ -7,12 +7,22 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import lodash from "lodash";
+
+const ScoreFilter = z.object({
+  name: z.string(),
+  operator: z.enum(["lt", "gt", "equals", "lte", "gte"]),
+  value: z.number(),
+});
+
+type ScoreFilter = z.infer<typeof ScoreFilter>;
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
   id: z.array(z.string()).nullable(),
   status: z.array(z.string()).nullable(),
+  scores: ScoreFilter.nullable(),
 });
 
 export const traceRouter = createTRPCRouter({
@@ -43,6 +53,9 @@ export const traceRouter = createTRPCRouter({
                 },
               }
             : undefined),
+          ...(input.scores
+            ? { scores: { some: createScoreCondition(input.scores) } }
+            : undefined),
         },
         orderBy: {
           timestamp: "desc",
@@ -52,6 +65,7 @@ export const traceRouter = createTRPCRouter({
           observations: true,
         },
       });
+
       return traces.map((trace) => ({
         ...trace,
         nestedObservation: nestObservations(trace.observations),
@@ -83,6 +97,13 @@ export const traceRouter = createTRPCRouter({
               },
             }
           : undefined),
+        ...(input.scores
+          ? {
+              scores: {
+                some: createScoreCondition(input.scores),
+              },
+            }
+          : undefined),
       };
 
       const [ids, names, statuses] = await Promise.all([
@@ -111,6 +132,28 @@ export const traceRouter = createTRPCRouter({
         }),
       ]);
 
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          trace: filter,
+        },
+        by: ["name", "traceId"],
+        _count: {
+          _all: true,
+        },
+      });
+
+      let groupedCounts: Map<string, number> = new Map();
+
+      for (const item of scores) {
+        const current = groupedCounts.get(item.name);
+        groupedCounts = groupedCounts.set(item.name, current ? current + 1 : 1);
+      }
+
+      const scoresArray: { key: string; value: number }[] = [];
+      for (const [key, value] of groupedCounts) {
+        scoresArray.push({ key, value });
+      }
+
       return [
         {
           key: "id",
@@ -128,6 +171,12 @@ export const traceRouter = createTRPCRouter({
           key: "status",
           occurrences: statuses.map((i) => {
             return { key: i.status, count: i._count };
+          }),
+        },
+        {
+          key: "scores",
+          occurrences: scoresArray.map((i) => {
+            return { key: i.key, count: { _all: i.value } };
           }),
         },
       ];
@@ -203,4 +252,30 @@ function nestObservations(list: Observation[]): NestedObservation | null {
 
   // Step 5: Return the root.
   return Array.from(roots.values())[0] as NestedObservation;
+}
+
+function createScoreCondition(score: ScoreFilter) {
+  let filter = {};
+  switch (score.operator) {
+    case "lt":
+      filter = { lt: score.value };
+      break;
+    case "gt":
+      filter = { gt: score.value };
+      break;
+    case "equals":
+      filter = { equals: score.value };
+      break;
+    case "lte":
+      filter = { lte: score.value };
+      break;
+    case "gte":
+      filter = { gte: score.value };
+      break;
+  }
+
+  return {
+    name: score.name,
+    value: filter,
+  };
 }

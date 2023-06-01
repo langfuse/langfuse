@@ -19,8 +19,16 @@ import TableLink from "@/src/components/table/table-link";
 import ObservationDisplay from "@/src/components/observationDisplay";
 import { useRouter } from "next/router";
 import { type TableRowOptions } from "@/src/components/table/types";
+import {
+  type SelectedScoreFilter,
+  type ScoreFilter,
+} from "@/src/utils/tanstack";
 
-export type TableScore = { name: string; value: number };
+export type TableScore = {
+  id: string;
+  name: string;
+  value: number;
+};
 
 export type TraceTableRow = {
   id: string;
@@ -38,9 +46,16 @@ export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
+    scores: null,
     name: null,
     id: null,
     status: null,
+  });
+
+  const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
+    name: null,
+    value: null,
+    operator: null,
   });
 
   const traces = api.traces.all.useQuery(
@@ -54,10 +69,10 @@ export default function Traces() {
   );
 
   const options = api.traces.availableFilterOptions.useQuery(
-    { ...queryOptions, projectId },
-    {
-      refetchInterval: 2000,
-    }
+    { ...queryOptions, projectId }
+    // {
+    //   refetchInterval: 2000,
+    // }
   );
 
   const convertToTableRow = (
@@ -71,7 +86,11 @@ export default function Traces() {
       statusMessage: trace.statusMessage ?? undefined,
       attributes: JSON.stringify(trace.attributes),
       scores: trace.scores.map((score) => {
-        return { name: score.name, value: score.value };
+        return {
+          name: score.name,
+          value: score.value,
+          id: score.id,
+        };
       }),
     };
   };
@@ -104,10 +123,13 @@ export default function Traces() {
       enableColumnFilter: true,
       meta: {
         label: "Id",
-        updateFunction: (newValues: string[] | null) => {
-          setQueryOptions({ ...queryOptions, id: newValues });
+        filter: {
+          type: "select",
+          values: queryOptions.id,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, id: newValues });
+          },
         },
-        filter: queryOptions.id,
       },
     },
     {
@@ -120,10 +142,13 @@ export default function Traces() {
       enableColumnFilter: true,
       meta: {
         label: "Name",
-        updateFunction: (newValues: string[] | null) => {
-          setQueryOptions({ ...queryOptions, name: newValues });
+        filter: {
+          type: "select",
+          values: queryOptions.name,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, name: newValues });
+          },
         },
-        filter: queryOptions.name,
       },
     },
     {
@@ -132,10 +157,13 @@ export default function Traces() {
       enableColumnFilter: true,
       meta: {
         label: "Status",
-        updateFunction: (newValues: string[] | null) => {
-          setQueryOptions({ ...queryOptions, status: newValues });
+        filter: {
+          type: "select",
+          values: queryOptions.status,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, status: newValues });
+          },
         },
-        filter: queryOptions.status,
       },
     },
     {
@@ -149,13 +177,29 @@ export default function Traces() {
     {
       accessorKey: "scores",
       header: "Scores",
+      enableColumnFilter: true,
+      meta: {
+        label: "Scores",
+        filter: {
+          type: "number-comparison",
+          values: queryOptions.scores,
+          selectedValues: selectedScore,
+          updateSelectedScores: setSelectedScores,
+          updateFunction: (newValues: ScoreFilter | null) => {
+            setQueryOptions({
+              ...queryOptions,
+              scores: newValues,
+            });
+          },
+        },
+      },
       cell: ({ row }) => {
         const values: TableScore[] = row.getValue("scores");
         return (
           <div className="flex flex-col gap-2">
             {values.map((value) => (
               <div
-                key={value.name}
+                key={value.id}
                 className="relative flex-row items-center rounded-lg border border-gray-300 shadow-sm"
               >
                 <div className="min-w-1 flex flex-1 items-center gap-2 p-2">
@@ -192,14 +236,22 @@ export default function Traces() {
   const isFiltered = () =>
     queryOptions.name !== null ||
     queryOptions.id !== null ||
-    queryOptions.status !== null;
+    queryOptions.status !== null ||
+    queryOptions.scores !== null;
 
-  const resetFilters = () =>
+  const resetFilters = () => {
     setQueryOptions({
+      scores: null,
       name: null,
       id: null,
       status: null,
     });
+    setSelectedScores({
+      name: null,
+      value: null,
+      operator: null,
+    });
+  };
 
   return (
     <div className="container">
