@@ -22,7 +22,7 @@ groups:
         version: 0.0.26
         output:
           location: local-file-system
-          path: ../../generated/openapi
+          path: ../../generated/openapi-server
         config:
           namespaceExport: Langfuse
       - name: fernapi/fern-python-sdk
