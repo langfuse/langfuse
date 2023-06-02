@@ -2,8 +2,3 @@ name: langfuse
 error-discrimination:
   strategy: status-code
 auth: bearer
-environments:
-  local:
-    docs: This local environment is helpful for testing locally!
-    url: http://localhost:3030
-default-environment: local
