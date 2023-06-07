@@ -33,6 +33,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useContext();
   const mutCreateApiKey = api.apiKeys.create.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
+    onError: (error) => form.setError("root", { message: error.message }),
   });
   const [open, setOpen] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<{
