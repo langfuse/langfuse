@@ -98,10 +98,10 @@ export default function SignIn() {
           <p className="mt-10 text-center text-sm text-gray-500">
             No account yet?{" "}
             <Link
-              href="/auth/sign-up"
+              href="https://forms.reform.app/hYLlrw/langfuse-cloud"
               className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
             >
-              Create an account
+              Sign up for langfuse cloud
             </Link>
           </p>
         </div>
