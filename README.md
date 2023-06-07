@@ -3,7 +3,7 @@
     <img alt="langfuse Logo" src="https://github.com/langfuse/langfuse/blob/main/readme.png" alt="Logo" width="400">
   </a>
 
-<h3 align="center">open source tracing and feedback collection for LLM applications</h3>
+<h3 align="center">Open-source experimentation platform for LLM-based applications</h3>
 </div>
 
 <p align="center">   
@@ -29,8 +29,8 @@ langfuse helps you debug and improve your LLM-based application by logging/analy
 
 # 🚴‍ Get started
 
-[Quickstart](https://langfuse.com/docs/get-started)
-[Demo](https://langfuse.com/#walkthrough-3-min)
+- [Quickstart](https://langfuse.com/docs/get-started)
+- [Demo](https://langfuse.com/#walkthrough-3-min)
 
 # 🏡 Run locally
 
@@ -106,7 +106,7 @@ ncu -u && npm update --save
 
 # 👫 Contributing
 
-Join the community [on Discord](https://discord.com/invite/DNDAarxE).
+Join the community [on Discord](https://discord.gg/7NXusRtqYU).
 
 To contribute code, send us a PR, raise a github issue, or email at contributing@langfuse.com
 
