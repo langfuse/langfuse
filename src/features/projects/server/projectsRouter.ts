@@ -1,4 +1,5 @@
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 
 export const projectsRouter = createTRPCRouter({
@@ -33,7 +34,10 @@ export const projectsRouter = createTRPCRouter({
         },
       });
       if (existingProject) {
-        throw new Error("Project with this name already exists");
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "A project with this name already exists",
+        });
       }
 
       const project = await ctx.prisma.project.create({
