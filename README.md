@@ -39,7 +39,7 @@
 Short walkthrough to help getting an overview of the project, who it is useful for, and how it is integrated with your application.
 
 <a href="https://langfuse.com/docs#walkthrough">
-   <img src="readme_walkthrough_thumbnail.png" width="350" title="Walkthrough" />
+   <img src="readme_walkthrough_thumbnail.png" width="450" title="Walkthrough" />
 </a>
 
 ## 1. Monitor usage
