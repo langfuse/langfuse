@@ -17,9 +17,6 @@
          <strong>Join the langfuse Discord »</strong>
       </a>
       </br>
-      <a href="#-features">
-         <strong>Features</strong>
-      </a> ·
       <a href="https://langfuse.com/#roadmap">
          <strong>Roadmap</strong>
       </a> ·
@@ -28,6 +25,9 @@
       </a> ·
       <a href="https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+">
          <strong>Report Bug</strong>
+      </a> ·
+      <a href="https://github.com/langfuse/langfuse/issues/new?assignees=&labels=%E2%9C%A8+enhancement&projects=&template=feature_request.yml&title=feat%3A+">
+         <strong>Feature Request</strong>
       </a>
    </div>
 
