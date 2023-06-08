@@ -14,7 +14,7 @@
       </a>
       </br>
       <a href="https://discord.gg/7NXusRtqYU">
-         <strong>Join the langfuse Discord</strong>
+         <strong>Join the langfuse Discord »</strong>
       </a>
       </br>
       <a href="#-features">
