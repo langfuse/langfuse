@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://langfuse.com">
-    <img alt="langfuse Logo" src="https://github.com/langfuse/langfuse/blob/main/readme.png" alt="Logo" width="400">
+    <img alt="langfuse Logo" src="https://github.com/langfuse/langfuse/blob/main/readme.png" alt="Logo">
   </a>
 
 <h3 align="center">Open-source experimentation platform for LLM-based applications</h3>
