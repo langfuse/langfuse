@@ -12,7 +12,7 @@
       <a href="https://langfuse.com/docs">
          <strong>Explore the docs »</strong>
       </a>
-      </br>
+      </br></br>
       <a href="https://discord.gg/7NXusRtqYU">
          <strong>Join the langfuse Discord</strong>
       </a>
