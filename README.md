@@ -1,6 +1,6 @@
 <div align="center">
    <a href="https://langfuse.com">
-      <h1>`🪢 langfuse`</h1>
+      <h1>🪢 langfuse</h1>
    </a>
    <h3>
       Open-source experimentation platform for LLM-based applications
@@ -64,7 +64,7 @@ Short walkthrough to help getting an overview of the project, who it is useful f
 
 # 🚴‍ Get started
 
-- Follow the [quickstart](https://langfuse.com/docs/get-started) for local, self-hosted or cloud
+Follow the [quickstart](https://langfuse.com/docs/get-started) for local, self-hosted or cloud
 
 # 🗺️ Roadmap
 
