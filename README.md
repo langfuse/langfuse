@@ -71,7 +71,7 @@ Follow the [quickstart](https://langfuse.com/docs/get-started) for local, self-h
 
 `langfuse` is built in public and the roadmap is shaped together with users of the project. While the details change frequently, you can find a rough outline of where the project is headed on our [roadmap](http://langfuse.com/#roadmap).
 
-# 👫 Contributing
+# 👫 Contributing to langfuse
 
 Join the community [on Discord](https://discord.gg/7NXusRtqYU).
 
