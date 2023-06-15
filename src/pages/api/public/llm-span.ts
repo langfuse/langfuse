@@ -12,34 +12,34 @@ const LLMSpanCreateSchema = z.object({
   name: z.string(),
   startTime: z.string().datetime(),
   attributes: z.object({
-    prompt: z.string().optional(),
-    completion: z.string().optional(),
+    prompt: z.string().nullish(),
+    completion: z.string().nullish(),
     tokens: z
       .object({
-        prompt: z.number().optional(),
-        completion: z.number().optional(),
+        prompt: z.number().nullish(),
+        completion: z.number().nullish(),
       })
-      .optional(),
-    model: z.string().optional(),
-    temperature: z.number().optional(),
-    topP: z.number().optional(),
-    maxTokens: z.number().optional(),
+      .nullish(),
+    model: z.string().nullish(),
+    temperature: z.number().nullish(),
+    topP: z.number().nullish(),
+    maxTokens: z.number().nullish(),
   }),
-  parentObservationId: z.string().optional(),
+  parentObservationId: z.string().nullish(),
 });
 
 const LLMSpanUpdateSchema = z.object({
   spanId: z.string(),
   endTime: z.string().datetime(),
   attributes: z.object({
-    prompt: z.string().optional(),
-    completion: z.string().optional(),
+    prompt: z.string().nullish(),
+    completion: z.string().nullish(),
     tokens: z
       .object({
-        promptAmount: z.number().optional(),
-        completionAmount: z.number().optional(),
+        promptAmount: z.number().nullish(),
+        completionAmount: z.number().nullish(),
       })
-      .optional(),
+      .nullish(),
   }),
 });
 
