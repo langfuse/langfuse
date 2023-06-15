@@ -70,12 +70,15 @@ types:
 
   LLMAttributes:
     properties:
-      model: unknown
+      model: optional<string>
+      temperature: optional<double>
+      maxTokens: optional<integer>
+      topP: optional<double>
       prompt: optional<string>
       completion: optional<string>
       tokens: optional<LLMTokens>
 
   LLMTokens:
     properties:
-      prompt_amount: optional<integer>
-      completion_amount: optional<integer>
+      promptAmount: optional<integer>
+      completionAmount: optional<integer>

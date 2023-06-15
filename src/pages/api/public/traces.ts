@@ -25,7 +25,7 @@ export default async function handler(
   await runMiddleware(req, res, cors);
 
   if (req.method !== "POST" && req.method !== "PATCH") {
-    console.log(req.method, req.body);
+    console.error(req.method, req.body);
     return res.status(405).json({ message: "Method not allowed" });
   }
 
