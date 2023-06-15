@@ -1,12 +1,13 @@
 import { Button } from "@/src/components/ui/button";
 import { CodeView, JSONview } from "@/src/components/ui/code";
-import DescriptionList from "@/src/components/ui/descriptionLists";
+import DescriptionList from "@/src/components/ui/description-lists";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
+import StatsCards from "@/src/components/stats-cards";
 
 export default function LlmCallPage() {
   const router = useRouter();
@@ -24,6 +25,19 @@ export default function LlmCallPage() {
   const traceScores =
     llmCall.data?.scores.filter((score) => !obsMetrics?.includes(score)) ?? [];
 
+  const statProps = [
+    { name: "Model", stat: llmCall.data?.attributes.model ?? "-" },
+    {
+      name: "Temperature",
+      stat: llmCall.data?.attributes.temperature?.toString() ?? "-",
+    },
+    {
+      name: "Max Tokens",
+      stat: llmCall.data?.attributes.maxTokens?.toString() ?? "-",
+    },
+    { name: "Top P", stat: llmCall.data?.attributes.topP?.toString() ?? "-" },
+  ];
+
   return (
     <div className="container">
       <Header
@@ -33,6 +47,9 @@ export default function LlmCallPage() {
           { name: llmCallId },
         ]}
       />
+      <div className="my-10">
+        <StatsCards stats={statProps} />
+      </div>
       {llmCall.data ? (
         <DescriptionList
           items={[
@@ -67,10 +84,10 @@ export default function LlmCallPage() {
             {
               label: "Tokens",
               value: [
-                llmCall.data.attributes.tokens?.prompt &&
-                  `${llmCall.data.attributes.tokens.prompt} prompt tokens`,
-                llmCall.data.attributes.tokens?.completion &&
-                  `${llmCall.data.attributes.tokens.completion} completion tokens`,
+                llmCall.data.attributes.tokens?.promptAmount &&
+                  `${llmCall.data.attributes.tokens.promptAmount} prompt tokens`,
+                llmCall.data.attributes.tokens?.completionAmount &&
+                  `${llmCall.data.attributes.tokens.completionAmount} completion tokens`,
               ]
                 .filter(Boolean)
                 .join(", "),
@@ -82,10 +99,6 @@ export default function LlmCallPage() {
             {
               label: "Completion",
               value: <CodeView>{llmCall.data.attributes.completion}</CodeView>,
-            },
-            {
-              label: "Model",
-              value: <JSONview json={llmCall.data.attributes.model} />,
             },
             {
               label: "Attributes",
@@ -119,3 +132,9 @@ export default function LlmCallPage() {
     </div>
   );
 }
+
+export const stats = [
+  { name: "Total Subscribers", stat: "71,897" },
+  { name: "Avg. Open Rate", stat: "58.16%" },
+  { name: "Avg. Click Rate", stat: "24.57%" },
+];

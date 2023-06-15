@@ -20,6 +20,10 @@ const LLMSpanCreateSchema = z.object({
         completion: z.number().optional(),
       })
       .optional(),
+    model: z.string().optional(),
+    temperature: z.number().optional(),
+    topP: z.number().optional(),
+    maxTokens: z.number().optional(),
   }),
   parentObservationId: z.string().optional(),
 });
@@ -32,8 +36,8 @@ const LLMSpanUpdateSchema = z.object({
     completion: z.string().optional(),
     tokens: z
       .object({
-        prompt: z.number().optional(),
-        completion: z.number().optional(),
+        promptAmount: z.number().optional(),
+        completionAmount: z.number().optional(),
       })
       .optional(),
   }),
@@ -65,6 +69,7 @@ export default async function handler(
       const { traceId, name, startTime, attributes, parentObservationId } =
         LLMSpanCreateSchema.parse(req.body);
 
+      console.log(traceId, name, startTime, attributes, parentObservationId);
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
         { type: "trace", id: traceId },
@@ -107,6 +112,7 @@ export default async function handler(
       const { spanId, endTime, attributes } = LLMSpanUpdateSchema.parse(
         req.body
       );
+      console.log(spanId, endTime, attributes);
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
