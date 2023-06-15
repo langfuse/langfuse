@@ -15,7 +15,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
-import ObservationDisplay from "@/src/components/observationDisplay";
+import ObservationDisplay from "@/src/components/observation-display";
 import { useRouter } from "next/router";
 import { type TableRowOptions } from "@/src/components/table/types";
 import {

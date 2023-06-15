@@ -1,9 +1,9 @@
 import { useRouter } from "next/router";
 import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
-import DescriptionList from "@/src/components/ui/descriptionLists";
+import DescriptionList from "@/src/components/ui/description-lists";
 import { JSONview } from "@/src/components/ui/code";
-import ObservationDisplay from "@/src/components/observationDisplay";
+import ObservationDisplay from "@/src/components/observation-display";
 
 export default function TracePage() {
   const router = useRouter();

@@ -349,22 +349,29 @@ components:
       title: LLMAttributes
       type: object
       properties:
-        model: {}
+        model:
+          type: string
+        temperature:
+          type: number
+          format: double
+        maxTokens:
+          type: integer
+        topP:
+          type: number
+          format: double
         prompt:
           type: string
         completion:
           type: string
         tokens:
           $ref: '#/components/schemas/LLMTokens'
-      required:
-        - model
     LLMTokens:
       title: LLMTokens
       type: object
       properties:
-        prompt_amount:
+        promptAmount:
           type: integer
-        completion_amount:
+        completionAmount:
           type: integer
     CreateTraceRequest:
       title: CreateTraceRequest

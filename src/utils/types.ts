@@ -23,10 +23,13 @@ export type LlmCall = Observation & {
     prompt?: string;
     completion?: string;
     tokens?: {
-      prompt?: number;
-      completion?: number;
+      promptAmount?: number;
+      completionAmount?: number;
     };
-    model: Prisma.JsonValue;
+    model?: string;
+    temperature?: number;
+    topP?: number;
+    maxTokens?: number;
   };
 };
 
