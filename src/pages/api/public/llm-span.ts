@@ -69,7 +69,6 @@ export default async function handler(
       const { traceId, name, startTime, attributes, parentObservationId } =
         LLMSpanCreateSchema.parse(req.body);
 
-      console.log(traceId, name, startTime, attributes, parentObservationId);
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
         { type: "trace", id: traceId },
@@ -112,7 +111,6 @@ export default async function handler(
       const { spanId, endTime, attributes } = LLMSpanUpdateSchema.parse(
         req.body
       );
-      console.log(spanId, endTime, attributes);
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
