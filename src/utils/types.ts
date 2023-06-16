@@ -20,7 +20,7 @@ export type Span = Observation & {
 export type LlmCall = Observation & {
   type: "LLMCALL";
   attributes: {
-    prompt?: string;
+    prompt?: { role: string; content: string }[];
     completion?: string;
     tokens?: {
       promptAmount?: number;

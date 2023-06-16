@@ -94,15 +94,24 @@ export default function LlmCallPage() {
             },
             {
               label: "Prompt",
-              value: <CodeView>{llmCall.data.attributes.prompt}</CodeView>,
+              value: (
+                <>
+                  {llmCall.data.attributes.prompt?.map((prompt) => (
+                    <>
+                      <div className="mb-2 mt-5">
+                        <h3 className="inline-flex items-baseline rounded-full bg-gray-100  px-2.5 py-0.5 text-sm font-medium leading-6 text-gray-800 md:mt-2 lg:mt-0">
+                          {prompt.role}
+                        </h3>
+                      </div>
+                      <CodeView>{prompt.content}</CodeView>
+                    </>
+                  ))}
+                </>
+              ),
             },
             {
               label: "Completion",
               value: <CodeView>{llmCall.data.attributes.completion}</CodeView>,
-            },
-            {
-              label: "Attributes",
-              value: <JSONview json={llmCall.data.attributes} />,
             },
             {
               label: "Metrics (observation)",
