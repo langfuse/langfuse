@@ -12,7 +12,9 @@ const LLMSpanCreateSchema = z.object({
   name: z.string(),
   startTime: z.string().datetime(),
   attributes: z.object({
-    prompt: z.string().nullish(),
+    prompt: z
+      .array(z.object({ role: z.string(), content: z.string() }))
+      .nullish(),
     completion: z.string().nullish(),
     tokens: z
       .object({

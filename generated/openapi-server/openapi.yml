@@ -360,11 +360,24 @@ components:
           type: number
           format: double
         prompt:
-          type: string
+          type: array
+          items:
+            $ref: '#/components/schemas/LLMPrompt'
         completion:
           type: string
         tokens:
           $ref: '#/components/schemas/LLMTokens'
+    LLMPrompt:
+      title: LLMPrompt
+      type: object
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+      required:
+        - role
+        - content
     LLMTokens:
       title: LLMTokens
       type: object

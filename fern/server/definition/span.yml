@@ -74,9 +74,14 @@ types:
       temperature: optional<double>
       maxTokens: optional<integer>
       topP: optional<double>
-      prompt: optional<string>
+      prompt: optional<list<LLMPrompt>>
       completion: optional<string>
       tokens: optional<LLMTokens>
+
+  LLMPrompt:
+    properties:
+      role: string
+      content: string
 
   LLMTokens:
     properties:
