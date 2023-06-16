@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { CodeView, JSONview } from "@/src/components/ui/code";
+import { CodeView } from "@/src/components/ui/code";
 import DescriptionList from "@/src/components/ui/description-lists";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
 import StatsCards from "@/src/components/stats-cards";
+import Prompt from "@/src/components/prompts";
 
 export default function LlmCallPage() {
   const router = useRouter();
@@ -94,15 +95,13 @@ export default function LlmCallPage() {
             },
             {
               label: "Prompt",
-              value: <CodeView>{llmCall.data.attributes.prompt}</CodeView>,
+              value: llmCall.data.attributes.prompt ? (
+                <Prompt messages={llmCall.data.attributes.prompt} />
+              ) : undefined,
             },
             {
               label: "Completion",
               value: <CodeView>{llmCall.data.attributes.completion}</CodeView>,
-            },
-            {
-              label: "Attributes",
-              value: <JSONview json={llmCall.data.attributes} />,
             },
             {
               label: "Metrics (observation)",
