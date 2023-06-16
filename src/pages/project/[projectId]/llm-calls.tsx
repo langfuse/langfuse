@@ -13,7 +13,6 @@ import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
 import Prompt from "@/src/components/prompts";
-import { Button } from "@/src/components/ui/button";
 
 type LlmCallTableRow = {
   id: string;

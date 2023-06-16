@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { CodeView, JSONview } from "@/src/components/ui/code";
+import { CodeView } from "@/src/components/ui/code";
 import DescriptionList from "@/src/components/ui/description-lists";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
