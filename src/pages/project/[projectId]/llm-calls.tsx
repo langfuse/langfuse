@@ -4,10 +4,16 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import {
+  type RouterOutput,
+  type RouterInput,
+  type LLMMessages,
+} from "@/src/utils/types";
 import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
+import Prompt from "@/src/components/prompts";
+import { Button } from "@/src/components/ui/button";
 
 type LlmCallTableRow = {
   id: string;
@@ -15,7 +21,7 @@ type LlmCallTableRow = {
   startTime: Date;
   endTime?: Date;
   name: string;
-  prompt?: string;
+  prompt?: LLMMessages[];
   completion?: string;
   model?: string;
 };
@@ -110,6 +116,14 @@ export default function Traces() {
     {
       accessorKey: "prompt",
       header: "Prompt",
+      cell: ({ row }) => {
+        const messages: LLMMessages[] = row.getValue("prompt");
+        if (!messages || messages.length === 0) {
+          return <>No prompt</>;
+        }
+
+        return <Prompt messages={messages} />;
+      },
     },
     {
       accessorKey: "completion",

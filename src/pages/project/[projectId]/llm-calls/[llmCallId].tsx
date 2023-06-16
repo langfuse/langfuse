@@ -8,6 +8,7 @@ import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
 import StatsCards from "@/src/components/stats-cards";
+import Prompt from "@/src/components/prompts";
 
 export default function LlmCallPage() {
   const router = useRouter();
@@ -94,20 +95,9 @@ export default function LlmCallPage() {
             },
             {
               label: "Prompt",
-              value: (
-                <>
-                  {llmCall.data.attributes.prompt?.map((prompt) => (
-                    <>
-                      <div className="mb-2 mt-5">
-                        <h3 className="inline-flex items-baseline rounded-full bg-gray-100  px-2.5 py-0.5 text-sm font-medium leading-6 text-gray-800 md:mt-2 lg:mt-0">
-                          {prompt.role}
-                        </h3>
-                      </div>
-                      <CodeView>{prompt.content}</CodeView>
-                    </>
-                  ))}
-                </>
-              ),
+              value: llmCall.data.attributes.prompt ? (
+                <Prompt messages={llmCall.data.attributes.prompt} />
+              ) : undefined,
             },
             {
               label: "Completion",

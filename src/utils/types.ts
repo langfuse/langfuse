@@ -1,4 +1,4 @@
-import { type Observation, type Prisma } from "@prisma/client";
+import { type Observation } from "@prisma/client";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
 
@@ -17,10 +17,12 @@ export type Span = Observation & {
   endTime: Date; // not null
 };
 
+export type LLMMessages = { role: string; content: string };
+
 export type LlmCall = Observation & {
   type: "LLMCALL";
   attributes: {
-    prompt?: { role: string; content: string }[];
+    prompt?: LLMMessages[];
     completion?: string;
     tokens?: {
       promptAmount?: number;
