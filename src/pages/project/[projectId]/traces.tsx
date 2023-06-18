@@ -34,8 +34,6 @@ export type TraceTableRow = {
   id: string;
   timestamp: Date;
   name: string;
-  status: string;
-  statusMessage?: string;
   attributes?: string;
   scores: TableScore[];
 };
@@ -49,7 +47,6 @@ export default function Traces() {
     scores: null,
     name: null,
     id: null,
-    status: null,
   });
 
   const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
@@ -82,8 +79,6 @@ export default function Traces() {
       id: trace.id,
       timestamp: trace.timestamp,
       name: trace.name,
-      status: trace.status,
-      statusMessage: trace.statusMessage ?? undefined,
       attributes: JSON.stringify(trace.attributes),
       scores: trace.scores.map((score) => {
         return {
@@ -152,25 +147,6 @@ export default function Traces() {
       },
     },
     {
-      accessorKey: "status",
-      header: "Status",
-      enableColumnFilter: true,
-      meta: {
-        label: "Status",
-        filter: {
-          type: "select",
-          values: queryOptions.status,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, status: newValues });
-          },
-        },
-      },
-    },
-    {
-      accessorKey: "statusMessage",
-      header: "Status Message",
-    },
-    {
       accessorKey: "attributes",
       header: "Attributes",
     },
@@ -236,7 +212,6 @@ export default function Traces() {
   const isFiltered = () =>
     queryOptions.name !== null ||
     queryOptions.id !== null ||
-    queryOptions.status !== null ||
     queryOptions.scores !== null;
 
   const resetFilters = () => {
@@ -244,7 +219,6 @@ export default function Traces() {
       scores: null,
       name: null,
       id: null,
-      status: null,
     });
     setSelectedScores({
       name: null,

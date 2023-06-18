@@ -1,5 +1,5 @@
 import { prisma } from "@/src/server/db";
-import { ObservationType } from "@prisma/client";
+import { ObservationType, Prisma } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "./cors";
@@ -8,7 +8,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 
 const LLMSpanCreateSchema = z.object({
-  traceId: z.string(),
+  traceId: z.string().nullish(),
   name: z.string(),
   startTime: z.string().datetime(),
   attributes: z.object({
@@ -73,7 +73,7 @@ export default async function handler(
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        { type: "trace", id: traceId },
+        ...(traceId ? [{ type: "trace" as const, id: traceId }] : []),
         ...(parentObservationId
           ? [{ type: "observation" as const, id: parentObservationId }]
           : []),
@@ -87,7 +87,17 @@ export default async function handler(
 
       const newObservation = await prisma.observation.create({
         data: {
-          trace: { connect: { id: traceId } },
+          ...(traceId
+            ? { trace: { connect: { id: traceId } } }
+            : {
+                trace: {
+                  create: {
+                    name: name,
+                    attributes: Prisma.JsonNull,
+                    project: { connect: { id: authCheck.scope.projectId } },
+                  },
+                },
+              }),
           type: ObservationType.LLMCALL,
           name,
           startTime: new Date(startTime),
