@@ -1,95 +1,62 @@
-import {
-  LineChart,
-  Line,
-  XAxis,
-  ResponsiveContainer,
-  Tooltip,
-  YAxis,
-  Label,
-  Legend,
-} from "recharts";
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseriesAggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
+import { AreaChart } from "@tremor/react";
 
 export function BaseTimeSeriesChart(props: {
   agg: DateTimeAggregationOption;
   data: { ts: number; values: { label: string; value: number }[] }[];
 }) {
-  const series = [
-    ...new Set(props.data.flatMap((row) => row.values.map((v) => v.label))),
-  ];
+  const labels = new Set(
+    props.data.flatMap((d) => d.values.map((v) => v.label))
+  );
 
-  const chartData = props.data.map((d) => ({
-    ts: d.ts,
-    ...d.values.reduce((acc, v) => ({ ...acc, [v.label]: v.value }), {}),
-  }));
+  type ChartInput = { timestamp: string } & { [key: string]: number };
+
+  function transformArray(
+    array: { ts: number; values: { label: string; value: number }[] }[]
+  ): ChartInput[] {
+    return array.map((item) => {
+      const outputObject: ChartInput = {
+        timestamp: convertDate(item.ts, props.agg),
+      } as ChartInput;
+
+      item.values.forEach((valueObject) => {
+        outputObject[valueObject.label] = valueObject.value;
+      });
+
+      return outputObject;
+    });
+  }
+
+  const dataFormatter = (number: number) => {
+    return Intl.NumberFormat("us").format(number).toString();
+  };
+
+  const convertDate = (date: number, agg: DateTimeAggregationOption) => {
+    if (agg === "24 hours" || agg === "1 hour") {
+      return new Date(date).toLocaleTimeString("en-US", {
+        year: "2-digit",
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    return new Date(date).toLocaleDateString("en-US", {
+      year: "2-digit",
+      month: "numeric",
+      day: "numeric",
+    });
+  };
 
   return (
-    <ResponsiveContainer width={"100%"} height={300}>
-      <LineChart data={chartData} key={props.agg}>
-        {series.map((s, i) => (
-          <Line
-            key={s}
-            type="monotone"
-            dataKey={s}
-            isAnimationActive={false}
-            strokeWidth={3}
-            dot={{ strokeWidth: 2 }}
-            stroke={chartColors[i % chartColors.length]}
-          />
-        ))}
-        <XAxis
-          dataKey="ts"
-          type="number"
-          domain={["dataMin", "dataMax"]}
-          interval="preserveStartEnd"
-          scale="time"
-          tickLine
-          tickCount={10}
-          tickFormatter={(val, _index) =>
-            dateTimeAggregationSettings[props.agg].date_formatter(
-              new Date(val as number)
-            )
-          }
-        >
-          <Label
-            value={dateTimeAggregationSettings[props.agg].date_trunc}
-            offset={0}
-            position="insideBottom"
-          />
-        </XAxis>
-        <YAxis />
-        <Tooltip
-          labelFormatter={(val) =>
-            dateTimeAggregationSettings[props.agg].date_formatter(
-              new Date(val as number)
-            )
-          }
-        />
-        {series.length > 1 ? <Legend verticalAlign="top" height={36} /> : null}
-      </LineChart>
-    </ResponsiveContainer>
+    <AreaChart
+      className="mt-4 h-72"
+      data={transformArray(props.data)}
+      index="timestamp"
+      categories={Array.from(labels)}
+      colors={["indigo", "cyan"]}
+      valueFormatter={dataFormatter}
+    />
   );
 }
-
-const chartColors = [
-  "#4c51bf", // Indigo
-  "#f56565", // Red
-  "#48bb78", // Green
-  "#ed8936", // Orange
-  "#6b46c1", // Purple
-  "#38a169", // Teal
-  "#e53e3e", // Pink
-  "#3182ce", // Blue
-  "#718096", // Gray
-  "#9f7aea", // Indigo (lighter shade)
-  "#f6ad55", // Red (lighter shade)
-  "#68d391", // Green (lighter shade)
-  "#f6ad55", // Orange (lighter shade)
-  "#9f7aea", // Purple (lighter shade)
-  "#4fd1c5", // Teal (lighter shade)
-  "#ed64a6", // Pink (lighter shade)
-  "#4299e1", // Blue (lighter shade)
-];
