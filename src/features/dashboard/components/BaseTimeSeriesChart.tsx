@@ -9,15 +9,15 @@ export function BaseTimeSeriesChart(props: {
     props.data.flatMap((d) => d.values.map((v) => v.label))
   );
 
-  type MyObject = { timestamp: string } & { [key: string]: number };
+  type ChartInput = { timestamp: string } & { [key: string]: number };
 
   function transformArray(
     array: { ts: number; values: { label: string; value: number }[] }[]
-  ): MyObject[] {
+  ): ChartInput[] {
     return array.map((item) => {
-      const outputObject: MyObject = {
+      const outputObject: ChartInput = {
         timestamp: convertDate(item.ts, props.agg),
-      } as MyObject;
+      } as ChartInput;
 
       item.values.forEach((valueObject) => {
         outputObject[valueObject.label] = valueObject.value;
