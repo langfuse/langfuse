@@ -33,14 +33,6 @@ export default function TracePage() {
               value: trace.data.name,
             },
             {
-              label: "Status",
-              value:
-                trace.data.status +
-                (trace.data.statusMessage
-                  ? ` (${trace.data.statusMessage})`
-                  : ""),
-            },
-            {
               label: "Metrics",
               value: (
                 <DescriptionList

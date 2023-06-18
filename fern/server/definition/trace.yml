@@ -10,36 +10,15 @@ service:
       path: /traces
       request: CreateTraceRequest
       response: Trace
-    update:
-      docs: Update the status of a trace
-      method: PATCH
-      path: /traces
-      request: UpdateTraceRequest
-      response: Trace
 
 types:
   CreateTraceRequest:
     properties:
       name: string
       attributes: unknown
-      status: TraceStatus
-      statusMessage: optional<string>
-  UpdateTraceRequest:
-    properties:
-      id: string
-      status: TraceStatus
-      statusMessage: optional<string>
   Trace:
     properties:
       id: string
       timestamp: datetime
       name: string
       attributes: unknown
-      status: string
-      statusMessage: optional<string>
-
-  TraceStatus:
-    enum:
-      - EXECUTING
-      - SUCCESS
-      - ERROR

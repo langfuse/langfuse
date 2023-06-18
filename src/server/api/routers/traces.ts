@@ -20,7 +20,6 @@ const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
   id: z.array(z.string()).nullable(),
-  status: z.array(z.string()).nullable(),
   scores: ScoreFilter.nullable(),
 });
 
@@ -42,13 +41,6 @@ export const traceRouter = createTRPCRouter({
             ? {
                 id: {
                   in: input.id,
-                },
-              }
-            : undefined),
-          ...(input.status
-            ? {
-                status: {
-                  in: input.status,
                 },
               }
             : undefined),
@@ -90,13 +82,6 @@ export const traceRouter = createTRPCRouter({
               },
             }
           : undefined),
-        ...(input.status
-          ? {
-              status: {
-                in: input.status,
-              },
-            }
-          : undefined),
         ...(input.scores
           ? {
               scores: {
@@ -106,7 +91,7 @@ export const traceRouter = createTRPCRouter({
           : undefined),
       };
 
-      const [ids, names, statuses] = await Promise.all([
+      const [ids, names] = await Promise.all([
         ctx.prisma.trace.groupBy({
           where: filter,
           by: ["id"],
@@ -118,14 +103,6 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.trace.groupBy({
           where: filter,
           by: ["name"],
-          _count: {
-            _all: true,
-          },
-        }),
-
-        ctx.prisma.trace.groupBy({
-          where: filter,
-          by: ["status"],
           _count: {
             _all: true,
           },
@@ -165,12 +142,6 @@ export const traceRouter = createTRPCRouter({
           key: "name",
           occurrences: names.map((i) => {
             return { key: i.name, count: i._count };
-          }),
-        },
-        {
-          key: "status",
-          occurrences: statuses.map((i) => {
-            return { key: i.status, count: i._count };
           }),
         },
         {

@@ -32,7 +32,7 @@ service:
 types:
   CreateSpanRequest:
     properties:
-      traceId: string
+      traceId: optional<string>
       name: string
       startTime: datetime
       attributes: unknown
@@ -62,7 +62,7 @@ types:
 
   CreateLLMSpanRequest:
     properties:
-      traceId: string
+      traceId: optional<string>
       name: string
       startTime: datetime
       parentObservationId: optional<string>
