@@ -62,7 +62,6 @@ async function main() {
         attributes: {
           user: `user-${i}@langfuse.com`,
         },
-        status: "success",
         project: {
           connect: {
             id: project.id,
@@ -199,13 +198,17 @@ async function main() {
               With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
               
               Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
-              model: {
-                name: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
-                temperature: 0,
-              },
+              model: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
+              temperature:
+                Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
+              topP: Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
+              maxTokens:
+                Math.random() > 0.9
+                  ? undefined
+                  : Math.floor(Math.random() * 1000),
               tokens: {
-                prompt: Math.floor(Math.random() * 1000) + 300,
-                completion: Math.floor(Math.random() * 500) + 100,
+                promptAmount: Math.floor(Math.random() * 1000) + 300,
+                completionAmount: Math.floor(Math.random() * 500) + 100,
               },
             },
             parent: {

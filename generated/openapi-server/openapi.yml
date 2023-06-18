@@ -149,26 +149,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateTraceRequest'
-    patch:
-      description: Update the status of a trace
-      operationId: trace_update
-      tags:
-        - Trace
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Trace'
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateTraceRequest'
 components:
   schemas:
     CreateEventRequest:
@@ -266,7 +246,6 @@ components:
         parentObservationId:
           type: string
       required:
-        - traceId
         - name
         - startTime
         - attributes
@@ -341,7 +320,6 @@ components:
         attributes:
           $ref: '#/components/schemas/LLMAttributes'
       required:
-        - traceId
         - name
         - startTime
         - attributes
@@ -393,27 +371,9 @@ components:
         name:
           type: string
         attributes: {}
-        status:
-          $ref: '#/components/schemas/TraceStatus'
-        statusMessage:
-          type: string
       required:
         - name
         - attributes
-        - status
-    UpdateTraceRequest:
-      title: UpdateTraceRequest
-      type: object
-      properties:
-        id:
-          type: string
-        status:
-          $ref: '#/components/schemas/TraceStatus'
-        statusMessage:
-          type: string
-      required:
-        - id
-        - status
     Trace:
       title: Trace
       type: object
@@ -426,23 +386,11 @@ components:
         name:
           type: string
         attributes: {}
-        status:
-          type: string
-        statusMessage:
-          type: string
       required:
         - id
         - timestamp
         - name
         - attributes
-        - status
-    TraceStatus:
-      title: TraceStatus
-      type: string
-      enum:
-        - EXECUTING
-        - SUCCESS
-        - ERROR
   securitySchemes:
     BasicAuth:
       type: http
