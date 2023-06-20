@@ -19,8 +19,8 @@ const LLMSpanCreateSchema = z.object({
     completion: z.string().nullish(),
     tokens: z
       .object({
-        prompt: z.number().nullish(),
-        completion: z.number().nullish(),
+        promptAmount: z.number().nullish(),
+        completionAmount: z.number().nullish(),
       })
       .nullish(),
     model: z.string().nullish(),
@@ -77,6 +77,8 @@ export default async function handler(
         attributes,
         parentObservationId,
       } = LLMSpanCreateSchema.parse(req.body);
+
+      console.log("attributes", attributes);
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
