@@ -193,7 +193,7 @@ export const traceRouter = createTRPCRouter({
   }),
 });
 
-function nestObservations(list: Observation[]): NestedObservation | null {
+function nestObservations(list: Observation[]): NestedObservation[] | null {
   // Step 1: Create a map where the keys are object IDs, and the values are
   // the corresponding objects with an added 'children' property.
   const map = new Map<string, NestedObservation>();
@@ -217,12 +217,10 @@ function nestObservations(list: Observation[]): NestedObservation | null {
   }
 
   // Step 4: Assert that there is only one root.
-  if (roots.size > 1)
-    console.error("Expected exactly one root, but got:", roots.size);
   if (roots.size === 0) return null;
 
   // Step 5: Return the root.
-  return Array.from(roots.values())[0] as NestedObservation;
+  return Array.from(roots.values());
 }
 
 function createScoreCondition(score: ScoreFilter) {
