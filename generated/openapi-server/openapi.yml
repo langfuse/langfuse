@@ -289,6 +289,9 @@ components:
         startTime:
           type: string
           format: date-time
+        endTime:
+          type: string
+          format: date-time
         metadata: {}
         parentObservationId:
           type: string
