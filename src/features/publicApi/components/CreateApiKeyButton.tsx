@@ -126,9 +126,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
           <div>
             <div>
               <div>
-                <div className="mb-2 text-lg font-semibold">
-                  Publishable Key
-                </div>
+                <div className="mb-2 text-lg font-semibold">Public Key</div>
                 <CodeView>{generatedKeys.publishableKey}</CodeView>
               </div>
               <div className="mt-6">
