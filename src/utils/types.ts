@@ -17,7 +17,7 @@ export type Span = Observation & {
   endTime: Date; // not null
 };
 
-export type LLMMessages = { role: string; content: string };
+export type LLMChatMessages = { role: string; content: string };
 
 export type Generation = Observation & {
   type: "GENERATION";

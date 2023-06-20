@@ -112,7 +112,7 @@ export default function Generations() {
     //   accessorKey: "prompt",
     //   header: "Prompt",
     //   cell: ({ row }) => {
-    //     const messages: LLMMessages[] = row.getValue("prompt");
+    //     const messages: LLMChatMessages[] = row.getValue("prompt");
     //     if (!messages || messages.length === 0) {
     //       return <>No prompt</>;
     //     }
