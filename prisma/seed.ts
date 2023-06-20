@@ -7,6 +7,8 @@ import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+const TRACE_VOLUME = 5000;
+
 async function main() {
   const user = await prisma.user.create({
     data: {
@@ -40,12 +42,12 @@ async function main() {
     },
   });
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < TRACE_VOLUME; i++) {
     // print progress to console with a progress bar that refreshes every 10 iterations
     if (i % 10 === 0) {
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      process.stdout.write(`Seeding ${i} of 10`);
+      process.stdout.write(`Seeding ${i} of ${TRACE_VOLUME}`);
     }
     // random date within last 90 days, with a linear bias towards more recent dates
     const traceTs = new Date(
