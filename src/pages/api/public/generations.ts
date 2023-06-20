@@ -51,8 +51,6 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      console.log(JSON.stringify(req.body));
-
       const {
         traceId,
         name,
