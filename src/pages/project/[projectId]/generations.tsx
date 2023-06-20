@@ -181,7 +181,7 @@ export default function Generations() {
 
   return (
     <div className="container">
-      <Header title="LLM Calls" live />
+      <Header title="Generations" live />
       {tableOptions.data ? (
         <div className="my-2">
           <DataTableToolbar
