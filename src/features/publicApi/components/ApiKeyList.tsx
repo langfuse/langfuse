@@ -41,7 +41,7 @@ export function ApiKeyList(props: { projectId: string }) {
                 Created
               </TableHead>
               <TableHead className="text-gray-900">Note</TableHead>
-              <TableHead className="text-gray-900">Publishable Key</TableHead>
+              <TableHead className="text-gray-900">Public Key</TableHead>
               <TableHead className="text-gray-900">Secret Key</TableHead>
               <TableHead className="text-gray-900">Last used</TableHead>
               <TableHead />
