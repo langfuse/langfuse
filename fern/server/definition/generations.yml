@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    log:
+      method: POST
+      path: /generations
+      request: CreateLog
+      response: Log
+
+types:
+  CreateLog:
+    properties:
+      traceId: optional<string>
+      startTime: optional<datetime>
+      endTime: optional<datetime>
+      name: optional<string>
+      model: optional<string>
+      modelParameters: optional<map<string, MapValue>>
+      prompt: optional<unknown>
+      metadata: optional<unknown>
+      completion: optional<string>
+      usage: optional<LLMUsage>
+      parentObservationId: optional<string>
+
+  Log:
+    properties:
+      id: string
+      traceId: string
+      type: string
+      name: optional<string>
+      startTime: optional<datetime>
+      endTime: optional<datetime>
+      attributes: unknown
+      parentObservationId: optional<string>
+
+  LLMUsage:
+    properties:
+      promptTokens: optional<integer>
+      completionTokens: optional<integer>
+
+  MapValue:
+    discriminated: false
+    union:
+      - optional<string>
+      - optional<integer>
+      - optional<boolean>

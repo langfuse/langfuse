@@ -1,7 +1,7 @@
 import { CodeView } from "@/src/components/ui/code";
-import { type LLMMessages } from "@/src/utils/types";
+import { type LLMChatMessages } from "@/src/utils/types";
 
-export default function Prompt(props: { messages: LLMMessages[] }) {
+export default function Prompt(props: { messages: LLMChatMessages[] }) {
   return (
     <>
       {props.messages.map((message, index) => (

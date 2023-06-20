@@ -1,6 +1,6 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { traceRouter } from "./routers/traces";
-import { llmCallRouter } from "./routers/llmCalls";
+import { generationsRouter } from "./routers/generations";
 import { scoresRouter } from "./routers/scores";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboardRouter";
 import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
@@ -13,7 +13,7 @@ import { apiKeysRouter } from "@/src/features/publicApi/server/apiKeyRouter";
  */
 export const appRouter = createTRPCRouter({
   traces: traceRouter,
-  llmCalls: llmCallRouter,
+  generations: generationsRouter,
   scores: scoresRouter,
   dashboard: dashboardRouter,
   projects: projectsRouter,

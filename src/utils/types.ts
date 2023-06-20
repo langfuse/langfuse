@@ -6,7 +6,7 @@ export type NestedObservation = Observation & {
   children: NestedObservation[];
 };
 
-export type TypedObservation = Event | Span | LlmCall;
+export type TypedObservation = Event | Span | Generation;
 
 export type Event = Observation & {
   type: "EVENT";
@@ -17,21 +17,17 @@ export type Span = Observation & {
   endTime: Date; // not null
 };
 
-export type LLMMessages = { role: string; content: string };
+export type LLMChatMessages = { role: string; content: string };
 
-export type LlmCall = Observation & {
-  type: "LLMCALL";
-  attributes: {
-    prompt?: LLMMessages[];
-    completion?: string;
-    tokens?: {
-      promptAmount?: number;
-      completionAmount?: number;
-    };
-    model?: string;
-    temperature?: number;
-    topP?: number;
-    maxTokens?: number;
+export type Generation = Observation & {
+  type: "GENERATION";
+  usage: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  modelParameters: {
+    [key: string]: string | number | boolean;
   };
 };
 

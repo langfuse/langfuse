@@ -49,8 +49,8 @@ export default function Layout(props: PropsWithChildren) {
       icon: UsersIcon,
     },
     {
-      name: "LLM Calls",
-      pathname: `/project/[projectId]/llm-calls`,
+      name: "Generations",
+      pathname: `/project/[projectId]/generations`,
       icon: DocumentDuplicateIcon,
     },
     {
@@ -69,9 +69,9 @@ export default function Layout(props: PropsWithChildren) {
       ...nav,
       href: nav.pathname.replace("[projectId]", projectId ?? ""),
     }))
-    .map((staticAttributes) => ({
-      ...staticAttributes,
-      current: router.pathname === staticAttributes.pathname,
+    .map((params) => ({
+      ...params,
+      current: router.pathname === params.pathname,
     }));
 
   const session = useSession();

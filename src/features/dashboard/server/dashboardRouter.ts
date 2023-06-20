@@ -10,7 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 
 export const dashboardRouter = createTRPCRouter({
-  llmCalls: protectedProjectProcedure
+  generations: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -47,7 +47,7 @@ export const dashboardRouter = createTRPCRouter({
         LEFT JOIN traces ON observations.trace_id = traces.id
 
         WHERE
-        type = 'LLMCALL'
+        type = 'GENERATION'
         AND start_time > NOW() - INTERVAL '${input.agg}'
         AND traces.project_id = '${input.projectId}'
 
