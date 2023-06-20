@@ -40,7 +40,7 @@ async function main() {
     },
   });
 
-  for (let i = 0; i < 1000; i++) {
+  for (let i = 0; i < 10; i++) {
     // print progress to console with a progress bar that refreshes every 10 iterations
     if (i % 10 === 0) {
       process.stdout.clearLine(0);
