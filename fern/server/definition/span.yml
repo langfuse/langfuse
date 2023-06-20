@@ -4,18 +4,6 @@ service:
   auth: true
   base-path: /api/public
   endpoints:
-    createLLMCall:
-      docs: a
-      method: POST
-      path: /llm-span
-      request: CreateLLMSpanRequest
-      response: Span
-    updateLLMCall:
-      docs: Update a span to the database
-      method: PATCH
-      path: /llm-span
-      request: UpdateLLMSpanRequest
-      response: Span
     create:
       docs: Add a span to the database
       method: POST
@@ -43,12 +31,6 @@ types:
       spanId: string
       endTime: datetime
 
-  UpdateLLMSpanRequest:
-    properties:
-      spanId: string
-      endTime: datetime
-      attributes: LLMAttributes
-
   Span:
     properties:
       id: string
@@ -59,32 +41,3 @@ types:
       endTime: optional<datetime>
       metadata: unknown
       parentObservationId: optional<string>
-
-  CreateLLMSpanRequest:
-    properties:
-      traceId: optional<string>
-      name: string
-      startTime: datetime
-      endTime: optional<datetime>
-      parentObservationId: optional<string>
-      attributes: LLMAttributes
-
-  LLMAttributes:
-    properties:
-      model: optional<string>
-      temperature: optional<double>
-      maxTokens: optional<integer>
-      topP: optional<double>
-      prompt: optional<list<LLMPrompt>>
-      completion: optional<string>
-      tokens: optional<LLMTokens>
-
-  LLMPrompt:
-    properties:
-      role: string
-      content: string
-
-  LLMTokens:
-    properties:
-      promptAmount: optional<integer>
-      completionAmount: optional<integer>

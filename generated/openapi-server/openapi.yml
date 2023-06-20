@@ -25,6 +25,26 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateEventRequest'
+  /api/public/generations:
+    post:
+      operationId: generations_log
+      tags:
+        - Generations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Log'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLog'
   /api/public/scores:
     post:
       description: Add a score to the database
@@ -46,47 +66,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateScoreRequest'
-  /api/public/llm-span:
-    post:
-      description: a
-      operationId: span_createLLMCall
-      tags:
-        - Span
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Span'
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateLLMSpanRequest'
-    patch:
-      description: Update a span to the database
-      operationId: span_updateLLMCall
-      tags:
-        - Span
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Span'
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateLLMSpanRequest'
   /api/public/spans:
     post:
       description: Add a span to the database
@@ -162,14 +141,14 @@ components:
         startTime:
           type: string
           format: date-time
-        attributes: {}
+        metadata: {}
         parentObservationId:
           type: string
       required:
         - traceId
         - name
         - startTime
-        - attributes
+        - metadata
     Event:
       title: Event
       type: object
@@ -185,7 +164,7 @@ components:
         startTime:
           type: string
           format: date-time
-        attributes: {}
+        metadata: {}
         parentObservationId:
           type: string
       required:
@@ -194,7 +173,75 @@ components:
         - type
         - name
         - startTime
+        - metadata
+    CreateLog:
+      title: CreateLog
+      type: object
+      properties:
+        traceId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        name:
+          type: string
+        model:
+          type: string
+        modelParameters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MapValue'
+        prompt: {}
+        metadata: {}
+        completion:
+          type: string
+        usage:
+          $ref: '#/components/schemas/LLMUsage'
+        parentObservationId:
+          type: string
+    Log:
+      title: Log
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        attributes: {}
+        parentObservationId:
+          type: string
+      required:
+        - id
+        - traceId
+        - type
         - attributes
+    LLMUsage:
+      title: LLMUsage
+      type: object
+      properties:
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+    MapValue:
+      title: MapValue
+      oneOf:
+        - type: string
+        - type: integer
+        - type: boolean
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -242,13 +289,13 @@ components:
         startTime:
           type: string
           format: date-time
-        attributes: {}
+        metadata: {}
         parentObservationId:
           type: string
       required:
         - name
         - startTime
-        - attributes
+        - metadata
     UpdateSpanRequest:
       title: UpdateSpanRequest
       type: object
@@ -261,21 +308,6 @@ components:
       required:
         - spanId
         - endTime
-    UpdateLLMSpanRequest:
-      title: UpdateLLMSpanRequest
-      type: object
-      properties:
-        spanId:
-          type: string
-        endTime:
-          type: string
-          format: date-time
-        attributes:
-          $ref: '#/components/schemas/LLMAttributes'
-      required:
-        - spanId
-        - endTime
-        - attributes
     Span:
       title: Span
       type: object
@@ -294,7 +326,7 @@ components:
         endTime:
           type: string
           format: date-time
-        attributes: {}
+        metadata: {}
         parentObservationId:
           type: string
       required:
@@ -303,80 +335,17 @@ components:
         - type
         - name
         - startTime
-        - attributes
-    CreateLLMSpanRequest:
-      title: CreateLLMSpanRequest
-      type: object
-      properties:
-        traceId:
-          type: string
-        name:
-          type: string
-        startTime:
-          type: string
-          format: date-time
-        endTime:
-          type: string
-          format: date-time
-        parentObservationId:
-          type: string
-        attributes:
-          $ref: '#/components/schemas/LLMAttributes'
-      required:
-        - name
-        - startTime
-        - attributes
-    LLMAttributes:
-      title: LLMAttributes
-      type: object
-      properties:
-        model:
-          type: string
-        temperature:
-          type: number
-          format: double
-        maxTokens:
-          type: integer
-        topP:
-          type: number
-          format: double
-        prompt:
-          type: array
-          items:
-            $ref: '#/components/schemas/LLMPrompt'
-        completion:
-          type: string
-        tokens:
-          $ref: '#/components/schemas/LLMTokens'
-    LLMPrompt:
-      title: LLMPrompt
-      type: object
-      properties:
-        role:
-          type: string
-        content:
-          type: string
-      required:
-        - role
-        - content
-    LLMTokens:
-      title: LLMTokens
-      type: object
-      properties:
-        promptAmount:
-          type: integer
-        completionAmount:
-          type: integer
+        - metadata
     CreateTraceRequest:
       title: CreateTraceRequest
       type: object
       properties:
         name:
           type: string
-        attributes: {}
+        metadata: {}
       required:
         - name
-        - attributes
+        - metadata
     Trace:
       title: Trace
       type: object
@@ -388,12 +357,12 @@ components:
           format: date-time
         name:
           type: string
-        attributes: {}
+        metadata: {}
       required:
         - id
         - timestamp
         - name
-        - attributes
+        - metadata
   securitySchemes:
     BasicAuth:
       type: http
