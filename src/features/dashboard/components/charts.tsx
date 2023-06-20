@@ -10,11 +10,11 @@ import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
 import { Loader } from "lucide-react";
 
-export function ChartLlmCalls(props: {
+export function ChartGenerations(props: {
   agg: DateTimeAggregationOption;
   projectId: string;
 }) {
-  const data = api.dashboard.llmCalls.useQuery({
+  const data = api.dashboard.generations.useQuery({
     agg: props.agg,
     projectId: props.projectId,
   });
@@ -22,7 +22,7 @@ export function ChartLlmCalls(props: {
   return (
     <Card>
       <CardHeader className="relative">
-        <CardTitle>LLM calls</CardTitle>
+        <CardTitle>Generations</CardTitle>
         <CardDescription>Count</CardDescription>
         {data.isLoading ? (
           <div className="absolute right-5 top-5 ">
