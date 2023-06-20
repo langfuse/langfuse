@@ -23,6 +23,7 @@ types:
       traceId: optional<string>
       name: string
       startTime: datetime
+      endTime: optional<datetime>
       metadata: unknown
       parentObservationId: optional<string>
 

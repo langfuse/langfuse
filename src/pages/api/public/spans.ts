@@ -10,8 +10,9 @@ const SpanPostSchema = z.object({
   traceId: z.string(),
   name: z.string(),
   startTime: z.string().datetime(),
+  endTime: z.string().datetime().nullish(),
   metadata: z.record(z.string(), z.any()),
-  parentObservationId: z.string().optional(),
+  parentObservationId: z.string().nullish(),
 });
 
 const SpanPatchSchema = z.object({
@@ -42,8 +43,14 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const { traceId, name, startTime, metadata, parentObservationId } =
-        SpanPostSchema.parse(req.body);
+      const {
+        traceId,
+        name,
+        startTime,
+        endTime,
+        metadata,
+        parentObservationId,
+      } = SpanPostSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
@@ -65,6 +72,7 @@ export default async function handler(
           type: ObservationType.SPAN,
           name,
           startTime: new Date(startTime),
+          endTime: endTime ? new Date(endTime) : undefined,
           metadata,
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
