@@ -46,7 +46,7 @@ export default function GenerationPage() {
   return (
     <div className="container">
       <Header
-        title="LLM Call"
+        title="Generation"
         breadcrumb={[
           { name: "Generations", href: `/project/${projectId}/generations` },
           { name: generationId },
