@@ -194,6 +194,8 @@ export const traceRouter = createTRPCRouter({
 });
 
 function nestObservations(list: Observation[]): NestedObservation[] | null {
+  if (list.length === 0) return null;
+
   // Step 1: Create a map where the keys are object IDs, and the values are
   // the corresponding objects with an added 'children' property.
   const map = new Map<string, NestedObservation>();
@@ -216,10 +218,7 @@ function nestObservations(list: Observation[]): NestedObservation[] | null {
     }
   }
 
-  // Step 4: Assert that there is only one root.
-  if (roots.size === 0) return null;
-
-  // Step 5: Return the root.
+  // Step 4: Return the roots.
   return Array.from(roots.values());
 }
 
