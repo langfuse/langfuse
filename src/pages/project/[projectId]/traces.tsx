@@ -303,12 +303,7 @@ const Single = (props: {
           <div className="mt-4 text-sm font-bold">Observations:</div>
           <ObservationDisplay
             key={trace.id}
-            obs={trace.nestedObservation}
-            projectId={props.projectId}
-          />
-          <ObservationDisplay
-            key={trace.id}
-            obs={trace.nestedObservation}
+            observations={trace.nestedObservation}
             projectId={props.projectId}
           />
         </>
