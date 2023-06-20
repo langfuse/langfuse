@@ -315,6 +315,9 @@ components:
         startTime:
           type: string
           format: date-time
+        endTime:
+          type: string
+          format: date-time
         parentObservationId:
           type: string
         attributes:

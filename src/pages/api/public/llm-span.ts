@@ -11,6 +11,7 @@ const LLMSpanCreateSchema = z.object({
   traceId: z.string().nullish(),
   name: z.string(),
   startTime: z.string().datetime(),
+  endTime: z.string().datetime().nullish(),
   attributes: z.object({
     prompt: z
       .array(z.object({ role: z.string(), content: z.string() }))
@@ -68,8 +69,14 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const { traceId, name, startTime, attributes, parentObservationId } =
-        LLMSpanCreateSchema.parse(req.body);
+      const {
+        traceId,
+        name,
+        startTime,
+        endTime,
+        attributes,
+        parentObservationId,
+      } = LLMSpanCreateSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
@@ -101,6 +108,7 @@ export default async function handler(
           type: ObservationType.LLMCALL,
           name,
           startTime: new Date(startTime),
+          endTime: endTime ? new Date(endTime) : undefined,
           attributes,
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
