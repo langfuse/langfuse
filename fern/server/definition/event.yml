@@ -17,7 +17,7 @@ types:
       traceId: string
       name: string
       startTime: datetime
-      attributes: unknown
+      metadata: unknown
       parentObservationId: optional<string>
   Event:
     properties:
@@ -26,5 +26,5 @@ types:
       type: string
       name: string
       startTime: datetime
-      attributes: unknown
+      metadata: unknown
       parentObservationId: optional<string>

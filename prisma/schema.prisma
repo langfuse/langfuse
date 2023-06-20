@@ -112,12 +112,12 @@ enum MembershipRole {
 }
 
 model Trace {
-    id         String   @id @default(cuid())
-    timestamp  DateTime @default(now())
-    name       String
-    attributes Json
-    projectId  String   @map("project_id")
-    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    id        String   @id @default(cuid())
+    timestamp DateTime @default(now())
+    name      String?
+    metadata  Json?
+    projectId String   @map("project_id")
+    project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
     observations Observation[]
     scores       Score[]
@@ -130,14 +130,22 @@ model Observation {
     traceId             String          @map("trace_id")
     trace               Trace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
     type                ObservationType
-    name                String
     startTime           DateTime        @default(now()) @map("start_time")
     endTime             DateTime?       @map("end_time")
-    attributes          Json
+    name                String?
+    metadata            Json?
     parentObservationId String?         @map("parent_observation_id")
-    parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
-    childs              Observation[]   @relation("ParentChilds")
-    scores              Score[]
+
+    // GENERATION ONLY
+    model           String?
+    modelParameters Json?
+    prompt          Json?
+    completion      String?
+    usage           Json?
+
+    parent Observation?  @relation("ParentChilds", fields: [parentObservationId], references: [id])
+    childs Observation[] @relation("ParentChilds")
+    scores Score[]
 
     @@map("observations")
 }
@@ -145,7 +153,7 @@ model Observation {
 enum ObservationType {
     SPAN
     EVENT
-    LLMCALL
+    GENERATION
 }
 
 model Score {

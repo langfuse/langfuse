@@ -10,7 +10,7 @@ const ObservationSchema = z.object({
   traceId: z.string(),
   name: z.string(),
   startTime: z.string().datetime(),
-  attributes: z.record(z.string(), z.any()),
+  metadata: z.record(z.string(), z.any()),
   parentObservationId: z.string().optional(),
 });
 
@@ -36,7 +36,7 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
-    const { traceId, name, startTime, attributes, parentObservationId } =
+    const { traceId, name, startTime, metadata, parentObservationId } =
       ObservationSchema.parse(req.body);
 
     // CHECK ACCESS SCOPE
@@ -59,7 +59,7 @@ export default async function handler(
         type: ObservationType.EVENT,
         name,
         startTime: new Date(startTime),
-        attributes,
+        metadata,
         parent: parentObservationId
           ? { connect: { id: parentObservationId } }
           : undefined,

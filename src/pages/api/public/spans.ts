@@ -10,7 +10,7 @@ const SpanPostSchema = z.object({
   traceId: z.string(),
   name: z.string(),
   startTime: z.string().datetime(),
-  attributes: z.record(z.string(), z.any()),
+  metadata: z.record(z.string(), z.any()),
   parentObservationId: z.string().optional(),
 });
 
@@ -42,7 +42,7 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const { traceId, name, startTime, attributes, parentObservationId } =
+      const { traceId, name, startTime, metadata, parentObservationId } =
         SpanPostSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
@@ -65,7 +65,7 @@ export default async function handler(
           type: ObservationType.SPAN,
           name,
           startTime: new Date(startTime),
-          attributes,
+          metadata,
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
             : undefined,

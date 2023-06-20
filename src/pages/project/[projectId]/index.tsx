@@ -6,7 +6,7 @@ import {
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseriesAggregation";
 import {
-  ChartLlmCalls,
+  ChartGenerations,
   ChartScores,
   ChartTraces,
 } from "@/src/features/dashboard/components/charts";
@@ -35,7 +35,7 @@ export default function Start() {
       </Tabs>
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartTraces agg={agg} projectId={projectId} />
-        <ChartLlmCalls agg={agg} projectId={projectId} />
+        <ChartGenerations agg={agg} projectId={projectId} />
         <div className="col-span-full">
           <ChartScores agg={agg} projectId={projectId} />
         </div>

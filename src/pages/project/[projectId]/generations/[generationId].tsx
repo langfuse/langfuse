@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { CodeView } from "@/src/components/ui/code";
+import { CodeView, JSONview } from "@/src/components/ui/code";
 import DescriptionList from "@/src/components/ui/description-lists";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -8,50 +8,54 @@ import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
 import StatsCards from "@/src/components/stats-cards";
-import Prompt from "@/src/components/prompts";
+// import Prompt from "@/src/components/prompts";
 
-export default function LlmCallPage() {
+export default function GenerationPage() {
   const router = useRouter();
-  const llmCallId = router.query.llmCallId as string;
+  const generationId = router.query.generationId as string;
   const projectId = router.query.projectId as string;
 
-  const llmCall = api.llmCalls.byId.useQuery(llmCallId, {
-    enabled: llmCallId !== undefined,
+  const generation = api.generations.byId.useQuery(generationId, {
+    enabled: generationId !== undefined,
   });
 
   const obsMetrics =
-    llmCall.data?.scores.filter(
-      (score) => score.observationId === llmCall.data.id
+    generation.data?.scores.filter(
+      (score) => score.observationId === generation.data.id
     ) ?? [];
   const traceScores =
-    llmCall.data?.scores.filter((score) => !obsMetrics?.includes(score)) ?? [];
+    generation.data?.scores.filter((score) => !obsMetrics?.includes(score)) ??
+    [];
 
   const statProps = [
-    { name: "Model", stat: llmCall.data?.attributes.model ?? "-" },
+    { name: "Model", stat: generation.data?.model ?? "-" },
     {
       name: "Temperature",
-      stat: llmCall.data?.attributes.temperature?.toString() ?? "-",
+      stat: generation.data?.modelParameters?.temperature?.toString() ?? "-",
     },
     {
       name: "Max Tokens",
-      stat: llmCall.data?.attributes.maxTokens?.toString() ?? "-",
+      stat: generation.data?.modelParameters?.maxTokens?.toString() ?? "-",
     },
-    { name: "Top P", stat: llmCall.data?.attributes.topP?.toString() ?? "-" },
+    {
+      name: "Top P",
+      stat: generation.data?.modelParameters?.topP?.toString() ?? "-",
+    },
   ];
 
   return (
     <div className="container">
       <Header
-        title="LLM Call"
+        title="Generation"
         breadcrumb={[
-          { name: "LLM Calls", href: `/project/${projectId}/llm-calls` },
-          { name: llmCallId },
+          { name: "Generations", href: `/project/${projectId}/generations` },
+          { name: generationId },
         ]}
       />
       <div className="my-10">
         <StatsCards stats={statProps} />
       </div>
-      {llmCall.data ? (
+      {generation.data ? (
         <DescriptionList
           items={[
             {
@@ -59,9 +63,9 @@ export default function LlmCallPage() {
               value: (
                 <Button variant="secondary" asChild>
                   <Link
-                    href={`/project/${projectId}/traces/${llmCall.data.traceId}`}
+                    href={`/project/${projectId}/traces/${generation.data.traceId}`}
                   >
-                    {llmCall.data.traceId}
+                    {generation.data.traceId}
                     <ArrowUpRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
@@ -70,38 +74,42 @@ export default function LlmCallPage() {
             {
               label: "Time",
               value:
-                llmCall.data.startTime.toLocaleString() +
-                (llmCall.data.endTime
+                generation.data.startTime.toLocaleString() +
+                (generation.data.endTime
                   ? ` - ${
-                      llmCall.data.endTime.getTime() -
-                      llmCall.data.startTime.getTime()
+                      generation.data.endTime.getTime() -
+                      generation.data.startTime.getTime()
                     }ms`
                   : ""),
             },
             {
               label: "Name",
-              value: llmCall.data.name,
+              value: generation.data.name,
             },
             {
               label: "Tokens",
               value: [
-                llmCall.data.attributes.tokens?.promptAmount &&
-                  `${llmCall.data.attributes.tokens.promptAmount} prompt tokens`,
-                llmCall.data.attributes.tokens?.completionAmount &&
-                  `${llmCall.data.attributes.tokens.completionAmount} completion tokens`,
+                generation.data.usage?.promptTokens &&
+                  `${generation.data.usage.promptTokens} prompt tokens`,
+                generation.data.usage?.completionTokens &&
+                  `${generation.data.usage.completionTokens} completion tokens`,
               ]
                 .filter(Boolean)
                 .join(", "),
             },
             {
               label: "Prompt",
-              value: llmCall.data.attributes.prompt ? (
-                <Prompt messages={llmCall.data.attributes.prompt} />
+              value: generation.data.prompt ? (
+                <JSONview json={generation.data.prompt} />
               ) : undefined,
             },
             {
               label: "Completion",
-              value: <CodeView>{llmCall.data.attributes.completion}</CodeView>,
+              value: <CodeView>{generation.data.completion}</CodeView>,
+            },
+            {
+              label: "Metadata",
+              value: <JSONview json={generation.data.metadata} />,
             },
             {
               label: "Metrics (observation)",

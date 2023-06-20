@@ -14,7 +14,7 @@ import { useRouter } from "next/router";
 type RowData = {
   id: string;
   traceId: string;
-  timestamp: Date;
+  timestamp: string;
   name: string;
   value: number;
   observationId?: string;
@@ -40,7 +40,7 @@ export default function ScoresPage() {
     }
   );
 
-  const llmCallOptions = api.llmCalls.availableFilterOptions.useQuery(
+  const generationOptions = api.generations.availableFilterOptions.useQuery(
     {
       ...queryOptions,
       projectId,
@@ -127,24 +127,24 @@ export default function ScoresPage() {
     });
   };
 
-  const tableOptions = llmCallOptions.isLoading
+  const tableOptions = generationOptions.isLoading
     ? { isLoading: true, isError: false }
-    : llmCallOptions.isError
+    : generationOptions.isError
     ? {
         isLoading: false,
         isError: true,
-        error: llmCallOptions.error.message,
+        error: generationOptions.error.message,
       }
     : {
         isLoading: false,
         isError: false,
-        data: convertToOptions(llmCallOptions.data),
+        data: convertToOptions(generationOptions.data),
       };
 
   const convertToTableRow = (score: Score): RowData => {
     return {
       id: score.id,
-      timestamp: score.timestamp,
+      timestamp: score.timestamp.toISOString(),
       name: score.name,
       value: score.value,
       observationId: score.observationId ?? undefined,

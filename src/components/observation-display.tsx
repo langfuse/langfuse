@@ -37,10 +37,10 @@ export default function ObservationDisplay(props: {
               <span className="sr-only">Toggle</span>
             </Button>
           </CollapsibleTrigger>
-          {props.obs.type === "LLMCALL" ? (
+          {props.obs.type === "GENERATION" ? (
             <Button size="sm" variant="ghost" asChild>
               <Link
-                href={`/project/${props.projectId}/llm-calls/${props.obs.id}`}
+                href={`/project/${props.projectId}/generations/${props.obs.id}`}
               >
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
@@ -49,8 +49,8 @@ export default function ObservationDisplay(props: {
         </div>
         <CollapsibleContent>
           <div className="mb-4 space-y-2">
-            <span className="text-sm font-semibold">Attributes</span>
-            <JSONview json={props.obs.attributes} />
+            <span className="text-sm font-semibold">Metadata</span>
+            <JSONview json={props.obs.metadata} />
           </div>
         </CollapsibleContent>
       </Collapsible>
