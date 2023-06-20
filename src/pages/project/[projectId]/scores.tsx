@@ -40,7 +40,7 @@ export default function ScoresPage() {
     }
   );
 
-  const llmCallOptions = api.llmCalls.availableFilterOptions.useQuery(
+  const generationOptions = api.generations.availableFilterOptions.useQuery(
     {
       ...queryOptions,
       projectId,
@@ -127,18 +127,18 @@ export default function ScoresPage() {
     });
   };
 
-  const tableOptions = llmCallOptions.isLoading
+  const tableOptions = generationOptions.isLoading
     ? { isLoading: true, isError: false }
-    : llmCallOptions.isError
+    : generationOptions.isError
     ? {
         isLoading: false,
         isError: true,
-        error: llmCallOptions.error.message,
+        error: generationOptions.error.message,
       }
     : {
         isLoading: false,
         isError: false,
-        data: convertToOptions(llmCallOptions.data),
+        data: convertToOptions(generationOptions.data),
       };
 
   const convertToTableRow = (score: Score): RowData => {
