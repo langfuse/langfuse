@@ -32,7 +32,7 @@ export type TableScore = {
 
 export type TraceTableRow = {
   id: string;
-  timestamp: Date;
+  timestamp: string;
   name: string;
   metadata?: string;
   scores: TableScore[];
@@ -77,7 +77,7 @@ export default function Traces() {
   ): TraceTableRow => {
     return {
       id: trace.id,
-      timestamp: trace.timestamp,
+      timestamp: trace.timestamp.toISOString(),
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
       scores: trace.scores.map((score) => {

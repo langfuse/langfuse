@@ -13,8 +13,8 @@ import { useRouter } from "next/router";
 type GenerationTableRow = {
   id: string;
   traceId: string;
-  startTime: Date;
-  endTime?: Date;
+  startTime: string;
+  endTime?: string;
   name?: string;
   // prompt?: string;
   // completion?: string;
@@ -161,8 +161,8 @@ export default function Generations() {
     ? generations.data.map((generation) => ({
         id: generation.id,
         traceId: generation.traceId,
-        startTime: generation.startTime,
-        endTime: generation.endTime ?? undefined,
+        startTime: generation.startTime.toISOString(),
+        endTime: generation.endTime?.toISOString() ?? undefined,
         name: generation.name ?? undefined,
         // prompt: JSON.stringify(generation.prompt),
         // completion: generation.completion ?? undefined,

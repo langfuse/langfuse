@@ -14,7 +14,7 @@ import { useRouter } from "next/router";
 type RowData = {
   id: string;
   traceId: string;
-  timestamp: Date;
+  timestamp: string;
   name: string;
   value: number;
   observationId?: string;
@@ -144,7 +144,7 @@ export default function ScoresPage() {
   const convertToTableRow = (score: Score): RowData => {
     return {
       id: score.id,
-      timestamp: score.timestamp,
+      timestamp: score.timestamp.toISOString(),
       name: score.name,
       value: score.value,
       observationId: score.observationId ?? undefined,
