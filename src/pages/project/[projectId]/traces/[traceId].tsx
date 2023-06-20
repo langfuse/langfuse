@@ -53,7 +53,7 @@ export default function TracePage() {
                 <ObservationDisplay
                   key={trace.data.id}
                   projectId={projectId}
-                  obs={trace.data.nestedObservation}
+                  observations={trace.data.nestedObservation}
                 />
               ) : null,
             },

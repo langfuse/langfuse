@@ -122,8 +122,8 @@ async function main() {
               id: trace.id,
             },
           },
-          // if this is the first span, add no parent; if not, then randomly select parent from existing spans or the first span
-          ...(existingSpanIds.length === 0
+          // if this is the first span or in 50% of cases, add no parent; otherwise randomly select parent from existing spans
+          ...(existingSpanIds.length === 0 || Math.random() > 0.5
             ? {}
             : {
                 parent: {
