@@ -6,7 +6,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 
 const CreateTraceSchema = z.object({
   name: z.string(),
-  attributes: z.record(z.string(), z.any()),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export default async function handler(
@@ -32,7 +32,7 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
-    const { name, attributes } = CreateTraceSchema.parse(req.body);
+    const { name, metadata } = CreateTraceSchema.parse(req.body);
 
     // CHECK ACCESS SCOPE
     if (authCheck.scope.accessLevel !== "all")
@@ -47,7 +47,7 @@ export default async function handler(
         timestamp: new Date(),
         projectId: authCheck.scope.projectId,
         name,
-        attributes,
+        metadata,
       },
     });
 

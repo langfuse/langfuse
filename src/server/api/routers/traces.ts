@@ -141,7 +141,7 @@ export const traceRouter = createTRPCRouter({
         {
           key: "name",
           occurrences: names.map((i) => {
-            return { key: i.name, count: i._count };
+            return { key: i.name ?? "undefined", count: i._count };
           }),
         },
         {

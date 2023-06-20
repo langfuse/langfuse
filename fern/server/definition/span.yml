@@ -35,7 +35,7 @@ types:
       traceId: optional<string>
       name: string
       startTime: datetime
-      attributes: unknown
+      metadata: unknown
       parentObservationId: optional<string>
 
   UpdateSpanRequest:
@@ -57,7 +57,7 @@ types:
       name: string
       startTime: datetime
       endTime: optional<datetime>
-      attributes: unknown
+      metadata: unknown
       parentObservationId: optional<string>
 
   CreateLLMSpanRequest:

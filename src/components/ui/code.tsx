@@ -13,7 +13,7 @@ export function JSONview(props: { json: string | unknown }) {
 }
 
 export function CodeView(props: {
-  children: string | undefined;
+  children: string | undefined | null;
   className?: string;
 }) {
   const [isCopied, setIsCopied] = useState(false);

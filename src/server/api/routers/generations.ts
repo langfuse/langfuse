@@ -5,21 +5,21 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type LlmCall } from "@/src/utils/types";
+import { type Generation } from "@/src/utils/types";
 
-const LLMFilterOptions = z.object({
+const GenerationFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
   id: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
 });
 
-export const llmCallRouter = createTRPCRouter({
+export const generationsRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(LLMFilterOptions)
+    .input(GenerationFilterOptions)
     .query(async ({ input, ctx }) => {
-      const llmCalls = (await ctx.prisma.observation.findMany({
+      const generations = (await ctx.prisma.observation.findMany({
         where: {
-          type: "LLMCALL",
+          type: "GENERATION",
           trace: {
             projectId: input.projectId,
           },
@@ -38,13 +38,13 @@ export const llmCallRouter = createTRPCRouter({
           startTime: "desc",
         },
         take: 100, // TODO: pagination
-      })) as LlmCall[];
+      })) as Generation[];
 
-      return llmCalls;
+      return generations;
     }),
 
   availableFilterOptions: protectedProjectProcedure
-    .input(LLMFilterOptions)
+    .input(GenerationFilterOptions)
     .query(async ({ input, ctx }) => {
       const filter = {
         trace: {
@@ -65,7 +65,7 @@ export const llmCallRouter = createTRPCRouter({
       const [ids, traceIds] = await Promise.all([
         ctx.prisma.observation.groupBy({
           where: {
-            type: "LLMCALL",
+            type: "GENERATION",
             ...filter,
           },
           by: ["id"],
@@ -75,7 +75,7 @@ export const llmCallRouter = createTRPCRouter({
         }),
         ctx.prisma.observation.groupBy({
           where: {
-            type: "LLMCALL",
+            type: "GENERATION",
             ...filter,
           },
           by: ["traceId"],
@@ -102,10 +102,10 @@ export const llmCallRouter = createTRPCRouter({
     }),
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     // also works for other observations
-    const llmCall = (await ctx.prisma.observation.findFirstOrThrow({
+    const generation = (await ctx.prisma.observation.findFirstOrThrow({
       where: {
         id: input,
-        type: "LLMCALL",
+        type: "GENERATION",
         trace: {
           project: {
             members: {
@@ -116,15 +116,15 @@ export const llmCallRouter = createTRPCRouter({
           },
         },
       },
-    })) as LlmCall;
+    })) as Generation;
 
     // No need to check for permissions as user has access to the trace
     const scores = await ctx.prisma.score.findMany({
       where: {
-        traceId: llmCall.traceId,
+        traceId: generation.traceId,
       },
     });
 
-    return { ...llmCall, scores };
+    return { ...generation, scores };
   }),
 });

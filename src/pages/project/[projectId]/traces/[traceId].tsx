@@ -44,8 +44,8 @@ export default function TracePage() {
               ),
             },
             {
-              label: "Attributes",
-              value: <JSONview json={trace.data.attributes} />,
+              label: "Metadata",
+              value: <JSONview json={trace.data.metadata} />,
             },
             {
               label: "Detailed trace",
