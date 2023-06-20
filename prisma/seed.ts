@@ -45,7 +45,7 @@ async function main() {
     if (i % 10 === 0) {
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      process.stdout.write(`Seeding ${i} of 1000`);
+      process.stdout.write(`Seeding ${i} of 10`);
     }
     // random date within last 90 days, with a linear bias towards more recent dates
     const traceTs = new Date(
