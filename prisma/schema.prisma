@@ -134,15 +134,18 @@ model Observation {
     endTime             DateTime?       @map("end_time")
     name                String?
     metadata            Json?
-    model               String?
-    modelParameters     Json?
-    prompt              Json?
-    completion          String?
-    usage               Json?
     parentObservationId String?         @map("parent_observation_id")
-    parent              Observation?    @relation("ParentChilds", fields: [parentObservationId], references: [id])
-    childs              Observation[]   @relation("ParentChilds")
-    scores              Score[]
+
+    // GENERATION ONLY
+    model           String?
+    modelParameters Json?
+    prompt          Json?
+    completion      String?
+    usage           Json?
+
+    parent Observation?  @relation("ParentChilds", fields: [parentObservationId], references: [id])
+    childs Observation[] @relation("ParentChilds")
+    scores Score[]
 
     @@map("observations")
 }
