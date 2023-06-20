@@ -59,7 +59,7 @@ async function main() {
         name: ["generate-outreach", "label-inbound", "draft-response"][
           i % 3
         ] as string,
-        attributes: {
+        metadata: {
           user: `user-${i}@langfuse.com`,
         },
         project: {
@@ -114,7 +114,7 @@ async function main() {
           startTime: spanTsStart,
           endTime: spanTsEnd,
           name: `span-${i}-${j}`,
-          attributes: {
+          metadata: {
             user: `user-${i}@langfuse.com`,
           },
           trace: {
@@ -141,35 +141,55 @@ async function main() {
 
       for (let k = 0; k < Math.floor(Math.random() * 2) + 1; k++) {
         // random start and end times within span
-        const llmCallTsStart = new Date(
+        const generationTsStart = new Date(
           spanTsStart.getTime() +
             Math.floor(
               Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
             )
         );
-        const llmCallTsEnd = new Date(
-          llmCallTsStart.getTime() +
+        const generationTsEnd = new Date(
+          generationTsStart.getTime() +
             Math.floor(
-              Math.random() * (spanTsEnd.getTime() - llmCallTsStart.getTime())
+              Math.random() *
+                (spanTsEnd.getTime() - generationTsStart.getTime())
             )
         );
 
         await prisma.observation.create({
           data: {
-            type: "LLMCALL",
-            id: `llm-call-${Math.floor(Math.random() * 1000000000)}`,
-            startTime: llmCallTsStart,
-            endTime: llmCallTsEnd,
-            name: `llm-call-${i}-${j}-${k}`,
-            attributes: {
-              user: `user-${i}@langfuse.com`,
-              prompt: [
-                {
-                  role: "user",
-                  content: "How can i create a React component?",
-                },
-              ],
-              completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
+            type: "GENERATION",
+            id: `generation-${Math.floor(Math.random() * 1000000000)}`,
+            startTime: generationTsStart,
+            endTime: generationTsEnd,
+            name: `generation-${i}-${j}-${k}`,
+            prompt:
+              Math.random() > 0.5
+                ? [
+                    {
+                      role: "system",
+                      content: "Be a helpful assistant",
+                    },
+                    {
+                      role: "user",
+                      content: "How can i create a React component?",
+                    },
+                  ]
+                : {
+                    input: "How can i create a React component?",
+                    retrievedDocuments: [
+                      {
+                        title: "How to create a React component",
+                        url: "https://www.google.com",
+                        description: "A guide to creating React components",
+                      },
+                      {
+                        title: "React component creation",
+                        url: "https://www.google.com",
+                        description: "A guide to creating React components",
+                      },
+                    ],
+                  },
+            completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
 
               1.  **Functional Component**:
               
@@ -198,7 +218,8 @@ async function main() {
               With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
               
               Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
-              model: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
+            model: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
+            modelParameters: {
               temperature:
                 Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
               topP: Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
@@ -206,10 +227,13 @@ async function main() {
                 Math.random() > 0.9
                   ? undefined
                   : Math.floor(Math.random() * 1000),
-              tokens: {
-                promptAmount: Math.floor(Math.random() * 1000) + 300,
-                completionAmount: Math.floor(Math.random() * 500) + 100,
-              },
+            },
+            metadata: {
+              user: `user-${i}@langfuse.com`,
+            },
+            usage: {
+              promptTokens: Math.floor(Math.random() * 1000) + 300,
+              completionTokens: Math.floor(Math.random() * 500) + 100,
             },
             parent: {
               connect: {
@@ -239,7 +263,7 @@ async function main() {
               id: `event-${Math.floor(Math.random() * 1000000000)}`,
               startTime: eventTs,
               name: `event-${i}-${j}-${k}-${l}`,
-              attributes: {
+              metadata: {
                 user: `user-${i}@langfuse.com`,
               },
               parent: {
