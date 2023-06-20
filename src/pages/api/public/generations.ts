@@ -81,40 +81,6 @@ export default async function handler(
         });
       // END CHECK ACCESS SCOPE
 
-      console.log(
-        JSON.stringify(
-          {
-            data: {
-              ...(traceId
-                ? { trace: { connect: { id: traceId } } }
-                : {
-                    trace: {
-                      create: {
-                        name: name,
-                        attributes: Prisma.JsonNull,
-                        project: { connect: { id: authCheck.scope.projectId } },
-                      },
-                    },
-                  }),
-              type: ObservationType.GENERATION,
-              name,
-              startTime: startTime ? new Date(startTime) : undefined,
-              endTime: endTime ? new Date(endTime) : undefined,
-              metadata: metadata ? metadata : undefined,
-              model: model ? model : undefined,
-              modelParameters: modelParameters ? modelParameters : undefined,
-              prompt: prompt ? prompt : undefined,
-              completion: completion ? completion : undefined,
-              usage: usage ? usage : undefined,
-              parent: parentObservationId
-                ? { connect: { id: parentObservationId } }
-                : undefined,
-            },
-          },
-          null,
-          2
-        )
-      );
       const newObservation = await prisma.observation.create({
         data: {
           ...(traceId
@@ -123,7 +89,7 @@ export default async function handler(
                 trace: {
                   create: {
                     name: name,
-                    attributes: Prisma.JsonNull,
+                    metadata: Prisma.JsonNull,
                     project: { connect: { id: authCheck.scope.projectId } },
                   },
                 },
