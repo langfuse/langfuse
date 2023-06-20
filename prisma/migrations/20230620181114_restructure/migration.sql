@@ -1,9 +1,6 @@
 /*
   Warnings:
-
-  - The values [LLMCALL] on the enum `ObservationType` will be removed. If these variants are still used in the database, this will fail.
-  - You are about to drop the column `attributes` on the `observations` table. All the data in the column will be lost.
-  - You are about to drop the column `attributes` on the `traces` table. All the data in the column will be lost.
+  - THIS IS BREAKING
 
 */
 -- AlterEnum
