@@ -108,6 +108,10 @@ export default function GenerationPage() {
               value: <CodeView>{generation.data.completion}</CodeView>,
             },
             {
+              label: "Metadata",
+              value: <JSONview json={generation.data.metadata} />,
+            },
+            {
               label: "Metrics (observation)",
               value: (
                 <DescriptionList
