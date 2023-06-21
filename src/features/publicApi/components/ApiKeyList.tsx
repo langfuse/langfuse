@@ -43,7 +43,7 @@ export function ApiKeyList(props: { projectId: string }) {
               <TableHead className="text-gray-900">Note</TableHead>
               <TableHead className="text-gray-900">Public Key</TableHead>
               <TableHead className="text-gray-900">Secret Key</TableHead>
-              <TableHead className="text-gray-900">Last used</TableHead>
+              {/* <TableHead className="text-gray-900">Last used</TableHead> */}
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -62,9 +62,9 @@ export function ApiKeyList(props: { projectId: string }) {
                 <TableCell className="font-mono">
                   {apiKey.displaySecretKey}
                 </TableCell>
-                <TableCell>
+                {/* <TableCell>
                   {apiKey.lastUsedAt?.toLocaleDateString() ?? "Never"}
-                </TableCell>
+                </TableCell> */}
                 <TableCell>
                   <DeleteApiKeyButton
                     projectId={props.projectId}
