@@ -12,6 +12,8 @@ const SpanPostSchema = z.object({
   startTime: z.string().datetime(),
   endTime: z.string().datetime().nullish(),
   metadata: z.record(z.string(), z.any()),
+  input: z.record(z.string(), z.any()),
+  output: z.record(z.string(), z.any()),
   parentObservationId: z.string().nullish(),
 });
 
@@ -49,6 +51,8 @@ export default async function handler(
         startTime,
         endTime,
         metadata,
+        input,
+        output,
         parentObservationId,
       } = SpanPostSchema.parse(req.body);
 
@@ -74,6 +78,8 @@ export default async function handler(
           startTime: new Date(startTime),
           endTime: endTime ? new Date(endTime) : undefined,
           metadata,
+          input,
+          output,
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
             : undefined,

@@ -99,8 +99,8 @@ export default async function handler(
           metadata: metadata ? metadata : undefined,
           model: model ? model : undefined,
           modelParameters: modelParameters ? modelParameters : undefined,
-          prompt: prompt ? prompt : undefined,
-          completion: completion ? completion : undefined,
+          input: prompt ? prompt : undefined,
+          output: completion ? { completion: completion } : undefined,
           usage: usage ? usage : undefined,
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }

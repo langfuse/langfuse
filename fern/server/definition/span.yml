@@ -25,6 +25,8 @@ types:
       startTime: datetime
       endTime: optional<datetime>
       metadata: unknown
+      input: unknown
+      output: unknown
       parentObservationId: optional<string>
 
   UpdateSpanRequest:
@@ -41,4 +43,6 @@ types:
       startTime: datetime
       endTime: optional<datetime>
       metadata: unknown
+      input: unknown
+      output: unknown
       parentObservationId: optional<string>
