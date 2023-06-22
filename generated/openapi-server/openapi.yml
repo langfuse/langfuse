@@ -144,6 +144,7 @@ components:
         metadata: {}
         parentObservationId:
           type: string
+          nullable: true
       required:
         - traceId
         - name
@@ -167,6 +168,7 @@ components:
         metadata: {}
         parentObservationId:
           type: string
+          nullable: true
       required:
         - id
         - traceId
@@ -180,28 +182,39 @@ components:
       properties:
         traceId:
           type: string
+          nullable: true
         startTime:
           type: string
           format: date-time
+          nullable: true
         endTime:
           type: string
           format: date-time
+          nullable: true
         name:
           type: string
+          nullable: true
         model:
           type: string
+          nullable: true
         modelParameters:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/MapValue'
-        prompt: {}
-        metadata: {}
+          nullable: true
+        prompt:
+          nullable: true
+        metadata:
+          nullable: true
         completion:
           type: string
+          nullable: true
         usage:
           $ref: '#/components/schemas/LLMUsage'
+          nullable: true
         parentObservationId:
           type: string
+          nullable: true
     Log:
       title: Log
       type: object
@@ -214,15 +227,19 @@ components:
           type: string
         name:
           type: string
+          nullable: true
         startTime:
           type: string
           format: date-time
+          nullable: true
         endTime:
           type: string
           format: date-time
+          nullable: true
         attributes: {}
         parentObservationId:
           type: string
+          nullable: true
       required:
         - id
         - traceId
@@ -234,14 +251,19 @@ components:
       properties:
         promptTokens:
           type: integer
+          nullable: true
         completionTokens:
           type: integer
+          nullable: true
     MapValue:
       title: MapValue
       oneOf:
         - type: string
+          nullable: true
         - type: integer
+          nullable: true
         - type: boolean
+          nullable: true
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -254,6 +276,7 @@ components:
           type: integer
         observationId:
           type: string
+          nullable: true
       required:
         - traceId
         - name
@@ -270,6 +293,7 @@ components:
           type: integer
         observationId:
           type: string
+          nullable: true
         timestamp:
           type: string
           format: date-time
@@ -284,6 +308,7 @@ components:
       properties:
         traceId:
           type: string
+          nullable: true
         name:
           type: string
         startTime:
@@ -292,9 +317,11 @@ components:
         endTime:
           type: string
           format: date-time
+          nullable: true
         metadata: {}
         parentObservationId:
           type: string
+          nullable: true
       required:
         - name
         - startTime
@@ -329,9 +356,11 @@ components:
         endTime:
           type: string
           format: date-time
+          nullable: true
         metadata: {}
         parentObservationId:
           type: string
+          nullable: true
       required:
         - id
         - traceId
