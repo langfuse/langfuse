@@ -142,6 +142,8 @@ components:
           type: string
           format: date-time
         metadata: {}
+        input: {}
+        output: {}
         parentObservationId:
           type: string
           nullable: true
@@ -150,6 +152,8 @@ components:
         - name
         - startTime
         - metadata
+        - input
+        - output
     Event:
       title: Event
       type: object
@@ -166,6 +170,8 @@ components:
           type: string
           format: date-time
         metadata: {}
+        input: {}
+        output: {}
         parentObservationId:
           type: string
           nullable: true
@@ -176,6 +182,8 @@ components:
         - name
         - startTime
         - metadata
+        - input
+        - output
     CreateLog:
       title: CreateLog
       type: object
@@ -319,6 +327,8 @@ components:
           format: date-time
           nullable: true
         metadata: {}
+        input: {}
+        output: {}
         parentObservationId:
           type: string
           nullable: true
@@ -326,6 +336,8 @@ components:
         - name
         - startTime
         - metadata
+        - input
+        - output
     UpdateSpanRequest:
       title: UpdateSpanRequest
       type: object
@@ -358,6 +370,8 @@ components:
           format: date-time
           nullable: true
         metadata: {}
+        input: {}
+        output: {}
         parentObservationId:
           type: string
           nullable: true
@@ -368,6 +382,8 @@ components:
         - name
         - startTime
         - metadata
+        - input
+        - output
     CreateTraceRequest:
       title: CreateTraceRequest
       type: object
