@@ -110,7 +110,6 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
             </Button>
           </form>
         </Form>
-        <DialogFooter></DialogFooter>
       </DialogContent>
     </Dialog>
   );
