@@ -8,7 +8,7 @@ import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
 import StatsCards from "@/src/components/stats-cards";
-// import Prompt from "@/src/components/prompts";
+import { type Prisma } from "@prisma/client";
 
 export default function GenerationPage() {
   const router = useRouter();
@@ -42,6 +42,8 @@ export default function GenerationPage() {
       stat: generation.data?.modelParameters?.topP?.toString() ?? "-",
     },
   ];
+
+  const jsonOutput = generation.data?.output as Prisma.JsonObject;
 
   return (
     <div className="container">
@@ -99,13 +101,19 @@ export default function GenerationPage() {
             },
             {
               label: "Prompt",
-              value: generation.data.prompt ? (
-                <JSONview json={generation.data.prompt} />
+              value: generation.data.input ? (
+                <JSONview json={generation.data.input as string} />
               ) : undefined,
             },
             {
               label: "Completion",
-              value: <CodeView>{generation.data.completion}</CodeView>,
+              value: jsonOutput ? (
+                <CodeView>
+                  {(jsonOutput["completion"] as string) ?? undefined}
+                </CodeView>
+              ) : (
+                <></>
+              ),
             },
             {
               label: "Metadata",

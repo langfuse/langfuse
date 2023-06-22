@@ -7,7 +7,7 @@ import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const TRACE_VOLUME = 5000;
+const TRACE_VOLUME = 1000;
 
 async function main() {
   const user = await prisma.user.create({
@@ -164,7 +164,7 @@ async function main() {
             startTime: generationTsStart,
             endTime: generationTsEnd,
             name: `generation-${i}-${j}-${k}`,
-            prompt:
+            input:
               Math.random() > 0.5
                 ? [
                     {
@@ -191,7 +191,8 @@ async function main() {
                       },
                     ],
                   },
-            completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
+            output: {
+              complation: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
 
               1.  **Functional Component**:
               
@@ -220,6 +221,7 @@ async function main() {
               With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
               
               Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
+            },
             model: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
             modelParameters: {
               temperature:

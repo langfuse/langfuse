@@ -139,8 +139,8 @@ model Observation {
     // GENERATION ONLY
     model           String?
     modelParameters Json?
-    prompt          Json?
-    completion      String?
+    input           Json?
+    output          Json?
     usage           Json?
 
     parent Observation?  @relation("ParentChilds", fields: [parentObservationId], references: [id])
