@@ -11,6 +11,8 @@ const ObservationSchema = z.object({
   name: z.string(),
   startTime: z.string().datetime(),
   metadata: z.record(z.string(), z.any()),
+  input: z.record(z.string(), z.any()),
+  output: z.record(z.string(), z.any()),
   parentObservationId: z.string().optional(),
 });
 
@@ -36,8 +38,15 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
-    const { traceId, name, startTime, metadata, parentObservationId } =
-      ObservationSchema.parse(req.body);
+    const {
+      traceId,
+      name,
+      startTime,
+      metadata,
+      input,
+      output,
+      parentObservationId,
+    } = ObservationSchema.parse(req.body);
 
     // CHECK ACCESS SCOPE
     const accessCheck = await checkApiAccessScope(authCheck.scope, [
@@ -60,6 +69,8 @@ export default async function handler(
         name,
         startTime: new Date(startTime),
         metadata,
+        input,
+        output,
         parent: parentObservationId
           ? { connect: { id: parentObservationId } }
           : undefined,

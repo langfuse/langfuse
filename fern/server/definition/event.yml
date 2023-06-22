@@ -18,6 +18,8 @@ types:
       name: string
       startTime: datetime
       metadata: unknown
+      input: unknown
+      output: unknown
       parentObservationId: optional<string>
   Event:
     properties:
@@ -27,4 +29,6 @@ types:
       name: string
       startTime: datetime
       metadata: unknown
+      input: unknown
+      output: unknown
       parentObservationId: optional<string>
