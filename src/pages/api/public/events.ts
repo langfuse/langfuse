@@ -11,8 +11,8 @@ const ObservationSchema = z.object({
   name: z.string(),
   startTime: z.string().datetime(),
   metadata: z.record(z.string(), z.any()),
-  input: z.record(z.string(), z.any()),
-  output: z.record(z.string(), z.any()),
+  input: z.record(z.string(), z.any()).nullish(),
+  output: z.record(z.string(), z.any()).nullish(),
   parentObservationId: z.string().optional(),
 });
 
@@ -69,8 +69,8 @@ export default async function handler(
         name,
         startTime: new Date(startTime),
         metadata,
-        input,
-        output,
+        input: input ?? undefined,
+        output: output ?? undefined,
         parent: parentObservationId
           ? { connect: { id: parentObservationId } }
           : undefined,
