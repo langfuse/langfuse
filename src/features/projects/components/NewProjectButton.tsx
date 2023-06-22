@@ -27,14 +27,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 
 const formSchema = z.object({
-  name: z
-    .string()
-    .min(3, "Must have at least 3 characters")
-    .max(20, "Must have at most 20 characters")
-    .regex(
-      /^[a-z][-a-z0-9]{2,21}$/,
-      "Must be lowercase, start with a letter, include hyphens)"
-    ),
+  name: z.string().min(3, "Must have at least 3 characters"),
 });
 
 interface NewProjectButtonProps {
@@ -99,7 +92,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
                 <FormItem>
                   <FormLabel>Project name</FormLabel>
                   <FormControl>
-                    <Input placeholder="shadcn" {...field} />
+                    <Input placeholder="my-llm-project" {...field} />
                   </FormControl>
                   <FormDescription>
                     This is your public display name.
@@ -108,16 +101,16 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
                 </FormItem>
               )}
             />
+            <Button
+              type="submit"
+              loading={createProjectMutation.isLoading}
+              className="w-full"
+            >
+              Create
+            </Button>
           </form>
         </Form>
-        <DialogFooter>
-          <Button
-            onClick={() => form.handleSubmit(onSubmit)}
-            loading={createProjectMutation.isLoading}
-          >
-            Create
-          </Button>
-        </DialogFooter>
+        <DialogFooter></DialogFooter>
       </DialogContent>
     </Dialog>
   );
