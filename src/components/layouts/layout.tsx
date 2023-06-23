@@ -24,6 +24,7 @@ import {
 import { api } from "@/src/utils/api";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
+import { Button } from "@/src/components/ui/button";
 
 const userNavigation = [
   {
@@ -210,6 +211,15 @@ export default function Layout(props: PropsWithChildren) {
                                 </Link>
                               </li>
                             ))}
+                            <FeedbackButtonWrapper className="w-full">
+                              <li className="group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                                <MessageSquarePlus
+                                  className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                                  aria-hidden="true"
+                                />
+                                Feedback
+                              </li>
+                            </FeedbackButtonWrapper>
                           </ul>
                         </li>
                         <li>
@@ -413,6 +423,15 @@ export default function Layout(props: PropsWithChildren) {
           <div className="flex-1 font-mono text-sm font-bold leading-6 text-gray-900">
             🪢 langfuse
           </div>
+          <FeedbackButtonWrapper>
+            <Button variant="outline" color="gray" size="sm">
+              <MessageSquarePlus
+                className="mr-2 h-4 w-4 shrink-0 text-primary"
+                aria-hidden="true"
+              />
+              <span>Feedback</span>
+            </Button>
+          </FeedbackButtonWrapper>
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>
