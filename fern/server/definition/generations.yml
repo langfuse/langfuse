@@ -14,15 +14,17 @@ types:
   CreateLog:
     properties:
       traceId: optional<string>
+      name: optional<string>
       startTime: optional<datetime>
       endTime: optional<datetime>
-      name: optional<string>
       model: optional<string>
       modelParameters: optional<map<string, MapValue>>
       prompt: optional<unknown>
       metadata: optional<unknown>
       completion: optional<string>
       usage: optional<LLMUsage>
+      level: optional<ObservationLevel>
+      statusMessage: optional<string>
       parentObservationId: optional<string>
 
   Log:
@@ -31,9 +33,16 @@ types:
       traceId: string
       type: string
       name: optional<string>
-      startTime: optional<datetime>
+      startTime: datetime
       endTime: optional<datetime>
-      attributes: unknown
+      model: optional<string>
+      modelParameters: optional<map<string, MapValue>>
+      prompt: optional<unknown>
+      metadata: optional<unknown>
+      completion: optional<string>
+      usage: optional<LLMUsage>
+      level: ObservationLevel
+      statusMessage: optional<string>
       parentObservationId: optional<string>
 
   LLMUsage:
@@ -47,3 +56,9 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
+  ObservationLevel:
+    enum:
+      - DEBUG
+      - DEFAULT
+      - WARNING
+      - ERROR
