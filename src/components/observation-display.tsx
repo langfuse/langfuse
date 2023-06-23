@@ -1,19 +1,13 @@
-import { Button } from "@/src/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
-import { ChevronsUpDown, ChevronsDownUp, ArrowUpRight } from "lucide-react";
-import { useState } from "react";
 import {
   type GenerationUsage,
   type NestedObservation,
 } from "@/src/utils/types";
-import Link from "next/link";
 import { JSONview } from "@/src/components/ui/code";
 import { type Prisma } from "@prisma/client";
 import { formatDate } from "@/src/utils/dates";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 
 type RowData = {
   id: string;
@@ -87,13 +81,13 @@ export default function ObservationDisplay(props: {
             <div className="mt-4 flex items-start" key={row.id}>
               <div className=" flex w-1/4  overflow-hidden">
                 {!row.showOutput ? (
-                  <ObservationInfo observation={row} />
+                  <ObservationInfo
+                    observation={row}
+                    projectId={props.projectId}
+                  />
                 ) : undefined}
               </div>
-              <div
-                // className={`ml-${margins[row.level]} w-3/4 overflow-hidden`}
-                className="ml-4 grid w-3/4 grid-cols-12"
-              >
+              <div className="ml-4 grid w-3/4 grid-cols-12">
                 <div className={`col-span-${row.level}`}> </div>
 
                 <div className={`col-span-${12 - row.level}`}>
@@ -112,7 +106,10 @@ export default function ObservationDisplay(props: {
   );
 }
 
-const ObservationInfo = (props: { observation: RowData }) => {
+const ObservationInfo = (props: {
+  observation: RowData;
+  projectId: string;
+}) => {
   const usage = props.observation.usage
     ? (props.observation.usage as unknown as GenerationUsage)
     : null;
@@ -120,10 +117,19 @@ const ObservationInfo = (props: { observation: RowData }) => {
     <>
       <div className="flex-auto rounded-md p-3 ring-1 ring-inset ring-gray-200">
         <div className="flex flex-col justify-between gap-x-4">
-          <div className="py-0.5 text-xs leading-5 text-gray-500">
+          <div className="flex py-0.5 text-xs leading-5 text-gray-500">
             <span className="font-medium text-gray-900">
               {props.observation.type}: {props.observation.name}
             </span>
+            {props.observation.type === "GENERATION" ? (
+              <Button size="sm" variant="ghost" asChild>
+                <Link
+                  href={`/project/${props.projectId}/generations/${props.observation.id}`}
+                >
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            ) : undefined}
           </div>
           {props.observation.startTime ? (
             <div className="flex">
@@ -136,7 +142,7 @@ const ObservationInfo = (props: { observation: RowData }) => {
               {props.observation.endTime ? (
                 <>
                   <p className="whitespace-nowrap py-0.5 text-xs leading-5 text-gray-500">
-                    -{" "}
+                    &nbsp;-&nbsp;
                     {props.observation.endTime.getTime() -
                       props.observation.startTime.getTime()}{" "}
                     ms
@@ -147,7 +153,7 @@ const ObservationInfo = (props: { observation: RowData }) => {
           ) : undefined}
         </div>
         {usage && usage.promptTokens && usage.completionTokens ? (
-          <p className="text-sm leading-6 text-gray-500">
+          <p className="text-xs leading-5 text-gray-500">
             {usage.promptTokens + usage.completionTokens} tokens
           </p>
         ) : undefined}

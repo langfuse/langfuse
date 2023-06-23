@@ -35,7 +35,7 @@ export function CodeView(props: {
     <div className="rounded-md border px-4 ">
       <code
         className={cn(
-          `relative my-3 max-w-full whitespace-pre-wrap  break-words pr-12  font-mono text-sm ${
+          `relative my-3 max-w-full whitespace-pre-wrap  break-words pr-12  font-mono text-xs ${
             displayedMaxLines ? `line-clamp-${displayedMaxLines}` : "block"
           }`,
           props.className

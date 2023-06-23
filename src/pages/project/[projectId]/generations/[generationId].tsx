@@ -108,9 +108,9 @@ export default function GenerationPage() {
             {
               label: "Completion",
               value: jsonOutput ? (
-                <CodeView>
-                  {(jsonOutput["completion"] as string) ?? undefined}
-                </CodeView>
+                <CodeView
+                  content={(jsonOutput["completion"] as string) ?? undefined}
+                />
               ) : (
                 <></>
               ),
