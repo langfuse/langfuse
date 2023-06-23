@@ -21,7 +21,7 @@ export function CodeView(props: {
   defaultCollapsed?: boolean;
 }) {
   const [isCopied, setIsCopied] = useState(false);
-  const [displayedTruncate, setTruncate] = useState(props.defaultCollapsed);
+  const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -30,9 +30,9 @@ export function CodeView(props: {
   };
 
   const handleShowAll = () => {
-    displayedTruncate
-      ? setTruncate(undefined)
-      : setTruncate(props.defaultCollapsed);
+    isCollapsed
+      ? setCollapsed(undefined)
+      : setCollapsed(props.defaultCollapsed);
   };
 
   return (
@@ -40,7 +40,7 @@ export function CodeView(props: {
       <code
         className={cn(
           "relative my-3 max-w-full whitespace-pre-wrap  break-words pr-12  font-mono text-xs",
-          displayedTruncate ? `line-clamp-4` : "block",
+          isCollapsed ? `line-clamp-4` : "block",
           props.className
         )}
       >
@@ -52,7 +52,7 @@ export function CodeView(props: {
             size="xs"
             onClick={handleShowAll}
           >
-            {displayedTruncate ? (
+            {isCollapsed ? (
               <ChevronsUpDown className="h-3 w-3" />
             ) : (
               <ChevronsDownUp className="h-3 w-3" />
