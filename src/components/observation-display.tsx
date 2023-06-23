@@ -78,7 +78,10 @@ export default function ObservationDisplay(props: {
       <div className="">
         <div className="flex flex-col">
           {flatMap.map((row) => (
-            <div className="mt-4 flex items-start" key={row.id}>
+            <div
+              className="mt-4 flex items-start"
+              key={row.showOutput ? row.id + "output" : row.id}
+            >
               <div className=" flex w-1/4  overflow-hidden">
                 {!row.showOutput ? (
                   <ObservationInfo
