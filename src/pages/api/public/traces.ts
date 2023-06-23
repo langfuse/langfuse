@@ -5,8 +5,8 @@ import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 
 const CreateTraceSchema = z.object({
-  name: z.string(),
-  metadata: z.record(z.string(), z.any()).optional(),
+  name: z.string().nullish(),
+  metadata: z.unknown().nullish(),
 });
 
 export default async function handler(
@@ -46,8 +46,8 @@ export default async function handler(
       data: {
         timestamp: new Date(),
         projectId: authCheck.scope.projectId,
-        name,
-        metadata,
+        name: name ?? undefined,
+        metadata: metadata ?? undefined,
       },
     });
 

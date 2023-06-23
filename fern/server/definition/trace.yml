@@ -14,11 +14,11 @@ service:
 types:
   CreateTraceRequest:
     properties:
-      name: string
-      metadata: unknown
+      name: optional<string>
+      metadata: optional<unknown>
   Trace:
     properties:
       id: string
       timestamp: datetime
-      name: string
-      metadata: unknown
+      name: optional<string>
+      metadata: optional<unknown>
