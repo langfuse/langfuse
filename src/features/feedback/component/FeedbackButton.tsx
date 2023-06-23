@@ -18,16 +18,16 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
 import { type PropsWithChildren, useState } from "react";
 import { useSession } from "next-auth/react";
+import { Textarea } from "@/src/components/ui/textarea";
 
 const formSchema = z.object({
   feedback: z.string().min(3, "Must have at least 3 characters"),
 });
 
 export function FeedbackButtonWrapper(
-  props: PropsWithChildren<{ className: string }>
+  props: PropsWithChildren<{ className?: string }>
 ) {
   const [open, setOpen] = useState(false);
   const session = useSession();
@@ -106,7 +106,7 @@ export function FeedbackButtonWrapper(
                     What do you think about this project? What can be improved?
                   </FormDescription>
                   <FormControl>
-                    <Input {...field} />
+                    <Textarea {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
