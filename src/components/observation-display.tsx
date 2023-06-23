@@ -2,7 +2,7 @@ import {
   type GenerationUsage,
   type NestedObservation,
 } from "@/src/utils/types";
-import { JSONview } from "@/src/components/ui/code";
+import { JSONView } from "@/src/components/ui/code";
 import { type Prisma } from "@prisma/client";
 import { formatDate } from "@/src/utils/dates";
 import { Button } from "@/src/components/ui/button";
@@ -91,11 +91,22 @@ export default function ObservationDisplay(props: {
                 <div className={`col-span-${row.level}`}> </div>
 
                 <div className={`col-span-${12 - row.level}`}>
-                  {row.showOutput ? (
-                    <JSONview json={row.output} maxLines={4} />
-                  ) : (
-                    <JSONview json={row.input} maxLines={4} />
-                  )}
+                  {row.showOutput && row.output ? (
+                    <JSONView json={row.output} defaultCollapsed />
+                  ) : undefined}
+                  {row.showOutput && !row.output ? (
+                    <h3 className="m-5 text-base font-medium leading-4 text-gray-900">
+                      No Output
+                    </h3>
+                  ) : undefined}
+                  {!row.showOutput && row.input ? (
+                    <JSONView json={row.input} defaultCollapsed />
+                  ) : undefined}
+                  {!row.showOutput && !row.input ? (
+                    <h3 className="m-5 text-base font-medium leading-4 text-gray-900">
+                      No Input
+                    </h3>
+                  ) : undefined}
                 </div>
               </div>
             </div>

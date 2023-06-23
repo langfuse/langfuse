@@ -3,22 +3,25 @@ import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
-export function JSONview(props: { json: string | unknown; maxLines?: number }) {
+export function JSONView(props: {
+  json: string | unknown;
+  defaultCollapsed?: boolean;
+}) {
   const text =
     typeof props.json === "string"
       ? props.json
       : JSON.stringify(props.json, null, 2);
 
-  return <CodeView content={text} maxLines={props.maxLines} />;
+  return <CodeView content={text} defaultCollapsed={props.defaultCollapsed} />;
 }
 
 export function CodeView(props: {
   content: string | undefined | null;
   className?: string;
-  maxLines?: number;
+  defaultCollapsed?: boolean;
 }) {
   const [isCopied, setIsCopied] = useState(false);
-  const [displayedMaxLines, setMaxLines] = useState(props.maxLines);
+  const [displayedTruncate, setTruncate] = useState(props.defaultCollapsed);
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -27,29 +30,29 @@ export function CodeView(props: {
   };
 
   const handleShowAll = () => {
-    console.log("hello");
-    displayedMaxLines ? setMaxLines(undefined) : setMaxLines(props.maxLines);
+    displayedTruncate
+      ? setTruncate(undefined)
+      : setTruncate(props.defaultCollapsed);
   };
 
   return (
-    <div className="rounded-md border px-4 ">
+    <div className="rounded-md border px-4">
       <code
         className={cn(
-          `relative my-3 max-w-full whitespace-pre-wrap  break-words pr-12  font-mono text-xs ${
-            displayedMaxLines ? `line-clamp-${displayedMaxLines}` : "block"
-          }`,
+          "relative my-3 max-w-full whitespace-pre-wrap  break-words pr-12  font-mono text-xs",
+          displayedTruncate ? `line-clamp-4` : "block",
           props.className
         )}
       >
         {props.content}
-        {props.maxLines ? (
+        {props.defaultCollapsed ? (
           <Button
             className="absolute right-8 top-2"
             variant="secondary"
             size="xs"
             onClick={handleShowAll}
           >
-            {displayedMaxLines ? (
+            {displayedTruncate ? (
               <ChevronsUpDown className="h-3 w-3" />
             ) : (
               <ChevronsDownUp className="h-3 w-3" />

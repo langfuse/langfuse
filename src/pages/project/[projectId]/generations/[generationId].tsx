@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { CodeView, JSONview } from "@/src/components/ui/code";
+import { CodeView, JSONView } from "@/src/components/ui/code";
 import DescriptionList from "@/src/components/ui/description-lists";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -102,7 +102,7 @@ export default function GenerationPage() {
             {
               label: "Prompt",
               value: generation.data.input ? (
-                <JSONview json={generation.data.input as string} />
+                <JSONView json={generation.data.input as string} />
               ) : undefined,
             },
             {
@@ -117,7 +117,7 @@ export default function GenerationPage() {
             },
             {
               label: "Metadata",
-              value: <JSONview json={generation.data.metadata} />,
+              value: <JSONView json={generation.data.metadata} />,
             },
             {
               label: "Metrics (observation)",

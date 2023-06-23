@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import DescriptionList from "@/src/components/ui/description-lists";
-import { JSONview } from "@/src/components/ui/code";
+import { JSONView } from "@/src/components/ui/code";
 import ObservationDisplay from "@/src/components/observation-display";
 
 export default function TracePage() {
@@ -47,7 +47,7 @@ export default function TracePage() {
             },
             {
               label: "Metadata",
-              value: <JSONview json={trace.data.metadata} />,
+              value: <JSONView json={trace.data.metadata} />,
             },
             {
               label: "Detailed trace",
