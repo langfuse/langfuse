@@ -1,81 +1,177 @@
-import { Button } from "@/src/components/ui/button";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
-import { ChevronsUpDown, ChevronsDownUp, ArrowUpRight } from "lucide-react";
-import { useState } from "react";
-import { type NestedObservation } from "@/src/utils/types";
+  type GenerationUsage,
+  type NestedObservation,
+} from "@/src/utils/types";
+import { JSONView } from "@/src/components/ui/code";
+import { type Prisma } from "@prisma/client";
+import { formatDate } from "@/src/utils/dates";
+import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { JSONview } from "@/src/components/ui/code";
+import { ArrowUpRight } from "lucide-react";
+
+type RowData = {
+  id: string;
+  name: string | null;
+  level: number;
+  input: Prisma.JsonValue;
+  output: Prisma.JsonValue;
+  usage: Prisma.JsonValue;
+  startTime: Date;
+  endTime: Date | null;
+  showOutput: boolean;
+  type: string;
+};
+
+function getObservationsAndLevels(
+  observation: NestedObservation,
+  level = 0,
+  showOutput = false
+): RowData[] {
+  const result: RowData[] = [
+    {
+      id: observation.id,
+      name: observation.name,
+      input: observation.input,
+      output: observation.output,
+      startTime: observation.startTime,
+      endTime: observation.endTime,
+      type: observation.type,
+      usage: observation.usage,
+      showOutput,
+      level,
+    },
+  ];
+
+  if (observation.children) {
+    observation.children
+      .map((child) => getObservationsAndLevels(child, level + 1))
+      .map((childResult) => result.push(...childResult));
+  }
+
+  result.push({
+    id: observation.id,
+    name: observation.name,
+    input: observation.input,
+    output: observation.output,
+    startTime: observation.startTime,
+    endTime: observation.endTime,
+    type: observation.type,
+    usage: observation.usage,
+    showOutput: true,
+    level,
+  });
+
+  return result;
+}
 
 export default function ObservationDisplay(props: {
   observations: NestedObservation[];
   projectId: string;
+  indentationLevel: number;
 }) {
+  const flatMap = props.observations.flatMap((o) =>
+    getObservationsAndLevels(o, 0)
+  );
+
   return (
     <div>
-      {props.observations.map((obs) => (
-        <SingleObservationDisplay
-          key={obs.id}
-          observation={obs}
-          projectId={props.projectId}
-        />
-      ))}
-    </div>
-  );
-}
+      <div className="">
+        <div className="flex flex-col">
+          {flatMap.map((row) => (
+            <div
+              className="mt-4 flex items-start"
+              key={row.showOutput ? row.id + "output" : row.id}
+            >
+              <div className=" flex w-1/4  overflow-hidden">
+                {!row.showOutput ? (
+                  <ObservationInfo
+                    observation={row}
+                    projectId={props.projectId}
+                  />
+                ) : undefined}
+              </div>
+              <div className="ml-4 grid w-3/4 grid-cols-12">
+                <div className={`col-span-${row.level}`}> </div>
 
-function SingleObservationDisplay(props: {
-  observation: NestedObservation;
-  projectId: string;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const obs = props.observation;
-
-  return (
-    <div className="space-y-2">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
-        <div className="flex items-center space-x-2">
-          <span className=" text-xs text-gray-500">{obs.type}:</span>
-          <h4 className="text-sm font-semibold">{obs.name}</h4>
-          {obs.endTime ? (
-            <span className="text-gray-500">{`${
-              obs.endTime.getTime() - obs.startTime.getTime()
-            } ms`}</span>
-          ) : null}
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-9 p-0">
-              {isOpen ? (
-                <ChevronsDownUp className="h-4 w-4" />
-              ) : (
-                <ChevronsUpDown className="h-4 w-4" />
-              )}
-              <span className="sr-only">Toggle</span>
-            </Button>
-          </CollapsibleTrigger>
-          {obs.type === "GENERATION" ? (
-            <Button size="sm" variant="ghost" asChild>
-              <Link href={`/project/${props.projectId}/generations/${obs.id}`}>
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          ) : null}
+                <div className={`col-span-${12 - row.level}`}>
+                  {row.showOutput && row.output ? (
+                    <JSONView json={row.output} defaultCollapsed />
+                  ) : undefined}
+                  {row.showOutput && !row.output ? (
+                    <h3 className="m-5 text-base font-medium leading-4 text-gray-900">
+                      No Output
+                    </h3>
+                  ) : undefined}
+                  {!row.showOutput && row.input ? (
+                    <JSONView json={row.input} defaultCollapsed />
+                  ) : undefined}
+                  {!row.showOutput && !row.input ? (
+                    <h3 className="m-5 text-base font-medium leading-4 text-gray-900">
+                      No Input
+                    </h3>
+                  ) : undefined}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-        <CollapsibleContent>
-          <div className="mb-4 space-y-2">
-            <span className="text-sm font-semibold">Metadata</span>
-            <JSONview json={obs.metadata} />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-      <div className="ml-5">
-        <ObservationDisplay
-          observations={obs.children}
-          projectId={props.projectId}
-        />
       </div>
     </div>
   );
 }
+
+const ObservationInfo = (props: {
+  observation: RowData;
+  projectId: string;
+}) => {
+  const usage = props.observation.usage
+    ? (props.observation.usage as unknown as GenerationUsage)
+    : null;
+  return (
+    <>
+      <div className="flex-auto rounded-md p-3 ring-1 ring-inset ring-gray-200">
+        <div className="flex flex-col justify-between gap-x-4">
+          <div className="flex py-0.5 text-xs leading-5 text-gray-500">
+            <span className="font-medium text-gray-900">
+              {props.observation.type}: {props.observation.name}
+            </span>
+            {props.observation.type === "GENERATION" ? (
+              <Button size="sm" variant="ghost" asChild>
+                <Link
+                  href={`/project/${props.projectId}/generations/${props.observation.id}`}
+                >
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            ) : undefined}
+          </div>
+          {props.observation.startTime ? (
+            <div className="flex">
+              <time
+                dateTime={props.observation.startTime.toString()}
+                className="flex-none py-0.5 text-xs leading-5 text-gray-500"
+              >
+                {formatDate(props.observation.startTime)}
+              </time>
+              {props.observation.endTime ? (
+                <>
+                  <p className="whitespace-nowrap py-0.5 text-xs leading-5 text-gray-500">
+                    &nbsp;-&nbsp;
+                    {props.observation.endTime.getTime() -
+                      props.observation.startTime.getTime()}{" "}
+                    ms
+                  </p>
+                </>
+              ) : undefined}
+            </div>
+          ) : undefined}
+        </div>
+        {usage && usage.promptTokens && usage.completionTokens ? (
+          <p className="text-xs leading-5 text-gray-500">
+            {usage.promptTokens + usage.completionTokens} tokens
+          </p>
+        ) : undefined}
+      </div>
+    </>
+  );
+};
