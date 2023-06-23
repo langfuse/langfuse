@@ -23,6 +23,8 @@ export default function TracePage() {
       />
       {trace.data ? (
         <DescriptionList
+          descriptionColumns={1}
+          valueColumns={5}
           items={[
             {
               label: "Timestamp",
@@ -54,6 +56,7 @@ export default function TracePage() {
                   key={trace.data.id}
                   projectId={projectId}
                   observations={trace.data.nestedObservation}
+                  indentationLevel={0}
                 />
               ) : null,
             },
