@@ -36,6 +36,7 @@
     "@sentry/profiling-node": "^1.0.6",
     "@t3-oss/env-nextjs": "^0.4.1",
     "@tailwindcss/forms": "^0.5.3",
+    "@tailwindcss/line-clamp": "^0.4.4",
     "@tanstack/react-query": "^4.29.14",
     "@tanstack/react-table": "^8.9.2",
     "@tremor/react": "^3.2.2",

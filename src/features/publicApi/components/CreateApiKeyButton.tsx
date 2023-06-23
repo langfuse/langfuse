@@ -127,7 +127,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
             <div>
               <div>
                 <div className="mb-2 text-lg font-semibold">Public Key</div>
-                <CodeView>{generatedKeys.publishableKey}</CodeView>
+                <CodeView content={generatedKeys.publishableKey} />
               </div>
               <div className="mt-6">
                 <div className="text-lg font-semibold">Secret Key</div>
@@ -138,7 +138,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
                   </span>
                   . If you lose it, you will need to generate a new one.
                 </div>
-                <CodeView>{generatedKeys.secretKey}</CodeView>
+                <CodeView content={generatedKeys.secretKey} />
               </div>
             </div>
           </div>
