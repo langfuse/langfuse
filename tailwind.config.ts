@@ -190,6 +190,5 @@ export default {
   plugins: [
     require("@tailwindcss/forms"),
     require("tailwindcss-animate"),
-    require("@tailwindcss/line-clamp"),
   ],
 } satisfies Config;
