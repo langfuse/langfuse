@@ -16,6 +16,14 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     replaysSessionSampleRate: 1.0,
     replaysOnErrorSampleRate: 1.0,
 
+    beforeSend(event, _hint) {
+      // Check if it is an exception, and if so, show the report dialog
+      if (event.exception) {
+        Sentry.showReportDialog({ eventId: event.event_id });
+      }
+      return event;
+    },
+
     // ...
 
     // Note: if you want to override the automatic release value, do not set a
