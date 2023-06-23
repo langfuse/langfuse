@@ -1,13 +1,13 @@
-import { type Config } from "tailwindcss";
-// import { fontFamily } from "tailwindcss/defaultTheme";
-
-// Based on: https://ui.shadcn.com/docs/installation#configure-tailwindconfigjs
-export default {
-  content: [
-    "./src/**/*.{js,ts,jsx,tsx}",
-    "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}", // Tremor module
-  ],
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   darkMode: ["class"],
+  content: [
+    "./pages/**/*.{ts,tsx,jsx,tsx}",
+    "./components/**/*.{ts,tsx,jsx,tsx}",
+    "./app/**/*.{ts,tsx,jsx,tsx}",
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
+  ],
   theme: {
     container: {
       center: true,
@@ -129,8 +129,8 @@ export default {
         "tremor-small": "0.375rem",
         "tremor-default": "0.5rem",
         "tremor-full": "9999px",
-        lg: `var(--radius)`,
-        md: `calc(var(--radius) - 2px)`,
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
       fontSize: {
@@ -139,17 +139,14 @@ export default {
         "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],
         "tremor-metric": ["1.875rem", { lineHeight: "2.25rem" }],
       },
-      // fontFamily: {
-      //   sans: ["var(--font-sans)", ...fontFamily.sans],
-      // },
       keyframes: {
         "accordion-down": {
-          from: { height: "0" },
+          from: { height: 0 },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
+          to: { height: 0 },
         },
       },
       animation: {
@@ -187,8 +184,5 @@ export default {
         /^(fill-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|100|200|300|400|500|600|700|800|900|950))$/,
     },
   ],
-  plugins: [
-    require("@tailwindcss/forms"),
-    require("tailwindcss-animate"),
-  ],
-} satisfies Config;
+  plugins: [require("@tailwindcss/forms"), require("tailwindcss-animate")],
+};
