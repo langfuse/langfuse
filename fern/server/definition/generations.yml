@@ -23,7 +23,7 @@ types:
       metadata: optional<unknown>
       completion: optional<string>
       usage: optional<LLMUsage>
-      level: optional<ObservationLevel>
+      level: optional<ObservationLevelGeneration>
       statusMessage: optional<string>
       parentObservationId: optional<string>
 
@@ -41,7 +41,7 @@ types:
       metadata: optional<unknown>
       completion: optional<string>
       usage: optional<LLMUsage>
-      level: ObservationLevel
+      level: ObservationLevelGeneration
       statusMessage: optional<string>
       parentObservationId: optional<string>
 
@@ -56,7 +56,7 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
-  ObservationLevel:
+  ObservationLevelGeneration:
     enum:
       - DEBUG
       - DEFAULT

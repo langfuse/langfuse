@@ -20,7 +20,7 @@ types:
       metadata: optional<unknown>
       input: optional<unknown>
       output: optional<unknown>
-      level: optional<ObservationLevel>
+      level: optional<ObservationLevelEvent>
       statusMessage: optional<string>
       parentObservationId: optional<string>
   Event:
@@ -33,10 +33,10 @@ types:
       metadata: optional<unknown>
       input: optional<unknown>
       output: optional<unknown>
-      level: ObservationLevel
+      level: ObservationLevelEvent
       statusMessage: optional<string>
       parentObservationId: optional<string>
-  ObservationLevel:
+  ObservationLevelEvent:
     enum:
       - DEBUG
       - DEFAULT

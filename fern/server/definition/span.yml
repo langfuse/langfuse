@@ -27,7 +27,7 @@ types:
       metadata: optional<unknown>
       input: optional<unknown>
       output: optional<unknown>
-      level: optional<ObservationLevel>
+      level: optional<ObservationLevelSpan>
       statusMessage: optional<string>
       parentObservationId: optional<string>
 
@@ -47,10 +47,10 @@ types:
       metadata: optional<unknown>
       input: optional<unknown>
       output: optional<unknown>
-      level: ObservationLevel
+      level: ObservationLevelSpan
       statusMessage: optional<string>
       parentObservationId: optional<string>
-  ObservationLevel:
+  ObservationLevelSpan:
     enum:
       - DEBUG
       - DEFAULT
