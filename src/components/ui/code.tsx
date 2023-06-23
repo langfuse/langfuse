@@ -29,49 +29,43 @@ export function CodeView(props: {
     setTimeout(() => setIsCopied(false), 1000);
   };
 
-  const handleShowAll = () => {
-    isCollapsed
-      ? setCollapsed(undefined)
-      : setCollapsed(props.defaultCollapsed);
-  };
+  const handleShowAll = () => setCollapsed(!isCollapsed);
 
   return (
-    <div className="rounded-md border px-4">
-      <code
-        className={cn(
-          "relative my-3 max-w-full whitespace-pre-wrap  break-words pr-12  font-mono text-xs",
-          isCollapsed ? `line-clamp-4` : "block",
-          props.className
-        )}
-      >
-        {props.content}
-        {props.defaultCollapsed ? (
-          <Button
-            className="absolute right-8 top-2"
-            variant="secondary"
-            size="xs"
-            onClick={handleShowAll}
-          >
-            {isCollapsed ? (
-              <ChevronsUpDown className="h-3 w-3" />
-            ) : (
-              <ChevronsDownUp className="h-3 w-3" />
-            )}
-          </Button>
-        ) : undefined}
+    <code
+      className={cn(
+        "relative max-w-full whitespace-pre-wrap break-words rounded-md border px-4 py-3 pr-12 font-mono text-xs",
+        isCollapsed ? `line-clamp-4` : "block",
+        props.className
+      )}
+    >
+      {props.content}
+      {props.defaultCollapsed ? (
         <Button
-          className="absolute right-0 top-2"
+          className="absolute right-12 top-2"
           variant="secondary"
           size="xs"
-          onClick={handleCopy}
+          onClick={handleShowAll}
         >
-          {isCopied ? (
-            <Check className="h-3 w-3" />
+          {isCollapsed ? (
+            <ChevronsUpDown className="h-3 w-3" />
           ) : (
-            <Copy className="h-3 w-3" />
+            <ChevronsDownUp className="h-3 w-3" />
           )}
         </Button>
-      </code>
-    </div>
+      ) : undefined}
+      <Button
+        className="absolute right-2 top-2"
+        variant="secondary"
+        size="xs"
+        onClick={handleCopy}
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
+    </code>
   );
 }
