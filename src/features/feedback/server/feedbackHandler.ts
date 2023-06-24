@@ -1,5 +1,5 @@
+import { runFeedbackCorsMiddleware } from "@/src/features/feedback/server/corsMiddleware";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { runFeedbackCorsMiddleware } from "../lib/corsMiddleware";
 
 // Collects feedack from users that do not use the cloud version of the app
 export default async function feedbackApiHandler(

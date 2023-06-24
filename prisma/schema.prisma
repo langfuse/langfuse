@@ -126,15 +126,17 @@ model Trace {
 }
 
 model Observation {
-    id                  String          @id @default(cuid())
-    traceId             String          @map("trace_id")
-    trace               Trace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    id                  String           @id @default(cuid())
+    traceId             String           @map("trace_id")
+    trace               Trace            @relation(fields: [traceId], references: [id], onDelete: Cascade)
     type                ObservationType
-    startTime           DateTime        @default(now()) @map("start_time")
-    endTime             DateTime?       @map("end_time")
+    startTime           DateTime         @default(now()) @map("start_time")
+    endTime             DateTime?        @map("end_time")
     name                String?
     metadata            Json?
-    parentObservationId String?         @map("parent_observation_id")
+    parentObservationId String?          @map("parent_observation_id")
+    level               ObservationLevel @default(DEFAULT)
+    statusMessage       String?          @map("status_message")
 
     // GENERATION ONLY
     model           String?
@@ -154,6 +156,13 @@ enum ObservationType {
     SPAN
     EVENT
     GENERATION
+}
+
+enum ObservationLevel {
+    DEBUG
+    DEFAULT
+    WARNING
+    ERROR
 }
 
 model Score {

@@ -1,5 +1,5 @@
 import { prisma } from "@/src/server/db";
-import { ObservationType, Prisma } from "@prisma/client";
+import { ObservationLevel, ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "./cors";
@@ -26,6 +26,8 @@ const GenerationsCreateSchema = z.object({
   }),
   metadata: z.unknown().nullish(),
   parentObservationId: z.string().nullish(),
+  level: z.nativeEnum(ObservationLevel).nullish(),
+  statusMessage: z.string().nullish(),
 });
 
 export default async function handler(
@@ -63,6 +65,8 @@ export default async function handler(
         usage,
         metadata,
         parentObservationId,
+        level,
+        statusMessage,
       } = GenerationsCreateSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
@@ -87,7 +91,6 @@ export default async function handler(
                 trace: {
                   create: {
                     name: name,
-                    metadata: Prisma.JsonNull,
                     project: { connect: { id: authCheck.scope.projectId } },
                   },
                 },
@@ -96,12 +99,14 @@ export default async function handler(
           name,
           startTime: startTime ? new Date(startTime) : undefined,
           endTime: endTime ? new Date(endTime) : undefined,
-          metadata: metadata ? metadata : undefined,
-          model: model ? model : undefined,
-          modelParameters: modelParameters ? modelParameters : undefined,
-          input: prompt ? prompt : undefined,
+          metadata: metadata ?? undefined,
+          model: model ?? undefined,
+          modelParameters: modelParameters ?? undefined,
+          input: prompt ?? undefined,
           output: completion ? { completion: completion } : undefined,
-          usage: usage ? usage : undefined,
+          usage: usage ?? undefined,
+          level: level ?? undefined,
+          statusMessage: statusMessage ?? undefined,
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
             : undefined,
