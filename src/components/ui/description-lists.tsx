@@ -9,7 +9,11 @@ export default function DescriptionList(props: {
     description: string;
   };
   items: { label: string; value: string | ReactNode }[];
+  descriptionColumns?: number;
+  valueColumns?: number;
 }) {
+  const { descriptionColumns = 1, valueColumns = 2 } = props;
+  const totalColumns = descriptionColumns + valueColumns;
   return (
     <div>
       {props.header ? (
@@ -27,12 +31,14 @@ export default function DescriptionList(props: {
           {props.items.map((item) => (
             <div
               key={item.label}
-              className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
+              className={`sm:grid-cols-${totalColumns} px-4 py-6 sm:grid sm:gap-4 sm:px-0`}
             >
               <dt className="text-sm font-medium leading-6 text-gray-900">
                 {item.label}
               </dt>
-              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+              <dd
+                className={`mt-1 text-sm leading-6 text-gray-700 sm:col-span-${valueColumns} sm:mt-0`}
+              >
                 {item.value}
               </dd>
             </div>

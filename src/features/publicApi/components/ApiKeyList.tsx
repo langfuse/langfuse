@@ -55,9 +55,10 @@ export function ApiKeyList(props: { projectId: string }) {
                 </TableCell>
                 <TableCell>{apiKey.note ?? ""}</TableCell>
                 <TableCell className="font-mono">
-                  <CodeView className="inline-block">
-                    {apiKey.publishableKey}
-                  </CodeView>
+                  <CodeView
+                    className="inline-block"
+                    content={apiKey.publishableKey}
+                  />
                 </TableCell>
                 <TableCell className="font-mono">
                   {apiKey.displaySecretKey}
