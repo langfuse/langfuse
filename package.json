@@ -8,7 +8,8 @@
     "postinstall": "prisma generate",
     "lint": "next lint",
     "clean": "rm -rf node_modules",
-    "start": "next start"
+    "start": "next start",
+    "migrate:prod": "dotenv -e .env.local -- npx prisma migrate deploy"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
@@ -79,6 +80,7 @@
     "@typescript-eslint/eslint-plugin": "^5.60.0",
     "@typescript-eslint/parser": "^5.60.0",
     "autoprefixer": "^10.4.14",
+    "dotenv-cli": "^7.2.1",
     "eslint": "^8.43.0",
     "eslint-config-next": "^13.4.6",
     "postcss": "^8.4.24",

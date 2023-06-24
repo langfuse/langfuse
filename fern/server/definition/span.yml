@@ -21,12 +21,14 @@ types:
   CreateSpanRequest:
     properties:
       traceId: optional<string>
-      name: string
-      startTime: datetime
+      name: optional<string>
+      startTime: optional<datetime>
       endTime: optional<datetime>
-      metadata: unknown
-      input: unknown
-      output: unknown
+      metadata: optional<unknown>
+      input: optional<unknown>
+      output: optional<unknown>
+      level: optional<ObservationLevelSpan>
+      statusMessage: optional<string>
       parentObservationId: optional<string>
 
   UpdateSpanRequest:
@@ -39,10 +41,18 @@ types:
       id: string
       traceId: string
       type: string
-      name: string
+      name: optional<string>
       startTime: datetime
       endTime: optional<datetime>
-      metadata: unknown
-      input: unknown
-      output: unknown
+      metadata: optional<unknown>
+      input: optional<unknown>
+      output: optional<unknown>
+      level: ObservationLevelSpan
+      statusMessage: optional<string>
       parentObservationId: optional<string>
+  ObservationLevelSpan:
+    enum:
+      - DEBUG
+      - DEFAULT
+      - WARNING
+      - ERROR

@@ -1,5 +1,5 @@
 import { prisma } from "@/src/server/db";
-import { ObservationType } from "@prisma/client";
+import { ObservationLevel, ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "./cors";
@@ -7,13 +7,15 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 
 const ObservationSchema = z.object({
-  traceId: z.string(),
-  name: z.string(),
-  startTime: z.string().datetime(),
-  metadata: z.record(z.string(), z.any()),
-  input: z.record(z.string(), z.any()).nullish(),
-  output: z.record(z.string(), z.any()).nullish(),
-  parentObservationId: z.string().optional(),
+  traceId: z.string().nullish(),
+  name: z.string().nullish(),
+  startTime: z.string().datetime().nullish(),
+  metadata: z.unknown().nullish(),
+  input: z.unknown().nullish(),
+  output: z.unknown().nullish(),
+  level: z.nativeEnum(ObservationLevel).nullish(),
+  statusMessage: z.string().nullish(),
+  parentObservationId: z.string().nullish(),
 });
 
 export default async function handler(
@@ -46,11 +48,13 @@ export default async function handler(
       input,
       output,
       parentObservationId,
+      level,
+      statusMessage,
     } = ObservationSchema.parse(req.body);
 
     // CHECK ACCESS SCOPE
     const accessCheck = await checkApiAccessScope(authCheck.scope, [
-      { type: "trace", id: traceId },
+      ...(traceId ? [{ type: "trace" as const, id: traceId }] : []),
       ...(parentObservationId
         ? [{ type: "observation" as const, id: parentObservationId }]
         : []),
@@ -64,13 +68,24 @@ export default async function handler(
 
     const newObservation = await prisma.observation.create({
       data: {
-        trace: { connect: { id: traceId } },
+        ...(traceId
+          ? { trace: { connect: { id: traceId } } }
+          : {
+              trace: {
+                create: {
+                  name: name,
+                  project: { connect: { id: authCheck.scope.projectId } },
+                },
+              },
+            }),
         type: ObservationType.EVENT,
         name,
-        startTime: new Date(startTime),
-        metadata,
+        startTime: startTime ? new Date(startTime) : undefined,
+        metadata: metadata ?? undefined,
         input: input ?? undefined,
         output: output ?? undefined,
+        level: level ?? undefined,
+        statusMessage: statusMessage ?? undefined,
         parent: parentObservationId
           ? { connect: { id: parentObservationId } }
           : undefined,
