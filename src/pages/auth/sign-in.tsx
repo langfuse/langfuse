@@ -13,7 +13,6 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import { env } from "@/src/env.mjs";
 
 const formSchema = z.object({
   email: z.string().email(),
