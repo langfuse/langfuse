@@ -44,6 +44,7 @@ function getObservationsAndLevels(
 
   if (observation.children) {
     observation.children
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
       .map((child) => getObservationsAndLevels(child, level + 1))
       .map((childResult) => result.push(...childResult));
   }
@@ -69,9 +70,9 @@ export default function ObservationDisplay(props: {
   projectId: string;
   indentationLevel: number;
 }) {
-  const flatMap = props.observations.flatMap((o) =>
-    getObservationsAndLevels(o, 0)
-  );
+  const flatMap = props.observations
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+    .flatMap((o) => getObservationsAndLevels(o, 0));
 
   return (
     <div>
@@ -166,9 +167,9 @@ const ObservationInfo = (props: {
             </div>
           ) : undefined}
         </div>
-        {usage && usage.promptTokens && usage.completionTokens ? (
+        {usage && (usage.promptTokens || usage.completionTokens) ? (
           <p className="text-xs leading-5 text-gray-500">
-            {usage.promptTokens + usage.completionTokens} tokens
+            {(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)} tokens
           </p>
         ) : undefined}
       </div>
