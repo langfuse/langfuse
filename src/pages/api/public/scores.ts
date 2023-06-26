@@ -10,7 +10,8 @@ const ScoreSchema = z.object({
   name: z.string(),
   value: z.number().int(),
   traceId: z.string(),
-  observationId: z.string().optional(),
+  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
+  observationId: z.string().nullish(),
 });
 
 export default async function handler(
@@ -37,11 +38,26 @@ export default async function handler(
   try {
     const obj = ScoreSchema.parse(req.body);
 
+    // If externalTraceId is provided, find the traceId
+    const traceId =
+      obj.traceIdType === "EXTERNAL"
+        ? (
+            await prisma.trace.findUniqueOrThrow({
+              where: {
+                projectId_externalId: {
+                  projectId: authCheck.scope.projectId,
+                  externalId: obj.traceId,
+                },
+              },
+            })
+          ).id
+        : obj.traceId;
+
     // CHECK ACCESS SCOPE
     const accessCheck = await checkApiAccessScope(
       authCheck.scope,
       [
-        { type: "trace", id: obj.traceId },
+        { type: "trace", id: traceId },
         ...(obj.observationId
           ? [{ type: "observation" as const, id: obj.observationId }]
           : []),
@@ -59,7 +75,7 @@ export default async function handler(
       timestamp: new Date(),
       value: obj.value,
       name: obj.name,
-      trace: { connect: { id: obj.traceId } },
+      trace: { connect: { id: traceId } },
       ...(obj.observationId && {
         observation: { connect: { id: obj.observationId } },
       }),

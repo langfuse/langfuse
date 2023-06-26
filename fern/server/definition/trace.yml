@@ -15,10 +15,12 @@ types:
   CreateTraceRequest:
     properties:
       name: optional<string>
+      externalId: optional<string>
       metadata: optional<unknown>
   Trace:
     properties:
       id: string
       timestamp: datetime
+      externalId: optional<string>
       name: optional<string>
       metadata: optional<unknown>
