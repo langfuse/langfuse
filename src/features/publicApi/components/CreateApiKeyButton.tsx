@@ -6,34 +6,18 @@ import { PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
 import { CodeView } from "@/src/components/ui/code";
-
-const formSchema = z.object({
-  note: z.string().optional(),
-});
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useContext();
   const mutCreateApiKey = api.apiKeys.create.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
-    onError: (error) => form.setError("root", { message: error.message }),
   });
   const [open, setOpen] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<{
@@ -41,108 +25,55 @@ export function CreateApiKeyButton(props: { projectId: string }) {
     publishableKey: string;
   } | null>(null);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      note: "",
-    },
-  });
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    mutCreateApiKey
-      .mutateAsync({
-        projectId: props.projectId,
-        note:
-          values.note && values.note.trim() !== ""
-            ? values.note.trim()
-            : undefined,
-      })
-      .then(({ secretKey, publishableKey }) => {
-        setGeneratedKeys({
-          secretKey,
-          publishableKey,
+  const createApiKey = () => {
+    if (open) {
+      setOpen(false);
+      setGeneratedKeys(null);
+    } else {
+      mutCreateApiKey
+        .mutateAsync({
+          projectId: props.projectId,
+        })
+        .then(({ secretKey, publishableKey }) => {
+          setGeneratedKeys({
+            secretKey,
+            publishableKey,
+          });
+          setOpen(true);
+        })
+        .catch((error) => {
+          console.error(error);
         });
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }
-
-  const handleOpenChange = (open: boolean) => {
-    setOpen(open);
-    form.reset();
-    if (!open) setGeneratedKeys(null);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={createApiKey}>
       <DialogTrigger>
-        <Button variant="secondary">
+        <Button variant="secondary" loading={mutCreateApiKey.isLoading}>
           <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
           Create new API keys
         </Button>
       </DialogTrigger>
       <DialogContent>
-        {generatedKeys === null ? (
-          <>
-            <DialogHeader>
-              <DialogTitle className="mb-5">New API keys</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-8"
-              >
-                <FormField
-                  control={form.control}
-                  name="note"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Note</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Optional. A note to help you identify this API key.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </form>
-            </Form>
-            <DialogFooter>
-              <Button
-                // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                onClick={form.handleSubmit(onSubmit)}
-                loading={mutCreateApiKey.isLoading}
-              >
-                Create
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <div>
-            <div>
-              <div>
-                <div className="mb-2 text-lg font-semibold">Public Key</div>
-                <CodeView content={generatedKeys.publishableKey} />
-              </div>
-              <div className="mt-6">
-                <div className="text-lg font-semibold">Secret Key</div>
-                <div className="my-2">
-                  Please save this secret key.{" "}
-                  <span className="font-semibold">
-                    You will not be able to view it again
-                  </span>
-                  . If you lose it, you will need to generate a new one.
-                </div>
-                <CodeView content={generatedKeys.secretKey} />
-              </div>
-            </div>
+        <DialogHeader>
+          <DialogTitle>API Keys</DialogTitle>
+        </DialogHeader>
+        <div className="mb-2">
+          <div className="text-md font-semibold">Secret Key</div>
+          <div className="my-2">
+            Please save this secret key.{" "}
+            <span className="font-semibold">
+              You will not be able to view it again
+            </span>
+            . If you lose it, you will need to generate a new one.
           </div>
-        )}
+          <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
+        </div>
+        <div>
+          <div className="text-md mb-2 font-semibold">Public Key</div>
+          <CodeView content={generatedKeys?.publishableKey ?? "Loading ..."} />
+        </div>
       </DialogContent>
     </Dialog>
   );
