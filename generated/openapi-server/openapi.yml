@@ -45,6 +45,25 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateLog'
+    patch:
+      operationId: generations_update
+      tags:
+        - Generations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Log'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGenerationRequest'
   /api/public/scores:
     post:
       description: Add a score to the database
@@ -248,6 +267,45 @@ components:
         parentObservationId:
           type: string
           nullable: true
+    UpdateGenerationRequest:
+      title: UpdateGenerationRequest
+      type: object
+      properties:
+        generationId:
+          type: string
+        name:
+          type: string
+          nullable: true
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        modelParameters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MapValue'
+          nullable: true
+        prompt:
+          nullable: true
+        metadata:
+          nullable: true
+        completion:
+          type: string
+          nullable: true
+        usage:
+          $ref: '#/components/schemas/LLMUsage'
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevelGeneration'
+          nullable: true
+        statusMessage:
+          type: string
+          nullable: true
+      required:
+        - generationId
     Log:
       title: Log
       type: object
@@ -422,9 +480,21 @@ components:
         endTime:
           type: string
           format: date-time
+          nullable: true
+        metadata:
+          nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevelSpan'
+          nullable: true
+        statusMessage:
+          type: string
+          nullable: true
       required:
         - spanId
-        - endTime
     Span:
       title: Span
       type: object

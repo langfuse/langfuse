@@ -34,7 +34,12 @@ types:
   UpdateSpanRequest:
     properties:
       spanId: string
-      endTime: datetime
+      endTime: optional<datetime>
+      metadata: optional<unknown>
+      input: optional<unknown>
+      output: optional<unknown>
+      level: optional<ObservationLevelSpan>
+      statusMessage: optional<string>
 
   Span:
     properties:
