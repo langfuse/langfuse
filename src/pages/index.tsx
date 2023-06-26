@@ -2,7 +2,6 @@ import { Button } from "@/src/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -10,8 +9,28 @@ import {
 import Link from "next/link";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import Header from "@/src/components/layouts/header";
+import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
+import { useState, useEffect } from "react";
 
 export default function GetStartedPage() {
+  const projects = api.projects.all.useQuery();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (projects.data) {
+      if (projects.data.length > 0)
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        void router.push(`/project/${projects.data[0]!.id}`);
+      else setLoading(false);
+    }
+  }, [projects.data, router]);
+
+  if (loading || projects.status === "loading") {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="md:container">
       <Header title="Get started" />
