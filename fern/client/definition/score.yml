@@ -15,13 +15,19 @@ types:
   CreateScoreRequest:
     properties:
       traceId: string
+      traceIdType: optional<TraceIdType>
       name: string
       value: integer
       observationId: optional<string>
   Score:
     properties:
       id: string
+      traceId: string
       name: string
       value: integer
       observationId: optional<string>
       timestamp: datetime
+  TraceIdType:
+    enum:
+      - LANGFUSE
+      - EXTERNAL
