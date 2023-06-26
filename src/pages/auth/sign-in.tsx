@@ -101,7 +101,7 @@ export default function SignIn() {
               href="/auth/sign-up"
               className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
             >
-              Sign up for langfuse cloud
+              Sign up
             </Link>
           </p>
         </div>
