@@ -23,6 +23,7 @@ import {
   type ScoreFilter,
 } from "@/src/utils/tanstack";
 import { type Trace, type Score } from "@prisma/client";
+import { lastCharacters } from "@/src/utils/string";
 
 export type TableScore = {
   id: string;
@@ -32,6 +33,7 @@ export type TableScore = {
 
 export type TraceTableRow = {
   id: string;
+  externalId?: string;
   timestamp: string;
   name: string;
   metadata?: string;
@@ -77,6 +79,7 @@ export default function Traces() {
   ): TraceTableRow => {
     return {
       id: trace.id,
+      externalId: trace.externalId ?? undefined,
       timestamp: trace.timestamp.toISOString(),
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
@@ -126,6 +129,16 @@ export default function Traces() {
           },
         },
       },
+    },
+    {
+      accessorKey: "externalId",
+      header: "External ID",
+      cell: ({ row }) =>
+        row.getValue("externalId") ? (
+          <span>...{lastCharacters(row.getValue("externalId"), 7)}</span>
+        ) : (
+          <span></span>
+        ),
     },
     {
       accessorKey: "timestamp",
