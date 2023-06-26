@@ -44,7 +44,10 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   const utils = api.useContext();
   const router = useRouter();
   const createProjectMutation = api.projects.create.useMutation({
-    onSuccess: () => utils.projects.invalidate(),
+    onSuccess: (newProject) => {
+      void router.push(`/project/${newProject.id}/setup`);
+      utils.projects.invalidate();
+    },
     onError: (error) => form.setError("name", { message: error.message }),
   });
 
@@ -53,7 +56,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
       .mutateAsync(values)
       .then((project) => {
         setOpen(false);
-        void router.push(`/project/${project.id}/setup`);
+        form.reset();
       })
       .catch((error) => {
         console.error(error);

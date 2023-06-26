@@ -20,12 +20,12 @@ export default function GetStartedPage() {
 
   useEffect(() => {
     if (projects.data) {
-      if (projects.data.length > 0)
+      if (projects.data.length > 0 && loading === true)
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         void router.push(`/project/${projects.data[0]!.id}`);
       else setLoading(false);
     }
-  }, [projects.data, router]);
+  }, [projects.data, router, loading]);
 
   if (loading || projects.status === "loading") {
     return <div>Loading...</div>;
