@@ -30,6 +30,14 @@ export default function TracePage() {
               label: "Timestamp",
               value: trace.data.timestamp.toLocaleString(),
             },
+            ...(trace.data.externalId
+              ? [
+                  {
+                    label: "External ID",
+                    value: trace.data.externalId,
+                  },
+                ]
+              : []),
             {
               label: "Name",
               value: trace.data.name,
