@@ -9,6 +9,11 @@ service:
       path: /generations
       request: CreateLog
       response: Log
+    update:
+      method: PATCH
+      path: /generations
+      request: UpdateGenerationRequest
+      response: Log
 
 types:
   CreateLog:
@@ -26,6 +31,20 @@ types:
       level: optional<ObservationLevelGeneration>
       statusMessage: optional<string>
       parentObservationId: optional<string>
+
+  UpdateGenerationRequest:
+    properties:
+      generationId: string
+      name: optional<string>
+      endTime: optional<datetime>
+      model: optional<string>
+      modelParameters: optional<map<string, MapValue>>
+      prompt: optional<unknown>
+      metadata: optional<unknown>
+      completion: optional<string>
+      usage: optional<LLMUsage>
+      level: optional<ObservationLevelGeneration>
+      statusMessage: optional<string>
 
   Log:
     properties:

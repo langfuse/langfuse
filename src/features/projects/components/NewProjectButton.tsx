@@ -46,7 +46,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   const createProjectMutation = api.projects.create.useMutation({
     onSuccess: (newProject) => {
       void router.push(`/project/${newProject.id}/setup`);
-      utils.projects.invalidate();
+      void utils.projects.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
@@ -54,7 +54,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   function onSubmit(values: z.infer<typeof formSchema>) {
     createProjectMutation
       .mutateAsync(values)
-      .then((project) => {
+      .then(() => {
         setOpen(false);
         form.reset();
       })

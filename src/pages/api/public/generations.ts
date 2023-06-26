@@ -31,6 +31,29 @@ const GenerationsCreateSchema = z.object({
   statusMessage: z.string().nullish(),
 });
 
+const GenerationPatchSchema = z.object({
+  generationId: z.string(),
+  name: z.string().nullish(),
+  endTime: z.string().datetime().nullish(),
+  model: z.string().nullish(),
+  modelParameters: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish()
+    )
+    .nullish(),
+  prompt: z.unknown().nullish(),
+  completion: z.string().nullish(),
+  usage: z.object({
+    promptTokens: z.number().nullish(),
+    completionTokens: z.number().nullish(),
+    totalTokens: z.number().nullish(),
+  }),
+  metadata: z.unknown().nullish(),
+  level: z.nativeEnum(ObservationLevel).nullish(),
+  statusMessage: z.string().nullish(),
+});
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -89,9 +112,7 @@ export default async function handler(
             ...usage,
             totalTokens:
               !usage.totalTokens &&
-              ((usage.promptTokens && usage.completionTokens) ||
-                usage.promptTokens ||
-                usage.completionTokens)
+              (usage.promptTokens || usage.completionTokens)
                 ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
                 : usage.totalTokens,
           }
@@ -124,6 +145,58 @@ export default async function handler(
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
             : undefined,
+        },
+      });
+
+      res.status(201).json(newObservation);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(400).json({
+        success: false,
+        message: "Invalid request data",
+        error: errorMessage,
+      });
+    }
+  } else if (req.method === "PATCH") {
+    try {
+      const { generationId, endTime, prompt, completion, usage, ...fields } =
+        GenerationPatchSchema.parse(req.body);
+
+      // CHECK ACCESS SCOPE
+      const accessCheck = await checkApiAccessScope(authCheck.scope, [
+        { type: "observation", id: generationId },
+      ]);
+      if (!accessCheck)
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      // END CHECK ACCESS SCOPE
+
+      const calculatedUsage = usage
+        ? {
+            ...usage,
+            totalTokens:
+              !usage.totalTokens &&
+              (usage.promptTokens || usage.completionTokens)
+                ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
+                : usage.totalTokens,
+          }
+        : undefined;
+
+      const newObservation = await prisma.observation.update({
+        where: { id: generationId },
+        data: {
+          endTime: endTime ? new Date(endTime) : undefined,
+          input: prompt ?? undefined,
+          output: completion ? { completion: completion } : undefined,
+          usage: calculatedUsage,
+          ...Object.fromEntries(
+            Object.entries(fields).filter(
+              ([_, v]) => v !== null && v !== undefined
+            )
+          ),
         },
       });
 
