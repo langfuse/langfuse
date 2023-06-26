@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: langfuse
-  version: ''
+  version: ""
 paths:
   /api/public/scores:
     post:
@@ -11,12 +11,12 @@ paths:
         - Score
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Score'
+                $ref: "#/components/schemas/Score"
       security:
         - BearerAuth: []
       requestBody:
@@ -24,7 +24,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateScoreRequest'
+              $ref: "#/components/schemas/CreateScoreRequest"
 components:
   schemas:
     CreateScoreRequest:
@@ -33,6 +33,8 @@ components:
       properties:
         traceId:
           type: string
+        traceIdType:
+          $ref: "#/components/schemas/TraceIdType"
         name:
           type: string
         value:
@@ -49,6 +51,8 @@ components:
       properties:
         id:
           type: string
+        traceId:
+          type: string
         name:
           type: string
         value:
@@ -60,9 +64,16 @@ components:
           format: date-time
       required:
         - id
+        - traceId
         - name
         - value
         - timestamp
+    TraceIdType:
+      title: TraceIdType
+      type: string
+      enum:
+        - LANGFUSE
+        - EXTERNAL
   securitySchemes:
     BearerAuth:
       type: http
