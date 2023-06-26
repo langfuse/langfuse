@@ -130,10 +130,10 @@ const ObservationInfo = (props: {
     : null;
   return (
     <>
-      <div className="flex-auto rounded-md p-3 ring-1 ring-inset ring-gray-200">
-        <div className="flex flex-col justify-between gap-x-4">
-          <div className="flex py-0.5 text-xs leading-5 text-gray-500">
-            <span className="font-medium text-gray-900">
+      <div className="flex-auto overflow-hidden break-all rounded-md p-3 ring-1 ring-inset ring-gray-200">
+        <div className="relative flex flex-col justify-between gap-x-4">
+          <div className="relative flex py-0.5 text-xs leading-5 text-gray-500">
+            <span className="w-full overflow-hidden font-medium text-gray-900">
               {props.observation.type}: {props.observation.name}
             </span>
             {props.observation.type === "GENERATION" ? (
