@@ -13,7 +13,6 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import { env } from "@/src/env.mjs";
 
 const formSchema = z.object({
   email: z.string().email(),
@@ -99,16 +98,10 @@ export default function SignIn() {
           <p className="mt-10 text-center text-sm text-gray-500">
             No account yet?{" "}
             <Link
-              href={
-                env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com"
-                  ? "https://cal.com/marc-kl/langfuse-cloud"
-                  : "/auth/sign-up"
-              }
+              href="/auth/sign-up"
               className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
             >
-              {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com"
-                ? "Sign up for langfuse cloud"
-                : "Sign up for langfuse"}
+              Sign up for langfuse cloud
             </Link>
           </p>
         </div>
