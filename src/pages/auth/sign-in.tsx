@@ -30,8 +30,8 @@ export default function SignIn() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    return signIn("credentials", {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    await signIn("credentials", {
       email: values.email,
       password: values.password,
       callbackUrl: "/",
