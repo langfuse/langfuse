@@ -21,7 +21,13 @@ const SpanPostSchema = z.object({
 
 const SpanPatchSchema = z.object({
   spanId: z.string(),
-  endTime: z.string().datetime(),
+  name: z.string().nullish(),
+  endTime: z.string().datetime().nullish(),
+  metadata: z.unknown().nullish(),
+  input: z.unknown().nullish(),
+  output: z.unknown().nullish(),
+  level: z.nativeEnum(ObservationLevel).nullish(),
+  statusMessage: z.string().nullish(),
 });
 
 export default async function handler(
@@ -113,7 +119,7 @@ export default async function handler(
     }
   } else if (req.method === "PATCH") {
     try {
-      const { spanId, endTime } = SpanPatchSchema.parse(req.body);
+      const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
@@ -128,7 +134,14 @@ export default async function handler(
 
       const newObservation = await prisma.observation.update({
         where: { id: spanId },
-        data: { endTime: new Date(endTime) },
+        data: {
+          endTime: endTime ? new Date(endTime) : undefined,
+          ...Object.fromEntries(
+            Object.entries(fields).filter(
+              ([_, v]) => v !== null && v !== undefined
+            )
+          ),
+        },
       });
 
       res.status(201).json(newObservation);
