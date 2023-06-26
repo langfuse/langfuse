@@ -25,30 +25,29 @@ export default function SignIn() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof signupSchema>) {
-    fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const payload = (await res.json()) as { message: string };
-          throw new Error(payload.message);
-        }
-      })
-      .then(async () => {
-        await signIn<"credentials">("credentials", {
-          email: values.email,
-          password: values.password,
-          callbackUrl: "/",
-        });
-      })
-      .catch((err) => {
-        form.setError("root", {
-          message: (err as { message: string }).message,
-        });
+  async function onSubmit(values: z.infer<typeof signupSchema>) {
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
       });
+
+      if (!res.ok) {
+        const payload = (await res.json()) as { message: string };
+        throw new Error(payload.message);
+      }
+
+      await signIn<"credentials">("credentials", {
+        email: values.email,
+        password: values.password,
+        callbackUrl: "/",
+      });
+    } catch (err) {
+      form.setError("root", {
+        message: (err as { message: string }).message,
+      });
+    }
   }
 
   return (

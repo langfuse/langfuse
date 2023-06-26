@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Code, LineChart, MessageSquarePlus } from "lucide-react";
+import { Code, HelpingHand, LineChart, MessageSquarePlus } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
@@ -64,6 +64,11 @@ export default function Layout(props: PropsWithChildren) {
       name: "Setup",
       pathname: "/project/[projectId]/setup",
       icon: Cog6ToothIcon,
+    },
+    {
+      name: "Talk to founder",
+      pathname: "https://cal.com/marc-kl/langfuse-cloud",
+      icon: HelpingHand,
     },
   ]
     .filter((nav) => projectId || !nav.pathname.includes("[projectId]"))
