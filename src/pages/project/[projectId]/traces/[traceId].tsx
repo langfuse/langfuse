@@ -49,19 +49,20 @@ export default function TracePage() {
               label: "Metadata",
               value: <JSONView json={trace.data.metadata} />,
             },
-            {
-              label: "Detailed trace",
-              value: trace.data.nestedObservation ? (
-                <ObservationDisplay
-                  key={trace.data.id}
-                  projectId={projectId}
-                  observations={trace.data.nestedObservation}
-                  indentationLevel={0}
-                />
-              ) : null,
-            },
           ]}
         />
+      ) : null}
+
+      {trace.data?.nestedObservation ? (
+        <div className="mt-5 border-t pt-5">
+          <h2>Detailed trace</h2>
+          <ObservationDisplay
+            key={trace.data.id}
+            projectId={projectId}
+            observations={trace.data.nestedObservation}
+            indentationLevel={0}
+          />
+        </div>
       ) : null}
     </div>
   );
