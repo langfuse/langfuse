@@ -88,11 +88,12 @@ export default async function handler(
         ? {
             ...usage,
             totalTokens:
-              (usage.promptTokens && usage.completionTokens) ||
-              usage.promptTokens ||
-              usage.completionTokens
+              !usage.totalTokens &&
+              ((usage.promptTokens && usage.completionTokens) ||
+                usage.promptTokens ||
+                usage.completionTokens)
                 ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
-                : null,
+                : usage.totalTokens,
           }
         : undefined;
 
