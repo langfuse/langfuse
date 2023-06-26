@@ -49,6 +49,7 @@ types:
     properties:
       promptTokens: optional<integer>
       completionTokens: optional<integer>
+      totalTokens: optional<integer>
 
   MapValue:
     discriminated: false

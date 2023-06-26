@@ -23,6 +23,7 @@ const GenerationsCreateSchema = z.object({
   usage: z.object({
     promptTokens: z.number().nullish(),
     completionTokens: z.number().nullish(),
+    totalTokens: z.number().nullish(),
   }),
   metadata: z.unknown().nullish(),
   parentObservationId: z.string().nullish(),
@@ -83,6 +84,18 @@ export default async function handler(
         });
       // END CHECK ACCESS SCOPE
 
+      const calculatedUsage = usage
+        ? {
+            ...usage,
+            totalTokens:
+              (usage.promptTokens && usage.completionTokens) ||
+              usage.promptTokens ||
+              usage.completionTokens
+                ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
+                : null,
+          }
+        : undefined;
+
       const newObservation = await prisma.observation.create({
         data: {
           ...(traceId
@@ -104,7 +117,7 @@ export default async function handler(
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
           output: completion ? { completion: completion } : undefined,
-          usage: usage ?? undefined,
+          usage: calculatedUsage,
           level: level ?? undefined,
           statusMessage: statusMessage ?? undefined,
           parent: parentObservationId
