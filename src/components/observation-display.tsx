@@ -119,20 +119,20 @@ const ObservationInfo = (props: {
   return (
     <>
       <div className="flex-auto overflow-hidden break-all ">
-        <div className="relative flex flex-col justify-between gap-x-4">
+        <div className="relative flex flex-col gap-x-4">
           <div className="relative flex py-0.5 text-xs leading-5 text-gray-500">
-            <span className="w-full overflow-hidden font-medium text-gray-900">
-              {props.observation.type}: {props.observation.name}
-            </span>
             {props.observation.type === "GENERATION" ? (
-              <Button size="sm" variant="ghost" asChild>
-                <Link
-                  href={`/project/${props.projectId}/generations/${props.observation.id}`}
-                >
-                  <ArrowUpRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            ) : undefined}
+              <Link
+                href={`/project/${props.projectId}/generations/${props.observation.id}`}
+                className="overflow-hidden font-medium text-gray-900 hover:text-gray-500"
+              >
+                {props.observation.type}: {props.observation.name} ↗
+              </Link>
+            ) : (
+              <span className="overflow-hidden font-medium text-gray-900">
+                {props.observation.type}: {props.observation.name}
+              </span>
+            )}
           </div>
           {props.observation.startTime ? (
             <div className="flex">
