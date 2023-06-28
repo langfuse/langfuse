@@ -318,7 +318,6 @@ const Single = (props: {
             key={trace.id}
             observations={trace.nestedObservation}
             projectId={props.projectId}
-            indentationLevel={0}
           />
         </>
       ) : undefined}
