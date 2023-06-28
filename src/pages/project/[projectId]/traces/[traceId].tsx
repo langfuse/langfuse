@@ -68,7 +68,6 @@ export default function TracePage() {
             key={trace.data.id}
             projectId={projectId}
             observations={trace.data.nestedObservation}
-            indentationLevel={0}
           />
         </div>
       ) : null}
