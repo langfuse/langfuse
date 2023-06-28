@@ -3,126 +3,114 @@ import {
   type NestedObservation,
 } from "@/src/utils/types";
 import { JSONView } from "@/src/components/ui/code";
-import { type Prisma } from "@prisma/client";
 import { formatDate } from "@/src/utils/dates";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-
-type RowData = {
-  id: string;
-  name: string | null;
-  level: number;
-  input: Prisma.JsonValue;
-  output: Prisma.JsonValue;
-  usage: Prisma.JsonValue;
-  startTime: Date;
-  endTime: Date | null;
-  showOutput: boolean;
-  type: string;
-};
-
-function getObservationsAndLevels(
-  observation: NestedObservation,
-  level = 0,
-  showOutput = false
-): RowData[] {
-  const result: RowData[] = [
-    {
-      id: observation.id,
-      name: observation.name,
-      input: observation.input,
-      output: observation.output,
-      startTime: observation.startTime,
-      endTime: observation.endTime,
-      type: observation.type,
-      usage: observation.usage,
-      showOutput,
-      level,
-    },
-  ];
-
-  if (observation.children) {
-    observation.children
-      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
-      .map((child) => getObservationsAndLevels(child, level + 1))
-      .map((childResult) => result.push(...childResult));
-  }
-
-  result.push({
-    id: observation.id,
-    name: observation.name,
-    input: observation.input,
-    output: observation.output,
-    startTime: observation.startTime,
-    endTime: observation.endTime,
-    type: observation.type,
-    usage: observation.usage,
-    showOutput: true,
-    level,
-  });
-
-  return result;
-}
+import { Fragment } from "react";
+import { cn } from "@/src/utils/tailwind";
 
 export default function ObservationDisplay(props: {
   observations: NestedObservation[];
   projectId: string;
-  indentationLevel: number;
 }) {
-  const flatMap = props.observations
-    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
-    .flatMap((o) => getObservationsAndLevels(o, 0));
-
   return (
-    <div>
-      <div className="">
-        <div className="flex flex-col">
-          {flatMap.map((row) => (
-            <div
-              className="mt-4 flex items-start"
-              key={row.showOutput ? row.id + "output" : row.id}
-            >
-              <div className=" flex w-1/4  overflow-hidden">
-                {!row.showOutput ? (
-                  <ObservationInfo
-                    observation={row}
-                    projectId={props.projectId}
-                  />
-                ) : undefined}
-              </div>
-              <div className="ml-4 grid w-3/4 grid-cols-12">
-                <div className={`col-span-${row.level}`}> </div>
-
-                <div className={`col-span-${12 - row.level}`}>
-                  {row.showOutput && row.output ? (
-                    <JSONView json={row.output} defaultCollapsed />
-                  ) : undefined}
-                  {row.showOutput && !row.output ? (
-                    <h3 className="m-5 text-base font-medium leading-4 text-gray-900">
-                      No Output
-                    </h3>
-                  ) : undefined}
-                  {!row.showOutput && row.input ? (
-                    <JSONView json={row.input} defaultCollapsed />
-                  ) : undefined}
-                  {!row.showOutput && !row.input ? (
-                    <h3 className="m-5 text-base font-medium leading-4 text-gray-900">
-                      No Input
-                    </h3>
-                  ) : undefined}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col">
+      <Observation
+        observations={props.observations}
+        projectId={props.projectId}
+        indentationLevel={1}
+      />
     </div>
   );
 }
 
+const Observation = (props: {
+  observations: NestedObservation[];
+  projectId: string;
+  indentationLevel: number;
+}) => (
+  <>
+    {props.observations
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+      .map((observation) => (
+        <Fragment key={observation.id}>
+          <div className="flex items-start border-t py-1" key={observation.id}>
+            <div className="flex w-1/4">
+              <ObservationInfo
+                observation={observation}
+                projectId={props.projectId}
+              />
+            </div>
+
+            <div className="ml-4 grid w-3/4 grid-cols-12">
+              <div className={`col-span-${props.indentationLevel}`}> </div>
+
+              <div
+                className={`flex flex-col col-span-${
+                  12 - props.indentationLevel
+                } gap-1`}
+              >
+                {observation.input ? (
+                  <JSONView
+                    json={observation.input}
+                    defaultCollapsed
+                    label="Input"
+                    className={cn(LevelColor[observation.level].bg)}
+                  />
+                ) : null}
+                {observation.statusMessage ? (
+                  <JSONView
+                    json={observation.statusMessage}
+                    defaultCollapsed
+                    label="Status Message"
+                    className={cn(LevelColor[observation.level].bg)}
+                  />
+                ) : null}
+                {observation.children.length === 0 && observation.output ? (
+                  <JSONView
+                    json={observation.output}
+                    defaultCollapsed
+                    label="Output"
+                    className={cn(LevelColor[observation.level].bg)}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <Observation
+            observations={observation.children}
+            projectId={props.projectId}
+            indentationLevel={props.indentationLevel + 1}
+          />
+
+          {observation.children.length > 0 && observation.output ? (
+            <div
+              className="flex items-start border-t py-1"
+              key={observation.id}
+            >
+              <div className="flex w-1/4" />
+              <div className="ml-4 grid w-3/4 grid-cols-12">
+                <div className={`col-span-${props.indentationLevel}`}> </div>
+                <div className={`col-span-${12 - props.indentationLevel}`}>
+                  <JSONView
+                    json={observation.output}
+                    defaultCollapsed
+                    label="Output"
+                    className={cn(LevelColor[observation.level].bg)}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </Fragment>
+      ))}
+  </>
+);
+
 const ObservationInfo = (props: {
-  observation: RowData;
+  observation: NestedObservation;
   projectId: string;
 }) => {
   const usage = props.observation.usage
@@ -130,7 +118,7 @@ const ObservationInfo = (props: {
     : null;
   return (
     <>
-      <div className="flex-auto overflow-hidden break-all rounded-md p-3 ring-1 ring-inset ring-gray-200">
+      <div className="flex-auto overflow-hidden break-all ">
         <div className="relative flex flex-col justify-between gap-x-4">
           <div className="relative flex py-0.5 text-xs leading-5 text-gray-500">
             <span className="w-full overflow-hidden font-medium text-gray-900">
@@ -155,14 +143,12 @@ const ObservationInfo = (props: {
                 {formatDate(props.observation.startTime)}
               </time>
               {props.observation.endTime ? (
-                <>
-                  <p className="whitespace-nowrap py-0.5 text-xs leading-5 text-gray-500">
-                    &nbsp;-&nbsp;
-                    {props.observation.endTime.getTime() -
-                      props.observation.startTime.getTime()}{" "}
-                    ms
-                  </p>
-                </>
+                <p className="whitespace-nowrap py-0.5 text-xs leading-5 text-gray-500">
+                  &nbsp;-&nbsp;
+                  {props.observation.endTime.getTime() -
+                    props.observation.startTime.getTime()}{" "}
+                  ms
+                </p>
               ) : undefined}
             </div>
           ) : undefined}
@@ -172,7 +158,24 @@ const ObservationInfo = (props: {
             {(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)} tokens
           </p>
         ) : undefined}
+        {props.observation.level !== "DEFAULT" ? (
+          <div
+            className={cn(
+              "text-xs leading-5",
+              LevelColor[props.observation.level].text
+            )}
+          >
+            {props.observation.level}
+          </div>
+        ) : null}
       </div>
     </>
   );
+};
+
+const LevelColor = {
+  DEFAULT: { text: "", bg: "" },
+  DEBUG: { text: "text-gray-500", bg: "bg-gray-50" },
+  WARNING: { text: "text-yellow-800", bg: "bg-yellow-50" },
+  ERROR: { text: "text-red-800", bg: "bg-red-50" },
 };
