@@ -19,7 +19,7 @@ export default function ObservationDisplay(props: {
       <Observation
         observations={props.observations}
         projectId={props.projectId}
-        indentationLevel={1}
+        indentationLevel={0}
       />
     </div>
   );
