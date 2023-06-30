@@ -36,11 +36,11 @@ groups:
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true
-      # - name: fernapi/fern-typescript-sdk
-      #   version: 0.5.25
-      #   output:
-      #     location: local-file-system
-      #     path: ../../generated/typescript-server
-      #   config:
-      #     namespaceExport: Langfuse
-      #     allowCustomFetcher: true
+      - name: fernapi/fern-typescript-sdk
+        version: 0.5.25
+        output:
+          location: local-file-system
+          path: ../../generated/typescript-server
+        config:
+          namespaceExport: Langfuse
+          allowCustomFetcher: true

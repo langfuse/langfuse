@@ -150,6 +150,7 @@ export default async function handler(
 
       res.status(201).json(newObservation);
     } catch (error: unknown) {
+      console.error(error);
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
@@ -202,6 +203,7 @@ export default async function handler(
 
       res.status(201).json(newObservation);
     } catch (error: unknown) {
+      console.error(error);
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({

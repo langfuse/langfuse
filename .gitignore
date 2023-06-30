@@ -40,3 +40,5 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+/generated/typescript-server
