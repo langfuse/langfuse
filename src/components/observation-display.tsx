@@ -4,9 +4,7 @@ import {
 } from "@/src/utils/types";
 import { JSONView } from "@/src/components/ui/code";
 import { formatDate } from "@/src/utils/dates";
-import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { Fragment } from "react";
 import { cn } from "@/src/utils/tailwind";
 
