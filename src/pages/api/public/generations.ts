@@ -148,7 +148,7 @@ export default async function handler(
         },
       });
 
-      res.status(201).json(newObservation);
+      res.status(200).json(newObservation);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
@@ -201,7 +201,7 @@ export default async function handler(
         },
       });
 
-      res.status(201).json(newObservation);
+      res.status(200).json(newObservation);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =

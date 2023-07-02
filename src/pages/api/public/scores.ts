@@ -84,7 +84,7 @@ export default async function handler(
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const newScore = await prisma.score.create({ data });
 
-    res.status(201).json(newScore);
+    res.status(200).json(newScore);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =

@@ -53,7 +53,7 @@ export default async function handler(
       },
     });
 
-    res.status(201).json(newTrace);
+    res.status(200).json(newTrace);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
