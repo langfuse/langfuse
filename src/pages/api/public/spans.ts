@@ -107,7 +107,7 @@ export default async function handler(
         },
       });
 
-      res.status(201).json(newObservation);
+      res.status(200).json(newObservation);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
@@ -144,7 +144,7 @@ export default async function handler(
         },
       });
 
-      res.status(201).json(newObservation);
+      res.status(200).json(newObservation);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
