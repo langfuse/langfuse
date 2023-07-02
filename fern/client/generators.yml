@@ -2,8 +2,8 @@ default-group: local
 groups:
   local:
     generators:
-      - name: fernapi/fern-typescript-sdk
-        version: 0.5.25
+      - name: fernapi/fern-typescript-browser-sdk
+        version: 0.7.1
         output:
           location: npm
           url: npm.buildwithfern.com
