@@ -8,6 +8,7 @@ import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 
 const GenerationsCreateSchema = z.object({
   traceId: z.string().nullish(),
+  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
   startTime: z.string().datetime().nullish(),
   endTime: z.string().datetime().nullish(),
@@ -79,8 +80,8 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
+      const obj = GenerationsCreateSchema.parse(req.body);
       const {
-        traceId,
         name,
         startTime,
         endTime,
@@ -93,7 +94,27 @@ export default async function handler(
         parentObservationId,
         level,
         statusMessage,
-      } = GenerationsCreateSchema.parse(req.body);
+      } = obj;
+
+      // If externalTraceId is provided, find or create the traceId
+      const traceId =
+        obj.traceIdType === "EXTERNAL" && obj.traceId
+          ? (
+              await prisma.trace.upsert({
+                where: {
+                  projectId_externalId: {
+                    projectId: authCheck.scope.projectId,
+                    externalId: obj.traceId,
+                  },
+                },
+                create: {
+                  projectId: authCheck.scope.projectId,
+                  externalId: obj.traceId,
+                },
+                update: {},
+              })
+            ).id
+          : obj.traceId;
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [

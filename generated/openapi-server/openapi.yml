@@ -397,6 +397,9 @@ components:
         traceId:
           type: string
           nullable: true
+        traceIdType:
+          $ref: '#/components/schemas/TraceIdTypeGenerations'
+          nullable: true
         name:
           type: string
           nullable: true
@@ -556,6 +559,12 @@ components:
         - DEFAULT
         - WARNING
         - ERROR
+    TraceIdTypeGenerations:
+      title: TraceIdTypeGenerations
+      type: string
+      enum:
+        - LANGFUSE
+        - EXTERNAL
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
