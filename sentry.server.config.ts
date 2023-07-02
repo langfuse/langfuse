@@ -1,3 +1,4 @@
+import { prisma } from "@/src/server/db";
 import * as Sentry from "@sentry/nextjs";
 import { ProfilingIntegration } from "@sentry/profiling-node";
 
@@ -18,6 +19,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     integrations: [
       // Add profiling integration to list of integrations
       new ProfilingIntegration(),
+      new Sentry.Integrations.Prisma({ client: prisma }),
     ],
 
     // ...
