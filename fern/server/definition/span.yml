@@ -21,6 +21,7 @@ types:
   CreateSpanRequest:
     properties:
       traceId: optional<string>
+      traceIdType: optional<TraceIdTypeSpan>
       name: optional<string>
       startTime: optional<datetime>
       endTime: optional<datetime>
@@ -61,3 +62,7 @@ types:
       - DEFAULT
       - WARNING
       - ERROR
+  TraceIdTypeSpan:
+    enum:
+      - LANGFUSE
+      - EXTERNAL

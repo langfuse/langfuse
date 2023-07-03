@@ -15,6 +15,7 @@ types:
   CreateEventRequest:
     properties:
       traceId: optional<string>
+      traceIdType: optional<TraceIdTypeEvent>
       name: optional<string>
       startTime: optional<datetime>
       metadata: optional<unknown>
@@ -42,3 +43,7 @@ types:
       - DEFAULT
       - WARNING
       - ERROR
+  TraceIdTypeEvent:
+    enum:
+      - LANGFUSE
+      - EXTERNAL
