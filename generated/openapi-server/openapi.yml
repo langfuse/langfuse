@@ -324,6 +324,9 @@ components:
         traceId:
           type: string
           nullable: true
+        traceIdType:
+          $ref: '#/components/schemas/TraceIdTypeEvent'
+          nullable: true
         name:
           type: string
           nullable: true
@@ -390,6 +393,12 @@ components:
         - DEFAULT
         - WARNING
         - ERROR
+    TraceIdTypeEvent:
+      title: TraceIdTypeEvent
+      type: string
+      enum:
+        - LANGFUSE
+        - EXTERNAL
     CreateLog:
       title: CreateLog
       type: object
@@ -622,6 +631,9 @@ components:
         traceId:
           type: string
           nullable: true
+        traceIdType:
+          $ref: '#/components/schemas/TraceIdTypeSpan'
+          nullable: true
         name:
           type: string
           nullable: true
@@ -720,6 +732,12 @@ components:
         - DEFAULT
         - WARNING
         - ERROR
+    TraceIdTypeSpan:
+      title: TraceIdTypeSpan
+      type: string
+      enum:
+        - LANGFUSE
+        - EXTERNAL
     CreateTraceRequest:
       title: CreateTraceRequest
       type: object
