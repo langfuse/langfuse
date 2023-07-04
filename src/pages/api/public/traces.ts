@@ -43,17 +43,39 @@ export default async function handler(
       });
     // END CHECK ACCESS SCOPE
 
-    const newTrace = await prisma.trace.create({
-      data: {
-        timestamp: new Date(),
-        projectId: authCheck.scope.projectId,
-        externalId: externalId ?? undefined,
-        name: name ?? undefined,
-        metadata: metadata ?? undefined,
-      },
-    });
-
-    res.status(200).json(newTrace);
+    if (externalId) {
+      // For traces created with external ids, allow upserts
+      const newTrace = await prisma.trace.upsert({
+        where: {
+          projectId_externalId: {
+            externalId: externalId,
+            projectId: authCheck.scope.projectId,
+          },
+        },
+        create: {
+          timestamp: new Date(),
+          projectId: authCheck.scope.projectId,
+          externalId: externalId,
+          name: name ?? undefined,
+          metadata: metadata ?? undefined,
+        },
+        update: {
+          name: name ?? undefined,
+          metadata: metadata ?? undefined,
+        },
+      });
+      res.status(200).json(newTrace);
+    } else {
+      const newTrace = await prisma.trace.create({
+        data: {
+          timestamp: new Date(),
+          projectId: authCheck.scope.projectId,
+          name: name ?? undefined,
+          metadata: metadata ?? undefined,
+        },
+      });
+      res.status(200).json(newTrace);
+    }
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
