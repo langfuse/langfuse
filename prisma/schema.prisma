@@ -55,6 +55,8 @@ model User {
     accounts      Account[]
     sessions      Session[]
     memberships   Membership[]
+    createdAt     DateTime     @default(now()) @map("created_at")
+    updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
 
     @@map("users")
 }
@@ -100,6 +102,8 @@ model Membership {
     userId    String         @map("user_id")
     user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
     role      MembershipRole
+    createdAt DateTime       @default(now()) @map("created_at")
+    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
 
     @@id([projectId, userId])
     @@map("memberships")
