@@ -75,14 +75,26 @@ export default function GenerationPage() {
             },
             {
               label: "Time",
-              value:
-                generation.data.startTime.toLocaleString() +
-                (generation.data.endTime
-                  ? ` - ${
-                      generation.data.endTime.getTime() -
-                      generation.data.startTime.getTime()
-                    }ms`
-                  : ""),
+              value: (
+                <CodeView
+                  content={`
+Start: ${generation.data.startTime.toLocaleString()}
+End: ${generation.data.endTime?.toLocaleString() ?? "null"}
+Duration: ${
+                    generation.data.endTime
+                      ? `${
+                          generation.data.endTime.getTime() -
+                          generation.data.startTime.getTime()
+                        } ms`
+                      : "null"
+                  }
+Completion start: ${
+                    generation.data.completionStartTime?.toLocaleString() ??
+                    "null"
+                  }
+              `}
+                />
+              ),
             },
             {
               label: "Name",

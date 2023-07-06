@@ -420,6 +420,10 @@ components:
           type: string
           format: date-time
           nullable: true
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
         model:
           type: string
           nullable: true
@@ -457,6 +461,10 @@ components:
           type: string
           nullable: true
         endTime:
+          type: string
+          format: date-time
+          nullable: true
+        completionStartTime:
           type: string
           format: date-time
           nullable: true
@@ -503,6 +511,10 @@ components:
           type: string
           format: date-time
         endTime:
+          type: string
+          format: date-time
+          nullable: true
+        completionStartTime:
           type: string
           format: date-time
           nullable: true

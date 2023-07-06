@@ -12,6 +12,7 @@ const GenerationsCreateSchema = z.object({
   name: z.string().nullish(),
   startTime: z.string().datetime().nullish(),
   endTime: z.string().datetime().nullish(),
+  completionStartTime: z.string().datetime().nullish(),
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -38,6 +39,7 @@ const GenerationPatchSchema = z.object({
   generationId: z.string(),
   name: z.string().nullish(),
   endTime: z.string().datetime().nullish(),
+  completionStartTime: z.string().datetime().nullish(),
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -85,6 +87,7 @@ export default async function handler(
         name,
         startTime,
         endTime,
+        completionStartTime,
         model,
         modelParameters,
         prompt,
@@ -157,6 +160,9 @@ export default async function handler(
           name,
           startTime: startTime ? new Date(startTime) : undefined,
           endTime: endTime ? new Date(endTime) : undefined,
+          completionStartTime: completionStartTime
+            ? new Date(completionStartTime)
+            : undefined,
           metadata: metadata ?? undefined,
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
@@ -184,8 +190,15 @@ export default async function handler(
     }
   } else if (req.method === "PATCH") {
     try {
-      const { generationId, endTime, prompt, completion, usage, ...fields } =
-        GenerationPatchSchema.parse(req.body);
+      const {
+        generationId,
+        endTime,
+        completionStartTime,
+        prompt,
+        completion,
+        usage,
+        ...fields
+      } = GenerationPatchSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
@@ -213,6 +226,9 @@ export default async function handler(
         where: { id: generationId },
         data: {
           endTime: endTime ? new Date(endTime) : undefined,
+          completionStartTime: completionStartTime
+            ? new Date(completionStartTime)
+            : undefined,
           input: prompt ?? undefined,
           output: completion ? { completion: completion } : undefined,
           usage: calculatedUsage,
