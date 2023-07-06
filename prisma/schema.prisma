@@ -145,11 +145,12 @@ model Observation {
     statusMessage       String?          @map("status_message")
 
     // GENERATION ONLY
-    model           String?
-    modelParameters Json?
-    input           Json?
-    output          Json?
-    usage           Json?
+    model               String?
+    modelParameters     Json?
+    input               Json?
+    output              Json?
+    usage               Json?
+    completionStartTime DateTime? @map("completion_start_time")
 
     parent Observation?  @relation("ParentChilds", fields: [parentObservationId], references: [id])
     childs Observation[] @relation("ParentChilds")
