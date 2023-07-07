@@ -128,6 +128,7 @@ model Trace {
     scores       Score[]
 
     @@unique([projectId, externalId])
+    @@index([projectId])
     @@map("traces")
 }
 

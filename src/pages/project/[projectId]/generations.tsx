@@ -16,8 +16,6 @@ type GenerationTableRow = {
   startTime: string;
   endTime?: string;
   name?: string;
-  // prompt?: string;
-  // completion?: string;
   model?: string;
 };
 
@@ -108,22 +106,6 @@ export default function Generations() {
       accessorKey: "name",
       header: "Name",
     },
-    // {
-    //   accessorKey: "prompt",
-    //   header: "Prompt",
-    //   cell: ({ row }) => {
-    //     const messages: LLMChatMessages[] = row.getValue("prompt");
-    //     if (!messages || messages.length === 0) {
-    //       return <>No prompt</>;
-    //     }
-
-    //     return <Prompt messages={messages} />;
-    //   },
-    // },
-    // {
-    //   accessorKey: "completion",
-    //   header: "Completion",
-    // },
     {
       accessorKey: "model",
       header: "Model",
