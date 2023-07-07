@@ -49,11 +49,13 @@ const GenerationPatchSchema = z.object({
     .nullish(),
   prompt: z.unknown().nullish(),
   completion: z.string().nullish(),
-  usage: z.object({
-    promptTokens: z.number().nullish(),
-    completionTokens: z.number().nullish(),
-    totalTokens: z.number().nullish(),
-  }),
+  usage: z
+    .object({
+      promptTokens: z.number().nullish(),
+      completionTokens: z.number().nullish(),
+      totalTokens: z.number().nullish(),
+    })
+    .nullish(),
   metadata: z.unknown().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
