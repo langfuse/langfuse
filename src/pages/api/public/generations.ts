@@ -67,10 +67,6 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
     req.headers.authorization
@@ -253,5 +249,7 @@ export default async function handler(
         error: errorMessage,
       });
     }
+  } else {
+    return res.status(405).json({ message: "Method not allowed" });
   }
 }
