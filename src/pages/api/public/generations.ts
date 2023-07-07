@@ -96,6 +96,10 @@ export default async function handler(
         level,
         statusMessage,
       } = obj;
+      console.log(
+        "trying to create observation for generation" +
+          JSON.stringify(obj, null, 2)
+      );
 
       // If externalTraceId is provided, find or create the traceId
       const traceId =
