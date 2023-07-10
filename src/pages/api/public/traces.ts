@@ -77,6 +77,7 @@ export default async function handler(
           timestamp: new Date(),
           projectId: authCheck.scope.projectId,
           name: name ?? undefined,
+          userId: userId ?? undefined,
           metadata: metadata ?? undefined,
         },
       });
