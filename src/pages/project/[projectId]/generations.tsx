@@ -33,17 +33,15 @@ export default function Generations() {
     id: null,
   });
 
-  const generations = api.generations.all.useQuery(
-    { ...queryOptions, projectId },
-    {
-      refetchInterval: 5000,
-    }
-  );
+  const generations = api.generations.all.useQuery({
+    ...queryOptions,
+    projectId,
+  });
 
-  const generationOptions = api.generations.availableFilterOptions.useQuery(
-    { ...queryOptions, projectId },
-    { refetchInterval: 5000 }
-  );
+  const generationOptions = api.generations.availableFilterOptions.useQuery({
+    ...queryOptions,
+    projectId,
+  });
 
   const columns: ColumnDef<GenerationTableRow>[] = [
     {
@@ -163,16 +161,14 @@ export default function Generations() {
 
   return (
     <div className="container">
-      <Header title="Generations" live />
+      <Header title="Generations" />
       {tableOptions.data ? (
-        <div className="my-2">
-          <DataTableToolbar
-            columnDefs={columns}
-            options={tableOptions.data}
-            resetFilters={resetFilters}
-            isFiltered={isFiltered}
-          />
-        </div>
+        <DataTableToolbar
+          columnDefs={columns}
+          options={tableOptions.data}
+          resetFilters={resetFilters}
+          isFiltered={isFiltered}
+        />
       ) : undefined}
       <DataTable
         columns={columns}
