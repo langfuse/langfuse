@@ -602,6 +602,9 @@ components:
         observationId:
           type: string
           nullable: true
+        comment:
+          type: string
+          nullable: true
       required:
         - traceId
         - name
@@ -624,6 +627,9 @@ components:
         timestamp:
           type: string
           format: date-time
+        comment:
+          type: string
+          nullable: true
       required:
         - id
         - traceId

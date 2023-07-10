@@ -17,6 +17,7 @@ type RowData = {
   timestamp: string;
   name: string;
   value: number;
+  comment?: string;
   observationId?: string;
 };
 
@@ -101,6 +102,10 @@ export default function ScoresPage() {
       header: "Value",
     },
     {
+      accessorKey: "comment",
+      header: "Comment",
+    },
+    {
       accessorKey: "observationId",
       header: "Observation ID",
     },
@@ -139,6 +144,7 @@ export default function ScoresPage() {
       timestamp: score.timestamp.toISOString(),
       name: score.name,
       value: score.value,
+      comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
     };

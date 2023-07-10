@@ -12,6 +12,7 @@ const ScoreSchema = z.object({
   traceId: z.string(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   observationId: z.string().nullish(),
+  comment: z.string().nullish(),
 });
 
 export default async function handler(
@@ -75,6 +76,7 @@ export default async function handler(
       timestamp: new Date(),
       value: obj.value,
       name: obj.name,
+      comment: obj.comment,
       trace: { connect: { id: traceId } },
       ...(obj.observationId && {
         observation: { connect: { id: obj.observationId } },

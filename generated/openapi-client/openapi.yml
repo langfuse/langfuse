@@ -65,6 +65,8 @@ components:
           type: integer
         observationId:
           type: string
+        comment:
+          type: string
       required:
         - traceId
         - name
@@ -86,6 +88,8 @@ components:
         timestamp:
           type: string
           format: date-time
+        comment:
+          type: string
       required:
         - id
         - traceId
