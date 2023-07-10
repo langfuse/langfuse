@@ -34,6 +34,8 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
+    console.log("Trying to create trace:", req.body);
+
     const { name, metadata, externalId, userId } = CreateTraceSchema.parse(
       req.body
     );
