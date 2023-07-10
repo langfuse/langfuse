@@ -3,8 +3,8 @@
 
 name: 🛠 Feature Request
 description: Create a feature request for the core packages
-title: 'feat: '
-labels: ['✨ enhancement']
+title: "feat: "
+labels: ["✨ enhancement"]
 body:
   - type: markdown
     attributes:
@@ -26,4 +26,3 @@ body:
     attributes:
       label: Additional information
       description: Add any other information related to the feature here. If your feature request is related to any issues or discussions, link them here.
-      
