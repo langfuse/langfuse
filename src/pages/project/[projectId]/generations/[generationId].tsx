@@ -77,22 +77,40 @@ export default function GenerationPage() {
               label: "Time",
               value: (
                 <CodeView
-                  content={`
-Start: ${generation.data.startTime.toLocaleString()}
-End: ${generation.data.endTime?.toLocaleString() ?? "null"}
-Duration: ${
+                  content={[
+                    `Start:\n${generation.data.startTime.toISOString()}`,
+                    generation.data.completionStartTime !== null
+                      ? "Completion start:\n" +
+                        generation.data.completionStartTime.toISOString()
+                      : null,
                     generation.data.endTime
-                      ? `${
+                      ? "End:\n" + generation.data.endTime.toISOString()
+                      : null,
+                    "---",
+                    generation.data.startTime !== null &&
+                    generation.data.completionStartTime !== null
+                      ? `First completion token:\n${
+                          generation.data.completionStartTime.getTime() -
+                          generation.data.startTime.getTime()
+                        } ms`
+                      : null,
+                    generation.data.endTime !== null &&
+                    generation.data.completionStartTime !== null
+                      ? `Completion:\n${
+                          generation.data.endTime.getTime() -
+                          generation.data.completionStartTime.getTime()
+                        } ms`
+                      : null,
+                    generation.data.endTime
+                      ? "Total:\n" +
+                        `${
                           generation.data.endTime.getTime() -
                           generation.data.startTime.getTime()
                         } ms`
-                      : "null"
-                  }
-Completion start: ${
-                    generation.data.completionStartTime?.toLocaleString() ??
-                    "null"
-                  }
-              `}
+                      : null,
+                  ]
+                    .filter((s) => s !== null)
+                    .join("\n\n")}
                 />
               ),
             },
