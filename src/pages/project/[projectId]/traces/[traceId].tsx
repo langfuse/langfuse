@@ -43,6 +43,10 @@ export default function TracePage() {
               value: trace.data.name,
             },
             {
+              label: "User ID",
+              value: trace.data.userId,
+            },
+            {
               label: "Metrics",
               value: (
                 <DescriptionList
