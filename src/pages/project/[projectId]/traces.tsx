@@ -2,20 +2,10 @@ import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { DataTable } from "@/src/components/table/data-table";
-import { ArrowUpRight } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/ui/button";
-import Link from "next/link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
-import ObservationDisplay from "@/src/components/observation-display";
 import { useRouter } from "next/router";
 import { type TableRowOptions } from "@/src/components/table/types";
 import {
@@ -57,22 +47,15 @@ export default function Traces() {
     operator: null,
   });
 
-  const traces = api.traces.all.useQuery(
-    {
-      ...queryOptions,
-      projectId,
-    },
-    {
-      refetchInterval: 5000,
-    }
-  );
+  const traces = api.traces.all.useQuery({
+    ...queryOptions,
+    projectId,
+  });
 
-  const options = api.traces.availableFilterOptions.useQuery(
-    { ...queryOptions, projectId },
-    {
-      refetchInterval: 5000,
-    }
-  );
+  const options = api.traces.availableFilterOptions.useQuery({
+    ...queryOptions,
+    projectId,
+  });
 
   const convertToTableRow = (
     trace: Trace & { scores: Score[] }
@@ -242,85 +225,35 @@ export default function Traces() {
 
   return (
     <div className="container">
-      <Header title="Traces" live />
-      <Tabs defaultValue="table">
-        <TabsList>
-          <TabsTrigger value="table">Table</TabsTrigger>
-          <TabsTrigger value="sidebyside">Side-by-side</TabsTrigger>
-        </TabsList>
-        {tableOptions.data ? (
-          <div className="mt-2">
-            <DataTableToolbar
-              columnDefs={columns}
-              options={tableOptions.data}
-              resetFilters={resetFilters}
-              isFiltered={isFiltered}
-            />
-          </div>
-        ) : undefined}
-        <TabsContent value="table">
-          <DataTable
-            columns={columns}
-            data={
-              traces.isLoading
-                ? { isLoading: true, isError: false }
-                : traces.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: traces.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: traces.data?.map((t) => convertToTableRow(t)),
-                  }
-            }
-            options={tableOptions}
-          />
-        </TabsContent>
-        <TabsContent value="sidebyside">
-          <div className="relative flex max-w-full flex-row gap-2 overflow-x-scroll pb-3">
-            {traces.data?.map((trace) => (
-              <Single key={trace.id} trace={trace} projectId={projectId} />
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+      <Header title="Traces" />
+
+      {tableOptions.data ? (
+        <DataTableToolbar
+          columnDefs={columns}
+          options={tableOptions.data}
+          resetFilters={resetFilters}
+          isFiltered={isFiltered}
+        />
+      ) : undefined}
+      <DataTable
+        columns={columns}
+        data={
+          traces.isLoading
+            ? { isLoading: true, isError: false }
+            : traces.isError
+            ? {
+                isLoading: false,
+                isError: true,
+                error: traces.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: traces.data?.map((t) => convertToTableRow(t)),
+              }
+        }
+        options={tableOptions}
+      />
     </div>
   );
 }
-
-const Single = (props: {
-  trace: RouterOutput["traces"]["all"][number];
-  projectId: string;
-}) => {
-  const { trace } = props;
-
-  return (
-    <div className="w-[550px] flex-none rounded-md border px-3">
-      <div className="mt-4 font-bold">Trace</div>
-      <Button variant="ghost" size="sm" asChild>
-        <Link href={`/project/${props.projectId}/traces/${trace.id}`}>
-          {trace.id}
-          <ArrowUpRight className="ml-2 h-4 w-4" />
-        </Link>
-      </Button>
-      <div className="mt-4 text-sm font-bold">Timestamp</div>
-      <div>{trace.timestamp.toLocaleString()}</div>
-      <div className="mt-4 text-sm font-bold">Name</div>
-      <div>{trace.name}</div>
-
-      {trace.nestedObservation ? (
-        <>
-          <div className="mt-4 text-sm font-bold">Observations:</div>
-          <ObservationDisplay
-            key={trace.id}
-            observations={trace.nestedObservation}
-            projectId={props.projectId}
-          />
-        </>
-      ) : undefined}
-    </div>
-  );
-};

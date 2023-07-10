@@ -21,7 +21,7 @@ export function DataTableToolbar<TData, TValue>({
   isFiltered,
 }: DataTableToolbarProps<TData, TValue>) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="my-2 flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
         {columnDefs.map((column) => {
           const columnOptions = options.find(

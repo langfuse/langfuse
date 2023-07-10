@@ -129,7 +129,7 @@ model Trace {
     scores       Score[]
 
     @@unique([projectId, externalId])
-    @@index([projectId])
+    @@index([projectId, name])
     @@map("traces")
 }
 
@@ -158,6 +158,7 @@ model Observation {
     childs Observation[] @relation("ParentChilds")
     scores Score[]
 
+    @@index([traceId, type])
     @@map("observations")
 }
 
@@ -184,5 +185,6 @@ model Score {
     observationId String?      @map("observation_id")
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
+    @@index([value])
     @@map("scores")
 }
