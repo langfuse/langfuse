@@ -19,6 +19,7 @@ types:
       name: string
       value: integer
       observationId: optional<string>
+      comment: optional<string>
   Score:
     properties:
       id: string
@@ -27,6 +28,7 @@ types:
       value: integer
       observationId: optional<string>
       timestamp: datetime
+      comment: optional<string>
   TraceIdType:
     enum:
       - LANGFUSE

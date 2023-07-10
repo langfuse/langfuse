@@ -181,6 +181,7 @@ model Score {
     timestamp     DateTime     @default(now())
     name          String
     value         Int
+    comment       String?
     traceId       String       @map("trace_id")
     trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
     observationId String?      @map("observation_id")
