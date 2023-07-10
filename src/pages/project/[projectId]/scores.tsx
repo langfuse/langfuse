@@ -30,23 +30,15 @@ export default function ScoresPage() {
     id: null,
   });
 
-  const scores = api.scores.all.useQuery(
-    {
-      ...queryOptions,
-      projectId,
-    },
-    {
-      refetchInterval: 5000,
-    }
-  );
+  const scores = api.scores.all.useQuery({
+    ...queryOptions,
+    projectId,
+  });
 
-  const generationOptions = api.generations.availableFilterOptions.useQuery(
-    {
-      ...queryOptions,
-      projectId,
-    },
-    { refetchInterval: 5000 }
-  );
+  const generationOptions = api.generations.availableFilterOptions.useQuery({
+    ...queryOptions,
+    projectId,
+  });
 
   const columns: ColumnDef<RowData>[] = [
     {
@@ -163,16 +155,14 @@ export default function ScoresPage() {
 
   return (
     <div className="container">
-      <Header title="Scores" live />
+      <Header title="Scores" />
       {tableOptions.data ? (
-        <div className="my-2">
-          <DataTableToolbar
-            columnDefs={columns}
-            options={tableOptions.data}
-            resetFilters={resetFilters}
-            isFiltered={isFiltered}
-          />
-        </div>
+        <DataTableToolbar
+          columnDefs={columns}
+          options={tableOptions.data}
+          resetFilters={resetFilters}
+          isFiltered={isFiltered}
+        />
       ) : undefined}
       <DataTable
         columns={columns}

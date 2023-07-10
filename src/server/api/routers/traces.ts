@@ -27,7 +27,7 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const traces = await ctx.prisma.trace.findMany({
+      return await ctx.prisma.trace.findMany({
         where: {
           projectId: input.projectId,
           ...(input.name
@@ -53,15 +53,9 @@ export const traceRouter = createTRPCRouter({
         },
         include: {
           scores: true,
-          observations: true,
         },
         take: 50, // TODO: pagination
       });
-
-      return traces.map((trace) => ({
-        ...trace,
-        nestedObservation: nestObservations(trace.observations),
-      }));
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
