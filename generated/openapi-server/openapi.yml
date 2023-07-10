@@ -757,6 +757,9 @@ components:
         name:
           type: string
           nullable: true
+        userId:
+          type: string
+          nullable: true
         externalId:
           type: string
           nullable: true
@@ -775,6 +778,9 @@ components:
           type: string
           nullable: true
         name:
+          type: string
+          nullable: true
+        userId:
           type: string
           nullable: true
         metadata:

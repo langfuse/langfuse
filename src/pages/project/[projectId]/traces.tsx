@@ -26,6 +26,7 @@ export type TraceTableRow = {
   externalId?: string;
   timestamp: string;
   name: string;
+  userId: string;
   metadata?: string;
   scores: TableScore[];
 };
@@ -66,6 +67,7 @@ export default function Traces() {
       timestamp: trace.timestamp.toISOString(),
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
+      userId: trace.userId ?? "",
       scores: trace.scores.map((score) => {
         return {
           name: score.name,
@@ -141,6 +143,10 @@ export default function Traces() {
           },
         },
       },
+    },
+    {
+      accessorKey: "userId",
+      header: "User ID",
     },
     {
       accessorKey: "metadata",
