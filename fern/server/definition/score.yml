@@ -14,6 +14,7 @@ service:
 types:
   CreateScoreRequest:
     properties:
+      id: optional<string>
       traceId: string
       traceIdType: optional<TraceIdType>
       name: string
