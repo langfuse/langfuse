@@ -36,10 +36,11 @@ export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     scores: null,
     name: null,
-    id: null,
+    searchQuery: null,
   });
 
   const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
@@ -102,17 +103,6 @@ export default function Traces() {
             value={value}
           />
         ) : undefined;
-      },
-      enableColumnFilter: true,
-      meta: {
-        label: "Id",
-        filter: {
-          type: "select",
-          values: queryOptions.id,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, id: newValues });
-          },
-        },
       },
     },
     {
@@ -212,15 +202,13 @@ export default function Traces() {
       };
 
   const isFiltered = () =>
-    queryOptions.name !== null ||
-    queryOptions.id !== null ||
-    queryOptions.scores !== null;
+    queryOptions.name !== null || queryOptions.scores !== null;
 
   const resetFilters = () => {
     setQueryOptions({
       scores: null,
       name: null,
-      id: null,
+      searchQuery: null,
     });
     setSelectedScores({
       name: null,
@@ -229,14 +217,22 @@ export default function Traces() {
     });
   };
 
+  const updateSearchQuery = (searchQuery: string) => {
+    setQueryOptions({ ...queryOptions, searchQuery });
+  };
+
   return (
     <div className="container">
       <Header title="Traces" />
-
       {tableOptions.data ? (
         <DataTableToolbar
           columnDefs={columns}
           options={tableOptions.data}
+          searchConfig={{
+            placeholder: "Search traces (ID, External ID, Name, User ID)",
+            updateQuery: updateSearchQuery,
+            currentQuery: queryOptions.searchQuery ?? undefined,
+          }}
           resetFilters={resetFilters}
           isFiltered={isFiltered}
         />
