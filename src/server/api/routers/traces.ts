@@ -19,8 +19,8 @@ type ScoreFilter = z.infer<typeof ScoreFilter>;
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
-  id: z.array(z.string()).nullable(),
   scores: ScoreFilter.nullable(),
+  searchQuery: z.string().nullable(),
 });
 
 export const traceRouter = createTRPCRouter({
@@ -29,24 +29,25 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return await ctx.prisma.trace.findMany({
         where: {
-          projectId: input.projectId,
-          ...(input.name
-            ? {
-                name: {
-                  in: input.name,
-                },
-              }
-            : undefined),
-          ...(input.id
-            ? {
-                id: {
-                  in: input.id,
-                },
-              }
-            : undefined),
-          ...(input.scores
-            ? { scores: { some: createScoreCondition(input.scores) } }
-            : undefined),
+          AND: [
+            {
+              projectId: input.projectId,
+              ...(input.name ? { name: { in: input.name } } : undefined),
+              ...(input.scores
+                ? { scores: { some: createScoreCondition(input.scores) } }
+                : undefined),
+            },
+            input.searchQuery
+              ? {
+                  OR: [
+                    { id: { contains: input.searchQuery } },
+                    { externalId: { contains: input.searchQuery } },
+                    { userId: { contains: input.searchQuery } },
+                    { name: { contains: input.searchQuery } },
+                  ],
+                }
+              : {},
+          ],
         },
         orderBy: {
           timestamp: "desc",
@@ -61,39 +62,37 @@ export const traceRouter = createTRPCRouter({
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
       const filter = {
-        projectId: input.projectId,
-        ...(input.name
-          ? {
-              name: {
-                in: input.name,
-              },
-            }
-          : undefined),
-        ...(input.id
-          ? {
-              id: {
-                in: input.id,
-              },
-            }
-          : undefined),
-        ...(input.scores
-          ? {
-              scores: {
-                some: createScoreCondition(input.scores),
-              },
-            }
-          : undefined),
+        AND: [
+          {
+            projectId: input.projectId,
+            ...(input.name ? { name: { in: input.name } } : undefined),
+            ...(input.scores
+              ? { scores: { some: createScoreCondition(input.scores) } }
+              : undefined),
+          },
+          input.searchQuery
+            ? {
+                OR: [
+                  { id: { contains: input.searchQuery } },
+                  { externalId: { contains: input.searchQuery } },
+                  { userId: { contains: input.searchQuery } },
+                  { name: { contains: input.searchQuery } },
+                ],
+              }
+            : {},
+        ],
       };
 
-      const [ids, names] = await Promise.all([
-        ctx.prisma.trace.groupBy({
-          where: filter,
-          by: ["id"],
+      const [scores, names] = await Promise.all([
+        ctx.prisma.score.groupBy({
+          where: {
+            trace: filter,
+          },
+          by: ["name", "traceId"],
           _count: {
             _all: true,
           },
         }),
-
         ctx.prisma.trace.groupBy({
           where: filter,
           by: ["name"],
@@ -102,16 +101,6 @@ export const traceRouter = createTRPCRouter({
           },
         }),
       ]);
-
-      const scores = await ctx.prisma.score.groupBy({
-        where: {
-          trace: filter,
-        },
-        by: ["name", "traceId"],
-        _count: {
-          _all: true,
-        },
-      });
 
       let groupedCounts: Map<string, number> = new Map();
 
@@ -126,12 +115,6 @@ export const traceRouter = createTRPCRouter({
       }
 
       return [
-        {
-          key: "id",
-          occurrences: ids.map((i) => {
-            return { key: i.id, count: i._count };
-          }),
-        },
         {
           key: "name",
           occurrences: names.map((i) => {

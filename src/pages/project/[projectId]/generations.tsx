@@ -30,7 +30,6 @@ export default function Generations() {
 
   const [queryOptions, setQueryOptions] = useState<GenerationFilterInput>({
     traceId: null,
-    id: null,
   });
 
   const generations = api.generations.all.useQuery({
@@ -47,7 +46,6 @@ export default function Generations() {
     {
       accessorKey: "id",
       header: "ID",
-      enableColumnFilter: true,
       cell: ({ row }) => {
         const value = row.getValue("id");
         return typeof value === "string" ? (
@@ -56,16 +54,6 @@ export default function Generations() {
             value={value}
           />
         ) : undefined;
-      },
-      meta: {
-        label: "Id",
-        filter: {
-          type: "select",
-          values: queryOptions.id,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, id: newValues });
-          },
-        },
       },
     },
     {
@@ -152,12 +140,10 @@ export default function Generations() {
 
   const resetFilters = () =>
     setQueryOptions({
-      id: null,
       traceId: null,
     });
 
-  const isFiltered = () =>
-    queryOptions.traceId !== null || queryOptions.id !== null;
+  const isFiltered = () => queryOptions.traceId !== null;
 
   return (
     <div className="container">

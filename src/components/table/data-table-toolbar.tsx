@@ -5,11 +5,19 @@ import { Button } from "@/src/components/ui/button";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { DataTableSelectFilter } from "@/src/components/table/data-table-select-filter";
 import { DataTableNumberFilter } from "@/src/components/table/data-table-number-filter";
-import React from "react";
+import React, { useState } from "react";
+import { Input } from "@/src/components/ui/input";
+
+interface SearchConfig {
+  placeholder: string;
+  updateQuery(event: string): void;
+  currentQuery?: string;
+}
 
 interface DataTableToolbarProps<TData, TValue> {
   columnDefs: ColumnDef<TData, TValue>[];
   options: TableRowOptions[];
+  searchConfig?: SearchConfig;
   resetFilters: () => void;
   isFiltered: () => boolean;
 }
@@ -17,33 +25,60 @@ interface DataTableToolbarProps<TData, TValue> {
 export function DataTableToolbar<TData, TValue>({
   columnDefs,
   options,
+  searchConfig,
   resetFilters,
   isFiltered,
 }: DataTableToolbarProps<TData, TValue>) {
+  const [searchString, setSearchString] = useState(
+    searchConfig?.currentQuery ?? ""
+  );
+
   return (
     <div className="my-2 flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
-        {columnDefs.map((column) => {
-          const columnOptions = options.find(
-            (o) =>
-              o.columnId.toLowerCase() === column.meta?.label?.toLowerCase()
-          );
-          return column.enableColumnFilter && columnOptions ? (
-            column.meta?.filter?.type === "select" ? (
-              <DataTableSelectFilter
-                title={column.meta?.label}
-                meta={column.meta?.filter}
-                options={columnOptions}
-              />
-            ) : column.meta?.filter?.type === "number-comparison" ? (
-              <DataTableNumberFilter
-                title={column.meta?.label}
-                meta={column.meta?.filter}
-                options={columnOptions}
-              />
-            ) : undefined
-          ) : undefined;
-        })}
+        {searchConfig ? (
+          <div className="flex w-full max-w-md items-center space-x-2">
+            <Input
+              autoFocus
+              placeholder={searchConfig.placeholder}
+              value={searchString}
+              className="h-8 w-[350px]"
+              onChange={(event) => {
+                setSearchString(event.currentTarget.value);
+              }}
+            />
+            <Button
+              variant="outline"
+              type="submit"
+              onClick={() => searchConfig.updateQuery(searchString)}
+            >
+              Search
+            </Button>
+          </div>
+        ) : undefined}
+        {options
+          ? columnDefs.map((column) => {
+              const columnOptions = options.find(
+                (o) =>
+                  o.columnId.toLowerCase() === column.meta?.label?.toLowerCase()
+              );
+              return column.enableColumnFilter && columnOptions ? (
+                column.meta?.filter?.type === "select" ? (
+                  <DataTableSelectFilter
+                    title={column.meta?.label}
+                    meta={column.meta?.filter}
+                    options={columnOptions}
+                  />
+                ) : column.meta?.filter?.type === "number-comparison" ? (
+                  <DataTableNumberFilter
+                    title={column.meta?.label}
+                    meta={column.meta?.filter}
+                    options={columnOptions}
+                  />
+                ) : undefined
+              ) : undefined;
+            })
+          : undefined}
         {isFiltered() && (
           <Button
             variant="ghost"
