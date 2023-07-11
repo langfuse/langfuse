@@ -37,30 +37,16 @@ export const traceRouter = createTRPCRouter({
                 ? { scores: { some: createScoreCondition(input.scores) } }
                 : undefined),
             },
-            {
-              OR: [
-                {
-                  id: input.searchQuery
-                    ? { contains: input.searchQuery }
-                    : undefined,
-                },
-                {
-                  externalId: input.searchQuery
-                    ? { contains: input.searchQuery }
-                    : undefined,
-                },
-                {
-                  userId: input.searchQuery
-                    ? { contains: input.searchQuery }
-                    : undefined,
-                },
-                {
-                  name: input.searchQuery
-                    ? { contains: input.searchQuery }
-                    : undefined,
-                },
-              ],
-            },
+            input.searchQuery
+              ? {
+                  OR: [
+                    { id: { contains: input.searchQuery } },
+                    { externalId: { contains: input.searchQuery } },
+                    { userId: { contains: input.searchQuery } },
+                    { name: { contains: input.searchQuery } },
+                  ],
+                }
+              : {},
           ],
         },
         orderBy: {
