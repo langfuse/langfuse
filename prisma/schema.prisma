@@ -131,7 +131,10 @@ model Trace {
     scores       Score[]
 
     @@unique([projectId, externalId])
-    @@index([projectId, name, userId, externalId])
+    @@index([projectId])
+    @@index([name])
+    @@index([userId])
+    @@index([externalId])
     @@map("traces")
 }
 
@@ -160,7 +163,8 @@ model Observation {
     childs Observation[] @relation("ParentChilds")
     scores Score[]
 
-    @@index([traceId, type])
+    @@index([traceId])
+    @@index([type])
     @@map("observations")
 }
 
