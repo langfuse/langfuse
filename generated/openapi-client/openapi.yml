@@ -55,6 +55,8 @@ components:
       title: CreateScoreRequest
       type: object
       properties:
+        id:
+          type: string
         traceId:
           type: string
         traceIdType:

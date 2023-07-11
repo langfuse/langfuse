@@ -596,6 +596,9 @@ components:
       title: CreateScoreRequest
       type: object
       properties:
+        id:
+          type: string
+          nullable: true
         traceId:
           type: string
         traceIdType:

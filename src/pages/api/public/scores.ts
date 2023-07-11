@@ -7,6 +7,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 
 const ScoreSchema = z.object({
+  id: z.string().nullish(),
   name: z.string(),
   value: z.number().int(),
   traceId: z.string(),
@@ -73,6 +74,7 @@ export default async function handler(
     // END CHECK ACCESS SCOPE
 
     const data: Prisma.ScoreCreateInput = {
+      id: obj.id ?? undefined,
       timestamp: new Date(),
       value: obj.value,
       name: obj.name,
