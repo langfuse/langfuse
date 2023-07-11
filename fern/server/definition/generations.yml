@@ -18,6 +18,7 @@ service:
 types:
   CreateLog:
     properties:
+      id: optional<string>
       traceId: optional<string>
       traceIdType: optional<TraceIdTypeGenerations>
       name: optional<string>
