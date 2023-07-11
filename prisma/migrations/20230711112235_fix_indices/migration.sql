@@ -11,10 +11,10 @@ CREATE INDEX "observations_trace_id_idx" ON "observations"("trace_id");
 CREATE INDEX "observations_type_idx" ON "observations"("type");
 
 -- CreateIndex
-CREATE INDEX "traces_project_id_idx" ON "traces"("project_id");
+CREATE INDEX IF NOT EXISTS "traces_project_id_idx" ON "traces"("project_id");
 
 -- CreateIndex
-CREATE INDEX "traces_name_idx" ON "traces"("name");
+CREATE INDEX  "traces_name_idx" ON "traces"("name");
 
 -- CreateIndex
 CREATE INDEX "traces_user_id_idx" ON "traces"("user_id");
