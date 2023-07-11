@@ -321,6 +321,9 @@ components:
       title: CreateEventRequest
       type: object
       properties:
+        id:
+          type: string
+          nullable: true
         traceId:
           type: string
           nullable: true
@@ -403,6 +406,9 @@ components:
       title: CreateLog
       type: object
       properties:
+        id:
+          type: string
+          nullable: true
         traceId:
           type: string
           nullable: true
@@ -590,6 +596,9 @@ components:
       title: CreateScoreRequest
       type: object
       properties:
+        id:
+          type: string
+          nullable: true
         traceId:
           type: string
         traceIdType:
@@ -646,6 +655,9 @@ components:
       title: CreateSpanRequest
       type: object
       properties:
+        id:
+          type: string
+          nullable: true
         traceId:
           type: string
           nullable: true

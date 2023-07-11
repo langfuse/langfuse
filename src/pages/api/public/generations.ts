@@ -7,6 +7,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 
 const GenerationsCreateSchema = z.object({
+  id: z.string().nullish(),
   traceId: z.string().nullish(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
@@ -82,6 +83,7 @@ export default async function handler(
     try {
       const obj = GenerationsCreateSchema.parse(req.body);
       const {
+        id,
         name,
         startTime,
         endTime,
@@ -148,6 +150,7 @@ export default async function handler(
 
       const newObservation = await prisma.observation.create({
         data: {
+          id: id ?? undefined,
           ...(traceId
             ? { trace: { connect: { id: traceId } } }
             : {
