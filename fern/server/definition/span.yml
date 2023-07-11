@@ -20,6 +20,7 @@ service:
 types:
   CreateSpanRequest:
     properties:
+      id: optional<string>
       traceId: optional<string>
       traceIdType: optional<TraceIdTypeSpan>
       name: optional<string>
