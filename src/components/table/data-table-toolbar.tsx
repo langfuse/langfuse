@@ -7,7 +7,6 @@ import { DataTableSelectFilter } from "@/src/components/table/data-table-select-
 import { DataTableNumberFilter } from "@/src/components/table/data-table-number-filter";
 import React, { useState } from "react";
 import { Input } from "@/src/components/ui/input";
-import { Separator } from "@radix-ui/react-separator";
 
 interface SearchConfig {
   placeholder: string;
