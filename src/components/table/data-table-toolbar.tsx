@@ -6,10 +6,18 @@ import { type TableRowOptions } from "@/src/components/table/types";
 import { DataTableSelectFilter } from "@/src/components/table/data-table-select-filter";
 import { DataTableNumberFilter } from "@/src/components/table/data-table-number-filter";
 import React from "react";
+import { Input } from "@/src/components/ui/input";
+
+interface SearchConfig {
+  placeholder: string;
+  updateQuery(event: string): void;
+  currentQuery?: string;
+}
 
 interface DataTableToolbarProps<TData, TValue> {
   columnDefs: ColumnDef<TData, TValue>[];
   options: TableRowOptions[];
+  searchConfig?: SearchConfig;
   resetFilters: () => void;
   isFiltered: () => boolean;
 }
@@ -17,12 +25,23 @@ interface DataTableToolbarProps<TData, TValue> {
 export function DataTableToolbar<TData, TValue>({
   columnDefs,
   options,
+  searchConfig,
   resetFilters,
   isFiltered,
 }: DataTableToolbarProps<TData, TValue>) {
   return (
     <div className="my-2 flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
+        {searchConfig ? (
+          <Input
+            placeholder={searchConfig.placeholder}
+            value={searchConfig.currentQuery ?? ""}
+            onChange={(event) =>
+              searchConfig.updateQuery(event.currentTarget.value)
+            }
+            className="h-8 w-[350px]"
+          />
+        ) : undefined}
         {columnDefs.map((column) => {
           const columnOptions = options.find(
             (o) =>

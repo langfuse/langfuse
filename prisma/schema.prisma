@@ -3,7 +3,7 @@
 
 generator client {
     provider        = "prisma-client-js"
-    previewFeatures = ["jsonProtocol", "tracing"]
+    previewFeatures = ["jsonProtocol", "tracing", "fullTextSearch"]
 }
 
 datasource db {
@@ -107,6 +107,7 @@ model Membership {
     updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
 
     @@id([projectId, userId])
+    @@index([userId])
     @@map("memberships")
 }
 
@@ -130,7 +131,7 @@ model Trace {
     scores       Score[]
 
     @@unique([projectId, externalId])
-    @@index([projectId, name, userId])
+    @@index([projectId, name, userId, externalId])
     @@map("traces")
 }
 

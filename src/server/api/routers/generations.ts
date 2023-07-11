@@ -9,7 +9,6 @@ import { type Generation } from "@/src/utils/types";
 
 const GenerationFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
-  id: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
 });
 
@@ -26,11 +25,6 @@ export const generationsRouter = createTRPCRouter({
           ...(input.traceId
             ? {
                 traceId: { in: input.traceId },
-              }
-            : undefined),
-          ...(input.id
-            ? {
-                id: { in: input.id },
               }
             : undefined),
         },
@@ -55,43 +49,20 @@ export const generationsRouter = createTRPCRouter({
               traceId: { in: input.traceId },
             }
           : undefined),
-        ...(input.id
-          ? {
-              id: { in: input.id },
-            }
-          : undefined),
       };
 
-      const [ids, traceIds] = await Promise.all([
-        ctx.prisma.observation.groupBy({
-          where: {
-            type: "GENERATION",
-            ...filter,
-          },
-          by: ["id"],
-          _count: {
-            _all: true,
-          },
-        }),
-        ctx.prisma.observation.groupBy({
-          where: {
-            type: "GENERATION",
-            ...filter,
-          },
-          by: ["traceId"],
-          _count: {
-            _all: true,
-          },
-        }),
-      ]);
+      const traceIds = await ctx.prisma.observation.groupBy({
+        where: {
+          type: "GENERATION",
+          ...filter,
+        },
+        by: ["traceId"],
+        _count: {
+          _all: true,
+        },
+      });
 
       return [
-        {
-          key: "id",
-          occurrences: ids.map((i) => {
-            return { key: i.id, count: i._count };
-          }),
-        },
         {
           key: "traceId",
           occurrences: traceIds.map((i) => {
