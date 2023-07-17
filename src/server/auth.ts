@@ -9,6 +9,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/src/server/db";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
+import { parseFlags } from "@/src/features/featureFlags/utils";
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
@@ -31,6 +32,7 @@ export const authOptions: NextAuthOptions = {
           name: true,
           email: true,
           image: true,
+          featureFlags: true,
           memberships: {
             include: {
               project: true,
@@ -54,6 +56,7 @@ export const authOptions: NextAuthOptions = {
                   name: membership.project.name,
                   role: membership.role,
                 })),
+                featureFlags: parseFlags(dbUser.featureFlags),
               }
             : null,
       };
@@ -109,6 +112,7 @@ export const authOptions: NextAuthOptions = {
           email: dbUser.email,
           image: dbUser.image,
           emailVerified: dbUser.emailVerified,
+          featureFlags: parseFlags(dbUser.featureFlags),
           projects: [],
         };
 
