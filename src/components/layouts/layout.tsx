@@ -46,6 +46,11 @@ export default function Layout(props: PropsWithChildren) {
   const navigation = [
     { name: "Dashboard", pathname: `/project/[projectId]`, icon: HomeIcon },
     {
+      name: "Analytics (alpha)",
+      pathname: `/project/[projectId]/analytics`,
+      icon: LineChart,
+    },
+    {
       name: "Traces",
       pathname: `/project/[projectId]/traces`,
       icon: UsersIcon,

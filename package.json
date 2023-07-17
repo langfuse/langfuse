@@ -10,7 +10,9 @@
     "prettier": "prettier --write ./src",
     "clean": "rm -rf node_modules",
     "start": "next start",
-    "migrate:prod": "dotenv -e .env.local -- npx prisma migrate deploy"
+    "migrate:dev": "dotenv -e .env.local -- npx prisma migrate dev",
+    "migrate:prod": "dotenv -e .env.local -- npx prisma migrate deploy",
+    "prisma-studio": "dotenv -e .env.local -- npx prisma studio"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
