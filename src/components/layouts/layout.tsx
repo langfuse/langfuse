@@ -12,7 +12,13 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Code, HelpingHand, LineChart, MessageSquarePlus } from "lucide-react";
+import {
+  BarChart3,
+  Code,
+  HelpingHand,
+  LineChart,
+  MessageSquarePlus,
+} from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
@@ -48,7 +54,7 @@ export default function Layout(props: PropsWithChildren) {
     {
       name: "Analytics (alpha)",
       pathname: `/project/[projectId]/analytics`,
-      icon: LineChart,
+      icon: BarChart3,
     },
     {
       name: "Traces",
