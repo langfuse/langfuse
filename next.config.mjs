@@ -9,7 +9,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  trailingSlash: true, // used to parse dynamic routes in logs/analytics
+  // trailingSlash: true, // used to parse dynamic routes in logs/analytics
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
