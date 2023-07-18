@@ -5,6 +5,7 @@ import { scoresRouter } from "./routers/scores";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboardRouter";
 import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
 import { apiKeysRouter } from "@/src/features/publicApi/server/apiKeyRouter";
+import { neuronsRouter } from "./routers/neurons";
 
 /**
  * This is the primary router for your server.
@@ -18,6 +19,8 @@ export const appRouter = createTRPCRouter({
   dashboard: dashboardRouter,
   projects: projectsRouter,
   apiKeys: apiKeysRouter,
+
+  neurons: neuronsRouter,
 });
 
 // export type definition of API

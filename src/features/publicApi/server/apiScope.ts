@@ -2,7 +2,7 @@ import { type ApiAccessScope } from "@/src/features/publicApi/server/types";
 import { prisma } from "@/src/server/db";
 
 type Resource = {
-  type: "project" | "trace" | "observation" | "score";
+  type: "project" | "trace" | "observation" | "score" | "neuron";
   id: string;
 };
 

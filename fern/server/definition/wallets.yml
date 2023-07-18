@@ -14,7 +14,7 @@ service:
 types:
   CreateWalletRequest:
     properties:
-      ownerId: optional<string>
+      projectId: optional<string>  # Replace 'ownerId' with 'projectId'
       coldkeyId: optional<string>
       hotkeyId: optional<string>
       registered: optional<boolean>
@@ -22,7 +22,9 @@ types:
   Wallet:
     properties:
       id: integer
-      ownerId: string
+      projectId: string  # Replace 'ownerId' with 'projectId'
+      createdAt: datetime
+      updatedAt: datetime
       coldkeyId: string
       hotkeyId: string
       registered: boolean

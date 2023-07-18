@@ -14,7 +14,7 @@ service:
 types:
   CreateNeuronsRequest:
     properties:
-      ownerId: optional<string>
+      projectId: optional<string>  # Replace 'ownerId' with 'projectId'
       rank: optional<integer>
       stake: optional<integer>
       emission: optional<integer>
@@ -24,7 +24,7 @@ types:
   Neurons:
     properties:
       id: string
-      ownerId: string
+      projectId: string  # Replace 'ownerId' with 'projectId'
       timestamp: datetime
       rank: integer
       stake: integer

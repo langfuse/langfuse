@@ -23,7 +23,7 @@
     "@headlessui/react": "^1.7.15",
     "@heroicons/react": "^2.0.18",
     "@hookform/resolvers": "^3.1.1",
-    "@next-auth/prisma-adapter": "^1.0.7",
+    "@next-auth/prisma-adapter": "1.0.1",
     "@prisma/client": "^4.16.2",
     "@radix-ui/react-avatar": "^1.0.3",
     "@radix-ui/react-collapsible": "^1.0.3",

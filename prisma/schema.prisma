@@ -79,73 +79,75 @@ model Project {
     members   Membership[]
     traces    Trace[]
     apiKeys   ApiKey[]
+    wallets  Wallet[]
+    coldkeys Coldkey[]
+    hotkeys  Hotkey[]
+    neurons  Neurons[]
 
     @@map("projects")
 }
 
 model Wallet {
-  id         Int      @id @default(autoincrement())
-  owner      User     @relation(fields: [ownerId], references: [id])
-  ownerId    String
-  coldkeyId  String 
-  coldkey    Coldkey  @relation(fields: [coldkeyId], references: [id])
-  hotkeyId   String  
-  hotkey     Hotkey   @relation(fields: [hotkeyId], references: [id])
-  registered Boolean  @default(false)
-  neuronsId  String
-  neurons    Neurons @relation(fields: [neuronsId], references: [id])
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+    id          Int      @id @default(autoincrement())
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id])
+    coldkeyId   String 
+    coldkey     Coldkey  @relation(fields: [coldkeyId], references: [id])
+    hotkeyId    String  
+    hotkey      Hotkey   @relation(fields: [hotkeyId], references: [id])
+    registered  Boolean  @default(false)
+    neuronsId   String
+    neurons     Neurons  @relation(fields: [neuronsId], references: [id])
+    createdAt   DateTime @default(now()) @map("created_at")
+    updatedAt   DateTime @updatedAt @map("updated_at")
 
-  @@map("wallets")
+    @@map("wallets")
 }
 
 model Coldkey {
-  id         String   @id @default(cuid())
-  owner      User     @relation(fields: [ownerId], references: [id])
-  ownerId    String
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  ss58       String
-  pubfile    String
-  name       String
-  wallets    Wallet[]
+    id          String   @id @default(cuid())
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id])
+    createdAt   DateTime @default(now()) @map("created_at")
+    updatedAt   DateTime @updatedAt @map("updated_at")
+    ss58        String
+    pubfile     String
+    name        String
+    wallets     Wallet[]
 
-  @@map("coldkeys")
-  @@unique([ss58])
+    @@map("coldkeys")
 }
 
 model Hotkey {
-  id         String   @id @default(cuid())
-  owner      User     @relation(fields: [ownerId], references: [id])
-  ownerId    String
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  ss58       String
-  pubfile    String
-  name       String
-  wallets    Wallet[]
+    id          String   @id @default(cuid())
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id])
+    createdAt   DateTime @default(now()) @map("created_at")
+    updatedAt   DateTime @updatedAt @map("updated_at")
+    ss58        String
+    pubfile     String
+    name        String
+    wallets     Wallet[]
 
-  @@map("hotkeys")
-  @@unique([ss58])
+    @@map("hotkeys")
 }
 
 model Neurons {
-  id          String   @id @default(cuid())
-  owner       User     @relation(fields: [ownerId], references: [id])
-  ownerId     String
-  timestamp   DateTime @default(now()) @map("timestamp")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  wallets     Wallet[]
-  rank        Int
-  stake       Int
-  emission    Int
-  incentive   Int
-  consensus   Int
-  trust       Int
+    id          String   @id @default(cuid())
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id])
+    timestamp   DateTime @default(now()) @map("timestamp")
+    createdAt   DateTime @default(now()) @map("created_at")
+    updatedAt   DateTime @updatedAt @map("updated_at")
+    wallets     Wallet[]
+    rank        Int
+    stake       Int
+    emission    Int
+    incentive   Int
+    consensus   Int
+    trust       Int
 
-  @@map("neurons")
+    @@map("neurons")
 }
 
 model ApiKey {
