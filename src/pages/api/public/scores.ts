@@ -40,6 +40,8 @@ export default async function handler(
   try {
     const obj = ScoreSchema.parse(req.body);
 
+    console.log("trying to create score", obj);
+
     // If externalTraceId is provided, find the traceId
     const traceId =
       obj.traceIdType === "EXTERNAL"

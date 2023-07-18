@@ -14,6 +14,7 @@ service:
 types:
   CreateTraceRequest:
     properties:
+      id: optional<string>
       name: optional<string>
       userId: optional<string>
       externalId: optional<string>
