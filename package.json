@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
     "build": "next build",
     "dev": "next dev",
     "postinstall": "prisma generate",
