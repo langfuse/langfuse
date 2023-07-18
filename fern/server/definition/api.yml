@@ -10,5 +10,5 @@ errors:
   - commons.AccessDeniedError
   - commons.MethodNotAllowedError
 headers:
-  X-Langfuse-Sdk-Name: string
-  X-Langfuse-Sdk-Version: string
+  X-Langfuse-Sdk-Name: optional<string>
+  X-Langfuse-Sdk-Version: optional<string>
