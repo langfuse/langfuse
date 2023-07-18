@@ -36,13 +36,18 @@ const MyApp: AppType<{ session: Session | null }> = ({
   const router = useRouter();
 
   useEffect(() => {
-    // Track page views
-    const handleRouteChange = () => posthog?.capture("$pageview");
-    router.events.on("routeChangeComplete", handleRouteChange);
+    // PostHog
+    if (
+      process.env.NEXT_PUBLIC_POSTHOG_KEY &&
+      process.env.NEXT_PUBLIC_POSTHOG_HOST
+    ) {
+      const handleRouteChange = () => posthog?.capture("$pageview");
+      router.events.on("routeChangeComplete", handleRouteChange);
 
-    return () => {
-      router.events.off("routeChangeComplete", handleRouteChange);
-    };
+      return () => {
+        router.events.off("routeChangeComplete", handleRouteChange);
+      };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
