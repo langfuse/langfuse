@@ -52,7 +52,21 @@ export default function TracePage() {
                 <DescriptionList
                   items={trace.data.scores.map((metric) => ({
                     label: metric.name,
-                    value: metric.value.toString(),
+                    value: (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-5">
+                        <div className="text-sm font-bold">
+                          {metric.value.toString()}
+                        </div>
+                        {metric.comment !== null ? (
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500">
+                              Comment
+                            </div>
+                            <div className="text-sm">{metric.comment}</div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ),
                   }))}
                 />
               ),
