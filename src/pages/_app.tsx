@@ -66,12 +66,16 @@ function UserTracking() {
   useEffect(() => {
     if (session.status === "authenticated" && session.data) {
       // PostHog
-      posthog.identify(session.data.user?.id ?? undefined, {
-        email: session.data.user?.email ?? undefined,
-        name: session.data.user?.name ?? undefined,
-        featureFlags: session.data.user?.featureFlags ?? undefined,
-        projects: session.data.user?.projects ?? undefined,
-      });
+      if (
+        process.env.NEXT_PUBLIC_POSTHOG_KEY &&
+        process.env.NEXT_PUBLIC_POSTHOG_HOST
+      )
+        posthog.identify(session.data.user?.id ?? undefined, {
+          email: session.data.user?.email ?? undefined,
+          name: session.data.user?.name ?? undefined,
+          featureFlags: session.data.user?.featureFlags ?? undefined,
+          projects: session.data.user?.projects ?? undefined,
+        });
       // Sentry
       setUser({
         email: session.data.user?.email ?? undefined,
@@ -79,7 +83,11 @@ function UserTracking() {
       });
     } else {
       // PostHog
-      posthog.reset();
+      if (
+        process.env.NEXT_PUBLIC_POSTHOG_KEY &&
+        process.env.NEXT_PUBLIC_POSTHOG_HOST
+      )
+        posthog.reset();
       // Sentry
       setUser(null);
     }
