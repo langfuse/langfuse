@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    createNeurons:
+      docs: Add a neuron to the database
+      method: POST
+      path: /neurons
+      request: CreateNeuronsRequest
+      response: Neurons
+
+types:
+  CreateNeuronsRequest:
+    properties:
+      ownerId: optional<string>
+      rank: optional<integer>
+      stake: optional<integer>
+      emission: optional<integer>
+      incentive: optional<integer>
+      consensus: optional<integer>
+      trust: optional<integer>
+  Neurons:
+    properties:
+      id: string
+      ownerId: string
+      timestamp: datetime
+      rank: integer
+      stake: integer
+      emission: integer
+      incentive: integer
+      consensus: integer
+      trust: integer

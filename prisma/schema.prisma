@@ -83,6 +83,71 @@ model Project {
     @@map("projects")
 }
 
+model Wallet {
+  id         Int      @id @default(autoincrement())
+  owner      User     @relation(fields: [ownerId], references: [id])
+  ownerId    String
+  coldkeyId  String 
+  coldkey    Coldkey  @relation(fields: [coldkeyId], references: [id])
+  hotkeyId   String  
+  hotkey     Hotkey   @relation(fields: [hotkeyId], references: [id])
+  registered Boolean  @default(false)
+  neuronsId  String
+  neurons    Neurons @relation(fields: [neuronsId], references: [id])
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("wallets")
+}
+
+model Coldkey {
+  id         String   @id @default(cuid())
+  owner      User     @relation(fields: [ownerId], references: [id])
+  ownerId    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  ss58       String
+  pubfile    String
+  name       String
+  wallets    Wallet[]
+
+  @@map("coldkeys")
+  @@unique([ss58])
+}
+
+model Hotkey {
+  id         String   @id @default(cuid())
+  owner      User     @relation(fields: [ownerId], references: [id])
+  ownerId    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  ss58       String
+  pubfile    String
+  name       String
+  wallets    Wallet[]
+
+  @@map("hotkeys")
+  @@unique([ss58])
+}
+
+model Neurons {
+  id          String   @id @default(cuid())
+  owner       User     @relation(fields: [ownerId], references: [id])
+  ownerId     String
+  timestamp   DateTime @default(now()) @map("timestamp")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  wallets     Wallet[]
+  rank        Int
+  stake       Int
+  emission    Int
+  incentive   Int
+  consensus   Int
+  trust       Int
+
+  @@map("neurons")
+}
+
 model ApiKey {
     id               String    @id @unique @default(cuid())
     createdAt        DateTime  @default(now()) @map("created_at")
@@ -117,6 +182,7 @@ enum MembershipRole {
     ADMIN
     MEMBER
 }
+
 
 model Trace {
     id         String   @id @default(cuid())

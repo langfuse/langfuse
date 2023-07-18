@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    createWallet:
+      docs: Add a wallet to the database
+      method: POST
+      path: /wallets
+      request: CreateWalletRequest
+      response: Wallet
+
+types:
+  CreateWalletRequest:
+    properties:
+      ownerId: optional<string>
+      coldkeyId: optional<string>
+      hotkeyId: optional<string>
+      registered: optional<boolean>
+      neuronsId: optional<string>
+  Wallet:
+    properties:
+      id: integer
+      ownerId: string
+      coldkeyId: string
+      hotkeyId: string
+      registered: boolean
+      neuronsId: string

@@ -3,6 +3,52 @@ info:
   title: langfuse
   version: ''
 paths:
+  /api/public/coldkeys:
+    post:
+      description: Add a coldkey to the database
+      operationId: coldkeys_createColdkey
+      tags:
+        - Coldkeys
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Coldkey'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: &ref_0
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateColdkeyRequest'
   /api/public/events:
     post:
       description: Add an event to the database
@@ -41,8 +87,7 @@ paths:
             application/json:
               schema:
                 type: string
-      security: &ref_0
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -136,6 +181,96 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateGenerationRequest'
+  /api/public/hotkeys:
+    post:
+      description: Add a hotkey to the database
+      operationId: hotkeys_createHotkey
+      tags:
+        - Hotkeys
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hotkey'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHotkeyRequest'
+  /api/public/neurons:
+    post:
+      description: Add a neuron to the database
+      operationId: neurons_createNeurons
+      tags:
+        - Neurons
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Neurons'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNeuronsRequest'
   /api/public/scores:
     post:
       description: Add a score to the database
@@ -315,8 +450,97 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateTraceRequest'
+  /api/public/wallets:
+    post:
+      description: Add a wallet to the database
+      operationId: wallets_createWallet
+      tags:
+        - Wallets
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWalletRequest'
 components:
   schemas:
+    CreateColdkeyRequest:
+      title: CreateColdkeyRequest
+      type: object
+      properties:
+        ownerId:
+          type: string
+          nullable: true
+        ss58:
+          type: string
+          nullable: true
+        pubfile:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+    Coldkey:
+      title: Coldkey
+      type: object
+      properties:
+        id:
+          type: string
+        ownerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        ss58:
+          type: string
+        pubfile:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - ownerId
+        - createdAt
+        - updatedAt
+        - ss58
+        - pubfile
+        - name
     CreateEventRequest:
       title: CreateEventRequest
       type: object
@@ -592,6 +816,108 @@ components:
       enum:
         - LANGFUSE
         - EXTERNAL
+    CreateHotkeyRequest:
+      title: CreateHotkeyRequest
+      type: object
+      properties:
+        ownerId:
+          type: string
+          nullable: true
+        ss58:
+          type: string
+          nullable: true
+        pubfile:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+    Hotkey:
+      title: Hotkey
+      type: object
+      properties:
+        id:
+          type: string
+        ownerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        ss58:
+          type: string
+        pubfile:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - ownerId
+        - createdAt
+        - updatedAt
+        - ss58
+        - pubfile
+        - name
+    CreateNeuronsRequest:
+      title: CreateNeuronsRequest
+      type: object
+      properties:
+        ownerId:
+          type: string
+          nullable: true
+        rank:
+          type: integer
+          nullable: true
+        stake:
+          type: integer
+          nullable: true
+        emission:
+          type: integer
+          nullable: true
+        incentive:
+          type: integer
+          nullable: true
+        consensus:
+          type: integer
+          nullable: true
+        trust:
+          type: integer
+          nullable: true
+    Neurons:
+      title: Neurons
+      type: object
+      properties:
+        id:
+          type: string
+        ownerId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        rank:
+          type: integer
+        stake:
+          type: integer
+        emission:
+          type: integer
+        incentive:
+          type: integer
+        consensus:
+          type: integer
+        trust:
+          type: integer
+      required:
+        - id
+        - ownerId
+        - timestamp
+        - rank
+        - stake
+        - emission
+        - incentive
+        - consensus
+        - trust
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -806,6 +1132,48 @@ components:
       required:
         - id
         - timestamp
+    CreateWalletRequest:
+      title: CreateWalletRequest
+      type: object
+      properties:
+        ownerId:
+          type: string
+          nullable: true
+        coldkeyId:
+          type: string
+          nullable: true
+        hotkeyId:
+          type: string
+          nullable: true
+        registered:
+          type: boolean
+          nullable: true
+        neuronsId:
+          type: string
+          nullable: true
+    Wallet:
+      title: Wallet
+      type: object
+      properties:
+        id:
+          type: integer
+        ownerId:
+          type: string
+        coldkeyId:
+          type: string
+        hotkeyId:
+          type: string
+        registered:
+          type: boolean
+        neuronsId:
+          type: string
+      required:
+        - id
+        - ownerId
+        - coldkeyId
+        - hotkeyId
+        - registered
+        - neuronsId
   securitySchemes:
     BasicAuth:
       type: http
