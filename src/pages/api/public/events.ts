@@ -11,7 +11,7 @@ const ObservationSchema = z.object({
   traceId: z.string().nullish(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime().nullish(),
+  startTime: z.string().datetime({ offset: true }).nullish(),
   metadata: z.unknown().nullish(),
   input: z.unknown().nullish(),
   output: z.unknown().nullish(),

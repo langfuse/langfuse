@@ -11,9 +11,9 @@ const GenerationsCreateSchema = z.object({
   traceId: z.string().nullish(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime().nullish(),
-  endTime: z.string().datetime().nullish(),
-  completionStartTime: z.string().datetime().nullish(),
+  startTime: z.string().datetime({ offset: true }).nullish(),
+  endTime: z.string().datetime({ offset: true }).nullish(),
+  completionStartTime: z.string().datetime({ offset: true }).nullish(),
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -39,8 +39,8 @@ const GenerationsCreateSchema = z.object({
 const GenerationPatchSchema = z.object({
   generationId: z.string(),
   name: z.string().nullish(),
-  endTime: z.string().datetime().nullish(),
-  completionStartTime: z.string().datetime().nullish(),
+  endTime: z.string().datetime({ offset: true }).nullish(),
+  completionStartTime: z.string().datetime({ offset: true }).nullish(),
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -81,6 +81,10 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
+      console.log(
+        "trying to create observation for generation" +
+          JSON.stringify(req.body, null, 2)
+      );
       const obj = GenerationsCreateSchema.parse(req.body);
       const {
         id,
@@ -98,10 +102,6 @@ export default async function handler(
         level,
         statusMessage,
       } = obj;
-      console.log(
-        "trying to create observation for generation" +
-          JSON.stringify(obj, null, 2)
-      );
 
       // If externalTraceId is provided, find or create the traceId
       const traceId =
