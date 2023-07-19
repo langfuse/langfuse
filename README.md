@@ -37,6 +37,8 @@
 
 Langfuse analytics is currently in a closed alpha as the core team works with a group of users to build the most useful analytics platform for LLM apps.
 
+Reach out if you are interested to join the alpha: alpha@langfuse.com
+
 # Integrations
 
 Monitor backend executions of LLM app to create nested traces
