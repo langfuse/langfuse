@@ -38,9 +38,9 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
-    const obj = ScoreSchema.parse(req.body);
+    console.log("trying to create score", req.body);
 
-    console.log("trying to create score", obj);
+    const obj = ScoreSchema.parse(req.body);
 
     // If externalTraceId is provided, find the traceId
     const traceId =

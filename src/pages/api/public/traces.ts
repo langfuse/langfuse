@@ -5,7 +5,6 @@ import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 
 const CreateTraceSchema = z.object({
-  id: z.string().nullish(),
   name: z.string().nullish(),
   externalId: z.string().nullish(),
   userId: z.string().nullish(),
@@ -37,7 +36,7 @@ export default async function handler(
   try {
     console.log("Trying to create trace:", req.body);
 
-    const { id, name, metadata, externalId, userId } = CreateTraceSchema.parse(
+    const { name, metadata, externalId, userId } = CreateTraceSchema.parse(
       req.body
     );
 
@@ -59,7 +58,6 @@ export default async function handler(
           },
         },
         create: {
-          id: id ?? undefined,
           timestamp: new Date(),
           projectId: authCheck.scope.projectId,
           externalId: externalId,
@@ -76,7 +74,6 @@ export default async function handler(
     } else {
       const newTrace = await prisma.trace.create({
         data: {
-          id: id ?? undefined,
           timestamp: new Date(),
           projectId: authCheck.scope.projectId,
           name: name ?? undefined,
