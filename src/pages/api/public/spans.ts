@@ -11,8 +11,8 @@ const SpanPostSchema = z.object({
   traceId: z.string().nullish(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime().nullish(),
-  endTime: z.string().datetime().nullish(),
+  startTime: z.string().datetime({ offset: true }).nullish(),
+  endTime: z.string().datetime({ offset: true }).nullish(),
   metadata: z.unknown().nullish(),
   input: z.unknown().nullish(),
   output: z.unknown().nullish(),
@@ -24,7 +24,7 @@ const SpanPostSchema = z.object({
 const SpanPatchSchema = z.object({
   spanId: z.string(),
   name: z.string().nullish(),
-  endTime: z.string().datetime().nullish(),
+  endTime: z.string().datetime({ offset: true }).nullish(),
   metadata: z.unknown().nullish(),
   input: z.unknown().nullish(),
   output: z.unknown().nullish(),
@@ -135,6 +135,7 @@ export default async function handler(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
+      console.error(error, req.body);
       res.status(400).json({
         success: false,
         message: "Invalid request data",
