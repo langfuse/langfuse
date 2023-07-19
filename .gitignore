@@ -43,3 +43,6 @@ yarn-error.log*
 *.tsbuildinfo
 
 /generated/typescript-server
+
+# openapi spec that is copied during build
+/public/openapi*.yml
