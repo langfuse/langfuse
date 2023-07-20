@@ -68,6 +68,7 @@
     "superjson": "1.12.4",
     "tailwind-merge": "^1.13.2",
     "tailwindcss-animate": "^1.0.6",
+    "tiktoken": "^1.0.10",
     "ts-pattern": "^5.0.1",
     "zod": "^3.21.4"
   },

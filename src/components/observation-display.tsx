@@ -1,7 +1,4 @@
-import {
-  type GenerationUsage,
-  type NestedObservation,
-} from "@/src/utils/types";
+import { type NestedObservation } from "@/src/utils/types";
 import { JSONView } from "@/src/components/ui/code";
 import { formatDate } from "@/src/utils/dates";
 import Link from "next/link";
@@ -111,9 +108,6 @@ const ObservationInfo = (props: {
   observation: NestedObservation;
   projectId: string;
 }) => {
-  const usage = props.observation.usage
-    ? (props.observation.usage as unknown as GenerationUsage)
-    : null;
   return (
     <>
       <div className="flex-auto overflow-hidden break-all ">
@@ -151,9 +145,9 @@ const ObservationInfo = (props: {
             </div>
           ) : undefined}
         </div>
-        {usage && (usage.promptTokens || usage.completionTokens) ? (
+        {props.observation.type === "GENERATION" ? (
           <p className="text-xs leading-5 text-gray-500">
-            {(usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)} tokens
+            {`${props.observation.promptTokens} → ${props.observation.completionTokens} (∑ ${props.observation.totalTokens})`}
           </p>
         ) : undefined}
         {props.observation.level !== "DEFAULT" ? (

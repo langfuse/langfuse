@@ -539,9 +539,12 @@ components:
         completion:
           type: string
           nullable: true
-        usage:
-          $ref: '#/components/schemas/LLMUsage'
-          nullable: true
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+        totalTokens:
+          type: integer
         level:
           $ref: '#/components/schemas/ObservationLevelGeneration'
         statusMessage:
@@ -555,6 +558,9 @@ components:
         - traceId
         - type
         - startTime
+        - promptTokens
+        - completionTokens
+        - totalTokens
         - level
     LLMUsage:
       title: LLMUsage

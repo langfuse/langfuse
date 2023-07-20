@@ -120,14 +120,7 @@ export default function GenerationPage() {
             },
             {
               label: "Tokens",
-              value: [
-                generation.data.usage?.promptTokens &&
-                  `${generation.data.usage.promptTokens} prompt tokens`,
-                generation.data.usage?.completionTokens &&
-                  `${generation.data.usage.completionTokens} completion tokens`,
-              ]
-                .filter(Boolean)
-                .join(", "),
+              value: `${generation.data.promptTokens} prompt → ${generation.data.completionTokens} completion (${generation.data.totalTokens} in total)`,
             },
             {
               label: "Prompt",
