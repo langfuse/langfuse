@@ -157,6 +157,9 @@ async function main() {
             )
         );
 
+        const promptTokens = Math.floor(Math.random() * 1000) + 300;
+        const completionTokens = Math.floor(Math.random() * 500) + 100;
+
         await prisma.observation.create({
           data: {
             type: "GENERATION",
@@ -235,10 +238,9 @@ async function main() {
             metadata: {
               user: `user-${i}@langfuse.com`,
             },
-            usage: {
-              promptTokens: Math.floor(Math.random() * 1000) + 300,
-              completionTokens: Math.floor(Math.random() * 500) + 100,
-            },
+            promptTokens,
+            completionTokens,
+            totalTokens: promptTokens + completionTokens,
             parent: {
               connect: {
                 id: span.id,

@@ -22,6 +22,17 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: 'standalone',
+
+  // webassembly support for @dqbd/tiktoken
+  webpack(config) {
+    config.experiments = {
+      asyncWebAssembly: true,
+      layers: true,
+    };
+
+    return config;
+  },
+
   sentry: {
     // See the sections below for information on the following options:
     //   'Configure Source Maps':

@@ -5,8 +5,9 @@ import { z } from "zod";
 import { cors, runMiddleware } from "./cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
+import { tokenCount } from "@/src/features/ingest/lib/usage";
 
-const GenerationsCreateSchema = z.object({
+export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
@@ -137,16 +138,22 @@ export default async function handler(
         });
       // END CHECK ACCESS SCOPE
 
-      const calculatedUsage = usage
-        ? {
-            ...usage,
-            totalTokens:
-              !usage.totalTokens &&
-              (usage.promptTokens || usage.completionTokens)
-                ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
-                : usage.totalTokens,
-          }
-        : undefined;
+      const newPromptTokens =
+        usage?.promptTokens ??
+        (model && prompt
+          ? tokenCount({
+              model: model,
+              text: JSON.stringify(prompt),
+            })
+          : undefined);
+      const newCompletionTokens =
+        usage?.completionTokens ??
+        (model && completion
+          ? tokenCount({
+              model: model,
+              text: completion,
+            })
+          : undefined);
 
       const newObservation = await prisma.observation.create({
         data: {
@@ -173,7 +180,11 @@ export default async function handler(
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
           output: completion ? { completion: completion } : undefined,
-          usage: calculatedUsage,
+          promptTokens: newPromptTokens,
+          completionTokens: newCompletionTokens,
+          totalTokens:
+            usage?.totalTokens ??
+            (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
           level: level ?? undefined,
           statusMessage: statusMessage ?? undefined,
           parent: parentObservationId
@@ -202,6 +213,7 @@ export default async function handler(
         prompt,
         completion,
         usage,
+        model,
         ...fields
       } = GenerationPatchSchema.parse(req.body);
 
@@ -216,16 +228,38 @@ export default async function handler(
         });
       // END CHECK ACCESS SCOPE
 
-      const calculatedUsage = usage
-        ? {
-            ...usage,
-            totalTokens:
-              !usage.totalTokens &&
-              (usage.promptTokens || usage.completionTokens)
-                ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
-                : usage.totalTokens,
-          }
-        : undefined;
+      const existingObservation = await prisma.observation.findUnique({
+        where: { id: generationId },
+        select: {
+          promptTokens: true,
+          completionTokens: true,
+          model: true,
+        },
+      });
+
+      const mergedModel = model ?? existingObservation?.model ?? null;
+
+      const newPromptTokens =
+        usage?.promptTokens ??
+        (mergedModel && prompt
+          ? tokenCount({
+              model: mergedModel,
+              text: JSON.stringify(prompt),
+            })
+          : undefined);
+
+      const newCompletionTokens =
+        usage?.completionTokens ??
+        (mergedModel && completion
+          ? tokenCount({
+              model: mergedModel,
+              text: completion,
+            })
+          : undefined);
+
+      const newTotalTokens =
+        (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
+        (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
 
       const newObservation = await prisma.observation.update({
         where: { id: generationId },
@@ -236,7 +270,10 @@ export default async function handler(
             : undefined,
           input: prompt ?? undefined,
           output: completion ? { completion: completion } : undefined,
-          usage: calculatedUsage,
+          promptTokens: newPromptTokens,
+          completionTokens: newCompletionTokens,
+          totalTokens: newTotalTokens,
+          model: model ?? undefined,
           ...Object.fromEntries(
             Object.entries(fields).filter(
               ([_, v]) => v !== null && v !== undefined
