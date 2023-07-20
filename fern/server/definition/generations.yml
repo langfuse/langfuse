@@ -64,7 +64,9 @@ types:
       prompt: optional<unknown>
       metadata: optional<unknown>
       completion: optional<string>
-      usage: optional<LLMUsage>
+      promptTokens: integer
+      completionTokens: integer
+      totalTokens: integer
       level: ObservationLevelGeneration
       statusMessage: optional<string>
       parentObservationId: optional<string>
