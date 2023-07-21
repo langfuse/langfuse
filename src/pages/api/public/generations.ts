@@ -205,6 +205,11 @@ export default async function handler(
       });
     }
   } else if (req.method === "PATCH") {
+    console.log(
+      "trying to update observation for generation" +
+        JSON.stringify(req.body, null, 2)
+    );
+
     try {
       const {
         generationId,
