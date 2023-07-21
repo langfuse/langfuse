@@ -157,7 +157,6 @@ model Observation {
     modelParameters     Json?
     input               Json?
     output              Json?
-    usage               Json?
     promptTokens        Int       @default(0) @map("prompt_tokens")
     completionTokens    Int       @default(0) @map("completion_tokens")
     totalTokens         Int       @default(0) @map("total_tokens")
