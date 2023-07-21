@@ -52,7 +52,7 @@ const Observation = (props: {
                   <JSONView
                     json={observation.input}
                     defaultCollapsed
-                    label="Input"
+                    title="Input"
                     className={cn(LevelColor[observation.level].bg)}
                   />
                 ) : null}
@@ -60,7 +60,7 @@ const Observation = (props: {
                   <JSONView
                     json={observation.statusMessage}
                     defaultCollapsed
-                    label="Status Message"
+                    title="Status Message"
                     className={cn(LevelColor[observation.level].bg)}
                   />
                 ) : null}
@@ -68,7 +68,7 @@ const Observation = (props: {
                   <JSONView
                     json={observation.output}
                     defaultCollapsed
-                    label="Output"
+                    title="Output"
                     className={cn(LevelColor[observation.level].bg)}
                   />
                 ) : null}
@@ -94,7 +94,7 @@ const Observation = (props: {
                   <JSONView
                     json={observation.output}
                     defaultCollapsed
-                    label="Output"
+                    title="Output"
                     className={cn(LevelColor[observation.level].bg)}
                   />
                 </div>
