@@ -2,15 +2,19 @@ import { type NestedObservation } from "@/src/utils/types";
 import { JSONView } from "@/src/components/ui/code";
 import { formatDate } from "@/src/utils/dates";
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { Observation } from "@prisma/client";
+import { type Observation } from "@prisma/client";
 
-export default function ObservationDisplay(props: {
+export default function NewObservationDisplay(props: {
   observations: Observation[];
   projectId: string;
 }) {
+  const [currentObservationId, setCurrentObservationId] = useState<
+    string | null
+  >(null);
   const nestedObservations = nestObservations(props.observations);
+
   return (
     <div className="flex flex-col">
       <Observation

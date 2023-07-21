@@ -165,39 +165,10 @@ export const traceRouter = createTRPCRouter({
 
     return {
       ...trace,
-      nestedObservation: nestObservations(observations),
+      observations,
     };
   }),
 });
-
-function nestObservations(list: Observation[]): NestedObservation[] | null {
-  if (list.length === 0) return null;
-
-  // Step 1: Create a map where the keys are object IDs, and the values are
-  // the corresponding objects with an added 'children' property.
-  const map = new Map<string, NestedObservation>();
-  for (const obj of list) {
-    map.set(obj.id, { ...obj, children: [] });
-  }
-
-  // Step 2: Create another map for the roots of all trees.
-  const roots = new Map<string, NestedObservation>();
-
-  // Step 3: Populate the 'children' arrays and root map.
-  for (const obj of map.values()) {
-    if (obj.parentObservationId) {
-      const parent = map.get(obj.parentObservationId);
-      if (parent) {
-        parent.children.push(obj);
-      }
-    } else {
-      roots.set(obj.id, obj);
-    }
-  }
-
-  // Step 4: Return the roots.
-  return Array.from(roots.values());
-}
 
 function createScoreCondition(score: ScoreFilter) {
   let filter = {};

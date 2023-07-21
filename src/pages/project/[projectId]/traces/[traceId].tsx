@@ -4,6 +4,7 @@ import { api } from "@/src/utils/api";
 import DescriptionList from "@/src/components/ui/description-lists";
 import { JSONView } from "@/src/components/ui/code";
 import ObservationDisplay from "@/src/components/observation-display";
+import NewObservationDisplay from "@/src/components/new-observation-display";
 
 export default function TracePage() {
   const router = useRouter();
@@ -79,15 +80,25 @@ export default function TracePage() {
         />
       ) : null}
 
-      {trace.data?.nestedObservation ? (
-        <div className="mt-5 border-t pt-5">
-          <h2>Detailed trace</h2>
-          <ObservationDisplay
-            key={trace.data.id}
-            projectId={projectId}
-            observations={trace.data.nestedObservation}
-          />
-        </div>
+      {trace.data?.observations ? (
+        <>
+          <div className="mt-5 border-t pt-5">
+            <h2>Detailed trace</h2>
+            <NewObservationDisplay
+              key={trace.data.id}
+              projectId={projectId}
+              observations={trace.data.observations}
+            />
+          </div>
+          <div className="mt-20 border-t pt-5">
+            <h2>Old trace</h2>
+            <ObservationDisplay
+              key={trace.data.id}
+              projectId={projectId}
+              observations={trace.data.observations}
+            />
+          </div>
+        </>
       ) : null}
     </div>
   );
