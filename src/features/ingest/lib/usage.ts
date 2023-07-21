@@ -1,4 +1,5 @@
 import { get_encoding } from "tiktoken";
+import { countTokens } from "@anthropic-ai/tokenizer";
 
 export function tokenCount(p: {
   model: string;
@@ -13,8 +14,7 @@ export function tokenCount(p: {
     return tokens.length;
   }
   if (p.model.toLowerCase().startsWith("claude")) {
-    // count characters
-    return p.text.length;
+    return countTokens(p.text);
   }
   console.log("Unknown model", p.model);
   return undefined;
