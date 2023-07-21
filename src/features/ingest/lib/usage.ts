@@ -14,7 +14,7 @@ export function tokenCount(p: {
   }
   if (p.model.toLowerCase().startsWith("claude")) {
     // count characters
-    return p.text.split(" ").length;
+    return p.text.length;
   }
   console.log("Unknown model", p.model);
   return undefined;
