@@ -12,9 +12,10 @@ import {
   type SelectedScoreFilter,
   type ScoreFilter,
 } from "@/src/utils/tanstack";
-import { type Trace, type Score } from "@prisma/client";
+import { type Score } from "@prisma/client";
 import { lastCharacters } from "@/src/utils/string";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 
 export type TraceTableRow = {
   id: string;
@@ -24,6 +25,11 @@ export type TraceTableRow = {
   userId: string;
   metadata?: string;
   scores: Score[];
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 };
 
 export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
@@ -55,7 +61,7 @@ export default function Traces() {
   });
 
   const convertToTableRow = (
-    trace: Trace & { scores: Score[] }
+    trace: RouterOutput["traces"]["all"][0]
   ): TraceTableRow => {
     return {
       id: trace.id,
@@ -65,6 +71,7 @@ export default function Traces() {
       metadata: JSON.stringify(trace.metadata),
       userId: trace.userId ?? "",
       scores: trace.scores,
+      usage: trace.usage,
     };
   };
 
@@ -128,8 +135,22 @@ export default function Traces() {
       header: "User ID",
     },
     {
-      accessorKey: "metadata",
-      header: "Metadata",
+      accessorKey: "usage",
+      header: "Usage",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return (
+          <TokenUsageBadge
+            promptTokens={value.promptTokens}
+            completionTokens={value.completionTokens}
+            totalTokens={value.totalTokens}
+          />
+        );
+      },
     },
     {
       accessorKey: "scores",

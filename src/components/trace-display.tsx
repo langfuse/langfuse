@@ -22,6 +22,7 @@ import {
 } from "@/src/components/ui/table";
 import { useRouter } from "next/router";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 
 export default function TraceDisplay(props: {
   observations: Observation[];
@@ -64,6 +65,7 @@ export default function TraceDisplay(props: {
       {currentObservationId === undefined || currentObservationId === "" ? (
         <TracePreview
           trace={props.trace}
+          observations={props.observations}
           projectId={props.projectId}
           scores={props.scores}
         />
@@ -131,13 +133,13 @@ const ObservationTreeTraceNode = (props: {
         {formatDate(props.trace.timestamp)}
       </span>
     </div>
-    {props.scores.find((s) => s.observationId === null) ? (
-      <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2">
+      {props.scores.find((s) => s.observationId === null) ? (
         <GroupedScoreBadges
           scores={props.scores.filter((s) => s.observationId === null)}
         />
-      </div>
-    ) : null}
+      ) : null}
+    </div>
   </div>
 );
 
@@ -322,12 +324,17 @@ const ObservationPreview = (props: {
   );
 };
 
-const TracePreview = (props: {
+const TracePreview = ({
+  trace,
+  observations,
+  projectId,
+  scores,
+}: {
   trace: Trace;
+  observations: Observation[];
   projectId: string;
   scores: Score[];
 }) => {
-  const { trace } = props;
   return (
     <Card className="flex-1">
       <CardHeader>
@@ -336,10 +343,13 @@ const TracePreview = (props: {
           <span>{trace.name}</span>
         </CardTitle>
         <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>
+        <div className="flex flex-wrap gap-2">
+          <TraceAggUsageBadge observations={observations} />
+        </div>
       </CardHeader>
       <CardContent>
         <JSONView title="Metadata" json={trace.metadata} scrollable />
-        {props.scores.find((s) => s.observationId === null) ? (
+        {scores.find((s) => s.observationId === null) ? (
           <div className="mt-5 flex flex-col gap-2">
             <h3>Scores</h3>
             <Table>
@@ -352,7 +362,7 @@ const TracePreview = (props: {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {props.scores
+                {scores
                   .filter((s) => s.observationId === null)
                   .map((s) => (
                     <TableRow key={s.id}>

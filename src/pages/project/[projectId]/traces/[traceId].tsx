@@ -3,6 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import TraceDisplay from "@/src/components/trace-display";
 import { Badge } from "@/src/components/ui/badge";
+import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 
 export default function TracePage() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function TracePage() {
         {trace.data?.userId ? (
           <Badge variant="outline">User ID: {trace.data.userId}</Badge>
         ) : null}
+        <TraceAggUsageBadge observations={trace.data?.observations ?? []} />
       </div>
 
       {trace.data ? (
