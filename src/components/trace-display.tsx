@@ -1,8 +1,6 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { JSONView } from "@/src/components/ui/code";
 import { formatDate } from "@/src/utils/dates";
-import Link from "next/link";
-import { Fragment } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type Trace, type Observation, type Score } from "@prisma/client";
 import {
@@ -14,6 +12,14 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/src/components/ui/table";
 import { useRouter } from "next/router";
 
 export default function TraceDisplay(props: {
@@ -55,10 +61,15 @@ export default function TraceDisplay(props: {
       />
 
       {currentObservationId === undefined || currentObservationId === "" ? (
-        <TracePreview trace={props.trace} projectId={props.projectId} />
+        <TracePreview
+          trace={props.trace}
+          projectId={props.projectId}
+          scores={props.scores}
+        />
       ) : (
         <ObservationPreview
           observations={props.observations}
+          scores={props.scores}
           projectId={props.projectId}
           currentObservationId={currentObservationId}
         />
@@ -221,6 +232,7 @@ const ObservationTreeNode = (props: {
 const ObservationPreview = (props: {
   observations: Observation[];
   projectId: string;
+  scores: Score[];
   currentObservationId: string | undefined;
 }) => {
   const observation = props.observations.find(
@@ -279,12 +291,47 @@ const ObservationPreview = (props: {
         />
         <JSONView title="Status Message" json={observation.statusMessage} />
         <JSONView title="Metadata" json={observation.metadata} />
+        {props.scores.find((s) => s.observationId === observation.id) ? (
+          <div className="flex flex-col gap-2">
+            <h3>Scores</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Timestamp</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead>Comment</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {props.scores
+                  .filter((s) => s.observationId === observation.id)
+                  .map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="text-xs">
+                        {s.timestamp.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{s.name}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {s.value}
+                      </TableCell>
+                      <TableCell className="text-xs">{s.comment}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
 };
 
-const TracePreview = (props: { trace: Trace; projectId: string }) => {
+const TracePreview = (props: {
+  trace: Trace;
+  projectId: string;
+  scores: Score[];
+}) => {
   const { trace, projectId } = props;
   return (
     <Card className="flex-1">
@@ -297,154 +344,40 @@ const TracePreview = (props: { trace: Trace; projectId: string }) => {
       </CardHeader>
       <CardContent>
         <JSONView title="Metadata" json={trace.metadata} scrollable />
+        {props.scores.find((s) => s.observationId === null) ? (
+          <div className="mt-5 flex flex-col gap-2">
+            <h3>Scores</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Timestamp</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead>Comment</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {props.scores
+                  .filter((s) => s.observationId === null)
+                  .map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="text-xs">
+                        {s.timestamp.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{s.name}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {s.value}
+                      </TableCell>
+                      <TableCell className="text-xs">{s.comment}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
       </CardContent>
       <CardFooter></CardFooter>
     </Card>
-  );
-};
-
-const Observation = (props: {
-  observations: NestedObservation[];
-  projectId: string;
-  indentationLevel: number;
-}) => (
-  <>
-    {props.observations
-      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
-      .map((observation) => (
-        <Fragment key={observation.id}>
-          <div className="flex items-start border-t py-1" key={observation.id}>
-            <div className="flex w-1/4">
-              <ObservationInfo
-                observation={observation}
-                projectId={props.projectId}
-              />
-            </div>
-
-            <div className="ml-4 grid w-3/4 grid-cols-12">
-              <div className={`col-span-${props.indentationLevel}`}> </div>
-
-              <div
-                className={`flex flex-col col-span-${
-                  12 - props.indentationLevel
-                } gap-1`}
-              >
-                {observation.input ? (
-                  <JSONView
-                    json={observation.input}
-                    defaultCollapsed
-                    title="Input"
-                    className={cn(LevelColor[observation.level].bg)}
-                  />
-                ) : null}
-                {observation.statusMessage ? (
-                  <JSONView
-                    json={observation.statusMessage}
-                    defaultCollapsed
-                    title="Status Message"
-                    className={cn(LevelColor[observation.level].bg)}
-                  />
-                ) : null}
-                {observation.children.length === 0 && observation.output ? (
-                  <JSONView
-                    json={observation.output}
-                    defaultCollapsed
-                    title="Output"
-                    className={cn(LevelColor[observation.level].bg)}
-                  />
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <Observation
-            observations={observation.children}
-            projectId={props.projectId}
-            indentationLevel={props.indentationLevel + 1}
-          />
-
-          {observation.children.length > 0 && observation.output ? (
-            <div
-              className="flex items-start border-t py-1"
-              key={observation.id}
-            >
-              <div className="flex w-1/4" />
-              <div className="ml-4 grid w-3/4 grid-cols-12">
-                <div className={`col-span-${props.indentationLevel}`}> </div>
-                <div className={`col-span-${12 - props.indentationLevel}`}>
-                  <JSONView
-                    json={observation.output}
-                    defaultCollapsed
-                    title="Output"
-                    className={cn(LevelColor[observation.level].bg)}
-                  />
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </Fragment>
-      ))}
-  </>
-);
-
-const ObservationInfo = (props: {
-  observation: NestedObservation;
-  projectId: string;
-}) => {
-  return (
-    <>
-      <div className="flex-auto overflow-hidden break-all ">
-        <div className="relative flex flex-col gap-x-4">
-          <div className="relative flex py-0.5 text-xs leading-5 text-gray-500">
-            {props.observation.type === "GENERATION" ? (
-              <Link
-                href={`/project/${props.projectId}/generations/${props.observation.id}`}
-                className="overflow-hidden font-medium text-gray-900 hover:text-gray-500"
-              >
-                {props.observation.type}: {props.observation.name} ↗
-              </Link>
-            ) : (
-              <span className="overflow-hidden font-medium text-gray-900">
-                {props.observation.type}: {props.observation.name}
-              </span>
-            )}
-          </div>
-          {props.observation.startTime ? (
-            <div className="flex">
-              <time
-                dateTime={props.observation.startTime.toString()}
-                className="flex-none py-0.5 text-xs leading-5 text-gray-500"
-              >
-                {formatDate(props.observation.startTime)}
-              </time>
-              {props.observation.endTime ? (
-                <p className="whitespace-nowrap py-0.5 text-xs leading-5 text-gray-500">
-                  &nbsp;-&nbsp;
-                  {props.observation.endTime.getTime() -
-                    props.observation.startTime.getTime()}{" "}
-                  ms
-                </p>
-              ) : undefined}
-            </div>
-          ) : undefined}
-        </div>
-        {props.observation.type === "GENERATION" ? (
-          <p className="text-xs leading-5 text-gray-500">
-            {`${props.observation.promptTokens} → ${props.observation.completionTokens} (∑ ${props.observation.totalTokens})`}
-          </p>
-        ) : undefined}
-        {props.observation.level !== "DEFAULT" ? (
-          <div
-            className={cn(
-              "text-xs leading-5",
-              LevelColor[props.observation.level].text
-            )}
-          >
-            {props.observation.level}
-          </div>
-        ) : null}
-      </div>
-    </>
   );
 };
 

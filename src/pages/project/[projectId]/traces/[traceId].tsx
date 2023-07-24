@@ -1,8 +1,7 @@
 import { useRouter } from "next/router";
 import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
-import DescriptionList from "@/src/components/ui/description-lists";
-import TraceDisplay from "@/src/components/new-observation-display";
+import TraceDisplay from "@/src/components/trace-display";
 import { Badge } from "@/src/components/ui/badge";
 
 export default function TracePage() {
@@ -21,7 +20,7 @@ export default function TracePage() {
           { name: traceId },
         ]}
       />
-      <div className="flex items-center justify-between">
+      <div className="flex gap-2">
         {trace.data?.externalId ? (
           <Badge variant="outline">External ID: {trace.data.externalId}</Badge>
         ) : null}
