@@ -14,7 +14,7 @@ export const GroupedScoreBadges = (props: { scores: Score[] }) => {
   return (
     <>
       {Object.entries(groupedScores).map(([name, scores]) => (
-        <Badge variant="outline" key={name} className="break-all">
+        <Badge variant="outline" key={name} className="break-all font-normal">
           {name}: {scores.map((s) => s.value).join(", ")}
         </Badge>
       ))}

@@ -14,12 +14,7 @@ import {
 } from "@/src/utils/tanstack";
 import { type Trace, type Score } from "@prisma/client";
 import { lastCharacters } from "@/src/utils/string";
-
-export type TableScore = {
-  id: string;
-  name: string;
-  value: number;
-};
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 export type TraceTableRow = {
   id: string;
@@ -28,7 +23,7 @@ export type TraceTableRow = {
   name: string;
   userId: string;
   metadata?: string;
-  scores: TableScore[];
+  scores: Score[];
 };
 
 export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
@@ -69,13 +64,7 @@ export default function Traces() {
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
       userId: trace.userId ?? "",
-      scores: trace.scores.map((score) => {
-        return {
-          name: score.name,
-          value: score.value,
-          id: score.id,
-        };
-      }),
+      scores: trace.scores,
     };
   };
 
@@ -162,15 +151,10 @@ export default function Traces() {
         },
       },
       cell: ({ row }) => {
-        const values: TableScore[] = row.getValue("scores");
+        const values: Score[] = row.getValue("scores");
         return (
-          <div className="grid grid-cols-3 items-center gap-2 gap-x-4 text-xs">
-            {values.map((value) => (
-              <>
-                <div className="col-span-2">{value.name}</div>
-                <div>{value.value}</div>
-              </>
-            ))}
+          <div className="flex">
+            <GroupedScoreBadges scores={values} />
           </div>
         );
       },

@@ -1,4 +1,3 @@
-import { type NestedObservation } from "@/src/utils/types";
 import { z } from "zod";
 
 import {
@@ -6,7 +5,6 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Observation } from "@prisma/client";
 
 const ScoreFilter = z.object({
   name: z.string(),

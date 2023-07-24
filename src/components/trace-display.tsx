@@ -327,7 +327,7 @@ const TracePreview = (props: {
   projectId: string;
   scores: Score[];
 }) => {
-  const { trace, projectId } = props;
+  const { trace } = props;
   return (
     <Card className="flex-1">
       <CardHeader>
