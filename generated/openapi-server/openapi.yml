@@ -154,6 +154,59 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateGenerationRequest'
+  /api/public/observations/{observationId}:
+    get:
+      description: Get a specific observation
+      operationId: observations_get
+      tags:
+        - Observations
+      parameters:
+        - name: observationId
+          in: path
+          description: >-
+            The unique langfuse identifier of an observation, can be an event,
+            span or generation
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Observation'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
   /api/public/scores:
     post:
       description: Add a score to the database
