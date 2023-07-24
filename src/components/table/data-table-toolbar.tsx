@@ -65,12 +65,14 @@ export function DataTableToolbar<TData, TValue>({
               return column.enableColumnFilter && columnOptions ? (
                 column.meta?.filter?.type === "select" ? (
                   <DataTableSelectFilter
+                    key={column.meta.label}
                     title={column.meta?.label}
                     meta={column.meta?.filter}
                     options={columnOptions}
                   />
                 ) : column.meta?.filter?.type === "number-comparison" ? (
                   <DataTableNumberFilter
+                    key={column.meta.label}
                     title={column.meta?.label}
                     meta={column.meta?.filter}
                     options={columnOptions}
