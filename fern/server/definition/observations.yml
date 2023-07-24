@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get a specific observation
+      method: GET
+      path: /observations/{observationId}
+      path-parameters:
+        observationId:
+          type: string
+          docs: The unique langfuse identifier of an observation, can be an event, span or generation
+      response: commons.Observation
