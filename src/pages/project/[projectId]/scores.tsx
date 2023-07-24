@@ -43,27 +43,6 @@ export default function ScoresPage() {
 
   const columns: ColumnDef<RowData>[] = [
     {
-      accessorKey: "id",
-      header: "ID",
-      enableColumnFilter: true,
-      cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
-          <div key=".">...{lastCharacters(value, 7)}</div>
-        ) : undefined;
-      },
-      meta: {
-        label: "Id",
-        filter: {
-          type: "select",
-          values: queryOptions.id,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, id: newValues });
-          },
-        },
-      },
-    },
-    {
       accessorKey: "traceId",
       enableColumnFilter: true,
       header: "Trace ID",
@@ -90,6 +69,21 @@ export default function ScoresPage() {
       },
     },
     {
+      accessorKey: "observationId",
+      header: "Observation ID",
+      cell: ({ row }) => {
+        const observationId = row.getValue("observationId");
+        const traceId = row.getValue("traceId");
+        return typeof observationId === "string" &&
+          typeof traceId === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            value={observationId}
+          />
+        ) : null;
+      },
+    },
+    {
       accessorKey: "timestamp",
       header: "Timestamp",
     },
@@ -104,10 +98,6 @@ export default function ScoresPage() {
     {
       accessorKey: "comment",
       header: "Comment",
-    },
-    {
-      accessorKey: "observationId",
-      header: "Observation ID",
     },
   ];
 
@@ -191,8 +181,4 @@ export default function ScoresPage() {
       />
     </div>
   );
-}
-
-function lastCharacters(str: string, n: number) {
-  return str.substring(str.length - n);
 }

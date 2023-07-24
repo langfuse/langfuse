@@ -8,8 +8,8 @@ import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
+import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 
-// TODO Marc
 type GenerationTableRow = {
   id: string;
   traceId: string;
@@ -17,6 +17,11 @@ type GenerationTableRow = {
   endTime?: string;
   name?: string;
   model?: string;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 };
 
 export type GenerationFilterInput = Omit<
@@ -47,13 +52,15 @@ export default function Generations() {
       accessorKey: "id",
       header: "ID",
       cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
+        const observationId = row.getValue("id");
+        const traceId = row.getValue("traceId");
+        return typeof observationId === "string" &&
+          typeof traceId === "string" ? (
           <TableLink
-            path={`/project/${projectId}/generations/${value}`}
-            value={value}
+            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            value={observationId}
           />
-        ) : undefined;
+        ) : null;
       },
     },
     {
@@ -85,16 +92,30 @@ export default function Generations() {
       header: "Start Time",
     },
     {
-      accessorKey: "endTime",
-      header: "End Time",
-    },
-    {
       accessorKey: "name",
       header: "Name",
     },
     {
       accessorKey: "model",
       header: "Model",
+    },
+    {
+      accessorKey: "usage",
+      header: "Usage",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return (
+          <TokenUsageBadge
+            promptTokens={value.promptTokens}
+            completionTokens={value.completionTokens}
+            totalTokens={value.totalTokens}
+          />
+        );
+      },
     },
   ];
 
@@ -132,9 +153,12 @@ export default function Generations() {
         startTime: generation.startTime.toISOString(),
         endTime: generation.endTime?.toISOString() ?? undefined,
         name: generation.name ?? undefined,
-        // prompt: JSON.stringify(generation.prompt),
-        // completion: generation.completion ?? undefined,
         model: JSON.stringify(generation.model),
+        usage: {
+          promptTokens: generation.promptTokens,
+          completionTokens: generation.completionTokens,
+          totalTokens: generation.totalTokens,
+        },
       }))
     : [];
 

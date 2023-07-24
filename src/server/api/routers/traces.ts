@@ -1,4 +1,3 @@
-import { type NestedObservation } from "@/src/utils/types";
 import { z } from "zod";
 
 import {
@@ -6,7 +5,6 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Observation } from "@prisma/client";
 
 const ScoreFilter = z.object({
   name: z.string(),
@@ -27,7 +25,7 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      return await ctx.prisma.trace.findMany({
+      const traces = await ctx.prisma.trace.findMany({
         where: {
           AND: [
             {
@@ -54,9 +52,39 @@ export const traceRouter = createTRPCRouter({
         },
         include: {
           scores: true,
+          observations: {
+            select: {
+              promptTokens: true,
+              completionTokens: true,
+              totalTokens: true,
+            },
+          },
         },
         take: 50, // TODO: pagination
       });
+
+      const res = traces.map((trace) => {
+        const { observations, ...t } = trace;
+        return {
+          ...t,
+          usage: {
+            promptTokens: observations.reduce(
+              (acc, cur) => acc + cur.promptTokens,
+              0
+            ),
+            completionTokens: observations.reduce(
+              (acc, cur) => acc + cur.completionTokens,
+              0
+            ),
+            totalTokens: observations.reduce(
+              (acc, cur) => acc + cur.totalTokens,
+              0
+            ),
+          },
+        };
+      });
+
+      return res;
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
@@ -165,39 +193,10 @@ export const traceRouter = createTRPCRouter({
 
     return {
       ...trace,
-      nestedObservation: nestObservations(observations),
+      observations,
     };
   }),
 });
-
-function nestObservations(list: Observation[]): NestedObservation[] | null {
-  if (list.length === 0) return null;
-
-  // Step 1: Create a map where the keys are object IDs, and the values are
-  // the corresponding objects with an added 'children' property.
-  const map = new Map<string, NestedObservation>();
-  for (const obj of list) {
-    map.set(obj.id, { ...obj, children: [] });
-  }
-
-  // Step 2: Create another map for the roots of all trees.
-  const roots = new Map<string, NestedObservation>();
-
-  // Step 3: Populate the 'children' arrays and root map.
-  for (const obj of map.values()) {
-    if (obj.parentObservationId) {
-      const parent = map.get(obj.parentObservationId);
-      if (parent) {
-        parent.children.push(obj);
-      }
-    } else {
-      roots.set(obj.id, obj);
-    }
-  }
-
-  // Step 4: Return the roots.
-  return Array.from(roots.values());
-}
 
 function createScoreCondition(score: ScoreFilter) {
   let filter = {};

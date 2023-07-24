@@ -19,15 +19,11 @@ export type Span = Observation & {
 
 export type LLMChatMessages = { role: string; content: string };
 
-export type GenerationUsage = {
-  promptTokens?: number;
-  completionTokens?: number;
-  totalTokens?: number;
-};
-
 export type Generation = Observation & {
   type: "GENERATION";
-  usage: GenerationUsage;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
   modelParameters: {
     [key: string]: string | number | boolean;
   };

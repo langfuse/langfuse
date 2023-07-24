@@ -31,7 +31,7 @@ export default function DescriptionList(props: {
           {props.items.map((item) => (
             <div
               key={item.label}
-              className={`sm:grid-cols-${totalColumns} px-4 py-6 sm:grid sm:gap-4 sm:px-0`}
+              className={`sm:grid-cols-${totalColumns} px-4 py-3 sm:grid sm:gap-4 sm:px-0`}
             >
               <dt className="text-sm font-medium leading-6 text-gray-900">
                 {item.label}
