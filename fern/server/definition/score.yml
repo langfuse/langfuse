@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   pagination: ./utils/pagination.yml
+  commons: ./commons.yml
 service:
   auth: true
   base-path: /api/public
@@ -10,7 +11,7 @@ service:
       method: POST
       path: /scores
       request: CreateScoreRequest
-      response: Score
+      response: commons.Score
     get:
       docs: Get scores
       method: GET
@@ -28,25 +29,12 @@ types:
     properties:
       id: optional<string>
       traceId: string
-      traceIdType: optional<TraceIdType>
+      traceIdType: optional<commons.TraceIdTypeEnum>
       name: string
       value: integer
       observationId: optional<string>
-      comment: optional<string>
-  Score:
-    properties:
-      id: string
-      traceId: string
-      name: string
-      value: integer
-      observationId: optional<string>
-      timestamp: datetime
       comment: optional<string>
   Scores:
     properties:
-      data: list<Score>
+      data: list<commons.Score>
       meta: pagination.MetaResponse
-  TraceIdType:
-    enum:
-      - LANGFUSE
-      - EXTERNAL

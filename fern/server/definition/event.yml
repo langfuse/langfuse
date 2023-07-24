@@ -9,30 +9,5 @@ service:
       docs: Add an event to the database
       method: POST
       path: /events
-      request: CreateEventRequest
+      request: commons.CreateEventRequest
       response: commons.Observation
-
-types:
-  CreateEventRequest:
-    properties:
-      id: optional<string>
-      traceId: optional<string>
-      traceIdType: optional<TraceIdTypeEvent>
-      name: optional<string>
-      startTime: optional<datetime>
-      metadata: optional<unknown>
-      input: optional<unknown>
-      output: optional<unknown>
-      level: optional<ObservationLevelEvent>
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-  ObservationLevelEvent:
-    enum:
-      - DEBUG
-      - DEFAULT
-      - WARNING
-      - ERROR
-  TraceIdTypeEvent:
-    enum:
-      - LANGFUSE
-      - EXTERNAL

@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
-
+imports:
+  commons: ./commons.yml
 service:
   auth: true
   base-path: /api/public
@@ -9,7 +10,7 @@ service:
       method: POST
       path: /traces
       request: CreateTraceRequest
-      response: Trace
+      response: commons.Trace
     get:
       docs: Get a specific trace
       method: GET
@@ -18,7 +19,7 @@ service:
         traceId:
           type: string
           docs: The unique langfuse identifier of a trace
-      response: Trace
+      response: commons.TraceWithDetails
 
 types:
   CreateTraceRequest:
@@ -26,14 +27,4 @@ types:
       name: optional<string>
       userId: optional<string>
       externalId: optional<string>
-      metadata: optional<unknown>
-  Trace:
-    properties:
-      id:
-        type: string
-        docs: The unique identifier of a trace
-      timestamp: datetime
-      externalId: optional<string>
-      name: optional<string>
-      userId: optional<string>
       metadata: optional<unknown>

@@ -9,6 +9,7 @@ errors:
   - commons.UnauthorizedError
   - commons.AccessDeniedError
   - commons.MethodNotAllowedError
+  - commons.NotFoundError
 headers:
   X-Langfuse-Sdk-Name: optional<string>
   X-Langfuse-Sdk-Version: optional<string>

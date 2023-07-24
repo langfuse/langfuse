@@ -35,6 +35,12 @@ paths:
             application/json:
               schema:
                 type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
         '405':
           description: ''
           content:
@@ -80,6 +86,12 @@ paths:
             application/json:
               schema:
                 type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
         '405':
           description: ''
           content:
@@ -92,7 +104,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateLog'
+              $ref: '#/components/schemas/CreateGenerationRequest'
     patch:
       operationId: generations_update
       tags:
@@ -118,6 +130,12 @@ paths:
               schema:
                 type: string
         '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
           description: ''
           content:
             application/json:
@@ -163,6 +181,12 @@ paths:
               schema:
                 type: string
         '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
           description: ''
           content:
             application/json:
@@ -236,6 +260,12 @@ paths:
             application/json:
               schema:
                 type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
         '405':
           description: ''
           content:
@@ -270,6 +300,12 @@ paths:
               schema:
                 type: string
         '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
           description: ''
           content:
             application/json:
@@ -314,6 +350,12 @@ paths:
               schema:
                 type: string
         '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
           description: ''
           content:
             application/json:
@@ -364,6 +406,12 @@ paths:
             application/json:
               schema:
                 type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
         '405':
           description: ''
           content:
@@ -396,7 +444,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Trace'
+                $ref: '#/components/schemas/TraceWithDetails'
         '400':
           description: ''
           content:
@@ -415,6 +463,12 @@ paths:
             application/json:
               schema:
                 type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
         '405':
           description: ''
           content:
@@ -424,6 +478,118 @@ paths:
       security: *ref_0
 components:
   schemas:
+    CreateEventRequest:
+      title: CreateEventRequest
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        traceIdType:
+          $ref: '#/components/schemas/TraceIdTypeEnum'
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+          nullable: true
+        statusMessage:
+          type: string
+          nullable: true
+        parentObservationId:
+          type: string
+          nullable: true
+    CreateSpanRequest:
+      title: CreateSpanRequest
+      type: object
+      properties:
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/CreateEventRequest'
+    CreateGenerationRequest:
+      title: CreateGenerationRequest
+      type: object
+      properties:
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        modelParameters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MapValue'
+          nullable: true
+        prompt:
+          nullable: true
+        completion:
+          type: string
+          nullable: true
+        usage:
+          $ref: '#/components/schemas/LLMUsage'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/CreateSpanRequest'
+    Trace:
+      title: Trace
+      type: object
+      properties:
+        id:
+          type: string
+          description: The unique identifier of a trace
+        timestamp:
+          type: string
+          format: date-time
+        externalId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        userId:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+      required:
+        - id
+        - timestamp
+    TraceWithDetails:
+      title: TraceWithDetails
+      type: object
+      properties:
+        observations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Observation'
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/Score'
+      required:
+        - observations
+        - scores
+      allOf:
+        - $ref: '#/components/schemas/Trace'
     Observation:
       title: Observation
       type: object
@@ -486,6 +652,33 @@ components:
         - completionTokens
         - totalTokens
         - level
+    Score:
+      title: Score
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: integer
+        observationId:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          nullable: true
+      required:
+        - id
+        - traceId
+        - name
+        - value
+        - timestamp
     ObservationLevel:
       title: ObservationLevel
       type: string
@@ -503,109 +696,24 @@ components:
           nullable: true
         - type: boolean
           nullable: true
-    CreateEventRequest:
-      title: CreateEventRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        traceId:
-          type: string
-          nullable: true
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeEvent'
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        startTime:
-          type: string
-          format: date-time
-          nullable: true
-        metadata:
-          nullable: true
-        input:
-          nullable: true
-        output:
-          nullable: true
-        level:
-          $ref: '#/components/schemas/ObservationLevelEvent'
-          nullable: true
-        statusMessage:
-          type: string
-          nullable: true
-        parentObservationId:
-          type: string
-          nullable: true
-    ObservationLevelEvent:
-      title: ObservationLevelEvent
-      type: string
-      enum:
-        - DEBUG
-        - DEFAULT
-        - WARNING
-        - ERROR
-    TraceIdTypeEvent:
-      title: TraceIdTypeEvent
+    TraceIdTypeEnum:
+      title: TraceIdTypeEnum
       type: string
       enum:
         - LANGFUSE
         - EXTERNAL
-    CreateLog:
-      title: CreateLog
+    LLMUsage:
+      title: LLMUsage
       type: object
       properties:
-        id:
-          type: string
+        promptTokens:
+          type: integer
           nullable: true
-        traceId:
-          type: string
+        completionTokens:
+          type: integer
           nullable: true
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeGenerations'
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        startTime:
-          type: string
-          format: date-time
-          nullable: true
-        endTime:
-          type: string
-          format: date-time
-          nullable: true
-        completionStartTime:
-          type: string
-          format: date-time
-          nullable: true
-        model:
-          type: string
-          nullable: true
-        modelParameters:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
-          nullable: true
-        prompt:
-          nullable: true
-        metadata:
-          nullable: true
-        completion:
-          type: string
-          nullable: true
-        usage:
-          $ref: '#/components/schemas/LLMUsage'
-          nullable: true
-        level:
-          $ref: '#/components/schemas/ObservationLevelGeneration'
-          nullable: true
-        statusMessage:
-          type: string
-          nullable: true
-        parentObservationId:
-          type: string
+        totalTokens:
+          type: integer
           nullable: true
     UpdateGenerationRequest:
       title: UpdateGenerationRequest
@@ -643,40 +751,13 @@ components:
           $ref: '#/components/schemas/LLMUsage'
           nullable: true
         level:
-          $ref: '#/components/schemas/ObservationLevelGeneration'
+          $ref: '#/components/schemas/ObservationLevel'
           nullable: true
         statusMessage:
           type: string
           nullable: true
       required:
         - generationId
-    LLMUsage:
-      title: LLMUsage
-      type: object
-      properties:
-        promptTokens:
-          type: integer
-          nullable: true
-        completionTokens:
-          type: integer
-          nullable: true
-        totalTokens:
-          type: integer
-          nullable: true
-    ObservationLevelGeneration:
-      title: ObservationLevelGeneration
-      type: string
-      enum:
-        - DEBUG
-        - DEFAULT
-        - WARNING
-        - ERROR
-    TraceIdTypeGenerations:
-      title: TraceIdTypeGenerations
-      type: string
-      enum:
-        - LANGFUSE
-        - EXTERNAL
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -687,7 +768,7 @@ components:
         traceId:
           type: string
         traceIdType:
-          $ref: '#/components/schemas/TraceIdType'
+          $ref: '#/components/schemas/TraceIdTypeEnum'
           nullable: true
         name:
           type: string
@@ -703,33 +784,6 @@ components:
         - traceId
         - name
         - value
-    Score:
-      title: Score
-      type: object
-      properties:
-        id:
-          type: string
-        traceId:
-          type: string
-        name:
-          type: string
-        value:
-          type: integer
-        observationId:
-          type: string
-          nullable: true
-        timestamp:
-          type: string
-          format: date-time
-        comment:
-          type: string
-          nullable: true
-      required:
-        - id
-        - traceId
-        - name
-        - value
-        - timestamp
     Scores:
       title: Scores
       type: object
@@ -743,51 +797,6 @@ components:
       required:
         - data
         - meta
-    TraceIdType:
-      title: TraceIdType
-      type: string
-      enum:
-        - LANGFUSE
-        - EXTERNAL
-    CreateSpanRequest:
-      title: CreateSpanRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        traceId:
-          type: string
-          nullable: true
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeSpan'
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        startTime:
-          type: string
-          format: date-time
-          nullable: true
-        endTime:
-          type: string
-          format: date-time
-          nullable: true
-        metadata:
-          nullable: true
-        input:
-          nullable: true
-        output:
-          nullable: true
-        level:
-          $ref: '#/components/schemas/ObservationLevelSpan'
-          nullable: true
-        statusMessage:
-          type: string
-          nullable: true
-        parentObservationId:
-          type: string
-          nullable: true
     UpdateSpanRequest:
       title: UpdateSpanRequest
       type: object
@@ -805,27 +814,13 @@ components:
         output:
           nullable: true
         level:
-          $ref: '#/components/schemas/ObservationLevelSpan'
+          $ref: '#/components/schemas/ObservationLevel'
           nullable: true
         statusMessage:
           type: string
           nullable: true
       required:
         - spanId
-    ObservationLevelSpan:
-      title: ObservationLevelSpan
-      type: string
-      enum:
-        - DEBUG
-        - DEFAULT
-        - WARNING
-        - ERROR
-    TraceIdTypeSpan:
-      title: TraceIdTypeSpan
-      type: string
-      enum:
-        - LANGFUSE
-        - EXTERNAL
     CreateTraceRequest:
       title: CreateTraceRequest
       type: object
@@ -841,30 +836,6 @@ components:
           nullable: true
         metadata:
           nullable: true
-    Trace:
-      title: Trace
-      type: object
-      properties:
-        id:
-          type: string
-          description: The unique identifier of a trace
-        timestamp:
-          type: string
-          format: date-time
-        externalId:
-          type: string
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        userId:
-          type: string
-          nullable: true
-        metadata:
-          nullable: true
-      required:
-        - id
-        - timestamp
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object

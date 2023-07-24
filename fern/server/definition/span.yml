@@ -9,7 +9,7 @@ service:
       docs: Add a span to the database
       method: POST
       path: /spans
-      request: CreateSpanRequest
+      request: commons.CreateSpanRequest
       response: commons.Observation
     update:
       docs: Update a span to the database
@@ -19,21 +19,6 @@ service:
       response: commons.Observation
 
 types:
-  CreateSpanRequest:
-    properties:
-      id: optional<string>
-      traceId: optional<string>
-      traceIdType: optional<TraceIdTypeSpan>
-      name: optional<string>
-      startTime: optional<datetime>
-      endTime: optional<datetime>
-      metadata: optional<unknown>
-      input: optional<unknown>
-      output: optional<unknown>
-      level: optional<ObservationLevelSpan>
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-
   UpdateSpanRequest:
     properties:
       spanId: string
@@ -41,16 +26,5 @@ types:
       metadata: optional<unknown>
       input: optional<unknown>
       output: optional<unknown>
-      level: optional<ObservationLevelSpan>
+      level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
-
-  ObservationLevelSpan:
-    enum:
-      - DEBUG
-      - DEFAULT
-      - WARNING
-      - ERROR
-  TraceIdTypeSpan:
-    enum:
-      - LANGFUSE
-      - EXTERNAL
