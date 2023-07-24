@@ -164,22 +164,12 @@ export default function Traces() {
       cell: ({ row }) => {
         const values: TableScore[] = row.getValue("scores");
         return (
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-3 items-center gap-2 gap-x-4 text-xs">
             {values.map((value) => (
-              <div
-                key={value.id}
-                className="relative flex-row items-center rounded-lg border border-gray-300 shadow-sm"
-              >
-                <div className="min-w-1 flex flex-1 items-center gap-2 p-2">
-                  {/* <span className="absolute inset-0" aria-hidden="true" /> */}
-                  <p className=" text-xs font-medium text-gray-900">
-                    {value.name}
-                  </p>
-                  <p className="inline-flex items-baseline rounded-full bg-gray-100 px-2.5 py-0.5 text-lg font-medium text-gray-500 md:mt-2 lg:mt-0">
-                    {value.value}
-                  </p>
-                </div>
-              </div>
+              <>
+                <div className="col-span-2">{value.name}</div>
+                <div>{value.value}</div>
+              </>
             ))}
           </div>
         );
