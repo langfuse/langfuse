@@ -67,7 +67,6 @@ export default function TraceDisplay(props: {
         <TracePreview
           trace={props.trace}
           observations={props.observations}
-          projectId={props.projectId}
           scores={props.scores}
         />
       ) : (
@@ -325,12 +324,10 @@ const ObservationPreview = (props: {
 const TracePreview = ({
   trace,
   observations,
-  projectId,
   scores,
 }: {
   trace: Trace;
   observations: Observation[];
-  projectId: string;
   scores: Score[];
 }) => {
   return (
