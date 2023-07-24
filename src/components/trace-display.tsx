@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { useRouter } from "next/router";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 export default function TraceDisplay(props: {
   observations: Observation[];
@@ -132,13 +133,9 @@ const ObservationTreeTraceNode = (props: {
     </div>
     {props.scores.find((s) => s.observationId === null) ? (
       <div className="flex flex-wrap gap-2">
-        {props.scores
-          .filter((s) => s.observationId === null)
-          .map((s) => (
-            <Badge variant="outline" key={s.id}>
-              {s.name}: {s.value}
-            </Badge>
-          ))}
+        <GroupedScoreBadges
+          scores={props.scores.filter((s) => s.observationId === null)}
+        />
       </div>
     ) : null}
   </div>
@@ -206,13 +203,11 @@ const ObservationTreeNode = (props: {
               ) : null}
               {props.scores.find((s) => s.observationId === observation.id) ? (
                 <div className="flex flex-wrap gap-2">
-                  {props.scores
-                    .filter((s) => s.observationId === observation.id)
-                    .map((s) => (
-                      <Badge variant="outline" key={s.id}>
-                        {s.name}: {s.value}
-                      </Badge>
-                    ))}
+                  <GroupedScoreBadges
+                    scores={props.scores.filter(
+                      (s) => s.observationId === observation.id
+                    )}
+                  />
                 </div>
               ) : null}
             </div>
