@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
-
+imports:
+  commons: ./commons.yml
 service:
   auth: true
   base-path: /api/public
@@ -8,31 +9,16 @@ service:
       docs: Add a span to the database
       method: POST
       path: /spans
-      request: CreateSpanRequest
-      response: Span
+      request: commons.CreateSpanRequest
+      response: commons.Observation
     update:
       docs: Update a span to the database
       method: PATCH
       path: /spans
       request: UpdateSpanRequest
-      response: Span
+      response: commons.Observation
 
 types:
-  CreateSpanRequest:
-    properties:
-      id: optional<string>
-      traceId: optional<string>
-      traceIdType: optional<TraceIdTypeSpan>
-      name: optional<string>
-      startTime: optional<datetime>
-      endTime: optional<datetime>
-      metadata: optional<unknown>
-      input: optional<unknown>
-      output: optional<unknown>
-      level: optional<ObservationLevelSpan>
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-
   UpdateSpanRequest:
     properties:
       spanId: string
@@ -40,30 +26,5 @@ types:
       metadata: optional<unknown>
       input: optional<unknown>
       output: optional<unknown>
-      level: optional<ObservationLevelSpan>
+      level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
-
-  Span:
-    properties:
-      id: string
-      traceId: string
-      type: string
-      name: optional<string>
-      startTime: datetime
-      endTime: optional<datetime>
-      metadata: optional<unknown>
-      input: optional<unknown>
-      output: optional<unknown>
-      level: ObservationLevelSpan
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-  ObservationLevelSpan:
-    enum:
-      - DEBUG
-      - DEFAULT
-      - WARNING
-      - ERROR
-  TraceIdTypeSpan:
-    enum:
-      - LANGFUSE
-      - EXTERNAL

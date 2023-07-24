@@ -1,3 +1,101 @@
+types:
+  # Create Bodies
+  CreateEventRequest:
+    properties:
+      id: optional<string>
+      traceId: optional<string>
+      traceIdType: optional<TraceIdTypeEnum>
+      name: optional<string>
+      startTime: optional<datetime>
+      metadata: optional<unknown>
+      input: optional<unknown>
+      output: optional<unknown>
+      level: optional<ObservationLevel>
+      statusMessage: optional<string>
+      parentObservationId: optional<string>
+  CreateSpanRequest:
+    extends: CreateEventRequest
+    properties:
+      endTime: optional<datetime>
+  CreateGenerationRequest:
+    extends: CreateSpanRequest
+    properties:
+      completionStartTime: optional<datetime>
+      model: optional<string>
+      modelParameters: optional<map<string, MapValue>>
+      prompt: optional<unknown>
+      completion: optional<string>
+      usage: optional<LLMUsage>
+
+  # Objects
+  Trace:
+    properties:
+      id:
+        type: string
+        docs: The unique identifier of a trace
+      timestamp: datetime
+      externalId: optional<string>
+      name: optional<string>
+      userId: optional<string>
+      metadata: optional<unknown>
+  TraceWithDetails:
+    extends: Trace
+    properties:
+      observations: list<Observation>
+      scores: list<Score>
+  Observation:
+    properties:
+      id: string
+      traceId: string
+      type: string
+      name: optional<string>
+      startTime: datetime
+      endTime: optional<datetime>
+      completionStartTime: optional<datetime>
+      model: optional<string>
+      modelParameters: optional<map<string, MapValue>>
+      prompt: optional<unknown>
+      metadata: optional<unknown>
+      completion: optional<string>
+      promptTokens: integer
+      completionTokens: integer
+      totalTokens: integer
+      level: ObservationLevel
+      statusMessage: optional<string>
+      parentObservationId: optional<string>
+  Score:
+    properties:
+      id: string
+      traceId: string
+      name: string
+      value: integer
+      observationId: optional<string>
+      timestamp: datetime
+      comment: optional<string>
+
+  # Utilities
+  ObservationLevel:
+    enum:
+      - DEBUG
+      - DEFAULT
+      - WARNING
+      - ERROR
+  MapValue:
+    discriminated: false
+    union:
+      - optional<string>
+      - optional<integer>
+      - optional<boolean>
+  TraceIdTypeEnum:
+    enum:
+      - LANGFUSE
+      - EXTERNAL
+  LLMUsage:
+    properties:
+      promptTokens: optional<integer>
+      completionTokens: optional<integer>
+      totalTokens: optional<integer>
+
 errors:
   Error:
     status-code: 400
@@ -7,6 +105,9 @@ errors:
     type: string
   AccessDeniedError:
     status-code: 403
+    type: string
+  NotFoundError:
+    status-code: 404
     type: string
   MethodNotAllowedError:
     status-code: 405

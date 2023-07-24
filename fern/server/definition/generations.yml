@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
-
+imports:
+  commons: ./commons.yml
 service:
   auth: true
   base-path: /api/public
@@ -7,34 +8,15 @@ service:
     log:
       method: POST
       path: /generations
-      request: CreateLog
-      response: Log
+      request: commons.CreateGenerationRequest
+      response: commons.Observation
     update:
       method: PATCH
       path: /generations
       request: UpdateGenerationRequest
-      response: Log
+      response: commons.Observation
 
 types:
-  CreateLog:
-    properties:
-      id: optional<string>
-      traceId: optional<string>
-      traceIdType: optional<TraceIdTypeGenerations>
-      name: optional<string>
-      startTime: optional<datetime>
-      endTime: optional<datetime>
-      completionStartTime: optional<datetime>
-      model: optional<string>
-      modelParameters: optional<map<string, MapValue>>
-      prompt: optional<unknown>
-      metadata: optional<unknown>
-      completion: optional<string>
-      usage: optional<LLMUsage>
-      level: optional<ObservationLevelGeneration>
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-
   UpdateGenerationRequest:
     properties:
       generationId: string
@@ -42,54 +24,10 @@ types:
       endTime: optional<datetime>
       completionStartTime: optional<datetime>
       model: optional<string>
-      modelParameters: optional<map<string, MapValue>>
+      modelParameters: optional<map<string, commons.MapValue>>
       prompt: optional<unknown>
       metadata: optional<unknown>
       completion: optional<string>
-      usage: optional<LLMUsage>
-      level: optional<ObservationLevelGeneration>
+      usage: optional<commons.LLMUsage>
+      level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
-
-  Log:
-    properties:
-      id: string
-      traceId: string
-      type: string
-      name: optional<string>
-      startTime: datetime
-      endTime: optional<datetime>
-      completionStartTime: optional<datetime>
-      model: optional<string>
-      modelParameters: optional<map<string, MapValue>>
-      prompt: optional<unknown>
-      metadata: optional<unknown>
-      completion: optional<string>
-      promptTokens: integer
-      completionTokens: integer
-      totalTokens: integer
-      level: ObservationLevelGeneration
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-
-  LLMUsage:
-    properties:
-      promptTokens: optional<integer>
-      completionTokens: optional<integer>
-      totalTokens: optional<integer>
-
-  MapValue:
-    discriminated: false
-    union:
-      - optional<string>
-      - optional<integer>
-      - optional<boolean>
-  ObservationLevelGeneration:
-    enum:
-      - DEBUG
-      - DEFAULT
-      - WARNING
-      - ERROR
-  TraceIdTypeGenerations:
-    enum:
-      - LANGFUSE
-      - EXTERNAL

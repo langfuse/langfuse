@@ -1,0 +1,7 @@
+types:
+  MetaResponse:
+    properties:
+      page: integer
+      limit: integer
+      totalItems: integer
+      totalPages: integer
