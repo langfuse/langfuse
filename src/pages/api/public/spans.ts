@@ -55,6 +55,7 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
+      console.log("Trying to generate span: ", req.body);
       const obj = SpanPostSchema.parse(req.body);
       const {
         id,
@@ -144,6 +145,7 @@ export default async function handler(
     }
   } else if (req.method === "PATCH") {
     try {
+      console.log("Trying to update span: ", req.body);
       const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
