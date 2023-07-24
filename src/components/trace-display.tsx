@@ -23,6 +23,7 @@ import {
 import { useRouter } from "next/router";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import { Fragment } from "react";
 
 export default function TraceDisplay(props: {
   observations: Observation[];
@@ -154,15 +155,12 @@ const ObservationTreeNode = (props: {
     {props.observations
       .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
       .map((observation) => (
-        <>
+        <Fragment key={observation.id}>
           <div className="flex">
             {Array.from({ length: props.indentationLevel }, (_, i) => (
-              <div className="mx-2 border-r" key={i}>
-                {/* <div className=" h-full border-r" /> */}
-              </div>
+              <div className="mx-2 border-r" key={i} />
             ))}
             <div
-              key={observation.id}
               className={cn(
                 "group my-1 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-2 ",
                 props.currentObservationId === observation.id
@@ -221,7 +219,7 @@ const ObservationTreeNode = (props: {
             currentObservationId={props.currentObservationId}
             setCurrentObservationId={props.setCurrentObservationId}
           />
-        </>
+        </Fragment>
       ))}
   </>
 );
