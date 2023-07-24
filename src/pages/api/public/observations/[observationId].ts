@@ -31,7 +31,7 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
-    console.log("Trying to get trace:", req.body, req.query);
+    console.log("Trying to get observation:", req.body, req.query);
 
     const { observationId } = GetObservationSchema.parse(req.query);
 
