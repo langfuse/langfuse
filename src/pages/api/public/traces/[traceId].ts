@@ -58,7 +58,7 @@ export default async function handler(
     if (!trace) {
       return res.status(404).json({
         success: false,
-        message: "Trace not found or no access with credentials",
+        message: "Trace not found within authorized project",
       });
     }
     return res.status(200).json(trace);
