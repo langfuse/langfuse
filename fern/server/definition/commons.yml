@@ -1,3 +1,37 @@
+types:
+  Observation:
+    properties:
+      id: string
+      traceId: string
+      type: string
+      name: optional<string>
+      startTime: datetime
+      endTime: optional<datetime>
+      completionStartTime: optional<datetime>
+      model: optional<string>
+      modelParameters: optional<map<string, MapValue>>
+      prompt: optional<unknown>
+      metadata: optional<unknown>
+      completion: optional<string>
+      promptTokens: integer
+      completionTokens: integer
+      totalTokens: integer
+      level: ObservationLevel
+      statusMessage: optional<string>
+      parentObservationId: optional<string>
+  ObservationLevel:
+    enum:
+      - DEBUG
+      - DEFAULT
+      - WARNING
+      - ERROR
+  MapValue:
+    discriminated: false
+    union:
+      - optional<string>
+      - optional<integer>
+      - optional<boolean>
+
 errors:
   Error:
     status-code: 400

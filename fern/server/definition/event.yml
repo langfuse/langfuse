@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
-
+imports:
+  commons: ./commons.yml
 service:
   auth: true
   base-path: /api/public
@@ -9,7 +10,7 @@ service:
       method: POST
       path: /events
       request: CreateEventRequest
-      response: Event
+      response: commons.Observation
 
 types:
   CreateEventRequest:
@@ -23,19 +24,6 @@ types:
       input: optional<unknown>
       output: optional<unknown>
       level: optional<ObservationLevelEvent>
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-  Event:
-    properties:
-      id: string
-      traceId: string
-      type: string
-      name: optional<string>
-      startTime: datetime
-      metadata: optional<unknown>
-      input: optional<unknown>
-      output: optional<unknown>
-      level: ObservationLevelEvent
       statusMessage: optional<string>
       parentObservationId: optional<string>
   ObservationLevelEvent:

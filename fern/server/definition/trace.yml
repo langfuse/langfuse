@@ -10,6 +10,15 @@ service:
       path: /traces
       request: CreateTraceRequest
       response: Trace
+    get:
+      docs: Get a specific trace
+      method: GET
+      path: /traces/{traceId}
+      path-parameters:
+        traceId:
+          type: string
+          docs: The unique langfuse identifier of a trace
+      response: Trace
 
 types:
   CreateTraceRequest:
@@ -20,7 +29,9 @@ types:
       metadata: optional<unknown>
   Trace:
     properties:
-      id: string
+      id:
+        type: string
+        docs: The unique identifier of a trace
       timestamp: datetime
       externalId: optional<string>
       name: optional<string>
