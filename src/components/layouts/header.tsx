@@ -32,7 +32,7 @@ export default function Header(props: {
           <nav className="hidden sm:flex" aria-label="Breadcrumb">
             <ol role="list" className="flex items-center space-x-4">
               {props.breadcrumb.map(({ name, href }, index) => (
-                <li key={href}>
+                <li key={index}>
                   <div className="flex items-center">
                     {index !== 0 && (
                       <ChevronRightIcon

@@ -12,14 +12,10 @@ import {
   type SelectedScoreFilter,
   type ScoreFilter,
 } from "@/src/utils/tanstack";
-import { type Trace, type Score } from "@prisma/client";
+import { type Score } from "@prisma/client";
 import { lastCharacters } from "@/src/utils/string";
-
-export type TableScore = {
-  id: string;
-  name: string;
-  value: number;
-};
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 
 export type TraceTableRow = {
   id: string;
@@ -28,7 +24,12 @@ export type TraceTableRow = {
   name: string;
   userId: string;
   metadata?: string;
-  scores: TableScore[];
+  scores: Score[];
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 };
 
 export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
@@ -60,7 +61,7 @@ export default function Traces() {
   });
 
   const convertToTableRow = (
-    trace: Trace & { scores: Score[] }
+    trace: RouterOutput["traces"]["all"][0]
   ): TraceTableRow => {
     return {
       id: trace.id,
@@ -69,13 +70,8 @@ export default function Traces() {
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
       userId: trace.userId ?? "",
-      scores: trace.scores.map((score) => {
-        return {
-          name: score.name,
-          value: score.value,
-          id: score.id,
-        };
-      }),
+      scores: trace.scores,
+      usage: trace.usage,
     };
   };
 
@@ -139,8 +135,22 @@ export default function Traces() {
       header: "User ID",
     },
     {
-      accessorKey: "metadata",
-      header: "Metadata",
+      accessorKey: "usage",
+      header: "Usage",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return (
+          <TokenUsageBadge
+            promptTokens={value.promptTokens}
+            completionTokens={value.completionTokens}
+            totalTokens={value.totalTokens}
+          />
+        );
+      },
     },
     {
       accessorKey: "scores",
@@ -162,25 +172,10 @@ export default function Traces() {
         },
       },
       cell: ({ row }) => {
-        const values: TableScore[] = row.getValue("scores");
+        const values: Score[] = row.getValue("scores");
         return (
-          <div className="flex flex-col gap-2">
-            {values.map((value) => (
-              <div
-                key={value.id}
-                className="relative flex-row items-center rounded-lg border border-gray-300 shadow-sm"
-              >
-                <div className="min-w-1 flex flex-1 items-center gap-2 p-2">
-                  {/* <span className="absolute inset-0" aria-hidden="true" /> */}
-                  <p className=" text-xs font-medium text-gray-900">
-                    {value.name}
-                  </p>
-                  <p className="inline-flex items-baseline rounded-full bg-gray-100 px-2.5 py-0.5 text-lg font-medium text-gray-500 md:mt-2 lg:mt-0">
-                    {value.value}
-                  </p>
-                </div>
-              </div>
-            ))}
+          <div className="flex">
+            <GroupedScoreBadges scores={values} />
           </div>
         );
       },
