@@ -47,13 +47,15 @@ export default function Generations() {
       accessorKey: "id",
       header: "ID",
       cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
+        const observationId = row.getValue("id");
+        const traceId = row.getValue("traceId");
+        return typeof observationId === "string" &&
+          typeof traceId === "string" ? (
           <TableLink
-            path={`/project/${projectId}/generations/${value}`}
-            value={value}
+            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            value={observationId}
           />
-        ) : undefined;
+        ) : null;
       },
     },
     {
@@ -83,10 +85,6 @@ export default function Generations() {
     {
       accessorKey: "startTime",
       header: "Start Time",
-    },
-    {
-      accessorKey: "endTime",
-      header: "End Time",
     },
     {
       accessorKey: "name",
