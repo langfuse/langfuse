@@ -1,7 +1,15 @@
 types:
   MetaResponse:
     properties:
-      page: integer
-      limit: integer
-      totalItems: integer
-      totalPages: integer
+      page:
+        type: integer
+        docs: current page number
+      limit:
+        type: integer
+        docs: number of items per page
+      totalItems:
+        type: integer
+        docs: number of total items given the current filters/selection (if any)
+      totalPages:
+        type: integer
+        docs: number of total pages given the current limit
