@@ -11,16 +11,18 @@ const CreateTraceSchema = z.object({
   metadata: z.unknown().nullish(),
 });
 
+const GetTracesSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().lte(100).default(50),
+  userId: z.string().nullish(),
+  name: z.string().nullish(),
+});
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   await runMiddleware(req, res, cors);
-
-  if (req.method !== "POST") {
-    console.error(req.method, req.body);
-    return res.status(405).json({ message: "Method not allowed" });
-  }
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
@@ -34,54 +36,101 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
-    console.log("Trying to create trace:", req.body);
+    if (req.method === "POST") {
+      console.log("Trying to create trace:", req.body);
 
-    const { name, metadata, externalId, userId } = CreateTraceSchema.parse(
-      req.body
-    );
+      const { name, metadata, externalId, userId } = CreateTraceSchema.parse(
+        req.body
+      );
 
-    // CHECK ACCESS SCOPE
-    if (authCheck.scope.accessLevel !== "all")
-      return res.status(403).json({
-        success: false,
-        message: "Access denied",
-      });
-    // END CHECK ACCESS SCOPE
+      // CHECK ACCESS SCOPE
+      if (authCheck.scope.accessLevel !== "all")
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      // END CHECK ACCESS SCOPE
 
-    if (externalId) {
-      // For traces created with external ids, allow upserts
-      const newTrace = await prisma.trace.upsert({
-        where: {
-          projectId_externalId: {
-            externalId: externalId,
-            projectId: authCheck.scope.projectId,
+      if (externalId) {
+        // For traces created with external ids, allow upserts
+        const newTrace = await prisma.trace.upsert({
+          where: {
+            projectId_externalId: {
+              externalId: externalId,
+              projectId: authCheck.scope.projectId,
+            },
           },
-        },
-        create: {
-          timestamp: new Date(),
-          projectId: authCheck.scope.projectId,
-          externalId: externalId,
-          name: name ?? undefined,
-          userId: userId ?? undefined,
-          metadata: metadata ?? undefined,
-        },
-        update: {
-          name: name ?? undefined,
-          metadata: metadata ?? undefined,
+          create: {
+            timestamp: new Date(),
+            projectId: authCheck.scope.projectId,
+            externalId: externalId,
+            name: name ?? undefined,
+            userId: userId ?? undefined,
+            metadata: metadata ?? undefined,
+          },
+          update: {
+            name: name ?? undefined,
+            metadata: metadata ?? undefined,
+          },
+        });
+        res.status(200).json(newTrace);
+      } else {
+        const newTrace = await prisma.trace.create({
+          data: {
+            timestamp: new Date(),
+            projectId: authCheck.scope.projectId,
+            name: name ?? undefined,
+            userId: userId ?? undefined,
+            metadata: metadata ?? undefined,
+          },
+        });
+        res.status(200).json(newTrace);
+      }
+    } else if (req.method === "GET") {
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Access denied - need to use basic auth with secret key to GET scores",
+        });
+      }
+
+      const obj = GetTracesSchema.parse(req.query); // uses query and not body
+
+      const [traces, totalItems] = await Promise.all([
+        prisma.trace.findMany({
+          where: {
+            projectId: authCheck.scope.projectId,
+            name: obj.name ?? undefined,
+            userId: obj.userId ?? undefined,
+          },
+          skip: (obj.page - 1) * obj.limit,
+          take: obj.limit,
+          orderBy: {
+            timestamp: "desc",
+          },
+        }),
+        prisma.trace.count({
+          where: {
+            projectId: authCheck.scope.projectId,
+            name: obj.name ?? undefined,
+            userId: obj.userId ?? undefined,
+          },
+        }),
+      ]);
+
+      return res.status(200).json({
+        data: traces,
+        meta: {
+          page: obj.page,
+          limit: obj.limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / obj.limit),
         },
       });
-      res.status(200).json(newTrace);
     } else {
-      const newTrace = await prisma.trace.create({
-        data: {
-          timestamp: new Date(),
-          projectId: authCheck.scope.projectId,
-          name: name ?? undefined,
-          userId: userId ?? undefined,
-          metadata: metadata ?? undefined,
-        },
-      });
-      res.status(200).json(newTrace);
+      console.error(req.method, req.body);
+      return res.status(405).json({ message: "Method not allowed" });
     }
   } catch (error: unknown) {
     console.error(error);
