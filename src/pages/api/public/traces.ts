@@ -104,6 +104,13 @@ export default async function handler(
             name: obj.name ?? undefined,
             userId: obj.userId ?? undefined,
           },
+          include: {
+            observations: {
+              select: {
+                id: true,
+              },
+            },
+          },
           skip: (obj.page - 1) * obj.limit,
           take: obj.limit,
           orderBy: {
@@ -120,7 +127,10 @@ export default async function handler(
       ]);
 
       return res.status(200).json({
-        data: traces,
+        data: traces.map((trace) => ({
+          ...trace,
+          observations: trace.observations.map((observation) => observation.id),
+        })),
         meta: {
           page: obj.page,
           limit: obj.limit,
