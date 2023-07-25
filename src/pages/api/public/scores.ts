@@ -115,7 +115,6 @@ export default async function handler(
         });
       }
 
-      console.log(req.query);
       const obj = ScoresGetSchema.parse(req.query); // uses query and not body
 
       const [scores, totalItems] = await Promise.all([
