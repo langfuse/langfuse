@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
+  pagination: ./utils/pagination.yml
   commons: ./commons.yml
 service:
   auth: true
@@ -19,7 +20,19 @@ service:
         traceId:
           type: string
           docs: The unique langfuse identifier of a trace
-      response: commons.TraceWithDetails
+      response: commons.TraceWithFullDetails
+    list:
+      docs: Get list of traces
+      method: GET
+      path: /traces
+      request:
+        name: GetTracesRequest
+        query-parameters:
+          page: optional<integer>
+          limit: optional<integer>
+          userId: optional<string>
+          name: optional<string>
+      response: Traces
 
 types:
   CreateTraceRequest:
@@ -28,3 +41,7 @@ types:
       userId: optional<string>
       externalId: optional<string>
       metadata: optional<unknown>
+  Traces:
+    properties:
+      data: list<commons.TraceWithDetails>
+      meta: pagination.MetaResponse

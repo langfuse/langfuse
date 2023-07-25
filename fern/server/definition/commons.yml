@@ -41,6 +41,15 @@ types:
   TraceWithDetails:
     extends: Trace
     properties:
+      observations:
+        type: list<string>
+        docs: List of observation ids
+      scores:
+        type: list<string>
+        docs: List of score ids
+  TraceWithFullDetails:
+    extends: Trace
+    properties:
       observations: list<Observation>
       scores: list<Score>
   Observation:
