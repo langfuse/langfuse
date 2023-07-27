@@ -72,8 +72,8 @@ export default function Layout(props: PropsWithChildren) {
       icon: LineChart,
     },
     {
-      name: "Setup",
-      pathname: "/project/[projectId]/setup",
+      name: "Settings",
+      pathname: "/project/[projectId]/settings",
       icon: Cog6ToothIcon,
     },
     {

@@ -6,12 +6,12 @@ import { ApiKeyList } from "@/src/features/publicApi/components/ApiKeyList";
 import { useRouter } from "next/router";
 import { Code, Bird, GraduationCap } from "lucide-react";
 
-export default function GetStartedPage() {
+export default function SettingsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   return (
     <div className="container">
-      <Header title="Setup" />
+      <Header title="Settings" />
       <div className="flex flex-col gap-10">
         <Instructions />
         <ApiKeyList projectId={projectId} />
