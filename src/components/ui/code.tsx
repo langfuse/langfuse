@@ -10,10 +10,7 @@ export function JSONView(props: {
   title?: string;
   className?: string;
 }) {
-  const text =
-    typeof props.json === "string"
-      ? props.json
-      : JSON.stringify(props.json, null, 2);
+  const text = parseJsonInput(props.json);
 
   return (
     <CodeView
@@ -25,6 +22,36 @@ export function JSONView(props: {
     />
   );
 }
+
+const parseJsonInput = (jsonIn: string | unknown): string => {
+  if (jsonIn && typeof jsonIn === "object") {
+    // For completions of generations, display the generation as text
+    // { completion: "<completion>" } ->  "<completion>"
+    if (
+      Object.keys(jsonIn).length === 1 &&
+      "completion" in jsonIn &&
+      typeof jsonIn.completion === "string"
+    ) {
+      return jsonIn.completion;
+    }
+
+    // For OpenAI ChatCompletion Prompts, concat the messages
+    // [ { "role": "<role>", "content": "<content>" } ] -> "<role>\n<content>\n\n"
+    if (
+      Array.isArray(jsonIn) &&
+      jsonIn.length > 0 &&
+      "role" in jsonIn[0] &&
+      "content" in jsonIn[0]
+    ) {
+      return (jsonIn as { role: string; content: string }[])
+        .map((message) => `${message.role.toUpperCase()}\n\n${message.content}`)
+        .join("\n\n------\n\n");
+    }
+  }
+
+  if (typeof jsonIn === "string") return jsonIn;
+  return JSON.stringify(jsonIn, null, 2);
+};
 
 export function CodeView(props: {
   content: string | undefined | null;
