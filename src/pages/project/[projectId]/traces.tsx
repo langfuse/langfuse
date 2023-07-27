@@ -217,7 +217,7 @@ export default function Traces() {
   };
 
   return (
-    <div className="container">
+    <div className="md:container">
       <Header title="Traces" />
       {tableOptions.data ? (
         <DataTableToolbar

@@ -23,7 +23,7 @@ export default function AnalyticsPage() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="container">
+    <div className="md:container">
       <Header title="Analytics" />
       <FeatureFlagToggle
         featureFlag="analytics-alpha"
