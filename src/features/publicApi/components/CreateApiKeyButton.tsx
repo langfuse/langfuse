@@ -46,7 +46,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
 
   return (
     <Dialog open={open} onOpenChange={createApiKey}>
-      <DialogTrigger>
+      <DialogTrigger asChild>
         <Button variant="secondary" loading={mutCreateApiKey.isLoading}>
           <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
           Create new API keys
