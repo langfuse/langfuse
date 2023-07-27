@@ -10,10 +10,7 @@ export function JSONView(props: {
   title?: string;
   className?: string;
 }) {
-  const text =
-    typeof props.json === "string"
-      ? props.json
-      : JSON.stringify(props.json, null, 2);
+  const text = parseJsonInput(props.json);
 
   return (
     <CodeView
@@ -25,6 +22,16 @@ export function JSONView(props: {
     />
   );
 }
+
+const parseJsonInput = (jsonIn: string | unknown): string => {
+  if (jsonIn && typeof jsonIn === "object") {
+    if ("completion" in jsonIn && typeof jsonIn.completion === "string")
+      return jsonIn.completion;
+  }
+  if (typeof jsonIn === "string") return jsonIn;
+
+  return JSON.stringify(jsonIn, null, 2);
+};
 
 export function CodeView(props: {
   content: string | undefined | null;
