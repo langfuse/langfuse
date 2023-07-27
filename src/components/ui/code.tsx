@@ -25,11 +25,31 @@ export function JSONView(props: {
 
 const parseJsonInput = (jsonIn: string | unknown): string => {
   if (jsonIn && typeof jsonIn === "object") {
-    if ("completion" in jsonIn && typeof jsonIn.completion === "string")
+    // For completions of generations, display the generation as text
+    // { completion: "<completion>" } ->  "<completion>"
+    if (
+      Object.keys(jsonIn).length === 1 &&
+      "completion" in jsonIn &&
+      typeof jsonIn.completion === "string"
+    ) {
       return jsonIn.completion;
-  }
-  if (typeof jsonIn === "string") return jsonIn;
+    }
 
+    // For OpenAI ChatCompletion Prompts, concat the messages
+    // [ { "role": "<role>", "content": "<content>" } ] -> "<role>\n<content>\n\n"
+    if (
+      Array.isArray(jsonIn) &&
+      jsonIn.length > 0 &&
+      "role" in jsonIn[0] &&
+      "content" in jsonIn[0]
+    ) {
+      return (jsonIn as { role: string; content: string }[])
+        .map((message) => `${message.role.toUpperCase()}\n\n${message.content}`)
+        .join("\n\n------\n\n");
+    }
+  }
+
+  if (typeof jsonIn === "string") return jsonIn;
   return JSON.stringify(jsonIn, null, 2);
 };
 
