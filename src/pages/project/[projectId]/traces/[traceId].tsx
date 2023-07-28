@@ -13,7 +13,7 @@ export default function TracePage() {
   const trace = api.traces.byId.useQuery(traceId);
 
   return (
-    <div className="container">
+    <div className="md:container">
       <Header
         title="Trace Detail"
         breadcrumb={[

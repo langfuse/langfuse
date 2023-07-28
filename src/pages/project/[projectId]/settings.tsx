@@ -5,16 +5,18 @@ import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/publicApi/components/ApiKeyList";
 import { useRouter } from "next/router";
 import { Code, Bird, GraduationCap } from "lucide-react";
+import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";
 
-export default function GetStartedPage() {
+export default function SettingsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   return (
-    <div className="container">
-      <Header title="Setup" />
+    <div className="md:container">
+      <Header title="Settings" />
       <div className="flex flex-col gap-10">
-        <Instructions />
+        <ProjectMembersTable projectId={projectId} />
         <ApiKeyList projectId={projectId} />
+        <Instructions />
       </div>
     </div>
   );
