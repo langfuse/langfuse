@@ -51,8 +51,6 @@ export default function TraceDisplay(props: {
     );
   };
 
-  console.log("currentObservationId", currentObservationId);
-
   return (
     <div className="flex flex-col gap-8 md:flex-row-reverse">
       <ObservationTree
