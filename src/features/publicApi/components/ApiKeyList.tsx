@@ -18,15 +18,28 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { CreateApiKeyButton } from "@/src/features/publicApi/components/CreateApiKeyButton";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 
 export function ApiKeyList(props: { projectId: string }) {
-  const apiKeys = api.apiKeys.byProjectId.useQuery({
+  const hasAccess = useHasAccess({
     projectId: props.projectId,
+    scope: "apiKeys:read",
   });
+
+  const apiKeys = api.apiKeys.byProjectId.useQuery(
+    {
+      projectId: props.projectId,
+    },
+    {
+      enabled: hasAccess,
+    }
+  );
+
+  if (!hasAccess) return null;
 
   return (
     <div>
@@ -84,15 +97,22 @@ export function ApiKeyList(props: { projectId: string }) {
 
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "apiKeys:delete",
+  });
+
   const utils = api.useContext();
   const mutDeleteApiKey = api.apiKeys.delete.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
   });
   const [open, setOpen] = useState(false);
 
+  if (!hasAccess) return null;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
+      <DialogTrigger asChild>
         <Button variant="ghost" size="xs">
           <TrashIcon className="h-4 w-4" />
         </Button>

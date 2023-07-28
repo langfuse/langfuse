@@ -72,8 +72,8 @@ export default function Layout(props: PropsWithChildren) {
       icon: LineChart,
     },
     {
-      name: "Setup",
-      pathname: "/project/[projectId]/setup",
+      name: "Settings",
+      pathname: "/project/[projectId]/settings",
       icon: Cog6ToothIcon,
     },
     {
@@ -495,7 +495,7 @@ export default function Layout(props: PropsWithChildren) {
         </div>
         <div className="lg:pl-72">
           <main className="py-4">
-            <div className="px-4 sm:px-6 lg:px-8">{props.children}</div>
+            <div className="px-4">{props.children}</div>
           </main>
         </div>
       </div>

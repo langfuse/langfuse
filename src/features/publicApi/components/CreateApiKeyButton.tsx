@@ -10,9 +10,15 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CodeView } from "@/src/components/ui/code";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useContext();
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "apiKeys:create",
+  });
+
   const mutCreateApiKey = api.apiKeys.create.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
   });
@@ -44,9 +50,11 @@ export function CreateApiKeyButton(props: { projectId: string }) {
     }
   };
 
+  if (!hasAccess) return null;
+
   return (
     <Dialog open={open} onOpenChange={createApiKey}>
-      <DialogTrigger>
+      <DialogTrigger asChild>
         <Button variant="secondary" loading={mutCreateApiKey.isLoading}>
           <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
           Create new API keys

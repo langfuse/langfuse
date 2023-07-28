@@ -84,7 +84,7 @@ export function FeedbackButtonWrapper(
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={props.className}>
+      <DialogTrigger className={props.className} asChild>
         {props.children}
       </DialogTrigger>
       <DialogContent>

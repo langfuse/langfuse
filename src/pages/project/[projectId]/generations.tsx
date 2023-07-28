@@ -170,7 +170,7 @@ export default function Generations() {
   const isFiltered = () => queryOptions.traceId !== null;
 
   return (
-    <div className="container">
+    <div className="md:container">
       <Header title="Generations" />
       {tableOptions.data ? (
         <DataTableToolbar

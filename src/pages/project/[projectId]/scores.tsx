@@ -150,7 +150,7 @@ export default function ScoresPage() {
     });
 
   return (
-    <div className="container">
+    <div className="md:container">
       <Header title="Scores" />
       {tableOptions.data ? (
         <DataTableToolbar
