@@ -1,4 +1,5 @@
 import { generateKeySet } from "@/src/features/publicApi/lib/apiKeys";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -12,8 +13,14 @@ export const apiKeysRouter = createTRPCRouter({
         projectId: z.string(),
       })
     )
-    .query(async ({ input, ctx }) =>
-      ctx.prisma.apiKey.findMany({
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "apiKeys:read",
+      });
+
+      return ctx.prisma.apiKey.findMany({
         where: {
           projectId: input.projectId,
         },
@@ -29,8 +36,8 @@ export const apiKeysRouter = createTRPCRouter({
         orderBy: {
           createdAt: "asc",
         },
-      })
-    ),
+      });
+    }),
   create: protectedProjectProcedure
     .input(
       z.object({
@@ -39,6 +46,12 @@ export const apiKeysRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "apiKeys:create",
+      });
+
       const { pk, sk, hashedSk, displaySk } = await generateKeySet();
 
       const apiKey = await ctx.prisma.apiKey.create({
@@ -68,9 +81,23 @@ export const apiKeysRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      await ctx.prisma.apiKey.delete({
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "apiKeys:delete",
+      });
+
+      // Make sure the API key exists and belongs to the project the user has access to
+      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
         where: {
           id: input.id,
+          projectId: input.projectId,
+        },
+      });
+
+      await ctx.prisma.apiKey.delete({
+        where: {
+          id: apiKey.id,
         },
       });
 

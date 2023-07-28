@@ -4,7 +4,7 @@ import {
 } from "@/src/features/rbac/constants/roleAccessRights";
 import { type MembershipRole } from "@prisma/client";
 import { type Session } from "next-auth";
-import { type SessionContextValue } from "next-auth/react";
+import { useSession, type SessionContextValue } from "next-auth/react";
 
 type HasAccessParams =
   | {
@@ -17,11 +17,18 @@ type HasAccessParams =
       scope: Scope;
     };
 
+// For use in TRPC routes
 export const throwIfNoAccess = (p: HasAccessParams) => {
   if (!hasAccess(p)) throw new Error("No access");
 };
 
-export function hasAccess(p: HasAccessParams): boolean {
+// For use in UI components as react hook
+export const useHasAccess = (p: { projectId: string; scope: Scope }) => {
+  const session = useSession();
+  return hasAccess({ session, ...p });
+};
+
+function hasAccess(p: HasAccessParams): boolean {
   const role: MembershipRole | undefined =
     "role" in p
       ? // MembershipRole

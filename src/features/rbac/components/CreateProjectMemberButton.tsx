@@ -31,6 +31,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { MembershipRole } from "@prisma/client";
 import { roleAccessRights } from "@/src/features/rbac/constants/roleAccessRights";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const availableRoles = [MembershipRole.ADMIN, MembershipRole.MEMBER] as const;
 
@@ -41,6 +42,10 @@ const formSchema = z.object({
 
 export function CreateProjectMemberButton(props: { projectId: string }) {
   const [open, setOpen] = useState(false);
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "members:create",
+  });
 
   const utils = api.useContext();
   const mutCreateProjectMember = api.projectMembers.create.useMutation({
@@ -54,6 +59,8 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
       role: MembershipRole.MEMBER,
     },
   });
+
+  if (!hasAccess) return null;
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     return mutCreateProjectMember
