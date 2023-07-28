@@ -5,7 +5,6 @@ export function tokenCount(p: {
   model: string;
   text: string;
 }): number | undefined {
-  console.log("tokenCount", p);
   if (!p.model || !p.text) return undefined;
   if (p.model.toLowerCase().startsWith("gpt")) {
     const encoding = get_encoding("cl100k_base");
