@@ -24,54 +24,61 @@ export function JSONView(props: {
 }
 
 const parseJsonInput = (jsonIn: string | unknown): string => {
-  if (jsonIn && typeof jsonIn === "object") {
-    // For completions of generations, display the generation as text
-    // { completion: "<completion>" } ->  "<completion>"
-    if (
-      Object.keys(jsonIn).length === 1 &&
-      "completion" in jsonIn &&
-      typeof jsonIn.completion === "string"
-    ) {
-      return jsonIn.completion;
-    }
+  if (typeof jsonIn === "string") return jsonIn;
 
-    // For OpenAI ChatCompletion Prompts, concat the messages
-    // [ { "role": "<role>", "content": "<content>" } ] -> "<role>\n<content>\n\n"
-    if (
-      Array.isArray(jsonIn) &&
-      jsonIn.length > 0 &&
-      typeof jsonIn[0] === "object" &&
-      "role" in jsonIn[0] &&
-      "content" in jsonIn[0]
-    ) {
-      return (jsonIn as { role: string; content: string }[])
-        .map((message) => `${message.role.toUpperCase()}\n\n${message.content}`)
-        .join("\n\n------\n\n");
-    }
+  try {
+    if (jsonIn && typeof jsonIn === "object") {
+      // For completions of generations, display the generation as text
+      // { completion: "<completion>" } ->  "<completion>"
+      if (
+        Object.keys(jsonIn).length === 1 &&
+        "completion" in jsonIn &&
+        typeof jsonIn.completion === "string"
+      ) {
+        return jsonIn.completion;
+      }
 
-    // If it is an array with a single string, return the string
-    // [ "<string>" ] -> "<string>"
-    if (
-      Array.isArray(jsonIn) &&
-      jsonIn.length === 1 &&
-      typeof jsonIn[0] === "string"
-    ) {
-      return jsonIn[0];
-    }
+      // For OpenAI ChatCompletion Prompts, concat the messages
+      // [ { "role": "<role>", "content": "<content>" } ] -> "<role>\n<content>\n\n"
+      if (
+        Array.isArray(jsonIn) &&
+        jsonIn.length > 0 &&
+        typeof jsonIn[0] === "object" &&
+        "role" in jsonIn[0] &&
+        "content" in jsonIn[0]
+      ) {
+        return (jsonIn as { role: string; content: string }[])
+          .map(
+            (message) => `${message.role.toUpperCase()}\n\n${message.content}`
+          )
+          .join("\n\n------\n\n");
+      }
 
-    // If it is an Object with a single key, listed in the list of keys, return the value if it is a string
-    // { "<key>": "<string>" } -> "<string>"
-    const keys = ["input", "output", "text"];
-    if (
-      Object.keys(jsonIn).length === 1 &&
-      keys.includes(Object.keys(jsonIn)[0] as string) &&
-      typeof Object.values(jsonIn)[0] === "string"
-    ) {
-      return Object.values(jsonIn)[0] as string;
+      // If it is an array with a single string, return the string
+      // [ "<string>" ] -> "<string>"
+      if (
+        Array.isArray(jsonIn) &&
+        jsonIn.length === 1 &&
+        typeof jsonIn[0] === "string"
+      ) {
+        return jsonIn[0];
+      }
+
+      // If it is an Object with a single key, listed in the list of keys, return the value if it is a string
+      // { "<key>": "<string>" } -> "<string>"
+      const keys = ["input", "output", "text"];
+      if (
+        Object.keys(jsonIn).length === 1 &&
+        keys.includes(Object.keys(jsonIn)[0] as string) &&
+        typeof Object.values(jsonIn)[0] === "string"
+      ) {
+        return Object.values(jsonIn)[0] as string;
+      }
     }
+  } catch (e) {
+    console.error("Error while trying to parse the string", e, jsonIn);
   }
 
-  if (typeof jsonIn === "string") return jsonIn;
   return JSON.stringify(jsonIn, null, 2);
 };
 
