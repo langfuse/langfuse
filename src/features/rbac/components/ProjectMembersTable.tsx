@@ -59,10 +59,11 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                 <TableCell>{m.user.name}</TableCell>
                 <TableCell>{m.user.email}</TableCell>
                 <TableCell>{m.role}</TableCell>
-                {hasDeleteAccess ? (
+                {hasDeleteAccess && m.role !== "OWNER" ? (
                   <TableCell>
                     <Button
                       variant="ghost"
+                      size="xs"
                       loading={mutDeleteMembership.isLoading}
                       onClick={() => {
                         mutDeleteMembership.mutate({

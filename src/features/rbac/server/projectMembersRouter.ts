@@ -56,11 +56,13 @@ export const projectMembersRouter = createTRPCRouter({
       if (input.userId === ctx.session.user.id)
         throw new Error("You cannot remove yourself from a project");
 
-      return ctx.prisma.membership.delete({
+      // use deleteMany to protect against deleting owner with where clause
+      return ctx.prisma.membership.deleteMany({
         where: {
-          projectId_userId: {
-            projectId: input.projectId,
-            userId: input.userId,
+          projectId: input.projectId,
+          userId: input.userId,
+          role: {
+            not: MembershipRole.OWNER,
           },
         },
       });
