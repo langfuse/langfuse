@@ -36,7 +36,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   const router = useRouter();
 
   useEffect(() => {
-    // PostHog
+    // PostHog (cloud.langfuse.com)
     if (
       process.env.NEXT_PUBLIC_POSTHOG_KEY &&
       process.env.NEXT_PUBLIC_POSTHOG_HOST
