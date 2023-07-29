@@ -1,6 +1,6 @@
 <div align="center">
    <a href="https://langfuse.com">
-      <h1>🪢 langfuse</h1>
+      <h1>🪢 Langfuse</h1>
    </a>
    <h3>
       Open-source analytics for LLM-based applications
@@ -11,7 +11,7 @@
    </br></br>
    <div>
       <a href="https://discord.gg/7NXusRtqYU">
-         <strong>Join the langfuse Discord »</strong>
+         <strong>Join the Langfuse Discord »</strong>
       </a>
       </br>
       <a href="#roadmap">
@@ -42,11 +42,13 @@ Reach out if you are interested to join the alpha: alpha@langfuse.com
 # Integrations
 
 Monitor backend executions of LLM app to create nested traces
+
 - Python SDK
 - Typescript SDK (node, edge)
 - API
 
 Collect user feedback and attach it to backend traces
+
 - Typescript/JS SDK
 - API
 
@@ -54,25 +56,25 @@ More details: [langfuse.com/integrations](https://langfuse.com/integrations)
 
 # Data exploration
 
-langfuse offers an admin UI to explore the ingested data.
+Langfuse offers an admin UI to explore the ingested data.
 
 - Nested view of LLM app executions
 - Segment execution traces by user feedback
 
 # Get started
 
-Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions to setup langfuse locally, self-hosted or using langfuse cloud
+Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions to setup Langfuse locally, self-hosted or using Langfuse cloud
 
 # Roadmap
 
 - [x] Integrations: [langfuse.com/integrations](https://langfuse.com/integrations)
 - [x] Data exploration
-- [ ] langfuse analytics (in alpha)
-   - Analytics engine
-   - Detailed reports on latency, cost, quality
-   - Evals
+- [ ] Langfuse analytics (in alpha)
+  - Analytics engine
+  - Detailed reports on latency, cost, quality
+  - Evals
 
-# Contributing to langfuse
+# Contributing to Langfuse
 
 Join the community [on Discord](https://discord.gg/7NXusRtqYU).
 
@@ -80,4 +82,4 @@ To contribute, send us a PR, raise a github issue, or email at contributing@lang
 
 # License
 
-langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
