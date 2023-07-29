@@ -29,3 +29,11 @@ export const chatSetUser = ({
     Crisp.session.setData(data);
   }
 };
+
+type Trigger = "after-project-creation";
+
+export const chatRunTrigger = (trigger: Trigger) => {
+  if (process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
+    Crisp.trigger.run(trigger);
+  }
+};

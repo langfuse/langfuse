@@ -25,6 +25,7 @@ import { useRouter } from "next/router";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { chatRunTrigger } from "@/src/features/support-chat/chat";
 
 const formSchema = z.object({
   name: z.string().min(3, "Must have at least 3 characters"),
@@ -64,6 +65,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
       .catch((error) => {
         console.error(error);
       });
+    void chatRunTrigger("after-project-creation");
   }
 
   return (
