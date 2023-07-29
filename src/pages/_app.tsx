@@ -13,6 +13,7 @@ import { useRouter } from "next/router";
 
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
+import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -36,7 +37,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   const router = useRouter();
 
   useEffect(() => {
-    // PostHog
+    // PostHog (cloud.langfuse.com)
     if (
       process.env.NEXT_PUBLIC_POSTHOG_KEY &&
       process.env.NEXT_PUBLIC_POSTHOG_HOST
@@ -58,6 +59,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
           <Component {...pageProps} />
           <UserTracking />
         </Layout>
+        <CrispWidget />
       </SessionProvider>
     </PostHogProvider>
   );
@@ -85,6 +87,17 @@ function UserTracking() {
       setUser({
         email: session.data.user?.email ?? undefined,
         id: session.data.user?.id ?? undefined,
+      });
+      // Chat
+      chatSetUser({
+        name: session.data.user?.name ?? "undefined",
+        email: session.data.user?.email ?? "undefined",
+        data: {
+          userId: session.data.user?.id ?? "undefined",
+          projects: JSON.stringify(session.data.user?.projects) ?? "undefined",
+          featureFlags:
+            JSON.stringify(session.data.user?.featureFlags) ?? "undefined",
+        },
       });
     } else {
       // PostHog

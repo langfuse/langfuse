@@ -24,6 +24,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 
 const formSchema = z.object({
   name: z.string().min(3, "Must have at least 3 characters"),
@@ -34,6 +35,7 @@ interface NewProjectButtonProps {
 }
 export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   const [open, setOpen] = useState(false);
+  const { update: updateSession } = useSession();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -45,6 +47,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   const router = useRouter();
   const createProjectMutation = api.projects.create.useMutation({
     onSuccess: (newProject) => {
+      void updateSession();
       void router.push(`/project/${newProject.id}/settings`);
       void utils.projects.invalidate();
     },

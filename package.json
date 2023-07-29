@@ -102,5 +102,8 @@
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
+  },
+  "optionalDependencies": {
+    "crisp-sdk-web": "^1.0.19"
   }
 }
