@@ -114,4 +114,109 @@ export const scoresRouter = createTRPCRouter({
       },
     })
   ),
+  create: protectedProcedure
+    .input(
+      z.object({
+        traceId: z.string(),
+        value: z.number(),
+        name: z.string(),
+        comment: z.string().optional(),
+        observationId: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const trace = await ctx.prisma.trace.findFirstOrThrow({
+        where: {
+          id: input.traceId,
+          project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
+              },
+            },
+          },
+        },
+      });
+
+      return ctx.prisma.score.create({
+        data: {
+          trace: {
+            connect: {
+              id: trace.id,
+            },
+          },
+          ...(input.observationId
+            ? {
+                observation: {
+                  connect: {
+                    id: input.observationId,
+                  },
+                },
+              }
+            : undefined),
+          value: input.value,
+          name: input.name,
+          comment: input.comment,
+        },
+      });
+    }),
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        value: z.number(),
+        comment: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      console.log(input);
+      const score = await ctx.prisma.score.findFirstOrThrow({
+        where: {
+          id: input.id,
+          trace: {
+            project: {
+              members: {
+                some: {
+                  userId: ctx.session.user.id,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return ctx.prisma.score.update({
+        where: {
+          id: score.id,
+        },
+        data: {
+          value: input.value,
+          comment: input.comment,
+        },
+      });
+    }),
+  delete: protectedProcedure
+    .input(z.string())
+    .mutation(async ({ input, ctx }) => {
+      const score = await ctx.prisma.score.findFirstOrThrow({
+        where: {
+          id: input,
+          trace: {
+            project: {
+              members: {
+                some: {
+                  userId: ctx.session.user.id,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return ctx.prisma.score.delete({
+        where: {
+          id: score.id,
+        },
+      });
+    }),
 });

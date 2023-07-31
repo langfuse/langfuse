@@ -188,7 +188,7 @@ model Score {
     id            String       @id @default(cuid())
     timestamp     DateTime     @default(now())
     name          String
-    value         Int
+    value         Float
     comment       String?
     traceId       String       @map("trace_id")
     trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
