@@ -6,6 +6,7 @@ import { dashboardRouter } from "@/src/features/dashboard/server/dashboardRouter
 import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
 import { apiKeysRouter } from "@/src/features/publicApi/server/apiKeyRouter";
 import { projectMembersRouter } from "@/src/features/rbac/server/projectMembersRouter";
+import { userRouter } from "@/src/server/api/routers/users";
 
 /**
  * This is the primary router for your server.
@@ -18,6 +19,7 @@ export const appRouter = createTRPCRouter({
   scores: scoresRouter,
   dashboard: dashboardRouter,
   projects: projectsRouter,
+  users: userRouter,
   apiKeys: apiKeysRouter,
   projectMembers: projectMembersRouter,
 });

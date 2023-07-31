@@ -16,6 +16,7 @@ type ScoreFilter = z.infer<typeof ScoreFilter>;
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
+  userId: z.string().nullable(),
   name: z.array(z.string()).nullable(),
   scores: ScoreFilter.nullable(),
   searchQuery: z.string().nullable(),
@@ -25,11 +26,13 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      console.log("input", input);
       const traces = await ctx.prisma.trace.findMany({
         where: {
           AND: [
             {
               projectId: input.projectId,
+              ...(input.userId ? { userId: input.userId } : undefined),
               ...(input.name ? { name: { in: input.name } } : undefined),
               ...(input.scores
                 ? { scores: { some: createScoreCondition(input.scores) } }
@@ -93,6 +96,7 @@ export const traceRouter = createTRPCRouter({
         AND: [
           {
             projectId: input.projectId,
+            ...(input.userId ? { userId: input.userId } : undefined),
             ...(input.name ? { name: { in: input.name } } : undefined),
             ...(input.scores
               ? { scores: { some: createScoreCondition(input.scores) } }
