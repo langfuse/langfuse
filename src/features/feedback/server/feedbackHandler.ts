@@ -6,9 +6,6 @@ export default async function feedbackApiHandler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Run the cors middleware
-  console.log(JSON.stringify(req.body));
-
   await runFeedbackCorsMiddleware(req, res);
 
   try {

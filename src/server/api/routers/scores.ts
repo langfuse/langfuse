@@ -169,7 +169,6 @@ export const scoresRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      console.log(input);
       const score = await ctx.prisma.score.findFirstOrThrow({
         where: {
           id: input.id,

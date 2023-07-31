@@ -41,7 +41,6 @@ export type TraceFilterInput = Omit<
 >;
 
 export default function TracesTable({ projectId, userId }: TraceTableProps) {
-  console.log("TracesTable", projectId, userId);
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     scores: null,
     name: null,
@@ -54,11 +53,6 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     operator: null,
   });
 
-  console.log({
-    ...queryOptions,
-    userId: userId || null,
-    projectId,
-  });
   const traces = api.traces.all.useQuery({
     ...queryOptions,
     userId: userId || null,
