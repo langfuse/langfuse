@@ -67,19 +67,23 @@ export default function UsersPage() {
       accessorKey: "lastScore",
       header: "Last Score",
       cell: ({ row }) => {
-        const value: Score = row.getValue("lastScore");
+        const value: Score | null = row.getValue("lastScore");
         return (
-          <div className="flex items-center gap-4">
-            <TableLink
-              path={
-                value?.observationId
-                  ? `/project/${projectId}/traces/${value.traceId}?observation=${value.observationId}`
-                  : `/project/${projectId}/traces/${value.traceId}`
-              }
-              value={value.traceId}
-            />
-            <GroupedScoreBadges scores={[value]} />
-          </div>
+          <>
+            {value ? (
+              <div className="flex items-center gap-4">
+                <TableLink
+                  path={
+                    value?.observationId
+                      ? `/project/${projectId}/traces/${value.traceId}?observation=${value.observationId}`
+                      : `/project/${projectId}/traces/${value.traceId}`
+                  }
+                  value={value.traceId}
+                />
+                <GroupedScoreBadges scores={[value]} />
+              </div>
+            ) : undefined}
+          </>
         );
       },
     },
