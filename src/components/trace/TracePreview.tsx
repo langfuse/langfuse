@@ -23,12 +23,10 @@ export const TracePreview = ({
   trace,
   observations,
   scores,
-  projectId,
 }: {
   trace: Trace;
   observations: Observation[];
   scores: Score[];
-  projectId: string;
 }) => {
   return (
     <Card className="flex-1">
