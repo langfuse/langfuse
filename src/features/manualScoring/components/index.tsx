@@ -61,7 +61,7 @@ export function ManualScoreButton({
   const handleDelete = async () => {
     if (score) {
       await mutDeleteScore.mutateAsync(score.id);
-      setOpen(false);
+      onOpenChange(false);
     }
   };
 
@@ -70,10 +70,21 @@ export function ManualScoreButton({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      score: score?.value ?? 0,
-      comment: score?.comment ?? "",
+      score: 0,
+      comment: "",
     },
   });
+
+  const onOpenChange = (value: boolean) => {
+    if (!value) {
+      form.reset();
+      setOpen(false);
+    } else {
+      form.setValue("score", score?.value ?? 0);
+      form.setValue("comment", score?.comment ?? "");
+      setOpen(true);
+    }
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (score) {
@@ -91,14 +102,14 @@ export function ManualScoreButton({
         observationId,
       });
     }
-    setOpen(false);
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="default">
-          {score ? `Update score: ${score.value}` : "Manual score"}
+          {score ? `Update score: ${score.value}` : "Create score"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -165,7 +176,7 @@ export function ManualScoreButton({
                 <Button
                   type="button"
                   variant="destructive"
-                  onClick={handleDelete}
+                  onClick={() => void handleDelete()}
                   loading={mutDeleteScore.isLoading}
                 >
                   Delete
