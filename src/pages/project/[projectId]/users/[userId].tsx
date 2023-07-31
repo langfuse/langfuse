@@ -73,7 +73,7 @@ export default function TracePage() {
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8" aria-label="Tabs">
               {tabs.map((tab) => (
-                <a
+                <button
                   key={tab.name}
                   className={classNames(
                     tab.current
@@ -85,7 +85,7 @@ export default function TracePage() {
                   onClick={() => setCurrentTab(tab.name)}
                 >
                   {tab.name}
-                </a>
+                </button>
               ))}
             </nav>
           </div>

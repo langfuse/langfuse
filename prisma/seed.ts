@@ -69,6 +69,7 @@ async function main() {
             id: project.id,
           },
         },
+        userId: `user-${i % 10}`,
         scores: {
           createMany: {
             data: [
