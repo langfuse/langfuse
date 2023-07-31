@@ -43,6 +43,7 @@ export function Trace(props: {
       {currentObservationId === undefined || currentObservationId === "" ? (
         <TracePreview
           trace={props.trace}
+          projectId={props.projectId}
           observations={props.observations}
           scores={props.scores}
         />

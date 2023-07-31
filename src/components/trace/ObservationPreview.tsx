@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { ManualScoreButton } from "@/src/features/manualScoring/components";
 
 export const ObservationPreview = (props: {
   observations: Observation[];
@@ -29,42 +30,51 @@ export const ObservationPreview = (props: {
   if (!observation) return <div className="flex-1">Not found</div>;
   return (
     <Card className="flex-1">
-      <CardHeader>
-        <CardTitle>
-          <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-            {observation.type}
-          </span>
-          <span>{observation.name}</span>
-        </CardTitle>
-        <CardDescription className="flex gap-2">
-          {observation.startTime.toLocaleString()}
-        </CardDescription>
-        <div className="flex flex-wrap gap-2">
-          {observation.endTime ? (
+      <CardHeader className="flex items-start sm:flex-row sm:justify-between">
+        <div>
+          <CardTitle>
+            <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+              {observation.type}
+            </span>
+            <span>{observation.name}</span>
+          </CardTitle>
+          <CardDescription className="flex gap-2">
+            {observation.startTime.toLocaleString()}
+          </CardDescription>
+          <div className="flex flex-wrap gap-2">
+            {observation.endTime ? (
+              <Badge variant="outline">
+                {`${
+                  observation.endTime.getTime() -
+                  observation.startTime.getTime()
+                } ms`}
+              </Badge>
+            ) : null}
             <Badge variant="outline">
-              {`${
-                observation.endTime.getTime() - observation.startTime.getTime()
-              } ms`}
+              {observation.promptTokens} prompt → {observation.completionTokens}{" "}
+              completion (∑ {observation.totalTokens})
             </Badge>
-          ) : null}
-          <Badge variant="outline">
-            {observation.promptTokens} prompt → {observation.completionTokens}{" "}
-            completion (∑ {observation.totalTokens})
-          </Badge>
-          {observation.model ? (
-            <Badge variant="outline">{observation.model}</Badge>
-          ) : null}
-          {observation.modelParameters &&
-          typeof observation.modelParameters === "object"
-            ? Object.entries(observation.modelParameters)
-                .filter(Boolean)
-                .map(([key, value]) => (
-                  <Badge variant="outline" key={key}>
-                    {key}: {value?.toString()}
-                  </Badge>
-                ))
-            : null}
+            {observation.model ? (
+              <Badge variant="outline">{observation.model}</Badge>
+            ) : null}
+            {observation.modelParameters &&
+            typeof observation.modelParameters === "object"
+              ? Object.entries(observation.modelParameters)
+                  .filter(Boolean)
+                  .map(([key, value]) => (
+                    <Badge variant="outline" key={key}>
+                      {key}: {value?.toString()}
+                    </Badge>
+                  ))
+              : null}
+          </div>
         </div>
+        <ManualScoreButton
+          projectId={props.projectId}
+          traceId={observation.traceId}
+          observationId={observation.id}
+          scores={props.scores}
+        />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <JSONView

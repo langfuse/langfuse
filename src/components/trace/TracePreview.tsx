@@ -17,27 +17,39 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import { ManualScoreButton } from "@/src/features/manualScoring/components";
 
 export const TracePreview = ({
   trace,
   observations,
   scores,
+  projectId,
 }: {
   trace: Trace;
   observations: Observation[];
   scores: Score[];
+  projectId: string;
 }) => {
   return (
     <Card className="flex-1">
-      <CardHeader>
-        <CardTitle>
-          <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">TRACE</span>
-          <span>{trace.name}</span>
-        </CardTitle>
-        <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>
-        <div className="flex flex-wrap gap-2">
-          <TraceAggUsageBadge observations={observations} />
+      <CardHeader className="flex items-start sm:flex-row sm:justify-between">
+        <div>
+          <CardTitle>
+            <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+              TRACE
+            </span>
+            <span>{trace.name}</span>
+          </CardTitle>
+          <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>
+          <div className="flex flex-wrap gap-2">
+            <TraceAggUsageBadge observations={observations} />
+          </div>
         </div>
+        <ManualScoreButton
+          projectId={projectId}
+          traceId={trace.id}
+          scores={scores}
+        />
       </CardHeader>
       <CardContent>
         <JSONView title="Metadata" json={trace.metadata} scrollable />
