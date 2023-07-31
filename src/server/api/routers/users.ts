@@ -41,6 +41,10 @@ export const userRouter = createTRPCRouter({
 
       const userIds = Array.from(userIdToTraceIdsMap.keys());
 
+      if (userIds.length === 0) {
+        return [];
+      }
+
       const [traceAnalytics, observationAnalytics, lastScore] =
         await Promise.all([
           ctx.prisma.trace.groupBy({
