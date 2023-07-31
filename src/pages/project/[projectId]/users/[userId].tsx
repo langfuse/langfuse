@@ -66,6 +66,7 @@ export default function TracePage() {
             name="tabs"
             className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
             defaultValue={tabs.find((tab) => tab.current)?.name ?? undefined}
+            onChange={(e) => setCurrentTab(e.currentTarget.value)}
           >
             {tabs.map((tab) => (
               <option key={tab.name}>{tab.name}</option>
@@ -119,6 +120,7 @@ function DetailsTab({ userId, projectId }: TabProps) {
           value: user.data.lastObservation?.toISOString(),
         },
         { label: "Total Observations", value: user.data.totalObservations },
+        { label: "Total Traces", value: user.data.totalTraces },
         {
           label: "Prompt Tokens",
           value: numberFormatter(user.data.totalPromptTokens),

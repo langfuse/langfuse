@@ -28,14 +28,11 @@ export const userRouter = createTRPCRouter({
         const userId = trace.userId;
         const traceId = trace.id;
 
-        // If the user ID is not in the map, create a new entry with an array containing the trace ID
-
         if (userId) {
           if (!map.has(userId)) {
             map.set(userId, [traceId]);
           } else {
-            // If the user ID is already in the map, append the trace ID to the existing array
-            map.get(userId).push(traceId);
+            map.get(userId)?.push(traceId);
           }
         }
 
@@ -127,9 +124,9 @@ export const userRouter = createTRPCRouter({
 
         return {
           userId: userId,
-          firstTrace: traceAnalytics[0]?._min?.timestamp,
-          lastTrace: traceAnalytics[0]?._max?.timestamp,
-          totalTraces: traceAnalytics[0]?._count?._all,
+          firstTrace: traceAnalyticsForUser._min?.timestamp,
+          lastTrace: traceAnalyticsForUser?._max?.timestamp,
+          totalTraces: traceAnalyticsForUser?._count?._all,
           totalPromptTokens: observationAnalyticsForUser.prompt_tokens ?? 0,
           totalCompletionTokens:
             observationAnalyticsForUser.completion_tokens ?? 0,
