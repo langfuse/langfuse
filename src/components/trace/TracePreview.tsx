@@ -45,11 +45,7 @@ export const TracePreview = ({
             <TraceAggUsageBadge observations={observations} />
           </div>
         </div>
-        <ManualScoreButton
-          projectId={projectId}
-          traceId={trace.id}
-          scores={scores}
-        />
+        <ManualScoreButton traceId={trace.id} scores={scores} />
       </CardHeader>
       <CardContent>
         <JSONView title="Metadata" json={trace.metadata} scrollable />

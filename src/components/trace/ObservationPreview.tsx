@@ -70,7 +70,6 @@ export const ObservationPreview = (props: {
           </div>
         </div>
         <ManualScoreButton
-          projectId={props.projectId}
           traceId={observation.traceId}
           observationId={observation.id}
           scores={props.scores}
