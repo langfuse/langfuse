@@ -10,6 +10,7 @@ const ScoreFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
   id: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
+  userId: z.string().nullable(),
 });
 
 export const scoresRouter = createTRPCRouter({
@@ -23,6 +24,7 @@ export const scoresRouter = createTRPCRouter({
         where: {
           trace: {
             projectId: input.projectId,
+            ...(input.userId ? { userId: input.userId } : undefined),
           },
           ...(input.traceId
             ? {
@@ -46,6 +48,7 @@ export const scoresRouter = createTRPCRouter({
       const filter = {
         trace: {
           projectId: input.projectId,
+          ...(input.userId ? { userId: input.userId } : undefined),
         },
         ...(input.id
           ? {
