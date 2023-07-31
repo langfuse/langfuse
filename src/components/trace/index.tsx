@@ -25,7 +25,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import { Fragment } from "react";
 
-export default function TraceDisplay(props: {
+export function Trace(props: {
   observations: Observation[];
   trace: Trace;
   scores: Score[];
