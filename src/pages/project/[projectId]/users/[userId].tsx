@@ -4,6 +4,9 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { numberFormatter } from "@/src/utils/numbers";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import TableLink from "@/src/components/table/table-link";
 
 type TabDefinition = {
   name: string;
@@ -102,49 +105,76 @@ type TabProps = {
 };
 
 function DetailsTab({ userId, projectId }: TabProps) {
-  console.log("DetailsTab", userId, projectId);
   const user = api.users.byId.useQuery({ projectId: projectId, userId });
+
+  const userData = user.data
+    ? [
+        { label: "User Id", value: user.data.userId },
+        {
+          label: "First Observation",
+          value: user.data.firstObservation?.toISOString(),
+        },
+        {
+          label: "Last Observation",
+          value: user.data.lastObservation?.toISOString(),
+        },
+        { label: "Total Observations", value: user.data.totalObservations },
+        {
+          label: "Prompt Tokens",
+          value: numberFormatter(user.data.totalPromptTokens),
+        },
+        {
+          label: "Completion Tokens",
+          value: numberFormatter(user.data.totalCompletionTokens),
+        },
+        {
+          label: "Total Tokens",
+          value: numberFormatter(user.data.totalTokens),
+        },
+      ]
+    : [];
 
   return (
     <div className="mt-5 pt-5">
-      {user.data ? (
+      {userData ? (
         <div className="mt-6 border-t border-gray-100">
           <dl className="divide-y divide-gray-100">
-            <div className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
-              <dt className="text-sm font-medium leading-6 text-gray-900">
-                User ID
-              </dt>
-              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                {user.data?.userId}
-              </dd>
-            </div>
-            <div className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
-              <dt className="text-sm font-medium leading-6 text-gray-900">
-                First Event
-              </dt>
-              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                {user.data?.firstEvent?.toISOString() ?? "No events yet"}
-              </dd>
-            </div>
-            <div className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
-              <dt className="text-sm font-medium leading-6 text-gray-900">
-                Last Event
-              </dt>
-              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                {user.data?.lastEvent?.toISOString() ?? "No events yet"}
-              </dd>
-            </div>
-            <div className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
-              <dt className="text-sm font-medium leading-6 text-gray-900">
-                Total Events
-              </dt>
-              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                {(
-                  (user.data?.totalTraces ?? 0) +
-                  (user.data?.totalObservations ?? 0)
-                ).toString()}
-              </dd>
-            </div>
+            {userData.map((item) => (
+              <div
+                key={item.label}
+                className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
+              >
+                <dt className="text-sm font-medium leading-6 text-gray-900">
+                  {item.label}
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+                  {item.value ?? "-"}
+                </dd>
+              </div>
+            ))}
+            {user.data?.lastScore ? (
+              <div
+                key="score"
+                className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
+              >
+                <dt className="text-sm font-medium leading-6 text-gray-900">
+                  Last Score
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+                  <div className="flex items-center gap-4">
+                    <TableLink
+                      path={
+                        user.data?.lastScore.observationId
+                          ? `/project/${projectId}/traces/${user.data?.lastScore.traceId}?observation=${user.data?.lastScore.observationId}`
+                          : `/project/${projectId}/traces/${user.data?.lastScore.traceId}`
+                      }
+                      value={user.data?.lastScore.traceId}
+                    />
+                    <GroupedScoreBadges scores={[user.data?.lastScore]} />
+                  </div>
+                </dd>
+              </div>
+            ) : undefined}
           </dl>
         </div>
       ) : undefined}

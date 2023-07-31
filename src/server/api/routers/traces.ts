@@ -26,7 +26,6 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      console.log("input", input);
       const traces = await ctx.prisma.trace.findMany({
         where: {
           AND: [

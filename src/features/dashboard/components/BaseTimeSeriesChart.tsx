@@ -1,4 +1,5 @@
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
+import { numberFormatter } from "@/src/utils/numbers";
 import { AreaChart } from "@tremor/react";
 
 export function BaseTimeSeriesChart(props: {
@@ -27,10 +28,6 @@ export function BaseTimeSeriesChart(props: {
     });
   }
 
-  const dataFormatter = (number: number) => {
-    return Intl.NumberFormat("us").format(number).toString();
-  };
-
   const convertDate = (date: number, agg: DateTimeAggregationOption) => {
     if (agg === "24 hours" || agg === "1 hour") {
       return new Date(date).toLocaleTimeString("en-US", {
@@ -56,7 +53,7 @@ export function BaseTimeSeriesChart(props: {
       index="timestamp"
       categories={Array.from(labels)}
       colors={["indigo", "cyan"]}
-      valueFormatter={dataFormatter}
+      valueFormatter={numberFormatter}
     />
   );
 }

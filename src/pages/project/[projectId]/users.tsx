@@ -7,6 +7,9 @@ import { useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
+import { numberFormatter } from "@/src/utils/numbers";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { type Score } from "@prisma/client";
 
 type RowData = {
   userId: string;
@@ -56,6 +59,30 @@ export default function UsersPage() {
       accessorKey: "totalEvents",
       header: "Total Events",
     },
+    {
+      accessorKey: "totalTokens",
+      header: "Total Tokens",
+    },
+    {
+      accessorKey: "lastScore",
+      header: "Last Score",
+      cell: ({ row }) => {
+        const value: Score = row.getValue("lastScore");
+        return (
+          <div className="flex items-center gap-4">
+            <TableLink
+              path={
+                value?.observationId
+                  ? `/project/${projectId}/traces/${value.traceId}?observation=${value.observationId}`
+                  : `/project/${projectId}/traces/${value.traceId}`
+              }
+              value={value.traceId}
+            />
+            <GroupedScoreBadges scores={[value]} />
+          </div>
+        );
+      },
+    },
   ];
 
   return (
@@ -77,14 +104,18 @@ export default function UsersPage() {
                 isLoading: false,
                 isError: false,
                 data: users.data?.map((t) => {
-                  console.log(t);
                   return {
                     userId: t.userId,
-                    firstEvent: t.firstEvent?.toISOString() ?? "No event yet",
-                    lastEvent: t.lastEvent?.toISOString() ?? "No event yet",
-                    totalEvents: (
-                      (t.totalTraces ?? 0) + (t.totalObservations ?? 0)
-                    ).toString(),
+                    firstEvent:
+                      t.firstObservation?.toISOString() ?? "No event yet",
+                    lastEvent:
+                      t.lastObservation?.toISOString() ?? "No event yet",
+                    totalEvents: numberFormatter(
+                      (Number(t.totalTraces) || 0) +
+                        (Number(t.totalObservations) || 0)
+                    ),
+                    totalTokens: numberFormatter(t.totalTokens),
+                    lastScore: t.lastScore,
                   };
                 }),
               }

@@ -21,79 +21,126 @@ export const userRouter = createTRPCRouter({
             },
           ],
         },
-        by: ["userId"],
-        _count: {
-          _all: true,
-        },
-        take: 50,
-        orderBy: {
-          _count: { userId: "desc" },
-        },
+        by: ["userId", "id"],
       });
 
-      const userIds = traces
-        .map((t) => t.userId)
-        .filter((s): s is string => Boolean(s));
+      const userIdToTraceIdsMap = traces.reduce((map, trace) => {
+        const userId = trace.userId;
+        const traceId = trace.id;
 
-      const traceAnalytics = await ctx.prisma.trace.groupBy({
-        where: {
-          userId: {
-            in: userIds,
-          },
-        },
-        _min: {
-          timestamp: true,
-        },
-        _max: {
-          timestamp: true,
-        },
-        _count: {
-          _all: true,
-        },
-        by: ["userId"],
-      });
+        // If the user ID is not in the map, create a new entry with an array containing the trace ID
+
+        if (userId) {
+          if (!map.has(userId)) {
+            map.set(userId, [traceId]);
+          } else {
+            // If the user ID is already in the map, append the trace ID to the existing array
+            map.get(userId).push(traceId);
+          }
+        }
+
+        return map;
+      }, new Map<string, string[]>());
+
+      const userIds = Array.from(userIdToTraceIdsMap.keys());
+
+      const [traceAnalytics, observationAnalytics, lastScore] =
+        await Promise.all([
+          ctx.prisma.trace.groupBy({
+            where: {
+              userId: {
+                in: userIds,
+              },
+            },
+            _count: {
+              _all: true,
+            },
+            _min: {
+              timestamp: true,
+            },
+            _max: {
+              timestamp: true,
+            },
+            by: ["userId"],
+          }),
+          ctx.prisma.$queryRawUnsafe<
+            {
+              min_start_time: Date;
+              max_start_time: Date;
+              total_tokens: number;
+              prompt_tokens: number;
+              completion_tokens: number;
+              total_observations: number;
+              user_id: string;
+            }[]
+          >(`SELECT
+          MIN(observations.start_time) AS min_start_time,
+          MAX(observations.start_time) AS max_start_time,
+          SUM(observations.total_tokens) AS total_tokens,
+          SUM(observations.prompt_tokens) AS prompt_tokens,
+          SUM(observations.completion_tokens) AS completion_tokens,
+          count(*) as total_observations,
+          traces.user_id as user_id
+        FROM
+          observations
+          JOIN traces ON observations.trace_id = traces.id
+        WHERE
+          traces.user_id IN (${userIds.map((id) => `'${id}'`).join(",")})
+        GROUP BY
+          traces.user_id
+          `),
+          ctx.prisma.trace.findMany({
+            distinct: ["userId"],
+            orderBy: {
+              timestamp: "desc",
+            },
+            include: {
+              scores: {
+                orderBy: {
+                  timestamp: "desc",
+                },
+                take: 1,
+              },
+            },
+            where: {
+              userId: {
+                in: userIds,
+              },
+            },
+          }),
+        ]);
 
       return userIds.map((userId) => {
-        const trace = traces.find((t) => t.userId === userId);
-        const analytics = traceAnalytics.find((t) => t.userId === userId);
+        const traceAnalyticsForUser = traceAnalytics.find(
+          (t) => t.userId === userId
+        );
+        const observationAnalyticsForUser = observationAnalytics.find(
+          (o) => o.user_id === userId
+        );
+
+        if (!traceAnalyticsForUser || !observationAnalyticsForUser) {
+          throw new Error("User not found in analytics");
+        }
+
+        const returnedScore =
+          lastScore.find((s) => s.userId === userId)?.scores[0] ?? null;
 
         return {
-          userId,
-          firstEvent: analytics?._min?.timestamp,
-          lastEvent: analytics?._max?.timestamp,
-          totalTraces: trace?._count?._all,
-          totalObservations: analytics?._count?._all,
+          userId: userId,
+          firstTrace: traceAnalytics[0]?._min?.timestamp,
+          lastTrace: traceAnalytics[0]?._max?.timestamp,
+          totalTraces: traceAnalytics[0]?._count?._all,
+          totalPromptTokens: observationAnalyticsForUser.prompt_tokens ?? 0,
+          totalCompletionTokens:
+            observationAnalyticsForUser.completion_tokens ?? 0,
+          totalTokens: observationAnalyticsForUser.total_tokens ?? 0,
+          firstObservation: observationAnalyticsForUser.min_start_time,
+          lastObservation: observationAnalyticsForUser.max_start_time,
+          totalObservations: observationAnalyticsForUser.total_observations,
+          lastScore: returnedScore,
         };
       });
     }),
-  // availableFilterOptions: protectedProjectProcedure
-  //   .input(UserFilterOptions)
-  //   .query(async ({ input, ctx }) => {
-  //     const filter = {
-  //       AND: [
-  //         {
-  //           projectId: input.projectId,
-  //         },
-  //       ],
-  //     };
-
-  //     const traces = ctx.prisma.trace.groupBy({
-  //       where: filter,
-  //       by: ["userId"],
-  //       _count: {
-  //         _all: true,
-  //       },
-  //     });
-
-  //     return [
-  //       {
-  //         key: "users",
-  //         occurrences: traces.map((i) => {
-  //           return { key: i.name ?? "undefined", count: i._count };
-  //         }),
-  //       },
-  //     ];
-  //   }),
 
   byId: protectedProjectProcedure
     .input(
@@ -103,53 +150,69 @@ export const userRouter = createTRPCRouter({
       })
     )
     .query(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.groupBy({
-        where: {
-          AND: [
-            {
-              projectId: input.projectId,
+      const [traceAnalytics, observationAnalytics, lastScore] =
+        await Promise.all([
+          ctx.prisma.trace.groupBy({
+            where: {
               userId: input.userId,
             },
-          ],
-        },
-        by: ["userId"],
-        _count: {
-          _all: true,
-        },
-        take: 50,
-        orderBy: {
-          _count: { userId: "desc" },
-        },
-      });
-
-      const traceAnalytics = await ctx.prisma.trace.groupBy({
-        where: {
-          userId: input.userId,
-        },
-        _min: {
-          timestamp: true,
-        },
-        _max: {
-          timestamp: true,
-        },
-        _count: {
-          _all: true,
-        },
-        by: ["userId"],
-      });
-
-      console.log("trace", trace);
-      console.log("traceAnalytics", traceAnalytics);
-
-      if (trace.length === 0 || traceAnalytics.length === 0)
-        throw new Error("unexpected database result");
+            _count: {
+              _all: true,
+            },
+            _min: {
+              timestamp: true,
+            },
+            _max: {
+              timestamp: true,
+            },
+            by: ["userId"],
+          }),
+          ctx.prisma.observation.aggregate({
+            where: {
+              trace: {
+                userId: input.userId,
+              },
+            },
+            _sum: {
+              promptTokens: true,
+              completionTokens: true,
+              totalTokens: true,
+            },
+            _min: {
+              startTime: true,
+            },
+            _max: {
+              endTime: true,
+            },
+            _count: {
+              _all: true,
+            },
+          }),
+          ctx.prisma.score.findFirst({
+            where: {
+              trace: {
+                userId: input.userId,
+              },
+            },
+            orderBy: {
+              timestamp: "desc",
+            },
+            take: 1,
+          }),
+        ]);
 
       return {
         userId: input.userId,
-        firstEvent: traceAnalytics[0]?._min?.timestamp,
-        lastEvent: traceAnalytics[0]?._max?.timestamp,
-        totalTraces: trace[0]?._count?._all,
-        totalObservations: traceAnalytics[0]?._count?._all,
+        firstTrace: traceAnalytics[0]?._min?.timestamp,
+        lastTrace: traceAnalytics[0]?._max?.timestamp,
+        totalTraces: traceAnalytics[0]?._count?._all,
+        totalPromptTokens: observationAnalytics._sum?.promptTokens ?? 0,
+        totalCompletionTokens: observationAnalytics._sum?.completionTokens ?? 0,
+        totalTokens: observationAnalytics._sum?.totalTokens ?? 0,
+        firstObservation: observationAnalytics._min?.startTime,
+        lastObservation: observationAnalytics._max?.endTime,
+        totalObservations: observationAnalytics._count?._all,
+        lastScore: lastScore,
       };
     }),
 });
