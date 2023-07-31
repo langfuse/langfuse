@@ -108,8 +108,8 @@ export function ManualScoreButton({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="default">
-          {score ? `Update score: ${score.value}` : "Create score"}
+        <Button variant="secondary">
+          {score ? `Update score: ${score.value}` : "Add score"}
         </Button>
       </DialogTrigger>
       <DialogContent>
