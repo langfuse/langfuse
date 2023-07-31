@@ -14,7 +14,7 @@ export function getDisplaySecretKey(secretKey: string) {
 }
 
 export async function hashSecretKey(key: string) {
-  const hashedKey = await hash(key, 12);
+  const hashedKey = await hash(key, 11);
   return hashedKey;
 }
 
