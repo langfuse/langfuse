@@ -1,0 +1,125 @@
+import { JSONView } from "@/src/components/ui/code";
+import { type Observation, type Score } from "@prisma/client";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/src/components/ui/table";
+import { ManualScoreButton } from "@/src/features/manualScoring/components";
+
+export const ObservationPreview = (props: {
+  observations: Observation[];
+  projectId: string;
+  scores: Score[];
+  currentObservationId: string | undefined;
+}) => {
+  const observation = props.observations.find(
+    (o) => o.id === props.currentObservationId
+  );
+  if (!observation) return <div className="flex-1">Not found</div>;
+  return (
+    <Card className="flex-1">
+      <CardHeader className="flex items-start gap-2 sm:flex-row sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <CardTitle>
+            <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+              {observation.type}
+            </span>
+            <span>{observation.name}</span>
+          </CardTitle>
+          <CardDescription className="flex gap-2">
+            {observation.startTime.toLocaleString()}
+          </CardDescription>
+          <div className="flex flex-wrap gap-2">
+            {observation.endTime ? (
+              <Badge variant="outline">
+                {`${
+                  observation.endTime.getTime() -
+                  observation.startTime.getTime()
+                } ms`}
+              </Badge>
+            ) : null}
+            <Badge variant="outline">
+              {observation.promptTokens} prompt → {observation.completionTokens}{" "}
+              completion (∑ {observation.totalTokens})
+            </Badge>
+            {observation.model ? (
+              <Badge variant="outline">{observation.model}</Badge>
+            ) : null}
+            {observation.modelParameters &&
+            typeof observation.modelParameters === "object"
+              ? Object.entries(observation.modelParameters)
+                  .filter(Boolean)
+                  .map(([key, value]) => (
+                    <Badge variant="outline" key={key}>
+                      {key}: {value?.toString()}
+                    </Badge>
+                  ))
+              : null}
+          </div>
+        </div>
+        <ManualScoreButton
+          traceId={observation.traceId}
+          observationId={observation.id}
+          scores={props.scores}
+        />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <JSONView
+          title={observation.type === "GENERATION" ? "Prompt" : "Input"}
+          json={observation.input}
+          scrollable
+        />
+        <JSONView
+          title={observation.type === "GENERATION" ? "Completion" : "Output"}
+          json={observation.output}
+          scrollable
+        />
+        <JSONView title="Status Message" json={observation.statusMessage} />
+        <JSONView title="Metadata" json={observation.metadata} />
+        {props.scores.find((s) => s.observationId === observation.id) ? (
+          <div className="flex flex-col gap-2">
+            <h3>Scores</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Timestamp</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead>Comment</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {props.scores
+                  .filter((s) => s.observationId === observation.id)
+                  .map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="text-xs">
+                        {s.timestamp.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{s.name}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {s.value}
+                      </TableCell>
+                      <TableCell className="text-xs">{s.comment}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+};

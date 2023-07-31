@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
-import TraceDisplay from "@/src/components/trace-display";
+import { Trace } from "@/src/components/trace";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 
@@ -34,7 +34,7 @@ export default function TracePage() {
       {trace.data ? (
         <>
           <div className="mt-5 border-t pt-5">
-            <TraceDisplay
+            <Trace
               key={trace.data.id}
               projectId={projectId}
               trace={trace.data}
