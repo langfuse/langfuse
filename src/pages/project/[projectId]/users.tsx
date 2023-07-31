@@ -2,13 +2,10 @@ import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
 import { type ColumnDef } from "@tanstack/react-table";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
 import TableLink from "@/src/components/table/table-link";
-import { type TableRowOptions } from "@/src/components/table/types";
 import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { type Score } from "@prisma/client";
 import { useRouter } from "next/router";
 
 type RowData = {
