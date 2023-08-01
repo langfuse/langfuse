@@ -179,7 +179,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
       cell: ({ row }) => {
         const values: Score[] = row.getValue("scores");
         return (
-          <div className="flex">
+          <div className="flex flex-col">
             <GroupedScoreBadges scores={values} />
           </div>
         );
