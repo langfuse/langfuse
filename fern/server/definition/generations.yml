@@ -26,6 +26,7 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
       prompt: optional<unknown>
+      promptVersion: optional<string>
       metadata: optional<unknown>
       completion: optional<string>
       usage: optional<commons.LLMUsage>

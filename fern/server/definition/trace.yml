@@ -40,6 +40,7 @@ types:
       name: optional<string>
       userId: optional<string>
       externalId: optional<string>
+      releaseVersion: optional<string>
       metadata: optional<unknown>
   Traces:
     properties:
