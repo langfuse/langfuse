@@ -66,7 +66,7 @@ const parseJsonInput = (jsonIn: string | unknown): string => {
 
       // If it is an Object with a single key, listed in the list of keys, return the value if it is a string
       // { "<key>": "<string>" } -> "<string>"
-      const keys = ["input", "output", "text"];
+      const keys = ["input", "output", "text", "prompt"];
       if (
         Object.keys(jsonIn).length === 1 &&
         keys.includes(Object.keys(jsonIn)[0] as string) &&
@@ -110,7 +110,7 @@ export function CodeView(props: {
       <div className="flex gap-2">
         <code
           className={cn(
-            "relative flex-1 whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs",
+            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
             isCollapsed ? `line-clamp-4` : "block",
             props.scrollable ? "max-h-60 overflow-y-scroll" : undefined
           )}
