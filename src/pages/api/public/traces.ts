@@ -5,6 +5,7 @@ import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 
 const CreateTraceSchema = z.object({
+  id: z.string().nullish(),
   name: z.string().nullish(),
   externalId: z.string().nullish(),
   userId: z.string().nullish(),
@@ -39,9 +40,8 @@ export default async function handler(
     if (req.method === "POST") {
       console.log("Trying to create trace:", req.body);
 
-      const { name, metadata, externalId, userId } = CreateTraceSchema.parse(
-        req.body
-      );
+      const { id, name, metadata, externalId, userId } =
+        CreateTraceSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
       if (authCheck.scope.accessLevel !== "all")
@@ -50,6 +50,12 @@ export default async function handler(
           message: "Access denied",
         });
       // END CHECK ACCESS SCOPE
+
+      if (id && externalId)
+        return res.status(400).json({
+          success: false,
+          message: "Cannot create trace with both id and externalId",
+        });
 
       if (externalId) {
         // For traces created with external ids, allow upserts
@@ -77,6 +83,7 @@ export default async function handler(
       } else {
         const newTrace = await prisma.trace.create({
           data: {
+            id: id ?? undefined,
             timestamp: new Date(),
             projectId: authCheck.scope.projectId,
             name: name ?? undefined,
