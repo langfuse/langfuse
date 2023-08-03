@@ -18,6 +18,7 @@ const ObservationSchema = z.object({
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  version: z.string().nullish(),
 });
 
 export default async function handler(
@@ -53,6 +54,7 @@ export default async function handler(
       parentObservationId,
       level,
       statusMessage,
+      version,
     } = obj;
 
     // If externalTraceId is provided, find or create the traceId
@@ -113,6 +115,7 @@ export default async function handler(
         parent: parentObservationId
           ? { connect: { id: parentObservationId } }
           : undefined,
+        version: version ?? undefined,
       },
     });
 

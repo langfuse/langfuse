@@ -35,6 +35,7 @@ export const GenerationsCreateSchema = z.object({
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
 });
 
 const GenerationPatchSchema = z.object({
@@ -61,6 +62,7 @@ const GenerationPatchSchema = z.object({
   metadata: z.unknown().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
 });
 
 export default async function handler(
@@ -102,6 +104,7 @@ export default async function handler(
         parentObservationId,
         level,
         statusMessage,
+        version,
       } = obj;
 
       // If externalTraceId is provided, find or create the traceId
@@ -190,6 +193,7 @@ export default async function handler(
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
             : undefined,
+          version: version ?? undefined,
         },
       });
 
@@ -219,6 +223,7 @@ export default async function handler(
         completion,
         usage,
         model,
+        version,
         ...fields
       } = GenerationPatchSchema.parse(req.body);
 
@@ -284,6 +289,7 @@ export default async function handler(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
+          version: version ?? undefined,
         },
       });
 

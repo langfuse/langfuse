@@ -634,6 +634,9 @@ components:
         parentObservationId:
           type: string
           nullable: true
+        version:
+          type: string
+          nullable: true
     CreateSpanRequest:
       title: CreateSpanRequest
       type: object
@@ -684,6 +687,12 @@ components:
           type: string
           nullable: true
         name:
+          type: string
+          nullable: true
+        release:
+          type: string
+          nullable: true
+        version:
           type: string
           nullable: true
         userId:
@@ -763,6 +772,9 @@ components:
             $ref: '#/components/schemas/MapValue'
           nullable: true
         prompt:
+          nullable: true
+        version:
+          type: string
           nullable: true
         metadata:
           nullable: true
@@ -882,6 +894,9 @@ components:
           nullable: true
         prompt:
           nullable: true
+        version:
+          type: string
+          nullable: true
         metadata:
           nullable: true
         completion:
@@ -956,6 +971,9 @@ components:
         level:
           $ref: '#/components/schemas/ObservationLevel'
           nullable: true
+        version:
+          type: string
+          nullable: true
         statusMessage:
           type: string
           nullable: true
@@ -975,6 +993,12 @@ components:
           type: string
           nullable: true
         externalId:
+          type: string
+          nullable: true
+        release:
+          type: string
+          nullable: true
+        version:
           type: string
           nullable: true
         metadata:
