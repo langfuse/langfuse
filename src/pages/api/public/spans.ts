@@ -19,6 +19,7 @@ const SpanPostSchema = z.object({
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
 });
 
 const SpanPatchSchema = z.object({
@@ -30,6 +31,7 @@ const SpanPatchSchema = z.object({
   output: z.unknown().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
 });
 
 export default async function handler(
@@ -68,6 +70,7 @@ export default async function handler(
         parentObservationId,
         level,
         statusMessage,
+        version,
       } = obj;
 
       // If externalTraceId is provided, find or create the traceId
@@ -129,6 +132,7 @@ export default async function handler(
           parent: parentObservationId
             ? { connect: { id: parentObservationId } }
             : undefined,
+          version: version ?? undefined,
         },
       });
 
@@ -146,7 +150,9 @@ export default async function handler(
   } else if (req.method === "PATCH") {
     try {
       console.log("Trying to update span: ", req.body);
-      const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
+      const { spanId, endTime, version, ...fields } = SpanPatchSchema.parse(
+        req.body
+      );
 
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
@@ -168,6 +174,7 @@ export default async function handler(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
+          version: version ?? undefined,
         },
       });
 

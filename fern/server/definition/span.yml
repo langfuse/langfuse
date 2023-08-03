@@ -27,5 +27,5 @@ types:
       input: optional<unknown>
       output: optional<unknown>
       level: optional<commons.ObservationLevel>
-      promptVersion: optional<string>
+      version: optional<string>
       statusMessage: optional<string>

@@ -13,7 +13,7 @@ types:
       level: optional<ObservationLevel>
       statusMessage: optional<string>
       parentObservationId: optional<string>
-      promptVersion: optional<string>
+      version: optional<string>
   CreateSpanRequest:
     extends: CreateEventRequest
     properties:
@@ -25,7 +25,6 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, MapValue>>
       prompt: optional<unknown>
-      promptVersion: optional<string>
       completion: optional<string>
       usage: optional<LLMUsage>
 
@@ -38,7 +37,8 @@ types:
       timestamp: datetime
       externalId: optional<string>
       name: optional<string>
-      releaseVersion: optional<string>
+      release: optional<string>
+      version: optional<string>
       userId: optional<string>
       metadata: optional<unknown>
   TraceWithDetails:
@@ -67,7 +67,7 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, MapValue>>
       prompt: optional<unknown>
-      promptVersion: optional<string>
+      version: optional<string>
       metadata: optional<unknown>
       completion: optional<string>
       promptTokens: integer
