@@ -10,6 +10,8 @@ const CreateTraceSchema = z.object({
   externalId: z.string().nullish(),
   userId: z.string().nullish(),
   metadata: z.unknown().nullish(),
+  release: z.string().nullish(),
+  version: z.string().nullish(),
 });
 
 const GetTracesSchema = z.object({
@@ -40,7 +42,7 @@ export default async function handler(
     if (req.method === "POST") {
       console.log("Trying to create trace:", req.body);
 
-      const { id, name, metadata, externalId, userId } =
+      const { id, name, metadata, externalId, userId, release, version } =
         CreateTraceSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
@@ -73,10 +75,15 @@ export default async function handler(
             name: name ?? undefined,
             userId: userId ?? undefined,
             metadata: metadata ?? undefined,
+            release: release ?? undefined,
+            version: version ?? undefined,
           },
           update: {
             name: name ?? undefined,
+            userId: userId ?? undefined,
             metadata: metadata ?? undefined,
+            release: release ?? undefined,
+            version: version ?? undefined,
           },
         });
         res.status(200).json(newTrace);
@@ -89,6 +96,8 @@ export default async function handler(
             name: name ?? undefined,
             userId: userId ?? undefined,
             metadata: metadata ?? undefined,
+            release: release ?? undefined,
+            version: version ?? undefined,
           },
         });
         res.status(200).json(newTrace);

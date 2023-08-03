@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/table";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import { ManualScoreButton } from "@/src/features/manualScoring/components";
+import { Badge } from "@/src/components/ui/badge";
 
 export const TracePreview = ({
   trace,
@@ -41,6 +42,12 @@ export const TracePreview = ({
           <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>
           <div className="flex flex-wrap gap-2">
             <TraceAggUsageBadge observations={observations} />
+            {trace.release ? (
+              <Badge variant="outline">Release: {trace.release}</Badge>
+            ) : undefined}
+            {trace.version ? (
+              <Badge variant="outline">Version: {trace.version}</Badge>
+            ) : undefined}
           </div>
         </div>
         <ManualScoreButton traceId={trace.id} scores={scores} />

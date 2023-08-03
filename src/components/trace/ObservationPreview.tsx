@@ -54,6 +54,9 @@ export const ObservationPreview = (props: {
               {observation.promptTokens} prompt → {observation.completionTokens}{" "}
               completion (∑ {observation.totalTokens})
             </Badge>
+            {observation.version ? (
+              <Badge variant="outline">Version: {observation.version}</Badge>
+            ) : undefined}
             {observation.model ? (
               <Badge variant="outline">{observation.model}</Badge>
             ) : null}

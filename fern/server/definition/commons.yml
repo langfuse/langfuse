@@ -13,6 +13,7 @@ types:
       level: optional<ObservationLevel>
       statusMessage: optional<string>
       parentObservationId: optional<string>
+      version: optional<string>
   CreateSpanRequest:
     extends: CreateEventRequest
     properties:
@@ -36,6 +37,8 @@ types:
       timestamp: datetime
       externalId: optional<string>
       name: optional<string>
+      release: optional<string>
+      version: optional<string>
       userId: optional<string>
       metadata: optional<unknown>
   TraceWithDetails:
@@ -64,6 +67,7 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, MapValue>>
       prompt: optional<unknown>
+      version: optional<string>
       metadata: optional<unknown>
       completion: optional<string>
       promptTokens: integer
