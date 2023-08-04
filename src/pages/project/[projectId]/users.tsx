@@ -10,7 +10,6 @@ import { useRouter } from "next/router";
 import { numberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
-import { formatDate } from "@/src/utils/dates";
 
 type RowData = {
   userId: string;
@@ -111,12 +110,10 @@ export default function UsersPage() {
                 data: users.data?.map((t) => {
                   return {
                     userId: t.userId,
-                    firstEvent: t.firstTrace
-                      ? formatDate(t.firstTrace)
-                      : "No event yet",
-                    lastEvent: t.lastObservation
-                      ? formatDate(t.lastObservation)
-                      : "No event yet",
+                    firstEvent:
+                      t.firstTrace?.toLocaleString() ?? "No event yet",
+                    lastEvent:
+                      t.lastObservation.toLocaleString() ?? "No event yet",
                     totalEvents: numberFormatter(
                       (Number(t.totalTraces) || 0) +
                         (Number(t.totalObservations) || 0)

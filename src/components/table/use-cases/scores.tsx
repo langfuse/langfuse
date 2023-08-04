@@ -3,7 +3,6 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
-import { formatDate } from "@/src/utils/dates";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -137,7 +136,7 @@ export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
   const convertToTableRow = (score: Score): RowData => {
     return {
       id: score.id,
-      timestamp: formatDate(score.timestamp),
+      timestamp: score.timestamp.toLocaleString(),
       name: score.name,
       value: score.value,
       comment: score.comment ?? undefined,

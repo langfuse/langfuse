@@ -7,7 +7,6 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { numberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import TableLink from "@/src/components/table/table-link";
-import { formatDate } from "@/src/utils/dates";
 
 type TabDefinition = {
   name: string;
@@ -114,15 +113,11 @@ function DetailsTab({ userId, projectId }: TabProps) {
         { label: "User Id", value: user.data.userId },
         {
           label: "First Observation",
-          value: user.data.firstObservation
-            ? formatDate(user.data.firstObservation)
-            : undefined,
+          value: user.data.firstObservation?.toLocaleString() ?? undefined,
         },
         {
           label: "Last Observation",
-          value: user.data.lastObservation
-            ? formatDate(user.data.lastObservation)
-            : undefined,
+          value: user.data.lastObservation?.toLocaleString() ?? undefined,
         },
         { label: "Total Observations", value: user.data.totalObservations },
         { label: "Total Traces", value: user.data.totalTraces },

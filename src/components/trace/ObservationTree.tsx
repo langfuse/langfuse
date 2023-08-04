@@ -1,5 +1,4 @@
 import { type NestedObservation } from "@/src/utils/types";
-import { formatDate } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { type Trace, type Observation, type Score } from "@prisma/client";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
@@ -53,7 +52,7 @@ const ObservationTreeTraceNode = (props: {
     </div>
     <div className="flex gap-2">
       <span className="text-xs text-gray-500">
-        {formatDate(props.trace.timestamp)}
+        {props.trace.timestamp.toLocaleString()}
       </span>
     </div>
     <div className="flex flex-wrap gap-2">
