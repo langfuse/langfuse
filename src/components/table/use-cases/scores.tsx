@@ -136,7 +136,7 @@ export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
   const convertToTableRow = (score: Score): RowData => {
     return {
       id: score.id,
-      timestamp: score.timestamp.toISOString(),
+      timestamp: score.timestamp.toLocaleString(),
       name: score.name,
       value: score.value,
       comment: score.comment ?? undefined,

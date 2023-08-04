@@ -71,7 +71,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     return {
       id: trace.id,
       externalId: trace.externalId ?? undefined,
-      timestamp: trace.timestamp.toISOString(),
+      timestamp: trace.timestamp.toLocaleString(),
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
       userId: trace.userId ?? "",
