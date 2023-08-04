@@ -92,6 +92,10 @@ export default function Generations() {
       header: "Start Time",
     },
     {
+      accessorKey: "endTime",
+      header: "End Time",
+    },
+    {
       accessorKey: "name",
       header: "Name",
     },
@@ -150,8 +154,8 @@ export default function Generations() {
     ? generations.data.map((generation) => ({
         id: generation.id,
         traceId: generation.traceId,
-        startTime: generation.startTime.toISOString(),
-        endTime: generation.endTime?.toISOString() ?? undefined,
+        startTime: generation.startTime.toLocaleString(),
+        endTime: generation.endTime?.toLocaleString() ?? undefined,
         name: generation.name ?? undefined,
         model: JSON.stringify(generation.model),
         usage: {

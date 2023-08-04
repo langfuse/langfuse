@@ -113,11 +113,11 @@ function DetailsTab({ userId, projectId }: TabProps) {
         { label: "User Id", value: user.data.userId },
         {
           label: "First Observation",
-          value: user.data.firstObservation?.toISOString(),
+          value: user.data.firstObservation?.toLocaleString(),
         },
         {
           label: "Last Observation",
-          value: user.data.lastObservation?.toISOString(),
+          value: user.data.lastObservation?.toLocaleString(),
         },
         { label: "Total Observations", value: user.data.totalObservations },
         { label: "Total Traces", value: user.data.totalTraces },

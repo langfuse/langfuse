@@ -110,9 +110,10 @@ export default function UsersPage() {
                 data: users.data?.map((t) => {
                   return {
                     userId: t.userId,
-                    firstEvent: t.firstTrace?.toISOString() ?? "No event yet",
+                    firstEvent:
+                      t.firstTrace?.toLocaleString() ?? "No event yet",
                     lastEvent:
-                      t.lastObservation?.toISOString() ?? "No event yet",
+                      t.lastObservation.toLocaleString() ?? "No event yet",
                     totalEvents: numberFormatter(
                       (Number(t.totalTraces) || 0) +
                         (Number(t.totalObservations) || 0)
