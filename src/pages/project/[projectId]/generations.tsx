@@ -92,6 +92,10 @@ export default function Generations() {
       header: "Start Time",
     },
     {
+      accessorKey: "endTime",
+      header: "End Time",
+    },
+    {
       accessorKey: "name",
       header: "Name",
     },
