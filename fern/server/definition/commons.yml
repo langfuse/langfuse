@@ -14,6 +14,7 @@ types:
       statusMessage: optional<string>
       parentObservationId: optional<string>
       version: optional<string>
+      trace: optional<TraceDetail>
   CreateSpanRequest:
     extends: CreateEventRequest
     properties:
@@ -29,6 +30,9 @@ types:
       usage: optional<LLMUsage>
 
   # Objects
+  TraceDetail:
+    properties:
+      release: optional<string>
   Trace:
     properties:
       id:

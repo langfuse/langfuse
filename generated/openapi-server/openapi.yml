@@ -637,6 +637,9 @@ components:
         version:
           type: string
           nullable: true
+        trace:
+          $ref: '#/components/schemas/TraceDetail'
+          nullable: true
     CreateSpanRequest:
       title: CreateSpanRequest
       type: object
@@ -673,6 +676,13 @@ components:
           nullable: true
       allOf:
         - $ref: '#/components/schemas/CreateSpanRequest'
+    TraceDetail:
+      title: TraceDetail
+      type: object
+      properties:
+        release:
+          type: string
+          nullable: true
     Trace:
       title: Trace
       type: object

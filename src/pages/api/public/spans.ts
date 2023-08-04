@@ -5,6 +5,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
+import { validTraceObject } from "@/src/pages/api/public/trace-service";
 
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
@@ -20,6 +21,11 @@ const SpanPostSchema = z.object({
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
+  trace: z
+    .object({
+      release: z.string().nullish(),
+    })
+    .nullish(),
 });
 
 const SpanPatchSchema = z.object({
@@ -71,7 +77,23 @@ export default async function handler(
         level,
         statusMessage,
         version,
+        trace,
       } = obj;
+
+      const valid = await validTraceObject(
+        prisma,
+        authCheck.scope.projectId,
+        obj.traceIdType ?? undefined,
+        obj.traceId ?? undefined
+      );
+
+      if (!valid) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid request data",
+          error: `Release cannot be provided if trace exists already. Trace: ${obj.traceId}`,
+        });
+      }
 
       // If externalTraceId is provided, find or create the traceId
       const traceId =
@@ -87,6 +109,7 @@ export default async function handler(
                 create: {
                   projectId: authCheck.scope.projectId,
                   externalId: obj.traceId,
+                  release: trace?.release,
                 },
                 update: {},
               })
@@ -117,6 +140,7 @@ export default async function handler(
                   create: {
                     name: name,
                     project: { connect: { id: authCheck.scope.projectId } },
+                    release: trace?.release,
                   },
                 },
               }),
