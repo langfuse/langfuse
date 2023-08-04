@@ -1,19 +1,16 @@
-import { type AppType } from "next/app";
-import { type Session } from "next-auth";
-import { SessionProvider } from "next-auth/react";
-import { setUser } from "@sentry/nextjs";
-import { useSession } from "next-auth/react";
-
-import { api } from "@/src/utils/api";
-
-import "@/src/styles/globals.css";
 import Layout from "@/src/components/layouts/layout";
-import { useEffect } from "react";
+import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import "@/src/styles/globals.css";
+import { api } from "@/src/utils/api";
+import { setUser } from "@sentry/nextjs";
+import { type Session } from "next-auth";
+import { SessionProvider, useSession } from "next-auth/react";
+import { type AppType } from "next/app";
+import Head from "next/head";
 import { useRouter } from "next/router";
-
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
-import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import { useEffect } from "react";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -55,6 +52,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
   return (
     <PostHogProvider client={posthog}>
       <SessionProvider session={session} refetchOnWindowFocus={true}>
+        <Head>
+          <title>
+            Langfuse is an open-source product analytics suite for LLM apps.
+          </title>
+        </Head>
         <Layout>
           <Component {...pageProps} />
           <UserTracking />
