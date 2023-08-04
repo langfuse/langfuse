@@ -9,6 +9,7 @@ import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import { formatDate } from "@/src/utils/dates";
 
 type GenerationTableRow = {
   id: string;
@@ -150,8 +151,10 @@ export default function Generations() {
     ? generations.data.map((generation) => ({
         id: generation.id,
         traceId: generation.traceId,
-        startTime: generation.startTime.toISOString(),
-        endTime: generation.endTime?.toISOString() ?? undefined,
+        startTime: formatDate(generation.startTime),
+        endTime: generation.endTime
+          ? formatDate(generation.endTime)
+          : undefined,
         name: generation.name ?? undefined,
         model: JSON.stringify(generation.model),
         usage: {

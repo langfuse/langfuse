@@ -5,6 +5,7 @@ import TableLink from "@/src/components/table/table-link";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { api } from "@/src/utils/api";
+import { formatDate } from "@/src/utils/dates";
 import { lastCharacters } from "@/src/utils/string";
 import {
   type SelectedScoreFilter,
@@ -71,7 +72,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     return {
       id: trace.id,
       externalId: trace.externalId ?? undefined,
-      timestamp: trace.timestamp.toISOString(),
+      timestamp: formatDate(trace.timestamp),
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
       userId: trace.userId ?? "",
