@@ -126,7 +126,9 @@ export default async function handler(
         return res.status(400).json({
           success: false,
           message: "Invalid request data",
-          error: `Release cannot be provided if trace exists already. Trace: ${obj.traceId}`,
+          error: `Release cannot be provided if trace exists already. Trace: ${
+            obj.traceId ? obj.traceId : "null"
+          }`,
         });
       }
 
