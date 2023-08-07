@@ -7,8 +7,6 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 const GetUsersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().lte(100).default(50),
-  userId: z.string().nullish(),
-  groupByTraceName: z.boolean().default(false),
 });
 
 export default async function handler(
@@ -74,7 +72,7 @@ export default async function handler(
             WHERE prompt_tokens > 0
             OR completion_tokens > 0
             OR total_tokens > 0
-            group by 1,2
+            group by 1,2 desc
           ),
           all_users AS (
             SELECT distinct user_id
@@ -84,7 +82,7 @@ export default async function handler(
           SELECT
             all_users.user_id,
             json_agg(json_build_object(
-                'day',
+                'date',
                 observation_day,
                 'usage',
                 daily_usage_json
@@ -92,6 +90,7 @@ export default async function handler(
           FROM all_users
           LEFT JOIN daily_usage ON all_users.user_id = daily_usage.user_id
           group by 1
+          ORDER BY 1
           LIMIT ${obj.limit} OFFSET ${(obj.page - 1) * obj.limit}
         `,
         prisma.$queryRaw<{ count: bigint }[]>`
