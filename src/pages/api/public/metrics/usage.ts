@@ -152,7 +152,7 @@ export default async function handler(
                 observation_day,
                 'usage',
                 daily_usage_json
-            )) daily_metrics
+            )) metrics
           FROM all_trace_names
           LEFT JOIN daily_usage ON all_trace_names.trace_name = daily_usage.trace_name
           group by 1

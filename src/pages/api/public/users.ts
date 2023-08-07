@@ -55,6 +55,7 @@ export default async function handler(
             WHERE o.start_time IS NOT NULL
             AND project_id = ${authCheck.scope.projectId}
             GROUP BY 1,2,3
+            order by 1,2 desc,3
           ),
           daily_usage AS (
             SELECT
@@ -72,7 +73,8 @@ export default async function handler(
             WHERE prompt_tokens > 0
             OR completion_tokens > 0
             OR total_tokens > 0
-            group by 1,2 desc
+            group by 1,2
+            order by 1,2 desc
           ),
           all_users AS (
             SELECT distinct user_id
@@ -86,7 +88,7 @@ export default async function handler(
                 observation_day,
                 'usage',
                 daily_usage_json
-            )) daily_metrics
+            )) metrics
           FROM all_users
           LEFT JOIN daily_usage ON all_users.user_id = daily_usage.user_id
           group by 1
