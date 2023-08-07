@@ -1,4 +1,5 @@
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
+import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(
@@ -6,5 +7,10 @@ export default async function handler(
   res: NextApiResponse
 ) {
   await runMiddleware(req, res, cors);
+  try {
+    await prisma.$queryRaw`SELECT 1;`;
+  } catch (e) {
+    return res.status(500).json({ status: "Database not available" });
+  }
   return res.status(200).json({ status: "OK" });
 }
