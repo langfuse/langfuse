@@ -119,7 +119,8 @@ export default async function handler(
         prisma,
         authCheck.scope.projectId,
         obj.traceIdType ?? undefined,
-        obj.traceId ?? undefined
+        obj.traceId ?? undefined,
+        trace
       );
 
       if (!valid) {

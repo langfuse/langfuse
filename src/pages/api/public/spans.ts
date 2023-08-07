@@ -84,14 +84,17 @@ export default async function handler(
         prisma,
         authCheck.scope.projectId,
         obj.traceIdType ?? undefined,
-        obj.traceId ?? undefined
+        obj.traceId ?? undefined,
+        trace
       );
 
       if (!valid) {
         return res.status(400).json({
           success: false,
           message: "Invalid request data",
-          error: `Release cannot be provided if trace exists already. Trace: ${obj.traceId}`,
+          error: `Release cannot be provided if trace exists already. Trace: ${
+            obj.traceId ? obj.traceId : "undefined"
+          }`,
         });
       }
 

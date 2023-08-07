@@ -4,7 +4,8 @@ export const validTraceObject = async (
   prisma: PrismaClient,
   projectId: string,
   traceIdType?: "EXTERNAL" | "LANGFUSE",
-  traceId?: string
+  traceId?: string,
+  traceDefinition?: { release?: string | null } | null
 ) => {
   if (traceId) {
     const trace =
@@ -23,7 +24,7 @@ export const validTraceObject = async (
             },
           });
 
-    if (trace && trace.release) {
+    if (trace && traceDefinition?.release) {
       console.error(
         `Release cannot be provided if trace exists already. Trace: ${trace.id}`
       );
