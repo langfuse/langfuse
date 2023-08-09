@@ -36,8 +36,13 @@ export const traceRouter = createTRPCRouter({
       const userIdCondition = input.userId
         ? Prisma.sql`AND t."user_id" = ${input.userId}`
         : Prisma.empty;
+
+      const createNamesFilter = (names: string[]) => {
+        return Prisma.sql`AND t."name" IN (${Prisma.join(names)})`;
+      };
+
       const nameCondition = input.name
-        ? Prisma.sql`AND t."name" IN (${Prisma.sql`${input.name}`})`
+        ? createNamesFilter(input.name)
         : Prisma.empty;
 
       let scoreCondition = Prisma.empty;
@@ -70,6 +75,22 @@ export const traceRouter = createTRPCRouter({
         )`
         : Prisma.empty;
 
+      console.log(
+        "huhu",
+        Prisma.sql`
+            SELECT t.*
+            FROM "traces" AS t
+            WHERE 
+              ${projectIdCondition}
+              ${userIdCondition}
+              ${nameCondition}
+              ${searchCondition}
+              ${scoreCondition}
+            ORDER BY t."timestamp" DESC
+            LIMIT 50;
+          `.inspect()
+      );
+
       const traces = await ctx.prisma.$queryRaw<Trace[]>(
         Prisma.sql`
           SELECT t.*
@@ -85,6 +106,7 @@ export const traceRouter = createTRPCRouter({
         `
       );
 
+      console.log(traces);
       const traceIds = traces.map((trace) => `'${trace.id}'`).join(", ");
 
       const [scores, observations] = await Promise.all([

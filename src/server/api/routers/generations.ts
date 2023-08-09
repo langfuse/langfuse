@@ -39,9 +39,7 @@ export const generationsRouter = createTRPCRouter({
     .input(GenerationFilterOptions)
     .query(async ({ input, ctx }) => {
       const filter = {
-        trace: {
-          projectId: input.projectId,
-        },
+        projectId: input.projectId,
         ...(input.traceId
           ? {
               traceId: { in: input.traceId },
