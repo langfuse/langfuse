@@ -234,7 +234,6 @@ export const traceRouter = createTRPCRouter({
         },
       }),
     ]);
-
     return {
       ...trace,
       observations,
