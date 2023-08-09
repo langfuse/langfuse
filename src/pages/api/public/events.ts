@@ -4,6 +4,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { v4 as uuidv4 } from "uuid";
 
 const ObservationSchema = z.object({
   id: z.string().nullish(),
@@ -83,9 +84,11 @@ export default async function handler(
         error: "traceId is required when traceIdType is INTERNAL",
       });
 
-    const newObservation = await prisma.observation.create({
-      data: {
-        id: id ?? undefined,
+    const newId = uuidv4();
+    const newObservation = await prisma.observation.upsert({
+      where: { id: id ?? newId },
+      create: {
+        id: id ?? newId,
         traceId: traceId,
         type: ObservationType.EVENT,
         name,
@@ -98,6 +101,18 @@ export default async function handler(
         parentObservationId: parentObservationId ?? undefined,
         version: version ?? undefined,
         Project: { connect: { id: authCheck.scope.projectId } },
+      },
+      update: {
+        type: ObservationType.EVENT,
+        name,
+        startTime: startTime ? new Date(startTime) : undefined,
+        metadata: metadata ?? undefined,
+        input: input ?? undefined,
+        output: output ?? undefined,
+        level: level ?? undefined,
+        statusMessage: statusMessage ?? undefined,
+        parentObservationId: parentObservationId ?? undefined,
+        version: version ?? undefined,
       },
     });
 

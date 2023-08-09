@@ -4,8 +4,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
-import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
+import { v4 as uuidv4 } from "uuid";
 
 export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
@@ -40,6 +40,7 @@ export const GenerationsCreateSchema = z.object({
 
 const GenerationPatchSchema = z.object({
   generationId: z.string(),
+  traceId: z.string().nullish(),
   name: z.string().nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
   completionStartTime: z.string().datetime({ offset: true }).nullish(),
@@ -153,9 +154,14 @@ export default async function handler(
           error: "traceId is required when traceIdType is INTERNAL",
         });
 
-      const newObservation = await prisma.observation.create({
-        data: {
-          id: id ?? undefined,
+      const newId = uuidv4();
+
+      const newObservation = await prisma.observation.upsert({
+        where: {
+          id: id ?? newId,
+        },
+        create: {
+          id: id ?? newId,
           traceId: traceId,
           type: ObservationType.GENERATION,
           name,
@@ -180,6 +186,29 @@ export default async function handler(
           version: version ?? undefined,
           Project: { connect: { id: authCheck.scope.projectId } },
         },
+        update: {
+          type: ObservationType.GENERATION,
+          name,
+          startTime: startTime ? new Date(startTime) : undefined,
+          endTime: endTime ? new Date(endTime) : undefined,
+          completionStartTime: completionStartTime
+            ? new Date(completionStartTime)
+            : undefined,
+          metadata: metadata ?? undefined,
+          model: model ?? undefined,
+          modelParameters: modelParameters ?? undefined,
+          input: prompt ?? undefined,
+          output: completion ? { completion: completion } : undefined,
+          promptTokens: newPromptTokens,
+          completionTokens: newCompletionTokens,
+          totalTokens:
+            usage?.totalTokens ??
+            (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
+          level: level ?? undefined,
+          statusMessage: statusMessage ?? undefined,
+          parentObservationId: parentObservationId ?? undefined,
+          version: version ?? undefined,
+        },
       });
 
       res.status(200).json(newObservation);
@@ -202,6 +231,7 @@ export default async function handler(
     try {
       const {
         generationId,
+        traceId,
         endTime,
         completionStartTime,
         prompt,
@@ -211,17 +241,6 @@ export default async function handler(
         version,
         ...fields
       } = GenerationPatchSchema.parse(req.body);
-
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        { type: "observation", id: generationId },
-      ]);
-      if (!accessCheck)
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
 
       const existingObservation = await prisma.observation.findUnique({
         where: { id: generationId },
@@ -256,9 +275,34 @@ export default async function handler(
         (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
         (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
 
-      const newObservation = await prisma.observation.update({
-        where: { id: generationId },
-        data: {
+      const newObservation = await prisma.observation.upsert({
+        where: { id: generationId, projectId: authCheck.scope.projectId },
+        create: {
+          id: generationId,
+          traceId: (() => {
+            if (traceId) return traceId;
+            throw new Error("traceId is required when creating observations");
+          })(),
+          type: ObservationType.GENERATION,
+          endTime: endTime ? new Date(endTime) : undefined,
+          completionStartTime: completionStartTime
+            ? new Date(completionStartTime)
+            : undefined,
+          input: prompt ?? undefined,
+          output: completion ? { completion: completion } : undefined,
+          promptTokens: newPromptTokens,
+          completionTokens: newCompletionTokens,
+          totalTokens: newTotalTokens,
+          model: model ?? undefined,
+          ...Object.fromEntries(
+            Object.entries(fields).filter(
+              ([_, v]) => v !== null && v !== undefined
+            )
+          ),
+          version: version ?? undefined,
+          Project: { connect: { id: authCheck.scope.projectId } },
+        },
+        update: {
           endTime: endTime ? new Date(endTime) : undefined,
           completionStartTime: completionStartTime
             ? new Date(completionStartTime)

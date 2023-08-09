@@ -5,6 +5,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
+import { v4 as uuidv4 } from "uuid";
 
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
@@ -24,6 +25,7 @@ const SpanPostSchema = z.object({
 
 const SpanPatchSchema = z.object({
   spanId: z.string(),
+  traceId: z.string().nullish(),
   name: z.string().nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
   metadata: z.unknown().nullish(),
@@ -50,10 +52,6 @@ export default async function handler(
       message: authCheck.error,
     });
   // END CHECK AUTH
-
-  if (req.method !== "POST" && req.method !== "PATCH") {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
 
   if (req.method === "POST") {
     try {
@@ -100,9 +98,14 @@ export default async function handler(
           error: "traceId is required when traceIdType is INTERNAL",
         });
 
-      const newObservation = await prisma.observation.create({
-        data: {
-          id: id ?? undefined,
+      const newId = uuidv4();
+
+      const newObservation = await prisma.observation.upsert({
+        where: {
+          id: id ?? newId,
+        },
+        create: {
+          id: id ?? newId,
           traceId: traceId,
           type: ObservationType.SPAN,
           name,
@@ -116,6 +119,20 @@ export default async function handler(
           parentObservationId: parentObservationId ?? undefined,
           version: version ?? undefined,
           Project: { connect: { id: authCheck.scope.projectId } },
+        },
+        update: {
+          traceId: traceId,
+          type: ObservationType.SPAN,
+          name,
+          startTime: startTime ? new Date(startTime) : undefined,
+          endTime: endTime ? new Date(endTime) : undefined,
+          metadata: metadata ?? undefined,
+          input: input ?? undefined,
+          output: output ?? undefined,
+          level: level ?? undefined,
+          statusMessage: statusMessage ?? undefined,
+          parentObservationId: parentObservationId ?? undefined,
+          version: version ?? undefined,
         },
       });
 
@@ -133,24 +150,27 @@ export default async function handler(
   } else if (req.method === "PATCH") {
     try {
       console.log("Trying to update span: ", req.body);
-      const { spanId, endTime, version, ...fields } = SpanPatchSchema.parse(
-        req.body
-      );
+      const { spanId, endTime, version, traceId, ...fields } =
+        SpanPatchSchema.parse(req.body);
 
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        { type: "observation", id: spanId },
-      ]);
-      if (!accessCheck)
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
-
-      const newObservation = await prisma.observation.update({
-        where: { id: spanId },
-        data: {
+      const newObservation = await prisma.observation.upsert({
+        where: { id: spanId, projectId: authCheck.scope.projectId },
+        create: {
+          traceId: (() => {
+            if (traceId) return traceId;
+            throw new Error("traceId is required when creating observations");
+          })(),
+          type: ObservationType.SPAN,
+          endTime: endTime ? new Date(endTime) : undefined,
+          ...Object.fromEntries(
+            Object.entries(fields).filter(
+              ([_, v]) => v !== null && v !== undefined
+            )
+          ),
+          version: version ?? undefined,
+          Project: { connect: { id: authCheck.scope.projectId } },
+        },
+        update: {
           endTime: endTime ? new Date(endTime) : undefined,
           ...Object.fromEntries(
             Object.entries(fields).filter(
@@ -172,5 +192,7 @@ export default async function handler(
         error: errorMessage,
       });
     }
+  } else {
+    res.status(405).json({ message: "Method not allowed" });
   }
 }
