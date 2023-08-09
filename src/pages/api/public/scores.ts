@@ -1,5 +1,5 @@
 import { prisma } from "@/src/server/db";
-import { type Prisma } from "@prisma/client";
+import { Prisma, type Score } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
@@ -117,28 +117,21 @@ export default async function handler(
 
       const obj = ScoresGetSchema.parse(req.query); // uses query and not body
 
+      const skipValue = (obj.page - 1) * obj.limit;
+      const userCondition = Prisma.sql`AND t."user_id" = ${obj.userId}`;
+      const nameCondition = Prisma.sql`AND s."name" = ${obj.name}`;
+
       const [scores, totalItems] = await Promise.all([
-        prisma.score.findMany({
-          where: {
-            name: obj.name ?? undefined, // optional filter
-            trace: {
-              projectId: authCheck.scope.projectId,
-              userId: obj.userId ?? undefined, // optional filter
-            },
-          },
-          include: {
-            trace: {
-              select: {
-                userId: true,
-              },
-            },
-          },
-          skip: (obj.page - 1) * obj.limit,
-          take: obj.limit,
-          orderBy: {
-            timestamp: "desc",
-          },
-        }),
+        prisma.$queryRaw<Score & { userIds: string[] }[]>(Prisma.sql`
+          SELECT s.id, s.timestamp, s.name, s.value, s.comment, s.trace_id as "traceId", s.observation_id as "observationId", json_build_object('userId', t.user_id) as "trace"
+          FROM "scores" AS s
+          LEFT JOIN "traces" AS t ON t.id = s.trace_id
+          WHERE t.project_id = ${authCheck.scope.projectId}
+          ${obj.userId ? userCondition : Prisma.empty}
+          ${obj.name ? nameCondition : Prisma.empty}
+          ORDER BY t."timestamp" DESC
+          LIMIT ${obj.limit} OFFSET ${skipValue}
+          `),
         prisma.score.count({
           where: {
             name: obj.name ?? undefined, // optional filter

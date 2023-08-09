@@ -5,6 +5,12 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import {
+  type Observation,
+  Prisma,
+  type Score,
+  type Trace,
+} from "@prisma/client";
 
 const ScoreFilter = z.object({
   name: z.string(),
@@ -26,67 +32,104 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const traces = await ctx.prisma.trace.findMany({
-        where: {
-          AND: [
-            {
-              projectId: input.projectId,
-              ...(input.userId ? { userId: input.userId } : undefined),
-              ...(input.name ? { name: { in: input.name } } : undefined),
-              ...(input.scores
-                ? { scores: { some: createScoreCondition(input.scores) } }
-                : undefined),
-            },
-            input.searchQuery
-              ? {
-                  OR: [
-                    { id: { contains: input.searchQuery } },
-                    { externalId: { contains: input.searchQuery } },
-                    { userId: { contains: input.searchQuery } },
-                    { name: { contains: input.searchQuery } },
-                  ],
-                }
-              : {},
-          ],
-        },
-        orderBy: {
-          timestamp: "desc",
-        },
-        include: {
-          scores: true,
-          observations: {
-            select: {
-              promptTokens: true,
-              completionTokens: true,
-              totalTokens: true,
-            },
-          },
-        },
-        take: 50, // TODO: pagination
-      });
+      const projectIdCondition = Prisma.sql`t."project_id" = ${input.projectId}`;
+      const userIdCondition = input.userId
+        ? Prisma.sql`AND t."user_id" = ${input.userId}`
+        : Prisma.empty;
+      const nameCondition = input.name
+        ? Prisma.sql`AND t."name" IN (${Prisma.sql`${input.name}`})`
+        : Prisma.empty;
 
-      const res = traces.map((trace) => {
-        const { observations, ...t } = trace;
+      let scoreCondition = Prisma.empty;
+      if (input.scores) {
+        switch (input.scores.operator) {
+          case "lt":
+            scoreCondition = Prisma.sql`AND s.value < ${input.scores.value}`;
+            break;
+          case "gt":
+            scoreCondition = Prisma.sql`AND s.value > ${input.scores.value}`;
+            break;
+          case "equals":
+            scoreCondition = Prisma.sql`AND s.value = ${input.scores.value}`;
+            break;
+          case "lte":
+            scoreCondition = Prisma.sql`AND s.value <= ${input.scores.value}`;
+            break;
+          case "gte":
+            scoreCondition = Prisma.sql`AND s.value >= ${input.scores.value}`;
+            break;
+        }
+      }
+
+      const searchCondition = input.searchQuery
+        ? Prisma.sql`AND (
+          t."id" ILIKE ${`%${input.searchQuery}%`} OR 
+          t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
+          t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
+          t."name" ILIKE ${`%${input.searchQuery}%`}
+        )`
+        : Prisma.empty;
+
+      const traces = await ctx.prisma.$queryRaw<Trace[]>(
+        Prisma.sql`
+          SELECT t.*
+          FROM "traces" AS t
+          WHERE 
+            ${projectIdCondition}
+            ${userIdCondition}
+            ${nameCondition}
+            ${searchCondition}
+            ${scoreCondition}
+          ORDER BY t."timestamp" DESC
+          LIMIT 50;
+        `
+      );
+
+      const traceIds = traces.map((trace) => `'${trace.id}'`).join(", ");
+
+      const [scores, observations] = await Promise.all([
+        ctx.prisma.$queryRaw<Score[]>(
+          Prisma.sql`
+          SELECT s.*
+          FROM "scores" AS s
+          WHERE s."trace_id" IN (${traceIds})`
+        ),
+        ctx.prisma.$queryRaw<Observation[]>(
+          Prisma.sql`
+            SELECT o.*
+            FROM "observations" AS o
+            WHERE o."trace_id" IN (${traceIds})`
+        ),
+      ]);
+
+      return traces.map((trace) => {
+        const filteredScores = scores.filter(
+          (score) => score.traceId === trace.id
+        );
+
+        const filteredObservations = observations.filter(
+          (o) => o.traceId === trace.id
+        );
+
         return {
-          ...t,
+          ...trace,
+          scores: filteredScores,
           usage: {
-            promptTokens: observations.reduce(
+            promptTokens: filteredObservations.reduce(
               (acc, cur) => acc + cur.promptTokens,
               0
             ),
-            completionTokens: observations.reduce(
+            completionTokens: filteredObservations.reduce(
               (acc, cur) => acc + cur.completionTokens,
               0
             ),
-            totalTokens: observations.reduce(
+            totalTokens: filteredObservations.reduce(
               (acc, cur) => acc + cur.totalTokens,
               0
             ),
           },
         };
       });
-
-      return res;
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
@@ -181,12 +224,10 @@ export const traceRouter = createTRPCRouter({
       ctx.prisma.observation.findMany({
         where: {
           traceId: input,
-          trace: {
-            project: {
-              members: {
-                some: {
-                  userId: ctx.session.user.id,
-                },
+          Project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
               },
             },
           },

@@ -72,6 +72,7 @@
     "tailwindcss-animate": "^1.0.6",
     "tiktoken": "^1.0.10",
     "ts-pattern": "^5.0.1",
+    "uuid": "^9.0.0",
     "zod": "^3.21.4"
   },
   "devDependencies": {
@@ -85,6 +86,7 @@
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
     "@types/swagger-ui-react": "^4.18.0",
+    "@types/uuid": "^9.0.2",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
     "autoprefixer": "^10.4.14",

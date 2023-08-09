@@ -118,6 +118,7 @@ export default async function handler(
                     projectId: authCheck.scope.projectId,
                     externalId: obj.traceId,
                   },
+                  projectId: authCheck.scope.projectId,
                 },
                 create: {
                   projectId: authCheck.scope.projectId,
@@ -127,20 +128,6 @@ export default async function handler(
               })
             ).id
           : obj.traceId;
-
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        ...(traceId ? [{ type: "trace" as const, id: traceId }] : []),
-        ...(parentObservationId
-          ? [{ type: "observation" as const, id: parentObservationId }]
-          : []),
-      ]);
-      if (!accessCheck)
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
 
       const newPromptTokens =
         usage?.promptTokens ??
@@ -159,19 +146,17 @@ export default async function handler(
             })
           : undefined);
 
+      if (!traceId)
+        return res.status(400).json({
+          success: false,
+          message: "traceId is required",
+          error: "traceId is required when traceIdType is INTERNAL",
+        });
+
       const newObservation = await prisma.observation.create({
         data: {
           id: id ?? undefined,
-          ...(traceId
-            ? { trace: { connect: { id: traceId } } }
-            : {
-                trace: {
-                  create: {
-                    name: name,
-                    project: { connect: { id: authCheck.scope.projectId } },
-                  },
-                },
-              }),
+          traceId: traceId,
           type: ObservationType.GENERATION,
           name,
           startTime: startTime ? new Date(startTime) : undefined,
@@ -191,10 +176,9 @@ export default async function handler(
             (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
           level: level ?? undefined,
           statusMessage: statusMessage ?? undefined,
-          parent: parentObservationId
-            ? { connect: { id: parentObservationId } }
-            : undefined,
+          parentObservationId: parentObservationId ?? undefined,
           version: version ?? undefined,
+          Project: { connect: { id: authCheck.scope.projectId } },
         },
       });
 

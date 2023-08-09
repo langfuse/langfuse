@@ -19,9 +19,7 @@ export const generationsRouter = createTRPCRouter({
       const generations = (await ctx.prisma.observation.findMany({
         where: {
           type: "GENERATION",
-          trace: {
-            projectId: input.projectId,
-          },
+          projectId: input.projectId,
           ...(input.traceId
             ? {
                 traceId: { in: input.traceId },
@@ -77,12 +75,10 @@ export const generationsRouter = createTRPCRouter({
       where: {
         id: input,
         type: "GENERATION",
-        trace: {
-          project: {
-            members: {
-              some: {
-                userId: ctx.session.user.id,
-              },
+        Project: {
+          members: {
+            some: {
+              userId: ctx.session.user.id,
             },
           },
         },
