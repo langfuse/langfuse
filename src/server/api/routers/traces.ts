@@ -75,22 +75,6 @@ export const traceRouter = createTRPCRouter({
         )`
         : Prisma.empty;
 
-      console.log(
-        "huhu",
-        Prisma.sql`
-            SELECT t.*
-            FROM "traces" AS t
-            WHERE 
-              ${projectIdCondition}
-              ${userIdCondition}
-              ${nameCondition}
-              ${searchCondition}
-              ${scoreCondition}
-            ORDER BY t."timestamp" DESC
-            LIMIT 50;
-          `.inspect()
-      );
-
       const traces = await ctx.prisma.$queryRaw<Trace[]>(
         Prisma.sql`
           SELECT t.*
