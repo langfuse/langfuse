@@ -168,27 +168,46 @@ export const userRouter = createTRPCRouter({
             },
             by: ["userId"],
           }),
-          ctx.prisma.observation.aggregate({
-            where: {
-              trace: {
-                userId: input.userId,
-              },
-            },
-            _sum: {
-              promptTokens: true,
-              completionTokens: true,
-              totalTokens: true,
-            },
-            _min: {
-              startTime: true,
-            },
-            _max: {
-              endTime: true,
-            },
-            _count: {
-              _all: true,
-            },
-          }),
+          ctx.prisma.$queryRaw<
+            {
+              sumpPromptTokens: number;
+              sumCompletionTokens: number;
+              sumTotalTokens: number;
+              minStartTime: Date;
+              maxEndTime: Date;
+              totalObservations: number;
+            }[]
+          >`
+          SELECT  sum(prompt_tokens) as "sumPromptTokens", 
+                  sum(completion_tokens) as "sumCompletionTokens", 
+                  sum(total_tokens) as "sumTotalTokens",
+                  min(start_time) as "minStartTime",
+                  max(end_time) as "maxEndTime", 
+                  count(*) as "totalObservations" 
+          FROM observations o join traces t on o.trace_id = t.id where t.user_id = ${input.userId}
+          `,
+
+          // ctx.prisma.observation.aggregate({
+          //   where: {
+          //     trace: {
+          //       userId: input.userId,
+          //     },
+          //   },
+          //   _sum: {
+          //     promptTokens: true,
+          //     completionTokens: true,
+          //     totalTokens: true,
+          //   },
+          //   _min: {
+          //     startTime: true,
+          //   },
+          //   _max: {
+          //     endTime: true,
+          //   },
+          //   _count: {
+          //     _all: true,
+          //   },
+          // }),
           ctx.prisma.score.findFirst({
             where: {
               trace: {
@@ -207,12 +226,13 @@ export const userRouter = createTRPCRouter({
         firstTrace: traceAnalytics[0]?._min?.timestamp,
         lastTrace: traceAnalytics[0]?._max?.timestamp,
         totalTraces: traceAnalytics[0]?._count?._all,
-        totalPromptTokens: observationAnalytics._sum?.promptTokens ?? 0,
-        totalCompletionTokens: observationAnalytics._sum?.completionTokens ?? 0,
-        totalTokens: observationAnalytics._sum?.totalTokens ?? 0,
-        firstObservation: observationAnalytics._min?.startTime,
-        lastObservation: observationAnalytics._max?.endTime,
-        totalObservations: observationAnalytics._count?._all,
+        totalPromptTokens: observationAnalytics[0]?.sumTotalTokens ?? 0,
+        totalCompletionTokens:
+          observationAnalytics[0]?.sumCompletionTokens ?? 0,
+        totalTokens: observationAnalytics[0]?.sumTotalTokens ?? 0,
+        firstObservation: observationAnalytics[0]?.minStartTime,
+        lastObservation: observationAnalytics[0]?.maxEndTime,
+        totalObservations: observationAnalytics[0]?.totalObservations,
         lastScore: lastScore,
       };
     }),
