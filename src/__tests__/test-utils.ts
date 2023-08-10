@@ -33,10 +33,11 @@ export async function makeAPICall(
     },
     body: JSON.stringify(body),
   };
-  const a = await fetch(finalUrl, options);
+  const request = await fetch(finalUrl, options);
+  console.log("response", request);
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  return { body: await a.json(), status: a.status };
+  return { body: await request.json(), status: request.status };
 }
 
 export const setupUserAndProject = async () => {
