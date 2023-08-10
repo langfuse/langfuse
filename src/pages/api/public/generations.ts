@@ -109,26 +109,34 @@ export default async function handler(
         version,
       } = obj;
 
-      // If externalTraceId is provided, find or create the traceId
-      const traceId =
-        obj.traceIdType === "EXTERNAL" && obj.traceId
-          ? (
-              await prisma.trace.upsert({
-                where: {
-                  projectId_externalId: {
-                    projectId: authCheck.scope.projectId,
-                    externalId: obj.traceId,
-                  },
-                  projectId: authCheck.scope.projectId,
-                },
-                create: {
+      const traceId = !obj.traceId
+        ? // Create trace if no traceid - backwards compatibility
+          (
+            await prisma.trace.create({
+              data: {
+                projectId: authCheck.scope.projectId,
+                name: obj.name,
+              },
+            })
+          ).id
+        : obj.traceIdType === "EXTERNAL"
+        ? // Find or create trace if externalTraceId
+          (
+            await prisma.trace.upsert({
+              where: {
+                projectId_externalId: {
                   projectId: authCheck.scope.projectId,
                   externalId: obj.traceId,
                 },
-                update: {},
-              })
-            ).id
-          : obj.traceId;
+              },
+              create: {
+                projectId: authCheck.scope.projectId,
+                externalId: obj.traceId,
+              },
+              update: {},
+            })
+          ).id
+        : obj.traceId;
 
       const newPromptTokens =
         usage?.promptTokens ??
@@ -146,13 +154,6 @@ export default async function handler(
               text: completion,
             })
           : undefined);
-
-      if (!traceId)
-        return res.status(400).json({
-          success: false,
-          message: "traceId is required",
-          error: "traceId is required when traceIdType is INTERNAL",
-        });
 
       const newId = uuidv4();
 
@@ -282,10 +283,7 @@ export default async function handler(
         },
         create: {
           id: generationId,
-          traceId: (() => {
-            if (traceId) return traceId;
-            throw new Error("traceId is required when creating observations");
-          })(),
+          traceId: traceId ?? undefined,
           type: ObservationType.GENERATION,
           endTime: endTime ? new Date(endTime) : undefined,
           completionStartTime: completionStartTime
@@ -314,6 +312,7 @@ export default async function handler(
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens: newTotalTokens,
+          traceId: traceId ?? undefined,
           model: model ?? undefined,
           ...Object.fromEntries(
             Object.entries(otherFields).filter(

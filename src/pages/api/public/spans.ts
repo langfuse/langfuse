@@ -70,32 +70,34 @@ export default async function handler(
         version,
       } = obj;
 
-      // If externalTraceId is provided, find or create the traceId
-      const traceId =
-        obj.traceIdType === "EXTERNAL" && obj.traceId
-          ? (
-              await prisma.trace.upsert({
-                where: {
-                  projectId_externalId: {
-                    projectId: authCheck.scope.projectId,
-                    externalId: obj.traceId,
-                  },
-                },
-                create: {
+      const traceId = !obj.traceId
+        ? // Create trace if no traceid - backwards compatibility
+          (
+            await prisma.trace.create({
+              data: {
+                projectId: authCheck.scope.projectId,
+                name: obj.name,
+              },
+            })
+          ).id
+        : obj.traceIdType === "EXTERNAL"
+        ? // Find or create trace if externalTraceId
+          (
+            await prisma.trace.upsert({
+              where: {
+                projectId_externalId: {
                   projectId: authCheck.scope.projectId,
                   externalId: obj.traceId,
                 },
-                update: {},
-              })
-            ).id
-          : obj.traceId;
-
-      if (!traceId)
-        return res.status(400).json({
-          success: false,
-          message: "Invalid request data",
-          error: "traceId is required when traceIdType is INTERNAL",
-        });
+              },
+              create: {
+                projectId: authCheck.scope.projectId,
+                externalId: obj.traceId,
+              },
+              update: {},
+            })
+          ).id
+        : obj.traceId;
 
       const newId = uuidv4();
 
@@ -150,8 +152,7 @@ export default async function handler(
   } else if (req.method === "PATCH") {
     try {
       console.log("Trying to update span: ", req.body);
-      const { spanId, endTime, version, traceId, ...fields } =
-        SpanPatchSchema.parse(req.body);
+      const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 
       const newObservation = await prisma.observation.upsert({
         where: {
@@ -159,10 +160,7 @@ export default async function handler(
           projectId: authCheck.scope.projectId,
         },
         create: {
-          traceId: (() => {
-            if (traceId) return traceId;
-            throw new Error("traceId is required when creating observations");
-          })(),
+          id: spanId,
           type: ObservationType.SPAN,
           endTime: endTime ? new Date(endTime) : undefined,
           ...Object.fromEntries(
@@ -170,7 +168,6 @@ export default async function handler(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
-          version: version ?? undefined,
           Project: { connect: { id: authCheck.scope.projectId } },
         },
         update: {
@@ -180,7 +177,6 @@ export default async function handler(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
-          version: version ?? undefined,
         },
       });
 

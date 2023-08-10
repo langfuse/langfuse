@@ -1,6 +1,5 @@
 import { type ApiAccessScope } from "@/src/features/publicApi/server/types";
 import { prisma } from "@/src/server/db";
-import { type Observation } from "@prisma/client";
 
 type Resource = {
   type: "project" | "trace" | "observation" | "score";
@@ -43,12 +42,9 @@ async function isResourceInProject(resource: Resource, projectId: string) {
 
     case "observation":
       const observationCheck =
-        (
-          await prisma.$queryRaw<Observation[]>`
-          SELECT * FROM "observations" o 
-          WHERE o."id" = ${resource.id} AND o."project_id" = ${projectId}
-          `
-        ).length === 1;
+        (await prisma.observation.count({
+          where: { id: resource.id, projectId },
+        })) === 1;
       if (!observationCheck)
         console.log(
           "observation check",

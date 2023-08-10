@@ -143,7 +143,7 @@ model Trace {
 
 model Observation {
     id                  String           @id @default(cuid())
-    traceId             String           @map("trace_id")
+    traceId             String?          @map("trace_id")
     projectId           String           @map("project_id")
     type                ObservationType
     startTime           DateTime         @default(now()) @map("start_time")

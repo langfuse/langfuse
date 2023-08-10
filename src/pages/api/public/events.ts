@@ -57,32 +57,34 @@ export default async function handler(
       version,
     } = obj;
 
-    // If externalTraceId is provided, find or create the traceId
-    const traceId =
-      obj.traceIdType === "EXTERNAL" && obj.traceId
-        ? (
-            await prisma.trace.upsert({
-              where: {
-                projectId_externalId: {
-                  projectId: authCheck.scope.projectId,
-                  externalId: obj.traceId,
-                },
-              },
-              create: {
+    const traceId = !obj.traceId
+      ? // Create trace if no traceid - backwards compatibility
+        (
+          await prisma.trace.create({
+            data: {
+              projectId: authCheck.scope.projectId,
+              name: obj.name,
+            },
+          })
+        ).id
+      : obj.traceIdType === "EXTERNAL"
+      ? // Find or create trace if externalTraceId
+        (
+          await prisma.trace.upsert({
+            where: {
+              projectId_externalId: {
                 projectId: authCheck.scope.projectId,
                 externalId: obj.traceId,
               },
-              update: {},
-            })
-          ).id
-        : obj.traceId;
-
-    if (!traceId)
-      return res.status(400).json({
-        success: false,
-        message: "Invalid request data",
-        error: "traceId is required when traceIdType is INTERNAL",
-      });
+            },
+            create: {
+              projectId: authCheck.scope.projectId,
+              externalId: obj.traceId,
+            },
+            update: {},
+          })
+        ).id
+      : obj.traceId;
 
     const newId = uuidv4();
     const newObservation = await prisma.observation.upsert({
