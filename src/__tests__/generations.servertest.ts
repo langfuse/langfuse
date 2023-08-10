@@ -11,8 +11,8 @@ describe("/api/public/generations API Endpoint", () => {
     await prisma.trace.deleteMany();
   };
 
-  // beforeEach(async () => await pruneDatabase());
-  // afterEach(async () => await pruneDatabase());
+  beforeEach(async () => await pruneDatabase());
+  afterEach(async () => await pruneDatabase());
 
   it("should create generation after trace", async () => {
     await pruneDatabase();
