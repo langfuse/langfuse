@@ -11,8 +11,8 @@ describe("/api/public/spans API Endpoint", () => {
     await prisma.trace.deleteMany();
   };
 
-  // beforeEach(async () => await pruneDatabase());
-  // afterEach(async () => await pruneDatabase());
+  beforeEach(async () => await pruneDatabase());
+  afterEach(async () => await pruneDatabase());
 
   it("should create span after trace", async () => {
     await pruneDatabase();
@@ -38,11 +38,11 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.id).toBe(traceId);
 
-    const generationId = uuidv4();
-    const createGeneration = await makeAPICall("POST", "/api/public/spans", {
-      id: generationId,
+    const spanId = uuidv4();
+    const createSpan = await makeAPICall("POST", "/api/public/spans", {
+      id: spanId,
       traceId: traceId,
-      name: "generation-name",
+      name: "span-name",
       startTime: "2021-01-01T00:00:00.000Z",
       endTime: "2021-01-01T00:00:00.000Z",
       input: { input: "value" },
@@ -50,23 +50,21 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createGeneration.status).toBe(200);
-    const dbGeneration = await prisma.observation.findUnique({
+    expect(createSpan.status).toBe(200);
+    const dbSpan = await prisma.observation.findUnique({
       where: {
-        id: generationId,
+        id: spanId,
       },
     });
 
-    expect(dbGeneration?.id).toBe(generationId);
-    expect(dbGeneration?.traceId).toBe(traceId);
-    expect(dbGeneration?.name).toBe("generation-name");
-    expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
-    );
-    expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbGeneration?.input).toEqual({ input: "value" });
-    expect(dbGeneration?.metadata).toEqual({ meta: "value" });
-    expect(dbGeneration?.version).toBe("2.0.0");
+    expect(dbSpan?.id).toBe(spanId);
+    expect(dbSpan?.traceId).toBe(traceId);
+    expect(dbSpan?.name).toBe("span-name");
+    expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.input).toEqual({ input: "value" });
+    expect(dbSpan?.metadata).toEqual({ meta: "value" });
+    expect(dbSpan?.version).toBe("2.0.0");
   });
 
   it("should create span after trace based on externalId", async () => {
@@ -99,7 +97,7 @@ describe("/api/public/spans API Endpoint", () => {
       id: spanId,
       traceIdType: "EXTERNAL",
       traceId: traceId,
-      name: "generation-name",
+      name: "span-name",
       startTime: "2021-01-01T00:00:00.000Z",
       endTime: "2021-01-01T00:00:00.000Z",
       input: { input: "value" },
@@ -116,7 +114,7 @@ describe("/api/public/spans API Endpoint", () => {
 
     expect(dbSpan?.id).toBe(spanId);
     expect(dbSpan?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbSpan?.name).toBe("generation-name");
+    expect(dbSpan?.name).toBe("span-name");
     expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbSpan?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbSpan?.input).toEqual({ input: "value" });
@@ -223,27 +221,25 @@ describe("/api/public/spans API Endpoint", () => {
 
     expect(createSpan.status).toBe(200);
 
-    const updateGeneration = await makeAPICall("PATCH", "/api/public/spans", {
+    const updatedSpan = await makeAPICall("PATCH", "/api/public/spans", {
       spanId: spanId,
       output: { key: "this is a great gpt output" },
     });
-    expect(updateGeneration.status).toBe(200);
+    expect(updatedSpan.status).toBe(200);
 
-    const dbGeneration = await prisma.observation.findUnique({
+    const dbSpan = await prisma.observation.findUnique({
       where: {
         id: spanId,
       },
     });
 
-    expect(dbGeneration?.id).toBe(spanId);
-    expect(dbGeneration?.name).toBe(spanName);
-    expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
-    );
-    expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbGeneration?.input).toEqual({ input: "value" });
-    expect(dbGeneration?.output).toEqual({ key: "this is a great gpt output" });
-    expect(dbGeneration?.metadata).toEqual({ meta: "value" });
-    expect(dbGeneration?.version).toBe("2.0.0");
+    expect(dbSpan?.id).toBe(spanId);
+    expect(dbSpan?.name).toBe(spanName);
+    expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.input).toEqual({ input: "value" });
+    expect(dbSpan?.output).toEqual({ key: "this is a great gpt output" });
+    expect(dbSpan?.metadata).toEqual({ meta: "value" });
+    expect(dbSpan?.version).toBe("2.0.0");
   });
 });
