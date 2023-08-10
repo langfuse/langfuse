@@ -16,7 +16,7 @@ export function createBasicAuthHeader(
 }
 
 export async function makeAPICall(
-  method: "POST" | "GET",
+  method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
   body: any
 ) {
