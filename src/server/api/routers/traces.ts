@@ -43,19 +43,19 @@ export const traceRouter = createTRPCRouter({
       if (input.scores) {
         switch (input.scores.operator) {
           case "lt":
-            scoreCondition = Prisma.sql`AND s.value < ${input.scores.value}`;
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value < ${input.scores.value})`;
             break;
           case "gt":
-            scoreCondition = Prisma.sql`AND s.value > ${input.scores.value}`;
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value > ${input.scores.value})`;
             break;
           case "equals":
-            scoreCondition = Prisma.sql`AND s.value = ${input.scores.value}`;
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value = ${input.scores.value})`;
             break;
           case "lte":
-            scoreCondition = Prisma.sql`AND s.value <= ${input.scores.value}`;
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value <= ${input.scores.value})`;
             break;
           case "gte":
-            scoreCondition = Prisma.sql`AND s.value >= ${input.scores.value}`;
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value >= ${input.scores.value})`;
             break;
         }
       }
@@ -107,15 +107,13 @@ export const traceRouter = createTRPCRouter({
         `
       );
 
-      console.log("TYPE", typeof traces[0]?.promptTokens);
-
-      const traceIds = traces.map((trace) => `'${trace.id}'`).join(", ");
-
       const scores = await ctx.prisma.$queryRaw<Score[]>(
         Prisma.sql`
           SELECT s.*
-          FROM "scores" AS s
-          WHERE s."trace_id" IN (${traceIds})`
+          FROM "scores" s
+          WHERE s."trace_id" IN (${Prisma.join(
+            traces.map((trace) => trace.id)
+          )})`
       );
 
       return traces.map((trace) => ({
