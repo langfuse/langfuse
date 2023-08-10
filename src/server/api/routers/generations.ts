@@ -20,17 +20,24 @@ export const generationsRouter = createTRPCRouter({
         where: {
           type: "GENERATION",
           projectId: input.projectId,
-          ...(input.traceId
-            ? {
-                traceId: { in: input.traceId },
-              }
-            : undefined),
+          traceId: {
+            not: null,
+            ...(input.traceId
+              ? {
+                  in: input.traceId,
+                }
+              : undefined),
+          },
         },
         orderBy: {
           startTime: "desc",
         },
         take: 100, // TODO: pagination
-      })) as Generation[];
+      })) as Array<
+        Generation & {
+          traceId: string;
+        }
+      >;
 
       return generations;
     }),
