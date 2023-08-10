@@ -18,7 +18,7 @@ export function createBasicAuthHeader(
 export async function makeAPICall(
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
-  body: any
+  body: unknown
 ) {
   const finalUrl = `http://localhost:3000/${url}`;
   const options = {
@@ -35,6 +35,7 @@ export async function makeAPICall(
   };
   const a = await fetch(finalUrl, options);
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   return { body: await a.json(), status: a.status };
 }
 

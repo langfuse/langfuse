@@ -16,7 +16,7 @@ describe("/api/public/traces API Endpoint", () => {
   it("should create ", async () => {
     await pruneDatabase();
 
-    const response = await makeAPICall("POST", "/api/public/traces", {
+    await makeAPICall("POST", "/api/public/traces", {
       name: "trace-name",
       userId: "user-1",
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -42,7 +42,7 @@ describe("/api/public/traces API Endpoint", () => {
   it("should create trace with externalId", async () => {
     await pruneDatabase();
 
-    const response = await makeAPICall("POST", "/api/public/traces", {
+    await makeAPICall("POST", "/api/public/traces", {
       externalId: "some-externalId",
       name: "trace-name-externalId",
       userId: "user-1",
