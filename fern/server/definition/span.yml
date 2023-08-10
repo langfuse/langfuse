@@ -22,6 +22,7 @@ types:
   UpdateSpanRequest:
     properties:
       spanId: string
+      traceId: optional<string>
       endTime: optional<datetime>
       metadata: optional<unknown>
       input: optional<unknown>
