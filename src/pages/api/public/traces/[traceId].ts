@@ -45,21 +45,23 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const trace = await prisma.trace.findFirst({
-      where: {
-        id: traceId,
-        projectId: authCheck.scope.projectId,
-      },
-      include: {
-        scores: true,
-      },
-    });
-
-    const observations = await prisma.observation.findMany({
-      where: {
-        traceId: traceId,
-      },
-    });
+    const [trace, observations] = await Promise.all([
+      prisma.trace.findFirst({
+        where: {
+          id: traceId,
+          projectId: authCheck.scope.projectId,
+        },
+        include: {
+          scores: true,
+        },
+      }),
+      prisma.observation.findMany({
+        where: {
+          traceId: traceId,
+          projectId: authCheck.scope.projectId,
+        },
+      }),
+    ]);
 
     if (!trace) {
       return res.status(404).json({

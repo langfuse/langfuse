@@ -4,7 +4,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
-import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 import { v4 as uuidv4 } from "uuid";
 
 const SpanPostSchema = z.object({
@@ -103,6 +102,7 @@ export default async function handler(
       const newObservation = await prisma.observation.upsert({
         where: {
           id: id ?? newId,
+          projectId: authCheck.scope.projectId,
         },
         create: {
           id: id ?? newId,
@@ -154,7 +154,10 @@ export default async function handler(
         SpanPatchSchema.parse(req.body);
 
       const newObservation = await prisma.observation.upsert({
-        where: { id: spanId, projectId: authCheck.scope.projectId },
+        where: {
+          id: spanId,
+          projectId: authCheck.scope.projectId,
+        },
         create: {
           traceId: (() => {
             if (traceId) return traceId;

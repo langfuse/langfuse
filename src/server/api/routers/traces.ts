@@ -32,7 +32,6 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const projectIdCondition = Prisma.sql`t."project_id" = ${input.projectId}`;
       const userIdCondition = input.userId
         ? Prisma.sql`AND t."user_id" = ${input.userId}`
         : Prisma.empty;
@@ -80,7 +79,7 @@ export const traceRouter = createTRPCRouter({
           SELECT t.*
           FROM "traces" AS t
           WHERE 
-            ${projectIdCondition}
+            t."project_id" = ${input.projectId}
             ${userIdCondition}
             ${nameCondition}
             ${searchCondition}

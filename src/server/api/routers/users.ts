@@ -153,7 +153,7 @@ export const userRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const [traceAnalytics, observationAnalytics, lastScore] =
         await Promise.all([
-          ctx.prisma.trace.groupBy({
+          ctx.prisma.trace.aggregate({
             where: {
               userId: input.userId,
             },
@@ -166,11 +166,10 @@ export const userRouter = createTRPCRouter({
             _max: {
               timestamp: true,
             },
-            by: ["userId"],
           }),
           ctx.prisma.$queryRaw<
             {
-              sumpPromptTokens: number;
+              sumPromptTokens: number;
               sumCompletionTokens: number;
               sumTotalTokens: number;
               minStartTime: Date;
@@ -186,28 +185,6 @@ export const userRouter = createTRPCRouter({
                   count(*) as "totalObservations" 
           FROM observations o join traces t on o.trace_id = t.id where t.user_id = ${input.userId}
           `,
-
-          // ctx.prisma.observation.aggregate({
-          //   where: {
-          //     trace: {
-          //       userId: input.userId,
-          //     },
-          //   },
-          //   _sum: {
-          //     promptTokens: true,
-          //     completionTokens: true,
-          //     totalTokens: true,
-          //   },
-          //   _min: {
-          //     startTime: true,
-          //   },
-          //   _max: {
-          //     endTime: true,
-          //   },
-          //   _count: {
-          //     _all: true,
-          //   },
-          // }),
           ctx.prisma.score.findFirst({
             where: {
               trace: {
@@ -223,9 +200,9 @@ export const userRouter = createTRPCRouter({
 
       return {
         userId: input.userId,
-        firstTrace: traceAnalytics[0]?._min?.timestamp,
-        lastTrace: traceAnalytics[0]?._max?.timestamp,
-        totalTraces: traceAnalytics[0]?._count?._all,
+        firstTrace: traceAnalytics._min.timestamp,
+        lastTrace: traceAnalytics._max.timestamp,
+        totalTraces: traceAnalytics._count._all,
         totalPromptTokens: observationAnalytics[0]?.sumTotalTokens ?? 0,
         totalCompletionTokens:
           observationAnalytics[0]?.sumCompletionTokens ?? 0,

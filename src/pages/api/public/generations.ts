@@ -159,6 +159,7 @@ export default async function handler(
       const newObservation = await prisma.observation.upsert({
         where: {
           id: id ?? newId,
+          projectId: authCheck.scope.projectId,
         },
         create: {
           id: id ?? newId,
@@ -238,8 +239,7 @@ export default async function handler(
         completion,
         usage,
         model,
-        version,
-        ...fields
+        ...otherFields
       } = GenerationPatchSchema.parse(req.body);
 
       const existingObservation = await prisma.observation.findUnique({
@@ -276,7 +276,10 @@ export default async function handler(
         (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
 
       const newObservation = await prisma.observation.upsert({
-        where: { id: generationId, projectId: authCheck.scope.projectId },
+        where: {
+          id: generationId,
+          projectId: authCheck.scope.projectId,
+        },
         create: {
           id: generationId,
           traceId: (() => {
@@ -295,11 +298,10 @@ export default async function handler(
           totalTokens: newTotalTokens,
           model: model ?? undefined,
           ...Object.fromEntries(
-            Object.entries(fields).filter(
+            Object.entries(otherFields).filter(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
-          version: version ?? undefined,
           Project: { connect: { id: authCheck.scope.projectId } },
         },
         update: {
@@ -314,11 +316,10 @@ export default async function handler(
           totalTokens: newTotalTokens,
           model: model ?? undefined,
           ...Object.fromEntries(
-            Object.entries(fields).filter(
+            Object.entries(otherFields).filter(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
-          version: version ?? undefined,
         },
       });
 
