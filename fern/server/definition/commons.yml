@@ -58,7 +58,7 @@ types:
   Observation:
     properties:
       id: string
-      traceId: string
+      traceId: optional<string>
       type: string
       name: optional<string>
       startTime: datetime
