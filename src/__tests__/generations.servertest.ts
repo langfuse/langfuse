@@ -255,6 +255,66 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.version).toBe("2.0.0");
   });
 
+  it("should create nested generations", async () => {
+    const generationName = uuidv4();
+
+    const generationId = uuidv4();
+    const createGeneration = await makeAPICall(
+      "POST",
+      "/api/public/generations",
+      {
+        id: generationId,
+        name: generationName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        model: "model-name",
+        modelParameters: { key: "value" },
+        prompt: { key: "value" },
+        metadata: { key: "value" },
+        version: "2.0.0",
+      }
+    );
+
+    expect(createGeneration.status).toBe(200);
+    const dbGeneration = await prisma.observation.findUnique({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(dbGeneration?.id).toBe(generationId);
+
+    const generationId2 = uuidv4();
+    const generationName2 = uuidv4();
+
+    const createGeneration2 = await makeAPICall(
+      "POST",
+      "/api/public/generations",
+      {
+        id: generationId2,
+        name: generationName2,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        model: "model-name",
+        modelParameters: { key: "value" },
+        prompt: { key: "value" },
+        metadata: { key: "value" },
+        version: "2.0.0",
+        parentObservationId: generationId,
+      }
+    );
+    expect(createGeneration2.status).toBe(200);
+
+    const dbGeneration2 = await prisma.observation.findUnique({
+      where: {
+        id: generationId2,
+      },
+    });
+
+    expect(dbGeneration2?.id).toBe(generationId2);
+    expect(dbGeneration2?.parentObservationId).toBe(generationId);
+  });
+
   it("should create trace when creating generation without existing trace with externalId", async () => {
     const generationName = uuidv4();
 
