@@ -26,28 +26,40 @@ export async function checkApiAccessScope(
 async function isResourceInProject(resource: Resource, projectId: string) {
   switch (resource.type) {
     case "project":
-      return resource.id === projectId;
+      const checkProject = resource.id === projectId;
+      if (!checkProject)
+        return console.log(
+          `Project ressource denied ${resource.id}, ${projectId}`
+        );
+      return checkProject;
     case "trace":
-      return (
+      const checkTrace =
         (await prisma.trace.count({
           where: { id: resource.id, projectId },
-        })) === 1
-      );
+        })) === 1;
+      if (!checkTrace)
+        console.log(`Trace ressource denied ${resource.id} ${projectId}`);
+
+      return checkTrace;
     case "observation":
-      return (
+      const observationCheck =
         (await prisma.observation.count({
           where: { id: resource.id, trace: { projectId } },
-        })) === 1
-      );
+        })) === 1;
+      if (!observationCheck)
+        console.log(`Observation ressource denied ${resource.id} ${projectId}`);
+      return observationCheck;
     case "score":
-      return (
+      const scoreCheck =
         (await prisma.score.count({
           where: {
             id: resource.id,
             trace: { projectId },
           },
-        })) === 1
-      );
+        })) === 1;
+      if (!scoreCheck)
+        console.log(`Score ressource denied ${resource.id} ${projectId}`);
+      return scoreCheck;
     default:
       return false;
   }
