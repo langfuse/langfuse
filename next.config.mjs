@@ -5,7 +5,6 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 
-
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -20,7 +19,7 @@ const nextConfig = {
     locales: ["en"],
     defaultLocale: "en",
   },
-  output: 'standalone',
+  output: "standalone",
 
   // webassembly support for @dqbd/tiktoken
   webpack(config) {
@@ -47,7 +46,7 @@ const nextConfig = {
     //     - excludeServerRoutes
     //   'Configure Tunneling':
     //     - tunnelRoute
-    tunnelRoute: '/api/monitoring-tunnel',
+    tunnelRoute: "/api/monitoring-tunnel",
   },
 };
 
@@ -67,4 +66,4 @@ const sentryWebpackPluginOptions = {
   // https://github.com/getsentry/sentry-webpack-plugin#options.
 };
 
-export default withSentryConfig(nextConfig, sentryWebpackPluginOptions)
+export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);

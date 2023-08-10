@@ -42,6 +42,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
 
     case "observation":
       const observationCheck =
+      const observationCheck =
         (await prisma.observation.count({
           where: { id: resource.id, projectId },
         })) === 1;
@@ -55,6 +56,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
       return observationCheck;
 
     case "score":
+      const scoreCheck =
       const scoreCheck =
         (await prisma.score.count({
           where: {
