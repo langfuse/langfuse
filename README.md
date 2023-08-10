@@ -32,6 +32,11 @@
    </div>
 </div>
 </br>
+</div>
+</br>
+
+[![](https://dcbadge.vercel.app/api/server/7NXusRtqYU)](https://discord.gg/7NXusRtqYU)
+
 
 # ℹ️ Analytics is in alpha
 
