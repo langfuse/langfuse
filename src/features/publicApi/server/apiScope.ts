@@ -26,34 +26,29 @@ export async function checkApiAccessScope(
 async function isResourceInProject(resource: Resource, projectId: string) {
   switch (resource.type) {
     case "project":
-      const projectCheck = resource.id === projectId;
-      if (!projectCheck)
-        console.log("project check", projectCheck, resource.id, projectId);
-      return projectCheck;
-
+      const checkProject = resource.id === projectId;
+      if (!checkProject)
+        return console.log(
+          `Project ressource denied ${resource.id}, ${projectId}`
+        );
+      return checkProject;
     case "trace":
-      const traceCheck =
+      const checkTrace =
         (await prisma.trace.count({
           where: { id: resource.id, projectId },
         })) === 1;
-      if (!traceCheck)
-        console.log("trace check", traceCheck, resource.id, projectId);
-      return traceCheck;
+      if (!checkTrace)
+        console.log(`Trace ressource denied ${resource.id} ${projectId}`);
 
+      return checkTrace;
     case "observation":
       const observationCheck =
         (await prisma.observation.count({
-          where: { id: resource.id, projectId },
+          where: { id: resource.id, trace: { projectId } },
         })) === 1;
       if (!observationCheck)
-        console.log(
-          "observation check",
-          observationCheck,
-          resource.id,
-          projectId
-        );
+        console.log(`Observation ressource denied ${resource.id} ${projectId}`);
       return observationCheck;
-
     case "score":
       const scoreCheck =
         (await prisma.score.count({
@@ -63,7 +58,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
           },
         })) === 1;
       if (!scoreCheck)
-        console.log("score check", scoreCheck, resource.id, projectId);
+        console.log(`Score ressource denied ${resource.id} ${projectId}`);
       return scoreCheck;
     default:
       return false;
