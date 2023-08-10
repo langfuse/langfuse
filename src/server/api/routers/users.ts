@@ -4,6 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { Prisma, type Score } from "@prisma/client";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -13,134 +14,82 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserFilterOptions)
     .query(async ({ input, ctx }) => {
-      const traces = await ctx.prisma.trace.groupBy({
-        where: {
-          AND: [
-            {
-              projectId: input.projectId,
-            },
-          ],
-        },
-        by: ["userId", "id"],
-      });
+      const users = await ctx.prisma.$queryRaw<
+        {
+          userId: string;
+          firstTrace: Date;
+          lastTrace: Date;
+          totalTraces: number;
+          totalPromptTokens: number;
+          totalCompletionTokens: number;
+          totalTokens: number;
+          firstObservation: Date;
+          lastObservation: Date;
+          totalObservations: number;
+        }[]
+      >`
+        SELECT 
+          t.user_id "userId",
+          min(t."timestamp") "firstTrace",
+          max(t."timestamp") "lastTrace",
+          COUNT(distinct t.id)::int "totalTraces",
+          COALESCE(SUM(o.prompt_tokens),0)::int "totalPromptTokens",
+          COALESCE(SUM(o.completion_tokens),0)::int "totalCompletionTokens",
+          COALESCE(SUM(o.total_tokens),0)::int "totalTokens",
+          MIN(o.start_time) "firstObservation",
+          MAX(o.start_time) "lastObservation",
+          COUNT(distinct o.id)::int "totalObservations"
+        FROM traces t
+        LEFT JOIN observations o on o.trace_id = t.id
+        WHERE t.user_id is not null
+        AND t.project_id = ${input.projectId}
+        AND o.project_id = ${input.projectId}
+        GROUP BY 1
+        ORDER BY "totalTokens" DESC
+        LIMIT 50
+      `;
 
-      const userIdToTraceIdsMap = traces.reduce((map, trace) => {
-        const userId = trace.userId;
-        const traceId = trace.id;
-
-        if (userId) {
-          if (!map.has(userId)) {
-            map.set(userId, [traceId]);
-          } else {
-            map.get(userId)?.push(traceId);
+      const lastScoresOfUsers = await ctx.prisma.$queryRaw<
+        Array<
+          Score & {
+            userId: string;
           }
-        }
-
-        return map;
-      }, new Map<string, string[]>());
-
-      const userIds = Array.from(userIdToTraceIdsMap.keys());
-
-      if (userIds.length === 0) {
-        return [];
-      }
-
-      const [traceAnalytics, observationAnalytics, lastScore] =
-        await Promise.all([
-          ctx.prisma.trace.groupBy({
-            where: {
-              userId: {
-                in: userIds,
-              },
-            },
-            _count: {
-              _all: true,
-            },
-            _min: {
-              timestamp: true,
-            },
-            _max: {
-              timestamp: true,
-            },
-            by: ["userId"],
-          }),
-          ctx.prisma.$queryRawUnsafe<
-            {
-              min_start_time: Date;
-              max_start_time: Date;
-              total_tokens: number;
-              prompt_tokens: number;
-              completion_tokens: number;
-              total_observations: number;
-              user_id: string;
-            }[]
-          >(`SELECT
-          MIN(observations.start_time) AS min_start_time,
-          MAX(observations.start_time) AS max_start_time,
-          SUM(observations.total_tokens) AS total_tokens,
-          SUM(observations.prompt_tokens) AS prompt_tokens,
-          SUM(observations.completion_tokens) AS completion_tokens,
-          count(*) as total_observations,
-          traces.user_id as user_id
+        >
+      >`
+        WITH ranked_scores AS (
+          SELECT
+            t.user_id,
+            s.*,
+            ROW_NUMBER() OVER (PARTITION BY t.user_id ORDER BY s."timestamp" DESC) AS rn 
+          FROM
+            scores s
+            JOIN traces t ON t.id = s.trace_id
+          WHERE
+            s.trace_id IS NOT NULL
+            AND t.project_id = ${input.projectId}
+            AND t.user_id IN (${Prisma.join(users.map((user) => user.userId))})
+            AND t.user_id IS NOT NULL
+        )
+        SELECT
+          user_id "userId",
+          "id",
+          "timestamp",
+          "name",
+          "value",
+          observation_id "observationId",
+          trace_id "traceId",
+          "comment"
         FROM
-          observations
-          JOIN traces ON observations.trace_id = traces.id
-        WHERE
-          traces.user_id IN (${userIds.map((id) => `'${id}'`).join(",")})
-        GROUP BY
-          traces.user_id
-          `),
-          ctx.prisma.trace.findMany({
-            distinct: ["userId"],
-            orderBy: {
-              timestamp: "desc",
-            },
-            include: {
-              scores: {
-                orderBy: {
-                  timestamp: "desc",
-                },
-                take: 1,
-              },
-            },
-            where: {
-              userId: {
-                in: userIds,
-              },
-            },
-          }),
-        ]);
+          ranked_scores
+        WHERE rn = 1
+      `;
 
-      return userIds.map((userId) => {
-        const traceAnalyticsForUser = traceAnalytics.find(
-          (t) => t.userId === userId
-        );
-        const observationAnalyticsForUser = observationAnalytics.find(
-          (o) => o.user_id === userId
-        );
-
-        if (!traceAnalyticsForUser || !observationAnalyticsForUser) {
-          throw new Error("User not found in analytics");
-        }
-
-        const returnedScore =
-          lastScore.find((s) => s.userId === userId)?.scores[0] ?? null;
-
-        return {
-          userId: userId,
-          firstTrace: traceAnalyticsForUser._min?.timestamp,
-          lastTrace: traceAnalyticsForUser?._max?.timestamp,
-          totalTraces: traceAnalyticsForUser?._count?._all,
-          totalPromptTokens: observationAnalyticsForUser.prompt_tokens ?? 0,
-          totalCompletionTokens:
-            observationAnalyticsForUser.completion_tokens ?? 0,
-          totalTokens: observationAnalyticsForUser.total_tokens ?? 0,
-          firstObservation: observationAnalyticsForUser.min_start_time,
-          lastObservation: observationAnalyticsForUser.max_start_time,
-          totalObservations: observationAnalyticsForUser.total_observations,
-          lastScore: returnedScore,
-        };
-      });
+      return users.map((user) => ({
+        ...user,
+        lastScore: lastScoresOfUsers.find(
+          (score) => score.userId === user.userId
+        ),
+      }));
     }),
 
   byId: protectedProjectProcedure
@@ -151,66 +100,91 @@ export const userRouter = createTRPCRouter({
       })
     )
     .query(async ({ input, ctx }) => {
-      const [traceAnalytics, observationAnalytics, lastScore] =
-        await Promise.all([
-          ctx.prisma.trace.aggregate({
-            where: {
-              userId: input.userId,
-            },
-            _count: {
-              _all: true,
-            },
-            _min: {
-              timestamp: true,
-            },
-            _max: {
-              timestamp: true,
-            },
-          }),
-          ctx.prisma.$queryRaw<
-            {
-              sumPromptTokens: number;
-              sumCompletionTokens: number;
-              sumTotalTokens: number;
-              minStartTime: Date;
-              maxEndTime: Date;
-              totalObservations: number;
-            }[]
-          >`
-          SELECT  sum(prompt_tokens) as "sumPromptTokens", 
-                  sum(completion_tokens) as "sumCompletionTokens", 
-                  sum(total_tokens) as "sumTotalTokens",
-                  min(start_time) as "minStartTime",
-                  max(end_time) as "maxEndTime", 
-                  count(*) as "totalObservations" 
-          FROM observations o join traces t on o.trace_id = t.id where t.user_id = ${input.userId}
-          `,
-          ctx.prisma.score.findFirst({
-            where: {
-              trace: {
-                userId: input.userId,
-              },
-            },
-            orderBy: {
-              timestamp: "desc",
-            },
-            take: 1,
-          }),
-        ]);
+      const [agg, lastScoresOfUsers] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          {
+            userId: string;
+            firstTrace: Date;
+            lastTrace: Date;
+            totalTraces: number;
+            totalPromptTokens: number;
+            totalCompletionTokens: number;
+            totalTokens: number;
+            firstObservation: Date;
+            lastObservation: Date;
+            totalObservations: number;
+          }[]
+        >`
+        SELECT 
+          t.user_id "userId",
+          min(t."timestamp") "firstTrace",
+          max(t."timestamp") "lastTrace",
+          COUNT(distinct t.id)::int "totalTraces",
+          COALESCE(SUM(o.prompt_tokens),0)::int "totalPromptTokens",
+          COALESCE(SUM(o.completion_tokens),0)::int "totalCompletionTokens",
+          COALESCE(SUM(o.total_tokens),0)::int "totalTokens",
+          MIN(o.start_time) "firstObservation",
+          MAX(o.start_time) "lastObservation",
+          COUNT(distinct o.id)::int "totalObservations"
+        FROM traces t
+        LEFT JOIN observations o on o.trace_id = t.id
+        WHERE t.user_id is not null
+        AND t.project_id = ${input.projectId}
+        AND o.project_id = ${input.projectId}
+        AND t.user_id = ${input.userId}
+        GROUP BY 1
+        ORDER BY "totalTokens" DESC
+        LIMIT 50
+      `,
+
+        ctx.prisma.$queryRaw<
+          Array<
+            Score & {
+              userId: string;
+            }
+          >
+        >`
+        WITH ranked_scores AS (
+          SELECT
+            t.user_id,
+            s.*,
+            ROW_NUMBER() OVER (PARTITION BY t.user_id ORDER BY s."timestamp" DESC) AS rn 
+          FROM
+            scores s
+            JOIN traces t ON t.id = s.trace_id
+          WHERE
+            s.trace_id IS NOT NULL
+            AND t.project_id = ${input.projectId}
+            AND t.user_id = ${input.userId}
+            AND t.user_id IS NOT NULL
+        )
+        SELECT
+          user_id "userId",
+          "id",
+          "timestamp",
+          "name",
+          "value",
+          observation_id "observationId",
+          trace_id "traceId",
+          "comment"
+        FROM
+          ranked_scores
+        WHERE rn = 1
+      `,
+      ]);
 
       return {
         userId: input.userId,
-        firstTrace: traceAnalytics._min.timestamp,
-        lastTrace: traceAnalytics._max.timestamp,
-        totalTraces: traceAnalytics._count._all,
-        totalPromptTokens: observationAnalytics[0]?.sumTotalTokens ?? 0,
-        totalCompletionTokens:
-          observationAnalytics[0]?.sumCompletionTokens ?? 0,
-        totalTokens: observationAnalytics[0]?.sumTotalTokens ?? 0,
-        firstObservation: observationAnalytics[0]?.minStartTime,
-        lastObservation: observationAnalytics[0]?.maxEndTime,
-        totalObservations: observationAnalytics[0]?.totalObservations,
-        lastScore: lastScore,
+        firstTrace: agg[0]?.firstTrace,
+        lastTrace: agg[0]?.lastTrace,
+        totalTraces: agg[0]?.totalTraces ?? 0,
+        totalPromptTokens: agg[0]?.totalPromptTokens ?? 0,
+        totalCompletionTokens: agg[0]?.totalCompletionTokens ?? 0,
+        totalTokens: agg[0]?.totalTokens ?? 0,
+        firstObservation: agg[0]?.firstObservation,
+        lastObservation: agg[0]?.lastObservation,
+        totalObservations: agg[0]?.totalObservations ?? 0,
+        lastScore: lastScoresOfUsers[0],
       };
     }),
 });
