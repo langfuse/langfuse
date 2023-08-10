@@ -127,7 +127,7 @@ export default async function handler(
               })
             ).id
           : obj.traceId;
-
+      console.log("traceId: " + traceId);
       // CHECK ACCESS SCOPE
       const accessCheck = await checkApiAccessScope(authCheck.scope, [
         ...(traceId ? [{ type: "trace" as const, id: traceId }] : []),
