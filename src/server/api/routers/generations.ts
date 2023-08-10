@@ -61,9 +61,11 @@ export const generationsRouter = createTRPCRouter({
       return [
         {
           key: "traceId",
-          occurrences: traceIds.map((i) => {
-            return { key: i.traceId, count: i._count };
-          }),
+          occurrences: traceIds
+            .filter((i) => i.traceId !== null)
+            .map((i) => {
+              return { key: i.traceId ?? "null", count: i._count };
+            }),
         },
       ];
     }),
@@ -83,12 +85,13 @@ export const generationsRouter = createTRPCRouter({
       },
     })) as Generation;
 
-    // No need to check for permissions as user has access to the trace
-    const scores = await ctx.prisma.score.findMany({
-      where: {
-        traceId: generation.traceId,
-      },
-    });
+    const scores = generation.traceId
+      ? await ctx.prisma.score.findMany({
+          where: {
+            traceId: generation.traceId,
+          },
+        })
+      : [];
 
     return { ...generation, scores };
   }),
