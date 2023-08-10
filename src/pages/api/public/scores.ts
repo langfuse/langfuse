@@ -122,7 +122,9 @@ export default async function handler(
       const nameCondition = Prisma.sql`AND s."name" = ${obj.name}`;
 
       const [scores, totalItems] = await Promise.all([
-        prisma.$queryRaw<Array<Score & { userIds: string[] }>>(Prisma.sql`
+        prisma.$queryRaw<
+          Array<Score & { trace: { userId: string } }>
+        >(Prisma.sql`
           SELECT
             s.id,
             s.timestamp,
@@ -133,7 +135,7 @@ export default async function handler(
             s.observation_id as "observationId",
             json_build_object('userId', t.user_id) as "trace"
           FROM "scores" AS s
-          LEFT JOIN "traces" AS t ON t.id = s.trace_id
+          JOIN "traces" AS t ON t.id = s.trace_id
           WHERE t.project_id = ${authCheck.scope.projectId}
           ${obj.userId ? userCondition : Prisma.empty}
           ${obj.name ? nameCondition : Prisma.empty}

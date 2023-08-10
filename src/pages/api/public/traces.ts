@@ -100,7 +100,6 @@ export default async function handler(
           create: {
             id: internalId,
             projectId: authCheck.scope.projectId,
-            timestamp: new Date(),
             name: name ?? undefined,
             userId: userId ?? undefined,
             metadata: metadata ?? undefined,
@@ -108,7 +107,6 @@ export default async function handler(
             version: version ?? undefined,
           },
           update: {
-            timestamp: new Date(),
             name: name ?? undefined,
             userId: userId ?? undefined,
             metadata: metadata ?? undefined,

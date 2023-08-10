@@ -89,7 +89,6 @@ export const traceRouter = createTRPCRouter({
         `
       );
 
-      console.log(traces);
       const traceIds = traces.map((trace) => `'${trace.id}'`).join(", ");
 
       const [scores, observations] = await Promise.all([
