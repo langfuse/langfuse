@@ -5,12 +5,7 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  type Observation,
-  Prisma,
-  type Score,
-  type Trace,
-} from "@prisma/client";
+import { Prisma, type Score, type Trace } from "@prisma/client";
 
 const ScoreFilter = z.object({
   name: z.string(),
@@ -74,10 +69,33 @@ export const traceRouter = createTRPCRouter({
         )`
         : Prisma.empty;
 
-      const traces = await ctx.prisma.$queryRaw<Trace[]>(
+      const traces = await ctx.prisma.$queryRaw<
+        Array<
+          Trace & {
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+          }
+        >
+      >(
         Prisma.sql`
-          SELECT t.*
+          WITH usage as (
+            SELECT 
+              trace_id,
+              sum(prompt_tokens) AS "promptTokens",
+              sum(completion_tokens) AS "completionTokens",
+              sum(total_tokens) AS "totalTokens"
+            FROM "observations"
+            WHERE "trace_id" IS NOT NULL AND "project_id" = ${input.projectId}
+            GROUP BY trace_id
+          )
+          SELECT
+            t.*,
+            COALESCE(u."promptTokens", 0)::int AS "promptTokens",
+            COALESCE(u."completionTokens", 0)::int AS "completionTokens",
+            COALESCE(u."totalTokens", 0)::int AS "totalTokens"
           FROM "traces" AS t
+          LEFT JOIN usage AS u ON u.trace_id = t.id
           WHERE 
             t."project_id" = ${input.projectId}
             ${userIdCondition}
@@ -89,51 +107,21 @@ export const traceRouter = createTRPCRouter({
         `
       );
 
+      console.log("TYPE", typeof traces[0]?.promptTokens);
+
       const traceIds = traces.map((trace) => `'${trace.id}'`).join(", ");
 
-      const [scores, observations] = await Promise.all([
-        ctx.prisma.$queryRaw<Score[]>(
-          Prisma.sql`
+      const scores = await ctx.prisma.$queryRaw<Score[]>(
+        Prisma.sql`
           SELECT s.*
           FROM "scores" AS s
           WHERE s."trace_id" IN (${traceIds})`
-        ),
-        ctx.prisma.$queryRaw<Observation[]>(
-          Prisma.sql`
-            SELECT o.*
-            FROM "observations" AS o
-            WHERE o."trace_id" IN (${traceIds})`
-        ),
-      ]);
+      );
 
-      return traces.map((trace) => {
-        const filteredScores = scores.filter(
-          (score) => score.traceId === trace.id
-        );
-
-        const filteredObservations = observations.filter(
-          (o) => o.traceId === trace.id
-        );
-
-        return {
-          ...trace,
-          scores: filteredScores,
-          usage: {
-            promptTokens: filteredObservations.reduce(
-              (acc, cur) => acc + cur.promptTokens,
-              0
-            ),
-            completionTokens: filteredObservations.reduce(
-              (acc, cur) => acc + cur.completionTokens,
-              0
-            ),
-            totalTokens: filteredObservations.reduce(
-              (acc, cur) => acc + cur.totalTokens,
-              0
-            ),
-          },
-        };
-      });
+      return traces.map((trace) => ({
+        ...trace,
+        scores: scores.filter((score) => score.traceId === trace.id),
+      }));
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
