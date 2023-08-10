@@ -215,7 +215,10 @@ export const traceRouter = createTRPCRouter({
       }),
       ctx.prisma.observation.findMany({
         where: {
-          traceId: input,
+          traceId: {
+            equals: input,
+            not: null,
+          },
           Project: {
             members: {
               some: {
@@ -226,9 +229,12 @@ export const traceRouter = createTRPCRouter({
         },
       }),
     ]);
+
     return {
       ...trace,
-      observations,
+      observations: observations as Array<
+        (typeof observations)[0] & { traceId: string }
+      >,
     };
   }),
 });
