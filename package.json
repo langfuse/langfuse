@@ -11,6 +11,8 @@
     "prettier": "prettier --write ./src",
     "clean": "rm -rf node_modules",
     "start": "next start",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch --runInBand",
     "migrate:dev": "dotenv -e .env.local -- npx prisma migrate dev",
     "migrate:prod": "dotenv -e .env.local -- npx prisma migrate deploy",
     "prisma-studio": "dotenv -e .env.local -- npx prisma studio"
@@ -76,9 +78,11 @@
     "zod": "^3.21.4"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^5.17.0",
     "@types/bcryptjs": "^2.4.2",
     "@types/cors": "^2.8.13",
     "@types/eslint": "^8.40.2",
+    "@types/jest": "^29.5.3",
     "@types/js-yaml": "^4.0.5",
     "@types/lodash": "^4.14.195",
     "@types/node": "^20.3.3",
@@ -93,6 +97,8 @@
     "dotenv-cli": "^7.2.1",
     "eslint": "^8.44.0",
     "eslint-config-next": "^13.4.7",
+    "jest": "^29.6.2",
+    "jest-environment-jsdom": "^29.6.2",
     "postcss": "^8.4.24",
     "prettier": "^2.8.8",
     "prettier-plugin-tailwindcss": "^0.3.0",
