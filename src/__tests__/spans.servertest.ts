@@ -258,7 +258,7 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan?.version).toBe("2.0.0");
   });
 
-  it("should create trace when creating generation without existing trace without traceId", async () => {
+  it("should create trace when creating span without existing trace without traceId", async () => {
     const generationName = uuidv4();
 
     const spanId = uuidv4();
@@ -267,8 +267,6 @@ describe("/api/public/spans API Endpoint", () => {
       name: generationName,
       startTime: "2021-01-01T00:00:00.000Z",
       endTime: "2021-01-01T00:00:00.000Z",
-      model: "model-name",
-      modelParameters: { key: "value" },
       input: { key: "value" },
       metadata: { key: "value" },
       version: "2.0.0",
@@ -332,7 +330,7 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan?.id).toBe(spanId);
     expect(dbSpan?.name).toBe(spanName);
     expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbSpan?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.endTime).toEqual(new Date("2021-01-:00:00.000Z"));
     expect(dbSpan?.input).toEqual({ input: "value" });
     expect(dbSpan?.output).toEqual({ key: "this is a great gpt output" });
     expect(dbSpan?.metadata).toEqual({ meta: "value" });

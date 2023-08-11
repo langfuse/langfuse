@@ -258,4 +258,43 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbEvent?.metadata).toEqual({ meta: "value" });
     expect(dbEvent?.version).toBe("2.0.0");
   });
+
+  it("should create event when creating generation without existing trace without traceId", async () => {
+    const generationName = uuidv4();
+
+    const spanId = uuidv4();
+    const createSpan = await makeAPICall("POST", "/api/public/events", {
+      id: spanId,
+      name: generationName,
+      startTime: "2021-01-01T00:00:00.000Z",
+      input: { key: "value" },
+      metadata: { key: "value" },
+      version: "2.0.0",
+    });
+
+    const dbEvent = await prisma.observation.findFirstOrThrow({
+      where: {
+        name: generationName,
+      },
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: dbEvent.traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBe(1);
+    expect(dbTrace[0]?.name).toBe(generationName);
+
+    expect(createSpan.status).toBe(200);
+
+    expect(dbEvent?.id).toBe(spanId);
+    expect(dbEvent?.traceId).toBe(dbTrace[0]?.id);
+    expect(dbEvent?.name).toBe(generationName);
+    expect(dbEvent?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbEvent?.input).toEqual({ key: "value" });
+    expect(dbEvent?.metadata).toEqual({ key: "value" });
+    expect(dbEvent?.version).toBe("2.0.0");
+  });
 });
