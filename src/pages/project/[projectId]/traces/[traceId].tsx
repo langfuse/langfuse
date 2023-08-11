@@ -11,7 +11,6 @@ export default function TracePage() {
   const projectId = router.query.projectId as string;
 
   const trace = api.traces.byId.useQuery(traceId);
-
   return (
     <div className="md:container">
       <Header
@@ -30,7 +29,6 @@ export default function TracePage() {
         ) : null}
         <TraceAggUsageBadge observations={trace.data?.observations ?? []} />
       </div>
-
       {trace.data ? (
         <>
           <div className="mt-5 border-t pt-5">

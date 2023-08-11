@@ -19,20 +19,25 @@ export const generationsRouter = createTRPCRouter({
       const generations = (await ctx.prisma.observation.findMany({
         where: {
           type: "GENERATION",
-          trace: {
-            projectId: input.projectId,
+          projectId: input.projectId,
+          traceId: {
+            not: null,
+            ...(input.traceId
+              ? {
+                  in: input.traceId,
+                }
+              : undefined),
           },
-          ...(input.traceId
-            ? {
-                traceId: { in: input.traceId },
-              }
-            : undefined),
         },
         orderBy: {
           startTime: "desc",
         },
         take: 100, // TODO: pagination
-      })) as Generation[];
+      })) as Array<
+        Generation & {
+          traceId: string;
+        }
+      >;
 
       return generations;
     }),
@@ -41,9 +46,7 @@ export const generationsRouter = createTRPCRouter({
     .input(GenerationFilterOptions)
     .query(async ({ input, ctx }) => {
       const filter = {
-        trace: {
-          projectId: input.projectId,
-        },
+        projectId: input.projectId,
         ...(input.traceId
           ? {
               traceId: { in: input.traceId },
@@ -65,9 +68,11 @@ export const generationsRouter = createTRPCRouter({
       return [
         {
           key: "traceId",
-          occurrences: traceIds.map((i) => {
-            return { key: i.traceId, count: i._count };
-          }),
+          occurrences: traceIds
+            .filter((i) => i.traceId !== null)
+            .map((i) => {
+              return { key: i.traceId ?? "null", count: i._count };
+            }),
         },
       ];
     }),
@@ -77,24 +82,23 @@ export const generationsRouter = createTRPCRouter({
       where: {
         id: input,
         type: "GENERATION",
-        trace: {
-          project: {
-            members: {
-              some: {
-                userId: ctx.session.user.id,
-              },
+        Project: {
+          members: {
+            some: {
+              userId: ctx.session.user.id,
             },
           },
         },
       },
     })) as Generation;
 
-    // No need to check for permissions as user has access to the trace
-    const scores = await ctx.prisma.score.findMany({
-      where: {
-        traceId: generation.traceId,
-      },
-    });
+    const scores = generation.traceId
+      ? await ctx.prisma.score.findMany({
+          where: {
+            traceId: generation.traceId,
+          },
+        })
+      : [];
 
     return { ...generation, scores };
   }),

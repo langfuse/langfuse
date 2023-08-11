@@ -5,6 +5,7 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { Prisma, type Score, type Trace } from "@prisma/client";
 
 const ScoreFilter = z.object({
   name: z.string(),
@@ -26,67 +27,99 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const traces = await ctx.prisma.trace.findMany({
-        where: {
-          AND: [
-            {
-              projectId: input.projectId,
-              ...(input.userId ? { userId: input.userId } : undefined),
-              ...(input.name ? { name: { in: input.name } } : undefined),
-              ...(input.scores
-                ? { scores: { some: createScoreCondition(input.scores) } }
-                : undefined),
-            },
-            input.searchQuery
-              ? {
-                  OR: [
-                    { id: { contains: input.searchQuery } },
-                    { externalId: { contains: input.searchQuery } },
-                    { userId: { contains: input.searchQuery } },
-                    { name: { contains: input.searchQuery } },
-                  ],
-                }
-              : {},
-          ],
-        },
-        orderBy: {
-          timestamp: "desc",
-        },
-        include: {
-          scores: true,
-          observations: {
-            select: {
-              promptTokens: true,
-              completionTokens: true,
-              totalTokens: true,
-            },
-          },
-        },
-        take: 50, // TODO: pagination
-      });
+      const userIdCondition = input.userId
+        ? Prisma.sql`AND t."user_id" = ${input.userId}`
+        : Prisma.empty;
 
-      const res = traces.map((trace) => {
-        const { observations, ...t } = trace;
-        return {
-          ...t,
-          usage: {
-            promptTokens: observations.reduce(
-              (acc, cur) => acc + cur.promptTokens,
-              0
-            ),
-            completionTokens: observations.reduce(
-              (acc, cur) => acc + cur.completionTokens,
-              0
-            ),
-            totalTokens: observations.reduce(
-              (acc, cur) => acc + cur.totalTokens,
-              0
-            ),
-          },
-        };
-      });
+      const createNamesFilter = (names: string[]) => {
+        return Prisma.sql`AND t."name" IN (${Prisma.join(names)})`;
+      };
 
-      return res;
+      const nameCondition = input.name
+        ? createNamesFilter(input.name)
+        : Prisma.empty;
+
+      let scoreCondition = Prisma.empty;
+      if (input.scores) {
+        switch (input.scores.operator) {
+          case "lt":
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value < ${input.scores.value})`;
+            break;
+          case "gt":
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value > ${input.scores.value})`;
+            break;
+          case "equals":
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value = ${input.scores.value})`;
+            break;
+          case "lte":
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value <= ${input.scores.value})`;
+            break;
+          case "gte":
+            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value >= ${input.scores.value})`;
+            break;
+        }
+      }
+
+      const searchCondition = input.searchQuery
+        ? Prisma.sql`AND (
+          t."id" ILIKE ${`%${input.searchQuery}%`} OR 
+          t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
+          t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
+          t."name" ILIKE ${`%${input.searchQuery}%`}
+        )`
+        : Prisma.empty;
+
+      const traces = await ctx.prisma.$queryRaw<
+        Array<
+          Trace & {
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+          }
+        >
+      >(
+        Prisma.sql`
+          WITH usage as (
+            SELECT 
+              trace_id,
+              sum(prompt_tokens) AS "promptTokens",
+              sum(completion_tokens) AS "completionTokens",
+              sum(total_tokens) AS "totalTokens"
+            FROM "observations"
+            WHERE "trace_id" IS NOT NULL AND "project_id" = ${input.projectId}
+            GROUP BY trace_id
+          )
+          SELECT
+            t.*,
+            COALESCE(u."promptTokens", 0)::int AS "promptTokens",
+            COALESCE(u."completionTokens", 0)::int AS "completionTokens",
+            COALESCE(u."totalTokens", 0)::int AS "totalTokens"
+          FROM "traces" AS t
+          LEFT JOIN usage AS u ON u.trace_id = t.id
+          WHERE 
+            t."project_id" = ${input.projectId}
+            ${userIdCondition}
+            ${nameCondition}
+            ${searchCondition}
+            ${scoreCondition}
+          ORDER BY t."timestamp" DESC
+          LIMIT 50;
+        `
+      );
+
+      const scores = await ctx.prisma.$queryRaw<Score[]>(
+        Prisma.sql`
+          SELECT s.*
+          FROM "scores" s
+          WHERE s."trace_id" IN (${Prisma.join(
+            traces.map((trace) => trace.id)
+          )})`
+      );
+
+      return traces.map((trace) => ({
+        ...trace,
+        scores: scores.filter((score) => score.traceId === trace.id),
+      }));
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
@@ -180,13 +213,14 @@ export const traceRouter = createTRPCRouter({
       }),
       ctx.prisma.observation.findMany({
         where: {
-          traceId: input,
-          trace: {
-            project: {
-              members: {
-                some: {
-                  userId: ctx.session.user.id,
-                },
+          traceId: {
+            equals: input,
+            not: null,
+          },
+          Project: {
+            members: {
+              some: {
+                userId: ctx.session.user.id,
               },
             },
           },
@@ -196,7 +230,9 @@ export const traceRouter = createTRPCRouter({
 
     return {
       ...trace,
-      observations,
+      observations: observations as Array<
+        (typeof observations)[0] & { traceId: string }
+      >,
     };
   }),
 });

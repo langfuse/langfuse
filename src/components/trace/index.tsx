@@ -5,7 +5,7 @@ import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
 
 export function Trace(props: {
-  observations: Observation[];
+  observations: Array<Observation & { traceId: string }>;
   trace: Trace;
   scores: Score[];
   projectId: string;
