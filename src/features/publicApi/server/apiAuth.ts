@@ -16,7 +16,7 @@ export async function verifyAuthHeaderAndReturnScope(
   authHeader: string | undefined
 ): Promise<AuthHeaderVerificationResult> {
   if (!authHeader) {
-    console.log("No authorization header");
+    console.error("No authorization header");
     return {
       validKey: false,
       error: "No authorization header",
@@ -57,7 +57,7 @@ export async function verifyAuthHeaderAndReturnScope(
       };
     }
   } catch (error: unknown) {
-    console.log("Error verifying auth header: ", error);
+    console.error("Error verifying auth header: ", error);
     return {
       validKey: false,
       error: error instanceof Error ? error.message : "Authorization error",
@@ -79,7 +79,6 @@ function extractBasicAuthCredentials(basicAuthHeader: string): {
 
   const [username, password] = atob(authValue).split(":");
   if (!username || !password) throw new Error("Invalid authorization header");
-
   return { username, password };
 }
 

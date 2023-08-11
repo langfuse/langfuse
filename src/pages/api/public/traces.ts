@@ -3,6 +3,8 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { Prisma, type Trace } from "@prisma/client";
+import { v4 as uuidv4 } from "uuid";
 
 const CreateTraceSchema = z.object({
   id: z.string().nullish(),
@@ -88,11 +90,23 @@ export default async function handler(
         });
         res.status(200).json(newTrace);
       } else {
-        const newTrace = await prisma.trace.create({
-          data: {
-            id: id ?? undefined,
-            timestamp: new Date(),
+        const internalId = id ?? uuidv4();
+
+        const newTrace = await prisma.trace.upsert({
+          where: {
+            id: internalId,
             projectId: authCheck.scope.projectId,
+          },
+          create: {
+            id: internalId,
+            projectId: authCheck.scope.projectId,
+            name: name ?? undefined,
+            userId: userId ?? undefined,
+            metadata: metadata ?? undefined,
+            release: release ?? undefined,
+            version: version ?? undefined,
+          },
+          update: {
             name: name ?? undefined,
             userId: userId ?? undefined,
             metadata: metadata ?? undefined,
@@ -113,26 +127,32 @@ export default async function handler(
 
       const obj = GetTracesSchema.parse(req.query); // uses query and not body
 
+      const skipValue = (obj.page - 1) * obj.limit;
+      const userCondition = Prisma.sql`AND t."user_id" = ${obj.userId}`;
+      const nameCondition = Prisma.sql`AND t."name" = ${obj.name}`;
+
       const [traces, totalItems] = await Promise.all([
-        prisma.trace.findMany({
-          where: {
-            projectId: authCheck.scope.projectId,
-            name: obj.name ?? undefined,
-            userId: obj.userId ?? undefined,
-          },
-          include: {
-            observations: {
-              select: {
-                id: true,
-              },
-            },
-          },
-          skip: (obj.page - 1) * obj.limit,
-          take: obj.limit,
-          orderBy: {
-            timestamp: "desc",
-          },
-        }),
+        prisma.$queryRaw<Array<Trace & { observations: string[] }>>(Prisma.sql`
+          SELECT
+            t.id,
+            t.timestamp,
+            t.name,
+            t.project_id as "projectId",
+            t.metadata,
+            t.external_id as "externalId",
+            t.user_id as "userId",
+            t.release,
+            t.version,
+            ARRAY_AGG(o.id) AS "observations"
+          FROM "traces" AS t
+          LEFT JOIN "observations" AS o ON t.id = o.trace_id
+          WHERE t.project_id = ${authCheck.scope.projectId}
+          ${obj.userId ? userCondition : Prisma.empty}
+          ${obj.name ? nameCondition : Prisma.empty}
+          GROUP BY t.id
+          ORDER BY t."timestamp" DESC
+          LIMIT ${obj.limit} OFFSET ${skipValue}
+          `),
         prisma.trace.count({
           where: {
             projectId: authCheck.scope.projectId,
@@ -143,10 +163,7 @@ export default async function handler(
       ]);
 
       return res.status(200).json({
-        data: traces.map((trace) => ({
-          ...trace,
-          observations: trace.observations.map((observation) => observation.id),
-        })),
+        data: traces,
         meta: {
           page: obj.page,
           limit: obj.limit,

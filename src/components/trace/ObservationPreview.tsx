@@ -19,7 +19,7 @@ import {
 import { ManualScoreButton } from "@/src/features/manualScoring/components";
 
 export const ObservationPreview = (props: {
-  observations: Observation[];
+  observations: Array<Observation & { traceId: string }>;
   projectId: string;
   scores: Score[];
   currentObservationId: string | undefined;
