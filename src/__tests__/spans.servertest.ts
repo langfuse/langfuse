@@ -205,6 +205,49 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan?.version).toBe("2.0.0");
   });
 
+  it("should create trace when creating generation without existing trace without traceId", async () => {
+    const generationName = uuidv4();
+
+    const spanId = uuidv4();
+    const createSpan = await makeAPICall("POST", "/api/public/spans", {
+      id: spanId,
+      name: generationName,
+      startTime: "2021-01-01T00:00:00.000Z",
+      endTime: "2021-01-01T00:00:00.000Z",
+      model: "model-name",
+      modelParameters: { key: "value" },
+      input: { key: "value" },
+      metadata: { key: "value" },
+      version: "2.0.0",
+    });
+
+    const dbSpan = await prisma.observation.findFirstOrThrow({
+      where: {
+        name: generationName,
+      },
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: dbSpan.traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBe(1);
+    expect(dbTrace[0]?.name).toBe(generationName);
+
+    expect(createSpan.status).toBe(200);
+
+    expect(dbSpan?.id).toBe(spanId);
+    expect(dbSpan?.traceId).toBe(dbTrace[0]?.id);
+    expect(dbSpan?.name).toBe(generationName);
+    expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.input).toEqual({ key: "value" });
+    expect(dbSpan?.metadata).toEqual({ key: "value" });
+    expect(dbSpan?.version).toBe("2.0.0");
+  });
+
   it("should update span", async () => {
     const spanName = uuidv4();
 

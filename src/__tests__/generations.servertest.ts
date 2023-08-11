@@ -245,6 +245,57 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.version).toBe("2.0.0");
   });
 
+  it("should create trace when creating generation without existing trace without traceId", async () => {
+    const generationName = uuidv4();
+
+    const generationId = uuidv4();
+    const createGeneration = await makeAPICall(
+      "POST",
+      "/api/public/generations",
+      {
+        id: generationId,
+        name: generationName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        model: "model-name",
+        modelParameters: { key: "value" },
+        prompt: { key: "value" },
+        metadata: { key: "value" },
+        version: "2.0.0",
+      }
+    );
+
+    const dbGeneration = await prisma.observation.findFirstOrThrow({
+      where: {
+        name: generationName,
+      },
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: dbGeneration.traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBe(1);
+    expect(dbTrace[0]?.name).toBe(generationName);
+
+    expect(createGeneration.status).toBe(200);
+
+    expect(dbGeneration?.id).toBe(generationId);
+    expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
+    expect(dbGeneration?.name).toBe(generationName);
+    expect(dbGeneration?.startTime).toEqual(
+      new Date("2021-01-01T00:00:00.000Z")
+    );
+    expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbGeneration?.model).toBe("model-name");
+    expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
+    expect(dbGeneration?.input).toEqual({ key: "value" });
+    expect(dbGeneration?.metadata).toEqual({ key: "value" });
+    expect(dbGeneration?.version).toBe("2.0.0");
+  });
+
   it("should update generation", async () => {
     const generationName = uuidv4();
 
