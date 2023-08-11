@@ -30,13 +30,17 @@
          <strong>Feature Request</strong>
       </a>
    </div>
+   </br>
+   <div>
+      <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
+      <a href="https://discord.gg/7NXusRtqYU"><img src="https://img.shields.io/discord/1111061815649124414?style=flat-square&logo=Discord&logoColor=white&label=Discord&color=%23434EE4" alt="Discord"></a>
+      <a href="https://github.com/langfuse/langfuse"><img src="https://img.shields.io/github/stars/langfuse/langfuse?style=flat-square&logo=GitHub&label=langfuse%2Flangfuse" alt="Github Repo Stars"></a>
+      <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
+   </div>
 </div>
 </br>
 </div>
 </br>
-
-[![](https://dcbadge.vercel.app/api/server/7NXusRtqYU)](https://discord.gg/7NXusRtqYU)
-
 
 # ℹ️ Analytics is in alpha
 
