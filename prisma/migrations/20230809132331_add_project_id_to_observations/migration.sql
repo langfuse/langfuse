@@ -13,9 +13,9 @@ SET "project_id" = t."project_id"
 FROM "traces" t
 WHERE o."trace_id" = t."id";
 
-
-ALTER TABLE "observations"
-ALTER COLUMN "project_id" SET NOT NULL;
+-- To be applied in separate migration after application release to minimize ingestion downtime
+-- ALTER TABLE "observations"
+-- ALTER COLUMN "project_id" SET NOT NULL;
 
 
 -- AddForeignKey
