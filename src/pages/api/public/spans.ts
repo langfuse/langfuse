@@ -6,6 +6,12 @@ import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 
+// edge
+export const config = {
+  runtime: "edge",
+  regions: ["fra1"],
+};
+
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
