@@ -19,7 +19,7 @@ async function main() {
     },
   });
 
-  const project = await prisma.project.create({
+  const project1 = await prisma.project.create({
     data: {
       id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       name: "llm-app",
@@ -30,6 +30,29 @@ async function main() {
             hashedSecretKey: await hashSecretKey("sk-lf-1234567890"),
             displaySecretKey: getDisplaySecretKey("sk-lf-1234567890"),
             publishableKey: "pk-lf-1234567890",
+          },
+        ],
+      },
+      members: {
+        create: {
+          role: "OWNER",
+          userId: user.id,
+        },
+      },
+    },
+  });
+
+  const project2 = await prisma.project.create({
+    data: {
+      id: "239ad00f-562f-411d-af14-831c75ddd875",
+      name: "demo-app",
+      apiKeys: {
+        create: [
+          {
+            note: "seeded key",
+            hashedSecretKey: await hashSecretKey("sk-lf-asdfghjkl"),
+            displaySecretKey: getDisplaySecretKey("sk-lf-asdfghjkl"),
+            publishableKey: "pk-lf-asdfghjkl",
           },
         ],
       },
@@ -66,7 +89,7 @@ async function main() {
         },
         project: {
           connect: {
-            id: project.id,
+            id: [project1.id, project2.id][i % 2],
           },
         },
         userId: `user-${i % 10}`,
@@ -120,22 +143,16 @@ async function main() {
           metadata: {
             user: `user-${i}@langfuse.com`,
           },
-          trace: {
-            connect: {
-              id: trace.id,
-            },
-          },
+          Project: { connect: { id: trace.projectId } },
+          traceId: trace.id,
           // if this is the first span or in 50% of cases, add no parent; otherwise randomly select parent from existing spans
           ...(existingSpanIds.length === 0 || Math.random() > 0.5
             ? {}
             : {
-                parent: {
-                  connect: {
-                    id: existingSpanIds[
-                      Math.floor(Math.random() * existingSpanIds.length)
-                    ],
-                  },
-                },
+                parentObservationId:
+                  existingSpanIds[
+                    Math.floor(Math.random() * existingSpanIds.length)
+                  ],
               }),
         },
       });
@@ -168,6 +185,7 @@ async function main() {
             startTime: generationTsStart,
             endTime: generationTsEnd,
             name: `generation-${i}-${j}-${k}`,
+            Project: { connect: { id: trace.projectId } },
             input:
               Math.random() > 0.5
                 ? [
@@ -242,16 +260,8 @@ async function main() {
             promptTokens,
             completionTokens,
             totalTokens: promptTokens + completionTokens,
-            parent: {
-              connect: {
-                id: span.id,
-              },
-            },
-            trace: {
-              connect: {
-                id: trace.id,
-              },
-            },
+            parentObservationId: span.id,
+            traceId: trace.id,
           },
         });
 
@@ -273,16 +283,9 @@ async function main() {
               metadata: {
                 user: `user-${i}@langfuse.com`,
               },
-              parent: {
-                connect: {
-                  id: span.id,
-                },
-              },
-              trace: {
-                connect: {
-                  id: trace.id,
-                },
-              },
+              parentObservationId: span.id,
+              traceId: trace.id,
+              Project: { connect: { id: trace.projectId } },
             },
           });
         }

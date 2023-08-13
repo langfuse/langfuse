@@ -26,28 +26,45 @@ export async function checkApiAccessScope(
 async function isResourceInProject(resource: Resource, projectId: string) {
   switch (resource.type) {
     case "project":
-      return resource.id === projectId;
+      const projectCheck = resource.id === projectId;
+      if (!projectCheck)
+        console.log("project check", projectCheck, resource.id, projectId);
+      return projectCheck;
+
     case "trace":
-      return (
+      const traceCheck =
         (await prisma.trace.count({
           where: { id: resource.id, projectId },
-        })) === 1
-      );
+        })) === 1;
+      if (!traceCheck)
+        console.log("trace check", traceCheck, resource.id, projectId);
+      return traceCheck;
+
     case "observation":
-      return (
+      const observationCheck =
         (await prisma.observation.count({
-          where: { id: resource.id, trace: { projectId } },
-        })) === 1
-      );
+          where: { id: resource.id, projectId },
+        })) === 1;
+      if (!observationCheck)
+        console.log(
+          "observation check",
+          observationCheck,
+          resource.id,
+          projectId
+        );
+      return observationCheck;
+
     case "score":
-      return (
+      const scoreCheck =
         (await prisma.score.count({
           where: {
             id: resource.id,
             trace: { projectId },
           },
-        })) === 1
-      );
+        })) === 1;
+      if (!scoreCheck)
+        console.log("score check", scoreCheck, resource.id, projectId);
+      return scoreCheck;
     default:
       return false;
   }

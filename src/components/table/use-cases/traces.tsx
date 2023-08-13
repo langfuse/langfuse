@@ -76,7 +76,11 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
       metadata: JSON.stringify(trace.metadata),
       userId: trace.userId ?? "",
       scores: trace.scores,
-      usage: trace.usage,
+      usage: {
+        promptTokens: trace.promptTokens,
+        completionTokens: trace.completionTokens,
+        totalTokens: trace.totalTokens,
+      },
     };
   };
 

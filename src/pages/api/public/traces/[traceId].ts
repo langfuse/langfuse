@@ -45,23 +45,31 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const trace = await prisma.trace.findFirst({
-      where: {
-        id: traceId,
-        projectId: authCheck.scope.projectId,
-      },
-      include: {
-        observations: true,
-        scores: true,
-      },
-    });
+    const [trace, observations] = await Promise.all([
+      prisma.trace.findFirst({
+        where: {
+          id: traceId,
+          projectId: authCheck.scope.projectId,
+        },
+        include: {
+          scores: true,
+        },
+      }),
+      prisma.observation.findMany({
+        where: {
+          traceId: traceId,
+          projectId: authCheck.scope.projectId,
+        },
+      }),
+    ]);
+
     if (!trace) {
       return res.status(404).json({
         success: false,
         message: "Trace not found within authorized project",
       });
     }
-    return res.status(200).json(trace);
+    return res.status(200).json({ ...trace, observations: observations });
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =

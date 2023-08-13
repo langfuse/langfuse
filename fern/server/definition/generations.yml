@@ -20,6 +20,7 @@ types:
   UpdateGenerationRequest:
     properties:
       generationId: string
+      traceId: optional<string>
       name: optional<string>
       endTime: optional<datetime>
       completionStartTime: optional<datetime>

@@ -4,7 +4,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
-import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
+import { v4 as uuidv4 } from "uuid";
 
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
@@ -24,6 +24,7 @@ const SpanPostSchema = z.object({
 
 const SpanPatchSchema = z.object({
   spanId: z.string(),
+  traceId: z.string().nullish(),
   name: z.string().nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
   metadata: z.unknown().nullish(),
@@ -51,10 +52,6 @@ export default async function handler(
     });
   // END CHECK AUTH
 
-  if (req.method !== "POST" && req.method !== "PATCH") {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-
   if (req.method === "POST") {
     try {
       console.log("Trying to generate span: ", req.body);
@@ -73,53 +70,45 @@ export default async function handler(
         version,
       } = obj;
 
-      // If externalTraceId is provided, find or create the traceId
-      const traceId =
-        obj.traceIdType === "EXTERNAL" && obj.traceId
-          ? (
-              await prisma.trace.upsert({
-                where: {
-                  projectId_externalId: {
-                    projectId: authCheck.scope.projectId,
-                    externalId: obj.traceId,
-                  },
-                },
-                create: {
+      const traceId = !obj.traceId
+        ? // Create trace if no traceid - backwards compatibility
+          (
+            await prisma.trace.create({
+              data: {
+                projectId: authCheck.scope.projectId,
+                name: obj.name,
+              },
+            })
+          ).id
+        : obj.traceIdType === "EXTERNAL"
+        ? // Find or create trace if externalTraceId
+          (
+            await prisma.trace.upsert({
+              where: {
+                projectId_externalId: {
                   projectId: authCheck.scope.projectId,
                   externalId: obj.traceId,
                 },
-                update: {},
-              })
-            ).id
-          : obj.traceId;
+              },
+              create: {
+                projectId: authCheck.scope.projectId,
+                externalId: obj.traceId,
+              },
+              update: {},
+            })
+          ).id
+        : obj.traceId;
 
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        ...(traceId ? [{ type: "trace" as const, id: traceId }] : []),
-        ...(parentObservationId
-          ? [{ type: "observation" as const, id: parentObservationId }]
-          : []),
-      ]);
-      if (!accessCheck)
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
+      const newId = uuidv4();
 
-      const newObservation = await prisma.observation.create({
-        data: {
-          id: id ?? undefined,
-          ...(traceId
-            ? { trace: { connect: { id: traceId } } }
-            : {
-                trace: {
-                  create: {
-                    name: name,
-                    project: { connect: { id: authCheck.scope.projectId } },
-                  },
-                },
-              }),
+      const newObservation = await prisma.observation.upsert({
+        where: {
+          id: id ?? newId,
+          projectId: authCheck.scope.projectId,
+        },
+        create: {
+          id: id ?? newId,
+          traceId: traceId,
           type: ObservationType.SPAN,
           name,
           startTime: startTime ? new Date(startTime) : undefined,
@@ -129,9 +118,22 @@ export default async function handler(
           output: output ?? undefined,
           level: level ?? undefined,
           statusMessage: statusMessage ?? undefined,
-          parent: parentObservationId
-            ? { connect: { id: parentObservationId } }
-            : undefined,
+          parentObservationId: parentObservationId ?? undefined,
+          version: version ?? undefined,
+          Project: { connect: { id: authCheck.scope.projectId } },
+        },
+        update: {
+          traceId: traceId,
+          type: ObservationType.SPAN,
+          name,
+          startTime: startTime ? new Date(startTime) : undefined,
+          endTime: endTime ? new Date(endTime) : undefined,
+          metadata: metadata ?? undefined,
+          input: input ?? undefined,
+          output: output ?? undefined,
+          level: level ?? undefined,
+          statusMessage: statusMessage ?? undefined,
+          parentObservationId: parentObservationId ?? undefined,
           version: version ?? undefined,
         },
       });
@@ -150,31 +152,31 @@ export default async function handler(
   } else if (req.method === "PATCH") {
     try {
       console.log("Trying to update span: ", req.body);
-      const { spanId, endTime, version, ...fields } = SpanPatchSchema.parse(
-        req.body
-      );
+      const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        { type: "observation", id: spanId },
-      ]);
-      if (!accessCheck)
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
-
-      const newObservation = await prisma.observation.update({
-        where: { id: spanId },
-        data: {
+      const newObservation = await prisma.observation.upsert({
+        where: {
+          id: spanId,
+          projectId: authCheck.scope.projectId,
+        },
+        create: {
+          id: spanId,
+          type: ObservationType.SPAN,
           endTime: endTime ? new Date(endTime) : undefined,
           ...Object.fromEntries(
             Object.entries(fields).filter(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
-          version: version ?? undefined,
+          Project: { connect: { id: authCheck.scope.projectId } },
+        },
+        update: {
+          endTime: endTime ? new Date(endTime) : undefined,
+          ...Object.fromEntries(
+            Object.entries(fields).filter(
+              ([_, v]) => v !== null && v !== undefined
+            )
+          ),
         },
       });
 
@@ -189,5 +191,7 @@ export default async function handler(
         error: errorMessage,
       });
     }
+  } else {
+    res.status(405).json({ message: "Method not allowed" });
   }
 }

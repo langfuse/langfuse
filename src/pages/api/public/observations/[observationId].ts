@@ -48,9 +48,7 @@ export default async function handler(
     const observation = await prisma.observation.findFirst({
       where: {
         id: observationId,
-        trace: {
-          projectId: authCheck.scope.projectId,
-        },
+        projectId: authCheck.scope.projectId,
       },
     });
     if (!observation) {

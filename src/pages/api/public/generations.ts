@@ -4,8 +4,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
-import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
+import { v4 as uuidv4 } from "uuid";
 
 export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
@@ -40,6 +40,7 @@ export const GenerationsCreateSchema = z.object({
 
 const GenerationPatchSchema = z.object({
   generationId: z.string(),
+  traceId: z.string().nullish(),
   name: z.string().nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
   completionStartTime: z.string().datetime({ offset: true }).nullish(),
@@ -70,6 +71,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   await runMiddleware(req, res, cors);
+  console.log("got generation event" + JSON.stringify(req.body, null, 2));
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
@@ -107,39 +109,34 @@ export default async function handler(
         version,
       } = obj;
 
-      // If externalTraceId is provided, find or create the traceId
-      const traceId =
-        obj.traceIdType === "EXTERNAL" && obj.traceId
-          ? (
-              await prisma.trace.upsert({
-                where: {
-                  projectId_externalId: {
-                    projectId: authCheck.scope.projectId,
-                    externalId: obj.traceId,
-                  },
-                },
-                create: {
+      const traceId = !obj.traceId
+        ? // Create trace if no traceid - backwards compatibility
+          (
+            await prisma.trace.create({
+              data: {
+                projectId: authCheck.scope.projectId,
+                name: obj.name,
+              },
+            })
+          ).id
+        : obj.traceIdType === "EXTERNAL"
+        ? // Find or create trace if externalTraceId
+          (
+            await prisma.trace.upsert({
+              where: {
+                projectId_externalId: {
                   projectId: authCheck.scope.projectId,
                   externalId: obj.traceId,
                 },
-                update: {},
-              })
-            ).id
-          : obj.traceId;
-
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        ...(traceId ? [{ type: "trace" as const, id: traceId }] : []),
-        ...(parentObservationId
-          ? [{ type: "observation" as const, id: parentObservationId }]
-          : []),
-      ]);
-      if (!accessCheck)
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
+              },
+              create: {
+                projectId: authCheck.scope.projectId,
+                externalId: obj.traceId,
+              },
+              update: {},
+            })
+          ).id
+        : obj.traceId;
 
       const newPromptTokens =
         usage?.promptTokens ??
@@ -158,19 +155,16 @@ export default async function handler(
             })
           : undefined);
 
-      const newObservation = await prisma.observation.create({
-        data: {
-          id: id ?? undefined,
-          ...(traceId
-            ? { trace: { connect: { id: traceId } } }
-            : {
-                trace: {
-                  create: {
-                    name: name,
-                    project: { connect: { id: authCheck.scope.projectId } },
-                  },
-                },
-              }),
+      const newId = uuidv4();
+
+      const newObservation = await prisma.observation.upsert({
+        where: {
+          id: id ?? newId,
+          projectId: authCheck.scope.projectId,
+        },
+        create: {
+          id: id ?? newId,
+          traceId: traceId,
           type: ObservationType.GENERATION,
           name,
           startTime: startTime ? new Date(startTime) : undefined,
@@ -190,9 +184,31 @@ export default async function handler(
             (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
           level: level ?? undefined,
           statusMessage: statusMessage ?? undefined,
-          parent: parentObservationId
-            ? { connect: { id: parentObservationId } }
+          parentObservationId: parentObservationId ?? undefined,
+          version: version ?? undefined,
+          Project: { connect: { id: authCheck.scope.projectId } },
+        },
+        update: {
+          type: ObservationType.GENERATION,
+          name,
+          startTime: startTime ? new Date(startTime) : undefined,
+          endTime: endTime ? new Date(endTime) : undefined,
+          completionStartTime: completionStartTime
+            ? new Date(completionStartTime)
             : undefined,
+          metadata: metadata ?? undefined,
+          model: model ?? undefined,
+          modelParameters: modelParameters ?? undefined,
+          input: prompt ?? undefined,
+          output: completion ? { completion: completion } : undefined,
+          promptTokens: newPromptTokens,
+          completionTokens: newCompletionTokens,
+          totalTokens:
+            usage?.totalTokens ??
+            (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
+          level: level ?? undefined,
+          statusMessage: statusMessage ?? undefined,
+          parentObservationId: parentObservationId ?? undefined,
           version: version ?? undefined,
         },
       });
@@ -217,26 +233,15 @@ export default async function handler(
     try {
       const {
         generationId,
+        traceId,
         endTime,
         completionStartTime,
         prompt,
         completion,
         usage,
         model,
-        version,
-        ...fields
+        ...otherFields
       } = GenerationPatchSchema.parse(req.body);
-
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(authCheck.scope, [
-        { type: "observation", id: generationId },
-      ]);
-      if (!accessCheck)
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
 
       const existingObservation = await prisma.observation.findUnique({
         where: { id: generationId },
@@ -271,9 +276,15 @@ export default async function handler(
         (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
         (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
 
-      const newObservation = await prisma.observation.update({
-        where: { id: generationId },
-        data: {
+      const newObservation = await prisma.observation.upsert({
+        where: {
+          id: generationId,
+          projectId: authCheck.scope.projectId,
+        },
+        create: {
+          id: generationId,
+          traceId: traceId ?? undefined,
+          type: ObservationType.GENERATION,
           endTime: endTime ? new Date(endTime) : undefined,
           completionStartTime: completionStartTime
             ? new Date(completionStartTime)
@@ -285,11 +296,29 @@ export default async function handler(
           totalTokens: newTotalTokens,
           model: model ?? undefined,
           ...Object.fromEntries(
-            Object.entries(fields).filter(
+            Object.entries(otherFields).filter(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
-          version: version ?? undefined,
+          Project: { connect: { id: authCheck.scope.projectId } },
+        },
+        update: {
+          endTime: endTime ? new Date(endTime) : undefined,
+          completionStartTime: completionStartTime
+            ? new Date(completionStartTime)
+            : undefined,
+          input: prompt ?? undefined,
+          output: completion ? { completion: completion } : undefined,
+          promptTokens: newPromptTokens,
+          completionTokens: newCompletionTokens,
+          totalTokens: newTotalTokens,
+          traceId: traceId ?? undefined,
+          model: model ?? undefined,
+          ...Object.fromEntries(
+            Object.entries(otherFields).filter(
+              ([_, v]) => v !== null && v !== undefined
+            )
+          ),
         },
       });
 
