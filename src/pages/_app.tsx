@@ -6,7 +6,6 @@ import { setUser } from "@sentry/nextjs";
 import { type Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
 import { type AppType } from "next/app";
-import Head from "next/head";
 import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
@@ -52,11 +51,6 @@ const MyApp: AppType<{ session: Session | null }> = ({
   return (
     <PostHogProvider client={posthog}>
       <SessionProvider session={session} refetchOnWindowFocus={true}>
-        <Head>
-          <title>
-            Langfuse is an open-source product analytics suite for LLM apps.
-          </title>
-        </Head>
         <Layout>
           <Component {...pageProps} />
           <UserTracking />
