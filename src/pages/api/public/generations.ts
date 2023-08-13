@@ -200,7 +200,7 @@ export default async function handler(
           statusMessage: statusMessage ?? undefined,
           parentObservationId: parentObservationId ?? undefined,
           version: version ?? undefined,
-          Project: { connect: { id: authCheck.scope.projectId } },
+          projectId: authCheck.scope.projectId,
         },
         update: {
           type: ObservationType.GENERATION,
@@ -328,7 +328,7 @@ export default async function handler(
               ([_, v]) => v !== null && v !== undefined
             )
           ),
-          Project: { connect: { id: authCheck.scope.projectId } },
+          projectId: authCheck.scope.projectId,
         },
         update: {
           endTime: endTime ? new Date(endTime) : undefined,
