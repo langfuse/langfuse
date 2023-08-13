@@ -46,6 +46,7 @@ export default function Layout(props: PropsWithChildren) {
       ...rest,
     }))
     .map(({ pathname, ...rest }) => ({
+      pathname,
       current: router.pathname === pathname,
       ...rest,
     }));
@@ -103,8 +104,9 @@ export default function Layout(props: PropsWithChildren) {
     <>
       <Head>
         <title>
-          {currentPathName} | Langfuse is an open-source product analytics suite
-          for LLM apps.
+          {currentPathName
+            ? `${currentPathName} | Langfuse is an open-source product analytics suite for LLM apps.`
+            : "Langfuse is an open-source product analytics suite for LLM apps."}
         </title>
       </Head>
       <div>

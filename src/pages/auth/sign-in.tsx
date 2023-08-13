@@ -1,8 +1,4 @@
-import { signIn } from "next-auth/react";
-import Link from "next/link";
-import * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Button } from "@/src/components/ui/button";
 import {
   Form,
   FormControl,
@@ -12,7 +8,12 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { Button } from "@/src/components/ui/button";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { signIn } from "next-auth/react";
+import Head from "next/head";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 const formSchema = z.object({
   email: z.string().email(),
@@ -40,6 +41,12 @@ export default function SignIn() {
 
   return (
     <>
+      <Head>
+        <title>
+          Sign in | Langfuse is an open-source product analytics suite for LLM
+          apps.
+        </title>
+      </Head>
       <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <span className="block text-center font-mono text-4xl font-bold">
