@@ -157,10 +157,24 @@ export default async function handler(
 
       const newId = uuidv4();
 
+      // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
+      // Including projectid would lead to race conditions and unique key errors
+      const observationWithSameId = await prisma.observation.count({
+        where: {
+          id: id ?? newId,
+          projectId: {
+            not: authCheck.scope.projectId,
+          },
+        },
+      });
+      if (observationWithSameId > 0)
+        throw new Error(
+          "Observation with same id already exists in another project"
+        );
+
       const newObservation = await prisma.observation.upsert({
         where: {
           id: id ?? newId,
-          projectId: authCheck.scope.projectId,
         },
         create: {
           id: id ?? newId,
@@ -276,10 +290,24 @@ export default async function handler(
         (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
         (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
 
+      // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
+      // Including projectid would lead to race conditions and unique key errors
+      const observationWithSameId = await prisma.observation.count({
+        where: {
+          id: generationId,
+          projectId: {
+            not: authCheck.scope.projectId,
+          },
+        },
+      });
+      if (observationWithSameId > 0)
+        throw new Error(
+          "Observation with same id already exists in another project"
+        );
+
       const newObservation = await prisma.observation.upsert({
         where: {
           id: generationId,
-          projectId: authCheck.scope.projectId,
         },
         create: {
           id: generationId,
