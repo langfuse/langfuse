@@ -24,6 +24,8 @@ import * as z from "zod";
 
 import { useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Lock } from "lucide-react";
 
 const SCORE_NAME = "manual-score";
 
@@ -36,11 +38,18 @@ export function ManualScoreButton({
   traceId,
   scores,
   observationId,
+  projectId,
 }: {
   traceId: string;
   scores: Score[];
   observationId?: string;
+  projectId: string;
 }) {
+  const hasAccess = useHasAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
+  console.log(hasAccess);
   const score = scores.find(
     (s) =>
       s.name === SCORE_NAME &&
@@ -76,6 +85,7 @@ export function ManualScoreButton({
   });
 
   const onOpenChange = (value: boolean) => {
+    if (!hasAccess) return;
     if (!value) {
       form.reset();
       setOpen(false);
@@ -108,8 +118,9 @@ export function ManualScoreButton({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="secondary">
-          {score ? `Update score: ${score.value}` : "Add score"}
+        <Button variant="secondary" disabled={!hasAccess}>
+          <span>{score ? `Update score: ${score.value}` : "Add score"}</span>
+          {!hasAccess ? <Lock className="ml-2 h-3 w-3" /> : null}
         </Button>
       </DialogTrigger>
       <DialogContent>

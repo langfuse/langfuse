@@ -33,7 +33,11 @@ import { MembershipRole } from "@prisma/client";
 import { roleAccessRights } from "@/src/features/rbac/constants/roleAccessRights";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
-const availableRoles = [MembershipRole.ADMIN, MembershipRole.MEMBER] as const;
+const availableRoles = [
+  MembershipRole.ADMIN,
+  MembershipRole.MEMBER,
+  MembershipRole.VIEWER,
+] as const;
 
 const formSchema = z.object({
   email: z.string().email(),
@@ -141,7 +145,10 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Rights of role: {roleAccessRights[field.value].join(", ")}
+                    Rights of role:{" "}
+                    {roleAccessRights[field.value].length
+                      ? roleAccessRights[field.value].join(", ")
+                      : "none"}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
