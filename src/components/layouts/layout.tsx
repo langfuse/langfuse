@@ -275,6 +275,18 @@ export default function Layout(props: PropsWithChildren) {
                                   <span className="truncate">
                                     {project.name}
                                   </span>
+                                  {project.role === "VIEWER" ? (
+                                    <span
+                                      className={cn(
+                                        "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                        projectId === project.id
+                                          ? "border-indigo-600 text-indigo-600"
+                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600"
+                                      )}
+                                    >
+                                      view-only
+                                    </span>
+                                  ) : null}
                                 </Link>
                               </li>
                             ))}
@@ -366,6 +378,18 @@ export default function Layout(props: PropsWithChildren) {
                             <Code />
                           </span>
                           <span className="truncate">{project.name}</span>
+                          {project.role === "VIEWER" ? (
+                            <span
+                              className={cn(
+                                "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                projectId === project.id
+                                  ? "border-indigo-600 text-indigo-600"
+                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600"
+                              )}
+                            >
+                              view-only
+                            </span>
+                          ) : null}
                         </Link>
                       </li>
                     ))}

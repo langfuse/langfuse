@@ -50,7 +50,11 @@ export const TracePreview = ({
             ) : undefined}
           </div>
         </div>
-        <ManualScoreButton traceId={trace.id} scores={scores} />
+        <ManualScoreButton
+          projectId={trace.projectId}
+          traceId={trace.id}
+          scores={scores}
+        />
       </CardHeader>
       <CardContent>
         <JSONView title="Metadata" json={trace.metadata} scrollable />
