@@ -214,7 +214,7 @@ async function main() {
                     ],
                   },
             output: {
-              complation: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
+              completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
 
               1.  **Functional Component**:
               
