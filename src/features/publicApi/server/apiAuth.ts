@@ -86,6 +86,6 @@ async function findDbKeyOrThrow(publishableKey: string) {
   const dbKey = await prisma.apiKey.findUnique({
     where: { publishableKey },
   });
-  if (!dbKey) throw new Error("Invalid publishable key");
+  if (!dbKey) throw new Error("Invalid public key");
   return dbKey;
 }
