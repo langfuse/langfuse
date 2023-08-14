@@ -45,7 +45,7 @@ export async function createUserEmailPassword(
       email,
       password: hashedPassword,
       name,
-      // if demo project id is set, add it to the user's projects; is in memberships
+      // if demo project id is set grant user access to it
       ...(demoProjectId
         ? {
             memberships: {
