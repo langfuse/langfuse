@@ -12,29 +12,40 @@ import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
+import { env } from "@/src/env.mjs";
 
 export default function GetStartedPage() {
   const projects = api.projects.all.useQuery();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
 
+  // check url query for welcome = 1
+  const getStarted = router.query.getStarted === "1";
+
   useEffect(() => {
     if (projects.data) {
-      if (projects.data.length > 0 && loading === true)
+      if (projects.data.length > 0 && loading === true && !getStarted)
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         void router.push(`/project/${projects.data[0]!.id}`);
       else setLoading(false);
     }
-  }, [projects.data, router, loading]);
+  }, [projects.data, router, loading, getStarted]);
 
   if (loading || projects.status === "loading") {
     return <div>Loading...</div>;
   }
 
+  const demoProject =
+    env.NEXT_PUBLIC_DEMO_PROJECT_ID !== undefined && projects.data?.length
+      ? projects.data.find(
+          (project) => project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID
+        )
+      : undefined;
+
   return (
     <div className="md:container">
       <Header title="Get started" />
-      <div className="flex flex-col gap-5 md:flex-row">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="flex-1">
           <CardHeader>
             <CardTitle>Create new project</CardTitle>
@@ -49,7 +60,33 @@ export default function GetStartedPage() {
             <NewProjectButton />
           </CardFooter>
         </Card>
-        <Card className="flex-1">
+        {demoProject ? (
+          <Card className="flex-1">
+            <CardHeader>
+              <CardTitle>View demo project</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>
+                Checkout the {demoProject.name} project, it tracks the Q&A
+                chatbot on the Langfuse documentation.
+              </p>
+            </CardContent>
+            <CardFooter className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href={"/project/" + demoProject.id}>Go to project</Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <Link
+                  href="https://langfuse.com/docs/qa-chatbot"
+                  target="_blank"
+                >
+                  Chatbot
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        ) : null}
+        <Card className="col-span-full">
           <CardHeader>
             <CardTitle>Guided onboarding</CardTitle>
           </CardHeader>

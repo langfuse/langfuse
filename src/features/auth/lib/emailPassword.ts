@@ -30,11 +30,11 @@ export async function createUserEmailPassword(
   }
 
   // set demoProjectId if env exists and project exists in db
-  const demoProjectId = env.DEMO_PROJECT_ID
+  const demoProjectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID
     ? (
         await prisma.project.findUnique({
           where: {
-            id: env.DEMO_PROJECT_ID,
+            id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
           },
         })
       )?.id

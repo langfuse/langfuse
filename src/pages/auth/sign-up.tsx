@@ -41,7 +41,7 @@ export default function SignIn() {
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/",
+        callbackUrl: "/?getStarted=1",
       });
     } catch (err) {
       form.setError("root", {
