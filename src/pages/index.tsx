@@ -24,9 +24,20 @@ export default function GetStartedPage() {
 
   useEffect(() => {
     if (projects.data) {
-      if (projects.data.length > 0 && loading === true && !getStarted)
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        void router.push(`/project/${projects.data[0]!.id}`);
+      if (
+        projects.data.filter((p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID)
+          .length > 0 &&
+        loading === true &&
+        !getStarted
+      )
+        void router.push(
+          `/project/${
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            projects.data.filter(
+              (p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID
+            )[0]!.id
+          }`
+        );
       else setLoading(false);
     }
   }, [projects.data, router, loading, getStarted]);
