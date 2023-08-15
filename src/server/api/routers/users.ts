@@ -49,6 +49,10 @@ export const userRouter = createTRPCRouter({
         LIMIT 50
       `;
 
+      if (users.length === 0) {
+        return [];
+      }
+
       const lastScoresOfUsers = await ctx.prisma.$queryRaw<
         Array<
           Score & {
