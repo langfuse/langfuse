@@ -49,6 +49,10 @@ export const userRouter = createTRPCRouter({
         LIMIT 50
       `;
 
+      if (users.length === 0) {
+        return [];
+      }
+
       const lastScoresOfUsers = await ctx.prisma.$queryRaw<
         Array<
           Score & {
@@ -67,11 +71,7 @@ export const userRouter = createTRPCRouter({
           WHERE
             s.trace_id IS NOT NULL
             AND t.project_id = ${input.projectId}
-            AND t.user_id IN (${
-              users.length
-                ? Prisma.join(users.map((user) => user.userId))
-                : Prisma.empty
-            })
+            AND t.user_id IN (${Prisma.join(users.map((user) => user.userId))})
             AND t.user_id IS NOT NULL
         )
         SELECT
