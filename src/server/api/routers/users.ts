@@ -67,7 +67,11 @@ export const userRouter = createTRPCRouter({
           WHERE
             s.trace_id IS NOT NULL
             AND t.project_id = ${input.projectId}
-            AND t.user_id IN (${Prisma.join(users.map((user) => user.userId))})
+            AND t.user_id IN (${
+              users.length
+                ? Prisma.join(users.map((user) => user.userId))
+                : Prisma.empty
+            })
             AND t.user_id IS NOT NULL
         )
         SELECT
