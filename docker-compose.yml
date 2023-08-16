@@ -3,7 +3,7 @@ version: "3.5"
 services:
   langfuse-server:
     image: ghcr.io/langfuse/langfuse:latest
-    ## Want to build image? Uncomment the following lines and comment out the image line above
+    ## Want to build image from source? Uncomment the following lines and comment out the image line above
     # build:
     #   dockerfile: Dockerfile
     #   args:

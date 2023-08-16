@@ -87,29 +87,42 @@ Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions
 # Run locally
 
 ```bash
-docker compose up
+# Clone repository
+git clone git@github.com:langfuse/langfuse.git
+cd langfuse
+
+# Run server and db
+docker compose up -d
+
+# Apply db migrations
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
-Update
+-> Visit http://localhost:3000
+
+## Update
 
 ```bash
+# Stop server and db
+docker compose down
+
+# Pull latest changes
 git pull
-docker compose up --build
+docker-compose pull
+
+# Run server and db
+docker compose up -d
+
+# Apply db migrations
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
-Visit localhost:3000
-
-# Seed database
+# Run in CI
 
 ```bash
-# install dependencies
-npm install
-
-# Option 1: with example data
-npm run db:seed
-
-# Option 2: Create user, project and api keys (for use in CI)
-npm run db:seed:ci
+docker compose up -d
+npm i # necessary for seeder
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx --yes prisma migrate reset --force --skip-generate
 ```
 
 # Local development
@@ -127,8 +140,9 @@ cp .env.dev.example .env
 # Migration
 npx prisma migrate dev
 
-# Seed the database
-npx prisma db seed
+# Optional: seed the database
+# npx prisma db seed
+# npx prisma db seed:examples
 
 # Start the server
 npm run dev
