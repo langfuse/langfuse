@@ -14,7 +14,7 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "db:seed": "npx prisma db seed",
-    "db:seed:ci": "npx prisma db seed -- --environment ci"
+    "db:seed:examples": "npx prisma db seed -- --environment examples"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

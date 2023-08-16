@@ -24,18 +24,18 @@ jobs:
         with:
           node-version: 18
 
-      # - name: Start containers
-      #   run: docker-compose -f "docker-compose.dev.yml" up -d --build
+      - name: Start containers
+        run: docker-compose -f "docker-compose.dev.yml" up -d --build
 
-      # - name: install dependencies
-      #   run: |
-      #     npm install
+      - name: install dependencies
+        run: |
+          npm install
 
-      # - name: lint
-      #   run: npm run lint
+      - name: lint
+        run: npm run lint
 
-      # - name: test
-      #   run: npm run test
+      - name: test
+        run: npm run test
 
   cd:
     needs: ci
@@ -60,14 +60,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Docker image
-        run: |
-          docker build \
-          --build-arg DATABASE_URL=${{ env.DATABASE_URL }} \
-          --build-arg NEXTAUTH_SECRET=${{ env.NEXTAUTH_SECRET }} \
-          --build-arg NEXTAUTH_URL=${{ env.NEXTAUTH_URL }} \
-          -t langfuse .
-
       - name: Log in to the Container registry
         uses: docker/login-action@v2
         with:
@@ -91,7 +83,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./DockerfileEmpty
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
