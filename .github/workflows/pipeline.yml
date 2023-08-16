@@ -39,7 +39,7 @@ jobs:
 
   cd:
     needs: ci
-    if: github.ref == 'refs/heads/seed-for-docker' && github.event_name == 'push'
+    # if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
