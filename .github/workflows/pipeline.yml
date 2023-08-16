@@ -1,6 +1,13 @@
 name: CI/CD
 
-on: push
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
 
 jobs:
   ci:
