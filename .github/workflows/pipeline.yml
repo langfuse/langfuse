@@ -74,7 +74,11 @@ jobs:
         with:
           images: |
             ${{ env.REGISTRY }}/${{ github.repository }}
-          # tags: type=raw,value=latest,enable={{is_default_branch}}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
