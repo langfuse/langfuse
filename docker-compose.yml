@@ -1,7 +1,7 @@
 version: "3.5"
 
 services:
-  server:
+  langfuse-server:
     image: ghcr.io/langfuse/langfuse:latest
     ## Want to build image? Uncomment the following lines and comment out the image line above
     # build:
