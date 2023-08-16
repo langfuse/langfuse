@@ -12,7 +12,7 @@ services:
       [
         "sh",
         "-c",
-        "npx prisma migrate deploy && npm install ts-node && npx prisma db seed -- --environment production && node server.js",
+        "npx prisma migrate deploy && npm install --no-save ts-node && npx prisma db seed -- --environment production && node server.js",
       ]
     depends_on:
       - db
