@@ -84,6 +84,34 @@ Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions
   - Detailed reports on latency, cost, quality
   - Evals
 
+# Run locally
+
+```bash
+docker-compose up
+```
+
+# Local development
+
+```
+# Install dependencies
+npm install
+
+# Run the db
+docker-compose -f docker-compose.dev.yml up -d
+
+# create an env file
+cp .env.dev.example .env
+
+# Migration
+npx prisma migrate dev
+
+# Seed the database
+npx prisma db seed
+
+# Start the server
+npm run dev
+```
+
 # Contributing to Langfuse
 
 Join the community [on Discord](https://discord.gg/7NXusRtqYU).

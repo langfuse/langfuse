@@ -8,7 +8,12 @@ services:
         - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
         - NEXTAUTH_SECRET=mysecret
         - NEXTAUTH_URL=http:localhost:3030
-    command: ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+    command:
+      [
+        "sh",
+        "-c",
+        "npx prisma migrate deploy && npx prisma db seed -- --environment production && node server.js",
+      ]
     depends_on:
       - db
     ports:
