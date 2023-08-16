@@ -24,8 +24,8 @@ jobs:
         with:
           node-version: 18
 
-      - name: Start containers
-        run: docker-compose -f "docker-compose.dev.yml" up -d --build
+      # - name: Start containers
+      #   run: docker-compose -f "docker-compose.dev.yml" up -d --build
 
       - name: install dependencies
         run: |
@@ -39,7 +39,7 @@ jobs:
 
   cd:
     needs: ci
-    # if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres

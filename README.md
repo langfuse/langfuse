@@ -117,7 +117,9 @@ docker compose up -d
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
-# Run in CI
+# For testing of SDKs
+
+The following runs the server and db in docker-compose, applies migrations and a seeder which initializes a project, user and creates default API keys.
 
 ```bash
 docker compose up -d
