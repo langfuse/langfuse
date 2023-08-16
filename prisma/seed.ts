@@ -78,7 +78,7 @@ async function main() {
   }
 
   // Do not run the following for local docker compose setup
-  if (environment !== "production") {
+  if (environment !== "ci") {
     const project2 = await prisma.project.create({
       data: {
         id: "239ad00f-562f-411d-af14-831c75ddd875",

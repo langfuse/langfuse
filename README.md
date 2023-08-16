@@ -87,7 +87,29 @@ Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions
 # Run locally
 
 ```bash
-docker-compose up
+docker compose up
+```
+
+Update
+
+```bash
+git pull
+docker compose up --build
+```
+
+Visit localhost:3000
+
+# Seed database
+
+```bash
+# install dependencies
+npm install
+
+# Option 1: with example data
+npm run db:seed
+
+# Option 2: Create user, project and api keys (for use in CI)
+npm run db:seed:ci
 ```
 
 # Local development

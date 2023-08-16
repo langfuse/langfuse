@@ -7,23 +7,19 @@ services:
       args:
         - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
         - NEXTAUTH_SECRET=mysecret
-        - NEXTAUTH_URL=http:localhost:3030
+        - NEXTAUTH_URL=http:localhost:3000
     command:
-      [
-        "sh",
-        "-c",
-        "npx prisma migrate deploy && npm install --no-save ts-node && npx prisma db seed -- --environment production && node server.js",
-      ]
+      ["sh", "-c", "npx prisma migrate deploy &&  npm run && node server.js"]
     depends_on:
       - db
     ports:
-      - "3030:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
       - DIRECT_URL=postgresql://postgres:postgres@db:5432/postgres
       - NEXTAUTH_SECRET=mysecret
-      - NEXTAUTH_URL=http:localhost:3030
+      - NEXTAUTH_URL=http:localhost:3000
 
   db:
     image: postgres
