@@ -19,8 +19,14 @@ async function main() {
     options,
   }).values.environment;
 
-  const user = await prisma.user.create({
-    data: {
+  const user = await prisma.user.upsert({
+    where: { id: "user-1" },
+    update: {
+      name: "Demo User",
+      email: "Demo User",
+      password: await hash("password", 12),
+    },
+    create: {
       id: "user-1",
       name: "Demo User",
       email: "demo@langfuse.com",
@@ -28,24 +34,16 @@ async function main() {
     },
   });
 
-  const project1 = await prisma.project.create({
-    data: {
-      id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+  const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+  const project1 = await prisma.project.upsert({
+    where: { id: seedProjectId },
+    update: {
       name: "llm-app",
-      apiKeys: {
-        create: [
-          {
-            note: "seeded key",
-            hashedSecretKey: await hashSecretKey(
-              process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890"
-            ),
-            displaySecretKey: getDisplaySecretKey(
-              process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890"
-            ),
-            publishableKey: "pk-lf-1234567890",
-          },
-        ],
-      },
+    },
+    create: {
+      id: seedProjectId,
+      name: "llm-app",
       members: {
         create: {
           role: "OWNER",
@@ -54,6 +52,30 @@ async function main() {
       },
     },
   });
+
+  const seedApiKey = {
+    id: "seed-api-key",
+    secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890",
+    public: "pk-lf-1234567890",
+    note: "seeded key",
+  };
+
+  if (!(await prisma.apiKey.findUnique({ where: { id: seedApiKey.id } }))) {
+    await prisma.apiKey.create({
+      data: {
+        note: seedApiKey.note,
+        id: seedApiKey.id,
+        publishableKey: seedApiKey.public,
+        hashedSecretKey: await hashSecretKey(seedApiKey.secret),
+        displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
+        project: {
+          connect: {
+            id: project1.id,
+          },
+        },
+      },
+    });
+  }
 
   // Do not run the following for local docker compose setup
   if (environment !== "production") {
