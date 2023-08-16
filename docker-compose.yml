@@ -1,24 +1,25 @@
 version: "3.5"
 
 services:
-  server:
-    build:
-      dockerfile: Dockerfile
-      args:
-        - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-        - NEXTAUTH_SECRET=mysecret
-        - NEXTAUTH_URL=http:localhost:3030
-    command: ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+  langfuse-server:
+    image: ghcr.io/langfuse/langfuse:latest
+    ## Want to build image from source? Uncomment the following lines and comment out the image line above
+    # build:
+    #   dockerfile: Dockerfile
+    #   args:
+    #     - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+    #     - NEXTAUTH_SECRET=mysecret
+    #     - NEXTAUTH_URL=http:localhost:3000
     depends_on:
       - db
     ports:
-      - "3030:3000"
+      - "3000:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
       - DIRECT_URL=postgresql://postgres:postgres@db:5432/postgres
       - NEXTAUTH_SECRET=mysecret
-      - NEXTAUTH_URL=http:localhost:3030
+      - NEXTAUTH_URL=http:localhost:3000
 
   db:
     image: postgres
