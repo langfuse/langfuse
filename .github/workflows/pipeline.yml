@@ -82,7 +82,8 @@ jobs:
           context: .
           file: ./DockerfileEmpty
           push: true
-          tags: langfuse/langfuse:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
             NEXTAUTH_SECRET=mysecret
