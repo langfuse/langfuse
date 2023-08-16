@@ -80,6 +80,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
+          file: ./DockerfileEmpty
           push: true
           tags: langfuse/langfuse:latest
           build-args: |
