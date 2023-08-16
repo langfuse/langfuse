@@ -86,6 +86,13 @@ Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions
 
 # Run locally
 
+Requirements:
+
+- Docker: run postgres and [dockerized Langfuse](https://ghcr.io/langfuse/langfuse) to start langfuse quickly
+- Node.JS & NPM: apply db migration using ORM (Prisma)
+
+**Start**
+
 ```bash
 # Clone repository
 git clone git@github.com:langfuse/langfuse.git
@@ -100,7 +107,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=p
 
 -> Visit http://localhost:3000
 
-## Update
+**Upgrade**
 
 ```bash
 # Stop server and db
@@ -115,16 +122,6 @@ docker compose up -d
 
 # Apply db migrations
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
-```
-
-# For testing of SDKs
-
-The following runs the server and db in docker-compose, applies migrations and a seeder which initializes a project, user and creates default API keys.
-
-```bash
-docker compose up -d
-npm i # necessary for seeder
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx --yes prisma migrate reset --force --skip-generate
 ```
 
 # Local development
@@ -149,6 +146,10 @@ npx prisma migrate dev
 # Start the server
 npm run dev
 ```
+
+# Run Langfuse in CI
+
+For integration testing of SDKs we run Langfuse in CI, see workflows in [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml) for reference.
 
 # Contributing to Langfuse
 
