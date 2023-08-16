@@ -13,19 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
+      # - uses: actions/setup-node@v3
+      #   with:
+      #     node-version: 18
 
-      - name: Start containers
-        run: docker-compose -f "docker-compose.dev.yml" up -d --build
+      # - name: Start containers
+      #   run: docker-compose -f "docker-compose.dev.yml" up -d --build
 
-      - name: install dependencies
-        run: |
-          npm install
+      # - name: install dependencies
+      #   run: |
+      #     npm install
 
-      - name: lint
-        run: npm run lint
+      # - name: lint
+      #   run: npm run lint
 
       # - name: test
       #   run: npm run test
@@ -38,6 +38,11 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       NEXTAUTH_SECRET: "secret"
       NEXTAUTH_URL: "http://localhost:3030"
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+    permissions:
+      packages: write
+      contents: read
 
     steps:
       - name: Setup node
@@ -55,6 +60,21 @@ jobs:
       #     --build-arg NEXTAUTH_SECRET=mysecret \
       #     --build-arg NEXTAUTH_URL=http:localhost:3030 \
       #     -t langfuse .
+
+      - name: Log in to the Container registry
+        uses: docker/login-action
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
