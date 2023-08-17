@@ -20,6 +20,9 @@ jobs:
       - name: install dependencies
         run: |
           npm install
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
       - name: lint
         run: npm run lint
 
