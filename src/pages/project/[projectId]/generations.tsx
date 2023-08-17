@@ -40,6 +40,8 @@ export default function Generations() {
   const generations = api.generations.all.useQuery({
     ...queryOptions,
     projectId,
+  }, {
+    refetchInterval: 1000,
   });
 
   const generationOptions = api.generations.availableFilterOptions.useQuery({

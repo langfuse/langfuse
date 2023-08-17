@@ -34,11 +34,16 @@ export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
     id: null,
   });
 
-  const scores = api.scores.all.useQuery({
-    ...queryOptions,
-    userId: userId || null,
-    projectId,
-  });
+  const scores = api.scores.all.useQuery(
+    {
+      ...queryOptions,
+      userId: userId || null,
+      projectId,
+    },
+    {
+      refetchInterval: 1000,
+    }
+  );
 
   const scoresOptions = api.scores.availableFilterOptions.useQuery({
     ...queryOptions,

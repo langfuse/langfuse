@@ -53,11 +53,16 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     operator: null,
   });
 
-  const traces = api.traces.all.useQuery({
-    ...queryOptions,
-    userId: userId || null,
-    projectId,
-  });
+  const traces = api.traces.all.useQuery(
+    {
+      ...queryOptions,
+      userId: userId || null,
+      projectId,
+    },
+    {
+      refetchInterval: 1000,
+    }
+  );
 
   const options = api.traces.availableFilterOptions.useQuery({
     ...queryOptions,
@@ -110,16 +115,6 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
           />
         ) : undefined;
       },
-    },
-    {
-      accessorKey: "externalId",
-      header: "External ID",
-      cell: ({ row }) =>
-        row.getValue("externalId") ? (
-          <span>...{lastCharacters(row.getValue("externalId"), 7)}</span>
-        ) : (
-          <span></span>
-        ),
     },
     {
       accessorKey: "timestamp",

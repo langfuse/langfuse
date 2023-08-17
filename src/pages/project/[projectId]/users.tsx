@@ -25,10 +25,15 @@ export default function UsersPage() {
   const projectId = router.query.projectId as string;
   const [queryOptions] = useState<ScoreFilterInput>({});
 
-  const users = api.users.all.useQuery({
-    ...queryOptions,
-    projectId,
-  });
+  const users = api.users.all.useQuery(
+    {
+      ...queryOptions,
+      projectId,
+    },
+    {
+      refetchInterval: 1000,
+    }
+  );
 
   const columns: ColumnDef<RowData>[] = [
     {

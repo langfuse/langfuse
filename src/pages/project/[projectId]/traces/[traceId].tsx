@@ -10,7 +10,9 @@ export default function TracePage() {
   const traceId = router.query.traceId as string;
   const projectId = router.query.projectId as string;
 
-  const trace = api.traces.byId.useQuery(traceId);
+  const trace = api.traces.byId.useQuery(traceId, {
+    refetchInterval: 1000,
+  });
   return (
     <div className="md:container">
       <Header
