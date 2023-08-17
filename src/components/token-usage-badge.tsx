@@ -40,6 +40,13 @@ export const TokenUsageBadge = (
         }
       : props;
 
+  if (
+    usage.promptTokens === 0 &&
+    usage.completionTokens === 0 &&
+    usage.totalTokens === 0
+  )
+    return <></>;
+
   if (props.inline)
     return (
       <span>
