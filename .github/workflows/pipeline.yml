@@ -49,7 +49,7 @@ jobs:
 
       - name: run langfuse (without building)
         run: |
-          npm start dev
+          (npm run dev&)
 
       - name: run tests
         run: |
