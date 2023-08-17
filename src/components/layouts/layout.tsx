@@ -1,25 +1,12 @@
+import { ROUTES } from "@/src/components/layouts/routes";
 import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Menu, Transition } from "@headlessui/react";
-import {
-  Bars3Icon,
-  Cog6ToothIcon,
-  DocumentDuplicateIcon,
-  HomeIcon,
-  UsersIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/outline";
+import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import {
-  BarChart3,
-  Code,
-  HelpingHand,
-  Info,
-  LineChart,
-  MessageSquarePlus,
-} from "lucide-react";
+import { Code, MessageSquarePlus, Info } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
@@ -32,6 +19,7 @@ import { api } from "@/src/utils/api";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
+import Head from "next/head";
 import { env } from "@/src/env.mjs";
 
 const userNavigation = [
@@ -51,53 +39,21 @@ export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
-  const navigation = [
-    { name: "Dashboard", pathname: `/project/[projectId]`, icon: HomeIcon },
-    {
-      name: "Analytics (alpha)",
-      pathname: `/project/[projectId]/analytics`,
-      icon: BarChart3,
-    },
-    {
-      name: "Traces",
-      pathname: `/project/[projectId]/traces`,
-      icon: UsersIcon,
-    },
-    {
-      name: "Generations",
-      pathname: `/project/[projectId]/generations`,
-      icon: DocumentDuplicateIcon,
-    },
-    {
-      name: "Scores",
-      pathname: `/project/[projectId]/scores`,
-      icon: LineChart,
-    },
-    {
-      name: "Users",
-      pathname: `/project/[projectId]/users`,
-      icon: UsersIcon,
-    },
-    {
-      name: "Settings",
-      pathname: "/project/[projectId]/settings",
-      icon: Cog6ToothIcon,
-    },
-    {
-      name: "Talk to founder",
-      pathname: "https://cal.com/marc-kl/langfuse-cloud",
-      icon: HelpingHand,
-    },
-  ]
-    .filter((nav) => projectId || !nav.pathname.includes("[projectId]"))
-    .map((nav) => ({
-      ...nav,
-      href: nav.pathname.replace("[projectId]", projectId ?? ""),
+  const navigation = ROUTES.filter(
+    ({ pathname }) => projectId || !pathname.includes("[projectId]")
+  )
+    .map(({ pathname, ...rest }) => ({
+      pathname,
+      href: pathname.replace("[projectId]", projectId ?? ""),
+      ...rest,
     }))
-    .map((params) => ({
-      ...params,
-      current: router.pathname === params.pathname,
+    .map(({ pathname, ...rest }) => ({
+      pathname,
+      current: router.pathname === pathname,
+      ...rest,
     }));
+
+  const currentPathName = navigation.find(({ current }) => current)?.name;
 
   const session = useSession();
 
@@ -148,6 +104,11 @@ export default function Layout(props: PropsWithChildren) {
 
   return (
     <>
+      <Head>
+        <title>
+          {currentPathName ? `${currentPathName} | Langfuse` : "Langfuse"}
+        </title>
+      </Head>
       <div>
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog

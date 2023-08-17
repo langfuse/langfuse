@@ -1,8 +1,4 @@
-import { signIn } from "next-auth/react";
-import Link from "next/link";
-import type * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Button } from "@/src/components/ui/button";
 import {
   Form,
   FormControl,
@@ -12,8 +8,13 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { Button } from "@/src/components/ui/button";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { signIn } from "next-auth/react";
+import Head from "next/head";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import type * as z from "zod";
 import { env } from "@/src/env.mjs";
 
 export default function SignIn() {
@@ -53,6 +54,14 @@ export default function SignIn() {
 
   return (
     <>
+      <Head>
+        <title>Sign up | Langfuse</title>
+        <meta
+          name="description"
+          content="Create an account, no credit card required."
+          key="desc"
+        />
+      </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <span className="block text-center font-mono text-4xl font-bold">
