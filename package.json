@@ -13,6 +13,7 @@
     "start": "next start",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
+    "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
     "db:seed:examples": "npx prisma db seed -- --environment examples"
   },
