@@ -90,7 +90,11 @@ const ObservationTreeNode = (props: {
               onClick={() => props.setCurrentObservationId(observation.id)}
             >
               <div className="flex gap-2">
-                <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>
+                <span
+                  className={cn(
+                    "self-start rounded-sm bg-gray-200 p-1 text-xs"
+                  )}
+                >
                   {observation.type}
                 </span>
                 <span>{observation.name}</span>
@@ -103,10 +107,14 @@ const ObservationTreeNode = (props: {
                     ms
                   </span>
                 ) : null}
-                <span className="text-xs text-gray-500">
-                  {observation.promptTokens} → {observation.completionTokens} (∑{" "}
-                  {observation.totalTokens})
-                </span>
+                {observation.promptTokens ||
+                observation.completionTokens ||
+                observation.totalTokens ? (
+                  <span className="text-xs text-gray-500">
+                    {observation.promptTokens} → {observation.completionTokens}{" "}
+                    (∑ {observation.totalTokens})
+                  </span>
+                ) : null}
               </div>
               {observation.level !== "DEFAULT" ? (
                 <div className="flex">
