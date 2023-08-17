@@ -113,7 +113,7 @@ export default function Layout(props: PropsWithChildren) {
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
             as="div"
-            className="relative z-50 lg:hidden"
+            className="relative z-50 xl:hidden"
             onClose={setSidebarOpen}
           >
             <Transition.Child
@@ -164,8 +164,8 @@ export default function Layout(props: PropsWithChildren) {
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
                   <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
-                    <div className="flex h-16 shrink-0 items-center font-mono text-xl font-bold">
-                      🪢 langfuse
+                    <div className="flex h-16 shrink-0 items-center font-mono text-xl font-semibold">
+                      🪢 Langfuse
                     </div>
                     <nav className="flex flex-1 flex-col">
                       <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -265,11 +265,11 @@ export default function Layout(props: PropsWithChildren) {
         </Transition.Root>
 
         {/* Static sidebar for desktop */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+        <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
           <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6">
-            <div className="flex h-16 shrink-0 items-center font-mono text-xl font-bold">
-              🪢 langfuse
+            <div className="flex h-16 shrink-0 items-center font-mono text-xl font-semibold">
+              🪢 Langfuse
             </div>
             <nav className="flex flex-1 flex-col">
               <ul role="list" className="flex flex-1 flex-col gap-y-4">
@@ -419,27 +419,18 @@ export default function Layout(props: PropsWithChildren) {
           </div>
         </div>
 
-        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden">
+        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 xl:hidden">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            className="-m-2.5 p-2.5 text-gray-700 xl:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
-          <div className="flex-1 font-mono text-sm font-bold leading-6 text-gray-900">
-            🪢 langfuse
+          <div className="flex-1 font-mono text-sm font-semibold leading-6 text-gray-900">
+            🪢 Langfuse
           </div>
-          <FeedbackButtonWrapper>
-            <Button variant="outline" color="gray" size="sm">
-              <MessageSquarePlus
-                className="mr-2 h-4 w-4 shrink-0 text-primary"
-                aria-hidden="true"
-              />
-              <span>Feedback</span>
-            </Button>
-          </FeedbackButtonWrapper>
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>
@@ -485,10 +476,10 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="lg:pl-72">
+        <div className="xl:pl-72">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID ? (
-            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 lg:sticky lg:top-0 lg:z-40">
+            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 xl:sticky xl:top-0 xl:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
                   <Info className="h-4 w-4" />
