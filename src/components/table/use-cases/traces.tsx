@@ -103,7 +103,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
       header: "ID",
       cell: ({ row }) => {
         const value = row.getValue("id");
-        return typeof value === "string" ? (
+        return value && typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/traces/${value}`}
             value={value}
@@ -145,7 +145,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
       header: "User ID",
       cell: ({ row }) => {
         const value = row.getValue("userId");
-        return typeof value === "string" ? (
+        return value && typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/users/${value}`}
             value={value}
