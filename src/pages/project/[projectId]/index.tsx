@@ -6,9 +6,9 @@ import {
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseriesAggregation";
 import {
-  ChartGenerations,
   ChartScores,
   ChartTraces,
+  ChartUsage,
 } from "@/src/features/dashboard/components/charts";
 import { useRouter } from "next/router";
 
@@ -35,7 +35,8 @@ export default function Start() {
       </Tabs>
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartTraces agg={agg} projectId={projectId} />
-        <ChartGenerations agg={agg} projectId={projectId} />
+        {/* <ChartGenerations agg={agg} projectId={projectId} /> */}
+        <ChartUsage agg={agg} projectId={projectId} />
         <div className="col-span-full">
           <ChartScores agg={agg} projectId={projectId} />
         </div>
