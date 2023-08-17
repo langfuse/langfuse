@@ -47,13 +47,14 @@ jobs:
           docker-compose -f docker-compose.dev.yml up -d
           npx --yes prisma migrate reset --force --skip-generate
 
-      - name: run langfuse (without building)
-        run: |
-          (npm run dev&)
+      - name: Build
+        run: npm run build
+
+      - name: Start Langfuse
+        run: (npm start&)
 
       - name: run tests
-        run: |
-          npm run test
+        run: npm run test
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
