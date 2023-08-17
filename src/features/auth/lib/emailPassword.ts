@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { prisma } from "@/src/server/db";
 import { compare, hash } from "bcryptjs";
 
@@ -28,11 +29,33 @@ export async function createUserEmailPassword(
     throw new Error("User already exists");
   }
 
+  // set demoProjectId if env exists and project exists in db
+  const demoProjectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID
+    ? (
+        await prisma.project.findUnique({
+          where: {
+            id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+          },
+        })
+      )?.id
+    : undefined;
+
   const newUser = await prisma.user.create({
     data: {
       email,
       password: hashedPassword,
       name,
+      // if demo project id is set grant user access to it
+      ...(demoProjectId
+        ? {
+            memberships: {
+              create: {
+                projectId: demoProjectId,
+                role: "VIEWER",
+              },
+            },
+          }
+        : undefined),
     },
   });
   return newUser.id;

@@ -31,13 +31,10 @@ export const traceRouter = createTRPCRouter({
         ? Prisma.sql`AND t."user_id" = ${input.userId}`
         : Prisma.empty;
 
-      const createNamesFilter = (names: string[]) => {
-        return Prisma.sql`AND t."name" IN (${Prisma.join(names)})`;
-      };
-
-      const nameCondition = input.name
-        ? createNamesFilter(input.name)
-        : Prisma.empty;
+      const nameCondition =
+        input.name !== null && input.name.length
+          ? Prisma.sql`AND t."name" IN (${Prisma.join(input.name)})`
+          : Prisma.empty;
 
       let scoreCondition = Prisma.empty;
       if (input.scores) {
@@ -107,14 +104,16 @@ export const traceRouter = createTRPCRouter({
         `
       );
 
-      const scores = await ctx.prisma.$queryRaw<Score[]>(
-        Prisma.sql`
+      const scores = traces.length
+        ? await ctx.prisma.$queryRaw<Score[]>(
+            Prisma.sql`
           SELECT s.*
           FROM "scores" s
           WHERE s."trace_id" IN (${Prisma.join(
             traces.map((trace) => trace.id)
           )})`
-      );
+          )
+        : [];
 
       return traces.map((trace) => ({
         ...trace,

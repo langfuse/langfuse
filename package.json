@@ -13,9 +13,8 @@
     "start": "next start",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
-    "migrate:dev": "dotenv -e .env.local -- npx prisma migrate dev",
-    "migrate:prod": "dotenv -e .env.local -- npx prisma migrate deploy",
-    "prisma-studio": "dotenv -e .env.local -- npx prisma studio"
+    "db:seed": "npx prisma db seed",
+    "db:seed:examples": "npx prisma db seed -- --environment examples"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

@@ -287,8 +287,9 @@ export default async function handler(
           : undefined);
 
       const newTotalTokens =
+        usage?.totalTokens ??
         (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
-        (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
+          (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
 
       // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
       // Including projectid would lead to race conditions and unique key errors
