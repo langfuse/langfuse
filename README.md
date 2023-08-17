@@ -21,7 +21,7 @@
          <strong>langfuse.com</strong>
       </a> ·
       <a href="https://langfuse.com/docs">
-         <strong>Integration docs</strong>
+         <strong>Docs</strong>
       </a> ·
       <a href="https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+">
          <strong>Report Bug</strong>
