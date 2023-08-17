@@ -200,4 +200,70 @@ export const dashboardRouter = createTRPCRouter({
         ts: row.date_trunc.getTime(),
       }));
     }),
+  tokenUsage: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        agg: z.enum(dateTimeAggregationOptions),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const output = await ctx.prisma.$queryRawUnsafe<
+        {
+          date: Date;
+          promptTokens: { [model: string]: number } | null;
+          completionTokens: { [model: string]: number } | null;
+          totalTokens: { [model: string]: number } | null;
+        }[]
+      >(`
+      WITH timeseries AS (
+        SELECT
+          date_trunc('${
+            dateTimeAggregationSettings[input.agg].date_trunc
+          }', dt) as date_trunc
+        FROM generate_series(
+          NOW() - INTERVAL '${input.agg}', NOW(), INTERVAL '1 minute'
+        ) as dt
+        WHERE dt > NOW() - INTERVAL '${input.agg}'
+        GROUP BY 1
+      ),
+        token_usage AS (
+          SELECT 
+            date_trunc('${
+              dateTimeAggregationSettings[input.agg].date_trunc
+            }', start_time) as date_trunc,
+            COALESCE(model, 'undefined') model,
+            sum(prompt_tokens) prompt_tokens,
+            sum(completion_tokens) completion_tokens,
+            sum(total_tokens) total_tokens
+          from observations
+          WHERE start_time > NOW() - INTERVAL '${input.agg}'
+          AND project_id = '${input.projectId}'
+          GROUP BY 1,2
+          HAVING sum(prompt_tokens) > 0 OR sum(completion_tokens) > 0 or sum(total_tokens) > 0
+          ORDER BY 1,2
+        ),
+        json_metrics as (
+          SELECT
+            date_trunc,
+            jsonb_object_agg(model, prompt_tokens) as prompt_tokens,
+            jsonb_object_agg(model, completion_tokens) as completion_tokens,
+            jsonb_object_agg(model, total_tokens) as total_tokens
+          from token_usage
+          GROUP BY 1
+        )
+        SELECT
+          timeseries.date_trunc as "date",
+          prompt_tokens "promptTokens",
+          completion_tokens "completionTokens",
+          total_tokens "totalTokens"
+        FROM timeseries
+        LEFT JOIN json_metrics ON timeseries.date_trunc = json_metrics.date_trunc
+      `);
+
+      return output.map((row) => ({
+        ...row,
+        ts: row.date.getTime(),
+      }));
+    }),
 });

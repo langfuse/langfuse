@@ -5,6 +5,7 @@ import { AreaChart } from "@tremor/react";
 export function BaseTimeSeriesChart(props: {
   agg: DateTimeAggregationOption;
   data: { ts: number; values: { label: string; value: number }[] }[];
+  connectNulls?: boolean;
 }) {
   const labels = new Set(
     props.data.flatMap((d) => d.values.map((v) => v.label))
@@ -52,8 +53,10 @@ export function BaseTimeSeriesChart(props: {
       data={transformArray(props.data)}
       index="timestamp"
       categories={Array.from(labels)}
+      connectNulls={props.connectNulls}
       colors={["indigo", "cyan"]}
       valueFormatter={numberFormatter}
+      noDataText="Loading ..."
     />
   );
 }

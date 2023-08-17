@@ -88,6 +88,8 @@ export const traceRouter = createTRPCRouter({
           )
           SELECT
             t.*,
+            t."external_id" AS "externalId",
+            t."user_id" AS "userId",
             COALESCE(u."promptTokens", 0)::int AS "promptTokens",
             COALESCE(u."completionTokens", 0)::int AS "completionTokens",
             COALESCE(u."totalTokens", 0)::int AS "totalTokens"
@@ -107,7 +109,10 @@ export const traceRouter = createTRPCRouter({
       const scores = traces.length
         ? await ctx.prisma.$queryRaw<Score[]>(
             Prisma.sql`
-          SELECT s.*
+          SELECT
+            s.*,
+            s."trace_id" AS "traceId",
+            s."observation_id" AS "observationId"
           FROM "scores" s
           WHERE s."trace_id" IN (${Prisma.join(
             traces.map((trace) => trace.id)
@@ -115,10 +120,12 @@ export const traceRouter = createTRPCRouter({
           )
         : [];
 
-      return traces.map((trace) => ({
+      const res = traces.map((trace) => ({
         ...trace,
         scores: scores.filter((score) => score.traceId === trace.id),
       }));
+      console.log(res);
+      return res;
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)

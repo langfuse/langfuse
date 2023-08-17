@@ -133,6 +133,35 @@ export default function SignIn() {
                 </Button>
               </form>
             </Form>
+            {env.NEXT_PUBLIC_HOSTNAME !== "cloud.langfuse.com" ? (
+              <div className="-mb-4 mt-8 text-center text-xs text-gray-500">
+                By creating an account you are agreeing to our{" "}
+                <a
+                  href="https://app.termly.io/document/terms-of-service/baf80a2e-dc67-46de-9ca8-2f7457179c32"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="italic"
+                >
+                  Terms of Service
+                </a>
+                ,{" "}
+                <a
+                  href="https://app.termly.io/document/privacy-policy/47905712-56e1-4ad0-9bb7-8958f3263f90"
+                  rel="noopener noreferrer"
+                  className="italic"
+                >
+                  Privacy Policy
+                </a>
+                , and{" "}
+                <a
+                  href="https://app.termly.io/document/cookie-policy/f97945a3-cb02-4db7-9370-c57023d92838"
+                  rel="noopener noreferrer"
+                  className="italic"
+                >
+                  Cookie Policy
+                </a>
+              </div>
+            ) : null}
           </div>
 
           <p className="mt-10 text-center text-sm text-gray-500">

@@ -18,13 +18,17 @@ export const TraceAggUsageBadge = (props: { observations: Observation[] }) => {
 
 export const TokenUsageBadge = (
   props:
-    | {
-        observation: Observation;
-      }
-    | {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
+    | (
+        | {
+            observation: Observation;
+          }
+        | {
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+          }
+      ) & {
+        inline?: boolean;
       }
 ) => {
   const usage =
@@ -35,6 +39,13 @@ export const TokenUsageBadge = (
           totalTokens: props.observation.totalTokens,
         }
       : props;
+
+  if (props.inline)
+    return (
+      <span>
+        {usage.promptTokens} → {usage.completionTokens} (∑ {usage.totalTokens})
+      </span>
+    );
 
   return (
     <Badge variant="outline">

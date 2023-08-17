@@ -55,7 +55,7 @@ const ObservationTreeTraceNode = (props: {
         {props.trace.timestamp.toLocaleString()}
       </span>
     </div>
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1">
       {props.scores.find((s) => s.observationId === null) ? (
         <GroupedScoreBadges
           scores={props.scores.filter((s) => s.observationId === null)}
@@ -90,10 +90,14 @@ const ObservationTreeNode = (props: {
               onClick={() => props.setCurrentObservationId(observation.id)}
             >
               <div className="flex gap-2">
-                <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>
+                <span
+                  className={cn(
+                    "self-start rounded-sm bg-gray-200 p-1 text-xs"
+                  )}
+                >
                   {observation.type}
                 </span>
-                <span>{observation.name}</span>
+                <span className="line-clamp-1">{observation.name}</span>
               </div>
               <div className="flex gap-2">
                 {observation.endTime ? (
@@ -103,10 +107,14 @@ const ObservationTreeNode = (props: {
                     ms
                   </span>
                 ) : null}
-                <span className="text-xs text-gray-500">
-                  {observation.promptTokens} → {observation.completionTokens} (∑{" "}
-                  {observation.totalTokens})
-                </span>
+                {observation.promptTokens ||
+                observation.completionTokens ||
+                observation.totalTokens ? (
+                  <span className="text-xs text-gray-500">
+                    {observation.promptTokens} → {observation.completionTokens}{" "}
+                    (∑ {observation.totalTokens})
+                  </span>
+                ) : null}
               </div>
               {observation.level !== "DEFAULT" ? (
                 <div className="flex">
@@ -122,7 +130,7 @@ const ObservationTreeNode = (props: {
                 </div>
               ) : null}
               {props.scores.find((s) => s.observationId === observation.id) ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1">
                   <GroupedScoreBadges
                     scores={props.scores.filter(
                       (s) => s.observationId === observation.id

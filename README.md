@@ -141,11 +141,11 @@ docker-compose -f docker-compose.dev.yml up -d
 cp .env.dev.example .env
 
 # Migration
-npx prisma migrate dev
+npm run db:migrate
 
 # Optional: seed the database
-# npx prisma db seed
-# npx prisma db seed:examples
+# npm run db:seed
+# npm run db:seed:examples
 
 # Start the server
 npm run dev
