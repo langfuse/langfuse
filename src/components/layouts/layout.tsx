@@ -1,24 +1,25 @@
 import { ROUTES } from "@/src/components/layouts/routes";
+import { Fragment, type PropsWithChildren, useState } from "react";
+import { Dialog, Menu, Transition } from "@headlessui/react";
+import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+
+import Link from "next/link";
+import { useRouter } from "next/router";
+import clsx from "clsx";
+import { Code, MessageSquarePlus, Info } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import { cn } from "@/src/utils/tailwind";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { Button } from "@/src/components/ui/button";
-import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { Dialog, Menu, Transition } from "@headlessui/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
-import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import clsx from "clsx";
-import { Code, MessageSquarePlus, Info } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
+import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
+import { Button } from "@/src/components/ui/button";
 import Head from "next/head";
-import Link from "next/link";
-import { useRouter } from "next/router";
-import { Fragment, useState, type PropsWithChildren } from "react";
 import { env } from "@/src/env.mjs";
 
 const userNavigation = [
@@ -37,13 +38,13 @@ const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
-  const projectId = (router.query.projectId as string) ?? "";
+  const projectId = router.query.projectId as string | undefined;
   const navigation = ROUTES.filter(
     ({ pathname }) => projectId || !pathname.includes("[projectId]")
   )
     .map(({ pathname, ...rest }) => ({
       pathname,
-      href: pathname.replace("[projectId]", projectId),
+      href: pathname.replace("[projectId]", projectId ?? ""),
       ...rest,
     }))
     .map(({ pathname, ...rest }) => ({
@@ -106,7 +107,7 @@ export default function Layout(props: PropsWithChildren) {
       <Head>
         <title>
           {currentPathName
-            ? `${currentPathName} | Langfuse is an open-source product analytics suite for LLM apps.`
+            ? `${currentPathName} | Langfuse`
             : "Langfuse is an open-source product analytics suite for LLM apps."}
         </title>
       </Head>

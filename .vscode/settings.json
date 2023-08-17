@@ -28,6 +28,5 @@
   "docwriter.style": "JSDoc",
   "[prisma]": {
     "editor.defaultFormatter": "Prisma.prisma"
-  },
-  "cSpell.words": ["langfuse", "nextjs", "posthog"]
+  }
 }

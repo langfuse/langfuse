@@ -42,10 +42,7 @@ export default function SignIn() {
   return (
     <>
       <Head>
-        <title>
-          Sign in | Langfuse is an open-source product analytics suite for LLM
-          apps.
-        </title>
+        <title>Sign in | Langfuse</title>
       </Head>
       <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
