@@ -5,7 +5,6 @@ import TableLink from "@/src/components/table/table-link";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { api } from "@/src/utils/api";
-import { lastCharacters } from "@/src/utils/string";
 import {
   type SelectedScoreFilter,
   type ScoreFilter,
