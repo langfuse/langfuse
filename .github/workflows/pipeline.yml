@@ -41,7 +41,7 @@ jobs:
       - name: run langfuse
         run: |
           echo "::group::Run langfuse server"
-          docker-compose up -f docker-compose.build.yml -d
+          docker-compose -f docker-compose.build.yml up -d --build
           echo "::endgroup::"
 
           echo "::group::Apply migrations and seed db"
