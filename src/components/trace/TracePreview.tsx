@@ -31,7 +31,7 @@ export const TracePreview = ({
 }) => {
   return (
     <Card className="flex-1">
-      <CardHeader className="flex items-start gap-2 sm:flex-row sm:justify-between">
+      <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
         <div className="flex flex-col gap-1">
           <CardTitle>
             <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">

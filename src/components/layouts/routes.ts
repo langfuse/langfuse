@@ -1,12 +1,11 @@
 import {
-  Cog6ToothIcon,
-  DocumentDuplicateIcon,
-} from "@heroicons/react/20/solid";
-import {
-  BarChart3,
+  FlaskConical,
   HelpingHand,
-  HomeIcon,
+  LayoutDashboard,
   LineChart,
+  ListTree,
+  Settings,
+  TextSelect,
   UsersIcon,
 } from "lucide-react";
 
@@ -14,22 +13,22 @@ export const ROUTES = [
   {
     name: "Dashboard",
     pathname: `/project/[projectId]`,
-    icon: HomeIcon,
+    icon: LayoutDashboard,
   },
   {
     name: "Analytics (alpha)",
     pathname: `/project/[projectId]/analytics`,
-    icon: BarChart3,
+    icon: FlaskConical,
   },
   {
     name: "Traces",
     pathname: `/project/[projectId]/traces`,
-    icon: UsersIcon,
+    icon: ListTree,
   },
   {
     name: "Generations",
     pathname: `/project/[projectId]/generations`,
-    icon: DocumentDuplicateIcon,
+    icon: TextSelect,
   },
   {
     name: "Scores",
@@ -44,7 +43,7 @@ export const ROUTES = [
   {
     name: "Settings",
     pathname: "/project/[projectId]/settings",
-    icon: Cog6ToothIcon,
+    icon: Settings,
   },
   {
     name: "Talk to founder",

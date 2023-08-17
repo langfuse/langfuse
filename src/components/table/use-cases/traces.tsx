@@ -100,6 +100,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
   const columns: ColumnDef<TraceTableRow>[] = [
     {
       accessorKey: "id",
+      header: "ID",
       cell: ({ row }) => {
         const value = row.getValue("id");
         return typeof value === "string" ? (
@@ -142,6 +143,15 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     {
       accessorKey: "userId",
       header: "User ID",
+      cell: ({ row }) => {
+        const value = row.getValue("userId");
+        return typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/users/${value}`}
+            value={value}
+          />
+        ) : undefined;
+      },
     },
     {
       accessorKey: "usage",
@@ -157,6 +167,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
             promptTokens={value.promptTokens}
             completionTokens={value.completionTokens}
             totalTokens={value.totalTokens}
+            inline
           />
         );
       },
@@ -183,8 +194,8 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
       cell: ({ row }) => {
         const values: Score[] = row.getValue("scores");
         return (
-          <div className="flex flex-col">
-            <GroupedScoreBadges scores={values} />
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <GroupedScoreBadges scores={values} inline />
           </div>
         );
       },
