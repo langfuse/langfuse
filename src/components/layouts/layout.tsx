@@ -106,9 +106,7 @@ export default function Layout(props: PropsWithChildren) {
     <>
       <Head>
         <title>
-          {currentPathName
-            ? `${currentPathName} | Langfuse`
-            : "Langfuse is an open-source product analytics suite for LLM apps."}
+          {currentPathName ? `${currentPathName} | Langfuse` : "Langfuse"}
         </title>
       </Head>
       <div>
