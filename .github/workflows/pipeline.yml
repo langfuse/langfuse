@@ -38,16 +38,18 @@ jobs:
         run: |
           npm install
 
-      - name: run langfuse
+      - name: Load default env
         run: |
-          echo "::group::Run langfuse server"
-          docker-compose -f docker-compose.build.yml up -d --build
-          echo "::endgroup::"
-
-          echo "::group::Apply migrations and seed db"
           cp .env.dev.example .env
+
+      - name: Run, migrate, seed DB
+        run: |
+          docker-compose -f docker-compose.dev.yml up -d
           npx --yes prisma migrate reset --force --skip-generate
-          echo "::endgroup::"
+
+      - name: run langfuse (without building)
+        run: |
+          npm start dev
 
       - name: run tests
         run: |
