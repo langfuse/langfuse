@@ -13,12 +13,13 @@ import { Dialog, Menu, Transition } from "@headlessui/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
-import { Code, MessageSquarePlus } from "lucide-react";
+import { Code, MessageSquarePlus, Info } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Fragment, useState, type PropsWithChildren } from "react";
+import { env } from "@/src/env.mjs";
 
 const userNavigation = [
   {
@@ -238,6 +239,18 @@ export default function Layout(props: PropsWithChildren) {
                                   <span className="truncate">
                                     {project.name}
                                   </span>
+                                  {project.role === "VIEWER" ? (
+                                    <span
+                                      className={cn(
+                                        "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                        projectId === project.id
+                                          ? "border-indigo-600 text-indigo-600"
+                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600"
+                                      )}
+                                    >
+                                      view-only
+                                    </span>
+                                  ) : null}
                                 </Link>
                               </li>
                             ))}
@@ -329,6 +342,18 @@ export default function Layout(props: PropsWithChildren) {
                             <Code />
                           </span>
                           <span className="truncate">{project.name}</span>
+                          {project.role === "VIEWER" ? (
+                            <span
+                              className={cn(
+                                "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                projectId === project.id
+                                  ? "border-indigo-600 text-indigo-600"
+                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600"
+                              )}
+                            >
+                              view-only
+                            </span>
+                          ) : null}
                         </Link>
                       </li>
                     ))}
@@ -462,6 +487,43 @@ export default function Layout(props: PropsWithChildren) {
           </Menu>
         </div>
         <div className="lg:pl-72">
+          {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID ? (
+            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 lg:sticky lg:top-0 lg:z-40">
+              <div className="flex flex-1 flex-wrap gap-1">
+                <div className="flex items-center gap-1">
+                  <Info className="h-4 w-4" />
+                  <span className="font-semibold">DEMO (view-only)</span>
+                </div>
+                <div className="hidden sm:block">
+                  Live data from the Langfuse Q&A Chatbot.
+                </div>
+              </div>
+              <div className="ml-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="hidden md:inline"
+                  asChild
+                >
+                  <Link
+                    href="https://langfuse.com/blog/qa-chatbot-for-langfuse-docs"
+                    target="_blank"
+                  >
+                    Blog post ↗
+                  </Link>
+                </Button>
+                <Button size="sm" className="ml-3" asChild>
+                  <Link
+                    href="https://langfuse.com/docs/qa-chatbot"
+                    target="_blank"
+                  >
+                    Q&A Chatbot ↗
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <main className="py-4">
             <div className="px-4">{props.children}</div>
           </main>

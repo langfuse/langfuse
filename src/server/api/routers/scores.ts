@@ -5,6 +5,7 @@ import {
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const ScoreFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
@@ -137,6 +138,11 @@ export const scoresRouter = createTRPCRouter({
           },
         },
       });
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: trace.projectId,
+        scope: "scores:CUD",
+      });
 
       return ctx.prisma.score.create({
         data: {
@@ -182,6 +188,18 @@ export const scoresRouter = createTRPCRouter({
             },
           },
         },
+        include: {
+          trace: {
+            select: {
+              projectId: true,
+            },
+          },
+        },
+      });
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: score.trace.projectId,
+        scope: "scores:CUD",
       });
 
       return ctx.prisma.score.update({
@@ -210,6 +228,18 @@ export const scoresRouter = createTRPCRouter({
             },
           },
         },
+        include: {
+          trace: {
+            select: {
+              projectId: true,
+            },
+          },
+        },
+      });
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: score.trace.projectId,
+        scope: "scores:CUD",
       });
 
       return ctx.prisma.score.delete({

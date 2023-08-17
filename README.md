@@ -35,8 +35,12 @@
       <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
       <a href="https://discord.gg/7NXusRtqYU"><img src="https://img.shields.io/discord/1111061815649124414?style=flat-square&logo=Discord&logoColor=white&label=Discord&color=%23434EE4" alt="Discord"></a>
       <a href="https://github.com/langfuse/langfuse"><img src="https://img.shields.io/github/stars/langfuse/langfuse?style=flat-square&logo=GitHub&label=langfuse%2Flangfuse" alt="Github Repo Stars"></a>
+      <a href="https://github.com/langfuse/langfuse/actions/workflows/pipeline.yml?query=branch:main"><img src="https://img.shields.io/github/actions/workflow/status/langfuse/langfuse/pipeline.yml?style=flat-square&label=All%20tests" alt="CI test status"></a>
       <a href="https://status.langfuse.com"><img src="https://api.checklyhq.com/v1/badges/checks/62f11f82-33c0-40c1-a704-7b57518da517?style=flat-square&theme=default&responseTime=true" alt="Checkly Status"></a>
       <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
+      <a href="https://github.com/langfuse/langfuse/pkgs/container/langfuse"><img alt="Docker Image" src="https://img.shields.io/badge/docker-langfuse-blue?logo=Docker&logoColor=white&style=flat-square"></a>
+      <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse" alt="langfuse npm package"></a>
+      <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse" alt="langfuse Python package on PyPi"></a>
    </div>
 </div>
 </br>
@@ -83,6 +87,73 @@ Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions
   - Analytics engine
   - Detailed reports on latency, cost, quality
   - Evals
+
+# Run locally
+
+Requirements:
+
+- Docker: run postgres and [dockerized Langfuse](https://ghcr.io/langfuse/langfuse) to start langfuse quickly
+- Node.JS & NPM: apply db migration using ORM (Prisma)
+
+**Start**
+
+```bash
+# Clone repository
+git clone git@github.com:langfuse/langfuse.git
+cd langfuse
+
+# Run server and db
+docker compose up -d
+
+# Apply db migrations
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
+```
+
+-> Visit http://localhost:3000
+
+**Upgrade**
+
+```bash
+# Stop server and db
+docker compose down
+
+# Pull latest changes
+git pull
+docker-compose pull
+
+# Run server and db
+docker compose up -d
+
+# Apply db migrations
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
+```
+
+# Local development
+
+```
+# Install dependencies
+npm install
+
+# Run the db
+docker-compose -f docker-compose.dev.yml up -d
+
+# create an env file
+cp .env.dev.example .env
+
+# Migration
+npx prisma migrate dev
+
+# Optional: seed the database
+# npx prisma db seed
+# npx prisma db seed:examples
+
+# Start the server
+npm run dev
+```
+
+# Run Langfuse in CI
+
+For integration testing of SDKs we run Langfuse in CI, see workflows in [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml) for reference.
 
 # Contributing to Langfuse
 

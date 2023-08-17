@@ -15,6 +15,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import type * as z from "zod";
+import { env } from "@/src/env.mjs";
 
 export default function SignIn() {
   const form = useForm<z.infer<typeof signupSchema>>({
@@ -42,7 +43,7 @@ export default function SignIn() {
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/",
+        callbackUrl: "/?getStarted=1",
       });
     } catch (err) {
       form.setError("root", {
@@ -54,12 +55,14 @@ export default function SignIn() {
   return (
     <>
       <Head>
-        <title>
-          Sign up | Langfuse is an open-source product analytics suite for LLM
-          apps.
-        </title>
+        <title>Sign up | Langfuse</title>
+        <meta
+          name="description"
+          content="Create an account, no credit card required."
+          key="desc"
+        />
       </Head>
-      <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <span className="block text-center font-mono text-4xl font-bold">
             🪢
@@ -68,6 +71,11 @@ export default function SignIn() {
             Create new account
           </h2>
         </div>
+        {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com" ? (
+          <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
+            No credit card required. All users have access to a demo project.
+          </div>
+        ) : null}
 
         <div className="mt-14 sm:mx-auto sm:w-full sm:max-w-[480px]">
           <div className="bg-white px-6 py-12 shadow sm:rounded-lg sm:px-12">

@@ -1,43 +1,87 @@
 name: CI/CD
 
-on: push
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
 
 jobs:
-  ci:
+  lint:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/langfuse
-      NEXTAUTH_SECRET: "secret"
-      NEXTAUTH_URL: "http://localhost:3000/api"
-
     steps:
       - uses: actions/checkout@v3
-
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+      - name: install dependencies
+        run: |
+          npm install
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+      - name: lint
+        run: npm run lint
 
-      - name: Start containers
-        run: docker-compose -f "docker-compose.dev.yml" up -d --build
-
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "npm"
       - name: install dependencies
         run: |
           npm install
 
-      - name: lint
-        run: npm run lint
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
 
-      # - name: test
-      #   run: npm run test
+      - name: Run, migrate, seed DB
+        run: |
+          docker-compose -f docker-compose.dev.yml up -d
+          npx --yes prisma migrate reset --force --skip-generate
+
+      - name: Build
+        run: npm run build
+
+      - name: Start Langfuse
+        run: (npm start&)
+
+      - name: run tests
+        run: npm run test
+
+  all-ci-passed:
+    # This allows us to have a branch protection rule for tests and deploys with matrix
+    runs-on: ubuntu-latest
+    needs: [lint, tests]
+    if: always()
+    steps:
+      - name: Successful deploy
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Failing deploy
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
 
   cd:
-    needs: ci
+    needs: all-ci-passed
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       NEXTAUTH_SECRET: "secret"
       NEXTAUTH_URL: "http://localhost:3030"
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+    permissions:
+      packages: write
+      contents: read
 
     steps:
       - name: Setup node
@@ -48,10 +92,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Docker image
-        run: |
-          docker build \
-          --build-arg DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
-          --build-arg NEXTAUTH_SECRET=mysecret \
-          --build-arg NEXTAUTH_URL=http:localhost:3030 \
-          -t langfuse .
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DATABASE_URL=${{ env.DATABASE_URL }}
+            NEXTAUTH_SECRET=${{ env.NEXTAUTH_SECRET }}
+            NEXTAUTH_URL=${{ env.NEXTAUTH_URL }}
