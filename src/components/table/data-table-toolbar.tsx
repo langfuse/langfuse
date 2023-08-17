@@ -34,7 +34,7 @@ export function DataTableToolbar<TData, TValue>({
   );
 
   return (
-    <div className="my-2 flex items-center justify-between">
+    <div className="my-2 flex max-w-full items-center justify-between overflow-x-auto">
       <div className="flex flex-1 items-center space-x-2">
         {searchConfig ? (
           <div className="flex w-full max-w-md items-center space-x-2">

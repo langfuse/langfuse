@@ -117,6 +117,7 @@ export default function Generations() {
             promptTokens={value.promptTokens}
             completionTokens={value.completionTokens}
             totalTokens={value.totalTokens}
+            inline
           />
         );
       },
@@ -157,7 +158,7 @@ export default function Generations() {
         startTime: generation.startTime.toLocaleString(),
         endTime: generation.endTime?.toLocaleString() ?? undefined,
         name: generation.name ?? undefined,
-        model: JSON.stringify(generation.model),
+        model: generation.model ?? "",
         usage: {
           promptTokens: generation.promptTokens,
           completionTokens: generation.completionTokens,

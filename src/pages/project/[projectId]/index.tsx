@@ -23,7 +23,7 @@ export default function Start() {
       <Tabs
         value={agg}
         onValueChange={(value) => setAgg(value as DateTimeAggregationOption)}
-        className="mb-4"
+        className="mb-4 max-w-full overflow-x-auto"
       >
         <TabsList>
           {dateTimeAggregationOptions.map((option) => (

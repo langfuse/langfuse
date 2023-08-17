@@ -494,33 +494,13 @@ export default function Layout(props: PropsWithChildren) {
                   <Info className="h-4 w-4" />
                   <span className="font-semibold">DEMO (view-only)</span>
                 </div>
-                <div className="hidden sm:block">
-                  Live data from the Langfuse Q&A Chatbot.
-                </div>
+                <div>Live data from the Langfuse Q&A Chatbot.</div>
               </div>
-              <div className="ml-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="hidden md:inline"
-                  asChild
-                >
-                  <Link
-                    href="https://langfuse.com/blog/qa-chatbot-for-langfuse-docs"
-                    target="_blank"
-                  >
-                    Blog post ↗
-                  </Link>
-                </Button>
-                <Button size="sm" className="ml-3" asChild>
-                  <Link
-                    href="https://langfuse.com/docs/qa-chatbot"
-                    target="_blank"
-                  >
-                    Q&A Chatbot ↗
-                  </Link>
-                </Button>
-              </div>
+              <Button size="sm" variant="ghost" asChild className="ml-2">
+                <Link href="https://langfuse.com/docs/demo" target="_blank">
+                  Learn more ↗
+                </Link>
+              </Button>
             </div>
           ) : null}
           <main className="py-4">

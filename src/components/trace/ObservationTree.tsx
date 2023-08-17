@@ -55,7 +55,7 @@ const ObservationTreeTraceNode = (props: {
         {props.trace.timestamp.toLocaleString()}
       </span>
     </div>
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1">
       {props.scores.find((s) => s.observationId === null) ? (
         <GroupedScoreBadges
           scores={props.scores.filter((s) => s.observationId === null)}
@@ -97,7 +97,7 @@ const ObservationTreeNode = (props: {
                 >
                   {observation.type}
                 </span>
-                <span>{observation.name}</span>
+                <span className="line-clamp-1">{observation.name}</span>
               </div>
               <div className="flex gap-2">
                 {observation.endTime ? (
@@ -130,7 +130,7 @@ const ObservationTreeNode = (props: {
                 </div>
               ) : null}
               {props.scores.find((s) => s.observationId === observation.id) ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1">
                   <GroupedScoreBadges
                     scores={props.scores.filter(
                       (s) => s.observationId === observation.id

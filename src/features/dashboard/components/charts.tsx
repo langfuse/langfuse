@@ -85,7 +85,11 @@ export function ChartScores(props: {
         ) : null}
       </CardHeader>
       <CardContent>
-        <BaseTimeSeriesChart agg={props.agg} data={data.data ?? []} />
+        <BaseTimeSeriesChart
+          agg={props.agg}
+          data={data.data ?? []}
+          connectNulls
+        />
       </CardContent>
     </Card>
   );
