@@ -93,7 +93,7 @@ Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions
 Requirements:
 
 - Docker: run postgres and [dockerized Langfuse](https://ghcr.io/langfuse/langfuse) to start langfuse quickly
-- Node.JS & NPM: apply db migration using ORM (Prisma)
+- Node.js & NPM: apply db migration using ORM (Prisma)
 
 **Start**
 
