@@ -133,7 +133,7 @@ export default function SignIn() {
                 </Button>
               </form>
             </Form>
-            {env.NEXT_PUBLIC_HOSTNAME !== "cloud.langfuse.com" ? (
+            {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com" ? (
               <div className="-mb-4 mt-8 text-center text-xs text-gray-500">
                 By creating an account you are agreeing to our{" "}
                 <a
