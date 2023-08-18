@@ -151,6 +151,10 @@ npm run db:migrate
 npm run dev
 ```
 
+# Self hosted (Docker)
+
+[→ Self-hosting instructions](https://langfuse.com/docs/deployment/self-host)
+
 # Run Langfuse in CI
 
 For integration testing of SDKs we run Langfuse in CI, see workflows in [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml) for reference.
