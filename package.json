@@ -24,6 +24,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
+    "@formkit/auto-animate": "^0.7.0",
     "@headlessui/react": "^1.7.15",
     "@heroicons/react": "^2.0.18",
     "@hookform/resolvers": "^3.1.1",
