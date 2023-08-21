@@ -54,7 +54,12 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      console.log("Trying to generate span: ", req.body);
+      console.log(
+        "Trying to generate span, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        req.body
+      );
       const obj = SpanPostSchema.parse(req.body);
       const {
         id,
@@ -165,7 +170,12 @@ export default async function handler(
     }
   } else if (req.method === "PATCH") {
     try {
-      console.log("Trying to update span: ", req.body);
+      console.log(
+        "Trying to update span, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        req.body
+      );
       const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 
       // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
