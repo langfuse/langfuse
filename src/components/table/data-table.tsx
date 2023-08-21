@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/table";
 import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -37,6 +38,7 @@ export function DataTable<TData, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [animationParent] = useAutoAnimate();
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -76,7 +78,7 @@ export function DataTable<TData, TValue>({
                 </TableRow>
               ))}
             </TableHeader>
-            <TableBody>
+            <TableBody ref={animationParent}>
               {data.isLoading || !data.data ? (
                 <TableRow>
                   <TableCell
