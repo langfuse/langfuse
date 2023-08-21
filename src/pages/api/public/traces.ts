@@ -42,7 +42,12 @@ export default async function handler(
 
   try {
     if (req.method === "POST") {
-      console.log("Trying to create trace:", req.body);
+      console.log(
+        "Trying to create trace, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        req.body
+      );
 
       const { id, name, metadata, externalId, userId, release, version } =
         CreateTraceSchema.parse(req.body);
