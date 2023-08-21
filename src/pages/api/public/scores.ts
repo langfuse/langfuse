@@ -42,7 +42,12 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      console.log("trying to create score", req.body);
+      console.log(
+        "trying to create score, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        req.body
+      );
 
       const obj = ScoreCreateSchema.parse(req.body);
 

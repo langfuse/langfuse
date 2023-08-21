@@ -42,6 +42,13 @@ export default async function handler(
     });
   // END CHECK AUTH
 
+  console.log(
+    "trying to create observation for event, project ",
+    authCheck.scope.projectId,
+    ", body:",
+    JSON.stringify(req.body, null, 2)
+  );
+
   try {
     const obj = ObservationSchema.parse(req.body);
     const {
