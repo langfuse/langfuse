@@ -11,6 +11,7 @@ export default async function handler(
   // parse and type check the request body with zod
   const validBody = signupSchema.safeParse(req.body);
   if (!validBody.success) {
+    console.log("Signup: Invalid body", validBody.error);
     res.status(422).json({ message: validBody.error });
     return;
   }
@@ -21,8 +22,15 @@ export default async function handler(
   try {
     await createUserEmailPassword(body.email, body.password, body.name);
   } catch (error) {
-    if (error instanceof Error)
+    if (error instanceof Error) {
+      console.log(
+        "Signup: Error creating user",
+        error.message,
+        body.email,
+        body.name
+      );
       res.status(422).json({ message: error.message });
+    }
     return;
   }
 
