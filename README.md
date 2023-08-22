@@ -3,12 +3,15 @@
       <h1>🪢 Langfuse</h1>
    </a>
    <h3>
-      Open-source analytics for LLM-based applications
+      Open source observability & analytics for LLM-based applications
    </h3>
-   <span>
-      Iterate faster on your application with a granular view on exact execution traces, quality, cost and latency
-   </span>
-   </br></br>
+   <div>
+      <strong>Observability:</strong> Explore and debug complex logs & traces in a visual UI
+   </div>
+   <div>
+      <strong>Analytics:</strong> Measure & improve costs, latency and response quality
+   </div>
+   </br>
    <div>
       <a href="https://discord.gg/7NXusRtqYU">
          <strong>Join the Langfuse Discord »</strong>
@@ -46,6 +49,22 @@
 </br>
 </div>
 </br>
+
+# What is Langfuse?
+
+Langfuse is an open source observability & analytics solution for LLM-based applications.
+
+See 2 min demo
+
+# Data ingestion
+
+| Source                         | Description                                                                                                                                                   | Links                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Langchain Integration (Python) | Callback handler that instruments Langchain applications; port for JS/TS is in progress, add +1 to [issue](https://github.com/langfuse/langfuse-js/issues/11) | [docs](https://langfuse.com/docs/integrations/langchain), [repo](https://github.com/langfuse/langfuse-python)      |
+| Python SDK                     | Async SDK to manually instrument Python applications                                                                                                          | [docs](https://langfuse.com/docs/integrations/sdk/python), [repo](https://github.com/langfuse/langfuse-python)     |
+| JS/TS SDK (Node, Edge, Deno)   | Async SDK to manually instrument Typescript applications                                                                                                      | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js)     |
+| JS/TS SDK (Web)                | Report scores from the browser, e.g. user feedback                                                                                                            | [docs](https://langfuse.com/docs/integrations/sdk/typescript-web), [repo](https://github.com/langfuse/langfuse-js) |
+| API                            | HTTP API ingest traces & scores                                                                                                                               | [api reference](https://langfuse.com/docs/integrations/api)                                                        |
 
 # ℹ️ Analytics is in alpha
 
