@@ -62,7 +62,55 @@ _Muted by default, enable sound for voice-over_
 
 Explore demo project in Langfuse here (free account required): https://langfuse.com/demo
 
-# Data ingestion
+## Observability
+
+## Analytics
+
+# Get started
+
+## Data ingestion
+
+### Langchain applications
+
+The Langfuse callback handler automatically instruments Langchain applications. Currently available for Python, JS/TS support is in progress (add +1 to issue [here](https://github.com/langfuse/langfuse-js/issues/11)).
+
+```shell
+pip install langfuse
+```
+
+```python
+# Initialize Langfuse handler
+from langfuse.callback import CallbackHandler
+handler = CallbackHandler(PUBLIC_KEY, SECRET_KEY)
+
+# Setup Langchain
+from langchain.chains import LLMChain
+...
+chain = LLMChain(llm=llm, prompt=prompt)
+
+# Add Langfuse handler as callback
+chain.run(input="<user_input", callbacks=[handler])
+```
+
+→ More details: [Langchain integration docs](https://langfuse.com/docs/integrations/langchain)
+
+### SDKs to manually instrument application
+
+Fully async, typed SDKs to instrument any LLM application. Currently available for Python & JS/TS.
+
+→ [Guide](https://langfuse.com/docs/guides/sdk-integration) with an example of how the SDK can be used
+
+| Package                                                                                                                                             | Description                      | Links                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [![PyPI Version](https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse)](https://pypi.python.org/pypi/langfuse)          | Python                           | [docs](https://langfuse.com/docs/integrations/sdk/python), [repo](https://github.com/langfuse/langfuse-python) |
+| [![npm Version](https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse)](https://www.npmjs.com/package/langfuse)                | JS/TS: Node >= 18, Edge runtimes | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
+| [![npm package](https://img.shields.io/npm/v/langfuse-node?style=flat-square&label=npm+langfuse-node)](https://www.npmjs.com/package/langfuse-node) | JS/TS: Node <18                  | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
+
+### Add scores/evaluations to traces
+
+Quality of traces is tracked via scores. Scores can be added [manually via the UI](),
+
+Scores can be added via the backend SDKs (see above). Alternatively add scores via the Web SDK or API using only the public API key to e.g. capture user feedback from the browser.
 
 | Source                         | Description                                                                                                                                                   | Links                                                                                                              |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -71,27 +119,6 @@ Explore demo project in Langfuse here (free account required): https://langfuse.
 | JS/TS SDK (Node, Edge, Deno)   | Async SDK to manually instrument Typescript applications                                                                                                      | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js)     |
 | JS/TS SDK (Web)                | Report scores from the browser, e.g. user feedback                                                                                                            | [docs](https://langfuse.com/docs/integrations/sdk/typescript-web), [repo](https://github.com/langfuse/langfuse-js) |
 | API                            | HTTP API ingest traces & scores                                                                                                                               | [api reference](https://langfuse.com/docs/integrations/api)                                                        |
-
-# ℹ️ Analytics is in alpha
-
-Langfuse analytics is currently in a closed alpha as the core team works with a group of users to build the most useful analytics platform for LLM apps.
-
-Reach out if you are interested to join the alpha: alpha@langfuse.com
-
-# Integrations
-
-Monitor backend executions of LLM app to create nested traces
-
-- Python SDK
-- Typescript SDK (node, edge)
-- API
-
-Collect user feedback and attach it to backend traces
-
-- Typescript/JS SDK
-- API
-
-More details: [langfuse.com/integrations](https://langfuse.com/integrations)
 
 # Data exploration
 
