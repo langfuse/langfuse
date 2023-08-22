@@ -54,7 +54,13 @@
 
 Langfuse is an open source observability & analytics solution for LLM-based applications.
 
-See 2 min demo
+**Demo (2 min)**
+
+https://github.com/langfuse/langfuse/assets/2834609/6041347a-b517-4a11-8737-93ef8f8af49f
+
+_Muted by default, enable sound for voice-over_
+
+Explore demo project in Langfuse here (free account required): https://langfuse.com/demo
 
 # Data ingestion
 
