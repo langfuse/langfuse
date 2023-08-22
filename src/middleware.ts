@@ -1,8 +1,12 @@
 import { type NextApiRequest } from "next";
 import { type NextRequest } from "next/server";
+import { get } from "@vercel/edge-config";
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   if (process.env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com") {
+    const config = await get("blockedIps");
+    const blockedIps = Array.isArray(config) ? config : [config];
+
     const ip = getIP(req);
     if (ip && blockedIps.includes(ip)) {
       console.log("Blocked request by ip: ", ip);
@@ -21,5 +25,3 @@ export default function getIP(request: Request | NextApiRequest) {
 
   return xff ? (Array.isArray(xff) ? xff[0] : xff.split(",")[0]) : "127.0.0.1";
 }
-
-const blockedIps = ["49.207.204.122"];
