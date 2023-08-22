@@ -31,29 +31,41 @@ export function Trace(props: {
   };
 
   return (
-    <div className="flex flex-col gap-8 md:flex-row-reverse">
-      <ObservationTree
-        observations={props.observations}
-        trace={props.trace}
-        scores={props.scores}
-        currentObservationId={currentObservationId}
-        setCurrentObservationId={setCurrentObservationId}
-      />
-
-      {currentObservationId === undefined || currentObservationId === "" ? (
-        <TracePreview
+    <div className="grid h-full gap-4 md:grid-cols-3">
+      <div className="col-span-1 lg:hidden">
+        <ObservationTree
+          observations={props.observations}
           trace={props.trace}
-          observations={props.observations}
           scores={props.scores}
-        />
-      ) : (
-        <ObservationPreview
-          observations={props.observations}
-          scores={props.scores}
-          projectId={props.projectId}
           currentObservationId={currentObservationId}
+          setCurrentObservationId={setCurrentObservationId}
         />
-      )}
+      </div>
+      <div className="col-span-2 h-full overflow-y-auto">
+        {currentObservationId === undefined || currentObservationId === "" ? (
+          <TracePreview
+            trace={props.trace}
+            observations={props.observations}
+            scores={props.scores}
+          />
+        ) : (
+          <ObservationPreview
+            observations={props.observations}
+            scores={props.scores}
+            projectId={props.projectId}
+            currentObservationId={currentObservationId}
+          />
+        )}
+      </div>
+      <div className="col-span-1 hidden h-full overflow-y-auto lg:block">
+        <ObservationTree
+          observations={props.observations}
+          trace={props.trace}
+          scores={props.scores}
+          currentObservationId={currentObservationId}
+          setCurrentObservationId={setCurrentObservationId}
+        />
+      </div>
     </div>
   );
 }
