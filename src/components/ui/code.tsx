@@ -111,7 +111,7 @@ export function CodeView(props: {
         <code
           className={cn(
             "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
-            isCollapsed ? `line-clamp-4` : "block",
+            isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "max-h-60 overflow-y-scroll" : undefined
           )}
         >
