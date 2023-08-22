@@ -16,7 +16,8 @@ export async function createUserEmailPassword(
   password: string,
   name: string
 ) {
-  if (!isValidPassword(password)) throw new Error("Invalid password");
+  if (!isValidPassword(password))
+    throw new Error("Password needs to be at least 8 characters long.");
 
   const hashedPassword = await hashPassword(password);
   // check that no user exists with this email
@@ -26,7 +27,7 @@ export async function createUserEmailPassword(
     },
   });
   if (user !== null) {
-    throw new Error("User already exists");
+    throw new Error("User with email already exists. Please sign in.");
   }
 
   // set demoProjectId if env exists and project exists in db
