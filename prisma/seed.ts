@@ -23,7 +23,7 @@ async function main() {
     where: { id: "user-1" },
     update: {
       name: "Demo User",
-      email: "Demo User",
+      email: "demo@langfuse.com",
       password: await hash("password", 12),
     },
     create: {
