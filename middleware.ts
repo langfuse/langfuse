@@ -1,9 +1,8 @@
-import { env } from "@/src/env.mjs";
 import { type NextApiRequest } from "next";
 import { type NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  if (env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com") {
+  if (process.env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com") {
     const ip = getIP(req);
     if (ip && blockedIps.includes(ip)) {
       console.log("Blocked request by ip: ", ip);
