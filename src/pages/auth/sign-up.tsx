@@ -16,8 +16,10 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import type * as z from "zod";
 import { env } from "@/src/env.mjs";
+import { useState } from "react";
 
 export default function SignIn() {
+  const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -29,6 +31,7 @@ export default function SignIn() {
 
   async function onSubmit(values: z.infer<typeof signupSchema>) {
     try {
+      setFormError(null);
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,7 +40,8 @@ export default function SignIn() {
 
       if (!res.ok) {
         const payload = (await res.json()) as { message: string };
-        throw new Error(payload.message);
+        setFormError(payload.message);
+        return;
       }
 
       await signIn<"credentials">("credentials", {
@@ -46,9 +50,7 @@ export default function SignIn() {
         callbackUrl: "/?getStarted=1",
       });
     } catch (err) {
-      form.setError("root", {
-        message: (err as { message: string }).message,
-      });
+      setFormError("An error occurred. Please try again.");
     }
   }
 
@@ -131,6 +133,11 @@ export default function SignIn() {
                 >
                   Sign up
                 </Button>
+                {formError ? (
+                  <div className="text-center text-sm text-red-500">
+                    {formError}
+                  </div>
+                ) : null}
               </form>
             </Form>
             {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com" ? (
