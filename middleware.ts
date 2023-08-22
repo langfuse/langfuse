@@ -6,7 +6,7 @@ export function middleware(req: NextRequest) {
   if (env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com") {
     const ip = getIP(req);
     if (ip && blockedIps.includes(ip)) {
-      console.log("Blocked request by ip: ", ip, ", request: ", req);
+      console.log("Blocked request by ip: ", ip);
       return new Response("Access denied", { status: 403 });
     }
   }
