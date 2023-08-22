@@ -1,3 +1,6 @@
+// Middleware to block requests from certain IPs on Langfuse Cloud
+// Not included in the self-host build, removed in Dockerfile
+
 import { type NextApiRequest } from "next";
 import { type NextRequest } from "next/server";
 import { get } from "@vercel/edge-config";
