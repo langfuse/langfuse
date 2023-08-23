@@ -52,9 +52,9 @@
 
 # What is Langfuse?
 
-Langfuse is an open source observability & analytics solution for LLM-based applications. It is mostly used to monitor production usage but some users also use it for local development of their LLM applications.
+Langfuse is an open source observability & analytics solution for LLM-based applications. It is mostly geared towards production usage but some users also use it for local development of their LLM applications.
 
-Langfuse is focused on applications built on top of LLMs. Many new abstractions and common best practices envolved recently and they are complex to monitor at runtime, e.g. agents, chained prompts, embedding.based retrieval, access to REPLs, access to APIs. These make applications more powerful but also unpredictable for developers. Thus Langfuse helps to monitor and debug these applications while aggregating metrics that help with improving the application.
+Langfuse is focused on applications built on top of LLMs. Many new abstractions and common best practices evolved recently, e.g. agents, chained prompts, embedding-based retrieval, LLM access to REPLs & APIs. These make applications more powerful but also unpredictable for developers as they cannot fully anticipate how changes impact the quality, cost and overall latency of their application. Thus Langfuse helps to monitor and debug these applications.
 
 **Demo (2 min)**
 
