@@ -17,9 +17,6 @@
          <strong>Join the Langfuse Discord »</strong>
       </a>
       </br>
-      <a href="#roadmap">
-         <strong>Roadmap</strong>
-      </a> ·
       <a href="https://langfuse.com">
          <strong>langfuse.com</strong>
       </a> ·
@@ -50,7 +47,7 @@
 </div>
 </br>
 
-# What is Langfuse?
+## What is Langfuse?
 
 Langfuse is an open source observability & analytics solution for LLM-based applications. It is mostly geared towards production usage but some users also use it for local development of their LLM applications.
 
@@ -64,14 +61,14 @@ _Muted by default, enable sound for voice-over_
 
 Explore demo project in Langfuse here (free account required): https://langfuse.com/demo
 
-## Observability
+### Observability
 
 Langfuse offers an admin UI to explore the ingested data.
 
 - Nested view of LLM app executions; detailed information along the traces on: latency, cost, scores
 - Segment execution traces by user feedback, to e.g. identify production issues
 
-## Analytics
+### Analytics
 
 Reporting on
 
@@ -89,17 +86,17 @@ Broken down by
 
 → Expect releases with more ways to analyze the data over the next weeks.
 
-# Get started
+## Get started
 
-## Step 1: Run Server
+### Step 1: Run Server
 
-### Langfuse Cloud
+#### Langfuse Cloud
 
 Managed deployment by the Langfuse team, generous free-tier (hobby plan) available, no credit card required.
 
 Links: [Create account](https://cloud.langfuse.com), [learn more](https://cloud.langfuse.com)
 
-### Localhost
+#### Localhost
 
 Requirements: Docker, Node.js >=18, npm
 
@@ -115,13 +112,13 @@ docker compose up -d
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
-### Self-host (Docker)
+#### Self-host (Docker)
 
 [→ Instructions](https://langfuse.com/docs/deployment/self-host)
 
-## Step 2: Data ingestion
+### Step 2: Data ingestion
 
-### Langchain applications
+#### Langchain applications
 
 The Langfuse callback handler automatically instruments Langchain applications. Currently available for Python, JS/TS support is in progress (add +1 to issue [here](https://github.com/langfuse/langfuse-js/issues/11)).
 
@@ -145,7 +142,7 @@ chain.run(input="<user_input", callbacks=[handler])
 
 → More details: [Langchain integration docs](https://langfuse.com/docs/integrations/langchain)
 
-### SDKs to manually instrument application
+#### SDKs to manually instrument application
 
 Fully async, typed SDKs to instrument any LLM application. Currently available for Python & JS/TS.
 
@@ -196,14 +193,20 @@ Quality/evaluation of traces is tracked via scores ([docs](https://langfuse.com/
   }
   ```
 
-### API
+#### API
 
 [**Api reference**](https://langfuse.com/docs/integrations/api)
 
 - POST/PATCH routes to ingest data
 - GET routes to use data in downstream applications (e.g. embedded analytics)
 
-# Development
+## Contributing to Langfuse
+
+Join the community [on Discord](https://discord.gg/7NXusRtqYU).
+
+To contribute, send us a PR, raise a github issue, or email at contributing@langfuse.com
+
+### Development setup
 
 Requirements: Node.js >=18, npm, Docker
 
@@ -228,17 +231,12 @@ npm run db:migrate
 npm run dev
 ```
 
-# Contributing to Langfuse
 
-Join the community [on Discord](https://discord.gg/7NXusRtqYU).
-
-To contribute, send us a PR, raise a github issue, or email at contributing@langfuse.com
-
-# License
+## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
-# Misc
+## Misc
 
 ### Upgrade Langfuse (localhost)
 
