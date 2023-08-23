@@ -87,7 +87,7 @@ Broken down by
 - Prompt/chain types
 - Time
 
-→ Expect releases with more ways to analyze the data over the weeks.
+→ Expect releases with more ways to analyze the data over the next weeks.
 
 # Get started
 
