@@ -37,7 +37,7 @@ export default function AnalyticsPage() {
 const AnalyticsDisabled = () => (
   <Alert>
     <Construction className="h-4 w-4" />
-    <AlertTitle>Analytics is in closed alpha</AlertTitle>
+    <AlertTitle className="ml-5" >Analytics is in closed alpha</AlertTitle>
     <AlertDescription>
       <span>
         Read more about langfuse Analytics on langfuse.com. Reach out if you are
