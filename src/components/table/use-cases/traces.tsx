@@ -9,6 +9,7 @@ import { lastCharacters } from "@/src/utils/string";
 import {
   type SelectedScoreFilter,
   type ScoreFilter,
+  type KeyValueFilter,
 } from "@/src/utils/tanstack";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
@@ -48,12 +49,17 @@ export default function TracesTable({
     name: null,
     userId: userId ? [userId] : null,
     searchQuery: null,
+    metadataQuery: [{ key: "user", value: "abc" }],
   });
 
   const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
     name: null,
     value: null,
     operator: null,
+  });
+
+  const [selectedMetadata, setSelectedMetadata] = useState<KeyValueFilter>({
+    values: [],
   });
 
   const traces = api.traces.all.useQuery({
@@ -215,6 +221,23 @@ export default function TracesTable({
         );
       },
     },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      enableColumnFilter: !omittedFilter.find((f) => f === "metadata"),
+      meta: {
+        label: "Metadata",
+        filter: {
+          type: "key-value",
+          values: queryOptions.metadataQuery,
+          selectedValues: selectedMetadata,
+        },
+      },
+      cell: ({ row }) => {
+        const values: string = row.getValue("metadata");
+        return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
+      },
+    },
   ];
 
   const tableOptions = options.isLoading
@@ -240,6 +263,7 @@ export default function TracesTable({
       name: null,
       userId: null,
       searchQuery: null,
+      metadataQuery: null,
     });
     setSelectedScores({
       name: null,

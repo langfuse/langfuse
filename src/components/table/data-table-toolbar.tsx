@@ -33,6 +33,52 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.currentQuery ?? ""
   );
 
+  const renderFilter = (
+    column: ColumnDef<TData, TValue>,
+    columnOptions: TableRowOptions | undefined
+  ) => {
+    if (
+      !column ||
+      !column.enableColumnFilter ||
+      !columnOptions ||
+      !column?.meta?.filter ||
+      !column?.meta?.filter.type
+    )
+      return undefined;
+
+    const filter = column.meta.filter;
+    const label = column.meta?.label;
+    const type = filter.type;
+
+    if (type === "select") {
+      return (
+        <DataTableSelectFilter
+          key={label}
+          title={label}
+          meta={filter}
+          options={columnOptions}
+        />
+      );
+    }
+
+    if (type === "number-comparison") {
+      return (
+        <DataTableNumberFilter
+          key={label}
+          title={label}
+          meta={filter}
+          options={columnOptions}
+        />
+      );
+    }
+
+    if (type === "key-value") {
+      return <>hello</>;
+    }
+
+    return undefined;
+  };
+
   return (
     <div className="my-2 flex max-w-full items-center justify-between overflow-x-auto">
       <div className="flex flex-1 items-center space-x-2">
@@ -62,23 +108,7 @@ export function DataTableToolbar<TData, TValue>({
                 (o) =>
                   o.columnId.toLowerCase() === column.meta?.label?.toLowerCase()
               );
-              return column.enableColumnFilter && columnOptions ? (
-                column.meta?.filter?.type === "select" ? (
-                  <DataTableSelectFilter
-                    key={column.meta.label}
-                    title={column.meta?.label}
-                    meta={column.meta?.filter}
-                    options={columnOptions}
-                  />
-                ) : column.meta?.filter?.type === "number-comparison" ? (
-                  <DataTableNumberFilter
-                    key={column.meta.label}
-                    title={column.meta?.label}
-                    meta={column.meta?.filter}
-                    options={columnOptions}
-                  />
-                ) : undefined
-              ) : undefined;
+              return renderFilter(column, columnOptions);
             })
           : undefined}
         {isFiltered() && (
