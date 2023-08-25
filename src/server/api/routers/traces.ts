@@ -37,8 +37,6 @@ export const traceRouter = createTRPCRouter({
           ? Prisma.sql`AND t."name" IN (${Prisma.join(input.name)})`
           : Prisma.empty;
 
-      console.log(userIdCondition, nameCondition);
-
       let scoreCondition = Prisma.empty;
       if (input.scores) {
         switch (input.scores.operator) {
@@ -131,7 +129,6 @@ export const traceRouter = createTRPCRouter({
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      console.log("input", input.userId);
       const filter = {
         AND: [
           {
