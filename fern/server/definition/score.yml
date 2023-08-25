@@ -31,7 +31,7 @@ types:
       traceId: string
       traceIdType: optional<commons.TraceIdTypeEnum>
       name: string
-      value: integer
+      value: double
       observationId: optional<string>
       comment: optional<string>
   Scores:

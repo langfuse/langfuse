@@ -81,7 +81,7 @@ types:
       id: string
       traceId: string
       name: string
-      value: integer
+      value: double
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
