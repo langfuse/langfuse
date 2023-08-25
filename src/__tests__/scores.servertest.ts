@@ -42,7 +42,7 @@ describe("/api/public/scores API Endpoint", () => {
     const createScore = await makeAPICall("POST", "/api/public/scores", {
       id: scoreId,
       name: "score-name",
-      value: 100,
+      value: 100.5,
       traceId: traceId,
     });
 
@@ -56,7 +56,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbScore?.id).toBe(scoreId);
     expect(dbScore?.traceId).toBe(traceId);
     expect(dbScore?.name).toBe("score-name");
-    expect(dbScore?.value).toBe(100);
+    expect(dbScore?.value).toBe(100.5);
     expect(dbScore?.observationId).toBeNull();
   });
 
