@@ -33,11 +33,16 @@ export type TraceTableRow = {
 export type TraceTableProps = {
   projectId: string;
   userId?: string;
+  omittedFilter?: string[];
 };
 
 export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
 
-export default function TracesTable({ projectId, userId }: TraceTableProps) {
+export default function TracesTable({
+  projectId,
+  userId,
+  omittedFilter = [],
+}: TraceTableProps) {
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     scores: null,
     name: null,
@@ -124,7 +129,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     {
       accessorKey: "name",
       header: "Name",
-      enableColumnFilter: true,
+      enableColumnFilter: !omittedFilter.find((f) => f === "name"),
       meta: {
         label: "Name",
         filter: {
@@ -138,7 +143,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     },
     {
       accessorKey: "userId",
-      enableColumnFilter: true,
+      enableColumnFilter: !omittedFilter.find((f) => f === "userId"),
       header: "User ID",
       meta: {
         label: "userId",
@@ -146,7 +151,6 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
           type: "select",
           values: queryOptions.userId,
           updateFunction: (newValues: string[] | null) => {
-            if (newValues && userId) newValues.push(userId);
             setQueryOptions({
               ...queryOptions,
               userId: newValues,
@@ -186,7 +190,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     {
       accessorKey: "scores",
       header: "Scores",
-      enableColumnFilter: true,
+      enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
       meta: {
         label: "Scores",
         filter: {
