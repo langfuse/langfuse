@@ -17,7 +17,7 @@ type ScoreFilter = z.infer<typeof ScoreFilter>;
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  userId: z.string().nullable(),
+  userId: z.array(z.string()).nullable(),
   name: z.array(z.string()).nullable(),
   scores: ScoreFilter.nullable(),
   searchQuery: z.string().nullable(),
@@ -27,14 +27,17 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const userIdCondition = input.userId
-        ? Prisma.sql`AND t."user_id" = ${input.userId}`
-        : Prisma.empty;
+      const userIdCondition =
+        input.userId !== null && input.userId.length
+          ? Prisma.sql`AND t."user_id" IN (${Prisma.join(input.userId)})`
+          : Prisma.empty;
 
       const nameCondition =
         input.name !== null && input.name.length
           ? Prisma.sql`AND t."name" IN (${Prisma.join(input.name)})`
           : Prisma.empty;
+
+      console.log(userIdCondition, nameCondition);
 
       let scoreCondition = Prisma.empty;
       if (input.scores) {
@@ -120,22 +123,21 @@ export const traceRouter = createTRPCRouter({
           )
         : [];
 
-      const res = traces.map((trace) => ({
+      return traces.map((trace) => ({
         ...trace,
         scores: scores.filter((score) => score.traceId === trace.id),
       }));
-      console.log(res);
-      return res;
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      console.log("input", input.userId);
       const filter = {
         AND: [
           {
             projectId: input.projectId,
-            ...(input.userId ? { userId: input.userId } : undefined),
             ...(input.name ? { name: { in: input.name } } : undefined),
+            ...(input.userId ? { userId: { in: input.userId } } : undefined),
             ...(input.scores
               ? { scores: { some: createScoreCondition(input.scores) } }
               : undefined),
@@ -153,7 +155,7 @@ export const traceRouter = createTRPCRouter({
         ],
       };
 
-      const [scores, names] = await Promise.all([
+      const [scores, names, userIds] = await Promise.all([
         ctx.prisma.score.groupBy({
           where: {
             trace: filter,
@@ -166,6 +168,13 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.trace.groupBy({
           where: filter,
           by: ["name"],
+          _count: {
+            _all: true,
+          },
+        }),
+        ctx.prisma.trace.groupBy({
+          where: filter,
+          by: ["userId"],
           _count: {
             _all: true,
           },
@@ -189,6 +198,12 @@ export const traceRouter = createTRPCRouter({
           key: "name",
           occurrences: names.map((i) => {
             return { key: i.name ?? "undefined", count: i._count };
+          }),
+        },
+        {
+          key: "userId",
+          occurrences: userIds.map((i) => {
+            return { key: i.userId ?? "undefined", count: i._count };
           }),
         },
         {
