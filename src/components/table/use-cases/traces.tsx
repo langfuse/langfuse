@@ -9,6 +9,7 @@ import { lastCharacters } from "@/src/utils/string";
 import {
   type SelectedScoreFilter,
   type ScoreFilter,
+  type KeyValue,
 } from "@/src/utils/tanstack";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
@@ -33,18 +34,22 @@ export type TraceTableRow = {
 export type TraceTableProps = {
   projectId: string;
   userId?: string;
+  omittedFilter?: string[];
 };
 
-export type TraceFilterInput = Omit<
-  RouterInput["traces"]["all"],
-  "projectId" | "userId"
->;
+export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
 
-export default function TracesTable({ projectId, userId }: TraceTableProps) {
+export default function TracesTable({
+  projectId,
+  userId,
+  omittedFilter = [],
+}: TraceTableProps) {
   const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
     scores: null,
     name: null,
+    userId: userId ? [userId] : null,
     searchQuery: null,
+    metadata: null,
   });
 
   const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
@@ -53,16 +58,16 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     operator: null,
   });
 
+  const [selectedMetadata, setSelectedMetadata] = useState<KeyValue[]>([]);
+
   const traces = api.traces.all.useQuery({
     ...queryOptions,
-    userId: userId || null,
     projectId,
   });
 
   const options = api.traces.availableFilterOptions.useQuery({
     ...queryOptions,
     projectId: projectId,
-    userId: userId || null,
   });
 
   const convertToTableRow = (
@@ -128,7 +133,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     {
       accessorKey: "name",
       header: "Name",
-      enableColumnFilter: true,
+      enableColumnFilter: !omittedFilter.find((f) => f === "name"),
       meta: {
         label: "Name",
         filter: {
@@ -142,7 +147,21 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     },
     {
       accessorKey: "userId",
+      enableColumnFilter: !omittedFilter.find((f) => f === "userId"),
       header: "User ID",
+      meta: {
+        label: "userId",
+        filter: {
+          type: "select",
+          values: queryOptions.userId,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({
+              ...queryOptions,
+              userId: newValues,
+            });
+          },
+        },
+      },
       cell: ({ row }) => {
         const value = row.getValue("userId");
         return value && typeof value === "string" ? (
@@ -175,7 +194,7 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     {
       accessorKey: "scores",
       header: "Scores",
-      enableColumnFilter: true,
+      enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
       meta: {
         label: "Scores",
         filter: {
@@ -198,6 +217,47 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
             <GroupedScoreBadges scores={values} inline />
           </div>
         );
+      },
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      enableColumnFilter: !omittedFilter.find((f) => f === "metadata"),
+      meta: {
+        label: "Metadata",
+        filter: {
+          type: "key-value",
+          values: queryOptions.metadata,
+          removeSelectedValue: (value: KeyValue) => {
+            const newValues = selectedMetadata.filter(
+              (v) => v.key !== value.key && v.value !== value.value
+            );
+            setQueryOptions({
+              ...queryOptions,
+              metadata: newValues,
+            });
+            setSelectedMetadata(newValues);
+          },
+          updateFunction: (newValue: KeyValue | null) => {
+            const mergedValues = newValue
+              ? selectedMetadata.filter(
+                  (v) => v.key === newValue.key && v.value === newValue.value
+                ).length > 0
+                ? selectedMetadata
+                : selectedMetadata.concat(newValue)
+              : [];
+            console.log("mergedValues", mergedValues);
+            setQueryOptions({
+              ...queryOptions,
+              metadata: mergedValues,
+            });
+            setSelectedMetadata(mergedValues);
+          },
+        },
+      },
+      cell: ({ row }) => {
+        const values: string = row.getValue("metadata");
+        return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
       },
     },
   ];
@@ -223,13 +283,16 @@ export default function TracesTable({ projectId, userId }: TraceTableProps) {
     setQueryOptions({
       scores: null,
       name: null,
+      userId: null,
       searchQuery: null,
+      metadata: null,
     });
     setSelectedScores({
       name: null,
       value: null,
       operator: null,
     });
+    setSelectedMetadata([]);
   };
 
   const updateSearchQuery = (searchQuery: string) => {

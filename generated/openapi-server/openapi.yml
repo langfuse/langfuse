@@ -815,7 +815,8 @@ components:
         name:
           type: string
         value:
-          type: integer
+          type: number
+          format: double
         observationId:
           type: string
           nullable: true
@@ -931,7 +932,8 @@ components:
         name:
           type: string
         value:
-          type: integer
+          type: number
+          format: double
         observationId:
           type: string
           nullable: true
