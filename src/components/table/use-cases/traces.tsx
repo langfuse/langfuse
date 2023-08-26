@@ -9,11 +9,12 @@ import { lastCharacters } from "@/src/utils/string";
 import {
   type SelectedScoreFilter,
   type ScoreFilter,
-  type KeyValueFilter,
+  type KeyValue,
 } from "@/src/utils/tanstack";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
+import { set } from "lodash";
 import { useState } from "react";
 
 export type TraceTableRow = {
@@ -49,7 +50,7 @@ export default function TracesTable({
     name: null,
     userId: userId ? [userId] : null,
     searchQuery: null,
-    metadataQuery: [{ key: "user", value: "abc" }],
+    metadata: null,
   });
 
   const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
@@ -58,9 +59,7 @@ export default function TracesTable({
     operator: null,
   });
 
-  const [selectedMetadata, setSelectedMetadata] = useState<KeyValueFilter>({
-    values: [],
-  });
+  const [selectedMetadata, setSelectedMetadata] = useState<KeyValue[]>([]);
 
   const traces = api.traces.all.useQuery({
     ...queryOptions,
@@ -229,8 +228,29 @@ export default function TracesTable({
         label: "Metadata",
         filter: {
           type: "key-value",
-          values: queryOptions.metadataQuery,
+          values: queryOptions.metadata,
           selectedValues: selectedMetadata,
+          removeSelectedValue: (value: KeyValue) => {
+            const newValues = selectedMetadata.filter(
+              (v) => v.key !== value.key && v.value !== value.value
+            );
+            setQueryOptions({
+              ...queryOptions,
+              metadata: newValues,
+            });
+            setSelectedMetadata(newValues);
+          },
+          updateFunction: (newValues: KeyValue[] | null) => {
+            const mergedValues = newValues
+              ? selectedMetadata.concat(newValues)
+              : [];
+
+            setQueryOptions({
+              ...queryOptions,
+              metadata: mergedValues,
+            });
+            setSelectedMetadata(mergedValues);
+          },
         },
       },
       cell: ({ row }) => {
@@ -263,13 +283,14 @@ export default function TracesTable({
       name: null,
       userId: null,
       searchQuery: null,
-      metadataQuery: null,
+      metadata: null,
     });
     setSelectedScores({
       name: null,
       value: null,
       operator: null,
     });
+    setSelectedMetadata([]);
   };
 
   const updateSearchQuery = (searchQuery: string) => {

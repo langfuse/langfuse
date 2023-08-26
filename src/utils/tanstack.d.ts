@@ -6,16 +6,16 @@ export declare module "@tanstack/table-core" {
   }
 }
 
-
 type SelectKeyValueFilter = {
-  type: "select-key-value";
-  values: KeyValueFilter | null;
-  
-
-
-type KeyValueFilter = {
   type: "key-value";
-  values: { key: string; value: string }[] | null;
+  values: KeyValue[] | null;
+  removeSelectedValue: (toBeRemoved: KeyValue) => void;
+  updateFunction: (newValues: KeyValue[] | null) => void;
+};
+
+export type KeyValue = {
+  key: string;
+  value: string;
 };
 
 type SelectFilter = {

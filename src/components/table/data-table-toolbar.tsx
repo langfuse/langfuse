@@ -7,6 +7,7 @@ import { DataTableSelectFilter } from "@/src/components/table/data-table-select-
 import { DataTableNumberFilter } from "@/src/components/table/data-table-number-filter";
 import React, { useState } from "react";
 import { Input } from "@/src/components/ui/input";
+import { DataTableKeyValueFilter } from "@/src/components/table/data-table-key-value-filter";
 
 interface SearchConfig {
   placeholder: string;
@@ -73,7 +74,9 @@ export function DataTableToolbar<TData, TValue>({
     }
 
     if (type === "key-value") {
-      return <>hello</>;
+      return (
+        <DataTableKeyValueFilter key={label} title={label} meta={filter} />
+      );
     }
 
     return undefined;

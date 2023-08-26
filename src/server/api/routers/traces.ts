@@ -21,7 +21,7 @@ const TraceFilterOptions = z.object({
   name: z.array(z.string()).nullable(),
   scores: ScoreFilter.nullable(),
   searchQuery: z.string().nullable(),
-  metadataQuery: z
+  metadata: z
     .array(z.object({ key: z.string(), value: z.string() }))
     .nullable(),
 });
@@ -30,15 +30,15 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const metadataCondition = input.metadataQuery
-        ? input.metadataQuery.map(
+      const metadataCondition = input.metadata
+        ? input.metadata.map(
             (m) => Prisma.sql`AND t."metadata"->>${m.key} = ${m.value}`
           )
         : undefined;
 
       const joinedMetadataCondition =
         metadataCondition && metadataCondition.length > 0
-          ? Prisma.join(metadataCondition)
+          ? Prisma.join(metadataCondition, " ")
           : Prisma.empty;
 
       const userIdCondition =
@@ -142,8 +142,8 @@ export const traceRouter = createTRPCRouter({
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const metadataConditions = input.metadataQuery
-        ? input.metadataQuery.map((m) => ({
+      const metadataConditions = input.metadata
+        ? input.metadata.map((m) => ({
             metadata: { path: [m.key], equals: m.value },
           }))
         : undefined;
@@ -228,6 +228,10 @@ export const traceRouter = createTRPCRouter({
           occurrences: scoresArray.map((i) => {
             return { key: i.key, count: { _all: i.value } };
           }),
+        },
+        {
+          key: "metadata",
+          occurrences: [],
         },
       ];
     }),
