@@ -42,8 +42,7 @@ export function DataTableToolbar<TData, TValue>({
       !column ||
       !column.enableColumnFilter ||
       !columnOptions ||
-      !column?.meta?.filter ||
-      !column?.meta?.filter.type
+      !column?.meta?.filter
     )
       return undefined;
 

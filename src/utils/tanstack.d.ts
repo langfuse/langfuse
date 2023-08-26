@@ -6,7 +6,7 @@ export declare module "@tanstack/table-core" {
   }
 }
 
-type SelectKeyValueFilter = {
+type KeyValueFilter = {
   type: "key-value";
   values: KeyValue[] | null;
   removeSelectedValue: (toBeRemoved: KeyValue) => void;

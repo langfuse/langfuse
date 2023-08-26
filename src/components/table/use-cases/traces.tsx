@@ -229,7 +229,6 @@ export default function TracesTable({
         filter: {
           type: "key-value",
           values: queryOptions.metadata,
-          selectedValues: selectedMetadata,
           removeSelectedValue: (value: KeyValue) => {
             const newValues = selectedMetadata.filter(
               (v) => v.key !== value.key && v.value !== value.value
