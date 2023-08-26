@@ -9,7 +9,7 @@ import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 const ScoreCreateSchema = z.object({
   id: z.string().nullish(),
   name: z.string(),
-  value: z.number().int(),
+  value: z.number(),
   traceId: z.string(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   observationId: z.string().nullish(),

@@ -18,7 +18,7 @@ types:
       traceId: string
       traceIdType: optional<TraceIdType>
       name: string
-      value: integer
+      value: double
       observationId: optional<string>
       comment: optional<string>
   Score:
@@ -26,7 +26,7 @@ types:
       id: string
       traceId: string
       name: string
-      value: integer
+      value: double
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>

@@ -4,6 +4,7 @@ services:
   db:
     image: postgres
     restart: always
+    command: ["postgres", "-c", "log_statement=all"]
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
