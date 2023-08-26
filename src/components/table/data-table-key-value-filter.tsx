@@ -42,7 +42,7 @@ export function DataTableKeyValueFilter({
   };
 
   const filter = () => {
-    meta.updateFunction([{ key, value }]);
+    meta.updateFunction({ key, value });
     setKey("");
     setValue("");
   };
@@ -106,6 +106,7 @@ export function DataTableKeyValueFilter({
                 <Input
                   id="name-key"
                   placeholder="Key"
+                  value={key}
                   onChange={(e) => setKey(e.target.value)}
                 />
               </div>
@@ -113,6 +114,7 @@ export function DataTableKeyValueFilter({
                 <Input
                   id="name-value"
                   placeholder="Value"
+                  value={value}
                   onChange={(e) => setValue(e.target.value)}
                 />
               </div>

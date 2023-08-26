@@ -238,11 +238,15 @@ export default function TracesTable({
             });
             setSelectedMetadata(newValues);
           },
-          updateFunction: (newValues: KeyValue[] | null) => {
-            const mergedValues = newValues
-              ? selectedMetadata.concat(newValues)
+          updateFunction: (newValue: KeyValue | null) => {
+            const mergedValues = newValue
+              ? selectedMetadata.filter(
+                  (v) => v.key === newValue.key && v.value === newValue.value
+                ).length > 0
+                ? selectedMetadata
+                : selectedMetadata.concat(newValue)
               : [];
-
+            console.log("mergedValues", mergedValues);
             setQueryOptions({
               ...queryOptions,
               metadata: mergedValues,

@@ -10,7 +10,7 @@ type KeyValueFilter = {
   type: "key-value";
   values: KeyValue[] | null;
   removeSelectedValue: (toBeRemoved: KeyValue) => void;
-  updateFunction: (newValues: KeyValue[] | null) => void;
+  updateFunction: (newValues: KeyValue | null) => void;
 };
 
 export type KeyValue = {
