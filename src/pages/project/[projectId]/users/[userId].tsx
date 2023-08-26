@@ -195,7 +195,11 @@ function ScoresTab({ userId, projectId }: TabProps) {
 function TracesTab({ userId, projectId }: TabProps) {
   return (
     <div className="mt-5 pt-5">
-      <TracesTable projectId={projectId} userId={userId} />
+      <TracesTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["userId"]}
+      />
     </div>
   );
 }
