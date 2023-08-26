@@ -14,7 +14,6 @@ import {
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
-import { set } from "lodash";
 import { useState } from "react";
 
 export type TraceTableRow = {

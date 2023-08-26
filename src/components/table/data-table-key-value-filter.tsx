@@ -10,25 +10,22 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { type SelectKeyValueFilter } from "@/src/utils/tanstack";
+import { type KeyValueFilter } from "@/src/utils/tanstack";
 
-import { Label } from "@/src/components/ui/label";
 import { Input } from "@/src/components/ui/input";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
   CommandSeparator,
 } from "@/src/components/ui/command";
 import { cn } from "@/src/utils/tailwind";
-import { set } from "lodash";
 
 interface DataTableKeyValueFilter {
   title?: string;
-  meta: SelectKeyValueFilter;
+  meta: KeyValueFilter;
 }
 
 export function DataTableKeyValueFilter({
