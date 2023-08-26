@@ -21,12 +21,26 @@ const TraceFilterOptions = z.object({
   name: z.array(z.string()).nullable(),
   scores: ScoreFilter.nullable(),
   searchQuery: z.string().nullable(),
+  metadata: z
+    .array(z.object({ key: z.string(), value: z.string() }))
+    .nullable(),
 });
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const metadataCondition = input.metadata
+        ? input.metadata.map(
+            (m) => Prisma.sql`AND t."metadata"->>${m.key} = ${m.value}`
+          )
+        : undefined;
+
+      const joinedMetadataCondition =
+        metadataCondition && metadataCondition.length > 0
+          ? Prisma.join(metadataCondition, " ")
+          : Prisma.empty;
+
       const userIdCondition =
         input.userId !== null && input.userId.length
           ? Prisma.sql`AND t."user_id" IN (${Prisma.join(input.userId)})`
@@ -57,14 +71,13 @@ export const traceRouter = createTRPCRouter({
             break;
         }
       }
-
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
-          t."id" ILIKE ${`%${input.searchQuery}%`} OR 
-          t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
-          t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
-          t."name" ILIKE ${`%${input.searchQuery}%`}
-        )`
+        t."id" ILIKE ${`%${input.searchQuery}%`} OR 
+        t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
+        t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
+        t."name" ILIKE ${`%${input.searchQuery}%`}
+      )`
         : Prisma.empty;
 
       const traces = await ctx.prisma.$queryRaw<
@@ -75,37 +88,37 @@ export const traceRouter = createTRPCRouter({
             totalTokens: number;
           }
         >
-      >(
-        Prisma.sql`
-          WITH usage as (
-            SELECT 
-              trace_id,
-              sum(prompt_tokens) AS "promptTokens",
-              sum(completion_tokens) AS "completionTokens",
-              sum(total_tokens) AS "totalTokens"
-            FROM "observations"
-            WHERE "trace_id" IS NOT NULL AND "project_id" = ${input.projectId}
-            GROUP BY trace_id
-          )
-          SELECT
-            t.*,
-            t."external_id" AS "externalId",
-            t."user_id" AS "userId",
-            COALESCE(u."promptTokens", 0)::int AS "promptTokens",
-            COALESCE(u."completionTokens", 0)::int AS "completionTokens",
-            COALESCE(u."totalTokens", 0)::int AS "totalTokens"
-          FROM "traces" AS t
-          LEFT JOIN usage AS u ON u.trace_id = t.id
-          WHERE 
-            t."project_id" = ${input.projectId}
-            ${userIdCondition}
-            ${nameCondition}
-            ${searchCondition}
-            ${scoreCondition}
-          ORDER BY t."timestamp" DESC
-          LIMIT 50;
-        `
-      );
+      >(Prisma.sql`
+      WITH usage as (
+        SELECT 
+          trace_id,
+          sum(prompt_tokens) AS "promptTokens",
+          sum(completion_tokens) AS "completionTokens",
+          sum(total_tokens) AS "totalTokens"
+        FROM "observations"
+        WHERE "trace_id" IS NOT NULL AND "project_id" = ${input.projectId}
+        GROUP BY trace_id
+      )
+      SELECT
+        t.*,
+        t."external_id" AS "externalId",
+        t."user_id" AS "userId",
+        t."metadata" AS "metadata",
+        COALESCE(u."promptTokens", 0)::int AS "promptTokens",
+        COALESCE(u."completionTokens", 0)::int AS "completionTokens",
+        COALESCE(u."totalTokens", 0)::int AS "totalTokens"
+      FROM "traces" AS t
+      LEFT JOIN usage AS u ON u.trace_id = t.id
+      WHERE 
+        t."project_id" = ${input.projectId}
+        ${userIdCondition}
+        ${nameCondition}
+        ${searchCondition}
+        ${scoreCondition}
+        ${joinedMetadataCondition}
+      ORDER BY t."timestamp" DESC
+      LIMIT 50;
+    `);
 
       const scores = traces.length
         ? await ctx.prisma.$queryRaw<Score[]>(
@@ -129,6 +142,12 @@ export const traceRouter = createTRPCRouter({
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const metadataConditions = input.metadata
+        ? input.metadata.map((m) => ({
+            metadata: { path: [m.key], equals: m.value },
+          }))
+        : undefined;
+
       const filter = {
         AND: [
           {
@@ -139,6 +158,7 @@ export const traceRouter = createTRPCRouter({
               ? { scores: { some: createScoreCondition(input.scores) } }
               : undefined),
           },
+          ...(metadataConditions ? metadataConditions : []),
           input.searchQuery
             ? {
                 OR: [
@@ -208,6 +228,10 @@ export const traceRouter = createTRPCRouter({
           occurrences: scoresArray.map((i) => {
             return { key: i.key, count: { _all: i.value } };
           }),
+        },
+        {
+          key: "metadata",
+          occurrences: [],
         },
       ];
     }),
