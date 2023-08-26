@@ -24,6 +24,7 @@ types:
       spanId: string
       traceId: optional<string>
       endTime: optional<datetime>
+      name: optional<string>
       metadata: optional<unknown>
       input: optional<unknown>
       output: optional<unknown>

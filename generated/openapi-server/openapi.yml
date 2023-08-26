@@ -970,6 +970,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        name:
+          type: string
+          nullable: true
         metadata:
           nullable: true
         input:
