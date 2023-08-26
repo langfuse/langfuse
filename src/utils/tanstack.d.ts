@@ -2,9 +2,21 @@ export declare module "@tanstack/table-core" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   export interface ColumnMeta<TData extends RowData, TValue> {
     label?: string;
-    filter: SelectFilter | NumberComparisonFilter;
+    filter: SelectFilter | NumberComparisonFilter | KeyValueFilter;
   }
 }
+
+type KeyValueFilter = {
+  type: "key-value";
+  values: KeyValue[] | null;
+  removeSelectedValue: (toBeRemoved: KeyValue) => void;
+  updateFunction: (newValues: KeyValue | null) => void;
+};
+
+export type KeyValue = {
+  key: string;
+  value: string;
+};
 
 type SelectFilter = {
   type: "select";

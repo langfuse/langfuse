@@ -7,6 +7,7 @@ import { DataTableSelectFilter } from "@/src/components/table/data-table-select-
 import { DataTableNumberFilter } from "@/src/components/table/data-table-number-filter";
 import React, { useState } from "react";
 import { Input } from "@/src/components/ui/input";
+import { DataTableKeyValueFilter } from "@/src/components/table/data-table-key-value-filter";
 
 interface SearchConfig {
   placeholder: string;
@@ -32,6 +33,53 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? ""
   );
+
+  const renderFilter = (
+    column: ColumnDef<TData, TValue>,
+    columnOptions: TableRowOptions | undefined
+  ) => {
+    if (
+      !column ||
+      !column.enableColumnFilter ||
+      !columnOptions ||
+      !column?.meta?.filter
+    )
+      return undefined;
+
+    const filter = column.meta.filter;
+    const label = column.meta?.label;
+    const type = filter.type;
+
+    if (type === "select") {
+      return (
+        <DataTableSelectFilter
+          key={label}
+          title={label}
+          meta={filter}
+          options={columnOptions}
+        />
+      );
+    }
+
+    if (type === "number-comparison") {
+      return (
+        <DataTableNumberFilter
+          key={label}
+          title={label}
+          meta={filter}
+          options={columnOptions}
+        />
+      );
+    }
+
+    if (type === "key-value") {
+      return (
+        <DataTableKeyValueFilter key={label} title={label} meta={filter} />
+      );
+    }
+
+    return undefined;
+  };
 
   return (
     <div className="my-2 flex max-w-full items-center justify-between overflow-x-auto">
@@ -62,23 +110,7 @@ export function DataTableToolbar<TData, TValue>({
                 (o) =>
                   o.columnId.toLowerCase() === column.meta?.label?.toLowerCase()
               );
-              return column.enableColumnFilter && columnOptions ? (
-                column.meta?.filter?.type === "select" ? (
-                  <DataTableSelectFilter
-                    key={column.meta.label}
-                    title={column.meta?.label}
-                    meta={column.meta?.filter}
-                    options={columnOptions}
-                  />
-                ) : column.meta?.filter?.type === "number-comparison" ? (
-                  <DataTableNumberFilter
-                    key={column.meta.label}
-                    title={column.meta?.label}
-                    meta={column.meta?.filter}
-                    options={columnOptions}
-                  />
-                ) : undefined
-              ) : undefined;
+              return renderFilter(column, columnOptions);
             })
           : undefined}
         {isFiltered() && (
