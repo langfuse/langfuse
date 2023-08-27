@@ -14,6 +14,7 @@ import {
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
+import router from "next/router";
 import { useState } from "react";
 
 export type TraceTableRow = {
@@ -44,13 +45,24 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
 }: TraceTableProps) {
-  const [queryOptions, setQueryOptions] = useState<TraceFilterInput>({
-    scores: null,
-    name: null,
-    userId: userId ? [userId] : null,
-    searchQuery: null,
-    metadata: null,
-  });
+  const filters = router.query.filter
+    ? (JSON.parse(
+        decodeURIComponent(router.query.filter as string)
+      ) as TraceFilterInput)
+    : {
+        scores: null,
+        name: null,
+        userId: userId ? [userId] : null,
+        searchQuery: null,
+        metadata: null,
+      };
+
+  const [queryOptions, setQuery] = useState<TraceFilterInput>(filters);
+
+  const setQueryOptions = (filter?: TraceFilterInput) => {
+    filter ? setQuery(filter) : undefined;
+    setFilterInParams(filter);
+  };
 
   const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
     name: null,
@@ -69,6 +81,26 @@ export default function TracesTable({
     ...queryOptions,
     projectId: projectId,
   });
+
+  const setFilterInParams = (filter?: TraceFilterInput) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { ...query } = router.query;
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: {
+          ...query,
+          ...(filter
+            ? { filter: encodeURIComponent(JSON.stringify(filter)) }
+            : {}),
+        },
+      },
+      undefined,
+      {
+        scroll: false,
+      }
+    );
+  };
 
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"][0]
