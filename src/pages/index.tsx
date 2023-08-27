@@ -106,15 +106,15 @@ export default function GetStartedPage() {
           </CardContent>
           <CardFooter className="flex flex-wrap gap-2">
             <Button asChild variant="secondary">
-              <Link href="https://cal.com/marc-kl/langfuse-cloud">
-                Schedule call with founder
+              <Link href="https://office.next-boss.eu/index.php/apps/appointments/pub/e3Hdvp4BAg%3D%3D/form">
+                Schedule call
               </Link>
             </Button>
             <Button asChild variant="secondary">
-              <Link href="https://discord.gg/7NXusRtqYU">Discord</Link>
+              <Link href="https://discord.gg/HP9xPNur">Discord</Link>
             </Button>
             <Button asChild variant="secondary">
-              <Link href="mailto:onboarding@langfuse.com">Email</Link>
+              <Link href="mailto:lhc@subtextai.co">Email</Link>
             </Button>
           </CardFooter>
         </Card>

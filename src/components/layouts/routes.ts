@@ -46,8 +46,8 @@ export const ROUTES = [
     icon: Settings,
   },
   {
-    name: "Talk to founder",
-    pathname: "https://cal.com/marc-kl/langfuse-cloud",
+    name: "Talk to Us",
+    pathname: "https://office.next-boss.eu/index.php/apps/appointments/pub/e3Hdvp4BAg%3D%3D/form",
     icon: HelpingHand,
   },
 ];
