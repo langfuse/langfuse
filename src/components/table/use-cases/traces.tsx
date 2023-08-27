@@ -49,19 +49,15 @@ export default function TracesTable({
     ? (JSON.parse(
         decodeURIComponent(router.query.filter as string)
       ) as TraceFilterInput)
-    : undefined;
+    : {
+        scores: null,
+        name: null,
+        userId: userId ? [userId] : null,
+        searchQuery: null,
+        metadata: null,
+      };
 
-  const [queryOptions, setQuery] = useState<TraceFilterInput>(
-    filters
-      ? filters
-      : {
-          scores: null,
-          name: null,
-          userId: userId ? [userId] : null,
-          searchQuery: null,
-          metadata: null,
-        }
-  );
+  const [queryOptions, setQuery] = useState<TraceFilterInput>(filters);
 
   const setQueryOptions = (filter?: TraceFilterInput) => {
     filter ? setQuery(filter) : undefined;
