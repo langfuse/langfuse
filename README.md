@@ -200,6 +200,10 @@ Quality/evaluation of traces is tracked via scores ([docs](https://langfuse.com/
 - POST/PATCH routes to ingest data
 - GET routes to use data in downstream applications (e.g. embedded analytics)
 
+## Questions / Feedback
+
+The maintainers are very active in the Langfuse [Discord](https://langfuse.com/discord) and are happy to answer questions or discuss feedback/ideas regarding the future of the project.
+
 ## Contributing to Langfuse
 
 Join the community [on Discord](https://discord.gg/7NXusRtqYU).
@@ -230,7 +234,6 @@ npm run db:migrate
 # Start the server
 npm run dev
 ```
-
 
 ## License
 
