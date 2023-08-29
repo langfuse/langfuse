@@ -87,8 +87,10 @@ export default async function handler(
   if (req.method === "POST") {
     try {
       console.log(
-        "trying to create observation for generation" +
-          JSON.stringify(req.body, null, 2)
+        "trying to create observation for generation, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        JSON.stringify(req.body, null, 2)
       );
       const obj = GenerationsCreateSchema.parse(req.body);
       const {
@@ -240,8 +242,10 @@ export default async function handler(
     }
   } else if (req.method === "PATCH") {
     console.log(
-      "trying to update observation for generation" +
-        JSON.stringify(req.body, null, 2)
+      "trying to update observation for generation, project ",
+      authCheck.scope.projectId,
+      ", body:",
+      JSON.stringify(req.body, null, 2)
     );
 
     try {

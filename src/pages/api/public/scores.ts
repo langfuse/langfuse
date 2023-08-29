@@ -9,7 +9,7 @@ import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
 const ScoreCreateSchema = z.object({
   id: z.string().nullish(),
   name: z.string(),
-  value: z.number().int(),
+  value: z.number(),
   traceId: z.string(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   observationId: z.string().nullish(),
@@ -42,7 +42,12 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      console.log("trying to create score", req.body);
+      console.log(
+        "trying to create score, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        req.body
+      );
 
       const obj = ScoreCreateSchema.parse(req.body);
 

@@ -3,20 +3,20 @@
       <h1>🪢 Langfuse</h1>
    </a>
    <h3>
-      Open-source analytics for LLM-based applications
+      Open source observability & analytics for LLM-based applications
    </h3>
-   <span>
-      Iterate faster on your application with a granular view on exact execution traces, quality, cost and latency
-   </span>
-   </br></br>
+   <div>
+      <strong>Observability:</strong> Explore and debug complex logs & traces in a visual UI
+   </div>
+   <div>
+      <strong>Analytics:</strong> Measure & improve costs, latency and response quality
+   </div>
+   </br>
    <div>
       <a href="https://discord.gg/7NXusRtqYU">
          <strong>Join the Langfuse Discord »</strong>
       </a>
       </br>
-      <a href="#roadmap">
-         <strong>Roadmap</strong>
-      </a> ·
       <a href="https://langfuse.com">
          <strong>langfuse.com</strong>
       </a> ·
@@ -47,90 +47,170 @@
 </div>
 </br>
 
-# ℹ️ Analytics is in alpha
+## What is Langfuse?
 
-Langfuse analytics is currently in a closed alpha as the core team works with a group of users to build the most useful analytics platform for LLM apps.
+Langfuse is an open source observability & analytics solution for LLM-based applications. It is mostly geared towards production usage but some users also use it for local development of their LLM applications.
 
-Reach out if you are interested to join the alpha: alpha@langfuse.com
+Langfuse is focused on applications built on top of LLMs. Many new abstractions and common best practices evolved recently, e.g. agents, chained prompts, embedding-based retrieval, LLM access to REPLs & APIs. These make applications more powerful but also unpredictable for developers as they cannot fully anticipate how changes impact the quality, cost and overall latency of their application. Thus Langfuse helps to monitor and debug these applications.
 
-# Integrations
+**Demo (2 min)**
 
-Monitor backend executions of LLM app to create nested traces
+https://github.com/langfuse/langfuse/assets/2834609/6041347a-b517-4a11-8737-93ef8f8af49f
 
-- Python SDK
-- Typescript SDK (node, edge)
-- API
+_Muted by default, enable sound for voice-over_
 
-Collect user feedback and attach it to backend traces
+Explore demo project in Langfuse here (free account required): https://langfuse.com/demo
 
-- Typescript/JS SDK
-- API
-
-More details: [langfuse.com/integrations](https://langfuse.com/integrations)
-
-# Data exploration
+### Observability
 
 Langfuse offers an admin UI to explore the ingested data.
 
-- Nested view of LLM app executions
-- Segment execution traces by user feedback
+- Nested view of LLM app executions; detailed information along the traces on: latency, cost, scores
+- Segment execution traces by user feedback, to e.g. identify production issues
 
-# Get started
+### Analytics
 
-Follow the [quickstart](https://langfuse.com/docs/get-started) with instructions to setup Langfuse locally, self-hosted or using Langfuse cloud
+Reporting on
 
-# Roadmap
+- Token usage by model
+- Volume of traces
+- Scores/evals
 
-- [x] Integrations: [langfuse.com/integrations](https://langfuse.com/integrations)
-- [x] Data exploration
-- [ ] Langfuse analytics (in alpha)
-  - Analytics engine
-  - Detailed reports on latency, cost, quality
-  - Evals
+Broken down by
 
-# Run locally
+- Users
+- Releases
+- Prompt/chain versions
+- Prompt/chain types
+- Time
 
-Requirements:
+→ Expect releases with more ways to analyze the data over the next weeks.
 
-- Docker: run postgres and [dockerized Langfuse](https://ghcr.io/langfuse/langfuse) to start langfuse quickly
-- Node.JS & NPM: apply db migration using ORM (Prisma)
+## Get started
 
-**Start**
+### Step 1: Run Server
+
+#### Langfuse Cloud
+
+Managed deployment by the Langfuse team, generous free-tier (hobby plan) available, no credit card required.
+
+Links: [Create account](https://cloud.langfuse.com), [learn more](https://cloud.langfuse.com)
+
+#### Localhost
+
+Requirements: Docker, Node.js >=18, npm
 
 ```bash
 # Clone repository
 git clone git@github.com:langfuse/langfuse.git
 cd langfuse
 
-# Run server and db
+# Run server and database
 docker compose up -d
 
 # Apply db migrations
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
--> Visit http://localhost:3000
+#### Self-host (Docker)
 
-**Upgrade**
+[→ Instructions](https://langfuse.com/docs/deployment/self-host)
+
+### Step 2: Data ingestion
+
+#### Langchain applications
+
+The Langfuse callback handler automatically instruments Langchain applications. Currently available for Python, JS/TS support is in progress (add +1 to issue [here](https://github.com/langfuse/langfuse-js/issues/11)).
+
+```shell
+pip install langfuse
+```
+
+```python
+# Initialize Langfuse handler
+from langfuse.callback import CallbackHandler
+handler = CallbackHandler(PUBLIC_KEY, SECRET_KEY)
+
+# Setup Langchain
+from langchain.chains import LLMChain
+...
+chain = LLMChain(llm=llm, prompt=prompt)
+
+# Add Langfuse handler as callback
+chain.run(input="<user_input", callbacks=[handler])
+```
+
+→ More details: [Langchain integration docs](https://langfuse.com/docs/integrations/langchain)
+
+#### SDKs to manually instrument application
+
+Fully async, typed SDKs to instrument any LLM application. Currently available for Python & JS/TS.
+
+→ [Guide](https://langfuse.com/docs/guides/sdk-integration) with an example of how the SDK can be used
+
+| Package                                                                                                                                             | Description                      | Links                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [![PyPI Version](https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse)](https://pypi.python.org/pypi/langfuse)          | Python                           | [docs](https://langfuse.com/docs/integrations/sdk/python), [repo](https://github.com/langfuse/langfuse-python) |
+| [![npm Version](https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse)](https://www.npmjs.com/package/langfuse)                | JS/TS: Node >= 18, Edge runtimes | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
+| [![npm package](https://img.shields.io/npm/v/langfuse-node?style=flat-square&label=npm+langfuse-node)](https://www.npmjs.com/package/langfuse-node) | JS/TS: Node <18                  | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
+
+### Add scores/evaluations to traces (optional)
+
+Quality/evaluation of traces is tracked via scores ([docs](https://langfuse.com/docs/scores)). Scores are related to traces and optionally to observations. Scores can be added via:
+
+- **Backend SDKs** (see docs above): `{trace, event, span, generation}.score()`
+- **API** (see docs below): `POST /api/public/scores`
+- **Client-side using Web SDK**, e.g. to capture user feedback or other user-based quality metrics:
+
+  ```sh
+  npm install langfuse
+  ```
+
+  ```ts
+  // Client-side (browser)
+
+  import { LangfuseWeb } from "langfuse";
+
+  const langfuseWeb = new LangfuseWeb({
+    publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+  });
+
+  // frontend handler (example: React)
+  export function UserFeedbackComponent(props: { traceId: string }) {
+    const handleUserFeedback = async (value: number) => {
+      await langfuseWeb.score({
+        traceId: props.traceId,
+        name: "user_feedback",
+        value,
+      });
+    };
+    return (
+      <div>
+        <button onClick={() => handleUserFeedback(1)}>👍</button>
+        <button onClick={() => handleUserFeedback(-1)}>👎</button>
+      </div>
+    );
+  }
+  ```
+
+#### API
+
+[**Api reference**](https://langfuse.com/docs/integrations/api)
+
+- POST/PATCH routes to ingest data
+- GET routes to use data in downstream applications (e.g. embedded analytics)
+
+## Contributing to Langfuse
+
+Join the community [on Discord](https://discord.gg/7NXusRtqYU).
+
+To contribute, send us a PR, raise a github issue, or email at contributing@langfuse.com
+
+### Development setup
+
+Requirements: Node.js >=18, npm, Docker
 
 ```bash
-# Stop server and db
-docker compose down
-
-# Pull latest changes
-git pull
-docker-compose pull
-
-# Run server and db
-docker compose up -d
-
-# Apply db migrations
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
-```
-
-# Local development
-
-```
 # Install dependencies
 npm install
 
@@ -151,16 +231,30 @@ npm run db:migrate
 npm run dev
 ```
 
-# Run Langfuse in CI
 
-For integration testing of SDKs we run Langfuse in CI, see workflows in [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml) for reference.
-
-# Contributing to Langfuse
-
-Join the community [on Discord](https://discord.gg/7NXusRtqYU).
-
-To contribute, send us a PR, raise a github issue, or email at contributing@langfuse.com
-
-# License
+## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+
+## Misc
+
+### Upgrade Langfuse (localhost)
+
+```bash
+# Stop server and db
+docker compose down
+
+# Pull latest changes
+git pull
+docker-compose pull
+
+# Run server and db
+docker compose up -d
+
+# Apply db migrations
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
+```
+
+### Run Langfuse in CI for integration tests
+
+Checkout GitHub Actions workflows of [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml).

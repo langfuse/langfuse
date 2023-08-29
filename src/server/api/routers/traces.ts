@@ -17,19 +17,34 @@ type ScoreFilter = z.infer<typeof ScoreFilter>;
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  userId: z.string().nullable(),
+  userId: z.array(z.string()).nullable(),
   name: z.array(z.string()).nullable(),
   scores: ScoreFilter.nullable(),
   searchQuery: z.string().nullable(),
+  metadata: z
+    .array(z.object({ key: z.string(), value: z.string() }))
+    .nullable(),
 });
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const userIdCondition = input.userId
-        ? Prisma.sql`AND t."user_id" = ${input.userId}`
-        : Prisma.empty;
+      const metadataCondition = input.metadata
+        ? input.metadata.map(
+            (m) => Prisma.sql`AND t."metadata"->>${m.key} = ${m.value}`
+          )
+        : undefined;
+
+      const joinedMetadataCondition =
+        metadataCondition && metadataCondition.length > 0
+          ? Prisma.join(metadataCondition, " ")
+          : Prisma.empty;
+
+      const userIdCondition =
+        input.userId !== null && input.userId.length
+          ? Prisma.sql`AND t."user_id" IN (${Prisma.join(input.userId)})`
+          : Prisma.empty;
 
       const nameCondition =
         input.name !== null && input.name.length
@@ -56,14 +71,13 @@ export const traceRouter = createTRPCRouter({
             break;
         }
       }
-
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
-          t."id" ILIKE ${`%${input.searchQuery}%`} OR 
-          t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
-          t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
-          t."name" ILIKE ${`%${input.searchQuery}%`}
-        )`
+        t."id" ILIKE ${`%${input.searchQuery}%`} OR 
+        t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
+        t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
+        t."name" ILIKE ${`%${input.searchQuery}%`}
+      )`
         : Prisma.empty;
 
       const traces = await ctx.prisma.$queryRaw<
@@ -74,37 +88,37 @@ export const traceRouter = createTRPCRouter({
             totalTokens: number;
           }
         >
-      >(
-        Prisma.sql`
-          WITH usage as (
-            SELECT 
-              trace_id,
-              sum(prompt_tokens) AS "promptTokens",
-              sum(completion_tokens) AS "completionTokens",
-              sum(total_tokens) AS "totalTokens"
-            FROM "observations"
-            WHERE "trace_id" IS NOT NULL AND "project_id" = ${input.projectId}
-            GROUP BY trace_id
-          )
-          SELECT
-            t.*,
-            t."external_id" AS "externalId",
-            t."user_id" AS "userId",
-            COALESCE(u."promptTokens", 0)::int AS "promptTokens",
-            COALESCE(u."completionTokens", 0)::int AS "completionTokens",
-            COALESCE(u."totalTokens", 0)::int AS "totalTokens"
-          FROM "traces" AS t
-          LEFT JOIN usage AS u ON u.trace_id = t.id
-          WHERE 
-            t."project_id" = ${input.projectId}
-            ${userIdCondition}
-            ${nameCondition}
-            ${searchCondition}
-            ${scoreCondition}
-          ORDER BY t."timestamp" DESC
-          LIMIT 50;
-        `
-      );
+      >(Prisma.sql`
+      WITH usage as (
+        SELECT 
+          trace_id,
+          sum(prompt_tokens) AS "promptTokens",
+          sum(completion_tokens) AS "completionTokens",
+          sum(total_tokens) AS "totalTokens"
+        FROM "observations"
+        WHERE "trace_id" IS NOT NULL AND "project_id" = ${input.projectId}
+        GROUP BY trace_id
+      )
+      SELECT
+        t.*,
+        t."external_id" AS "externalId",
+        t."user_id" AS "userId",
+        t."metadata" AS "metadata",
+        COALESCE(u."promptTokens", 0)::int AS "promptTokens",
+        COALESCE(u."completionTokens", 0)::int AS "completionTokens",
+        COALESCE(u."totalTokens", 0)::int AS "totalTokens"
+      FROM "traces" AS t
+      LEFT JOIN usage AS u ON u.trace_id = t.id
+      WHERE 
+        t."project_id" = ${input.projectId}
+        ${userIdCondition}
+        ${nameCondition}
+        ${searchCondition}
+        ${scoreCondition}
+        ${joinedMetadataCondition}
+      ORDER BY t."timestamp" DESC
+      LIMIT 50;
+    `);
 
       const scores = traces.length
         ? await ctx.prisma.$queryRaw<Score[]>(
@@ -120,26 +134,31 @@ export const traceRouter = createTRPCRouter({
           )
         : [];
 
-      const res = traces.map((trace) => ({
+      return traces.map((trace) => ({
         ...trace,
         scores: scores.filter((score) => score.traceId === trace.id),
       }));
-      console.log(res);
-      return res;
     }),
   availableFilterOptions: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const metadataConditions = input.metadata
+        ? input.metadata.map((m) => ({
+            metadata: { path: [m.key], equals: m.value },
+          }))
+        : undefined;
+
       const filter = {
         AND: [
           {
             projectId: input.projectId,
-            ...(input.userId ? { userId: input.userId } : undefined),
             ...(input.name ? { name: { in: input.name } } : undefined),
+            ...(input.userId ? { userId: { in: input.userId } } : undefined),
             ...(input.scores
               ? { scores: { some: createScoreCondition(input.scores) } }
               : undefined),
           },
+          ...(metadataConditions ? metadataConditions : []),
           input.searchQuery
             ? {
                 OR: [
@@ -153,7 +172,7 @@ export const traceRouter = createTRPCRouter({
         ],
       };
 
-      const [scores, names] = await Promise.all([
+      const [scores, names, userIds] = await Promise.all([
         ctx.prisma.score.groupBy({
           where: {
             trace: filter,
@@ -166,6 +185,13 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.trace.groupBy({
           where: filter,
           by: ["name"],
+          _count: {
+            _all: true,
+          },
+        }),
+        ctx.prisma.trace.groupBy({
+          where: filter,
+          by: ["userId"],
           _count: {
             _all: true,
           },
@@ -192,10 +218,20 @@ export const traceRouter = createTRPCRouter({
           }),
         },
         {
+          key: "userId",
+          occurrences: userIds.map((i) => {
+            return { key: i.userId ?? "undefined", count: i._count };
+          }),
+        },
+        {
           key: "scores",
           occurrences: scoresArray.map((i) => {
             return { key: i.key, count: { _all: i.value } };
           }),
+        },
+        {
+          key: "metadata",
+          occurrences: [],
         },
       ];
     }),

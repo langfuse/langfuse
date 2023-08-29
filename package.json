@@ -54,6 +54,7 @@
     "@trpc/next": "^10.33.0",
     "@trpc/react-query": "^10.33.0",
     "@trpc/server": "^10.33.0",
+    "@vercel/edge-config": "^0.2.1",
     "axios": "^1.4.0",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.6.1",

@@ -815,7 +815,8 @@ components:
         name:
           type: string
         value:
-          type: integer
+          type: number
+          format: double
         observationId:
           type: string
           nullable: true
@@ -931,7 +932,8 @@ components:
         name:
           type: string
         value:
-          type: integer
+          type: number
+          format: double
         observationId:
           type: string
           nullable: true
@@ -967,6 +969,9 @@ components:
         endTime:
           type: string
           format: date-time
+          nullable: true
+        name:
+          type: string
           nullable: true
         metadata:
           nullable: true
