@@ -208,7 +208,7 @@ The maintainers are very active in the Langfuse [Discord](https://langfuse.com/d
 
 Join the community [on Discord](https://discord.gg/7NXusRtqYU).
 
-To contribute, send us a PR, raise a github issue, or email at contributing@langfuse.com
+To contribute, send us a PR, raise a GitHub issue, or email at contributing@langfuse.com
 
 ### Development setup
 
