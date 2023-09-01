@@ -17,9 +17,10 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { ManualScoreButton } from "@/src/features/manualScoring/components";
+import type Decimal from "decimal.js";
 
 export const ObservationPreview = (props: {
-  observations: Array<Observation & { traceId: string }>;
+  observations: Array<Observation & { traceId: string } & { price?: Decimal }>;
   projectId: string;
   scores: Score[];
   currentObservationId: string | undefined;
@@ -60,6 +61,11 @@ export const ObservationPreview = (props: {
             {observation.model ? (
               <Badge variant="outline">{observation.model}</Badge>
             ) : null}
+            {observation.price ? (
+              <Badge variant="outline">
+                {observation.price.toString()} USD
+              </Badge>
+            ) : undefined}
             {observation.modelParameters &&
             typeof observation.modelParameters === "object"
               ? Object.entries(observation.modelParameters)
