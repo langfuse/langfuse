@@ -15,6 +15,12 @@ We gratefully welcome improvements to documentation as well as to code.
 
 # How to contribute to Langfuse
 
+## Making a change
+
+_Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone.
+
+Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
+
 ## Getting started
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
