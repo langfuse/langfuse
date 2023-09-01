@@ -201,3 +201,24 @@ model Score {
     @@index([value])
     @@map("scores")
 }
+
+enum PricingUnit {
+    PER_1000_TOKENS
+}
+
+enum TokenType {
+    PROMPT
+    COMPLETION
+    TOTAL
+}
+
+model Pricing {
+    id          String      @id @default(cuid())
+    modelName   String      @map("model_name")
+    pricingUnit PricingUnit @default(PER_1000_TOKENS) @map("pricing_unit")
+    price       Decimal
+    currency    String      @default("USD")
+    tokenType   TokenType   @map("token_type")
+
+    @@map("pricings")
+}
