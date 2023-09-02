@@ -71,7 +71,6 @@ export default async function handler(
   res: NextApiResponse
 ) {
   await runMiddleware(req, res, cors);
-  console.log("got generation event" + JSON.stringify(req.body, null, 2));
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
