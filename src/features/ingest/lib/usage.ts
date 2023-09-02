@@ -41,6 +41,7 @@ export function calculateTokenCost(
   const pricing = pricingList.filter((p) => p.modelName === input.model);
 
   if (!pricing || pricing.length === 0) {
+    console.log("no pricing found for model", input.model);
     return undefined;
   } else {
     if (pricing.length === 1 && pricing[0]?.tokenType === "TOTAL") {
@@ -67,19 +68,11 @@ export function calculateTokenCost(
         );
       }
 
-      if (
-        promptPrice.equals(new Decimal(0)) ||
-        completionPrice.equals(new Decimal(0))
-      ) {
-        throw new Error(
-          `Multiple pricing entries found for model ${input.model}`
-        );
-      }
-
       return promptPrice.plus(completionPrice);
     }
+    console.log("unknown model", input.model);
+    return undefined;
   }
-  throw new Error(`Unexpected pricing configuration for model ${input.model}`);
 }
 
 const calculateValue = (price: Decimal, tokens: Decimal) => {
