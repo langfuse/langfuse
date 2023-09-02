@@ -58,7 +58,7 @@ export default async function handler(
         "Trying to generate span, project ",
         authCheck.scope.projectId,
         ", body:",
-        req.body
+        JSON.stringify(req.body, null, 2)
       );
       const obj = SpanPostSchema.parse(req.body);
       const {
@@ -174,7 +174,7 @@ export default async function handler(
         "Trying to update span, project ",
         authCheck.scope.projectId,
         ", body:",
-        req.body
+        JSON.stringify(req.body, null, 2)
       );
       const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 

@@ -46,7 +46,7 @@ export default async function handler(
         "Trying to create trace, project ",
         authCheck.scope.projectId,
         ", body:",
-        req.body
+        JSON.stringify(req.body, null, 2)
       );
 
       const { id, name, metadata, externalId, userId, release, version } =
