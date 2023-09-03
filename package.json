@@ -69,6 +69,7 @@
     "cmdk": "^0.2.0",
     "cohere-ai": "^5.1.0",
     "cors": "^2.8.5",
+    "decimal.js": "^10.4.3",
     "html-react-parser": "^4.2.1",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",

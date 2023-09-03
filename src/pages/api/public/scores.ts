@@ -46,7 +46,7 @@ export default async function handler(
         "trying to create score, project ",
         authCheck.scope.projectId,
         ", body:",
-        req.body
+        JSON.stringify(req.body, null, 2)
       );
 
       const obj = ScoreCreateSchema.parse(req.body);

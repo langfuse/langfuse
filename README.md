@@ -120,7 +120,9 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=p
 
 #### Langchain applications
 
-The Langfuse callback handler automatically instruments Langchain applications. Currently available for Python, JS/TS support is in progress (add +1 to issue [here](https://github.com/langfuse/langfuse-js/issues/11)).
+The Langfuse callback handler automatically instruments Langchain applications. Currently available for Python and JS/TS.
+
+**Python**
 
 ```shell
 pip install langfuse
@@ -140,7 +142,11 @@ chain = LLMChain(llm=llm, prompt=prompt)
 chain.run(input="<user_input", callbacks=[handler])
 ```
 
-→ More details: [Langchain integration docs](https://langfuse.com/docs/integrations/langchain)
+→ [Langchain integration docs for Python](https://langfuse.com/docs/integrations/langchain/python)
+
+**JS/TS**
+
+→ [Langchain integration docs for JS/TS](https://langfuse.com/docs/integrations/langchain/typescript)
 
 #### SDKs to manually instrument application
 
@@ -200,11 +206,15 @@ Quality/evaluation of traces is tracked via scores ([docs](https://langfuse.com/
 - POST/PATCH routes to ingest data
 - GET routes to use data in downstream applications (e.g. embedded analytics)
 
+## Questions / Feedback
+
+The maintainers are very active in the Langfuse [Discord](https://langfuse.com/discord) and are happy to answer questions or discuss feedback/ideas regarding the future of the project.
+
 ## Contributing to Langfuse
 
 Join the community [on Discord](https://discord.gg/7NXusRtqYU).
 
-To contribute, send us a PR, raise a github issue, or email at contributing@langfuse.com
+To contribute, send us a PR, raise a GitHub issue, or email at contributing@langfuse.com
 
 ### Development setup
 
@@ -230,7 +240,6 @@ npm run db:migrate
 # Start the server
 npm run dev
 ```
-
 
 ## License
 
@@ -258,3 +267,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=p
 ### Run Langfuse in CI for integration tests
 
 Checkout GitHub Actions workflows of [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml).
+
+### Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date)](https://star-history.com/#langfuse/langfuse&Date)

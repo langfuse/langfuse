@@ -6,6 +6,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Score, type Trace } from "@prisma/client";
+import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
+import Decimal from "decimal.js";
 
 const ScoreFilter = z.object({
   name: z.string(),
@@ -237,7 +239,7 @@ export const traceRouter = createTRPCRouter({
     }),
 
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
-    const [trace, observations] = await Promise.all([
+    const [trace, observations, pricings] = await Promise.all([
       ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input,
@@ -268,12 +270,27 @@ export const traceRouter = createTRPCRouter({
           },
         },
       }),
+      ctx.prisma.pricing.findMany(),
     ]);
+
+    const enrichedObservations = observations.map((observation) => {
+      return {
+        ...observation,
+        price: observation.model
+          ? calculateTokenCost(pricings, {
+              model: observation.model,
+              totalTokens: new Decimal(observation.totalTokens),
+              promptTokens: new Decimal(observation.promptTokens),
+              completionTokens: new Decimal(observation.completionTokens),
+            })
+          : undefined,
+      };
+    });
 
     return {
       ...trace,
-      observations: observations as Array<
-        (typeof observations)[0] & { traceId: string }
+      observations: enrichedObservations as Array<
+        (typeof observations)[0] & { traceId: string } & { price?: Decimal }
       >,
     };
   }),
