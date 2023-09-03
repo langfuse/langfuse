@@ -8,7 +8,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-
+  experimental: { appDir: true, serverActions: true },
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
    * out.
@@ -22,12 +22,21 @@ const nextConfig = {
   output: "standalone",
 
   // webassembly support for @dqbd/tiktoken
-  webpack(config) {
+  webpack(config, { isServer }) {
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
     };
-
+    if (isServer) {
+      config.target = "node";
+      config.node = {
+        __dirname: false,
+      };
+      config.module.rules.push({
+        test: /\.node$/,
+        loader: "node-loader",
+      });
+    }
     return config;
   },
 

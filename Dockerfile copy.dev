@@ -1,0 +1,38 @@
+# Creates a layer from node:19-buster image.
+# FROM node:18-alpine AS base
+FROM node:18-buster-slim
+RUN apt-get update && \
+    apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev python
+
+# Creates directories
+RUN mkdir -p /usr/src/app
+
+# Sets an environment variable
+ENV PORT 3000
+
+# Sets the working directory for any RUN, CMD, ENTRYPOINT, COPY, and ADD commands
+WORKDIR /usr/src/app
+
+# Install pnpm
+# RUN npm install -g pnpm
+
+# Copy new files or directories into the filesystem of the container
+COPY package-lock.json /usr/src/app
+# COPY pnpm-lock.yaml /usr/src/app
+COPY package.json /usr/src/app
+
+# Execute commands in a new layer on top of the current image and commit the results
+# RUN pnpm install --production
+# RUN pnpm install 
+RUN npm i
+
+# Copy new files or directories into the filesystem of the container
+COPY . /usr/src/app
+
+# Informs container runtime that the container listens on the specified network ports at runtime
+EXPOSE 3000
+
+# Allows you to configure a container that will run as an executable
+ENTRYPOINT ["npm", "run", "dev"]
+# ENTRYPOINT ["pnpm", "dev"]
+# ENTRYPOINT ["pnpm", "run", "dev"]

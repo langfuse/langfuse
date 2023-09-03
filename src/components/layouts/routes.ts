@@ -7,13 +7,25 @@ import {
   Settings,
   TextSelect,
   UsersIcon,
+  
 } from "lucide-react";
+import { BuildingLibraryIcon, WrenchScrewdriverIcon } from "@heroicons/react/24/solid";
 
 export const ROUTES = [
   {
     name: "Dashboard",
     pathname: `/project/[projectId]`,
     icon: LayoutDashboard,
+  },
+  {
+    name: "Truth Tables",
+    pathname: `/project/[projectId]/knowledge`,
+    icon: BuildingLibraryIcon,
+  },
+  {
+    name: "Docks",
+    pathname: `/project/[projectId]/docks/`,
+    icon: WrenchScrewdriverIcon,
   },
   {
     name: "Analytics (alpha)",

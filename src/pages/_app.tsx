@@ -1,8 +1,9 @@
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
-import { setUser } from "@sentry/nextjs";
+// import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
+
 
 import { api } from "@/src/utils/api";
 
@@ -59,7 +60,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
           <Component {...pageProps} />
           <UserTracking />
         </Layout>
-        <CrispWidget />
+        {/* <CrispWidget /> */}
       </SessionProvider>
     </PostHogProvider>
   );
@@ -84,10 +85,10 @@ function UserTracking() {
           projects: session.data.user?.projects ?? undefined,
         });
       // Sentry
-      setUser({
-        email: session.data.user?.email ?? undefined,
-        id: session.data.user?.id ?? undefined,
-      });
+      // setUser({
+      //   email: session.data.user?.email ?? undefined,
+      //   id: session.data.user?.id ?? undefined,
+      // });
       // Chat
       chatSetUser({
         name: session.data.user?.name ?? "undefined",
@@ -107,7 +108,7 @@ function UserTracking() {
       )
         posthog.reset();
       // Sentry
-      setUser(null);
+      // setUser(null);
     }
   }, [session]);
   return null;

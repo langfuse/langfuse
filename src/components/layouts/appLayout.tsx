@@ -1,14 +1,15 @@
-"use client"
+"use client";
 import { ROUTES } from "@/src/components/layouts/routes";
 import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import "@/src/styles/globals.css";
 
 import Link from "next/link";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Code, MessageSquarePlus, Info } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+// import { signOut, useSession } from "next-auth/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -17,29 +18,36 @@ import {
   AvatarImage,
 } from "@/src/components/ui/avatar";
 import { api } from "@/src/utils/api";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
+import { NewProjectButton } from "@/src/features/projects/components/NewProjectButtonNavigation";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
-import Head from "next/head";
+
 import { env } from "@/src/env.mjs";
 
 const userNavigation = [
   {
     name: "Sign out",
-    onClick: () =>
-      signOut({
-        callbackUrl: "/auth/sign-in",
-      }),
+    onClick: () => {},
+    // signOut({
+    //   callbackUrl: "/auth/sign-in",
+    // }),
   },
 ];
+import { usePathname, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
 
 export default function Layout(props: PropsWithChildren) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  console.log("pathname: ", pathname);
+  console.log("searchParams: ", searchParams);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
-  const projectId = router.query.projectId as string | undefined;
+  const projectId = pathname?.split("/")[2];
+  console.log("projectId: ", projectId);
   const navigation = ROUTES.filter(
     ({ pathname }) => projectId || !pathname.includes("[projectId]")
   )
@@ -50,11 +58,12 @@ export default function Layout(props: PropsWithChildren) {
     }))
     .map(({ pathname, ...rest }) => ({
       pathname,
-      current: router.pathname === pathname,
+      current: false,
+      // current: router.pathname === pathname,
       ...rest,
     }));
 
-  const currentPathName = navigation.find(({ current }) => current)?.name;
+  // const currentPathName = navigation.find(({ current }) => current)?.name;
 
   const session = useSession();
 
@@ -62,54 +71,49 @@ export default function Layout(props: PropsWithChildren) {
     enabled: session.status === "authenticated",
   });
 
-  if (session.status === "loading") return <Spinner message="Loading" />;
+  // if (session.status === "loading") return <Spinner message="Loading" />;
 
   // If the user has a token, but does not exist in the database, sign them out
-  if (
-    session.data &&
-    session.data.user === null &&
-    !unauthenticatedPaths.includes(router.pathname)
-  ) {
-    void signOut({
-      callbackUrl: "/auth/sign-in",
-    });
-    return <Spinner message="Redirecting" />;
-  }
+  // if (
+  //   session.data &&
+  //   session.data.user === null &&
+  //   !unauthenticatedPaths.includes(router.pathname)
+  // ) {
+  //   void signOut({
+  //     callbackUrl: "/auth/sign-in",
+  //   });
+  //   return <Spinner message="Redirecting" />;
+  // }
 
-  if (
-    session.status === "unauthenticated" &&
-    !unauthenticatedPaths.includes(router.pathname)
-  ) {
-    void router.push("/auth/sign-in");
-    return <Spinner message="Redirecting" />;
-  }
+  // if (
+  //   session.status === "unauthenticated" &&
+  //   !unauthenticatedPaths.includes(router.pathname)
+  // ) {
+  //   void router.push("/auth/sign-in");
+  //   return <Spinner message="Redirecting" />;
+  // }
 
-  if (
-    session.status === "authenticated" &&
-    unauthenticatedPaths.includes(router.pathname)
-  ) {
-    void router.push("/");
-    return <Spinner message="Redirecting" />;
-  }
+  // if (
+  //   session.status === "authenticated" &&
+  //   unauthenticatedPaths.includes(router.pathname)
+  // ) {
+  //   void router.push("/");
+  //   return <Spinner message="Redirecting" />;
+  // }
 
-  const hideNavigation =
-    session.status === "unauthenticated" ||
-    projects.data?.length === 0 ||
-    pathsWithoutNavigation.includes(router.pathname);
-  if (hideNavigation)
-    return (
-      <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
-        {props.children}
-      </main>
-    );
+  // const hideNavigation =
+  //   session.status === "unauthenticated" ||
+  //   projects.data?.length === 0 ||
+  //   pathsWithoutNavigation.includes(router.pathname);
+  // if (hideNavigation)
+  //   return (
+  //     <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+  //       {props.children}
+  //     </main>
+  //   );
 
   return (
     <>
-      <Head>
-        <title>
-          {currentPathName ? `${currentPathName} | Prisma` : "Prisma"}
-        </title>
-      </Head>
       <div>
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
@@ -212,7 +216,7 @@ export default function Layout(props: PropsWithChildren) {
                             <div className="text-xs font-semibold leading-6 text-gray-400">
                               Projects
                             </div>
-                            <NewProjectButton size="xs" />
+                            {/* <NewProjectButton size="xs" /> */}
                           </div>
                           <ul role="list" className="-mx-2 mt-2 space-y-1">
                             {projects.data?.map((project) => (
@@ -317,7 +321,7 @@ export default function Layout(props: PropsWithChildren) {
                     <div className="text-xs font-semibold leading-6 text-gray-400">
                       Projects
                     </div>
-                    <NewProjectButton size="xs" />
+                    {/* <NewProjectButton size="xs" /> */}
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
                     {projects.data?.map((project) => (
@@ -478,7 +482,7 @@ export default function Layout(props: PropsWithChildren) {
           </Menu>
         </div>
         <div className="xl:pl-72">
-          {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+            {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID ? (
             <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 xl:sticky xl:top-0 xl:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
@@ -495,8 +499,8 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="py-4">
-            <div className="px-4">{props.children}</div>
+          <main className="h-full w-full py-4">
+            <div className="h-full w-full px-4">{props.children}</div>
           </main>
         </div>
       </div>
