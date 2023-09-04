@@ -1,6 +1,6 @@
 <div align="center">
    <a href="https://langfuse.com">
-      <h1>🪢 Langfuse</h1>
+      <h1>🪢 Langfuse preview</h1>
    </a>
    <h3>
       Open source observability & analytics for LLM-based applications
