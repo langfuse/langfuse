@@ -152,6 +152,7 @@ export default async function handler(
           FROM "traces" AS t
           LEFT JOIN "observations" AS o ON t.id = o.trace_id
           WHERE t.project_id = ${authCheck.scope.projectId}
+          AND o.project_id = ${authCheck.scope.projectId}
           ${obj.userId ? userCondition : Prisma.empty}
           ${obj.name ? nameCondition : Prisma.empty}
           GROUP BY t.id
