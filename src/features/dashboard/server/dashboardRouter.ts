@@ -50,6 +50,7 @@ export const dashboardRouter = createTRPCRouter({
         type = 'GENERATION'
         AND start_time > NOW() - INTERVAL '${input.agg}'
         AND traces.project_id = '${input.projectId}'
+        AND observations.project_id = '${input.projectId}'
 
         GROUP BY 1
       )
