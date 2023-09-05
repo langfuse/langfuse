@@ -1,4 +1,4 @@
-# Contributing to UUI
+# Contributing to Langfuse
 
 First off, thanks for taking the time to contribute! ❤️
 
@@ -12,6 +12,8 @@ We gratefully welcome improvements to documentation as well as to code.
 > - Tweet about it;
 > - Refer to this project in your project's readme;
 > - Mention the project at local meetups and tell your friends/colleagues.
+
+The maintainers are available on [Discord](https://langfuse.com/discord) in case you have any questions.
 
 # How to contribute to Langfuse
 
