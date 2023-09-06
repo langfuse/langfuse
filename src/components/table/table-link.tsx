@@ -7,7 +7,11 @@ export type TableLinkProps = {
   truncateAt?: number;
 };
 
-export default function TableLink({ path, value, truncateAt }: TableLinkProps) {
+export default function TableLink({
+  path,
+  value,
+  truncateAt = 7,
+}: TableLinkProps) {
   const router = useRouter();
 
   return (
@@ -19,7 +23,9 @@ export default function TableLink({ path, value, truncateAt }: TableLinkProps) {
           void router.push(path);
         }}
       >
-        ...{lastCharacters(value, truncateAt ?? 7)}
+        {value.length > truncateAt
+          ? `...${value.substring(value.length - truncateAt)}`
+          : value}
       </button>
     </div>
   );
