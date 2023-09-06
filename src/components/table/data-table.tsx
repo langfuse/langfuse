@@ -7,6 +7,8 @@ import {
   useReactTable,
   type ColumnFiltersState,
   getFilteredRowModel,
+  type OnChangeFn,
+  type PaginationState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -18,12 +20,17 @@ import {
 } from "@/src/components/ui/table";
 import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
-import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   options: AsyncTableData<TableRowOptions[]>;
+  pagination?: {
+    pageCount: number;
+    onChange: OnChangeFn<PaginationState>;
+    state: PaginationState;
+  };
 }
 
 export interface AsyncTableData<T> {
@@ -36,9 +43,9 @@ export interface AsyncTableData<T> {
 export function DataTable<TData, TValue>({
   columns,
   data,
+  pagination,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [animationParent] = useAutoAnimate();
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -46,8 +53,12 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: pagination !== undefined,
+    pageCount: pagination?.pageCount ?? 0,
+    onPaginationChange: pagination?.onChange,
     state: {
       columnFilters,
+      pagination: pagination?.state,
     },
     manualFiltering: true,
   });
@@ -78,7 +89,7 @@ export function DataTable<TData, TValue>({
                 </TableRow>
               ))}
             </TableHeader>
-            <TableBody ref={animationParent}>
+            <TableBody>
               {data.isLoading || !data.data ? (
                 <TableRow>
                   <TableCell
@@ -121,6 +132,7 @@ export function DataTable<TData, TValue>({
           </Table>
         </div>
       </div>
+      {pagination !== undefined ? <DataTablePagination table={table} /> : null}
     </>
   );
 }

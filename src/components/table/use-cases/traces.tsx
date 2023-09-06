@@ -13,7 +13,7 @@ import {
 } from "@/src/utils/tanstack";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type ColumnDef } from "@tanstack/react-table";
+import { type PaginationState, type ColumnDef } from "@tanstack/react-table";
 import router from "next/router";
 import { useState } from "react";
 
@@ -62,6 +62,7 @@ export default function TracesTable({
   const setQueryOptions = (filter?: TraceFilterInput) => {
     filter ? setQuery(filter) : undefined;
     setFilterInParams(filter);
+    setPaginationState({ pageIndex: 0, pageSize: paginationState.pageSize });
   };
 
   const [selectedScore, setSelectedScores] = useState<SelectedScoreFilter>({
@@ -72,10 +73,18 @@ export default function TracesTable({
 
   const [selectedMetadata, setSelectedMetadata] = useState<KeyValue[]>([]);
 
+  const [paginationState, setPaginationState] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 50,
+  });
+
   const traces = api.traces.all.useQuery({
     ...queryOptions,
+    pageIndex: paginationState.pageIndex,
+    pageSize: paginationState.pageSize,
     projectId,
   });
+  const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
 
   const options = api.traces.availableFilterOptions.useQuery({
     ...queryOptions,
@@ -364,6 +373,11 @@ export default function TracesTable({
               }
         }
         options={tableOptions}
+        pagination={{
+          pageCount: Math.ceil(totalCount / 50),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
     </div>
   );
