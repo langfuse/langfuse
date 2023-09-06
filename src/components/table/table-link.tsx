@@ -4,9 +4,10 @@ import { useRouter } from "next/router";
 export type TableLinkProps = {
   path: string;
   value: string;
+  truncateAt?: number;
 };
 
-export default function TableLink({ path, value }: TableLinkProps) {
+export default function TableLink({ path, value, truncateAt }: TableLinkProps) {
   const router = useRouter();
 
   return (
@@ -18,7 +19,7 @@ export default function TableLink({ path, value }: TableLinkProps) {
           void router.push(path);
         }}
       >
-        ...{lastCharacters(value, 7)}
+        ...{lastCharacters(value, truncateAt ?? 7)}
       </button>
     </div>
   );
