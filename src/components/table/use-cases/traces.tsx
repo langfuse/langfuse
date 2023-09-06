@@ -209,6 +209,7 @@ export default function TracesTable({
           <TableLink
             path={`/project/${projectId}/users/${value}`}
             value={value}
+            truncateAt={40}
           />
         ) : undefined;
       },
