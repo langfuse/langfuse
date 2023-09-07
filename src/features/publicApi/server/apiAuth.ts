@@ -13,7 +13,7 @@ type AuthHeaderVerificationResult =
     };
 
 export async function verifyAuthHeaderAndReturnScope(
-  authHeader: string | undefined
+  authHeader: string | undefined,
 ): Promise<AuthHeaderVerificationResult> {
   if (!authHeader) {
     console.error("No authorization header");
@@ -24,12 +24,12 @@ export async function verifyAuthHeaderAndReturnScope(
   }
 
   try {
-    // Basic auth, full scope, needs secret key and publishable key
+    // Basic auth, full scope, needs secret key and public key
     if (authHeader.startsWith("Basic ")) {
-      const { username: publishableKey, password: secretKey } =
+      const { username: publicKey, password: secretKey } =
         extractBasicAuthCredentials(authHeader);
 
-      const dbKey = await findDbKeyOrThrow(publishableKey);
+      const dbKey = await findDbKeyOrThrow(publicKey);
 
       const isValid = await verifySecretKey(secretKey, dbKey.hashedSecretKey);
       if (!isValid) throw new Error("Invalid credentials");
@@ -42,11 +42,11 @@ export async function verifyAuthHeaderAndReturnScope(
         },
       };
     }
-    // Bearer auth, limited scope, only needs publishable key
+    // Bearer auth, limited scope, only needs public key
     if (authHeader.startsWith("Bearer ")) {
-      const publishableKey = authHeader.replace("Bearer ", "");
+      const publicKey = authHeader.replace("Bearer ", "");
 
-      const dbKey = await findDbKeyOrThrow(publishableKey);
+      const dbKey = await findDbKeyOrThrow(publicKey);
 
       return {
         validKey: true,
@@ -82,9 +82,9 @@ function extractBasicAuthCredentials(basicAuthHeader: string): {
   return { username, password };
 }
 
-async function findDbKeyOrThrow(publishableKey: string) {
+async function findDbKeyOrThrow(publicKey: string) {
   const dbKey = await prisma.apiKey.findUnique({
-    where: { publishableKey },
+    where: { publicKey },
   });
   if (!dbKey) throw new Error("Invalid public key");
   return dbKey;

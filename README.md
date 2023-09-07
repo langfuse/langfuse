@@ -241,6 +241,12 @@ npm run db:migrate
 npm run dev
 ```
 
+Run tests
+
+```bash
+npm run test
+```
+
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
