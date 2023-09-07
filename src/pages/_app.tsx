@@ -15,12 +15,26 @@ import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
 
+const setProjectInPosthog = () => {
+  // project
+  const url = window.location.href;
+  const regex = /\/project\/([^\/]+)/;
+  const match = url.match(regex);
+  console.log(match);
+  if (match && match[1]) {
+    posthog?.group("project", match[1]);
+  } else {
+    posthog?.resetGroups();
+  }
+};
+
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
   typeof window !== "undefined" &&
   process.env.NEXT_PUBLIC_POSTHOG_KEY &&
   process.env.NEXT_PUBLIC_POSTHOG_HOST
 ) {
+  setProjectInPosthog();
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
     // Enable debug mode in development
@@ -43,21 +57,8 @@ const MyApp: AppType<{ session: Session | null }> = ({
       process.env.NEXT_PUBLIC_POSTHOG_HOST
     ) {
       const handleRouteChange = () => {
+        setProjectInPosthog();
         posthog?.capture("$pageview");
-        //get url from window
-        const url = window.location.href;
-        // regex match projectid from url; it is behind
-        const regex = /\/project\/([^\/]+)/;
-        const match = url.match(regex);
-
-        if (match && match[1]) {
-          posthog?.group("project", match[1]);
-        } else {
-          posthog?.resetGroups();
-        }
-
-        // if project
-        posthog.resetGroups();
       };
       router.events.on("routeChangeComplete", handleRouteChange);
 
