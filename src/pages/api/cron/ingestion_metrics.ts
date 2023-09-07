@@ -14,7 +14,7 @@ export default async function handler(
   });
   if (process.env.NODE_ENV === "development") posthog.debug();
 
-  // Time frame (15 min)
+  // Time frame is the last time this cron job ran until now
   const startTimeframe =
     (
       await prisma.cronJobs.findUnique({
