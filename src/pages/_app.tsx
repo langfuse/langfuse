@@ -42,7 +42,23 @@ const MyApp: AppType<{ session: Session | null }> = ({
       process.env.NEXT_PUBLIC_POSTHOG_KEY &&
       process.env.NEXT_PUBLIC_POSTHOG_HOST
     ) {
-      const handleRouteChange = () => posthog?.capture("$pageview");
+      const handleRouteChange = () => {
+        posthog?.capture("$pageview");
+        //get url from window
+        const url = window.location.href;
+        // regex match projectid from url; it is behind
+        const regex = /\/project\/([^\/]+)/;
+        const match = url.match(regex);
+
+        if (match && match[1]) {
+          posthog?.group("project", match[1]);
+        } else {
+          posthog?.resetGroups();
+        }
+
+        // if project
+        posthog.resetGroups();
+      };
       router.events.on("routeChangeComplete", handleRouteChange);
 
       return () => {
