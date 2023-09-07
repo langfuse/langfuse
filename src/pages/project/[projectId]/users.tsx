@@ -91,7 +91,7 @@ export default function UsersPage() {
   ];
 
   return (
-    <div className="md:container">
+    <div>
       <Header title="Users" />
 
       <DataTable
@@ -117,7 +117,7 @@ export default function UsersPage() {
                       t.lastObservation.toLocaleString() ?? "No event yet",
                     totalEvents: numberFormatter(
                       (Number(t.totalTraces) || 0) +
-                        (Number(t.totalObservations) || 0)
+                        (Number(t.totalObservations) || 0),
                     ),
                     totalTokens: numberFormatter(t.totalTokens),
                     lastScore: t.lastScore,

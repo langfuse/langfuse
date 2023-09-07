@@ -7,7 +7,7 @@ export default function Traces() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="md:container">
+    <div>
       <Header title="Traces" />
       <TracesTable projectId={projectId} />
     </div>
