@@ -10,7 +10,7 @@ export default async function handler(
     return res.status(200).json({ message: "No PostHog key provided" });
 
   const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
+    host: "https://eu.posthog.com",
   });
   if (process.env.NODE_ENV === "development") posthog.debug();
 
