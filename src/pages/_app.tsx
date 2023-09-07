@@ -100,6 +100,12 @@ function UserTracking() {
           featureFlags: session.data.user?.featureFlags ?? undefined,
           projects: session.data.user?.projects ?? undefined,
         });
+      const emailDomain = session.data.user?.email?.split("@")[1];
+      if (emailDomain)
+        posthog.group("emailDomain", emailDomain, {
+          domain: emailDomain,
+        });
+
       // Sentry
       setUser({
         email: session.data.user?.email ?? undefined,
@@ -121,8 +127,10 @@ function UserTracking() {
       if (
         process.env.NEXT_PUBLIC_POSTHOG_KEY &&
         process.env.NEXT_PUBLIC_POSTHOG_HOST
-      )
+      ) {
         posthog.reset();
+        posthog.resetGroups();
+      }
       // Sentry
       setUser(null);
     }
