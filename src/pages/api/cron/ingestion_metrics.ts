@@ -9,82 +9,87 @@ export default async function handler(
   if (!process.env.NEXT_PUBLIC_POSTHOG_KEY)
     return res.status(200).json({ message: "No PostHog key provided" });
 
-  const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    host: "https://eu.posthog.com",
-  });
-  if (process.env.NODE_ENV === "development") posthog.debug();
+  try {
+    const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
+      host: "https://eu.posthog.com",
+    });
+    if (process.env.NODE_ENV === "development") posthog.debug();
 
-  // Time frame is the last time this cron job ran until now
-  const startTimeframe =
-    (
-      await prisma.cronJobs.findUnique({
-        where: { name: "ingestion_metrics" },
-      })
-    )?.lastRun ?? undefined;
-  const endTimeframe = new Date(Date.now());
+    // Time frame is the last time this cron job ran until now
+    const startTimeframe =
+      (
+        await prisma.cronJobs.findUnique({
+          where: { name: "ingestion_metrics" },
+        })
+      )?.lastRun ?? undefined;
+    const endTimeframe = new Date(Date.now());
 
-  const projects = await prisma.project.findMany({
-    select: {
-      id: true,
-      name: true,
-      createdAt: true,
-    },
-  });
-
-  projects.forEach((project) => {
-    posthog.groupIdentify({
-      groupType: "project",
-      groupKey: project.id,
-      properties: {
-        project_name: project.name,
-        created_at: project.createdAt,
-        environment: process.env.NODE_ENV,
+    const projects = await prisma.project.findMany({
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
       },
     });
-  });
 
-  const traceCountPerProject = await prisma.trace.groupBy({
-    by: ["projectId"],
-    where: {
-      timestamp: {
-        gte: startTimeframe?.toISOString(),
-        lt: endTimeframe.toISOString(),
-      },
-    },
-    _count: {
-      id: true,
-    },
-  });
+    projects.forEach((project) => {
+      posthog.groupIdentify({
+        groupType: "project",
+        groupKey: project.id,
+        properties: {
+          project_name: project.name,
+          created_at: project.createdAt,
+          environment: process.env.NODE_ENV,
+        },
+      });
+    });
 
-  traceCountPerProject.forEach((value) => {
-    posthog.capture({
-      event: "ingestion_metrics",
-      distinctId: "static_id_for_project_events",
-      groups: {
-        project: value.projectId,
+    const traceCountPerProject = await prisma.trace.groupBy({
+      by: ["projectId"],
+      where: {
+        timestamp: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
       },
-      properties: {
-        traces: value._count.id,
+      _count: {
+        id: true,
       },
     });
-  });
 
-  await posthog.shutdownAsync();
+    traceCountPerProject.forEach((value) => {
+      posthog.capture({
+        event: "ingestion_metrics",
+        distinctId: "static_id_for_project_events",
+        groups: {
+          project: value.projectId,
+        },
+        properties: {
+          traces: value._count.id,
+        },
+      });
+    });
 
-  await prisma.cronJobs.upsert({
-    where: { name: "ingestion_metrics" },
-    update: { lastRun: endTimeframe },
-    create: { name: "ingestion_metrics", lastRun: endTimeframe },
-  });
+    await posthog.shutdownAsync();
 
-  console.log(
-    "Updated ingestion_metrics in PostHog for #projects:",
-    traceCountPerProject.length,
-    "startTimeframe:",
-    startTimeframe,
-    "endTimeframe:",
-    endTimeframe,
-  );
+    console.log(
+      "Updated ingestion_metrics in PostHog for #projects:",
+      traceCountPerProject.length,
+      "startTimeframe:",
+      startTimeframe,
+      "endTimeframe:",
+      endTimeframe,
+    );
 
-  return res.status(200).json({ message: "OK" });
+    await prisma.cronJobs.upsert({
+      where: { name: "ingestion_metrics" },
+      update: { lastRun: endTimeframe },
+      create: { name: "ingestion_metrics", lastRun: endTimeframe },
+    });
+
+    return res.status(200).json({ message: "OK" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 }
