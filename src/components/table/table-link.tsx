@@ -1,4 +1,3 @@
-import { lastCharacters } from "@/src/utils/string";
 import { useRouter } from "next/router";
 
 export type TableLinkProps = {

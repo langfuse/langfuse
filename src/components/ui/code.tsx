@@ -4,7 +4,7 @@ import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
 export function JSONView(props: {
-  json: string | unknown;
+  json: unknown;
   defaultCollapsed?: boolean;
   scrollable?: boolean;
   title?: string;
@@ -23,7 +23,7 @@ export function JSONView(props: {
   );
 }
 
-const parseJsonInput = (jsonIn: string | unknown): string => {
+const parseJsonInput = (jsonIn: unknown): string => {
   if (typeof jsonIn === "string") return jsonIn;
 
   try {
