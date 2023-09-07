@@ -8,7 +8,7 @@ export default function ScoresPage() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="md:container">
+    <div>
       <Header title="Scores" />
       <ScoresTable projectId={projectId} />
     </div>
