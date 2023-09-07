@@ -138,7 +138,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "score-name",
       value: 100,
       traceId: dbGeneration[0]!.traceId!,
-      observationId: dbGeneration[0]!.id!,
+      observationId: dbGeneration[0]!.id,
     });
 
     expect(createScore.status).toBe(200);
@@ -150,7 +150,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(dbScore?.id).toBe(scoreId);
     expect(dbScore?.traceId).toBe(dbGeneration[0]!.traceId!);
-    expect(dbScore?.observationId).toBe(dbGeneration[0]!.id!);
+    expect(dbScore?.observationId).toBe(dbGeneration[0]!.id);
     expect(dbScore?.name).toBe("score-name");
     expect(dbScore?.value).toBe(100);
   });
