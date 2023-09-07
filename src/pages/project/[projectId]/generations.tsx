@@ -125,7 +125,7 @@ export default function Generations() {
   ];
 
   const convertToOptions = (
-    options: RouterOutput["generations"]["availableFilterOptions"]
+    options: RouterOutput["generations"]["availableFilterOptions"],
   ): TableRowOptions[] => {
     return options.map((o) => {
       return {
@@ -175,7 +175,7 @@ export default function Generations() {
   const isFiltered = () => queryOptions.traceId !== null;
 
   return (
-    <div className="md:container">
+    <div>
       <Header title="Generations" />
       {tableOptions.data ? (
         <DataTableToolbar
