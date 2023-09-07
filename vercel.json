@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/ingestion_metrics",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
