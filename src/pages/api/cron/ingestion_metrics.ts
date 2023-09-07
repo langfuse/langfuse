@@ -29,6 +29,23 @@ export default async function handler(
         id: true,
         name: true,
         createdAt: true,
+        members: {
+          select: {
+            user: {
+              select: {
+                email: true,
+              },
+            },
+          },
+          where: {
+            role: "OWNER",
+          },
+        },
+      },
+      where: {
+        updatedAt: {
+          gte: startTimeframe?.toISOString(),
+        },
       },
     });
 
@@ -38,6 +55,9 @@ export default async function handler(
         groupKey: project.id,
         properties: {
           project_name: project.name,
+          project_owner: project.members
+            .map((member) => member.user.email)
+            .join(","),
           created_at: project.createdAt,
           environment: process.env.NODE_ENV,
         },
