@@ -222,3 +222,10 @@ model Pricing {
 
     @@map("pricings")
 }
+
+model CronJobs {
+    name    String    @id
+    lastRun DateTime? @map("last_run")
+
+    @@map("cron_jobs")
+}
