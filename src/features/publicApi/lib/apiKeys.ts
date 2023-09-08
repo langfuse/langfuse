@@ -5,7 +5,7 @@ export function generateSecretKey() {
   return `sk-lf-${randomUUID()}`;
 }
 
-export function generatePublishableKey() {
+export function generatePublicKey() {
   return `pk-lf-${randomUUID()}`;
 }
 
@@ -19,7 +19,7 @@ export async function hashSecretKey(key: string) {
 }
 
 export async function generateKeySet() {
-  const pk = generatePublishableKey();
+  const pk = generatePublicKey();
   const sk = generateSecretKey();
   const hashedSk = await hashSecretKey(sk);
   const displaySk = getDisplaySecretKey(sk);

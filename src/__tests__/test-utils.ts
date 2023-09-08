@@ -7,10 +7,10 @@ import { hash } from "bcryptjs";
 
 export function createBasicAuthHeader(
   username: string,
-  password: string
+  password: string,
 ): string {
   const base64Credentials = Buffer.from(`${username}:${password}`).toString(
-    "base64"
+    "base64",
   );
   return `Basic ${base64Credentials}`;
 }
@@ -18,7 +18,7 @@ export function createBasicAuthHeader(
 export async function makeAPICall(
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
-  body: unknown
+  body: unknown,
 ) {
   const finalUrl = `http://localhost:3000/${url}`;
   const options = {
@@ -28,7 +28,7 @@ export async function makeAPICall(
       "Content-Type": "application/json;charset=UTF-8",
       Authorization: createBasicAuthHeader(
         "pk-lf-1234567890",
-        "sk-lf-1234567890"
+        "sk-lf-1234567890",
       ),
     },
     body: JSON.stringify(body),
@@ -59,7 +59,7 @@ export const setupUserAndProject = async () => {
             note: "seeded key",
             hashedSecretKey: await hashSecretKey("sk-lf-1234567890"),
             displaySecretKey: getDisplaySecretKey("sk-lf-1234567890"),
-            publishableKey: "pk-lf-1234567890",
+            publicKey: "pk-lf-1234567890",
           },
         ],
       },
