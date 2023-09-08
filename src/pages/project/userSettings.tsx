@@ -30,7 +30,7 @@ export default function UserSettingPage() {
       <Header title="User Settings" />
       <Alert>
         <div className=" flex justify-between items-center ">
-          <div className="text-2xl font-bold">{session.data?.user?.name}</div>
+          <div className="text-xl font-semibold">{session.data?.user?.name}</div>
           <Avatar className="h-20 w-20">
             <AvatarImage
               src={session.data?.user?.image ?? undefined}
