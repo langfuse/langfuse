@@ -154,6 +154,23 @@ export default async function handler(
       });
     });
 
+    // db size
+    const dbSize = await prisma.$queryRaw<
+      Array<{
+        size_in_mb: number;
+      }>
+    >`
+      SELECT (pg_database_size('postgres') / 1024^2)::integer AS size_in_mb
+    `;
+    if (dbSize[0])
+      posthog.capture({
+        event: "ingestion_metrics",
+        distinctId: "static_id_for_project_events",
+        properties: {
+          total_db_size_in_mb: dbSize[0].size_in_mb,
+        },
+      });
+
     await posthog.shutdownAsync();
 
     console.log(
@@ -166,6 +183,7 @@ export default async function handler(
         "#projects with observations": observationCountPerProject.length,
         "#projects with scores": scoreCountPerProject.length,
         "#projects (new/updated)": projects.length,
+        "db size in MB": dbSize[0]?.size_in_mb,
       },
     );
 
