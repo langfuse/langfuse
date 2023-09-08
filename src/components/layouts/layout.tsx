@@ -8,7 +8,7 @@ import { useRouter } from "next/router";
 import clsx from "clsx";
 import { Code, MessageSquarePlus, Info } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
 import {
   Avatar,
@@ -21,16 +21,6 @@ import { FeedbackButtonWrapper } from "@/src/features/feedback/component/Feedbac
 import { Button } from "@/src/components/ui/button";
 import Head from "next/head";
 import { env } from "@/src/env.mjs";
-
-const userNavigation = [
-  {
-    name: "Sign out",
-    onClick: () =>
-      signOut({
-        callbackUrl: "/auth/sign-in",
-      }),
-  },
-];
 
 const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
@@ -370,48 +360,21 @@ export default function Layout(props: PropsWithChildren) {
                         <AvatarFallback>
                           {session.data?.user?.name
                             ? session.data.user.name
-                                .split(" ")
-                                .map((word) => word[0])
-                                .slice(0, 2)
-                                .concat("")
+                              .split(" ")
+                              .map((word) => word[0])
+                              .slice(0, 2)
+                              .concat("")
                             : null}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                      <Link href="./userSettings" className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
                         {session.data?.user?.name}
-                      </span>
-                      <ChevronDownIcon
+                      </Link>
+                      <ChevronRightIcon
                         className="h-5 w-5 text-gray-400"
                         aria-hidden="true"
                       />
                     </Menu.Button>
-                    <Transition
-                      as={Fragment}
-                      enter="transition ease-out duration-100"
-                      enterFrom="transform opacity-0 scale-95"
-                      enterTo="transform opacity-100 scale-100"
-                      leave="transition ease-in duration-75"
-                      leaveFrom="transform opacity-100 scale-100"
-                      leaveTo="transform opacity-0 scale-95"
-                    >
-                      <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                        {userNavigation.map((item) => (
-                          <Menu.Item key={item.name}>
-                            {({ active }) => (
-                              <a
-                                onClick={() => void item.onClick()}
-                                className={cn(
-                                  active ? "bg-gray-50" : "",
-                                  "block px-3 py-1 text-sm leading-6 text-gray-900"
-                                )}
-                              >
-                                {item.name}
-                              </a>
-                            )}
-                          </Menu.Item>
-                        ))}
-                      </Menu.Items>
-                    </Transition>
                   </Menu>
                 </li>
               </ul>
@@ -434,51 +397,27 @@ export default function Layout(props: PropsWithChildren) {
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={session.data?.user?.image ?? undefined} />
-                <AvatarFallback>
-                  {session.data?.user?.name
-                    ? session.data.user.name
+              <Link href="./userSettings">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={session.data?.user?.image ?? undefined} />
+                  <AvatarFallback>
+                    {session.data?.user?.name
+                      ? session.data.user.name
                         .split(" ")
                         .map((word) => word[0])
                         .slice(0, 2)
                         .concat("")
-                    : null}
-                </AvatarFallback>
-              </Avatar>
+                      : null}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
             </Menu.Button>
-            <Transition
-              as={Fragment}
-              enter="transition ease-out duration-100"
-              enterFrom="transform opacity-0 scale-95"
-              enterTo="transform opacity-100 scale-100"
-              leave="transition ease-in duration-75"
-              leaveFrom="transform opacity-100 scale-100"
-              leaveTo="transform opacity-0 scale-95"
-            >
-              <Menu.Items className="absolute right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                {userNavigation.map((item) => (
-                  <Menu.Item key={item.name}>
-                    {({ active }) => (
-                      <a
-                        onClick={() => void item.onClick()}
-                        className={cn(
-                          active ? "bg-gray-50" : "",
-                          "block px-3 py-1 text-sm leading-6 text-gray-900"
-                        )}
-                      >
-                        {item.name}
-                      </a>
-                    )}
-                  </Menu.Item>
-                ))}
-              </Menu.Items>
-            </Transition>
+
           </Menu>
         </div>
         <div className="xl:pl-72">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID ? (
+            projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID ? (
             <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 xl:sticky xl:top-0 xl:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
