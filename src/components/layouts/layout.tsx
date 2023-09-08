@@ -351,30 +351,32 @@ export default function Layout(props: PropsWithChildren) {
 
                 <li className="-mx-6 ">
                   <Menu as="div" className="relative">
-                    <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
-                      <span className="sr-only">Open user menu</span>
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={session.data?.user?.image ?? undefined}
+                    <Link href='./userSettings' className=" inline">
+                      <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+                        <span className="sr-only">Open user menu</span>
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage
+                            src={session.data?.user?.image ?? undefined}
+                          />
+                          <AvatarFallback>
+                            {session.data?.user?.name
+                              ? session.data.user.name
+                                .split(" ")
+                                .map((word) => word[0])
+                                .slice(0, 2)
+                                .concat("")
+                              : null}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                          {session.data?.user?.name}
+                        </span>
+                        <ChevronRightIcon
+                          className="h-5 w-5 text-gray-400"
+                          aria-hidden="true"
                         />
-                        <AvatarFallback>
-                          {session.data?.user?.name
-                            ? session.data.user.name
-                              .split(" ")
-                              .map((word) => word[0])
-                              .slice(0, 2)
-                              .concat("")
-                            : null}
-                        </AvatarFallback>
-                      </Avatar>
-                      <Link href="./userSettings" className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
-                        {session.data?.user?.name}
-                      </Link>
-                      <ChevronRightIcon
-                        className="h-5 w-5 text-gray-400"
-                        aria-hidden="true"
-                      />
-                    </Menu.Button>
+                      </Menu.Button>
+                    </Link>
                   </Menu>
                 </li>
               </ul>
