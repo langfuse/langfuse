@@ -89,7 +89,7 @@ model ApiKey {
     id               String    @id @unique @default(cuid())
     createdAt        DateTime  @default(now()) @map("created_at")
     note             String?
-    publishableKey   String    @unique @map("publishable_key")
+    publicKey        String    @unique @map("public_key")
     hashedSecretKey  String    @unique @map("hashed_secret_key")
     displaySecretKey String    @map("display_secret_key")
     lastUsedAt       DateTime? @map("last_used_at")

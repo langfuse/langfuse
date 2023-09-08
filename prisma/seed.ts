@@ -65,7 +65,7 @@ async function main() {
       data: {
         note: seedApiKey.note,
         id: seedApiKey.id,
-        publishableKey: seedApiKey.public,
+        publicKey: seedApiKey.public,
         hashedSecretKey: await hashSecretKey(seedApiKey.secret),
         displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
         project: {
@@ -89,7 +89,7 @@ async function main() {
               note: "seeded key",
               hashedSecretKey: await hashSecretKey("sk-lf-asdfghjkl"),
               displaySecretKey: getDisplaySecretKey("sk-lf-asdfghjkl"),
-              publishableKey: "pk-lf-asdfghjkl",
+              publicKey: "pk-lf-asdfghjkl",
             },
           ],
         },
@@ -111,7 +111,8 @@ async function main() {
       }
       // random date within last 90 days, with a linear bias towards more recent dates
       const traceTs = new Date(
-        Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000)
+        Date.now() -
+          Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
       );
 
       const trace = await prisma.trace.create({
@@ -163,11 +164,11 @@ async function main() {
       for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
         // add between 1 and 30 ms to trace timestamp
         const spanTsStart = new Date(
-          traceTs.getTime() + Math.floor(Math.random() * 30)
+          traceTs.getTime() + Math.floor(Math.random() * 30),
         );
         // random duration of upto 30ms
         const spanTsEnd = new Date(
-          spanTsStart.getTime() + Math.floor(Math.random() * 30)
+          spanTsStart.getTime() + Math.floor(Math.random() * 30),
         );
 
         const span = await prisma.observation.create({
@@ -201,15 +202,15 @@ async function main() {
           const generationTsStart = new Date(
             spanTsStart.getTime() +
               Math.floor(
-                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-              )
+                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+              ),
           );
           const generationTsEnd = new Date(
             generationTsStart.getTime() +
               Math.floor(
                 Math.random() *
-                  (spanTsEnd.getTime() - generationTsStart.getTime())
-              )
+                  (spanTsEnd.getTime() - generationTsStart.getTime()),
+              ),
           );
 
           const promptTokens = Math.floor(Math.random() * 1000) + 300;
@@ -308,8 +309,8 @@ async function main() {
             const eventTs = new Date(
               spanTsStart.getTime() +
                 Math.floor(
-                  Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-                )
+                  Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+                ),
             );
 
             await prisma.observation.create({

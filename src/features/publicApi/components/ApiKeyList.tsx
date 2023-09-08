@@ -36,7 +36,7 @@ export function ApiKeyList(props: { projectId: string }) {
     },
     {
       enabled: hasAccess,
-    }
+    },
   );
 
   if (!hasAccess) return null;
@@ -70,7 +70,7 @@ export function ApiKeyList(props: { projectId: string }) {
                 <TableCell className="font-mono">
                   <CodeView
                     className="inline-block"
-                    content={apiKey.publishableKey}
+                    content={apiKey.publicKey}
                   />
                 </TableCell>
                 <TableCell className="font-mono">

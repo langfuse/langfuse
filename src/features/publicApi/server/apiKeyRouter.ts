@@ -11,7 +11,7 @@ export const apiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
@@ -30,7 +30,7 @@ export const apiKeysRouter = createTRPCRouter({
           expiresAt: true,
           lastUsedAt: true,
           note: true,
-          publishableKey: true,
+          publicKey: true,
           displaySecretKey: true,
         },
         orderBy: {
@@ -43,7 +43,7 @@ export const apiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         note: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
@@ -57,7 +57,7 @@ export const apiKeysRouter = createTRPCRouter({
       const apiKey = await ctx.prisma.apiKey.create({
         data: {
           projectId: input.projectId,
-          publishableKey: pk,
+          publicKey: pk,
           hashedSecretKey: hashedSk,
           displaySecretKey: displaySk,
           note: input.note,
@@ -68,7 +68,7 @@ export const apiKeysRouter = createTRPCRouter({
         id: apiKey.id,
         createdAt: apiKey.createdAt,
         note: input.note,
-        publishableKey: apiKey.publishableKey,
+        publicKey: apiKey.publicKey,
         secretKey: sk,
         displaySecretKey: displaySk,
       };
@@ -78,7 +78,7 @@ export const apiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         id: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({

@@ -25,7 +25,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
   const [open, setOpen] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<{
     secretKey: string;
-    publishableKey: string;
+    publicKey: string;
   } | null>(null);
 
   const createApiKey = () => {
@@ -37,10 +37,10 @@ export function CreateApiKeyButton(props: { projectId: string }) {
         .mutateAsync({
           projectId: props.projectId,
         })
-        .then(({ secretKey, publishableKey }) => {
+        .then(({ secretKey, publicKey }) => {
           setGeneratedKeys({
             secretKey,
-            publishableKey,
+            publicKey,
           });
           setOpen(true);
         })
@@ -77,7 +77,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
         </div>
         <div>
           <div className="text-md mb-2 font-semibold">Public Key</div>
-          <CodeView content={generatedKeys?.publishableKey ?? "Loading ..."} />
+          <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
         </div>
       </DialogContent>
     </Dialog>
