@@ -1,4 +1,5 @@
 import { prisma } from "@/src/server/db";
+import { Prisma } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { PostHog } from "posthog-node";
 
@@ -24,6 +25,7 @@ export default async function handler(
       )?.lastRun ?? undefined;
     const endTimeframe = new Date(Date.now());
 
+    // New/updated projects
     const projects = await prisma.project.findMany({
       select: {
         id: true,
@@ -64,6 +66,7 @@ export default async function handler(
       });
     });
 
+    // traces
     const traceCountPerProject = await prisma.trace.groupBy({
       by: ["projectId"],
       where: {
@@ -76,7 +79,6 @@ export default async function handler(
         id: true,
       },
     });
-
     traceCountPerProject.forEach((value) => {
       posthog.capture({
         event: "ingestion_metrics",
@@ -90,15 +92,83 @@ export default async function handler(
       });
     });
 
+    // scores
+    const scoreCountPerProject = await prisma.$queryRaw<
+      Array<{
+        project_id: string;
+        count_scores: number;
+      }>
+    >`
+      SELECT
+        t.project_id,
+        count(s.*)::integer count_scores
+      FROM
+        scores s
+        JOIN traces t ON t.id = s.trace_id
+          WHERE
+            s.timestamp < ${endTimeframe}
+            ${
+              startTimeframe
+                ? Prisma.sql`AND s.timestamp >= ${startTimeframe}`
+                : Prisma.empty
+            }
+      GROUP BY
+        1
+    `;
+    scoreCountPerProject.forEach((value) => {
+      posthog.capture({
+        event: "ingestion_metrics",
+        distinctId: "static_id_for_project_events",
+        groups: {
+          project: value.project_id,
+        },
+        properties: {
+          scores: value.count_scores,
+        },
+      });
+    });
+
+    // observations
+    const observationCountPerProject = await prisma.observation.groupBy({
+      by: ["projectId"],
+      where: {
+        startTime: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
+    observationCountPerProject.forEach((value) => {
+      posthog.capture({
+        event: "ingestion_metrics",
+        distinctId: "static_id_for_project_events",
+        groups: {
+          project: value.projectId,
+        },
+        properties: {
+          observations: value._count.id,
+        },
+      });
+    });
+
     await posthog.shutdownAsync();
 
     console.log(
-      "Updated ingestion_metrics in PostHog for #projects:",
+      "Updated ingestion_metrics in PostHog from startTimeframe:",
+      startTimeframe?.toISOString(),
+      "to endTimeframe:",
+      endTimeframe.toISOString(),
+      "#projects with traces",
       traceCountPerProject.length,
-      "startTimeframe:",
-      startTimeframe,
-      "endTimeframe:",
-      endTimeframe,
+      "#projects with observations",
+      observationCountPerProject.length,
+      "#projects with scores",
+      scoreCountPerProject.length,
+      "#projects (new/updated)",
+      projects.length,
     );
 
     await prisma.cronJobs.upsert({
