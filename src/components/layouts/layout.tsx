@@ -351,7 +351,7 @@ export default function Layout(props: PropsWithChildren) {
 
                 <li className="-mx-6 ">
                   <Menu as="div" className="relative">
-                    <Link href='./userSettings' className=" inline">
+                    <Link href='./userSettings'>
                       <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                         <span className="sr-only">Open user menu</span>
                         <Avatar className="h-8 w-8">
