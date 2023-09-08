@@ -161,14 +161,12 @@ export default async function handler(
       startTimeframe?.toISOString(),
       "to endTimeframe:",
       endTimeframe.toISOString(),
-      "#projects with traces",
-      traceCountPerProject.length,
-      "#projects with observations",
-      observationCountPerProject.length,
-      "#projects with scores",
-      scoreCountPerProject.length,
-      "#projects (new/updated)",
-      projects.length,
+      {
+        "#projects with traces": traceCountPerProject.length,
+        "#projects with observations": observationCountPerProject.length,
+        "#projects with scores": scoreCountPerProject.length,
+        "#projects (new/updated)": projects.length,
+      },
     );
 
     await prisma.cronJobs.upsert({
