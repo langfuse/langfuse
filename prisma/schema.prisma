@@ -75,6 +75,7 @@ model VerificationToken {
 model Project {
     id           String        @id @default(cuid())
     createdAt    DateTime      @default(now()) @map("created_at")
+    updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
     name         String
     members      Membership[]
     traces       Trace[]
@@ -221,4 +222,11 @@ model Pricing {
     tokenType   TokenType   @map("token_type")
 
     @@map("pricings")
+}
+
+model CronJobs {
+    name    String    @id
+    lastRun DateTime? @map("last_run")
+
+    @@map("cron_jobs")
 }
