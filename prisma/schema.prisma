@@ -227,6 +227,7 @@ model Pricing {
 model CronJobs {
     name    String    @id
     lastRun DateTime? @map("last_run")
+    state   String?
 
     @@map("cron_jobs")
 }
