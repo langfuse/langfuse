@@ -71,6 +71,14 @@ const dashboards = [
     dashboardProjectUrl: (projectId: string) =>
       `https://lookerstudio.google.com/embed/reporting/826764d4-bf63-41d1-b461-fb791f0f0164/page/p_vf8v1b227c?params=%7B%22df5%22:%22include%25EE%2580%25800%25EE%2580%2580IN%25EE%2580%2580${projectId}%22%7D`,
   },
+  {
+    title: "Scores (traces)",
+    description: "Break down of trace scores by releases, versions and names.",
+    dashboardUrl:
+      "https://lookerstudio.google.com/embed/reporting/94b1c194-7982-4e55-bd72-70eb01eafde8/page/ruJcD",
+    dashboardProjectUrl: (projectId: string) =>
+      `https://lookerstudio.google.com/embed/reporting/94b1c194-7982-4e55-bd72-70eb01eafde8/page/ruJcD?params=%7B%22df11%22:%22include%25EE%2580%25800%25EE%2580%2580IN%25EE%2580%2580${projectId}%22%7D`,
+  },
 ] as const;
 
 const DashboardEmbed = (props: { projectId: string }) => {
