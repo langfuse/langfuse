@@ -9,6 +9,29 @@ import { countTokens } from "@anthropic-ai/tokenizer";
 import { type Pricing } from "@prisma/client";
 import { Decimal } from "decimal.js";
 
+export function tokenCount(p: {
+  model: string;
+  text: unknown;
+  isReply: boolean;
+}): number | undefined {
+  if (isString(p.text)) {
+    return stringTokenCount({ model: p.model, text: p.text });
+  } else if (isChatMessageArray(p.text)) {
+    console.log("isChatMessageArray");
+    if (!isValidModel(p.model)) {
+      console.log(`Unknown model ${p.model} for chat model`);
+      return undefined;
+    }
+    return numTokensFromMessages({
+      model: p.model,
+      messages: p.text,
+      isReply: p.isReply,
+    });
+  } else {
+    console.log("It is neither a string nor a ChatMessage array");
+  }
+}
+
 type ChatMessage = {
   role: string;
   name?: string;
@@ -32,20 +55,29 @@ function numTokensFromMessages(params: TokenCalculationParams) {
   }
   let tokens_per_message = 0;
   let tokens_per_name = 0;
-  if (params.model == "gpt-3.5-turbo") {
-    return numTokensFromMessages({ ...params, model: "gpt-3.5-turbo-0301" });
-  } else if (params.model == "gpt-4") {
-    return numTokensFromMessages({ ...params, model: "gpt-4-0314" });
-  } else if (params.model == "gpt-3.5-turbo-0301") {
-    tokens_per_message = 4; // every message follows <|start|>{role/name}\n{content}<|end|>\n
-    tokens_per_name = -1; // if there's a name, the role is omitted
-  } else if (params.model == "gpt-4-0314") {
+
+  if (
+    [
+      "gpt-3.5-turbo-0613",
+      "gpt-3.5-turbo-16k-0613",
+      "gpt-4-0314",
+      "gpt-4-32k-0314",
+      "gpt-4-0613",
+      "gpt-4-32k-0613",
+    ].includes(params.model)
+  ) {
     tokens_per_message = 3;
     tokens_per_name = 1;
+  } else if (params.model === "gpt-3.5-turbo-0301") {
+    tokens_per_message = 4; // every message follows <|start|>{role/name}\n{content}<|end|>\n
+    tokens_per_name = -1; // if there's a name, the role is omitted
+  } else if (params.model.includes("gpt-3.5-turbo-0301")) {
+    return numTokensFromMessages({ ...params, model: "gpt-3.5-turbo-0613" });
+  } else if (params.model.includes("gpt-4")) {
+    return numTokensFromMessages({ ...params, model: "gpt-4-0314" });
   } else {
-    throw new Error(
-      `num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.`,
-    );
+    console.error(`Not implemented for model ${params.model}`);
+    throw new Error(`Not implemented for model ${params.model}`);
   }
   let num_tokens = 0;
   params.messages.forEach((message) => {
@@ -69,8 +101,6 @@ export function stringTokenCount(p: {
   model: string;
   text: string;
 }): number | undefined {
-  if (!p.model || !p.text) return undefined;
-
   if (p.model.toLowerCase().startsWith("gpt")) {
     return getTokens("cl100k_base", p.text);
   }
@@ -95,50 +125,53 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function isValidModel(value: string): value is TiktokenModel {
-  return value in [
-     "text-davinci-003",
-     "text-davinci-002",
-     "text-davinci-001",
-     "text-curie-001",
-     "text-babbage-001",
-     "text-ada-001",
-     "davinci",
-     "curie",
-     "babbage",
-     "ada",
-     "code-davinci-002",
-     "code-davinci-001",
-     "code-cushman-002",
-     "code-cushman-001",
-     "davinci-codex",
-     "cushman-codex",
-     "text-davinci-edit-001",
-     "code-davinci-edit-001",
-     "text-embedding-ada-002",
-     "text-similarity-davinci-001",
-     "text-similarity-curie-001",
-     "text-similarity-babbage-001",
-     "text-similarity-ada-001",
-     "text-search-davinci-doc-001",
-     "text-search-curie-doc-001",
-     "text-search-babbage-doc-001",
-     "text-search-ada-doc-001",
-     "code-search-babbage-code-001",
-     "code-search-ada-code-001",
-     "gpt2",
-     "gpt-4",
-     "gpt-4-0314",
-     "gpt-4-0613",
-     "gpt-4-32k",
-     "gpt-4-32k-0314",
-     "gpt-4-32k-0613",
-     "gpt-3.5-turbo",
-     "gpt-3.5-turbo-0301",
-     "gpt-3.5-turbo-0613",
-     "gpt-3.5-turbo-16k",
-     "gpt-3.5-turbo-16k-0613",
-  ]
+function isValidModel(model: string): model is TiktokenModel {
+  return (
+    [
+      "text-davinci-003",
+      "text-davinci-002",
+      "text-davinci-001",
+      "text-curie-001",
+      "text-babbage-001",
+      "text-ada-001",
+      "davinci",
+      "curie",
+      "babbage",
+      "ada",
+      "code-davinci-002",
+      "code-davinci-001",
+      "code-cushman-002",
+      "code-cushman-001",
+      "davinci-codex",
+      "cushman-codex",
+      "text-davinci-edit-001",
+      "code-davinci-edit-001",
+      "text-embedding-ada-002",
+      "text-similarity-davinci-001",
+      "text-similarity-curie-001",
+      "text-similarity-babbage-001",
+      "text-similarity-ada-001",
+      "text-search-davinci-doc-001",
+      "text-search-curie-doc-001",
+      "text-search-babbage-doc-001",
+      "text-search-ada-doc-001",
+      "code-search-babbage-code-001",
+      "code-search-ada-code-001",
+      "gpt2",
+      "gpt-4",
+      "gpt-4-0314",
+      "gpt-4-0613",
+      "gpt-4-32k",
+      "gpt-4-32k-0314",
+      "gpt-4-32k-0613",
+      "gpt-3.5-turbo",
+      "gpt-3.5-turbo-0301",
+      "gpt-3.5-turbo-0613",
+      "gpt-3.5-turbo-16k",
+      "gpt-3.5-turbo-16k-0613",
+    ].find((m) => m === model) !== undefined
+  );
+}
 
 function isChatMessageArray(value: unknown): value is ChatMessage[] {
   if (!Array.isArray(value)) {
@@ -149,30 +182,8 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
     (item) =>
       typeof item.role === "string" &&
       typeof item.content === "string" &&
-      (typeof item.name === "string" || typeof item.name === "undefined"),
+      (item.name === undefined || typeof item.name === "string"),
   );
-}
-
-export function tokenCount(p: {
-  model: string;
-  text: unknown;
-  isReply: boolean;
-}): number | undefined {
-  if (isString(p.text)) {
-    return stringTokenCount({ model: p.model, text: p.text });
-  } else if (isChatMessageArray(p.text)) {
-    if (!isValidModel(p.model)) {
-      console.log("Unknown model", p.model);
-      return undefined;
-    }
-    return numTokensFromMessages({
-      model: p.model,
-      messages: p.text,
-      isReply: p.isReply,
-    });
-  } else {
-    console.log("It is neither a string nor a ChatMessage array");
-  }
 }
 
 export function calculateTokenCost(
@@ -224,4 +235,3 @@ export function calculateTokenCost(
 const calculateValue = (price: Decimal, tokens: Decimal) => {
   return price.times(tokens.dividedBy(new Decimal(1000))).toDecimalPlaces(5);
 };
-

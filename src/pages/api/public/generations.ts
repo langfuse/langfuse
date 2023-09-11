@@ -276,7 +276,8 @@ export default async function handler(
         (mergedModel && prompt
           ? tokenCount({
               model: mergedModel,
-              text: JSON.stringify(prompt),
+              text: prompt,
+              isReply: false,
             })
           : undefined);
 
@@ -286,6 +287,7 @@ export default async function handler(
           ? tokenCount({
               model: mergedModel,
               text: completion,
+              isReply: true,
             })
           : undefined);
 
