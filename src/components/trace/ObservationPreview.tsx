@@ -26,7 +26,7 @@ export const ObservationPreview = (props: {
   currentObservationId: string | undefined;
 }) => {
   const observation = props.observations.find(
-    (o) => o.id === props.currentObservationId
+    (o) => o.id === props.currentObservationId,
   );
   if (!observation) return <div className="flex-1">Not found</div>;
   return (

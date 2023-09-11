@@ -42,7 +42,7 @@ const ObservationTreeTraceNode = (props: {
       props.currentObservationId === undefined ||
         props.currentObservationId === ""
         ? "bg-gray-100"
-        : "hover:bg-gray-50"
+        : "hover:bg-gray-50",
     )}
     onClick={() => props.setCurrentObservationId(undefined)}
   >
@@ -85,14 +85,14 @@ const ObservationTreeNode = (props: {
                 "group my-1 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-2 ",
                 props.currentObservationId === observation.id
                   ? "bg-gray-100"
-                  : "hover:bg-gray-50"
+                  : "hover:bg-gray-50",
               )}
               onClick={() => props.setCurrentObservationId(observation.id)}
             >
               <div className="flex gap-2">
                 <span
                   className={cn(
-                    "self-start rounded-sm bg-gray-200 p-1 text-xs"
+                    "self-start rounded-sm bg-gray-200 p-1 text-xs",
                   )}
                 >
                   {observation.type}
@@ -122,7 +122,7 @@ const ObservationTreeNode = (props: {
                     className={cn(
                       "rounded-sm text-xs",
                       LevelColor[observation.level].bg,
-                      LevelColor[observation.level].text
+                      LevelColor[observation.level].text,
                     )}
                   >
                     {observation.level}
@@ -133,7 +133,7 @@ const ObservationTreeNode = (props: {
                 <div className="flex flex-wrap gap-1">
                   <GroupedScoreBadges
                     scores={props.scores.filter(
-                      (s) => s.observationId === observation.id
+                      (s) => s.observationId === observation.id,
                     )}
                   />
                 </div>

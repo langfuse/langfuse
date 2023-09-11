@@ -15,7 +15,7 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         agg: z.enum(dateTimeAggregationOptions),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       // queryRawUnsafe to add input.agg to the WHERE clause
@@ -80,7 +80,7 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         agg: z.enum(dateTimeAggregationOptions),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       // queryRawUnsafe to add input.agg to the WHERE clause
@@ -139,7 +139,7 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         agg: z.enum(dateTimeAggregationOptions),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       // queryRawUnsafe to add input.agg to the WHERE clause
@@ -206,7 +206,7 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         agg: z.enum(dateTimeAggregationOptions),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const output = await ctx.prisma.$queryRawUnsafe<

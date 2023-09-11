@@ -34,9 +34,9 @@ export default function GetStartedPage() {
           `/project/${
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             projects.data.filter(
-              (p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID
+              (p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID,
             )[0]!.id
-          }`
+          }`,
         );
       else setLoading(false);
     }
@@ -49,7 +49,7 @@ export default function GetStartedPage() {
   const demoProject =
     env.NEXT_PUBLIC_DEMO_PROJECT_ID !== undefined && projects.data?.length
       ? projects.data.find(
-          (project) => project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID
+          (project) => project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID,
         )
       : undefined;
 

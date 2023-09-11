@@ -107,7 +107,7 @@ export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
   ];
 
   const convertToOptions = (
-    options: RouterOutput["scores"]["availableFilterOptions"]
+    options: RouterOutput["scores"]["availableFilterOptions"],
   ): TableRowOptions[] => {
     return options.map((o) => {
       return {

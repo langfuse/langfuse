@@ -30,7 +30,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
     },
     {
       enabled: hasReadAccess,
-    }
+    },
   );
   const mutDeleteMembership = api.projectMembers.delete.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),

@@ -155,7 +155,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
     // check that the user is a member of this project
     const projectId = result.data.projectId;
     const sessionProject = ctx.session?.user.projects?.find(
-      ({ id }) => id === projectId
+      ({ id }) => id === projectId,
     );
 
     if (!sessionProject)
@@ -174,9 +174,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         },
       },
     });
-  }
+  },
 );
 
 export const protectedProjectProcedure = t.procedure.use(
-  enforceUserIsAuthedAndProjectMember
+  enforceUserIsAuthedAndProjectMember,
 );

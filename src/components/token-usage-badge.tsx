@@ -17,19 +17,18 @@ export const TraceAggUsageBadge = (props: { observations: Observation[] }) => {
 };
 
 export const TokenUsageBadge = (
-  props:
-    | (
-        | {
-            observation: Observation;
-          }
-        | {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-          }
-      ) & {
-        inline?: boolean;
+  props: (
+    | {
+        observation: Observation;
       }
+    | {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+      }
+  ) & {
+    inline?: boolean;
+  },
 ) => {
   const usage =
     "observation" in props

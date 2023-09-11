@@ -8,7 +8,7 @@ export const projectMembersRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
@@ -44,7 +44,7 @@ export const projectMembersRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         userId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
@@ -77,7 +77,7 @@ export const projectMembersRouter = createTRPCRouter({
           MembershipRole.MEMBER,
           MembershipRole.VIEWER,
         ]),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({

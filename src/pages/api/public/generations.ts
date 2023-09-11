@@ -19,7 +19,7 @@ export const GenerationsCreateSchema = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish()
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
   prompt: z.unknown().nullish(),
@@ -48,7 +48,7 @@ const GenerationPatchSchema = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish()
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
   prompt: z.unknown().nullish(),
@@ -68,13 +68,13 @@ const GenerationPatchSchema = z.object({
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   await runMiddleware(req, res, cors);
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization
+    req.headers.authorization,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -89,7 +89,7 @@ export default async function handler(
         "trying to create observation for generation, project ",
         authCheck.scope.projectId,
         ", body:",
-        JSON.stringify(req.body, null, 2)
+        JSON.stringify(req.body, null, 2),
       );
       const obj = GenerationsCreateSchema.parse(req.body);
       const {
@@ -170,7 +170,7 @@ export default async function handler(
       });
       if (observationWithSameId > 0)
         throw new Error(
-          "Observation with same id already exists in another project"
+          "Observation with same id already exists in another project",
         );
 
       const newObservation = await prisma.observation.upsert({
@@ -244,7 +244,7 @@ export default async function handler(
       "trying to update observation for generation, project ",
       authCheck.scope.projectId,
       ", body:",
-      JSON.stringify(req.body, null, 2)
+      JSON.stringify(req.body, null, 2),
     );
 
     try {
@@ -306,7 +306,7 @@ export default async function handler(
       });
       if (observationWithSameId > 0)
         throw new Error(
-          "Observation with same id already exists in another project"
+          "Observation with same id already exists in another project",
         );
 
       const newObservation = await prisma.observation.upsert({
@@ -329,8 +329,8 @@ export default async function handler(
           model: model ?? undefined,
           ...Object.fromEntries(
             Object.entries(otherFields).filter(
-              ([_, v]) => v !== null && v !== undefined
-            )
+              ([_, v]) => v !== null && v !== undefined,
+            ),
           ),
           projectId: authCheck.scope.projectId,
         },
@@ -348,8 +348,8 @@ export default async function handler(
           model: model ?? undefined,
           ...Object.fromEntries(
             Object.entries(otherFields).filter(
-              ([_, v]) => v !== null && v !== undefined
-            )
+              ([_, v]) => v !== null && v !== undefined,
+            ),
           ),
         },
       });

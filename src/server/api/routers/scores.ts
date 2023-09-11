@@ -41,7 +41,7 @@ export const scoresRouter = createTRPCRouter({
             : undefined),
         },
         take: 100, // TODO: pagination
-      })
+      }),
     ),
   availableFilterOptions: protectedProjectProcedure
     .input(ScoreFilterOptions)
@@ -113,7 +113,7 @@ export const scoresRouter = createTRPCRouter({
           },
         },
       },
-    })
+    }),
   ),
   create: protectedProcedure
     .input(
@@ -123,7 +123,7 @@ export const scoresRouter = createTRPCRouter({
         name: z.string(),
         comment: z.string().optional(),
         observationId: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const trace = await ctx.prisma.trace.findFirstOrThrow({
@@ -172,7 +172,7 @@ export const scoresRouter = createTRPCRouter({
         id: z.string(),
         value: z.number(),
         comment: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const score = await ctx.prisma.score.findFirstOrThrow({

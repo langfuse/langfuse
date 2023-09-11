@@ -8,13 +8,13 @@ export function BaseTimeSeriesChart(props: {
   connectNulls?: boolean;
 }) {
   const labels = new Set(
-    props.data.flatMap((d) => d.values.map((v) => v.label))
+    props.data.flatMap((d) => d.values.map((v) => v.label)),
   );
 
   type ChartInput = { timestamp: string } & { [key: string]: number };
 
   function transformArray(
-    array: { ts: number; values: { label: string; value: number }[] }[]
+    array: { ts: number; values: { label: string; value: number }[] }[],
   ): ChartInput[] {
     return array.map((item) => {
       const outputObject: ChartInput = {
