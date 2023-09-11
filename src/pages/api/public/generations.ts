@@ -269,6 +269,14 @@ export default async function handler(
         },
       });
 
+      if (!existingObservation) {
+        console.log(`generation with id ${generationId} not found`);
+        return res.status(404).json({
+          success: false,
+          message: "Observation not found",
+        });
+      }
+
       const mergedModel = model ?? existingObservation?.model ?? null;
 
       const newPromptTokens =

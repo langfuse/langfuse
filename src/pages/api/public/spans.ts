@@ -180,7 +180,7 @@ export default async function handler(
 
       // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
       // Including projectid would lead to race conditions and unique key errors
-      const observationWithSameId = await prisma.observation.count({
+      const observationsWithSameId = await prisma.observation.count({
         where: {
           id: spanId,
           projectId: {
@@ -188,7 +188,16 @@ export default async function handler(
           },
         },
       });
-      if (observationWithSameId > 0)
+
+      if (observationsWithSameId === 0) {
+        console.log(`span with id ${spanId} not found`);
+        return res.status(404).json({
+          success: false,
+          message: "Span not found",
+        });
+      }
+
+      if (observationsWithSameId > 0)
         throw new Error(
           "Observation with same id already exists in another project",
         );

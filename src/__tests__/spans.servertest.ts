@@ -336,4 +336,14 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan?.metadata).toEqual({ meta: "value" });
     expect(dbSpan?.version).toBe("2.0.0");
   });
+
+  it("should fail update span if span does not exist", async () => {
+    const spanId = uuidv4();
+
+    const updatedSpan = await makeAPICall("PATCH", "/api/public/spans", {
+      spanId: spanId,
+      output: { key: "this is a great gpt output" },
+    });
+    expect(updatedSpan.status).toBe(404);
+  });
 });
