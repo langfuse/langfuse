@@ -274,6 +274,15 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=p
 
 Checkout GitHub Actions workflows of [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml).
 
-### Star History
+### Telemetry
 
-[![Star History Chart](https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date)](https://star-history.com/#langfuse/langfuse&Date)
+By default, Langfuse automatically reports basic usage statistics to a centralized server (PostHog).
+
+This helps us to:
+
+1. understand how Langfuse is used and improve the most relevant features.
+2. track overall usage for internal and external (e.g. fundraising) reporting.
+
+None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/pages/api/cron/telemetry.ts).
+
+You can opt-out by setting `TELEMETRY_ENABLED=false`.
