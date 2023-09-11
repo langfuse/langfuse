@@ -19,7 +19,7 @@ jobs:
           node-version: 18
       - name: install dependencies
         run: |
-          npm install
+          npm ci
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -36,7 +36,7 @@ jobs:
           cache: "npm"
       - name: install dependencies
         run: |
-          npm install
+          npm ci
 
       - name: Load default env
         run: |
