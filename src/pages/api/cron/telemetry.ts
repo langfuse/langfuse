@@ -61,6 +61,7 @@ export default async function handler(
       distinctId: "docker:" + clientId,
       properties: {
         environment: process.env.NODE_ENV,
+        docker: true,
       },
     });
     posthog.capture({
