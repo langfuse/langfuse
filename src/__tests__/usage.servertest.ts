@@ -25,7 +25,7 @@ describe("Token Count Functions", () => {
     });
 
     it("should return undefined for invalid text type", () => {
-      const result = tokenCount({ model: "gpt-4", text: 1234, isReply: false });
+      const result = tokenCount({ model: "gpt-4", text: 1234 });
       expect(result).toBeUndefined();
     });
   });
@@ -46,7 +46,6 @@ describe("Token Count Functions", () => {
               content: "The Los Angeles Dodgers won the World Series in 2020.",
             },
           ],
-          isReply: false,
         });
         expect(result).toBeDefined();
         expect(result).toBe(44); // You can replace with the actual expected count if known
@@ -57,7 +56,6 @@ describe("Token Count Functions", () => {
       const result = tokenCount({
         model: "gpt-4",
         text: { role: "Helo world" },
-        isReply: false,
       });
       expect(result).toBeUndefined();
     });
@@ -66,7 +64,6 @@ describe("Token Count Functions", () => {
       const result = tokenCount({
         model: "gpt-4",
         text: [{ role: "Helo world" }],
-        isReply: false,
       });
       expect(result).toBeUndefined();
     });

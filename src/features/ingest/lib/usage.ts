@@ -12,7 +12,6 @@ import { Decimal } from "decimal.js";
 export function tokenCount(p: {
   model: string;
   text: unknown;
-  isReply: boolean;
 }): number | undefined {
   if (isString(p.text)) {
     return stringTokenCount({ model: p.model, text: p.text });
@@ -41,7 +40,6 @@ type ChatMessage = {
 
 type TokenCalculationParams = {
   messages: ChatMessage[];
-  isReply: boolean;
   model: TiktokenModel;
 };
 
@@ -94,7 +92,7 @@ function numTokensFromMessages(params: TokenCalculationParams) {
     });
   });
   num_tokens += 3; // every reply is primed with <| start |> assistant <| message |>
-  return num_tokens + (params.isReply ? -8 : 0);
+  return num_tokens;
 }
 
 export function stringTokenCount(p: {
