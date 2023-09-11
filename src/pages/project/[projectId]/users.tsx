@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 
-import { api } from "@/src/utils/api";
+import { api } from "@/src/utils/api"
 import { type ColumnDef } from "@tanstack/react-table";
 import { type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
