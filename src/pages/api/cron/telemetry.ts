@@ -8,7 +8,7 @@ const POSTHOG_API_KEY = "phc_zkMwFajk8ehObUlMth0D7DtPItFnxETi3lmSvyQDrwB";
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse,
+  res: NextApiResponse
 ) {
   try {
     const posthog = new PostHog(POSTHOG_API_KEY, {
