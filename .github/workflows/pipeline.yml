@@ -22,7 +22,7 @@ jobs:
         run: |
           npm ci
       - name: prettier check
-        run: npx prettier --check
+        run: npx prettier --check ./src *.{ts,js} --ignore-path .gitignore
   # Start of required CI
   lint:
     runs-on: ubuntu-latest
