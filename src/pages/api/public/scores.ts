@@ -25,13 +25,13 @@ const ScoresGetSchema = z.object({
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   await runMiddleware(req, res, cors);
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization
+    req.headers.authorization,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -46,7 +46,7 @@ export default async function handler(
         "trying to create score, project ",
         authCheck.scope.projectId,
         ", body:",
-        JSON.stringify(req.body, null, 2)
+        JSON.stringify(req.body, null, 2),
       );
 
       const obj = ScoreCreateSchema.parse(req.body);
@@ -75,7 +75,7 @@ export default async function handler(
             ? [{ type: "observation" as const, id: obj.observationId }]
             : []),
         ],
-        "score"
+        "score",
       );
       if (!accessCheck)
         return res.status(403).json({

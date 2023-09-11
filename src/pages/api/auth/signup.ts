@@ -4,7 +4,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") return;
 
@@ -27,7 +27,7 @@ export default async function handler(
         "Signup: Error creating user",
         error.message,
         body.email,
-        body.name
+        body.name,
       );
       res.status(422).json({ message: error.message });
     }

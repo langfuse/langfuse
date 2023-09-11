@@ -26,7 +26,7 @@ export function Trace(props: {
       undefined,
       {
         scroll: false,
-      }
+      },
     );
   };
 

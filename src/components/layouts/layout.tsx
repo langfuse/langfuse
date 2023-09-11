@@ -40,7 +40,7 @@ export default function Layout(props: PropsWithChildren) {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
   const navigation = ROUTES.filter(
-    ({ pathname }) => projectId || !pathname.includes("[projectId]")
+    ({ pathname }) => projectId || !pathname.includes("[projectId]"),
   )
     .map(({ pathname, ...rest }) => ({
       pathname,
@@ -179,7 +179,7 @@ export default function Layout(props: PropsWithChildren) {
                                     item.current
                                       ? "bg-gray-50 text-indigo-600"
                                       : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                                    "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
+                                    "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                                   )}
                                 >
                                   <item.icon
@@ -187,7 +187,7 @@ export default function Layout(props: PropsWithChildren) {
                                       item.current
                                         ? "text-indigo-600"
                                         : "text-gray-400 group-hover:text-indigo-600",
-                                      "h-6 w-6 shrink-0"
+                                      "h-6 w-6 shrink-0",
                                     )}
                                     aria-hidden="true"
                                   />
@@ -222,7 +222,7 @@ export default function Layout(props: PropsWithChildren) {
                                     projectId === project.id
                                       ? "bg-gray-50 text-indigo-600"
                                       : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                                    "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
+                                    "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                                   )}
                                 >
                                   <span
@@ -230,7 +230,7 @@ export default function Layout(props: PropsWithChildren) {
                                       projectId === project.id
                                         ? "border-indigo-600 text-indigo-600"
                                         : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium"
+                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium",
                                     )}
                                   >
                                     <Code />
@@ -244,7 +244,7 @@ export default function Layout(props: PropsWithChildren) {
                                         "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
                                         projectId === project.id
                                           ? "border-indigo-600 text-indigo-600"
-                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600"
+                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
                                       )}
                                     >
                                       view-only
@@ -283,7 +283,7 @@ export default function Layout(props: PropsWithChildren) {
                             item.current
                               ? "bg-gray-50 text-indigo-600"
                               : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                            "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
+                            "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                           )}
                         >
                           <item.icon
@@ -291,7 +291,7 @@ export default function Layout(props: PropsWithChildren) {
                               item.current
                                 ? "text-indigo-600"
                                 : "text-gray-400 group-hover:text-indigo-600",
-                              "h-6 w-6 shrink-0"
+                              "h-6 w-6 shrink-0",
                             )}
                             aria-hidden="true"
                           />
@@ -327,7 +327,7 @@ export default function Layout(props: PropsWithChildren) {
                             projectId === project.id
                               ? "bg-gray-50 text-indigo-600"
                               : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                            "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6"
+                            "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                           )}
                         >
                           <span
@@ -335,7 +335,7 @@ export default function Layout(props: PropsWithChildren) {
                               projectId === project.id
                                 ? "border-indigo-600 text-indigo-600"
                                 : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                              "w-6shrink-0 flex h-6 w-6 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium"
+                              "w-6shrink-0 flex h-6 w-6 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium",
                             )}
                           >
                             <Code />
@@ -347,7 +347,7 @@ export default function Layout(props: PropsWithChildren) {
                                 "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
                                 projectId === project.id
                                   ? "border-indigo-600 text-indigo-600"
-                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600"
+                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
                               )}
                             >
                               view-only
@@ -402,7 +402,7 @@ export default function Layout(props: PropsWithChildren) {
                                 onClick={() => void item.onClick()}
                                 className={cn(
                                   active ? "bg-gray-50" : "",
-                                  "block px-3 py-1 text-sm leading-6 text-gray-900"
+                                  "block px-3 py-1 text-sm leading-6 text-gray-900",
                                 )}
                               >
                                 {item.name}
@@ -464,7 +464,7 @@ export default function Layout(props: PropsWithChildren) {
                         onClick={() => void item.onClick()}
                         className={cn(
                           active ? "bg-gray-50" : "",
-                          "block px-3 py-1 text-sm leading-6 text-gray-900"
+                          "block px-3 py-1 text-sm leading-6 text-gray-900",
                         )}
                       >
                         {item.name}

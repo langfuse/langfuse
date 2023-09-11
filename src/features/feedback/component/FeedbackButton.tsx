@@ -27,7 +27,7 @@ const formSchema = z.object({
 });
 
 export function FeedbackButtonWrapper(
-  props: PropsWithChildren<{ className?: string }>
+  props: PropsWithChildren<{ className?: string }>,
 ) {
   const [open, setOpen] = useState(false);
   const session = useSession();
