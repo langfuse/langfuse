@@ -189,18 +189,22 @@ export default async function handler(
         },
       });
 
-      if (observationsWithSameId === 0) {
+      if (observationsWithSameId > 0)
+        throw new Error(
+          "Observation with same id already exists in another project",
+        );
+
+      const existingSpan = await prisma.observation.findUnique({
+        where: { id: spanId },
+      });
+
+      if (!existingSpan) {
         console.log(`span with id ${spanId} not found`);
         return res.status(404).json({
           success: false,
           message: "Span not found",
         });
       }
-
-      if (observationsWithSameId > 0)
-        throw new Error(
-          "Observation with same id already exists in another project",
-        );
 
       const newObservation = await prisma.observation.upsert({
         where: {
