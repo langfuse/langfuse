@@ -78,7 +78,7 @@ const dashboards = [
     dashboardUrl:
       "https://lookerstudio.google.com/embed/reporting/94b1c194-7982-4e55-bd72-70eb01eafde8/page/ruJcD",
     dashboardProjectUrl: (projectId: string) =>
-      `https://lookerstudio.google.com/embed/reporting/94b1c194-7982-4e55-bd72-70eb01eafde8/page/p_kpvgetsr9c?params=%7B%22df12%22:%22include%25EE%2580%25800%25EE%2580%2580IN%25EE%2580%2580${projectId}%22,%22df11%22:%22include%25EE%2580%25800%25EE%2580%2580IN%25EE%2580%2580${projectId}%22%7D`,
+      `https://lookerstudio.google.com/embed/reporting/94b1c194-7982-4e55-bd72-70eb01eafde8/page/ruJcD?params=%7B%22df12%22:%22include%25EE%2580%25800%25EE%2580%2580IN%25EE%2580%2580${projectId}%22,%22df11%22:%22include%25EE%2580%25800%25EE%2580%2580IN%25EE%2580%2580${projectId}%22%7D`,
   },
 ] as const;
 
