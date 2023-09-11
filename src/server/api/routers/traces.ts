@@ -36,7 +36,7 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const metadataCondition = input.metadata
         ? input.metadata.map(
-            (m) => Prisma.sql`AND t."metadata"->>${m.key} = ${m.value}`
+            (m) => Prisma.sql`AND t."metadata"->>${m.key} = ${m.value}`,
           )
         : undefined;
 
@@ -136,8 +136,8 @@ export const traceRouter = createTRPCRouter({
             s."observation_id" AS "observationId"
           FROM "scores" s
           WHERE s."trace_id" IN (${Prisma.join(
-            traces.map((trace) => trace.id)
-          )})`
+            traces.map((trace) => trace.id),
+          )})`,
           )
         : [];
 

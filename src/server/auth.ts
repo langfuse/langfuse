@@ -102,7 +102,7 @@ export const authOptions: NextAuthOptions = {
 
         const isValidPassword = await verifyPassword(
           credentials.password,
-          dbUser.password
+          dbUser.password,
         );
         if (!isValidPassword) throw new Error("Invalid credentials");
 

@@ -36,7 +36,7 @@ function hasAccess(p: HasAccessParams): boolean {
       : "data" in p.session
       ? // SessionContextValue
         p.session.data?.user?.projects.find(
-          (project) => project.id === p.projectId
+          (project) => project.id === p.projectId,
         )?.role
       : // Session
         p.session.user?.projects.find((project) => project.id === p.projectId)

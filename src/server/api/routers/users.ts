@@ -91,7 +91,7 @@ export const userRouter = createTRPCRouter({
       return users.map((user) => ({
         ...user,
         lastScore: lastScoresOfUsers.find(
-          (score) => score.userId === user.userId
+          (score) => score.userId === user.userId,
         ),
       }));
     }),
@@ -101,7 +101,7 @@ export const userRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         userId: z.string(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const [agg, lastScoresOfUsers] = await Promise.all([

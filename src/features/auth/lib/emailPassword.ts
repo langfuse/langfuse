@@ -14,7 +14,7 @@ import { compare, hash } from "bcryptjs";
 export async function createUserEmailPassword(
   email: string,
   password: string,
-  name: string
+  name: string,
 ) {
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");

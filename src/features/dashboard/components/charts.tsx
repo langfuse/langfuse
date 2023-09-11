@@ -172,7 +172,7 @@ export function ChartUsage(props: {
             filteredData.map((row) => ({
               ts: row.ts,
               values: Object.entries(row.values ?? []).map(
-                ([label, value]) => ({ label, value })
+                ([label, value]) => ({ label, value }),
               ),
             })) ?? []
           }

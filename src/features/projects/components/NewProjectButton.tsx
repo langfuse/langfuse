@@ -75,7 +75,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
           <PlusIcon
             className={cn(
               "-ml-0.5 mr-1.5",
-              size === "xs" ? "h-4 w-4" : "h-5 w-5"
+              size === "xs" ? "h-4 w-4" : "h-5 w-5",
             )}
             aria-hidden="true"
           />

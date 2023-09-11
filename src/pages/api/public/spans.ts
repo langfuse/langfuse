@@ -37,13 +37,13 @@ const SpanPatchSchema = z.object({
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   await runMiddleware(req, res, cors);
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization
+    req.headers.authorization,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -58,7 +58,7 @@ export default async function handler(
         "Trying to generate span, project ",
         authCheck.scope.projectId,
         ", body:",
-        JSON.stringify(req.body, null, 2)
+        JSON.stringify(req.body, null, 2),
       );
       const obj = SpanPostSchema.parse(req.body);
       const {
@@ -118,7 +118,7 @@ export default async function handler(
       });
       if (observationWithSameId > 0)
         throw new Error(
-          "Observation with same id already exists in another project"
+          "Observation with same id already exists in another project",
         );
 
       const newObservation = await prisma.observation.upsert({
@@ -174,7 +174,7 @@ export default async function handler(
         "Trying to update span, project ",
         authCheck.scope.projectId,
         ", body:",
-        JSON.stringify(req.body, null, 2)
+        JSON.stringify(req.body, null, 2),
       );
       const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 
@@ -190,7 +190,7 @@ export default async function handler(
       });
       if (observationWithSameId > 0)
         throw new Error(
-          "Observation with same id already exists in another project"
+          "Observation with same id already exists in another project",
         );
 
       const newObservation = await prisma.observation.upsert({
@@ -203,8 +203,8 @@ export default async function handler(
           endTime: endTime ? new Date(endTime) : undefined,
           ...Object.fromEntries(
             Object.entries(fields).filter(
-              ([_, v]) => v !== null && v !== undefined
-            )
+              ([_, v]) => v !== null && v !== undefined,
+            ),
           ),
           projectId: authCheck.scope.projectId,
         },
@@ -212,8 +212,8 @@ export default async function handler(
           endTime: endTime ? new Date(endTime) : undefined,
           ...Object.fromEntries(
             Object.entries(fields).filter(
-              ([_, v]) => v !== null && v !== undefined
-            )
+              ([_, v]) => v !== null && v !== undefined,
+            ),
           ),
         },
       });

@@ -11,7 +11,7 @@ const cors = Cors({
 // And to throw an error when an error happens in a middleware
 export function runFeedbackCorsMiddleware(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   return new Promise((resolve, reject) => {
     cors(req, res, (result: unknown) => {

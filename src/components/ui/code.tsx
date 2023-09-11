@@ -49,7 +49,7 @@ const parseJsonInput = (jsonIn: unknown): string => {
       ) {
         return (jsonIn as { role: string; content: string }[])
           .map(
-            (message) => `${message.role.toUpperCase()}\n\n${message.content}`
+            (message) => `${message.role.toUpperCase()}\n\n${message.content}`,
           )
           .join("\n\n------\n\n");
       }
@@ -112,7 +112,7 @@ export function CodeView(props: {
           className={cn(
             "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
             isCollapsed ? `line-clamp-6` : "block",
-            props.scrollable ? "max-h-60 overflow-y-scroll" : undefined
+            props.scrollable ? "max-h-60 overflow-y-scroll" : undefined,
           )}
         >
           {props.content}

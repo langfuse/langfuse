@@ -23,7 +23,7 @@ const ObservationSchema = z.object({
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   await runMiddleware(req, res, cors);
 
@@ -33,7 +33,7 @@ export default async function handler(
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization
+    req.headers.authorization,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -46,7 +46,7 @@ export default async function handler(
     "trying to create observation for event, project ",
     authCheck.scope.projectId,
     ", body:",
-    JSON.stringify(req.body, null, 2)
+    JSON.stringify(req.body, null, 2),
   );
 
   try {

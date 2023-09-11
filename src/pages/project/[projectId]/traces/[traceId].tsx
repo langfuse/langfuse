@@ -13,13 +13,16 @@ export default function TracePage() {
 
   const trace = api.traces.byId.useQuery(traceId);
 
-  const totalCost = trace.data?.observations.reduce((acc, o) => {
-    if (!o.price) return acc;
+  const totalCost = trace.data?.observations.reduce(
+    (acc, o) => {
+      if (!o.price) return acc;
 
-    return acc
-      ? acc.plus(o.price ? o.price : new Decimal(0))
-      : new Decimal(0).plus(o.price ? o.price : new Decimal(0));
-  }, undefined as Decimal | undefined);
+      return acc
+        ? acc.plus(o.price ? o.price : new Decimal(0))
+        : new Decimal(0).plus(o.price ? o.price : new Decimal(0));
+    },
+    undefined as Decimal | undefined,
+  );
 
   return (
     <div className="flex flex-col overflow-hidden xl:container lg:h-[calc(100vh-100px)] xl:h-[calc(100vh-50px)]">
