@@ -209,7 +209,6 @@ export default async function handler(
       const newObservation = await prisma.observation.upsert({
         where: {
           id: spanId,
-          projectId: authCheck.scope.projectId,
         },
         create: {
           id: spanId,

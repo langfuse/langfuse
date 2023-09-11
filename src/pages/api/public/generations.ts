@@ -261,7 +261,7 @@ export default async function handler(
       } = GenerationPatchSchema.parse(req.body);
 
       const existingObservation = await prisma.observation.findUnique({
-        where: { id: generationId },
+        where: { id: generationId, projectId: authCheck.scope.projectId },
         select: {
           promptTokens: true,
           completionTokens: true,
