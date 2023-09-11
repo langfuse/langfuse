@@ -3,22 +3,24 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { Prisma } from "@prisma/client";
 
 const GetUsageSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().lte(100).default(50),
   group_by: z.enum(["trace_name"]).nullish(),
+  trace_name: z.string().nullish(),
 });
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   await runMiddleware(req, res, cors);
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization
+    req.headers.authorization,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -38,6 +40,10 @@ export default async function handler(
       }
       const obj = GetUsageSchema.parse(req.query); // uses query and not body
 
+      const traceNameCondition = obj.trace_name
+        ? Prisma.sql`AND t.name = ${obj.trace_name}`
+        : Prisma.empty;
+
       if (obj.group_by === undefined) {
         const [usage, totalItemsRes] = await Promise.all([
           prisma.$queryRaw`
@@ -55,6 +61,7 @@ export default async function handler(
             WHERE o.start_time IS NOT NULL
             AND o.project_id = ${authCheck.scope.projectId}
             AND t.project_id = ${authCheck.scope.projectId}
+            ${traceNameCondition}
             GROUP BY 1,2
             order by 1,2
           ),
@@ -119,6 +126,7 @@ export default async function handler(
             WHERE o.start_time IS NOT NULL
             AND t.project_id = ${authCheck.scope.projectId}
             AND o.project_id = ${authCheck.scope.projectId}
+            ${traceNameCondition}
             GROUP BY 1,2,3
             order by 1,2,3
           ),
@@ -142,9 +150,10 @@ export default async function handler(
             order by 1,2 desc
           ),
           all_trace_names AS (
-            SELECT "name" trace_name
-            FROM traces
-            WHERE project_id = ${authCheck.scope.projectId}
+            SELECT t."name" trace_name
+            FROM traces t
+            WHERE t.project_id = ${authCheck.scope.projectId}
+            ${traceNameCondition}
             GROUP BY 1
           )
           SELECT
