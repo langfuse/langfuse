@@ -205,6 +205,13 @@ export default async function handler(
       res.status(200).json(newObservation);
     } catch (error: unknown) {
       console.error(error);
+
+      if (error instanceof RessourceNotFoundError) {
+        return res.status(404).json({
+          success: false,
+          message: "Span not found",
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
