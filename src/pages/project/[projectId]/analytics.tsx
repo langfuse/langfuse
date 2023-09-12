@@ -28,7 +28,7 @@ export default function AnalyticsPage() {
   return (
     <div className="md:container">
       <Header title="Analytics" />
-      {!analyticsEnabled ? (
+      {analyticsEnabled ? (
         <DashboardEmbed projectId={projectId} />
       ) : (
         <AnalyticsDisabled />
