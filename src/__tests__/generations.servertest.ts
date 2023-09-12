@@ -472,4 +472,17 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.metadata).toEqual({ key: "value" });
     expect(dbGeneration?.version).toBe("2.0.0");
   });
+  it("should fail update if generation does not exist", async () => {
+    const generationId = uuidv4();
+
+    const updateGeneration = await makeAPICall(
+      "PATCH",
+      "/api/public/generations",
+      {
+        generationId: generationId,
+        completion: "this is a great gpt response",
+      },
+    );
+    expect(updateGeneration.status).toBe(404);
+  });
 });
