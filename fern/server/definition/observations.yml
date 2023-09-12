@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
+  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
@@ -14,3 +15,20 @@ service:
           type: string
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
       response: commons.Observation
+    getObservations:
+      docs: Get a lost of observations
+      method: GET
+      path: /generations
+      request:
+        name: GetObservationsRequest
+        query-parameters:
+          page: optional<integer>
+          limit: optional<integer>
+          name: optional<string>
+      response: Observations
+
+types:
+  Observations:
+    properties:
+      data: list<commons.Observation>
+      meta: pagination.MetaResponse

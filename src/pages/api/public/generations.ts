@@ -13,6 +13,12 @@ import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
 
+const GenerationsGetSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().lte(100).default(50),
+  name: z.string().nullish(),
+});
+
 export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
@@ -293,10 +299,79 @@ export default async function handler(
         error: errorMessage,
       });
     }
+  } else if (req.method === "GET") {
+    try {
+      console.log(
+        "trying to get generation, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        JSON.stringify(req.query, null, 2),
+      );
+
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Access denied - need to use basic auth with secret key to GET scores",
+        });
+      }
+
+      const searchParams = GenerationsGetSchema.parse(req.query);
+
+      const [generations, totalGenerations] = await getObservations(
+        prisma,
+        authCheck.scope.projectId,
+        searchParams,
+      );
+      console.log("got generations", generations, totalGenerations);
+      return res.status(200).json({
+        data: generations,
+        meta: {
+          page: searchParams.page,
+          limit: searchParams.limit,
+          totalItems: totalGenerations,
+          totalPages: Math.ceil(totalGenerations / searchParams.limit),
+        },
+      });
+    } catch (error: unknown) {
+      console.error(error);
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(400).json({
+        success: false,
+        message: "Invalid request data",
+        error: errorMessage,
+      });
+    }
   } else {
     return res.status(405).json({ message: "Method not allowed" });
   }
 }
+
+const getObservations = async (
+  prisma: PrismaClient,
+  authenticatedProjectId: string,
+  query: z.infer<typeof GenerationsGetSchema>,
+) => {
+  return await Promise.all([
+    prisma.observation.findMany({
+      where: {
+        projectId: authenticatedProjectId,
+        type: ObservationType.GENERATION,
+        ...(query.name ? { name: query.name } : undefined),
+      },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    }),
+    prisma.observation.count({
+      where: {
+        projectId: authenticatedProjectId,
+        type: ObservationType.GENERATION,
+        ...(query.name ? { name: query.name } : undefined),
+      },
+    }),
+  ]);
+};
 
 const patchGeneration = async (
   prisma: PrismaClient,
