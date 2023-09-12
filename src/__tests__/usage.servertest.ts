@@ -26,7 +26,7 @@ describe("Token Count Functions", () => {
 
     it("should return undefined for invalid text type", () => {
       const result = tokenCount({ model: "gpt-4", text: 1234 });
-      expect(result).toBeUndefined();
+      expect(result).toBe(2);
     });
   });
 
@@ -57,7 +57,7 @@ describe("Token Count Functions", () => {
         model: "gpt-4",
         text: { role: "Helo world" },
       });
-      expect(result).toBeUndefined();
+      expect(result).toBe(7);
     });
 
     it("should return undefined for invalid object", () => {
@@ -65,7 +65,7 @@ describe("Token Count Functions", () => {
         model: "gpt-4",
         text: [{ role: "Helo world" }],
       });
-      expect(result).toBeUndefined();
+      expect(result).toBe(9);
     });
   });
 });

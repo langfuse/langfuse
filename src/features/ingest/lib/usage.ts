@@ -26,7 +26,10 @@ export function tokenCount(p: {
       messages: p.text,
     });
   } else {
-    console.log("It is neither a string nor a ChatMessage array");
+    console.log(
+      "It is neither a string nor a ChatMessage array, converting into string",
+    );
+    return stringTokenCount({ model: p.model, text: JSON.stringify(p.text) });
   }
 }
 
