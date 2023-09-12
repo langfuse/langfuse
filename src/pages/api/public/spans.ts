@@ -264,7 +264,7 @@ const patchSpan = async (
     throw new RessourceNotFoundError("span", spanId);
   }
 
-  const newObservation = await prisma.observation.upsert({
+  return await prisma.observation.upsert({
     where: {
       id: spanId,
     },
