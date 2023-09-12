@@ -11,6 +11,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
+import { RessourceNotFoundError } from "@/src/pages/api/public/spans";
 
 export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
@@ -263,7 +264,7 @@ export default async function handler(
         {
           numOfAttempts: 3,
           retry: (e: Error, attemptNumber: number) => {
-            if (e instanceof GenerationNotFoundError) {
+            if (e instanceof RessourceNotFoundError) {
               console.log(
                 `retrying generation patch, attempt ${attemptNumber}`,
               );
@@ -277,7 +278,7 @@ export default async function handler(
     } catch (error: unknown) {
       console.error(error);
 
-      if (error instanceof GenerationNotFoundError) {
+      if (error instanceof RessourceNotFoundError) {
         return res.status(404).json({
           success: false,
           message: "Observation not found",
@@ -297,16 +298,9 @@ export default async function handler(
   }
 }
 
-class GenerationNotFoundError extends Error {
-  constructor(generationId: string) {
-    super(`Generation with ${generationId} not found}`);
-    this.name = "GenerationNotFoundError";
-  }
-}
-
 const patchGeneration = async (
   prisma: PrismaClient,
-  update: z.infer<typeof GenerationPatchSchema>,
+  generationPatch: z.infer<typeof GenerationPatchSchema>,
   authenticatedProjectId: string,
 ) => {
   const {
@@ -319,10 +313,13 @@ const patchGeneration = async (
     usage,
     model,
     ...otherFields
-  } = update;
+  } = generationPatch;
 
   const existingObservation = await prisma.observation.findUnique({
-    where: { id: update.generationId, projectId: authenticatedProjectId },
+    where: {
+      id: generationPatch.generationId,
+      projectId: authenticatedProjectId,
+    },
     select: {
       promptTokens: true,
       completionTokens: true,
@@ -332,7 +329,7 @@ const patchGeneration = async (
 
   if (!existingObservation) {
     console.log(`generation with id ${generationId} not found`);
-    throw new GenerationNotFoundError(generationId);
+    throw new RessourceNotFoundError("generation", generationId);
   }
 
   const mergedModel = model ?? existingObservation?.model ?? null;

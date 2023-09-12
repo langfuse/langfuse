@@ -11,7 +11,7 @@
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "next start",
-    "test": "jest --runInBand",
+    "test": "jest --verbose=true --runInBand",
     "test:watch": "jest --watch --runInBand",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",

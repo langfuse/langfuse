@@ -1,10 +1,15 @@
 import { prisma } from "@/src/server/db";
-import { ObservationLevel, ObservationType } from "@prisma/client";
+import {
+  ObservationLevel,
+  ObservationType,
+  type PrismaClient,
+} from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
+import { backOff } from "exponential-backoff";
 
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
@@ -176,60 +181,26 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
-
-      // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
-      // Including projectid would lead to race conditions and unique key errors
-      const observationsWithSameId = await prisma.observation.count({
-        where: {
-          id: spanId,
-          projectId: {
-            not: authCheck.scope.projectId,
+      const newObservation = await backOff(
+        async () =>
+          await patchSpan(
+            prisma,
+            SpanPatchSchema.parse(req.body),
+            authCheck.scope.projectId,
+          ),
+        {
+          numOfAttempts: 3,
+          retry: (e: Error, attemptNumber: number) => {
+            if (e instanceof RessourceNotFoundError) {
+              console.log(
+                `retrying generation patch, attempt ${attemptNumber}`,
+              );
+              return true;
+            }
+            return false;
           },
         },
-      });
-
-      if (observationsWithSameId > 0)
-        throw new Error(
-          "Observation with same id already exists in another project",
-        );
-
-      const existingSpan = await prisma.observation.findUnique({
-        where: { id: spanId, projectId: authCheck.scope.projectId },
-      });
-
-      if (!existingSpan) {
-        console.log(`span with id ${spanId} not found`);
-        return res.status(404).json({
-          success: false,
-          message: "Span not found",
-        });
-      }
-
-      const newObservation = await prisma.observation.upsert({
-        where: {
-          id: spanId,
-        },
-        create: {
-          id: spanId,
-          type: ObservationType.SPAN,
-          endTime: endTime ? new Date(endTime) : undefined,
-          ...Object.fromEntries(
-            Object.entries(fields).filter(
-              ([_, v]) => v !== null && v !== undefined,
-            ),
-          ),
-          projectId: authCheck.scope.projectId,
-        },
-        update: {
-          endTime: endTime ? new Date(endTime) : undefined,
-          ...Object.fromEntries(
-            Object.entries(fields).filter(
-              ([_, v]) => v !== null && v !== undefined,
-            ),
-          ),
-        },
-      });
+      );
 
       res.status(200).json(newObservation);
     } catch (error: unknown) {
@@ -246,3 +217,68 @@ export default async function handler(
     res.status(405).json({ message: "Method not allowed" });
   }
 }
+
+export class RessourceNotFoundError extends Error {
+  constructor(type: string, id: string) {
+    super(`${type} with ${id} not found}`);
+    this.name = "RessourceNotFoundError";
+  }
+}
+
+const patchSpan = async (
+  prisma: PrismaClient,
+  spanPatch: z.infer<typeof SpanPatchSchema>,
+  authenticatedProjectId: string,
+) => {
+  const { spanId, endTime, ...fields } = spanPatch;
+
+  // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
+  // Including projectid would lead to race conditions and unique key errors
+  const observationsWithSameId = await prisma.observation.count({
+    where: {
+      id: spanId,
+      projectId: {
+        not: authenticatedProjectId,
+      },
+    },
+  });
+
+  if (observationsWithSameId > 0)
+    throw new Error(
+      "Observation with same id already exists in another project",
+    );
+
+  const existingSpan = await prisma.observation.findUnique({
+    where: { id: spanId, projectId: authenticatedProjectId },
+  });
+
+  if (!existingSpan) {
+    console.log(`span with id ${spanId} not found`);
+    throw new RessourceNotFoundError("span", spanId);
+  }
+
+  const newObservation = await prisma.observation.upsert({
+    where: {
+      id: spanId,
+    },
+    create: {
+      id: spanId,
+      type: ObservationType.SPAN,
+      endTime: endTime ? new Date(endTime) : undefined,
+      ...Object.fromEntries(
+        Object.entries(fields).filter(
+          ([_, v]) => v !== null && v !== undefined,
+        ),
+      ),
+      projectId: authenticatedProjectId,
+    },
+    update: {
+      endTime: endTime ? new Date(endTime) : undefined,
+      ...Object.fromEntries(
+        Object.entries(fields).filter(
+          ([_, v]) => v !== null && v !== undefined,
+        ),
+      ),
+    },
+  });
+};
