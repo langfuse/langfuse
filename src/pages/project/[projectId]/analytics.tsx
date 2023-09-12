@@ -118,7 +118,8 @@ const DashboardEmbed = (props: { projectId: string }) => {
             </li>
             <li>Not optimized for mobile screens.</li>
           </ul>
-          We are adding new dashboards on an ongoing bases. Reach out to us via{" "}
+          If you run into any issues, please let us know. We are adding new
+          dashboards on an ongoing bases. Reach out to us via{" "}
           <a href="#" onClick={() => openChat()} className="underline">
             chat
           </a>{" "}
