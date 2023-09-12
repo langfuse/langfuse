@@ -4,5 +4,6 @@
       "path": "/api/cron/ingestion_metrics",
       "schedule": "*/5 * * * *"
     }
-  ]
+  ],
+  "installCommand": "bun i --production"
 }
