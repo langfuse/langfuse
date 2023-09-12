@@ -10,6 +10,7 @@ import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
+import { RessourceNotFoundError } from "../../../utils/exceptions";
 
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
@@ -222,13 +223,6 @@ export default async function handler(
     }
   } else {
     res.status(405).json({ message: "Method not allowed" });
-  }
-}
-
-export class RessourceNotFoundError extends Error {
-  constructor(type: string, id: string) {
-    super(`${type} with ${id} not found}`);
-    this.name = "RessourceNotFoundError";
   }
 }
 

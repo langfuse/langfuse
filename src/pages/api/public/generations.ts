@@ -11,7 +11,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
-import { RessourceNotFoundError } from "@/src/pages/api/public/spans";
+import { RessourceNotFoundError } from "../../../utils/exceptions";
 
 export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
