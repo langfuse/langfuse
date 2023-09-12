@@ -10,20 +10,6 @@ on:
       - "main"
 
 jobs:
-  # just for warnings, does not fail CI
-  prettier-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-      - name: install dependencies
-        run: |
-          npm ci
-      - name: prettier check
-        run: npx prettier --check ./src *.{ts,js} --ignore-path .gitignore
-  # Start of required CI
   lint:
     runs-on: ubuntu-latest
     steps:
