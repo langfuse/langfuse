@@ -2,7 +2,7 @@ import { verifySecretKey } from "@/src/features/publicApi/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/publicApi/server/types";
 import { prisma } from "@/src/server/db";
 
-type AuthHeaderVerificationResult =
+export type AuthHeaderVerificationResult =
   | {
       validKey: true;
       scope: ApiAccessScope;
