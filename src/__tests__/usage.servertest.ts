@@ -1,4 +1,4 @@
-import { stringTokenCount, tokenCount } from "@/src/features/ingest/lib/usage";
+import { tokenCount } from "@/src/features/ingest/lib/usage";
 
 describe("Token Count Functions", () => {
   describe("token count for strings", () => {
@@ -7,7 +7,7 @@ describe("Token Count Functions", () => {
       { model: "claude", tokens: 118 },
     ].forEach(({ model, tokens }) => {
       it(`should return token count ${tokens} for ${model}`, () => {
-        const result = stringTokenCount({
+        const result = tokenCount({
           model: model,
           text: "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.",
         });
@@ -17,7 +17,7 @@ describe("Token Count Functions", () => {
     });
 
     it("should return undefined for unknown model", () => {
-      const result = stringTokenCount({
+      const result = tokenCount({
         model: "unknown-model",
         text: "Hello, World!",
       });
