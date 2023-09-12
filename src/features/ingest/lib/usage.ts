@@ -178,7 +178,9 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
   }
 
   return value.every(
-    (item) =>
+    (item: unknown) =>
+      typeof item === "object" &&
+      item !== null &&
       "role" in item &&
       typeof item.role === "string" &&
       "content" in item &&
