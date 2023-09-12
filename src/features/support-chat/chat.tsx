@@ -37,3 +37,9 @@ export const chatRunTrigger = (trigger: Trigger) => {
     Crisp.trigger.run(trigger);
   }
 };
+
+export const openChat = () => {
+  if (process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
+    Crisp.chat.open();
+  }
+};

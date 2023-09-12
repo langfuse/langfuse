@@ -102,7 +102,7 @@ Requirements: Docker, Node.js >=18, npm
 
 ```bash
 # Clone repository
-git clone git@github.com:langfuse/langfuse.git
+git clone https://github.com/langfuse/langfuse.git
 cd langfuse
 
 # Run server and database
