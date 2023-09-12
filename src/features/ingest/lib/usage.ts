@@ -37,7 +37,6 @@ type ChatMessage = {
   role: string;
   name?: string;
   content: string;
-  [key: string]: string | undefined;
 };
 
 type TokenCalculationParams = {
@@ -84,7 +83,7 @@ function numTokensFromMessages(params: TokenCalculationParams) {
     num_tokens += tokens_per_message;
 
     Object.keys(message).forEach((key) => {
-      const value = message[key];
+      const value = message[key as keyof typeof message];
       if (value) {
         num_tokens += encoding.encode(value).length;
       }
@@ -180,9 +179,11 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
 
   return value.every(
     (item) =>
+      "role" in item &&
       typeof item.role === "string" &&
+      "content" in item &&
       typeof item.content === "string" &&
-      (item.name === undefined || typeof item.name === "string"),
+      (!("name" in item) || typeof item.name === "string"),
   );
 }
 
