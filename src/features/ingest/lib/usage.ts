@@ -24,7 +24,6 @@ export function tokenCount(p: {
     return numTokensFromMessages({
       model: p.model,
       messages: p.text,
-      isReply: p.isReply,
     });
   } else {
     console.log("It is neither a string nor a ChatMessage array");
