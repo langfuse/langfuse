@@ -37,13 +37,13 @@ const SpanPatchSchema = z.object({
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   await runMiddleware(req, res, cors);
 
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization
+    req.headers.authorization,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -58,7 +58,7 @@ export default async function handler(
         "Trying to generate span, project ",
         authCheck.scope.projectId,
         ", body:",
-        JSON.stringify(req.body, null, 2)
+        JSON.stringify(req.body, null, 2),
       );
       const obj = SpanPostSchema.parse(req.body);
       const {
@@ -118,7 +118,7 @@ export default async function handler(
       });
       if (observationWithSameId > 0)
         throw new Error(
-          "Observation with same id already exists in another project"
+          "Observation with same id already exists in another project",
         );
 
       const newObservation = await prisma.observation.upsert({
@@ -174,13 +174,13 @@ export default async function handler(
         "Trying to update span, project ",
         authCheck.scope.projectId,
         ", body:",
-        JSON.stringify(req.body, null, 2)
+        JSON.stringify(req.body, null, 2),
       );
       const { spanId, endTime, ...fields } = SpanPatchSchema.parse(req.body);
 
       // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
       // Including projectid would lead to race conditions and unique key errors
-      const observationWithSameId = await prisma.observation.count({
+      const observationsWithSameId = await prisma.observation.count({
         where: {
           id: spanId,
           projectId: {
@@ -188,10 +188,23 @@ export default async function handler(
           },
         },
       });
-      if (observationWithSameId > 0)
+
+      if (observationsWithSameId > 0)
         throw new Error(
-          "Observation with same id already exists in another project"
+          "Observation with same id already exists in another project",
         );
+
+      const existingSpan = await prisma.observation.findUnique({
+        where: { id: spanId, projectId: authCheck.scope.projectId },
+      });
+
+      if (!existingSpan) {
+        console.log(`span with id ${spanId} not found`);
+        return res.status(404).json({
+          success: false,
+          message: "Span not found",
+        });
+      }
 
       const newObservation = await prisma.observation.upsert({
         where: {
@@ -203,8 +216,8 @@ export default async function handler(
           endTime: endTime ? new Date(endTime) : undefined,
           ...Object.fromEntries(
             Object.entries(fields).filter(
-              ([_, v]) => v !== null && v !== undefined
-            )
+              ([_, v]) => v !== null && v !== undefined,
+            ),
           ),
           projectId: authCheck.scope.projectId,
         },
@@ -212,8 +225,8 @@ export default async function handler(
           endTime: endTime ? new Date(endTime) : undefined,
           ...Object.fromEntries(
             Object.entries(fields).filter(
-              ([_, v]) => v !== null && v !== undefined
-            )
+              ([_, v]) => v !== null && v !== undefined,
+            ),
           ),
         },
       });

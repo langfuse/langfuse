@@ -53,7 +53,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     expect(createGeneration.status).toBe(200);
@@ -67,7 +67,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(traceId);
     expect(dbGeneration?.name).toBe("generation-name");
     expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
+      new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbGeneration?.model).toBe("model-name");
@@ -97,7 +97,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     expect(createGeneration.status).toBe(200);
@@ -111,7 +111,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(traceId);
     expect(dbGeneration?.name).toBe("generation-name");
     expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
+      new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbGeneration?.model).toBe("model-name");
@@ -181,7 +181,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     expect(createGeneration.status).toBe(200);
@@ -195,7 +195,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
     expect(dbGeneration?.name).toBe("generation-name");
     expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
+      new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbGeneration?.model).toBe("model-name");
@@ -222,7 +222,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -245,7 +245,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
     expect(dbGeneration?.name).toBe(generationName);
     expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
+      new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbGeneration?.model).toBe("model-name");
@@ -272,7 +272,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     expect(createGeneration.status).toBe(200);
@@ -301,7 +301,7 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
         parentObservationId: generationId,
-      }
+      },
     );
     expect(createGeneration2.status).toBe(200);
 
@@ -335,7 +335,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -358,7 +358,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
     expect(dbGeneration?.name).toBe(generationName);
     expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
+      new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbGeneration?.model).toBe("model-name");
@@ -385,7 +385,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     const dbGeneration = await prisma.observation.findFirstOrThrow({
@@ -409,7 +409,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
     expect(dbGeneration?.name).toBe(generationName);
     expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
+      new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbGeneration?.model).toBe("model-name");
@@ -436,7 +436,7 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
-      }
+      },
     );
 
     expect(createGeneration.status).toBe(200);
@@ -447,7 +447,7 @@ describe("/api/public/generations API Endpoint", () => {
       {
         generationId: generationId,
         completion: "this is a great gpt response",
-      }
+      },
     );
     expect(updateGeneration.status).toBe(200);
 
@@ -460,7 +460,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.id).toBe(generationId);
     expect(dbGeneration?.name).toBe(generationName);
     expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z")
+      new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
     expect(dbGeneration?.model).toBe("model-name");
@@ -471,5 +471,18 @@ describe("/api/public/generations API Endpoint", () => {
     });
     expect(dbGeneration?.metadata).toEqual({ key: "value" });
     expect(dbGeneration?.version).toBe("2.0.0");
+  });
+  it("should fail update if generation does not exist", async () => {
+    const generationId = uuidv4();
+
+    const updateGeneration = await makeAPICall(
+      "PATCH",
+      "/api/public/generations",
+      {
+        generationId: generationId,
+        completion: "this is a great gpt response",
+      },
+    );
+    expect(updateGeneration.status).toBe(404);
   });
 });

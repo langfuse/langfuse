@@ -47,7 +47,7 @@ export default function TracesTable({
 }: TraceTableProps) {
   const filters = router.query.filter
     ? (JSON.parse(
-        decodeURIComponent(router.query.filter as string)
+        decodeURIComponent(router.query.filter as string),
       ) as TraceFilterInput)
     : {
         scores: null,
@@ -107,12 +107,12 @@ export default function TracesTable({
       undefined,
       {
         scroll: false,
-      }
+      },
     );
   };
 
   const convertToTableRow = (
-    trace: RouterOutput["traces"]["all"][0]
+    trace: RouterOutput["traces"]["all"][0],
   ): TraceTableRow => {
     return {
       id: trace.id,
@@ -131,7 +131,7 @@ export default function TracesTable({
   };
 
   const convertToOptions = (
-    options: RouterOutput["traces"]["availableFilterOptions"]
+    options: RouterOutput["traces"]["availableFilterOptions"],
   ): TableRowOptions[] => {
     return options.map((o) => {
       return {
@@ -272,7 +272,7 @@ export default function TracesTable({
           values: queryOptions.metadata,
           removeSelectedValue: (value: KeyValue) => {
             const newValues = selectedMetadata.filter(
-              (v) => v.key !== value.key && v.value !== value.value
+              (v) => v.key !== value.key && v.value !== value.value,
             );
             setQueryOptions({
               ...queryOptions,
@@ -283,7 +283,7 @@ export default function TracesTable({
           updateFunction: (newValue: KeyValue | null) => {
             const mergedValues = newValue
               ? selectedMetadata.filter(
-                  (v) => v.key === newValue.key && v.value === newValue.value
+                  (v) => v.key === newValue.key && v.value === newValue.value,
                 ).length > 0
                 ? selectedMetadata
                 : selectedMetadata.concat(newValue)

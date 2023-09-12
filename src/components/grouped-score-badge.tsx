@@ -5,14 +5,17 @@ export const GroupedScoreBadges = (props: {
   scores: Score[];
   inline?: boolean;
 }) => {
-  const groupedScores = props.scores.reduce((acc, score) => {
-    if (!acc[score.name] || !Array.isArray(acc[score.name])) {
-      acc[score.name] = [score];
-    } else {
-      (acc[score.name] as Score[]).push(score);
-    }
-    return acc;
-  }, {} as Record<string, Score[]>);
+  const groupedScores = props.scores.reduce(
+    (acc, score) => {
+      if (!acc[score.name] || !Array.isArray(acc[score.name])) {
+        acc[score.name] = [score];
+      } else {
+        (acc[score.name] as Score[]).push(score);
+      }
+      return acc;
+    },
+    {} as Record<string, Score[]>,
+  );
 
   return (
     <>
@@ -31,7 +34,7 @@ export const GroupedScoreBadges = (props: {
             >
               {name}: {scores.map((s) => s.value).join(", ")}
             </Badge>
-          )
+          ),
         )}
     </>
   );

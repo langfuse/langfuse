@@ -31,12 +31,12 @@ export function DataTableToolbar<TData, TValue>({
   isFiltered,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
-    searchConfig?.currentQuery ?? ""
+    searchConfig?.currentQuery ?? "",
   );
 
   const renderFilter = (
     column: ColumnDef<TData, TValue>,
-    columnOptions: TableRowOptions | undefined
+    columnOptions: TableRowOptions | undefined,
   ) => {
     if (
       !column ||
@@ -108,7 +108,8 @@ export function DataTableToolbar<TData, TValue>({
           ? columnDefs.map((column) => {
               const columnOptions = options.find(
                 (o) =>
-                  o.columnId.toLowerCase() === column.meta?.label?.toLowerCase()
+                  o.columnId.toLowerCase() ===
+                  column.meta?.label?.toLowerCase(),
               );
               return renderFilter(column, columnOptions);
             })

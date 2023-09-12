@@ -23,7 +23,7 @@ export const projectsRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const project = await ctx.prisma.project.create({

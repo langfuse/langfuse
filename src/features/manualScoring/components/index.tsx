@@ -56,7 +56,7 @@ export function ManualScoreButton({
       s.traceId === traceId &&
       (observationId !== undefined
         ? s.observationId === observationId
-        : s.observationId === null)
+        : s.observationId === null),
   );
 
   const utils = api.useContext();
