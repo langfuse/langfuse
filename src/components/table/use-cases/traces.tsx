@@ -73,10 +73,24 @@ export default function TracesTable({
 
   const [selectedMetadata, setSelectedMetadata] = useState<KeyValue[]>([]);
 
-  const [paginationState, setPaginationState] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 50,
-  });
+  const paginationState: PaginationState = {
+    pageIndex: Number((router.query.page as string | undefined) ?? 0),
+    pageSize: Number((router.query.pageSize as string | undefined) ?? 50),
+  };
+  const setPaginationState = (
+    value: PaginationState | ((old: PaginationState) => PaginationState),
+  ) => {
+    const newState =
+      typeof value === "function" ? value(paginationState) : value;
+    void router.push({
+      pathname: router.pathname,
+      query: {
+        ...router.query,
+        page: newState.pageIndex,
+        pageSize: newState.pageSize,
+      },
+    });
+  };
 
   const traces = api.traces.all.useQuery({
     ...queryOptions,
@@ -94,21 +108,15 @@ export default function TracesTable({
   const setFilterInParams = (filter?: TraceFilterInput) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { ...query } = router.query;
-    void router.replace(
-      {
-        pathname: router.pathname,
-        query: {
-          ...query,
-          ...(filter
-            ? { filter: encodeURIComponent(JSON.stringify(filter)) }
-            : {}),
-        },
+    void router.push({
+      pathname: router.pathname,
+      query: {
+        ...query,
+        ...(filter
+          ? { filter: encodeURIComponent(JSON.stringify(filter)) }
+          : {}),
       },
-      undefined,
-      {
-        scroll: false,
-      },
-    );
+    });
   };
 
   const convertToTableRow = (
