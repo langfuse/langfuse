@@ -102,7 +102,7 @@ Requirements: Docker, Node.js >=18, npm
 
 ```bash
 # Clone repository
-git clone git@github.com:langfuse/langfuse.git
+git clone https://github.com/langfuse/langfuse.git
 cd langfuse
 
 # Run server and database
@@ -280,8 +280,8 @@ By default, Langfuse automatically reports basic usage statistics to a centraliz
 
 This helps us to:
 
-1. understand how Langfuse is used and improve the most relevant features.
-2. track overall usage for internal and external (e.g. fundraising) reporting.
+1. Understand how Langfuse is used and improve the most relevant features.
+2. Track overall usage for internal and external (e.g. fundraising) reporting.
 
 None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/pages/api/cron/telemetry.ts).
 
