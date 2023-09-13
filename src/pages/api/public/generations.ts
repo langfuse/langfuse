@@ -312,7 +312,7 @@ export default async function handler(
         return res.status(401).json({
           success: false,
           message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+            "Access denied - need to use basic auth with secret key to GET generations",
         });
       }
 
@@ -323,7 +323,7 @@ export default async function handler(
         authCheck.scope.projectId,
         searchParams,
       );
-      console.log("got generations", generations, totalGenerations);
+
       return res.status(200).json({
         data: generations,
         meta: {
