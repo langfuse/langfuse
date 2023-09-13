@@ -155,10 +155,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateGenerationRequest'
     get:
-      description: Get a lost of observations
-      operationId: observations_getObservations
+      description: Get a list of generations
+      operationId: generations_get
       tags:
-        - Observations
+        - Generations
       parameters:
         - name: page
           in: query
@@ -184,7 +184,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Observations'
+                $ref: '#/components/schemas/Generations'
         '400':
           description: ''
           content:
@@ -979,8 +979,8 @@ components:
           nullable: true
       required:
         - generationId
-    Observations:
-      title: Observations
+    Generations:
+      title: Generations
       type: object
       properties:
         data:

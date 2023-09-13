@@ -318,7 +318,7 @@ export default async function handler(
 
       const searchParams = GenerationsGetSchema.parse(req.query);
 
-      const [generations, totalGenerations] = await getObservations(
+      const [generations, totalGenerations] = await getGenerations(
         prisma,
         authCheck.scope.projectId,
         searchParams,
@@ -348,7 +348,7 @@ export default async function handler(
   }
 }
 
-const getObservations = async (
+const getGenerations = async (
   prisma: PrismaClient,
   authenticatedProjectId: string,
   query: z.infer<typeof GenerationsGetSchema>,
