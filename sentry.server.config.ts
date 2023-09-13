@@ -5,10 +5,6 @@ import { ProfilingIntegration } from "@sentry/profiling-node";
 if (process.env.NEXT_PUBLIC_SENTRY_DSN)
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    // environment:
-    //   process.env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com"
-    //     ? "cloud"
-    //     : process.env.NODE_ENV,
 
     // Set tracesSampleRate to 1.0 to capture 100%
     // of transactions for performance monitoring.

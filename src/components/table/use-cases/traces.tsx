@@ -13,9 +13,10 @@ import {
 } from "@/src/utils/tanstack";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type PaginationState, type ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import router from "next/router";
 import { useState } from "react";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 export type TraceTableRow = {
   id: string;
@@ -73,9 +74,9 @@ export default function TracesTable({
 
   const [selectedMetadata, setSelectedMetadata] = useState<KeyValue[]>([]);
 
-  const [paginationState, setPaginationState] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 50,
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
   });
 
   const traces = api.traces.all.useQuery({
@@ -94,21 +95,15 @@ export default function TracesTable({
   const setFilterInParams = (filter?: TraceFilterInput) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { ...query } = router.query;
-    void router.replace(
-      {
-        pathname: router.pathname,
-        query: {
-          ...query,
-          ...(filter
-            ? { filter: encodeURIComponent(JSON.stringify(filter)) }
-            : {}),
-        },
+    void router.push({
+      pathname: router.pathname,
+      query: {
+        ...query,
+        ...(filter
+          ? { filter: encodeURIComponent(JSON.stringify(filter)) }
+          : {}),
       },
-      undefined,
-      {
-        scroll: false,
-      },
-    );
+    });
   };
 
   const convertToTableRow = (

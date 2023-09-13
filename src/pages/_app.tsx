@@ -6,6 +6,9 @@ import { useSession } from "next-auth/react";
 
 import { api } from "@/src/utils/api";
 
+import NextAdapterPages from "next-query-params/pages";
+import { QueryParamProvider } from "use-query-params";
+
 import "@/src/styles/globals.css";
 import Layout from "@/src/components/layouts/layout";
 import { useEffect } from "react";
@@ -70,15 +73,17 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <PostHogProvider client={posthog}>
-      <SessionProvider session={session} refetchOnWindowFocus={true}>
-        <Layout>
-          <Component {...pageProps} />
-          <UserTracking />
-        </Layout>
-        <CrispWidget />
-      </SessionProvider>
-    </PostHogProvider>
+    <QueryParamProvider adapter={NextAdapterPages}>
+      <PostHogProvider client={posthog}>
+        <SessionProvider session={session} refetchOnWindowFocus={true}>
+          <Layout>
+            <Component {...pageProps} />
+            <UserTracking />
+          </Layout>
+          <CrispWidget />
+        </SessionProvider>
+      </PostHogProvider>
+    </QueryParamProvider>
   );
 };
 
@@ -99,6 +104,7 @@ function UserTracking() {
           name: session.data.user?.name ?? undefined,
           featureFlags: session.data.user?.featureFlags ?? undefined,
           projects: session.data.user?.projects ?? undefined,
+          LANGFUSE_CLOUD_REGION: process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
       const emailDomain = session.data.user?.email?.split("@")[1];
       if (emailDomain)

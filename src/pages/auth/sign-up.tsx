@@ -17,6 +17,7 @@ import { useForm } from "react-hook-form";
 import type * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 
 export default function SignIn() {
   const [formError, setFormError] = useState<string | null>(null);
@@ -66,14 +67,12 @@ export default function SignIn() {
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <span className="block text-center font-mono text-4xl font-bold">
-            🪢
-          </span>
+          <LangfuseIcon className="mx-auto" />
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
             Create new account
           </h2>
         </div>
-        {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com" ? (
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
             No credit card required. All users have access to a demo project.
           </div>
@@ -140,7 +139,7 @@ export default function SignIn() {
                 ) : null}
               </form>
             </Form>
-            {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com" ? (
+            {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
               <div className="-mb-4 mt-8 text-center text-xs text-gray-500">
                 By creating an account you are agreeing to our{" "}
                 <a

@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
+  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
@@ -15,6 +16,17 @@ service:
       path: /generations
       request: UpdateGenerationRequest
       response: commons.Observation
+    get:
+      docs: Get a list of generations
+      method: GET
+      path: /generations
+      request:
+        name: GetGenerationsRequest
+        query-parameters:
+          page: optional<integer>
+          limit: optional<integer>
+          name: optional<string>
+      response: Generations
 
 types:
   UpdateGenerationRequest:
@@ -33,3 +45,7 @@ types:
       usage: optional<commons.LLMUsage>
       level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
+  Generations:
+    properties:
+      data: list<commons.Observation>
+      meta: pagination.MetaResponse
