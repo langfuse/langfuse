@@ -23,7 +23,7 @@ export const chatSetUser = ({
   email: string;
   data: object;
 }) => {
-  if (process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
+  if (chatAvailable) {
     Crisp.user.setEmail(email);
     Crisp.user.setNickname(name);
     Crisp.session.setData(data);
@@ -33,13 +33,11 @@ export const chatSetUser = ({
 type Trigger = "after-project-creation";
 
 export const chatRunTrigger = (trigger: Trigger) => {
-  if (process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
-    Crisp.trigger.run(trigger);
-  }
+  if (chatAvailable) Crisp.trigger.run(trigger);
 };
 
 export const openChat = () => {
-  if (process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
-    Crisp.chat.open();
-  }
+  if (chatAvailable) Crisp.chat.open();
 };
+
+export const chatAvailable = !!process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;
