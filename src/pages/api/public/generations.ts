@@ -325,7 +325,17 @@ export default async function handler(
       );
 
       return res.status(200).json({
-        data: generations,
+        data: generations.map((generation) => {
+          const { input, output, ...otherFields } = generation;
+          return {
+            ...otherFields,
+            prompt: input,
+            completion:
+              output && typeof output === "object" && "completion" in output
+                ? output.completion
+                : null,
+          };
+        }),
         meta: {
           page: searchParams.page,
           limit: searchParams.limit,
