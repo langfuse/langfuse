@@ -104,6 +104,7 @@ function UserTracking() {
           name: session.data.user?.name ?? undefined,
           featureFlags: session.data.user?.featureFlags ?? undefined,
           projects: session.data.user?.projects ?? undefined,
+          LANGFUSE_CLOUD_REGION: process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
       const emailDomain = session.data.user?.email?.split("@")[1];
       if (emailDomain)
