@@ -34,7 +34,7 @@ export const env = createEnv({
    */
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
-    NEXT_PUBLIC_HOSTNAME: z.string().optional(),
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.enum(["US", "EU"]).optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
   },
 
@@ -49,6 +49,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-    NEXT_PUBLIC_HOSTNAME: process.env.NEXT_PUBLIC_HOSTNAME,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   },
 });
