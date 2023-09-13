@@ -21,6 +21,7 @@ import { FeedbackButtonWrapper } from "@/src/features/feedback/component/Feedbac
 import { Button } from "@/src/components/ui/button";
 import Head from "next/head";
 import { env } from "@/src/env.mjs";
+import { LangfuseIcon, LangfuseLogo } from "@/src/components/LangfuseLogo";
 
 const userNavigation = [
   {
@@ -180,10 +181,8 @@ export default function Layout(props: PropsWithChildren) {
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
-                    <div className="flex h-16 shrink-0 items-center font-mono text-xl font-semibold">
-                      🪢 Langfuse
-                    </div>
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4">
+                    <LangfuseLogo size="xl" />
                     <nav className="flex flex-1 flex-col">
                       <ul role="list" className="flex flex-1 flex-col gap-y-7">
                         <li>
@@ -284,10 +283,8 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6">
-            <div className="flex h-16 shrink-0 items-center font-mono text-xl font-semibold">
-              🪢 Langfuse
-            </div>
+          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 py-4">
+            <LangfuseLogo size="xl" />
             <nav className="flex flex-1 flex-col">
               <ul role="list" className="flex flex-1 flex-col gap-y-4">
                 <li>
@@ -445,9 +442,7 @@ export default function Layout(props: PropsWithChildren) {
             <span className="sr-only">Open sidebar</span>
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
-          <div className="flex-1 font-mono text-sm font-semibold leading-6 text-gray-900">
-            🪢 Langfuse
-          </div>
+          <LangfuseLogo className="flex-1" />
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>
@@ -524,10 +519,8 @@ function Spinner(props: { message: string }) {
   return (
     <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <span className="block text-center font-mono text-4xl font-bold motion-safe:animate-spin">
-          🪢
-        </span>
-        <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+        <LangfuseIcon className="mx-auto motion-safe:animate-spin" size={42} />
+        <h2 className="mt-5 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
           {props.message} ...
         </h2>
       </div>
