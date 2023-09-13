@@ -6,7 +6,7 @@ import { type NextRequest } from "next/server";
 import { get } from "@vercel/edge-config";
 
 export async function middleware(req: NextRequest) {
-  if (process.env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com") {
+  if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
     const config = await get("blockedIps");
     const blockedIps = Array.isArray(config) ? config : [config];
 
