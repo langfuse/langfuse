@@ -1,7 +1,7 @@
 import {
   FlaskConical,
-  HelpingHand,
   LayoutDashboard,
+  LifeBuoy,
   LineChart,
   ListTree,
   Settings,
@@ -46,8 +46,8 @@ export const ROUTES = [
     icon: Settings,
   },
   {
-    name: "Talk to founder",
-    pathname: "https://cal.com/marc-kl/langfuse-cloud",
-    icon: HelpingHand,
+    name: "Support",
+    pathname: "/project/[projectId]/support",
+    icon: LifeBuoy,
   },
 ];

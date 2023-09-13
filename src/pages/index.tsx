@@ -13,6 +13,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { env } from "@/src/env.mjs";
+import { cn } from "@/src/utils/tailwind";
 
 export default function GetStartedPage() {
   const projects = api.projects.all.useQuery();
@@ -55,7 +56,14 @@ export default function GetStartedPage() {
 
   return (
     <div className="md:container">
-      <Header title="Get started" />
+      <Header
+        title="Get started"
+        actionButtons={
+          <Button asChild>
+            <Link href="https://docs.langfuse.com">Visit docs ↗</Link>
+          </Button>
+        }
+      />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="flex-1">
           <CardHeader>
@@ -84,20 +92,14 @@ export default function GetStartedPage() {
             </CardContent>
             <CardFooter className="flex flex-wrap gap-2">
               <Button asChild>
-                <Link href={"/project/" + demoProject.id}>Go to project</Link>
-              </Button>
-              <Button asChild variant="secondary">
-                <Link
-                  href="https://langfuse.com/docs/qa-chatbot"
-                  target="_blank"
-                >
-                  Chatbot
+                <Link href={"/project/" + demoProject.id}>
+                  Go to demo project
                 </Link>
               </Button>
             </CardFooter>
           </Card>
         ) : null}
-        <Card className="col-span-full">
+        <Card className={cn(demoProject && "col-span-full")}>
           <CardHeader>
             <CardTitle>Guided onboarding</CardTitle>
           </CardHeader>

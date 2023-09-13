@@ -212,7 +212,7 @@ export default function Layout(props: PropsWithChildren) {
                               </li>
                             ))}
                             <FeedbackButtonWrapper className="w-full">
-                              <li className="group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                              <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
                                 <MessageSquarePlus
                                   className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
                                   aria-hidden="true"
@@ -314,7 +314,7 @@ export default function Layout(props: PropsWithChildren) {
                       </li>
                     ))}
                     <FeedbackButtonWrapper className="w-full">
-                      <li className="group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                      <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
                         <MessageSquarePlus
                           className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
                           aria-hidden="true"
@@ -416,7 +416,7 @@ export default function Layout(props: PropsWithChildren) {
                                 onClick={() => void item.onClick()}
                                 className={cn(
                                   active ? "bg-gray-50" : "",
-                                  "block px-3 py-1 text-sm leading-6 text-gray-900",
+                                  "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
                                 )}
                               >
                                 {item.name}
@@ -476,7 +476,7 @@ export default function Layout(props: PropsWithChildren) {
                         onClick={() => void item.onClick()}
                         className={cn(
                           active ? "bg-gray-50" : "",
-                          "block px-3 py-1 text-sm leading-6 text-gray-900",
+                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
                         )}
                       >
                         {item.name}
