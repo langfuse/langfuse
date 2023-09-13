@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { prisma } from "@/src/server/db";
 import { Prisma } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -9,6 +10,16 @@ export default async function handler(
 ) {
   if (!process.env.NEXT_PUBLIC_POSTHOG_KEY)
     return res.status(200).json({ message: "No PostHog key provided" });
+
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined)
+    return res.status(200).json({
+      message: "Only runs on Langfuse Cloud, no LANGFUSE_CLOUD_REGION provided",
+    });
+
+  const posthog_event_user_id =
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US"
+      ? "langfuse-cloud-us"
+      : "langfuse-cloud-eu";
 
   try {
     const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
@@ -82,7 +93,7 @@ export default async function handler(
     traceCountPerProject.forEach((value) => {
       posthog.capture({
         event: "ingestion_metrics",
-        distinctId: "static_id_for_project_events",
+        distinctId: posthog_event_user_id,
         groups: {
           project: value.projectId,
         },
@@ -118,7 +129,7 @@ export default async function handler(
     scoreCountPerProject.forEach((value) => {
       posthog.capture({
         event: "ingestion_metrics",
-        distinctId: "static_id_for_project_events",
+        distinctId: posthog_event_user_id,
         groups: {
           project: value.project_id,
         },
@@ -144,7 +155,7 @@ export default async function handler(
     observationCountPerProject.forEach((value) => {
       posthog.capture({
         event: "ingestion_metrics",
-        distinctId: "static_id_for_project_events",
+        distinctId: posthog_event_user_id,
         groups: {
           project: value.projectId,
         },
@@ -165,7 +176,7 @@ export default async function handler(
     if (dbSize[0])
       posthog.capture({
         event: "ingestion_metrics",
-        distinctId: "static_id_for_project_events",
+        distinctId: posthog_event_user_id,
         properties: {
           total_db_size_in_mb: dbSize[0].size_in_mb,
         },
