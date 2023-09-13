@@ -416,7 +416,7 @@ export default function Layout(props: PropsWithChildren) {
                                 onClick={() => void item.onClick()}
                                 className={cn(
                                   active ? "bg-gray-50" : "",
-                                  "block px-3 py-1 text-sm leading-6 text-gray-900",
+                                  "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
                                 )}
                               >
                                 {item.name}
@@ -476,7 +476,7 @@ export default function Layout(props: PropsWithChildren) {
                         onClick={() => void item.onClick()}
                         className={cn(
                           active ? "bg-gray-50" : "",
-                          "block px-3 py-1 text-sm leading-6 text-gray-900",
+                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
                         )}
                       >
                         {item.name}
