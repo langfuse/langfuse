@@ -3,13 +3,6 @@ version: "3.5"
 services:
   langfuse-server:
     image: ghcr.io/langfuse/langfuse:latest
-    ## Want to build image from source? Uncomment the following lines and comment out the image line above
-    # build:
-    #   dockerfile: Dockerfile
-    #   args:
-    #     - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-    #     - NEXTAUTH_SECRET=mysecret
-    #     - NEXTAUTH_URL=http:localhost:3000
     depends_on:
       - db
     ports:
@@ -20,6 +13,7 @@ services:
       - DIRECT_URL=postgresql://postgres:postgres@db:5432/postgres
       - NEXTAUTH_SECRET=mysecret
       - NEXTAUTH_URL=http:localhost:3000
+      - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
 
   db:
     image: postgres
