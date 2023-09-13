@@ -15,8 +15,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/src/components/ui/card";
-import { useEffect, useState } from "react";
 import { openChat } from "@/src/features/support-chat/chat";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -78,24 +78,10 @@ const dashboards = [
 ] as const;
 
 const DashboardEmbed = (props: { projectId: string }) => {
-  const router = useRouter();
-  const initialTab = router.query.dashboard as string | undefined;
-  const [activeTab, setActiveTab] = useState(initialTab || dashboards[0].title);
-
-  const handleTabChange = (value: string) => {
-    //update the state
-    setActiveTab(value);
-    // update the URL query parameter
-    void router.push({
-      query: { dashboard: value },
-      pathname: window.location.pathname,
-    });
-  };
-
-  // if the query parameter changes, update the state
-  useEffect(() => {
-    setActiveTab(router.query.dashboard as string);
-  }, [router.query.dashboard]);
+  const [dashboard, setDashboard] = useQueryParam(
+    "dashboard",
+    withDefault(StringParam, dashboards[0].title),
+  );
 
   return (
     <>
@@ -128,8 +114,8 @@ const DashboardEmbed = (props: { projectId: string }) => {
       </Alert>
       <Tabs
         defaultValue={dashboards[0].title}
-        value={activeTab}
-        onValueChange={handleTabChange}
+        value={dashboard}
+        onValueChange={setDashboard}
         className="pt-10"
       >
         <TabsList>
