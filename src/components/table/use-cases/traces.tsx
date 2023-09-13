@@ -16,6 +16,7 @@ import { type Score } from "@prisma/client";
 import { type PaginationState, type ColumnDef } from "@tanstack/react-table";
 import router from "next/router";
 import { useState } from "react";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 export type TraceTableRow = {
   id: string;
@@ -73,24 +74,10 @@ export default function TracesTable({
 
   const [selectedMetadata, setSelectedMetadata] = useState<KeyValue[]>([]);
 
-  const paginationState: PaginationState = {
-    pageIndex: Number((router.query.page as string | undefined) ?? 0),
-    pageSize: Number((router.query.pageSize as string | undefined) ?? 50),
-  };
-  const setPaginationState = (
-    value: PaginationState | ((old: PaginationState) => PaginationState),
-  ) => {
-    const newState =
-      typeof value === "function" ? value(paginationState) : value;
-    void router.push({
-      pathname: router.pathname,
-      query: {
-        ...router.query,
-        page: newState.pageIndex,
-        pageSize: newState.pageSize,
-      },
-    });
-  };
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
 
   const traces = api.traces.all.useQuery({
     ...queryOptions,
