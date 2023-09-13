@@ -13,7 +13,7 @@ import {
 } from "@/src/utils/tanstack";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type PaginationState, type ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import router from "next/router";
 import { useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
