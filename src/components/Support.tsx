@@ -51,8 +51,8 @@ const supportChannels = [
     title: "Email",
     description: "Send email to our shared inbox: help@langfuse.com",
     href: "mailto:help@langfuse.com",
-    available: !chatAvailable,
     buttonText: "Send Email",
+    available: !chatAvailable,
   },
   {
     icon: MessageSquare,
