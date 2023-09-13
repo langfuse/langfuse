@@ -72,7 +72,7 @@ export default function SignIn() {
             Create new account
           </h2>
         </div>
-        {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com" ? (
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
             No credit card required. All users have access to a demo project.
           </div>
@@ -139,7 +139,7 @@ export default function SignIn() {
                 ) : null}
               </form>
             </Form>
-            {env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com" ? (
+            {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
               <div className="-mb-4 mt-8 text-center text-xs text-gray-500">
                 By creating an account you are agreeing to our{" "}
                 <a

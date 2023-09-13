@@ -17,18 +17,16 @@ import {
 } from "@/src/components/ui/card";
 import { openChat } from "@/src/features/support-chat/chat";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import { env } from "@/src/env.mjs";
 
 export default function AnalyticsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const analyticsEnabled =
-    process.env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com";
-
   return (
     <div className="md:container">
       <Header title="Analytics" />
-      {analyticsEnabled ? (
+      {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ? (
         <DashboardEmbed projectId={projectId} />
       ) : (
         <AnalyticsDisabled />
@@ -43,8 +41,9 @@ const AnalyticsDisabled = () => (
     <AlertTitle>Analytics alpha is only available on Langfuse Cloud</AlertTitle>
     <AlertDescription>
       While we are in the alpha phase, Analytics is only available for Langfuse
-      Cloud users as we use Looker to power the dashboards. An open source
-      version is work in progress.
+      Cloud{env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ? " EU" : ""} users
+      as we use Looker to power the dashboards. An open source version is work
+      in progress.
     </AlertDescription>
   </Alert>
 );
@@ -136,7 +135,7 @@ const DashboardEmbed = (props: { projectId: string }) => {
                 <iframe
                   width="100%"
                   src={
-                    process.env.NEXT_PUBLIC_HOSTNAME === "cloud.langfuse.com"
+                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
                       ? dashboard.dashboardProjectUrl(props.projectId)
                       : dashboard.dashboardUrl
                   }
