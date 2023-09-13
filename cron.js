@@ -6,7 +6,7 @@ if (
   process.env.TELEMETRY_ENABLED === "true"
 ) {
   try {
-    // get internal ip address
+    // Get internal ip address to ping the telemetry endpoint
     var networkInterfaces = os.networkInterfaces();
     var ip = undefined;
 
@@ -19,6 +19,7 @@ if (
       }
     }
 
+    // Schedule cron job
     if (ip) {
       var job = new CronJob("*/5 * * * *", function () {
         fetch(`http://${ip}:3000/api/cron/telemetry`).catch((err) =>
