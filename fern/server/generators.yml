@@ -26,23 +26,14 @@ groups:
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true
-  # published:
-  #   generators:
-  #     - name: fernapi/fern-python-sdk
-  #       version: 0.3.7
-  #       output:
-  #         location: pypi
-  #         url: pypi.buildwithfern.com
-  #         package-name: finto-fern-langfuse
-  #       config:
-  #         namespaceExport: Langfuse
-  #         allowCustomFetcher: true
-  #     - name: fernapi/fern-typescript-node-sdk
-  #       version: 0.7.1
-  #       output:
-  #         location: npm
-  #         url: npm.buildwithfern.com
-  #         package-name: "@finto-fern/langfuse-node"
-  #       config:
-  #         namespaceExport: Langfuse
-  #         allowCustomFetcher: true
+  documentation:
+    docs:
+      domain: langfuse.docs.buildwithfern.com
+    generators: []
+  postman:
+    generators:
+      - name: fernapi/fern-postman
+        version: 0.0.44
+        output:
+          location: local-file-system
+          path: ../../generated/postman

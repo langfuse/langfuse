@@ -93,6 +93,7 @@ types:
       - DEFAULT
       - WARNING
       - ERROR
+  # MapValue: unknown
   MapValue:
     discriminated: false
     union:

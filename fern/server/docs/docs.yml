@@ -1,0 +1,16 @@
+navigation:
+  - api: API Reference
+title: Langfuse | API Docs
+colors:
+  accentPrimary: "#29293b"
+logo:
+  path: ./icon256.png
+  href: https://www.langfuse.com/
+favicon: ./favicon.ico
+navbar-links:
+  - type: secondary
+    text: Blog
+    url: https://langfuse.com/blog
+  - type: primary
+    text: Sign in
+    url: https://cloud.langfuse.com/
