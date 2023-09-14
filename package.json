@@ -49,7 +49,7 @@
     "@tailwindcss/forms": "^0.5.6",
     "@tailwindcss/line-clamp": "^0.4.4",
     "@tanstack/react-query": "^4.35.0",
-    "@tanstack/react-table": "^8.9.7",
+    "@tanstack/react-table": "^8.9.9",
     "@tremor/react": "^3.7.3",
     "@trpc/client": "^10.38.1",
     "@trpc/next": "^10.38.1",
