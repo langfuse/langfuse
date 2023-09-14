@@ -9,6 +9,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -98,15 +99,17 @@ export default function SignIn() {
             </Form>
           </div>
 
-          <p className="mt-10 text-center text-sm text-gray-500">
-            No account yet?{" "}
-            <Link
-              href="/auth/sign-up"
-              className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
-            >
-              Sign up
-            </Link>
-          </p>
+          {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" ? (
+            <p className="mt-10 text-center text-sm text-gray-500">
+              No account yet?{" "}
+              <Link
+                href="/auth/sign-up"
+                className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+              >
+                Sign up
+              </Link>
+            </p>
+          ) : null}
         </div>
       </div>
     </>
