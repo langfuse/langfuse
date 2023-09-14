@@ -95,7 +95,7 @@
     "@types/jest": "^29.5.4",
     "@types/js-yaml": "^4.0.5",
     "@types/lodash": "^4.14.198",
-    "@types/node": "^20.5.9",
+    "@types/node": "^20.6.0",
     "@types/prettier": "^2.7.3",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
