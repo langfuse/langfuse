@@ -70,10 +70,10 @@ function numTokensFromMessages(params: TokenCalculationParams) {
   } else if (params.model === "gpt-3.5-turbo-0301") {
     tokens_per_message = 4; // every message follows <|start|>{role/name}\n{content}<|end|>\n
     tokens_per_name = -1; // if there's a name, the role is omitted
-  } else if (params.model.includes("gpt-3.5-turbo-0301")) {
+  } else if (params.model.includes("gpt-3.5-turbo")) {
     return numTokensFromMessages({ ...params, model: "gpt-3.5-turbo-0613" });
   } else if (params.model.includes("gpt-4")) {
-    return numTokensFromMessages({ ...params, model: "gpt-4-0314" });
+    return numTokensFromMessages({ ...params, model: "gpt-4-0613" });
   } else {
     console.error(`Not implemented for model ${params.model}`);
     throw new Error(`Not implemented for model ${params.model}`);
