@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth/lib/emailPassword";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -7,6 +8,10 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method !== "POST") return;
+  if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
+    res.status(422).json({ message: "Sign up is disabled." });
+    return;
+  }
 
   // parse and type check the request body with zod
   const validBody = signupSchema.safeParse(req.body);
