@@ -59,7 +59,7 @@ export default function Header(props: {
           </nav>
         ) : null}
       </div>
-      <div className="mt-2 md:flex md:items-center md:justify-between md:gap-5">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-5">
         <div className="flex items-center gap-3 md:gap-5">
           <div className="min-w-0">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">

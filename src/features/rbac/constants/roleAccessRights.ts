@@ -9,6 +9,8 @@ const scopes = [
   "apiKeys:create",
   "apiKeys:delete",
 
+  "traces:publish",
+
   "scores:CUD",
 ] as const;
 
@@ -23,6 +25,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
+    "traces:publish",
     "scores:CUD",
   ],
   ADMIN: [
@@ -32,8 +35,9 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
+    "traces:publish",
     "scores:CUD",
   ],
-  MEMBER: ["members:read", "scores:CUD"],
+  MEMBER: ["members:read", "traces:publish", "scores:CUD"],
   VIEWER: [],
 };
