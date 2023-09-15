@@ -78,6 +78,7 @@
     "react-dom": "18.2.0",
     "react-hook-form": "^7.46.1",
     "react-icons": "^4.11.0",
+    "sharp": "^0.32.5",
     "superagent": "^8.1.2",
     "superjson": "1.13.1",
     "tailwind-merge": "^1.14.0",
