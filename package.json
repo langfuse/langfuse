@@ -113,7 +113,7 @@
     "postcss": "^8.4.29",
     "prettier": "^3.0.3",
     "prettier-plugin-tailwindcss": "^0.5.4",
-    "prisma": "^5.2.0",
+    "prisma": "^5.3.0",
     "swagger-jsdoc": "^6.2.8",
     "tailwindcss": "^3.3.3",
     "ts-node": "^10.9.1",
