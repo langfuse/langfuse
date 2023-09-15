@@ -8,7 +8,7 @@ export function Trace(props: {
   observations: Array<Observation & { traceId: string }>;
   trace: Trace;
   scores: Score[];
-  projectId: string;
+  projectIdForManualScores?: string;
 }) {
   const router = useRouter();
   const currentObservationId = router.query.observation as string | undefined;
@@ -52,7 +52,7 @@ export function Trace(props: {
           <ObservationPreview
             observations={props.observations}
             scores={props.scores}
-            projectId={props.projectId}
+            projectIdForManualScores={props.projectIdForManualScores}
             currentObservationId={currentObservationId}
           />
         )}

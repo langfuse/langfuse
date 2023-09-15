@@ -10,7 +10,7 @@ export default function TracePage() {
   const router = useRouter();
   const traceId = router.query.traceId as string;
 
-  const trace = api.traces.byId.useQuery(traceId);
+  const trace = api.traces.byIdPublic.useQuery(traceId);
 
   const totalCost = trace.data?.observations.reduce(
     (acc, o) => {

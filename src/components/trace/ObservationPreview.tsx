@@ -21,7 +21,7 @@ import type Decimal from "decimal.js";
 
 export const ObservationPreview = (props: {
   observations: Array<Observation & { traceId: string } & { price?: Decimal }>;
-  projectId: string;
+  projectIdForManualScores?: string;
   scores: Score[];
   currentObservationId: string | undefined;
 }) => {
@@ -78,12 +78,14 @@ export const ObservationPreview = (props: {
               : null}
           </div>
         </div>
-        <ManualScoreButton
-          projectId={props.projectId}
-          traceId={observation.traceId}
-          observationId={observation.id}
-          scores={props.scores}
-        />
+        {props.projectIdForManualScores ? (
+          <ManualScoreButton
+            projectId={props.projectIdForManualScores}
+            traceId={observation.traceId}
+            observationId={observation.id}
+            scores={props.scores}
+          />
+        ) : null}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <JSONView

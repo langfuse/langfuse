@@ -4,6 +4,7 @@ import {
   createTRPCRouter,
   protectedProcedure,
   protectedProjectProcedure,
+  publicProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Score, type Trace } from "@prisma/client";
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
@@ -299,6 +300,56 @@ export const traceRouter = createTRPCRouter({
       >,
     };
   }),
+
+  byIdPublic: publicProcedure
+    .input(z.string())
+    .query(async ({ input, ctx }) => {
+      const [trace, observations, pricings] = await Promise.all([
+        ctx.prisma.trace.findFirstOrThrow({
+          where: {
+            id: input,
+            public: true,
+          },
+          include: {
+            scores: true,
+          },
+        }),
+        ctx.prisma.observation.findMany({
+          where: {
+            traceId: {
+              equals: input,
+              not: null,
+            },
+          },
+        }),
+        ctx.prisma.pricing.findMany(),
+      ]);
+
+      if (!trace.public) {
+        throw new Error("Trace is not public");
+      }
+
+      const enrichedObservations = observations.map((observation) => {
+        return {
+          ...observation,
+          price: observation.model
+            ? calculateTokenCost(pricings, {
+                model: observation.model,
+                totalTokens: new Decimal(observation.totalTokens),
+                promptTokens: new Decimal(observation.promptTokens),
+                completionTokens: new Decimal(observation.completionTokens),
+              })
+            : undefined,
+        };
+      });
+
+      return {
+        ...trace,
+        observations: enrichedObservations as Array<
+          (typeof observations)[0] & { traceId: string } & { price?: Decimal }
+        >,
+      };
+    }),
 });
 
 function createScoreCondition(score: ScoreFilter) {
