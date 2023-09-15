@@ -97,7 +97,8 @@ export default function Layout(props: PropsWithChildren) {
   const hideNavigation =
     session.status === "unauthenticated" ||
     projects.data?.length === 0 ||
-    pathsWithoutNavigation.includes(router.pathname);
+    pathsWithoutNavigation.includes(router.pathname) ||
+    router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
       <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
