@@ -22,7 +22,8 @@ if (
     // Schedule cron job
     if (ip) {
       var job = new CronJob("*/5 * * * *", function () {
-        fetch(`http://${ip}:3000/api/cron/telemetry`).catch((err) =>
+        // PORT set to 3000 by Dockerfile, can be overridden by env
+        fetch(`http://${ip}:${process.env.PORT ?? 3000}/api/cron/telemetry`).catch((err) =>
           console.log(err),
         );
       });
