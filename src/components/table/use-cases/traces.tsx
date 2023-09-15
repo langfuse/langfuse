@@ -370,7 +370,7 @@ export default function TracesTable({
         }
         options={tableOptions}
         pagination={{
-          pageCount: Math.ceil(totalCount / 50),
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}
