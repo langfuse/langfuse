@@ -330,7 +330,7 @@ export const traceRouter = createTRPCRouter({
       ]);
 
       if (!trace.public) {
-        throw new Error("Trace is not public");
+        return null;
       }
 
       const enrichedObservations = observations.map((observation) => {
