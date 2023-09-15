@@ -7,15 +7,23 @@ on:
       - "main"
 
 jobs:
-  prettier-check:
+  prettier-fix:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          # Make sure the actual branch is checked out when running on pull requests
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v3
         with:
           node-version: 18
       - name: install dependencies
         run: |
           npm ci
-      - name: prettier check
-        run: npx prettier --check ./src *.{ts,js} --ignore-path .gitignore
+      - name: Prettify code
+        uses: creyD/prettier_action@v4.3
+        with:
+          prettier_options: --write ./src *.{ts,js} --ignore-path .gitignore
+          commit_message: "Applied prettier formatting"
