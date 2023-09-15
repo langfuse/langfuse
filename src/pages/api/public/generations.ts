@@ -405,11 +405,11 @@ const getGenerations = async (
   ]);
 
   if (!count || count.length !== 1) {
-    throw new Error(`Unexpected number of results for count query: ${count}`);
+    throw new Error(
+      `Unexpected number of results for count query: ${JSON.stringify(count)}`,
+    );
   } else {
-    console.log("count", count);
-    const final = count[0]?.count;
-    return [observations, Number(final)] as const;
+    return [observations, Number(count[0]?.count)] as const;
   }
 };
 
