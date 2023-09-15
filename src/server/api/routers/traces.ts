@@ -309,7 +309,7 @@ export const traceRouter = createTRPCRouter({
     .input(z.string())
     .query(async ({ input, ctx }) => {
       const [trace, observations, pricings] = await Promise.all([
-        ctx.prisma.trace.findFirstOrThrow({
+        ctx.prisma.trace.findFirst({
           where: {
             id: input,
             public: true,
@@ -329,7 +329,7 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.pricing.findMany(),
       ]);
 
-      if (!trace.public) {
+      if (!trace) {
         return null;
       }
 
