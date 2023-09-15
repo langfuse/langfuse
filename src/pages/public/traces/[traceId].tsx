@@ -8,6 +8,7 @@ export default function PublicTracePage() {
 
   const trace = api.traces.byIdPublic.useQuery(traceId);
 
+  if (trace.isLoading) return <div>loading...</div>;
   if (trace.data) {
     return (
       <div className="py-5">
@@ -15,6 +16,6 @@ export default function PublicTracePage() {
       </div>
     );
   } else {
-    return <div>loading...</div>;
+    return <div>Not available</div>;
   }
 }
