@@ -53,7 +53,7 @@
     "@tanstack/react-table": "^8.9.7",
     "@tremor/react": "^3.7.3",
     "@trpc/client": "^10.38.1",
-    "@trpc/next": "^10.38.1",
+    "@trpc/next": "^10.38.3",
     "@trpc/react-query": "^10.38.1",
     "@trpc/server": "^10.38.1",
     "@vercel/edge-config": "^0.3.0",
