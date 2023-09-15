@@ -9,6 +9,14 @@ import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Button } from "@/src/components/ui/button";
+import { ChevronDownIcon } from "lucide-react";
 
 type GenerationTableRow = {
   id: string;
@@ -210,6 +218,23 @@ export default function Generations() {
           options={tableOptions.data}
           resetFilters={resetFilters}
           isFiltered={isFiltered}
+          actionButtons={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="ml-auto" size="sm">
+                  {isFiltered() ? "Export selection" : "Export all"}{" "}
+                  <ChevronDownIcon className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {["json", "csv"].map((type) => (
+                  <DropdownMenuItem key={type} className="capitalize">
+                    as {type}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
         />
       ) : undefined}
       <DataTable
