@@ -9,7 +9,11 @@ export default function PublicTracePage() {
   const trace = api.traces.byIdPublic.useQuery(traceId);
 
   if (trace.data) {
-    return <TracePage trace={trace.data} />;
+    return (
+      <div className="py-5">
+        <TracePage trace={trace.data} />
+      </div>
+    );
   } else {
     return <div>loading...</div>;
   }
