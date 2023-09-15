@@ -10,6 +10,8 @@ import { type Generation } from "@/src/utils/types";
 const GenerationFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
+  name: z.array(z.string()).nullable(),
+  model: z.array(z.string()).nullable(),
 });
 
 export const generationsRouter = createTRPCRouter({
@@ -20,6 +22,20 @@ export const generationsRouter = createTRPCRouter({
         where: {
           type: "GENERATION",
           projectId: input.projectId,
+          ...(input.name
+            ? {
+                name: {
+                  in: input.name,
+                },
+              }
+            : undefined),
+          ...(input.model
+            ? {
+                model: {
+                  in: input.model,
+                },
+              }
+            : undefined),
           traceId: {
             not: null,
             ...(input.traceId
@@ -32,7 +48,7 @@ export const generationsRouter = createTRPCRouter({
         orderBy: {
           startTime: "desc",
         },
-        take: 100, // TODO: pagination
+        take: 100,
       })) as Array<
         Generation & {
           traceId: string;
@@ -47,6 +63,20 @@ export const generationsRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const filter = {
         projectId: input.projectId,
+        ...(input.name
+          ? {
+              name: {
+                in: input.name,
+              },
+            }
+          : undefined),
+        ...(input.model
+          ? {
+              model: {
+                in: input.model,
+              },
+            }
+          : undefined),
         ...(input.traceId
           ? {
               traceId: { in: input.traceId },
@@ -65,6 +95,28 @@ export const generationsRouter = createTRPCRouter({
         },
       });
 
+      const names = await ctx.prisma.observation.groupBy({
+        where: {
+          type: "GENERATION",
+          ...filter,
+        },
+        by: ["name"],
+        _count: {
+          _all: true,
+        },
+      });
+
+      const models = await ctx.prisma.observation.groupBy({
+        where: {
+          type: "GENERATION",
+          ...filter,
+        },
+        by: ["model"],
+        _count: {
+          _all: true,
+        },
+      });
+
       return [
         {
           key: "traceId",
@@ -72,6 +124,22 @@ export const generationsRouter = createTRPCRouter({
             .filter((i) => i.traceId !== null)
             .map((i) => {
               return { key: i.traceId ?? "null", count: i._count };
+            }),
+        },
+        {
+          key: "name",
+          occurrences: names
+            .filter((i) => i.name !== null)
+            .map((i) => {
+              return { key: i.name ?? "null", count: i._count };
+            }),
+        },
+        {
+          key: "model",
+          occurrences: models
+            .filter((i) => i.model !== null)
+            .map((i) => {
+              return { key: i.model ?? "null", count: i._count };
             }),
         },
       ];
