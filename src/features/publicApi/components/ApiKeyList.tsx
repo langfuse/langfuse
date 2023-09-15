@@ -22,6 +22,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 export function ApiKeyList(props: { projectId: string }) {
@@ -97,6 +98,7 @@ export function ApiKeyList(props: { projectId: string }) {
 
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
+  const posthog = usePostHog();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "apiKeys:delete",
@@ -134,7 +136,10 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
                   projectId: props.projectId,
                   id: props.apiKeyId,
                 })
-                .then(() => setOpen(false))
+                .then(() => {
+                  posthog.capture("project_settings:api_key_delete");
+                  setOpen(false);
+                })
                 .catch((error) => {
                   console.error(error);
                 });

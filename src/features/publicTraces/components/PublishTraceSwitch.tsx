@@ -2,6 +2,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { Link, Lock } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 export const PublishTraceSwitch = (props: {
@@ -9,6 +10,7 @@ export const PublishTraceSwitch = (props: {
   projectId: string;
   isPublic: boolean;
 }) => {
+  const posthog = usePostHog();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "traces:publish",
@@ -60,6 +62,7 @@ export const PublishTraceSwitch = (props: {
             public: !props.isPublic,
             projectId: props.projectId,
           });
+          posthog.capture("trace_detail:publish_trace_button_click");
         }}
         disabled={!hasAccess}
       />
