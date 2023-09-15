@@ -68,7 +68,8 @@ export default function Layout(props: PropsWithChildren) {
   if (
     session.data &&
     session.data.user === null &&
-    !unauthenticatedPaths.includes(router.pathname)
+    !unauthenticatedPaths.includes(router.pathname) &&
+    !router.pathname.startsWith("/shared/")
   ) {
     void signOut({
       callbackUrl: "/auth/sign-in",
@@ -78,7 +79,8 @@ export default function Layout(props: PropsWithChildren) {
 
   if (
     session.status === "unauthenticated" &&
-    !unauthenticatedPaths.includes(router.pathname)
+    !unauthenticatedPaths.includes(router.pathname) &&
+    !router.pathname.startsWith("/shared/")
   ) {
     void router.push("/auth/sign-in");
     return <Spinner message="Redirecting" />;
