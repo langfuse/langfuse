@@ -7,6 +7,7 @@ import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
 import { apiKeysRouter } from "@/src/features/publicApi/server/apiKeyRouter";
 import { projectMembersRouter } from "@/src/features/rbac/server/projectMembersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
+import { publishTracesRouter } from "@/src/features/publicTraces/server/publishTracesRouter";
 
 /**
  * This is the primary router for your server.
@@ -22,6 +23,7 @@ export const appRouter = createTRPCRouter({
   users: userRouter,
   apiKeys: apiKeysRouter,
   projectMembers: projectMembersRouter,
+  publishTraces: publishTracesRouter,
 });
 
 // export type definition of API
