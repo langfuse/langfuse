@@ -13,3 +13,4 @@ errors:
 headers:
   X-Langfuse-Sdk-Name: optional<string>
   X-Langfuse-Sdk-Version: optional<string>
+  X-Langfuse-Public-Key: optional<string>
