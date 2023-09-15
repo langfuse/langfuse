@@ -1,7 +1,9 @@
 import { prisma } from "@/src/server/db";
 import {
+  type Observation,
   ObservationLevel,
   ObservationType,
+  Prisma,
   type PrismaClient,
 } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -17,6 +19,7 @@ const GenerationsGetSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().lte(100).default(50),
   name: z.string().nullish(),
+  userId: z.string().nullish(),
 });
 
 export const GenerationsCreateSchema = z.object({
@@ -363,24 +366,51 @@ const getGenerations = async (
   authenticatedProjectId: string,
   query: z.infer<typeof GenerationsGetSchema>,
 ) => {
-  return await Promise.all([
-    prisma.observation.findMany({
-      where: {
-        projectId: authenticatedProjectId,
-        type: ObservationType.GENERATION,
-        ...(query.name ? { name: query.name } : undefined),
-      },
-      skip: (query.page - 1) * query.limit,
-      take: query.limit,
-    }),
-    prisma.observation.count({
-      where: {
-        projectId: authenticatedProjectId,
-        type: ObservationType.GENERATION,
-        ...(query.name ? { name: query.name } : undefined),
-      },
-    }),
+  const userIdCondition = query.userId
+    ? Prisma.sql`AND traces."user_id" = ${query.userId}`
+    : Prisma.empty;
+
+  const nameCondition = query.name
+    ? Prisma.sql`AND o."name" = ${query.name}`
+    : Prisma.empty;
+
+  const [observations, count] = await Promise.all([
+    prisma.$queryRaw<Observation[]>`
+      SELECT 
+        o.*,
+        o."trace_id" AS "traceId",
+        o."project_id" AS "projectId",
+        o."start_time" AS "startTime",
+        o."end_time" AS "endTime",
+        o."parent_observation_id" AS "parentObservationId",
+        o."status_message" AS "statusMessage",
+        o."prompt_tokens" AS "promptTokens",
+        o."completion_tokens" AS "completionTokens",
+        o."completion_start_time" AS "completionStartTime"
+      FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
+      WHERE o."project_id" = ${authenticatedProjectId}
+      AND o."type" = 'GENERATION'
+      ${nameCondition}
+      ${userIdCondition}
+      OFFSET ${(query.page - 1) * query.limit}
+      LIMIT ${query.limit}
+    `,
+    prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
+      WHERE o."project_id" = ${authenticatedProjectId}
+      AND type = 'GENERATION'
+      ${nameCondition}
+      ${userIdCondition}
+  `,
   ]);
+
+  if (!count || count.length !== 1) {
+    throw new Error(`Unexpected number of results for count query: ${count}`);
+  } else {
+    console.log("count", count);
+    const final = count[0]?.count;
+    return [observations, Number(final)] as const;
+  }
 };
 
 const patchGeneration = async (

@@ -26,6 +26,7 @@ service:
           page: optional<integer>
           limit: optional<integer>
           name: optional<string>
+          userId: optional<string>
       response: Generations
 
 types:
