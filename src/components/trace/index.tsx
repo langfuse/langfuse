@@ -9,6 +9,7 @@ import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import Decimal from "decimal.js";
 import { type RouterOutput } from "@/src/utils/types";
 import { StringParam, useQueryParam } from "use-query-params";
+import { PublishTraceSwitch } from "@/src/features/publicTraces/components/PublishTraceSwitch";
 
 export function Trace(props: {
   observations: Array<Observation & { traceId: string }>;
@@ -79,7 +80,16 @@ export function TracePage({
 
   return (
     <div className="flex flex-col overflow-hidden xl:container lg:h-[calc(100vh-100px)] xl:h-[calc(100vh-50px)]">
-      <Header title="Trace Detail" />
+      <Header
+        title="Trace Detail"
+        actionButtons={
+          <PublishTraceSwitch
+            traceId={trace.id}
+            projectId={trace.projectId}
+            isPublic={trace.public}
+          />
+        }
+      />
       <div className="flex gap-2">
         {trace.externalId ? (
           <Badge variant="outline">External ID: {trace.externalId}</Badge>
