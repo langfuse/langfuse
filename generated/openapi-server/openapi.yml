@@ -178,6 +178,12 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
