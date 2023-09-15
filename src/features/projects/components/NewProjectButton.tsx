@@ -26,6 +26,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { chatRunTrigger } from "@/src/features/support-chat/chat";
+import { usePostHog } from "posthog-js/react";
 
 const formSchema = z.object({
   name: z.string().min(3, "Must have at least 3 characters"),
@@ -46,6 +47,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   });
   const utils = api.useContext();
   const router = useRouter();
+  const posthog = usePostHog();
   const createProjectMutation = api.projects.create.useMutation({
     onSuccess: (newProject) => {
       void updateSession();
@@ -56,6 +58,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    posthog.capture("projects:new_project_form_submit");
     createProjectMutation
       .mutateAsync(values)
       .then(() => {
