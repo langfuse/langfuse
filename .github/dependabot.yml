@@ -17,3 +17,7 @@ updates:
         trpc:
           patterns:
             - ^@trpc/.*
+        prisma:
+          patterns:
+            - ^prisma
+            - ^@prisma/.*
