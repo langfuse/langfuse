@@ -78,8 +78,7 @@ COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
 
 USER nextjs
 
-EXPOSE 3000
-
+# Default port to 3000
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
