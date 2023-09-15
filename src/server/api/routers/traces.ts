@@ -303,6 +303,8 @@ export const traceRouter = createTRPCRouter({
     };
   }),
 
+  // exact copy of previoud byId, but without the project member check
+  // output must be the same as consumed by the same component
   byIdPublic: publicProcedure
     .input(z.string())
     .query(async ({ input, ctx }) => {
