@@ -1,0 +1,17 @@
+name: Rebase Dependabot stale PRs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  rebase-dependabot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Rebase open Dependabot PR"
+        uses: orange-buffalo/dependabot-auto-rebase@v1
+        with:
+          api-token: ${{ secrets.DEP_REBASE_PAT }}
+          repository: ${{ github.repository }}
