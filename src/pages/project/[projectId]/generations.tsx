@@ -35,6 +35,8 @@ export default function Generations() {
 
   const [queryOptions, setQueryOptions] = useState<GenerationFilterInput>({
     traceId: null,
+    name: null,
+    model: null,
   });
 
   const generations = api.generations.all.useQuery({
@@ -88,6 +90,21 @@ export default function Generations() {
       },
     },
     {
+      accessorKey: "name",
+      enableColumnFilter: true,
+      header: "name",
+      meta: {
+        label: "Name",
+        filter: {
+          type: "select",
+          values: queryOptions.name,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, name: newValues });
+          },
+        },
+      },
+    },
+    {
       accessorKey: "startTime",
       header: "Start Time",
     },
@@ -96,12 +113,19 @@ export default function Generations() {
       header: "End Time",
     },
     {
-      accessorKey: "name",
-      header: "Name",
-    },
-    {
       accessorKey: "model",
       header: "Model",
+      enableColumnFilter: true,
+      meta: {
+        label: "Model",
+        filter: {
+          type: "select",
+          values: queryOptions.model,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, model: newValues });
+          },
+        },
+      },
     },
     {
       accessorKey: "usage",
@@ -170,9 +194,12 @@ export default function Generations() {
   const resetFilters = () =>
     setQueryOptions({
       traceId: null,
+      name: null,
+      model: null,
     });
 
-  const isFiltered = () => queryOptions.traceId !== null;
+  const isFiltered = () =>
+    Object.entries(queryOptions).filter(([_k, v]) => v !== null).length > 0;
 
   return (
     <div>
