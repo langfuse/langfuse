@@ -5,24 +5,8 @@ labels: ["🐞❔ unconfirmed bug"]
 body:
   - type: textarea
     attributes:
-      label: Provide environment information
-      description: |
-        Run this command in your project root and paste the results in a code block:
-        ```bash
-        npx envinfo --system --binaries
-        ```
-    validations:
-      required: true
-  - type: textarea
-    attributes:
       label: Describe the bug
       description: A clear and concise description of the bug, as well as what you expected to happen when encountering it.
-    validations:
-      required: true
-  - type: input
-    attributes:
-      label: Link to reproduction
-      description: Please provide a link to a reproduction of the bug. Issues without a reproduction repo may be ignored.
     validations:
       required: true
   - type: textarea
