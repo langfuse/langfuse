@@ -156,7 +156,7 @@ export default async function handler(
         (model && prompt
           ? tokenCount({
               model: model,
-              text: JSON.stringify(prompt),
+              text: prompt,
             })
           : undefined);
       const newCompletionTokens =
@@ -424,7 +424,7 @@ const patchGeneration = async (
     (mergedModel && prompt
       ? tokenCount({
           model: mergedModel,
-          text: JSON.stringify(prompt),
+          text: prompt,
         })
       : undefined);
 

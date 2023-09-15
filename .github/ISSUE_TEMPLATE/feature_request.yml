@@ -26,3 +26,11 @@ body:
     attributes:
       label: Additional information
       description: Add any other information related to the feature here. If your feature request is related to any issues or discussions, link them here.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribute
+      description: Are you willing to contribute to the implementation of this feature?
+      options:
+        - label: Yes, I can implement this and raise a PR
+    

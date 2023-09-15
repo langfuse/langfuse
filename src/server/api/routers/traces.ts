@@ -58,24 +58,26 @@ export const traceRouter = createTRPCRouter({
 
       let scoreCondition = Prisma.empty;
       if (input.scores) {
+        const base = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.name = ${input.scores.name}`;
         switch (input.scores.operator) {
           case "lt":
-            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value < ${input.scores.value})`;
+            scoreCondition = Prisma.sql`${base} AND scores.value < ${input.scores.value})`;
             break;
           case "gt":
-            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value > ${input.scores.value})`;
+            scoreCondition = Prisma.sql`${base} AND scores.value > ${input.scores.value})`;
             break;
           case "equals":
-            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value = ${input.scores.value})`;
+            scoreCondition = Prisma.sql`${base} AND scores.value = ${input.scores.value})`;
             break;
           case "lte":
-            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value <= ${input.scores.value})`;
+            scoreCondition = Prisma.sql`${base} AND scores.value <= ${input.scores.value})`;
             break;
           case "gte":
-            scoreCondition = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.value >= ${input.scores.value})`;
+            scoreCondition = Prisma.sql`${base} AND scores.value >= ${input.scores.value})`;
             break;
         }
       }
+
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
         t."id" ILIKE ${`%${input.searchQuery}%`} OR 
