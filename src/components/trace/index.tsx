@@ -1,5 +1,4 @@
 import { type Trace, type Observation, type Score } from "@prisma/client";
-import { useRouter } from "next/router";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -9,6 +8,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import Decimal from "decimal.js";
 import { type RouterOutput } from "@/src/utils/types";
+import { StringParam, useQueryParam } from "use-query-params";
 
 export function Trace(props: {
   observations: Array<Observation & { traceId: string }>;
@@ -16,25 +16,10 @@ export function Trace(props: {
   scores: Score[];
   projectId: string;
 }) {
-  const router = useRouter();
-  const currentObservationId = router.query.observation as string | undefined;
-  const setCurrentObservationId = (id: string | undefined) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { observation, ...query } = router.query;
-    void router.replace(
-      {
-        pathname: router.pathname,
-        query: {
-          ...query,
-          ...(id !== undefined ? { observation: id } : {}),
-        },
-      },
-      undefined,
-      {
-        scroll: false,
-      },
-    );
-  };
+  const [currentObservationId, setCurrentObservationId] = useQueryParam(
+    "observation",
+    StringParam,
+  );
 
   return (
     <div className="grid h-full gap-4 md:grid-cols-3">
@@ -43,7 +28,7 @@ export function Trace(props: {
           observations={props.observations}
           trace={props.trace}
           scores={props.scores}
-          currentObservationId={currentObservationId}
+          currentObservationId={currentObservationId ?? undefined}
           setCurrentObservationId={setCurrentObservationId}
         />
       </div>
@@ -59,7 +44,7 @@ export function Trace(props: {
             observations={props.observations}
             scores={props.scores}
             projectId={props.projectId}
-            currentObservationId={currentObservationId}
+            currentObservationId={currentObservationId ?? undefined}
           />
         )}
       </div>
@@ -68,7 +53,7 @@ export function Trace(props: {
           observations={props.observations}
           trace={props.trace}
           scores={props.scores}
-          currentObservationId={currentObservationId}
+          currentObservationId={currentObservationId ?? undefined}
           setCurrentObservationId={setCurrentObservationId}
         />
       </div>
