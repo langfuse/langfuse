@@ -110,7 +110,7 @@
     "eslint": "^8.48.0",
     "eslint-config-next": "^13.4.19",
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.6.4",
+    "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.29",
     "prettier": "^3.0.3",
     "prettier-plugin-tailwindcss": "^0.5.4",
