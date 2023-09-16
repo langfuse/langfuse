@@ -13,7 +13,11 @@ updates:
       prefix: chore
       prefix-development: chore
       include: scope
-      groups:
-        trpc:
-          patterns:
-            - ^@trpc/.*
+    groups:
+      trpc:
+        patterns:
+          - ^@trpc/.*
+      prisma:
+        patterns:
+          - ^prisma
+          - ^@prisma/.*
