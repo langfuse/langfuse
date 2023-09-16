@@ -9,6 +9,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
+    rebase-strategy: "disabled" # use dependabot-rebase-stale
     commit-message:
       prefix: chore
       prefix-development: chore
