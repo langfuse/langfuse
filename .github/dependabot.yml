@@ -15,6 +15,9 @@ updates:
       prefix-development: chore
       include: scope
     groups:
+      patches:
+        update-types:
+          - "patch"
       trpc:
         patterns:
           - ^@trpc/.*
