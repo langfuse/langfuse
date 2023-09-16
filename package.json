@@ -72,7 +72,7 @@
     "next-auth": "^4.23.1",
     "next-query-params": "^4.2.3",
     "next-swagger-doc": "^0.4.0",
-    "posthog-js": "^1.78.1",
+    "posthog-js": "^1.79.0",
     "posthog-node": "^3.1.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
