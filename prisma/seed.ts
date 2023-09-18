@@ -12,7 +12,7 @@ const options = {
 
 const prisma = new PrismaClient();
 
-const TRACE_VOLUME = 1000;
+const TRACE_VOLUME = 100;
 
 async function main() {
   const environment = parseArgs({
@@ -101,6 +101,8 @@ async function main() {
         },
       },
     });
+
+    const generationIds: string[] = [];
 
     for (let i = 0; i < TRACE_VOLUME; i++) {
       // print progress to console with a progress bar that refreshes every 10 iterations
@@ -216,7 +218,7 @@ async function main() {
           const promptTokens = Math.floor(Math.random() * 1000) + 300;
           const completionTokens = Math.floor(Math.random() * 500) + 100;
 
-          await prisma.observation.create({
+          const generation = await prisma.observation.create({
             data: {
               type: "GENERATION",
               id: `generation-${Math.floor(Math.random() * 1000000000)}`,
@@ -304,6 +306,8 @@ async function main() {
             },
           });
 
+          generationIds.push(generation.id);
+
           for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
             // random start time within span
             const eventTs = new Date(
@@ -330,6 +334,49 @@ async function main() {
           }
         }
       }
+    }
+
+    const dataset = await prisma.dataset.create({
+      data: {
+        name: "demo-dataset",
+        projectId: project2.id,
+      },
+    });
+
+    const datasetRun = await prisma.datasetRuns.create({
+      data: {
+        name: "demo-dataset-run",
+        datasetId: dataset.id,
+      },
+    });
+
+    for (let runNumber = 0; runNumber < 10; runNumber++) {
+      //pick randomly from existingSpanIds
+      const sourceObservationId =
+        generationIds[Math.floor(Math.random() * generationIds.length)];
+      const runObservationId =
+        generationIds[Math.floor(Math.random() * generationIds.length)];
+
+      const datasetItem = await prisma.datasetItem.create({
+        data: {
+          datasetId: dataset.id,
+          sourceObservationId:
+            Math.random() > 0.5 ? sourceObservationId : undefined,
+          input: [
+            { role: "user", content: "How can i create a React component?" },
+          ],
+          expectedOutput:
+            "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.",
+        },
+      });
+
+      await prisma.datasetRunItem.create({
+        data: {
+          datasetItemId: datasetItem.id,
+          observationId: runObservationId!,
+          datasetRunId: datasetRun.id,
+        },
+      });
     }
   }
 }
