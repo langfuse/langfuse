@@ -1,40 +1,31 @@
 import { useRouter } from "next/router";
 import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { numberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import TableLink from "@/src/components/table/table-link";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
-type TabDefinition = {
-  name: string;
-  current: boolean;
-};
+const tabs = ["Details", "Traces", "Scores"] as const;
 
 export default function TracePage() {
   const router = useRouter();
   const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
 
-  const [tabs, setTabs] = useState<TabDefinition[]>([
-    { name: "Details", current: true },
-    { name: "Traces", current: false },
-    { name: "Scores", current: false },
-  ]);
-
-  const setCurrentTab = (tabName: string) => {
-    setTabs(tabs.map((t) => ({ ...t, current: t.name === tabName })));
-  };
+  const [currentTab, setCurrentTab] = useQueryParam(
+    "tab",
+    withDefault(StringParam, tabs[0]),
+  );
 
   function classNames(...classes: string[]) {
     return classes.filter(Boolean).join(" ");
   }
 
   const renderTabContent = () => {
-    const currentTab = tabs.find((tab) => tab.current)?.name;
-    switch (currentTab) {
+    switch (currentTab as (typeof tabs)[number]) {
       case "Details":
         return <DetailsTab userId={userId} projectId={projectId} />;
       case "Traces":
@@ -65,11 +56,11 @@ export default function TracePage() {
             id="tabs"
             name="tabs"
             className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-            defaultValue={tabs.find((tab) => tab.current)?.name ?? undefined}
+            defaultValue={currentTab}
             onChange={(e) => setCurrentTab(e.currentTarget.value)}
           >
             {tabs.map((tab) => (
-              <option key={tab.name}>{tab.name}</option>
+              <option key={tab}>{tab}</option>
             ))}
           </select>
         </div>
@@ -78,17 +69,17 @@ export default function TracePage() {
             <nav className="-mb-px flex space-x-8" aria-label="Tabs">
               {tabs.map((tab) => (
                 <button
-                  key={tab.name}
+                  key={tab}
                   className={classNames(
-                    tab.current
+                    tab === currentTab
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700",
                     "whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium",
                   )}
-                  aria-current={tab.current ? "page" : undefined}
-                  onClick={() => setCurrentTab(tab.name)}
+                  aria-current={tab === currentTab ? "page" : undefined}
+                  onClick={() => setCurrentTab(tab)}
                 >
-                  {tab.name}
+                  {tab}
                 </button>
               ))}
             </nav>

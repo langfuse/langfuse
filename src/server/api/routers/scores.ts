@@ -6,43 +6,56 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Prisma, type Score } from "@prisma/client";
 
 const ScoreFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
-  id: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
   userId: z.string().nullable(),
 });
 
+const scoresFilterPrismaCondition = (
+  filter: z.infer<typeof ScoreFilterOptions>,
+) => {
+  const traceIdCondition = filter.traceId
+    ? Prisma.sql`AND s.trace_id IN (${Prisma.join(filter.traceId)})`
+    : Prisma.empty;
+
+  return Prisma.join([traceIdCondition], " ");
+};
+
+const ScoreAllOptions = ScoreFilterOptions.extend({
+  pageIndex: z.number().int().gte(0).nullable().default(0),
+  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
+});
+
 export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(ScoreFilterOptions)
-    .query(async ({ input, ctx }) =>
-      ctx.prisma.score.findMany({
-        orderBy: {
-          timestamp: "desc",
-        },
-        where: {
-          trace: {
-            projectId: input.projectId,
-            ...(input.userId ? { userId: input.userId } : undefined),
-          },
-          ...(input.traceId
-            ? {
-                traceId: { in: input.traceId },
-              }
-            : undefined),
-          ...(input.id
-            ? {
-                id: {
-                  in: input.id,
-                },
-              }
-            : undefined),
-        },
-        take: 100, // TODO: pagination
-      }),
-    ),
+    .input(ScoreAllOptions)
+    .query(async ({ input, ctx }) => {
+      const scores = await ctx.prisma.$queryRaw<
+        Array<Score & { traceName: string; totalCount: number }>
+      >(Prisma.sql`
+          SELECT
+            s.id,
+            s.name,
+            s.value,
+            s.timestamp,
+            s.comment,
+            s.trace_id as "traceId",
+            s.observation_id as "observationId",
+            t.name as "traceName",
+            (count(*) OVER())::int AS "totalCount"
+          FROM scores s
+          JOIN traces t ON t.id = s.trace_id
+          WHERE t.project_id = ${input.projectId}
+          ${scoresFilterPrismaCondition(input)}
+          ORDER BY s.timestamp DESC
+          LIMIT ${input.pageSize ?? 50}
+          OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)}
+      `);
+      return scores;
+    }),
   availableFilterOptions: protectedProjectProcedure
     .input(ScoreFilterOptions)
     .query(async ({ input, ctx }) => {
@@ -51,13 +64,6 @@ export const scoresRouter = createTRPCRouter({
           projectId: input.projectId,
           ...(input.userId ? { userId: input.userId } : undefined),
         },
-        ...(input.id
-          ? {
-              id: {
-                in: input.id,
-              },
-            }
-          : undefined),
         ...(input.traceId
           ? {
               traceId: {
