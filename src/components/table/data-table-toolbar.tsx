@@ -21,6 +21,7 @@ interface DataTableToolbarProps<TData, TValue> {
   searchConfig?: SearchConfig;
   resetFilters: () => void;
   isFiltered: () => boolean;
+  actionButtons?: React.ReactNode;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -29,6 +30,7 @@ export function DataTableToolbar<TData, TValue>({
   searchConfig,
   resetFilters,
   isFiltered,
+  actionButtons,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -124,6 +126,8 @@ export function DataTableToolbar<TData, TValue>({
             <X className="ml-2 h-4 w-4" />
           </Button>
         )}
+        <div className="flex-1" />
+        {actionButtons ? actionButtons : null}
       </div>
     </div>
   );

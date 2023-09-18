@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { api } from "@/src/utils/api";
+import { api, directApi } from "@/src/utils/api";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
@@ -9,6 +9,16 @@ import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Button } from "@/src/components/ui/button";
+import { ChevronDownIcon, Loader } from "lucide-react";
+import { type ExportFileFormats } from "@/src/server/api/routers/generations";
+import { usePostHog } from "posthog-js/react";
 
 type GenerationTableRow = {
   id: string;
@@ -29,9 +39,28 @@ export type GenerationFilterInput = Omit<
   "projectId"
 >;
 
+const exportOptions: Record<
+  ExportFileFormats,
+  {
+    label: string;
+    extension: string;
+    fileType: string;
+  }
+> = {
+  CSV: { label: "CSV", extension: "csv", fileType: "text/csv" },
+  JSON: { label: "JSON", extension: "json", fileType: "application/json" },
+  "OPENAI-JSONL": {
+    label: "OpenAI JSONL (fine-tuning)",
+    extension: "jsonl",
+    fileType: "application/json",
+  },
+} as const;
+
 export default function Generations() {
+  const posthog = usePostHog();
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const [isExporting, setIsExporting] = useState(false);
 
   const [queryOptions, setQueryOptions] = useState<GenerationFilterInput>({
     traceId: null,
@@ -48,6 +77,43 @@ export default function Generations() {
     ...queryOptions,
     projectId,
   });
+
+  const handleExport = async (fileFormat: ExportFileFormats) => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    posthog.capture("generations:export", { file_format: fileFormat });
+    const fileData = await directApi.generations.export.query({
+      ...queryOptions,
+      projectId,
+      fileFormat,
+    });
+
+    if (fileData) {
+      const file = new File(
+        [fileData],
+        `generations.${exportOptions[fileFormat].extension}`,
+        {
+          type: exportOptions[fileFormat].fileType,
+        },
+      );
+
+      // create url from file
+      const url = URL.createObjectURL(file);
+
+      // Use a dynamically created anchor element to trigger the download
+      const a = document.createElement("a");
+      document.body.appendChild(a);
+      a.href = url;
+      a.download = `generations.${exportOptions[fileFormat].extension}`; // name of the downloaded file
+      a.click();
+      a.remove();
+
+      // Revoke the blob URL after using it
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    }
+    setIsExporting(false);
+  };
 
   const columns: ColumnDef<GenerationTableRow>[] = [
     {
@@ -210,6 +276,35 @@ export default function Generations() {
           options={tableOptions.data}
           resetFilters={resetFilters}
           isFiltered={isFiltered}
+          actionButtons={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="ml-auto whitespace-nowrap"
+                  size="sm"
+                >
+                  {isFiltered() ? "Export selection" : "Export all"}{" "}
+                  {isExporting ? (
+                    <Loader className="ml-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ChevronDownIcon className="ml-2 h-4 w-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {Object.entries(exportOptions).map(([key, options]) => (
+                  <DropdownMenuItem
+                    key={key}
+                    className="capitalize"
+                    onClick={() => void handleExport(key as ExportFileFormats)}
+                  >
+                    as {options.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
         />
       ) : undefined}
       <DataTable
