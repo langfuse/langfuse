@@ -27,6 +27,7 @@ type GenerationTableRow = {
   endTime?: string;
   name?: string;
   model?: string;
+  traceName?: string;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -66,6 +67,7 @@ export default function Generations() {
     traceId: null,
     name: null,
     model: null,
+    traceName: null,
   });
 
   const generations = api.generations.all.useQuery({
@@ -132,6 +134,21 @@ export default function Generations() {
       },
     },
     {
+      accessorKey: "name",
+      enableColumnFilter: true,
+      header: "name",
+      meta: {
+        label: "Name",
+        filter: {
+          type: "select",
+          values: queryOptions.name,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, name: newValues });
+          },
+        },
+      },
+    },
+    {
       accessorKey: "traceId",
       enableColumnFilter: true,
       header: "Trace ID",
@@ -156,16 +173,16 @@ export default function Generations() {
       },
     },
     {
-      accessorKey: "name",
+      accessorKey: "traceName",
       enableColumnFilter: true,
-      header: "name",
+      header: "Trace Name",
       meta: {
-        label: "Name",
+        label: "TraceName",
         filter: {
           type: "select",
-          values: queryOptions.name,
+          values: queryOptions.traceName,
           updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, name: newValues });
+            setQueryOptions({ ...queryOptions, traceName: newValues });
           },
         },
       },
@@ -221,7 +238,7 @@ export default function Generations() {
       return {
         columnId: o.key,
         options: o.occurrences.map((o) => {
-          return { label: o.key, value: o.count._all };
+          return { label: o.key, value: o.count };
         }),
       };
     });
@@ -245,6 +262,7 @@ export default function Generations() {
     ? generations.data.map((generation) => ({
         id: generation.id,
         traceId: generation.traceId,
+        traceName: generation.traceName,
         startTime: generation.startTime.toLocaleString(),
         endTime: generation.endTime?.toLocaleString() ?? undefined,
         name: generation.name ?? undefined,
@@ -262,6 +280,7 @@ export default function Generations() {
       traceId: null,
       name: null,
       model: null,
+      traceName: null,
     });
 
   const isFiltered = () =>

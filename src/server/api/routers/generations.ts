@@ -16,6 +16,7 @@ const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
   model: z.array(z.string()).nullable(),
+  traceName: z.array(z.string()).nullable(),
 });
 
 const generationsFilterPrismaCondition = (
@@ -36,7 +37,15 @@ const generationsFilterPrismaCondition = (
       ? Prisma.sql`AND o.model IN (${Prisma.join(filter.model)})`
       : Prisma.empty;
 
-  return Prisma.join([traceIdCondition, nameCondition, modelCondition], " ");
+  const traceNameCondition =
+    filter.traceName !== null
+      ? Prisma.sql`AND t.name IN (${Prisma.join(filter.traceName)})`
+      : Prisma.empty;
+
+  return Prisma.join(
+    [traceIdCondition, nameCondition, modelCondition, traceNameCondition],
+    " ",
+  );
 };
 
 const ListInputs = GenerationFilterOptions.extend({
@@ -54,7 +63,13 @@ export const generationsRouter = createTRPCRouter({
     .input(ListInputs)
     .query(async ({ input, ctx }) => {
       const generations = await ctx.prisma.$queryRaw<
-        Array<Observation & { traceId: string; totalCount: number }>
+        Array<
+          Observation & {
+            traceId: string;
+            traceName: string;
+            totalCount: number;
+          }
+        >
       >(
         Prisma.sql`
           SELECT
@@ -67,6 +82,7 @@ export const generationsRouter = createTRPCRouter({
             o.output,
             o.metadata,
             o.trace_id as "traceId",
+            t.name as "traceName",
             o.completion_start_time as "completionStartTime",
             o.prompt_tokens as "promptTokens",
             o.completion_tokens as "completionTokens",
@@ -74,8 +90,10 @@ export const generationsRouter = createTRPCRouter({
             o.version,
             (count(*) OVER())::int AS "totalCount"
           FROM observations o
+          JOIN traces t ON t.id = o.trace_id
           WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
+            AND t.project_id = ${input.projectId}
             ${generationsFilterPrismaCondition(input)}
           ORDER BY o.start_time DESC
           LIMIT ${input.pageSize ?? 50}
@@ -203,61 +221,76 @@ export const generationsRouter = createTRPCRouter({
   availableFilterOptions: protectedProjectProcedure
     .input(GenerationFilterOptions)
     .query(async ({ input, ctx }) => {
-      const filter = {
-        projectId: input.projectId,
-        ...(input.name
-          ? {
-              name: {
-                in: input.name,
-              },
-            }
-          : undefined),
-        ...(input.model
-          ? {
-              model: {
-                in: input.model,
-              },
-            }
-          : undefined),
-        ...(input.traceId
-          ? {
-              traceId: { in: input.traceId },
-            }
-          : undefined),
-      };
-
-      const traceIds = await ctx.prisma.observation.groupBy({
-        where: {
-          type: "GENERATION",
-          ...filter,
-        },
-        by: ["traceId"],
-        _count: {
-          _all: true,
-        },
-      });
-
-      const names = await ctx.prisma.observation.groupBy({
-        where: {
-          type: "GENERATION",
-          ...filter,
-        },
-        by: ["name"],
-        _count: {
-          _all: true,
-        },
-      });
-
-      const models = await ctx.prisma.observation.groupBy({
-        where: {
-          type: "GENERATION",
-          ...filter,
-        },
-        by: ["model"],
-        _count: {
-          _all: true,
-        },
-      });
+      const [traceIds, names, models, traceNames] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<{
+            traceId: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          t.id as "traceId",
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+        ctx.prisma.$queryRaw<
+          Array<{
+            name: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          o.name,
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+        ctx.prisma.$queryRaw<
+          Array<{
+            model: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          o.model,
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+        ctx.prisma.$queryRaw<
+          Array<{
+            name: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          t.name,
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+      ]);
 
       return [
         {
@@ -265,7 +298,7 @@ export const generationsRouter = createTRPCRouter({
           occurrences: traceIds
             .filter((i) => i.traceId !== null)
             .map((i) => {
-              return { key: i.traceId ?? "null", count: i._count };
+              return { key: i.traceId ?? "null", count: i.count };
             }),
         },
         {
@@ -273,7 +306,7 @@ export const generationsRouter = createTRPCRouter({
           occurrences: names
             .filter((i) => i.name !== null)
             .map((i) => {
-              return { key: i.name ?? "null", count: i._count };
+              return { key: i.name ?? "null", count: i.count };
             }),
         },
         {
@@ -281,7 +314,15 @@ export const generationsRouter = createTRPCRouter({
           occurrences: models
             .filter((i) => i.model !== null)
             .map((i) => {
-              return { key: i.model ?? "null", count: i._count };
+              return { key: i.model ?? "null", count: i.count };
+            }),
+        },
+        {
+          key: "traceName",
+          occurrences: traceNames
+            .filter((i) => i.name !== null)
+            .map((i) => {
+              return { key: i.name ?? "null", count: i.count };
             }),
         },
       ];
