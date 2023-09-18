@@ -23,7 +23,6 @@ const setProjectInPosthog = () => {
   const url = window.location.href;
   const regex = /\/project\/([^\/]+)/;
   const match = url.match(regex);
-  console.log(match);
   if (match && match[1]) {
     posthog?.group("project", match[1]);
   } else {
