@@ -10,6 +10,7 @@ import { useRouter } from "next/router";
 import { numberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 type RowData = {
   userId: string;
@@ -25,10 +26,17 @@ export default function UsersPage() {
   const projectId = router.query.projectId as string;
   const [queryOptions] = useState<ScoreFilterInput>({});
 
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
   const users = api.users.all.useQuery({
     ...queryOptions,
+    ...paginationState,
     projectId,
   });
+  const totalCount = users.data?.slice(1)[0]?.totalCount ?? 0;
 
   const columns: ColumnDef<RowData>[] = [
     {
@@ -126,6 +134,11 @@ export default function UsersPage() {
               }
         }
         options={{ isLoading: true, isError: false }}
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
     </div>
   );

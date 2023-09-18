@@ -10,9 +10,14 @@ const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
 });
 
+const UserAllOptions = UserFilterOptions.extend({
+  pageIndex: z.number().int().gte(0).nullable().default(0),
+  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
+});
+
 export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(UserFilterOptions)
+    .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
       const users = await ctx.prisma.$queryRaw<
         {
@@ -26,6 +31,7 @@ export const userRouter = createTRPCRouter({
           firstObservation: Date;
           lastObservation: Date;
           totalObservations: number;
+          totalCount: number;
         }[]
       >`
         SELECT 
@@ -38,7 +44,8 @@ export const userRouter = createTRPCRouter({
           COALESCE(SUM(o.total_tokens),0)::int "totalTokens",
           MIN(o.start_time) "firstObservation",
           MAX(o.start_time) "lastObservation",
-          COUNT(distinct o.id)::int "totalObservations"
+          COUNT(distinct o.id)::int "totalObservations",
+          (count(*) OVER())::int AS "totalCount"
         FROM traces t
         LEFT JOIN observations o on o.trace_id = t.id
         WHERE t.user_id is not null
@@ -46,7 +53,8 @@ export const userRouter = createTRPCRouter({
         AND o.project_id = ${input.projectId}
         GROUP BY 1
         ORDER BY "totalTokens" DESC
-        LIMIT 50
+        LIMIT ${input.pageSize ?? 50}
+        OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)}
       `;
 
       if (users.length === 0) {
