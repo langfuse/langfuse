@@ -126,6 +126,7 @@ export function DataTableToolbar<TData, TValue>({
             <X className="ml-2 h-4 w-4" />
           </Button>
         )}
+        <div className="flex-1" />
         {actionButtons ? actionButtons : null}
       </div>
     </div>
