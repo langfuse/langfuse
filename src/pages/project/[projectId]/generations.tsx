@@ -16,8 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, Loader } from "lucide-react";
 import { type ExportFileFormats } from "@/src/server/api/routers/generations";
+import { usePostHog } from "posthog-js/react";
 
 type GenerationTableRow = {
   id: string;
@@ -39,8 +40,10 @@ export type GenerationFilterInput = Omit<
 >;
 
 export default function Generations() {
+  const posthog = usePostHog();
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const [isExporting, setIsExporting] = useState(false);
 
   const [queryOptions, setQueryOptions] = useState<GenerationFilterInput>({
     traceId: null,
@@ -59,33 +62,38 @@ export default function Generations() {
   });
 
   const handleExport = async (fileFormat: ExportFileFormats) => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    posthog.capture("generations:export", { file_format: fileFormat });
     const fileData = await directApi.generations.export.query({
       ...queryOptions,
       projectId,
       fileFormat,
     });
 
-    if (!fileData) return;
+    if (fileData) {
+      // create file from string in fileData and apply extension from fileFormat
+      const fileTypes = { csv: "text/csv", json: "application/json" } as const;
+      const file = new File([fileData], `generations.${fileFormat}`, {
+        type: fileTypes[fileFormat],
+      });
 
-    // create file from string in fileData and apply extension from fileFormat
-    const fileTypes = { csv: "text/csv", json: "application/json" } as const;
-    const file = new File([fileData], `generations.${fileFormat}`, {
-      type: fileTypes[fileFormat],
-    });
+      // create url from file
+      const url = URL.createObjectURL(file);
 
-    // create url from file
-    const url = URL.createObjectURL(file);
+      // Use a dynamically created anchor element to trigger the download
+      const a = document.createElement("a");
+      document.body.appendChild(a);
+      a.href = url;
+      a.download = `generations.${fileFormat}`; // name of the downloaded file
+      a.click();
+      a.remove();
 
-    // Use a dynamically created anchor element to trigger the download
-    const a = document.createElement("a");
-    document.body.appendChild(a);
-    a.href = url;
-    a.download = `generations.${fileFormat}`; // name of the downloaded file
-    a.click();
-    a.remove();
-
-    // Revoke the blob URL after using it
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+      // Revoke the blob URL after using it
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    }
+    setIsExporting(false);
   };
 
   const columns: ColumnDef<GenerationTableRow>[] = [
@@ -254,7 +262,11 @@ export default function Generations() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto" size="sm">
                   {isFiltered() ? "Export selection" : "Export all"}{" "}
-                  <ChevronDownIcon className="ml-2 h-4 w-4" />
+                  {isExporting ? (
+                    <Loader className="ml-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ChevronDownIcon className="ml-2 h-4 w-4" />
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
