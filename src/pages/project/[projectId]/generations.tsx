@@ -19,6 +19,7 @@ import { Button } from "@/src/components/ui/button";
 import { ChevronDownIcon, Loader } from "lucide-react";
 import { type ExportFileFormats } from "@/src/server/api/routers/generations";
 import { usePostHog } from "posthog-js/react";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 type GenerationTableRow = {
   id: string;
@@ -27,6 +28,7 @@ type GenerationTableRow = {
   endTime?: string;
   name?: string;
   model?: string;
+  traceName?: string;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -66,12 +68,20 @@ export default function Generations() {
     traceId: null,
     name: null,
     model: null,
+    traceName: null,
+  });
+
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
   });
 
   const generations = api.generations.all.useQuery({
     ...queryOptions,
+    ...paginationState,
     projectId,
   });
+  const totalCount = generations.data?.slice(1)[0]?.totalCount ?? 0;
 
   const generationOptions = api.generations.availableFilterOptions.useQuery({
     ...queryOptions,
@@ -132,6 +142,21 @@ export default function Generations() {
       },
     },
     {
+      accessorKey: "name",
+      enableColumnFilter: true,
+      header: "name",
+      meta: {
+        label: "Name",
+        filter: {
+          type: "select",
+          values: queryOptions.name,
+          updateFunction: (newValues: string[] | null) => {
+            setQueryOptions({ ...queryOptions, name: newValues });
+          },
+        },
+      },
+    },
+    {
       accessorKey: "traceId",
       enableColumnFilter: true,
       header: "Trace ID",
@@ -156,16 +181,16 @@ export default function Generations() {
       },
     },
     {
-      accessorKey: "name",
+      accessorKey: "traceName",
       enableColumnFilter: true,
-      header: "name",
+      header: "Trace Name",
       meta: {
-        label: "Name",
+        label: "TraceName",
         filter: {
           type: "select",
-          values: queryOptions.name,
+          values: queryOptions.traceName,
           updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, name: newValues });
+            setQueryOptions({ ...queryOptions, traceName: newValues });
           },
         },
       },
@@ -221,7 +246,7 @@ export default function Generations() {
       return {
         columnId: o.key,
         options: o.occurrences.map((o) => {
-          return { label: o.key, value: o.count._all };
+          return { label: o.key, value: o.count };
         }),
       };
     });
@@ -245,6 +270,7 @@ export default function Generations() {
     ? generations.data.map((generation) => ({
         id: generation.id,
         traceId: generation.traceId,
+        traceName: generation.traceName,
         startTime: generation.startTime.toLocaleString(),
         endTime: generation.endTime?.toLocaleString() ?? undefined,
         name: generation.name ?? undefined,
@@ -262,6 +288,7 @@ export default function Generations() {
       traceId: null,
       name: null,
       model: null,
+      traceName: null,
     });
 
   const isFiltered = () =>
@@ -325,6 +352,11 @@ export default function Generations() {
               }
         }
         options={{ isLoading: true, isError: false }}
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
     </div>
   );

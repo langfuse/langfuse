@@ -81,8 +81,7 @@ export default function TracesTable({
 
   const traces = api.traces.all.useQuery({
     ...queryOptions,
-    pageIndex: paginationState.pageIndex,
-    pageSize: paginationState.pageSize,
+    ...paginationState,
     projectId,
   });
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
@@ -314,7 +313,7 @@ export default function TracesTable({
       };
 
   const isFiltered = () =>
-    queryOptions.name !== null || queryOptions.scores !== null;
+    Object.entries(queryOptions).filter(([_k, v]) => v !== null).length > 0;
 
   const resetFilters = () => {
     setQueryOptions({
