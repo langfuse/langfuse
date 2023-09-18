@@ -141,6 +141,7 @@ model Trace {
     @@index([name])
     @@index([userId])
     @@index([externalId])
+    @@index(timestamp)
     @@map("traces")
 }
 
@@ -173,6 +174,7 @@ model Observation {
 
     @@index([traceId])
     @@index([type])
+    @@index(startTime)
     @@map("observations")
 }
 
