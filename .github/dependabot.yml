@@ -8,4 +8,20 @@ updates:
   - package-ecosystem: npm
     directory: "/" # Location of package manifests
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    rebase-strategy: "disabled" # use dependabot-rebase-stale
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    groups:
+      patches:
+        update-types:
+          - "patch"
+      trpc:
+        patterns:
+          - ^@trpc/.*
+      prisma:
+        patterns:
+          - ^prisma
+          - ^@prisma/.*
