@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { api, fetchApi } from "@/src/utils/api";
+import { api, directApi } from "@/src/utils/api";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
@@ -59,7 +59,7 @@ export default function Generations() {
   });
 
   const handleExport = async (fileFormat: ExportFileFormats) => {
-    const fileData = await fetchApi.generations.export.query({
+    const fileData = await directApi.generations.export.query({
       ...queryOptions,
       projectId,
       fileFormat,
