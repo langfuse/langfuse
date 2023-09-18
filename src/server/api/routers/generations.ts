@@ -6,6 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { type Generation } from "@/src/utils/types";
+import { type Observation, Prisma } from "@prisma/client";
 
 const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
 export type ExportFileFormats = (typeof exportFileFormats)[number];
@@ -17,57 +18,76 @@ const GenerationFilterOptions = z.object({
   model: z.array(z.string()).nullable(),
 });
 
+const generationsFilterPrismaCondition = (
+  filter: z.infer<typeof GenerationFilterOptions>,
+) => {
+  const traceIdCondition =
+    filter.traceId !== null
+      ? Prisma.sql`AND o.trace_id IN (${Prisma.join(filter.traceId)})`
+      : Prisma.empty;
+
+  const nameCondition =
+    filter.name !== null
+      ? Prisma.sql`AND o.name IN (${Prisma.join(filter.name)})`
+      : Prisma.empty;
+
+  const modelCondition =
+    filter.model !== null
+      ? Prisma.sql`AND o.model IN (${Prisma.join(filter.model)})`
+      : Prisma.empty;
+
+  return Prisma.join([traceIdCondition, nameCondition, modelCondition], " ");
+};
+
+const ListInputs = GenerationFilterOptions.extend({
+  pageIndex: z.number().int().gte(0).nullable().default(0),
+  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
+});
+
 // extend generationfilteroptions with export options
-const ExportOptions = GenerationFilterOptions.extend({
+const ExportInputs = GenerationFilterOptions.extend({
   fileFormat: z.enum(exportFileFormats),
 });
 
 export const generationsRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(GenerationFilterOptions)
+    .input(ListInputs)
     .query(async ({ input, ctx }) => {
-      const generations = (await ctx.prisma.observation.findMany({
-        where: {
-          type: "GENERATION",
-          projectId: input.projectId,
-          ...(input.name
-            ? {
-                name: {
-                  in: input.name,
-                },
-              }
-            : undefined),
-          ...(input.model
-            ? {
-                model: {
-                  in: input.model,
-                },
-              }
-            : undefined),
-          traceId: {
-            not: null,
-            ...(input.traceId
-              ? {
-                  in: input.traceId,
-                }
-              : undefined),
-          },
-        },
-        orderBy: {
-          startTime: "desc",
-        },
-        take: 100,
-      })) as Array<
-        Generation & {
-          traceId: string;
-        }
-      >;
+      const generations = await ctx.prisma.$queryRaw<
+        Array<Observation & { traceId: string; totalCount: number }>
+      >(
+        Prisma.sql`
+          SELECT
+            o.id,
+            o.name,
+            o.model,
+            o.start_time as "startTime",
+            o.end_time as "endTime",
+            o.input,
+            o.output,
+            o.metadata,
+            o.trace_id as "traceId",
+            o.completion_start_time as "completionStartTime",
+            o.prompt_tokens as "promptTokens",
+            o.completion_tokens as "completionTokens",
+            o.total_tokens as "totalTokens",
+            o.version,
+            (count(*) OVER())::int AS "totalCount"
+          FROM observations o
+          WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${generationsFilterPrismaCondition(input)}
+          ORDER BY o.start_time DESC
+          LIMIT ${input.pageSize ?? 50}
+          OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)}
+        `,
+      );
 
       return generations;
     }),
 
   export: protectedProjectProcedure
-    .input(ExportOptions)
+    .input(ExportInputs)
     .query(async ({ input, ctx }) => {
       const generations = (await ctx.prisma.observation.findMany({
         where: {
