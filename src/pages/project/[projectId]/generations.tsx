@@ -39,6 +39,23 @@ export type GenerationFilterInput = Omit<
   "projectId"
 >;
 
+const exportOptions: Record<
+  ExportFileFormats,
+  {
+    label: string;
+    extension: string;
+    fileType: string;
+  }
+> = {
+  CSV: { label: "CSV", extension: "csv", fileType: "text/csv" },
+  JSON: { label: "JSON", extension: "json", fileType: "application/json" },
+  "OPENAI-JSONL": {
+    label: "OpenAI JSONL (fine-tuning)",
+    extension: "jsonl",
+    fileType: "application/json",
+  },
+} as const;
+
 export default function Generations() {
   const posthog = usePostHog();
   const router = useRouter();
@@ -73,11 +90,13 @@ export default function Generations() {
     });
 
     if (fileData) {
-      // create file from string in fileData and apply extension from fileFormat
-      const fileTypes = { csv: "text/csv", json: "application/json" } as const;
-      const file = new File([fileData], `generations.${fileFormat}`, {
-        type: fileTypes[fileFormat],
-      });
+      const file = new File(
+        [fileData],
+        `generations.${exportOptions[fileFormat].extension}`,
+        {
+          type: exportOptions[fileFormat].fileType,
+        },
+      );
 
       // create url from file
       const url = URL.createObjectURL(file);
@@ -86,7 +105,7 @@ export default function Generations() {
       const a = document.createElement("a");
       document.body.appendChild(a);
       a.href = url;
-      a.download = `generations.${fileFormat}`; // name of the downloaded file
+      a.download = `generations.${exportOptions[fileFormat].extension}`; // name of the downloaded file
       a.click();
       a.remove();
 
@@ -260,7 +279,11 @@ export default function Generations() {
           actionButtons={
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto" size="sm">
+                <Button
+                  variant="outline"
+                  className="ml-auto whitespace-nowrap"
+                  size="sm"
+                >
                   {isFiltered() ? "Export selection" : "Export all"}{" "}
                   {isExporting ? (
                     <Loader className="ml-2 h-4 w-4 animate-spin" />
@@ -270,13 +293,13 @@ export default function Generations() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {(["json", "csv"] as ExportFileFormats[]).map((type) => (
+                {Object.entries(exportOptions).map(([key, options]) => (
                   <DropdownMenuItem
-                    key={type}
+                    key={key}
                     className="capitalize"
-                    onClick={() => void handleExport(type)}
+                    onClick={() => void handleExport(key as ExportFileFormats)}
                   >
-                    as {type}
+                    as {options.label}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
