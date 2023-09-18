@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { api } from "@/src/utils/api";
+import { api, fetchApi } from "@/src/utils/api";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
@@ -17,6 +17,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDownIcon } from "lucide-react";
+import { type ExportFileFormats } from "@/src/server/api/routers/generations";
 
 type GenerationTableRow = {
   id: string;
@@ -56,6 +57,36 @@ export default function Generations() {
     ...queryOptions,
     projectId,
   });
+
+  const handleExport = async (fileFormat: ExportFileFormats) => {
+    const fileData = await fetchApi.generations.export.query({
+      ...queryOptions,
+      projectId,
+      fileFormat,
+    });
+
+    if (!fileData) return;
+
+    // create file from string in fileData and apply extension from fileFormat
+    const fileTypes = { csv: "text/csv", json: "application/json" } as const;
+    const file = new File([fileData], `generations.${fileFormat}`, {
+      type: fileTypes[fileFormat],
+    });
+
+    // create url from file
+    const url = URL.createObjectURL(file);
+
+    // Use a dynamically created anchor element to trigger the download
+    const a = document.createElement("a");
+    document.body.appendChild(a);
+    a.href = url;
+    a.download = `generations.${fileFormat}`; // name of the downloaded file
+    a.click();
+    a.remove();
+
+    // Revoke the blob URL after using it
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
 
   const columns: ColumnDef<GenerationTableRow>[] = [
     {
@@ -227,8 +258,12 @@ export default function Generations() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {["json", "csv"].map((type) => (
-                  <DropdownMenuItem key={type} className="capitalize">
+                {(["json", "csv"] as ExportFileFormats[]).map((type) => (
+                  <DropdownMenuItem
+                    key={type}
+                    className="capitalize"
+                    onClick={() => void handleExport(type)}
+                  >
                     as {type}
                   </DropdownMenuItem>
                 ))}

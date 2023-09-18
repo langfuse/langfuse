@@ -7,11 +7,19 @@ import {
 } from "@/src/server/api/trpc";
 import { type Generation } from "@/src/utils/types";
 
+const exportFileFormats = ["csv", "json"] as const;
+export type ExportFileFormats = (typeof exportFileFormats)[number];
+
 const GenerationFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
   model: z.array(z.string()).nullable(),
+});
+
+// extend generationfilteroptions with export options
+const ExportOptions = GenerationFilterOptions.extend({
+  fileFormat: z.enum(exportFileFormats),
 });
 
 export const generationsRouter = createTRPCRouter({
@@ -56,6 +64,86 @@ export const generationsRouter = createTRPCRouter({
       >;
 
       return generations;
+    }),
+
+  export: protectedProjectProcedure
+    .input(ExportOptions)
+    .query(async ({ input, ctx }) => {
+      const generations = (await ctx.prisma.observation.findMany({
+        where: {
+          type: "GENERATION",
+          projectId: input.projectId,
+          ...(input.name
+            ? {
+                name: {
+                  in: input.name,
+                },
+              }
+            : undefined),
+          ...(input.model
+            ? {
+                model: {
+                  in: input.model,
+                },
+              }
+            : undefined),
+          traceId: {
+            not: null,
+            ...(input.traceId
+              ? {
+                  in: input.traceId,
+                }
+              : undefined),
+          },
+        },
+        orderBy: {
+          startTime: "desc",
+        },
+        take: 100,
+      })) as Array<
+        Generation & {
+          traceId: string;
+        }
+      >;
+
+      // create csv
+      if (input.fileFormat === "csv") {
+        const csv = [
+          [
+            "traceId",
+            "name",
+            "model",
+            "startTime",
+            "endTime",
+            "prompt",
+            "completion",
+            "metadata",
+          ],
+        ]
+          .concat(
+            generations.map((generation) =>
+              [
+                generation.traceId,
+                generation.name ?? "",
+                generation.model ?? "",
+                generation.startTime.toISOString(),
+                generation.endTime?.toISOString() ?? "",
+                JSON.stringify(generation.input),
+                JSON.stringify(generation.output),
+                JSON.stringify(generation.metadata),
+              ].map((field) => {
+                const str = typeof field === "string" ? field : String(field);
+                return `"${str.replace(/"/g, '""')}"`;
+              }),
+            ),
+          )
+          .map((row) => row.join(","))
+          .join("\n");
+
+        return csv;
+      } else if (input.fileFormat === "json") {
+        return JSON.stringify(generations);
+      }
     }),
 
   availableFilterOptions: protectedProjectProcedure
@@ -144,6 +232,7 @@ export const generationsRouter = createTRPCRouter({
         },
       ];
     }),
+
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     // also works for other observations
     const generation = (await ctx.prisma.observation.findFirstOrThrow({
