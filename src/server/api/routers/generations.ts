@@ -99,7 +99,6 @@ export const generationsRouter = createTRPCRouter({
         orderBy: {
           startTime: "desc",
         },
-        take: 100,
       })) as Array<
         Generation & {
           traceId: string;
