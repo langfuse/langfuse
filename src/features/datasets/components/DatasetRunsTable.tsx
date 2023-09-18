@@ -10,13 +10,16 @@ type RowData = {
     name: string;
   };
   createdAt: string;
-  countItems: number;
-  countRuns: number;
+  countRunItems: string;
 };
 
-export function DatasetsTable(props: { projectId: string }) {
-  const datasets = api.datasets.all.useQuery({
+export function DatasetRunsTable(props: {
+  projectId: string;
+  datasetId: string;
+}) {
+  const runs = api.datasets.runsByDatasetId.useQuery({
     projectId: props.projectId,
+    datasetId: props.datasetId,
   });
 
   const columns: ColumnDef<RowData>[] = [
@@ -27,7 +30,7 @@ export function DatasetsTable(props: { projectId: string }) {
         const key: RowData["key"] = row.getValue("key");
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${key.id}`}
+            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${key.id}`}
             value={key.name}
             truncateAt={50}
           />
@@ -39,23 +42,18 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Created",
     },
     {
-      accessorKey: "countItems",
-      header: "Items",
-    },
-    {
-      accessorKey: "countRuns",
-      header: "Runs",
+      accessorKey: "countRunItems",
+      header: "Run Items",
     },
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["all"][number],
+    item: RouterOutput["datasets"]["runsByDatasetId"][number],
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toISOString(),
-      countItems: item._count.datasetItem,
-      countRuns: item._count.datasetRuns,
+      countRunItems: item.countRunItems.toString(),
     };
   };
 
@@ -63,18 +61,18 @@ export function DatasetsTable(props: { projectId: string }) {
     <DataTable
       columns={columns}
       data={
-        datasets.isLoading
+        runs.isLoading
           ? { isLoading: true, isError: false }
-          : datasets.isError
+          : runs.isError
           ? {
               isLoading: false,
               isError: true,
-              error: datasets.error.message,
+              error: runs.error.message,
             }
           : {
               isLoading: false,
               isError: false,
-              data: datasets.data?.map((t) => convertToTableRow(t)),
+              data: runs.data?.map((t) => convertToTableRow(t)),
             }
       }
       options={{ isLoading: true, isError: false }}

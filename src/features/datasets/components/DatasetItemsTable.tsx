@@ -5,31 +5,35 @@ import { type RouterOutput } from "@/src/utils/types";
 import { type ColumnDef } from "@tanstack/react-table";
 
 type RowData = {
-  key: {
-    id: string;
-    name: string;
-  };
+  id: string;
   createdAt: string;
-  countItems: number;
-  countRuns: number;
+  input: string;
+  expectedOutput: string;
 };
 
-export function DatasetsTable(props: { projectId: string }) {
-  const datasets = api.datasets.all.useQuery({
-    projectId: props.projectId,
+export function DatasetItemsTable({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
+  const items = api.datasets.itemsByDatasetId.useQuery({
+    projectId,
+    datasetId,
   });
 
   const columns: ColumnDef<RowData>[] = [
     {
-      accessorKey: "key",
-      header: "Name",
+      accessorKey: "id",
+      header: "Item id",
       cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
+        const id: string = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${key.id}`}
-            value={key.name}
-            truncateAt={50}
+            path={`/project/${projectId}/datasets/${datasetId}/items/${id}`}
+            value={id}
+            truncateAt={7}
           />
         );
       },
@@ -39,23 +43,23 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Created",
     },
     {
-      accessorKey: "countItems",
-      header: "Items",
+      accessorKey: "input",
+      header: "Input",
     },
     {
-      accessorKey: "countRuns",
-      header: "Runs",
+      accessorKey: "expectedOutput",
+      header: "Expected Output",
     },
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["all"][number],
+    item: RouterOutput["datasets"]["itemsByDatasetId"][number],
   ): RowData => {
     return {
-      key: { id: item.id, name: item.name },
+      id: item.id,
       createdAt: item.createdAt.toISOString(),
-      countItems: item._count.datasetItem,
-      countRuns: item._count.datasetRuns,
+      input: JSON.stringify(item.input),
+      expectedOutput: JSON.stringify(item.expectedOutput),
     };
   };
 
@@ -63,18 +67,18 @@ export function DatasetsTable(props: { projectId: string }) {
     <DataTable
       columns={columns}
       data={
-        datasets.isLoading
+        items.isLoading
           ? { isLoading: true, isError: false }
-          : datasets.isError
+          : items.isError
           ? {
               isLoading: false,
               isError: true,
-              error: datasets.error.message,
+              error: items.error.message,
             }
           : {
               isLoading: false,
               isError: false,
-              data: datasets.data?.map((t) => convertToTableRow(t)),
+              data: items.data?.map((t) => convertToTableRow(t)),
             }
       }
       options={{ isLoading: true, isError: false }}
