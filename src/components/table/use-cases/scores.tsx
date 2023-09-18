@@ -31,7 +31,6 @@ type ScoreTableProps = {
 export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
   const [queryOptions, setQueryOptions] = useState<ScoreFilterInput>({
     traceId: null,
-    id: null,
   });
 
   const scores = api.scores.all.useQuery({
@@ -146,11 +145,10 @@ export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
   };
 
   const isFiltered = () =>
-    queryOptions.traceId !== null || queryOptions.id !== null;
+    Object.entries(queryOptions).filter(([_k, v]) => v !== null).length > 0;
 
   const resetFilters = () =>
     setQueryOptions({
-      id: null,
       traceId: null,
     });
 
