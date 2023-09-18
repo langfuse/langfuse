@@ -7,11 +7,19 @@ import {
 } from "@/src/server/api/trpc";
 import { type Generation } from "@/src/utils/types";
 
+const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
+export type ExportFileFormats = (typeof exportFileFormats)[number];
+
 const GenerationFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
   model: z.array(z.string()).nullable(),
+});
+
+// extend generationfilteroptions with export options
+const ExportOptions = GenerationFilterOptions.extend({
+  fileFormat: z.enum(exportFileFormats),
 });
 
 export const generationsRouter = createTRPCRouter({
@@ -56,6 +64,120 @@ export const generationsRouter = createTRPCRouter({
       >;
 
       return generations;
+    }),
+
+  export: protectedProjectProcedure
+    .input(ExportOptions)
+    .query(async ({ input, ctx }) => {
+      const generations = (await ctx.prisma.observation.findMany({
+        where: {
+          type: "GENERATION",
+          projectId: input.projectId,
+          ...(input.name
+            ? {
+                name: {
+                  in: input.name,
+                },
+              }
+            : undefined),
+          ...(input.model
+            ? {
+                model: {
+                  in: input.model,
+                },
+              }
+            : undefined),
+          traceId: {
+            not: null,
+            ...(input.traceId
+              ? {
+                  in: input.traceId,
+                }
+              : undefined),
+          },
+        },
+        orderBy: {
+          startTime: "desc",
+        },
+      })) as Array<
+        Generation & {
+          traceId: string;
+        }
+      >;
+
+      // create csv
+      switch (input.fileFormat) {
+        case "CSV":
+          return [
+            [
+              "traceId",
+              "name",
+              "model",
+              "startTime",
+              "endTime",
+              "prompt",
+              "completion",
+              "metadata",
+            ],
+          ]
+            .concat(
+              generations.map((generation) =>
+                [
+                  generation.traceId,
+                  generation.name ?? "",
+                  generation.model ?? "",
+                  generation.startTime.toISOString(),
+                  generation.endTime?.toISOString() ?? "",
+                  JSON.stringify(generation.input),
+                  JSON.stringify(generation.output),
+                  JSON.stringify(generation.metadata),
+                ].map((field) => {
+                  const str = typeof field === "string" ? field : String(field);
+                  return `"${str.replace(/"/g, '""')}"`;
+                }),
+              ),
+            )
+            .map((row) => row.join(","))
+            .join("\n");
+        case "JSON":
+          return JSON.stringify(generations);
+        case "OPENAI-JSONL":
+          const inputSchemaOpenAI = z.array(
+            z.object({
+              role: z.enum(["system", "user", "assistant"]),
+              content: z.string(),
+            }),
+          );
+          const outputSchema = z.object({
+            completion: z.string(),
+          });
+
+          return (
+            generations
+              .map((generation) => ({
+                parsedInput: inputSchemaOpenAI.safeParse(generation.input),
+                parsedOutput: outputSchema.safeParse(generation.output),
+              }))
+              .filter((generation) => generation.parsedInput.success)
+              .map((generation) =>
+                generation.parsedInput.success // check for typescript validation, is always true due to previous filter
+                  ? generation.parsedInput.data.concat(
+                      generation.parsedOutput.success
+                        ? [
+                            {
+                              role: "assistant",
+                              content: generation.parsedOutput.data.completion,
+                            },
+                          ]
+                        : [],
+                    )
+                  : [],
+              )
+              // to jsonl
+              .map((row) => JSON.stringify(row))
+              .join("\n")
+          );
+      }
     }),
 
   availableFilterOptions: protectedProjectProcedure
@@ -144,6 +266,7 @@ export const generationsRouter = createTRPCRouter({
         },
       ];
     }),
+
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     // also works for other observations
     const generation = (await ctx.prisma.observation.findFirstOrThrow({
