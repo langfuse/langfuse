@@ -7,6 +7,7 @@ import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 type RowData = {
   id: string;
@@ -31,14 +32,20 @@ type ScoreTableProps = {
 export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
   const [queryOptions, setQueryOptions] = useState<ScoreFilterInput>({
     traceId: null,
-    id: null,
+  });
+
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
   });
 
   const scores = api.scores.all.useQuery({
     ...queryOptions,
+    ...paginationState,
     userId: userId || null,
     projectId,
   });
+  const totalCount = scores.data?.slice(1)[0]?.totalCount ?? 0;
 
   const scoresOptions = api.scores.availableFilterOptions.useQuery({
     ...queryOptions,
@@ -146,11 +153,10 @@ export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
   };
 
   const isFiltered = () =>
-    queryOptions.traceId !== null || queryOptions.id !== null;
+    Object.entries(queryOptions).filter(([_k, v]) => v !== null).length > 0;
 
   const resetFilters = () =>
     setQueryOptions({
-      id: null,
       traceId: null,
     });
 
@@ -182,6 +188,11 @@ export default function ScoresTable({ projectId, userId }: ScoreTableProps) {
               }
         }
         options={{ isLoading: true, isError: false }}
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
     </div>
   );
