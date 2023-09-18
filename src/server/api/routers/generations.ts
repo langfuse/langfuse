@@ -6,6 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { type Generation } from "@/src/utils/types";
+import { type Observation, Prisma } from "@prisma/client";
 
 const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
 export type ExportFileFormats = (typeof exportFileFormats)[number];
@@ -15,59 +16,96 @@ const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   name: z.array(z.string()).nullable(),
   model: z.array(z.string()).nullable(),
+  traceName: z.array(z.string()).nullable(),
+});
+
+const generationsFilterPrismaCondition = (
+  filter: z.infer<typeof GenerationFilterOptions>,
+) => {
+  const traceIdCondition =
+    filter.traceId !== null
+      ? Prisma.sql`AND o.trace_id IN (${Prisma.join(filter.traceId)})`
+      : Prisma.empty;
+
+  const nameCondition =
+    filter.name !== null
+      ? Prisma.sql`AND o.name IN (${Prisma.join(filter.name)})`
+      : Prisma.empty;
+
+  const modelCondition =
+    filter.model !== null
+      ? Prisma.sql`AND o.model IN (${Prisma.join(filter.model)})`
+      : Prisma.empty;
+
+  const traceNameCondition =
+    filter.traceName !== null
+      ? Prisma.sql`AND t.name IN (${Prisma.join(filter.traceName)})`
+      : Prisma.empty;
+
+  return Prisma.join(
+    [traceIdCondition, nameCondition, modelCondition, traceNameCondition],
+    " ",
+  );
+};
+
+const ListInputs = GenerationFilterOptions.extend({
+  pageIndex: z.number().int().gte(0).nullable().default(0),
+  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
 });
 
 // extend generationfilteroptions with export options
-const ExportOptions = GenerationFilterOptions.extend({
+const ExportInputs = GenerationFilterOptions.extend({
   fileFormat: z.enum(exportFileFormats),
 });
 
 export const generationsRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(GenerationFilterOptions)
+    .input(ListInputs)
     .query(async ({ input, ctx }) => {
-      const generations = (await ctx.prisma.observation.findMany({
-        where: {
-          type: "GENERATION",
-          projectId: input.projectId,
-          ...(input.name
-            ? {
-                name: {
-                  in: input.name,
-                },
-              }
-            : undefined),
-          ...(input.model
-            ? {
-                model: {
-                  in: input.model,
-                },
-              }
-            : undefined),
-          traceId: {
-            not: null,
-            ...(input.traceId
-              ? {
-                  in: input.traceId,
-                }
-              : undefined),
-          },
-        },
-        orderBy: {
-          startTime: "desc",
-        },
-        take: 100,
-      })) as Array<
-        Generation & {
-          traceId: string;
-        }
-      >;
+      const generations = await ctx.prisma.$queryRaw<
+        Array<
+          Observation & {
+            traceId: string;
+            traceName: string;
+            totalCount: number;
+          }
+        >
+      >(
+        Prisma.sql`
+          SELECT
+            o.id,
+            o.name,
+            o.model,
+            o.start_time as "startTime",
+            o.end_time as "endTime",
+            o.input,
+            o.output,
+            o.metadata,
+            o.trace_id as "traceId",
+            t.name as "traceName",
+            o.completion_start_time as "completionStartTime",
+            o.prompt_tokens as "promptTokens",
+            o.completion_tokens as "completionTokens",
+            o.total_tokens as "totalTokens",
+            o.version,
+            (count(*) OVER())::int AS "totalCount"
+          FROM observations o
+          JOIN traces t ON t.id = o.trace_id
+          WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            AND t.project_id = ${input.projectId}
+            ${generationsFilterPrismaCondition(input)}
+          ORDER BY o.start_time DESC
+          LIMIT ${input.pageSize ?? 50}
+          OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)}
+        `,
+      );
 
       return generations;
     }),
 
   export: protectedProjectProcedure
-    .input(ExportOptions)
+    .input(ExportInputs)
     .query(async ({ input, ctx }) => {
       const generations = (await ctx.prisma.observation.findMany({
         where: {
@@ -183,61 +221,76 @@ export const generationsRouter = createTRPCRouter({
   availableFilterOptions: protectedProjectProcedure
     .input(GenerationFilterOptions)
     .query(async ({ input, ctx }) => {
-      const filter = {
-        projectId: input.projectId,
-        ...(input.name
-          ? {
-              name: {
-                in: input.name,
-              },
-            }
-          : undefined),
-        ...(input.model
-          ? {
-              model: {
-                in: input.model,
-              },
-            }
-          : undefined),
-        ...(input.traceId
-          ? {
-              traceId: { in: input.traceId },
-            }
-          : undefined),
-      };
-
-      const traceIds = await ctx.prisma.observation.groupBy({
-        where: {
-          type: "GENERATION",
-          ...filter,
-        },
-        by: ["traceId"],
-        _count: {
-          _all: true,
-        },
-      });
-
-      const names = await ctx.prisma.observation.groupBy({
-        where: {
-          type: "GENERATION",
-          ...filter,
-        },
-        by: ["name"],
-        _count: {
-          _all: true,
-        },
-      });
-
-      const models = await ctx.prisma.observation.groupBy({
-        where: {
-          type: "GENERATION",
-          ...filter,
-        },
-        by: ["model"],
-        _count: {
-          _all: true,
-        },
-      });
+      const [traceIds, names, models, traceNames] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<{
+            traceId: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          t.id as "traceId",
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+        ctx.prisma.$queryRaw<
+          Array<{
+            name: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          o.name,
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+        ctx.prisma.$queryRaw<
+          Array<{
+            model: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          o.model,
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+        ctx.prisma.$queryRaw<
+          Array<{
+            name: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          t.name,
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${generationsFilterPrismaCondition(input)}
+        GROUP BY 1
+      `),
+      ]);
 
       return [
         {
@@ -245,7 +298,7 @@ export const generationsRouter = createTRPCRouter({
           occurrences: traceIds
             .filter((i) => i.traceId !== null)
             .map((i) => {
-              return { key: i.traceId ?? "null", count: i._count };
+              return { key: i.traceId ?? "null", count: i.count };
             }),
         },
         {
@@ -253,7 +306,7 @@ export const generationsRouter = createTRPCRouter({
           occurrences: names
             .filter((i) => i.name !== null)
             .map((i) => {
-              return { key: i.name ?? "null", count: i._count };
+              return { key: i.name ?? "null", count: i.count };
             }),
         },
         {
@@ -261,7 +314,15 @@ export const generationsRouter = createTRPCRouter({
           occurrences: models
             .filter((i) => i.model !== null)
             .map((i) => {
-              return { key: i.model ?? "null", count: i._count };
+              return { key: i.model ?? "null", count: i.count };
+            }),
+        },
+        {
+          key: "traceName",
+          occurrences: traceNames
+            .filter((i) => i.name !== null)
+            .map((i) => {
+              return { key: i.name ?? "null", count: i.count };
             }),
         },
       ];
