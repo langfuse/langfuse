@@ -28,6 +28,7 @@ const formSchema = z.object({
   ),
   expectedOutput: z.string().refine(
     (value) => {
+      if (value === "") return true;
       try {
         JSON.parse(value);
         return true;
@@ -61,7 +62,9 @@ export const EditDatasetItem = ({
     form.setValue("input", JSON.stringify(item.data?.input, null, 2) ?? "");
     form.setValue(
       "expectedOutput",
-      JSON.stringify(item.data?.expectedOutput, null, 2) ?? "",
+      item.data?.expectedOutput
+        ? JSON.stringify(item.data.expectedOutput, null, 2)
+        : "",
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.data]);
@@ -118,7 +121,7 @@ export const EditDatasetItem = ({
               name="expectedOutput"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expected output</FormLabel>
+                  <FormLabel>Expected output (optional)</FormLabel>
                   <FormControl>
                     <Textarea {...field} className="min-h-[200px] font-mono" />
                   </FormControl>

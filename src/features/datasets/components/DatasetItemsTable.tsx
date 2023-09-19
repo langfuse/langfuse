@@ -131,7 +131,10 @@ export function DatasetItemsTable({
       status: item.status,
       createdAt: item.createdAt.toISOString(),
       input: JSON.stringify(item.input).slice(0, 50) + "...",
-      expectedOutput: JSON.stringify(item.expectedOutput).slice(0, 50) + "...",
+      expectedOutput:
+        item.expectedOutput !== null
+          ? JSON.stringify(item.expectedOutput).slice(0, 50) + "..."
+          : "",
     };
   };
 

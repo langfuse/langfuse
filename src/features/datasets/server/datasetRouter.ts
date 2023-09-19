@@ -142,12 +142,16 @@ export const datasetRouter = createTRPCRouter({
           },
         },
         data: {
-          input: input.input
-            ? (JSON.parse(input.input) as Prisma.InputJsonObject)
-            : undefined,
-          expectedOutput: input.expectedOutput
-            ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
-            : undefined,
+          input:
+            input.input !== undefined
+              ? (JSON.parse(input.input) as Prisma.InputJsonObject)
+              : undefined,
+          expectedOutput:
+            input.expectedOutput === ""
+              ? Prisma.DbNull
+              : input.expectedOutput !== undefined
+              ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
+              : undefined,
           sourceObservationId: input.sourceObservationId,
         },
       });
