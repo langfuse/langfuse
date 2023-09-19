@@ -121,7 +121,7 @@ export const datasetRouter = createTRPCRouter({
         ],
       });
     }),
-  updateItem: protectedProjectProcedure
+  updateDatasetItem: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -202,8 +202,16 @@ export const datasetRouter = createTRPCRouter({
 
       return ctx.prisma.datasetItem.create({
         data: {
-          input: input.input,
-          expectedOutput: input.expectedOutput,
+          input:
+            input.input !== undefined
+              ? (JSON.parse(input.input) as Prisma.InputJsonObject)
+              : undefined,
+          expectedOutput:
+            input.expectedOutput === ""
+              ? Prisma.DbNull
+              : input.expectedOutput !== undefined
+              ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
+              : undefined,
           datasetId: input.datasetId,
           sourceObservationId: input.sourceObservationId,
         },

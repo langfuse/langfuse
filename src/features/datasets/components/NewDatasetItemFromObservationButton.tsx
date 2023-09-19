@@ -19,12 +19,13 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
+import { type Prisma } from "@prisma/client";
 
 export const NewDatasetItemFromObservationButton = (props: {
   projectId: string;
   observationId: string;
-  observationInput: string;
-  observationOutput: string;
+  observationInput: Prisma.JsonValue;
+  observationOutput: Prisma.JsonValue;
 }) => {
   const [open, setOpen] = useState(false);
   const observationInDatasets = api.datasets.observationInDatasets.useQuery({
@@ -78,7 +79,7 @@ export const NewDatasetItemFromObservationButton = (props: {
         </Button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:w-3xl lg:h-[calc(100vh-100px)] lg:w-[calc(100vw-100px)] lg:max-w-none">
           <DialogHeader>
             <DialogTitle className="mb-5">Add to dataset</DialogTitle>
           </DialogHeader>

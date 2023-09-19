@@ -77,7 +77,7 @@ export const EditDatasetItem = ({
     },
   });
 
-  const updateDatasetItemMutation = api.datasets.updateItem.useMutation({
+  const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
     onError: (error) => setFormError(error.message),
   });
@@ -110,7 +110,10 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Input</FormLabel>
                   <FormControl>
-                    <Textarea {...field} className="min-h-[200px] font-mono" />
+                    <Textarea
+                      {...field}
+                      className="min-h-[200px] font-mono text-xs"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -123,7 +126,10 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Expected output (optional)</FormLabel>
                   <FormControl>
-                    <Textarea {...field} className="min-h-[200px] font-mono" />
+                    <Textarea
+                      {...field}
+                      className="min-h-[200px] font-mono text-xs"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

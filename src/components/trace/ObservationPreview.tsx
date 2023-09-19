@@ -89,8 +89,8 @@ export const ObservationPreview = (props: {
           <NewDatasetItemFromObservationButton
             observationId={observation.id}
             projectId={props.projectId}
-            observationInput={JSON.stringify(observation.input)}
-            observationOutput={JSON.stringify(observation.output)}
+            observationInput={observation.input}
+            observationOutput={observation.output}
             key={observation.id}
           />
         </div>

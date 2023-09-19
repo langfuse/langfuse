@@ -21,18 +21,40 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { Textarea } from "@/src/components/ui/textarea";
+import { type Prisma } from "@prisma/client";
 
 const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
-  input: z.string(),
-  expectedOutput: z.string(),
+  input: z.string().refine(
+    (value) => {
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    { message: "Invalid JSON" },
+  ),
+  expectedOutput: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    { message: "Invalid JSON" },
+  ),
 });
 
 export const NewDatasetItemForm = (props: {
   projectId: string;
   observationId?: string;
-  observationInput?: string;
-  observationOutput?: string;
+  observationInput?: Prisma.JsonValue;
+  observationOutput?: Prisma.JsonValue;
   datasetId?: string;
   onFormSuccess?: () => void;
 }) => {
@@ -42,8 +64,12 @@ export const NewDatasetItemForm = (props: {
     resolver: zodResolver(formSchema),
     defaultValues: {
       datasetId: props.datasetId ?? "",
-      input: props.observationInput,
-      expectedOutput: props.observationOutput,
+      input: props.observationInput
+        ? JSON.stringify(props.observationInput, null, 2)
+        : "",
+      expectedOutput: props.observationOutput
+        ? JSON.stringify(props.observationOutput, null, 2)
+        : "",
     },
   });
 
@@ -77,48 +103,48 @@ export const NewDatasetItemForm = (props: {
   }
 
   return (
-    <div>
-      <Form {...form}>
-        <form
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-8"
-        >
-          <FormField
-            control={form.control}
-            name="datasetId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Dataset</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a dataset" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {datasets.data?.map((dataset) => (
-                      <SelectItem value={dataset.id} key={dataset.id}>
-                        {dataset.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+    <Form {...form}>
+      <form
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-6"
+      >
+        <FormField
+          control={form.control}
+          name="datasetId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Dataset</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a dataset" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {datasets.data?.map((dataset) => (
+                    <SelectItem value={dataset.id} key={dataset.id}>
+                      {dataset.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <div className="grid flex-1 content-stretch gap-4 md:grid-cols-2">
           <FormField
             control={form.control}
             name="input"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="flex flex-col gap-2">
                 <FormLabel>Input</FormLabel>
                 <FormControl>
-                  <Textarea {...field} className="min-h-[120px]" />
+                  <Textarea
+                    {...field}
+                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -128,29 +154,32 @@ export const NewDatasetItemForm = (props: {
             control={form.control}
             name="expectedOutput"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="flex flex-col gap-2">
                 <FormLabel>Expected output</FormLabel>
                 <FormControl>
-                  <Textarea {...field} className="min-h-[120px]" />
+                  <Textarea
+                    {...field}
+                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button
-            type="submit"
-            loading={createDatasetItemMutation.isLoading}
-            className="w-full"
-          >
-            Add to dataset
-          </Button>
-        </form>
-      </Form>
+        </div>
+        <Button
+          type="submit"
+          loading={createDatasetItemMutation.isLoading}
+          className="w-full"
+        >
+          Add to dataset
+        </Button>
+      </form>
       {formError ? (
         <p className="text-red text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}
-    </div>
+    </Form>
   );
 };
