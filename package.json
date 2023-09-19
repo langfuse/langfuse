@@ -13,6 +13,7 @@
     "start": "next start",
     "test": "jest --verbose=true --runInBand",
     "test:watch": "jest --watch --runInBand",
+    "test:e2e": "playwright test",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
     "db:seed:examples": "npx prisma db seed -- --environment examples"
@@ -90,6 +91,7 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.38.0",
     "@testing-library/jest-dom": "^6.1.3",
     "@types/bcryptjs": "^2.4.4",
     "@types/cors": "^2.8.14",
