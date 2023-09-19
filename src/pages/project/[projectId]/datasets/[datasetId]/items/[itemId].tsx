@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 
@@ -25,6 +26,11 @@ export default function Dataset() {
           },
           { name: "Item: " + itemId },
         ]}
+      />
+      <EditDatasetItem
+        projectId={projectId}
+        datasetId={datasetId}
+        itemId={itemId}
       />
     </div>
   );

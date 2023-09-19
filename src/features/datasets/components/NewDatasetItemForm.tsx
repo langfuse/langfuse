@@ -47,7 +47,9 @@ export const NewDatasetItemForm = (props: {
     },
   });
 
-  const datasets = api.datasets.all.useQuery({ projectId: props.projectId });
+  const datasets = api.datasets.allDatasets.useQuery({
+    projectId: props.projectId,
+  });
 
   const utils = api.useContext();
   const createDatasetItemMutation = api.datasets.createDatasetItem.useMutation({
