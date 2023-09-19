@@ -35,6 +35,9 @@ jobs:
         with:
           node-version: 18
           cache: "npm"
+
+      # Caching of Nextjs build outputs
+      # https://nextjs.org/docs/pages/building-your-application/deploying/ci-build-caching#github-actions
       - uses: actions/cache@v3
         name: Cache next
         with:
@@ -75,6 +78,9 @@ jobs:
         with:
           node-version: 18
           cache: "npm"
+
+      # Caching of Nextjs build outputs
+      # https://nextjs.org/docs/pages/building-your-application/deploying/ci-build-caching#github-actions
       - uses: actions/cache@v3
         name: Cache next
         with:
