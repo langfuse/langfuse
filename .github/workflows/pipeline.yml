@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: "npm"
       - name: install dependencies
         run: |
           npm ci
@@ -34,6 +35,7 @@ jobs:
         with:
           node-version: 18
           cache: "npm"
+
       - name: install dependencies
         run: |
           npm ci
@@ -64,6 +66,7 @@ jobs:
         with:
           node-version: 18
           cache: "npm"
+
       - name: install dependencies
         run: |
           npm ci
@@ -81,7 +84,7 @@ jobs:
         run: npm run build
 
       - name: Install playwright
-        run: npx playwright install --with-deps
+        run: npx playwright install
 
       - name: Run e2e tests
         run: npm run test:e2e
