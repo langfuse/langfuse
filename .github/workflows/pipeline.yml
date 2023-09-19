@@ -56,10 +56,40 @@ jobs:
       - name: run tests
         run: npm run test
 
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "npm"
+      - name: install dependencies
+        run: |
+          npm ci
+
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+
+      - name: Run, migrate, seed DB
+        run: |
+          docker-compose -f docker-compose.dev.yml up -d
+          npx --yes prisma migrate reset --force --skip-generate
+
+      - name: Build
+        run: npm run build
+
+      - name: Install playwright
+        run: npx playwright install --with-deps
+
+      - name: Run e2e tests
+        run: npm run test:e2e
+
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: ubuntu-latest
-    needs: [lint, tests]
+    needs: [lint, tests, e2e-tests]
     if: always()
     steps:
       - name: Successful deploy
