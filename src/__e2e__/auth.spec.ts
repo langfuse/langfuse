@@ -14,9 +14,6 @@ test("should redirect to home if signed in", async ({ page }) => {
   // wait 2 seconds
   await page.waitForTimeout(2000);
 
-  // console log the page content
-  console.log(page.url());
-
   if (process.env.CI)
     await expect(page).toHaveURL(
       // project id from seed.ts
