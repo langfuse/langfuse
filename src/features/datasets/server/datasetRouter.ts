@@ -227,18 +227,25 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
-  runitemsByRunId: protectedProjectProcedure
+  runitemsByRunIdOrItemId: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        datasetId: z.string(),
-        runId: z.string(),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          datasetId: z.string(),
+          datasetRunId: z.string().optional(),
+          datasetItemId: z.string().optional(),
+        })
+        .refine(
+          (input) => input.datasetRunId || input.datasetItemId,
+          "Must provide either datasetRunId or datasetItemId",
+        ),
     )
     .query(async ({ input, ctx }) => {
       return ctx.prisma.datasetRunItem.findMany({
         where: {
-          datasetRunId: input.runId,
+          datasetRunId: input.datasetRunId,
+          datasetItemId: input.datasetItemId,
           datasetRun: {
             dataset: {
               projectId: input.projectId,

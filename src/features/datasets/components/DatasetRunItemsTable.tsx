@@ -12,16 +12,20 @@ type RowData = {
   scores: { name: string; value: string }[];
 };
 
-export function DatasetRunItemsTable(props: {
-  projectId: string;
-  datasetId: string;
-  datasetRunId: string;
-}) {
-  const runItems = api.datasets.runitemsByRunId.useQuery({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-    runId: props.datasetRunId,
-  });
+export function DatasetRunItemsTable(
+  props:
+    | {
+        projectId: string;
+        datasetId: string;
+        datasetRunId: string;
+      }
+    | {
+        projectId: string;
+        datasetId: string;
+        datasetItemId: string;
+      },
+) {
+  const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery(props);
 
   const columns: ColumnDef<RowData>[] = [
     {
@@ -75,7 +79,7 @@ export function DatasetRunItemsTable(props: {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["runitemsByRunId"][number],
+    item: RouterOutput["datasets"]["runitemsByRunIdOrItemId"][number],
   ): RowData => {
     return {
       id: item.id,

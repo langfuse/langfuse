@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
@@ -31,6 +32,12 @@ export default function Dataset() {
         projectId={projectId}
         datasetId={datasetId}
         itemId={itemId}
+      />
+      <Header title="Runs" />
+      <DatasetRunItemsTable
+        projectId={projectId}
+        datasetItemId={itemId}
+        datasetId={datasetId}
       />
     </div>
   );
