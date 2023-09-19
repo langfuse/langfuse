@@ -39,7 +39,7 @@ export const NewDatasetItemFromObservationButton = (props: {
         <div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button>
+              <Button variant="secondary">
                 <span>{`In ${observationInDatasets.data.length} dataset(s)`}</span>
                 <ChevronDown className="ml-2" />
               </Button>
@@ -72,7 +72,7 @@ export const NewDatasetItemFromObservationButton = (props: {
           </DropdownMenu>
         </div>
       ) : (
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => setOpen(true)} variant="secondary">
           <PlusIcon className={cn("-ml-0.5 mr-1.5")} aria-hidden="true" />
           Add to dataset
         </Button>

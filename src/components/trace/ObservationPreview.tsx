@@ -18,7 +18,7 @@ import {
 } from "@/src/components/ui/table";
 import { ManualScoreButton } from "@/src/features/manualScoring/components";
 import type Decimal from "decimal.js";
-import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservation";
+import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 
 export const ObservationPreview = (props: {
   observations: Array<Observation & { traceId: string } & { price?: Decimal }>;
@@ -79,19 +79,21 @@ export const ObservationPreview = (props: {
               : null}
           </div>
         </div>
-        <ManualScoreButton
-          projectId={props.projectId}
-          traceId={observation.traceId}
-          observationId={observation.id}
-          scores={props.scores}
-        />
-        <NewDatasetItemFromObservationButton
-          observationId={observation.id}
-          projectId={props.projectId}
-          observationInput={JSON.stringify(observation.input)}
-          observationOutput={JSON.stringify(observation.output)}
-          key={observation.id}
-        />
+        <div className="flex gap-2">
+          <ManualScoreButton
+            projectId={props.projectId}
+            traceId={observation.traceId}
+            observationId={observation.id}
+            scores={props.scores}
+          />
+          <NewDatasetItemFromObservationButton
+            observationId={observation.id}
+            projectId={props.projectId}
+            observationInput={JSON.stringify(observation.input)}
+            observationOutput={JSON.stringify(observation.output)}
+            key={observation.id}
+          />
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <JSONView
