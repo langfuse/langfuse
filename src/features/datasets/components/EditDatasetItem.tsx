@@ -49,6 +49,7 @@ export const EditDatasetItem = ({
   itemId: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
   const utils = api.useContext();
   const item = api.datasets.itemById.useQuery({
     datasetId,
@@ -86,6 +87,7 @@ export const EditDatasetItem = ({
       input: values.input,
       expectedOutput: values.expectedOutput,
     });
+    setHasChanges(false);
   }
 
   return (
@@ -95,6 +97,7 @@ export const EditDatasetItem = ({
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-4"
+          onChange={() => setHasChanges(true)}
         >
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
@@ -125,8 +128,13 @@ export const EditDatasetItem = ({
             />
           </div>
           <div className="flex justify-end">
-            <Button type="submit" loading={updateDatasetItemMutation.isLoading}>
-              Save changes
+            <Button
+              type="submit"
+              loading={updateDatasetItemMutation.isLoading}
+              disabled={!hasChanges}
+              variant={hasChanges ? "default" : "ghost"}
+            >
+              {hasChanges ? "Save changes" : "Saved"}
             </Button>
           </div>
         </form>
