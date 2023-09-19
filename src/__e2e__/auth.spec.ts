@@ -16,4 +16,15 @@ test("should redirect to home if signed in", async ({ page }) => {
 
   // console log the page content
   console.log(page.url());
+
+  if (process.env.CI)
+    await expect(page).toHaveURL(
+      // project id from seed.ts
+      "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    );
+  else
+    console.log(
+      "Test skipped as redirect depends on db state, URL after signing in:",
+      page.url(),
+    );
 });
