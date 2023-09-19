@@ -58,8 +58,6 @@ jobs:
 
   e2e-tests:
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.38.0-jammy
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -81,6 +79,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Install playwright
+        run: npx playwright install --with-deps
 
       - name: Run e2e tests
         run: npm run test:e2e
