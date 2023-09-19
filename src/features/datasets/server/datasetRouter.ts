@@ -92,6 +92,36 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  createDatasetItem: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        input: z.string(),
+        expectedOutput: z.string(),
+        sourceObservationId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+      if (!dataset) {
+        throw new Error("Dataset not found");
+      }
+
+      return ctx.prisma.datasetItem.create({
+        data: {
+          input: input.input,
+          expectedOutput: input.expectedOutput,
+          datasetId: input.datasetId,
+          sourceObservationId: input.sourceObservationId,
+        },
+      });
+    }),
   runitemsByRunId: protectedProjectProcedure
     .input(
       z.object({
@@ -120,6 +150,37 @@ export const datasetRouter = createTRPCRouter({
         },
         orderBy: {
           createdAt: "desc",
+        },
+      });
+    }),
+  observationInDatasets: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        observationId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.datasetItem.findMany({
+        where: {
+          sourceObservationId: input.observationId,
+          dataset: {
+            projectId: input.projectId,
+          },
+        },
+        select: {
+          dataset: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          id: true,
+        },
+        orderBy: {
+          dataset: {
+            name: "asc",
+          },
         },
       });
     }),

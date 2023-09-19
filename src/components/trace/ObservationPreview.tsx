@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/table";
 import { ManualScoreButton } from "@/src/features/manualScoring/components";
 import type Decimal from "decimal.js";
+import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservation";
 
 export const ObservationPreview = (props: {
   observations: Array<Observation & { traceId: string } & { price?: Decimal }>;
@@ -83,6 +84,13 @@ export const ObservationPreview = (props: {
           traceId={observation.traceId}
           observationId={observation.id}
           scores={props.scores}
+        />
+        <NewDatasetItemFromObservationButton
+          observationId={observation.id}
+          projectId={props.projectId}
+          observationInput={JSON.stringify(observation.input)}
+          observationOutput={JSON.stringify(observation.output)}
+          key={observation.id}
         />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
