@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
+import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -64,24 +65,29 @@ export function DatasetItemsTable({
   };
 
   return (
-    <DataTable
-      columns={columns}
-      data={
-        items.isLoading
-          ? { isLoading: true, isError: false }
-          : items.isError
-          ? {
-              isLoading: false,
-              isError: true,
-              error: items.error.message,
-            }
-          : {
-              isLoading: false,
-              isError: false,
-              data: items.data?.map((t) => convertToTableRow(t)),
-            }
-      }
-      options={{ isLoading: true, isError: false }}
-    />
+    <div>
+      <div className="mb-2 flex justify-end">
+        <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
+      </div>
+      <DataTable
+        columns={columns}
+        data={
+          items.isLoading
+            ? { isLoading: true, isError: false }
+            : items.isError
+            ? {
+                isLoading: false,
+                isError: true,
+                error: items.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: items.data?.map((t) => convertToTableRow(t)),
+              }
+        }
+        options={{ isLoading: true, isError: false }}
+      />
+    </div>
   );
 }
