@@ -102,7 +102,7 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') }}
         run: exit 1
 
-  cd:
+  push-docker-image:
     needs: all-ci-passed
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
