@@ -21,7 +21,6 @@ import {
 import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
-import { cn } from "@/src/utils/tailwind";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
