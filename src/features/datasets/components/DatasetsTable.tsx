@@ -10,15 +10,18 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { NewDatasetButton } from "@/src/features/datasets/components/NewDatasetButton";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
+import { DatasetStatus } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
-import { MoreVertical, Trash } from "lucide-react";
+import { Archive, MoreVertical } from "lucide-react";
 
 type RowData = {
   key: {
     id: string;
     name: string;
   };
+  status: DatasetStatus;
   createdAt: string;
   countItems: number;
   countRuns: number;
@@ -26,10 +29,10 @@ type RowData = {
 
 export function DatasetsTable(props: { projectId: string }) {
   const utils = api.useContext();
-  const datasets = api.datasets.all.useQuery({
+  const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
   });
-  const mutDelete = api.datasets.deleteDataset.useMutation({
+  const mutArchive = api.datasets.archiveDataset.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
 
@@ -49,6 +52,26 @@ export function DatasetsTable(props: { projectId: string }) {
       },
     },
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status: DatasetStatus = row.getValue("status");
+        return (
+          <div>
+            <div
+              className={cn(
+                status === DatasetStatus.ACTIVE
+                  ? "text-green-950"
+                  : "text-gray-700",
+              )}
+            >
+              {status}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "createdAt",
       header: "Created",
     },
@@ -64,6 +87,7 @@ export function DatasetsTable(props: { projectId: string }) {
       id: "actions",
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
+        const status: DatasetStatus = row.getValue("status");
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -76,15 +100,15 @@ export function DatasetsTable(props: { projectId: string }) {
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
                 onClick={() =>
-                  mutDelete.mutate({
+                  mutArchive.mutate({
                     projectId: props.projectId,
                     datasetId: key.id,
                   })
                 }
-                className="text-destructive"
+                disabled={status === DatasetStatus.ARCHIVED}
               >
-                <Trash className="mr-2 h-4 w-4" />
-                Delete
+                <Archive className="mr-2 h-4 w-4" />
+                Archive
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -94,11 +118,12 @@ export function DatasetsTable(props: { projectId: string }) {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["all"][number],
+    item: RouterOutput["datasets"]["allDatasets"][number],
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toISOString(),
+      status: item.status,
       countItems: item._count.datasetItem,
       countRuns: item._count.datasetRuns,
     };

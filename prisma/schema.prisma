@@ -240,6 +240,7 @@ model CronJobs {
 model Dataset {
     id          String        @id @default(cuid())
     name        String
+    status      DatasetStatus @default(ACTIVE)
     projectId   String        @map("project_id")
     project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt   DateTime      @default(now()) @map("created_at")
@@ -249,6 +250,11 @@ model Dataset {
 
     @@unique([projectId, name])
     @@map("datasets")
+}
+
+enum DatasetStatus {
+    ACTIVE
+    ARCHIVED
 }
 
 model DatasetItem {

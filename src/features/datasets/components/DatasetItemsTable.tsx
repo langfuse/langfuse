@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Archive, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { type DatasetItem } from "@prisma/client";
+import { DatasetItemStatus, type DatasetItem } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 
 type RowData = {
@@ -60,12 +60,14 @@ export function DatasetItemsTable({
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const status: DatasetItem["status"] = row.getValue("status");
+        const status: DatasetItemStatus = row.getValue("status");
         return (
           <div>
             <div
               className={cn(
-                status === "active" ? "text-green-950" : "text-gray-700",
+                status === DatasetItemStatus.ACTIVE
+                  ? "text-green-950"
+                  : "text-gray-700",
               )}
             >
               {status}
@@ -90,7 +92,7 @@ export function DatasetItemsTable({
       id: "actions",
       cell: ({ row }) => {
         const id: string = row.getValue("id");
-        const status: DatasetItem["status"] = row.getValue("status");
+        const status: DatasetItemStatus = row.getValue("status");
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -109,7 +111,7 @@ export function DatasetItemsTable({
                     datasetItemId: id,
                   })
                 }
-                disabled={status === "archived"}
+                disabled={status === DatasetItemStatus.ARCHIVED}
               >
                 <Archive className="mr-2 h-4 w-4" />
                 Archive

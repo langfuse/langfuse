@@ -7,7 +7,7 @@ import {
 import { type DatasetRuns, Prisma } from "@prisma/client";
 
 export const datasetRouter = createTRPCRouter({
-  all: protectedProjectProcedure
+  allDatasets: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -18,9 +18,14 @@ export const datasetRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [
+          {
+            status: "asc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
         include: {
           _count: {
             select: {
@@ -87,9 +92,14 @@ export const datasetRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [
+          {
+            status: "asc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
       });
     }),
   createDataset: protectedProjectProcedure
@@ -105,10 +115,13 @@ export const datasetRouter = createTRPCRouter({
   archiveDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      return ctx.prisma.dataset.delete({
+      return ctx.prisma.dataset.update({
         where: {
           id: input.datasetId,
           projectId: input.projectId,
+        },
+        data: {
+          status: "ARCHIVED",
         },
       });
     }),
