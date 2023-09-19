@@ -8,10 +8,10 @@ import {
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import { env } from "@/src/env.mjs";
-import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
+import { NewDatasetForm } from "@/src/features/datasets/components/NewDatasetForm";
 
-export const NewDatasetItemButton = (props: {
+export const NewDatasetButton = (props: {
   projectId: string;
   datasetId?: string;
   className?: string;
@@ -23,16 +23,15 @@ export const NewDatasetItemButton = (props: {
       <DialogTrigger asChild>
         <Button variant="secondary" className={props.className}>
           <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
-          New item
+          New dataset
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="mb-5">Create new dataset item</DialogTitle>
+          <DialogTitle className="mb-5">Create new dataset</DialogTitle>
         </DialogHeader>
-        <NewDatasetItemForm
+        <NewDatasetForm
           projectId={props.projectId}
-          datasetId={props.datasetId}
           onFormSuccess={() => setOpen(false)}
         />
       </DialogContent>

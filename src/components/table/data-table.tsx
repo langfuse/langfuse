@@ -21,6 +21,7 @@ import {
 import { useState } from "react";
 import { type TableRowOptions } from "@/src/components/table/types";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { cn } from "@/src/utils/tailwind";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -108,7 +109,7 @@ export function DataTable<TData, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="whitespace-nowrap p-2 text-xs"
+                        className="overflow-hidden whitespace-nowrap p-2 text-xs"
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

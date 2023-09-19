@@ -172,7 +172,7 @@ model Observation {
     scores              Score[]
     Project             Project          @relation(fields: [projectId], references: [id])
     derivedDatasetItem  DatasetItem[]
-    DatasetRunItem      DatasetRunItem[]
+    datasetRunItem      DatasetRunItem[]
 
     @@index([traceId])
     @@index([type])
@@ -247,22 +247,29 @@ model Dataset {
     datasetItem DatasetItem[]
     datasetRuns DatasetRuns[]
 
+    @@unique([projectId, name])
     @@map("datasets")
 }
 
 model DatasetItem {
-    id                  String           @id @default(cuid())
+    id                  String            @id @default(cuid())
+    status              DatasetItemStatus @default(ACTIVE)
     input               Json?
-    expectedOutput      Json?            @map("expected_output")
-    sourceObservationId String?          @map("source_observation_id")
-    sourceObservation   Observation?     @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
-    datasetId           String           @map("dataset_id")
-    dataset             Dataset          @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-    createdAt           DateTime         @default(now()) @map("created_at")
-    updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at")
+    expectedOutput      Json?             @map("expected_output")
+    sourceObservationId String?           @map("source_observation_id")
+    sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
+    datasetId           String            @map("dataset_id")
+    dataset             Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+    createdAt           DateTime          @default(now()) @map("created_at")
+    updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItem      DatasetRunItem[]
 
     @@map("dataset_items")
+}
+
+enum DatasetItemStatus {
+    ACTIVE
+    ARCHIVED
 }
 
 model DatasetRuns {

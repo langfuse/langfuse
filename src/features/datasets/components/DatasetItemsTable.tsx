@@ -4,9 +4,21 @@ import { NewDatasetItemButton } from "@/src/features/datasets/components/NewData
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { type ColumnDef } from "@tanstack/react-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Archive, MoreVertical } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { type DatasetItem } from "@prisma/client";
+import { cn } from "@/src/utils/tailwind";
 
 type RowData = {
   id: string;
+  status: DatasetItem["status"];
   createdAt: string;
   input: string;
   expectedOutput: string;
@@ -19,9 +31,14 @@ export function DatasetItemsTable({
   projectId: string;
   datasetId: string;
 }) {
+  const utils = api.useContext();
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
+  });
+
+  const mutArchive = api.datasets.archiveDatasetItem.useMutation({
+    onSuccess: () => utils.datasets.invalidate(),
   });
 
   const columns: ColumnDef<RowData>[] = [
@@ -40,6 +57,24 @@ export function DatasetItemsTable({
       },
     },
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status: DatasetItem["status"] = row.getValue("status");
+        return (
+          <div>
+            <div
+              className={cn(
+                status === "active" ? "text-green-950" : "text-gray-700",
+              )}
+            >
+              {status}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "createdAt",
       header: "Created",
     },
@@ -51,6 +86,39 @@ export function DatasetItemsTable({
       accessorKey: "expectedOutput",
       header: "Expected Output",
     },
+    {
+      id: "actions",
+      cell: ({ row }) => {
+        const id: string = row.getValue("id");
+        const status: DatasetItem["status"] = row.getValue("status");
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Open menu</span>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() =>
+                  mutArchive.mutate({
+                    projectId: projectId,
+                    datasetId: datasetId,
+                    datasetItemId: id,
+                  })
+                }
+                disabled={status === "archived"}
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Archive
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
+    },
   ];
 
   const convertToTableRow = (
@@ -58,17 +126,15 @@ export function DatasetItemsTable({
   ): RowData => {
     return {
       id: item.id,
+      status: item.status,
       createdAt: item.createdAt.toISOString(),
-      input: JSON.stringify(item.input),
-      expectedOutput: JSON.stringify(item.expectedOutput),
+      input: JSON.stringify(item.input).slice(0, 50) + "...",
+      expectedOutput: JSON.stringify(item.expectedOutput).slice(0, 50) + "...",
     };
   };
 
   return (
     <div>
-      <div className="mb-2 flex justify-end">
-        <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
-      </div>
       <DataTable
         columns={columns}
         data={
@@ -87,6 +153,11 @@ export function DatasetItemsTable({
               }
         }
         options={{ isLoading: true, isError: false }}
+      />
+      <NewDatasetItemButton
+        projectId={projectId}
+        datasetId={datasetId}
+        className="mt-4"
       />
     </div>
   );

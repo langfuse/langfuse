@@ -92,6 +92,26 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  createDataset: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), name: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      return ctx.prisma.dataset.create({
+        data: {
+          name: input.name,
+          projectId: input.projectId,
+        },
+      });
+    }),
+  archiveDataset: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      return ctx.prisma.dataset.delete({
+        where: {
+          id: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+    }),
   createDatasetItem: protectedProjectProcedure
     .input(
       z.object({
@@ -119,6 +139,28 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: input.expectedOutput,
           datasetId: input.datasetId,
           sourceObservationId: input.sourceObservationId,
+        },
+      });
+    }),
+  archiveDatasetItem: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetItemId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      return ctx.prisma.datasetItem.update({
+        where: {
+          id: input.datasetItemId,
+          datasetId: input.datasetId,
+          dataset: {
+            projectId: input.projectId,
+          },
+        },
+        data: {
+          status: "ARCHIVED",
         },
       });
     }),
