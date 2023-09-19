@@ -37,6 +37,7 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.enum(["US", "EU"]).optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
+    NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
   },
 
   /**
@@ -53,5 +54,6 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
+    NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES: process.env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES,
   },
 });
