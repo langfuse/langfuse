@@ -18,6 +18,10 @@ updates:
       patches:
         update-types:
           - "patch"
+      next:
+        patterns:
+          - "eslint-config-next"
+          - "next"
       trpc:
         patterns:
           - ^@trpc/.*
