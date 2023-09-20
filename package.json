@@ -109,7 +109,7 @@
     "autoprefixer": "^10.4.15",
     "dotenv-cli": "^7.3.0",
     "eslint": "^8.49.0",
-    "eslint-config-next": "^13.4.19",
+    "eslint-config-next": "^13.5.1",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.30",
