@@ -306,6 +306,23 @@ async function main() {
             },
           });
 
+          await prisma.score.create({
+            data: {
+              name: "quality",
+              value: Math.random() * 2 - 1,
+              observationId: generation.id,
+              traceId: trace.id,
+            },
+          });
+          await prisma.score.create({
+            data: {
+              name: "conciseness",
+              value: Math.random() * 2 - 1,
+              observationId: generation.id,
+              traceId: trace.id,
+            },
+          });
+
           generationIds.push(generation.id);
 
           for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
