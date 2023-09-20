@@ -17,6 +17,7 @@ const GenerationFilterOptions = z.object({
   name: z.array(z.string()).nullable(),
   model: z.array(z.string()).nullable(),
   traceName: z.array(z.string()).nullable(),
+  searchQuery: z.string().nullable(),
 });
 
 const generationsFilterPrismaCondition = (
@@ -42,8 +43,23 @@ const generationsFilterPrismaCondition = (
       ? Prisma.sql`AND t.name IN (${Prisma.join(filter.traceName)})`
       : Prisma.empty;
 
+  const searchCondition = filter.searchQuery
+    ? Prisma.sql`AND (
+        o."id" ILIKE ${`%${filter.searchQuery}%`} OR 
+        o."name" ILIKE ${`%${filter.searchQuery}%`} OR 
+        o."model" ILIKE ${`%${filter.searchQuery}%`} OR 
+        t."name" ILIKE ${`%${filter.searchQuery}%`}
+      )`
+    : Prisma.empty;
+
   return Prisma.join(
-    [traceIdCondition, nameCondition, modelCondition, traceNameCondition],
+    [
+      traceIdCondition,
+      nameCondition,
+      modelCondition,
+      traceNameCondition,
+      searchCondition,
+    ],
     " ",
   );
 };
