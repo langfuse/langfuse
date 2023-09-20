@@ -32,7 +32,7 @@ export function DatasetsTable(props: { projectId: string }) {
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
   });
-  const mutArchive = api.datasets.archiveDataset.useMutation({
+  const mutArchive = api.datasets.updateDataset.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
 
@@ -57,16 +57,16 @@ export function DatasetsTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
         return (
-          <div>
+          <div className="flex items-center gap-2">
             <div
               className={cn(
+                "h-2 w-2 rounded-full",
                 status === DatasetStatus.ACTIVE
-                  ? "text-green-950"
-                  : "text-gray-700",
+                  ? "bg-green-600"
+                  : "bg-yellow-600",
               )}
-            >
-              {status}
-            </div>
+            />
+            <span>{status}</span>
           </div>
         );
       },
@@ -103,12 +103,15 @@ export function DatasetsTable(props: { projectId: string }) {
                   mutArchive.mutate({
                     projectId: props.projectId,
                     datasetId: key.id,
+                    status:
+                      status === DatasetStatus.ARCHIVED
+                        ? DatasetStatus.ACTIVE
+                        : DatasetStatus.ARCHIVED,
                   })
                 }
-                disabled={status === DatasetStatus.ARCHIVED}
               >
                 <Archive className="mr-2 h-4 w-4" />
-                Archive
+                {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

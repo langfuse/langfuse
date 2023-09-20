@@ -130,6 +130,7 @@ export const datasetRouter = createTRPCRouter({
         input: z.string().optional(),
         expectedOutput: z.string().optional(),
         sourceObservationId: z.string().optional(),
+        status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -153,6 +154,7 @@ export const datasetRouter = createTRPCRouter({
               ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
               : undefined,
           sourceObservationId: input.sourceObservationId,
+          status: input.status,
         },
       });
     }),
@@ -166,8 +168,15 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
-  archiveDataset: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+  updateDataset: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
+        name: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       return ctx.prisma.dataset.update({
         where: {
@@ -175,7 +184,8 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
         },
         data: {
-          status: "ARCHIVED",
+          status: input.status,
+          name: input.name,
         },
       });
     }),
@@ -214,28 +224,6 @@ export const datasetRouter = createTRPCRouter({
               : undefined,
           datasetId: input.datasetId,
           sourceObservationId: input.sourceObservationId,
-        },
-      });
-    }),
-  archiveDatasetItem: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetId: z.string(),
-        datasetItemId: z.string(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      return ctx.prisma.datasetItem.update({
-        where: {
-          id: input.datasetItemId,
-          datasetId: input.datasetId,
-          dataset: {
-            projectId: input.projectId,
-          },
-        },
-        data: {
-          status: "ARCHIVED",
         },
       });
     }),
