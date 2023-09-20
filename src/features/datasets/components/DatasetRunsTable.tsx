@@ -55,10 +55,10 @@ export function DatasetRunsTable(props: {
           <div className="flex items-center gap-3">
             {Object.entries(scores)
               .sort(([aName], [bName]) => aName.localeCompare(bName))
-              .map(([name, value]) => (
+              .map(([name, _value]) => (
                 <div key={name}>
                   <div className="text-xs text-gray-500">{name}</div>
-                  <div className="text-sm">{value.toFixed(4)}</div>
+                  <div className="text-sm">{}</div>
                 </div>
               ))}
           </div>

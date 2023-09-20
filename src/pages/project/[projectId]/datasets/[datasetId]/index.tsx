@@ -36,6 +36,8 @@ export default function Dataset() {
       </Tabs>
 
       <DatasetRunsTable projectId={projectId} datasetId={datasetId} />
+
+      <p className="mt-3 text-xs text-gray-600">Add new run via Python SDK</p>
     </div>
   );
 }

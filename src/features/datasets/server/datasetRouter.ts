@@ -76,18 +76,11 @@ export const datasetRouter = createTRPCRouter({
           runs.name,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          count(distinct ri.id)::int "countRunItems",
-          jsonb_object_agg(avg_scores.name, avg_scores.avg_value) AS scores
+          count(distinct ri.id)::int "countRunItems"
         FROM dataset_runs runs
         JOIN datasets ON datasets.id = runs.dataset_id
         LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
         LEFT JOIN observations o ON o.id = ri.observation_id
-	      LEFT JOIN LATERAL (
-          SELECT s.name, AVG(s.value::numeric) AS avg_value
-          FROM scores s
-          WHERE s.trace_id = o.trace_id AND s.observation_id = o.id
-          GROUP BY s.name
-        ) AS avg_scores ON TRUE
         WHERE runs.dataset_id = ${input.datasetId}
         AND datasets.project_id = ${input.projectId}
         GROUP BY 1,2,3,4
@@ -95,6 +88,7 @@ export const datasetRouter = createTRPCRouter({
       `);
       const output = runs.map((run) => ({
         ...run,
+        scores: {},
       }));
       return output;
     }),
