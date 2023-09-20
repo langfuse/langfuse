@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type DatasetRuns, Prisma } from "@prisma/client";
+import { type DatasetRuns, Prisma, type Dataset } from "@prisma/client";
 
 export const datasetRouter = createTRPCRouter({
   allDatasets: protectedProjectProcedure
@@ -14,27 +14,31 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.dataset.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-        orderBy: [
-          {
-            status: "asc",
-          },
-          {
-            createdAt: "desc",
-          },
-        ],
-        include: {
-          _count: {
-            select: {
-              datasetItem: true,
-              datasetRuns: true,
-            },
-          },
-        },
-      });
+      return ctx.prisma.$queryRaw<
+        Array<
+          Dataset & {
+            countDatasetItems: number;
+            countDatasetRuns: number;
+            lastRunAt: Date;
+          }
+        >
+      >(Prisma.sql`
+        SELECT
+          d.id,
+          d.name,
+          d.created_at "createdAt",
+          d.updated_at "updatedAt",
+          d.status,
+          count(distinct di.id)::int "countDatasetItems",
+          count(distinct dr.id)::int "countDatasetRuns",
+          max(dr.created_at) "lastRunAt"
+        FROM datasets d
+        LEFT JOIN dataset_items di ON di.dataset_id = d.id
+        LEFT JOIN dataset_runs dr ON dr.dataset_id = d.id
+        WHERE d.project_id = ${input.projectId}
+        GROUP BY 1,2,3,4,5
+        ORDER BY d.created_at DESC
+      `);
     }),
   byId: protectedProjectProcedure
     .input(
@@ -59,23 +63,40 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.$queryRaw<
-        Array<DatasetRuns & { countRunItems: number }>
+      const runs = await ctx.prisma.$queryRaw<
+        Array<
+          DatasetRuns & {
+            countRunItems: number;
+            scores: { [name: string]: number };
+          }
+        >
       >(Prisma.sql`
         SELECT
           runs.id,
           runs.name,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          count(distinct ri.id)::int "countRunItems"
+          count(distinct ri.id)::int "countRunItems",
+          jsonb_object_agg(avg_scores.name, avg_scores.avg_value) AS scores
         FROM dataset_runs runs
         JOIN datasets ON datasets.id = runs.dataset_id
-        JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
+        LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
+        LEFT JOIN observations o ON o.id = ri.observation_id
+	      LEFT JOIN LATERAL (
+          SELECT s.name, AVG(s.value::numeric) AS avg_value
+          FROM scores s
+          WHERE s.trace_id = o.trace_id AND s.observation_id = o.id
+          GROUP BY s.name
+        ) AS avg_scores ON TRUE
         WHERE runs.dataset_id = ${input.datasetId}
         AND datasets.project_id = ${input.projectId}
         GROUP BY 1,2,3,4
         ORDER BY runs.created_at DESC
       `);
+      const output = runs.map((run) => ({
+        ...run,
+      }));
+      return output;
     }),
   itemById: protectedProjectProcedure
     .input(

@@ -9,7 +9,7 @@ type RowData = {
   runAt: string;
   datasetItemId: string;
   observation: { id: string; traceId: string };
-  scores: { name: string; value: string }[];
+  scores: { name: string; value: number }[];
 };
 
 export function DatasetRunItemsTable(
@@ -66,12 +66,15 @@ export function DatasetRunItemsTable(
       cell: ({ row }) => {
         const scores: RowData["scores"] = row.getValue("scores");
         return (
-          <div>
-            {scores.map((score) => (
-              <div key={score.name}>
-                {score.name}: {score.value}
-              </div>
-            ))}
+          <div className="flex items-center gap-3">
+            {scores
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((score) => (
+                <div key={score.name}>
+                  <div className="text-xs text-gray-500">{score.name}</div>
+                  <div className="text-sm">{score.value.toFixed(4)}</div>
+                </div>
+              ))}
           </div>
         );
       },
@@ -91,7 +94,7 @@ export function DatasetRunItemsTable(
       },
       scores: item.observation.scores.map((score) => ({
         name: score.name,
-        value: score.value.toString(),
+        value: score.value,
       })),
     };
   };

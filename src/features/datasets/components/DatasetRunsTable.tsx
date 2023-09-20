@@ -11,6 +11,7 @@ type RowData = {
   };
   createdAt: string;
   countRunItems: string;
+  scores: RouterOutput["datasets"]["runsByDatasetId"][number]["scores"];
 };
 
 export function DatasetRunsTable(props: {
@@ -45,6 +46,25 @@ export function DatasetRunsTable(props: {
       accessorKey: "countRunItems",
       header: "Run Items",
     },
+    {
+      accessorKey: "scores",
+      header: "Scores (avg)",
+      cell: ({ row }) => {
+        const scores: RowData["scores"] = row.getValue("scores");
+        return (
+          <div className="flex items-center gap-3">
+            {Object.entries(scores)
+              .sort(([aName], [bName]) => aName.localeCompare(bName))
+              .map(([name, value]) => (
+                <div key={name}>
+                  <div className="text-xs text-gray-500">{name}</div>
+                  <div className="text-sm">{value.toFixed(4)}</div>
+                </div>
+              ))}
+          </div>
+        );
+      },
+    },
   ];
 
   const convertToTableRow = (
@@ -54,6 +74,7 @@ export function DatasetRunsTable(props: {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toISOString(),
       countRunItems: item.countRunItems.toString(),
+      scores: item.scores,
     };
   };
 

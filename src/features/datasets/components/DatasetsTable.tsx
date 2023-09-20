@@ -23,6 +23,7 @@ type RowData = {
   };
   status: DatasetStatus;
   createdAt: string;
+  lastRunAt?: string;
   countItems: number;
   countRuns: number;
 };
@@ -72,16 +73,20 @@ export function DatasetsTable(props: { projectId: string }) {
       },
     },
     {
-      accessorKey: "createdAt",
-      header: "Created",
-    },
-    {
       accessorKey: "countItems",
       header: "Items",
     },
     {
       accessorKey: "countRuns",
       header: "Runs",
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+    },
+    {
+      accessorKey: "lastRunAt",
+      header: "Last Run",
     },
     {
       id: "actions",
@@ -126,9 +131,10 @@ export function DatasetsTable(props: { projectId: string }) {
     return {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toISOString(),
+      lastRunAt: item.lastRunAt?.toISOString() ?? "",
       status: item.status,
-      countItems: item._count.datasetItem,
-      countRuns: item._count.datasetRuns,
+      countItems: item.countDatasetItems,
+      countRuns: item.countDatasetRuns,
     };
   };
 
