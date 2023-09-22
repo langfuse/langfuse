@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Archive, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { DatasetItemStatus, type DatasetItem } from "@prisma/client";
+import { DatasetStatus, type DatasetItem } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 
 type RowData = {
@@ -60,13 +60,13 @@ export function DatasetItemsTable({
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const status: DatasetItemStatus = row.getValue("status");
+        const status: DatasetStatus = row.getValue("status");
         return (
           <div className="flex items-center gap-2">
             <div
               className={cn(
                 "h-2 w-2 rounded-full",
-                status === DatasetItemStatus.ACTIVE
+                status === DatasetStatus.ACTIVE
                   ? "bg-green-600"
                   : "bg-yellow-600",
               )}
@@ -92,7 +92,7 @@ export function DatasetItemsTable({
       id: "actions",
       cell: ({ row }) => {
         const id: string = row.getValue("id");
-        const status: DatasetItemStatus = row.getValue("status");
+        const status: DatasetStatus = row.getValue("status");
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -110,16 +110,14 @@ export function DatasetItemsTable({
                     datasetId: datasetId,
                     datasetItemId: id,
                     status:
-                      status === DatasetItemStatus.ARCHIVED
-                        ? DatasetItemStatus.ACTIVE
-                        : DatasetItemStatus.ARCHIVED,
+                      status === DatasetStatus.ARCHIVED
+                        ? DatasetStatus.ACTIVE
+                        : DatasetStatus.ARCHIVED,
                   })
                 }
               >
                 <Archive className="mr-2 h-4 w-4" />
-                {status === DatasetItemStatus.ARCHIVED
-                  ? "Unarchive"
-                  : "Archive"}
+                {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
