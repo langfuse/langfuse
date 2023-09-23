@@ -227,10 +227,7 @@ export const datasetRouter = createTRPCRouter({
 
       return ctx.prisma.datasetItem.create({
         data: {
-          input:
-            input.input !== undefined
-              ? (JSON.parse(input.input) as Prisma.InputJsonObject)
-              : undefined,
+          input: JSON.parse(input.input) as Prisma.InputJsonObject,
           expectedOutput:
             input.expectedOutput === ""
               ? Prisma.DbNull
@@ -257,7 +254,7 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetRunItem.findMany({
+      return ctx.prisma.datasetRunItems.findMany({
         where: {
           datasetRunId: input.datasetRunId,
           datasetItemId: input.datasetItemId,

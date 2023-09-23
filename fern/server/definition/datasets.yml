@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public/datasets
+  endpoints:
+    get:
+      method: GET
+      docs: Get a dataset and its items
+      path: /{datasetName}
+      path-parameters:
+        datasetName: string
+      response: commons.Dataset
