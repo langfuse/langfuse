@@ -3,7 +3,59 @@ info:
   title: langfuse
   version: ''
 paths:
-  /api/public/dataset-run-item:
+  /api/public/dataset-items:
+    post:
+      description: Create a dataset item
+      operationId: datasetItems_create
+      tags:
+        - DatasetItems
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: &ref_0
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDatasetItemRequest'
+  /api/public/dataset-run-items:
     post:
       description: Create a dataset run item
       operationId: datasetRunItems_create
@@ -47,8 +99,7 @@ paths:
             application/json:
               schema:
                 type: string
-      security: &ref_0
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -105,6 +156,57 @@ paths:
               schema:
                 type: string
       security: *ref_0
+  /api/public/datasets:
+    post:
+      description: Create a dataset
+      operationId: datasets_create
+      tags:
+        - Datasets
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDatasetRequest'
   /api/public/events:
     post:
       description: Add an event to the database
@@ -1127,6 +1229,18 @@ components:
       enum:
         - ACTIVE
         - ARCHIVED
+    CreateDatasetItemRequest:
+      title: CreateDatasetItemRequest
+      type: object
+      properties:
+        datasetName:
+          type: string
+        input: {}
+        observationId:
+          nullable: true
+      required:
+        - datasetName
+        - input
     CreateDatasetRunItemRequest:
       title: CreateDatasetRunItemRequest
       type: object
@@ -1141,6 +1255,14 @@ components:
         - runName
         - datasetItemId
         - observationId
+    CreateDatasetRequest:
+      title: CreateDatasetRequest
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
     UpdateGenerationRequest:
       title: UpdateGenerationRequest
       type: object

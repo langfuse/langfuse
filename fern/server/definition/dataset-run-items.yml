@@ -8,7 +8,7 @@ service:
     create:
       method: POST
       docs: Create a dataset run item
-      path: /dataset-run-item
+      path: /dataset-run-items
       request: CreateDatasetRunItemRequest
       response: commons.DatasetRunItem
 types:
