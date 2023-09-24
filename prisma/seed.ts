@@ -183,7 +183,7 @@ async function main() {
             metadata: {
               user: `user-${i}@langfuse.com`,
             },
-            Project: { connect: { id: trace.projectId } },
+            project: { connect: { id: trace.projectId } },
             traceId: trace.id,
             // if this is the first span or in 50% of cases, add no parent; otherwise randomly select parent from existing spans
             ...(existingSpanIds.length === 0 || Math.random() > 0.5
@@ -225,7 +225,7 @@ async function main() {
               startTime: generationTsStart,
               endTime: generationTsEnd,
               name: `generation-${i}-${j}-${k}`,
-              Project: { connect: { id: trace.projectId } },
+              project: { connect: { id: trace.projectId } },
               input:
                 Math.random() > 0.5
                   ? [
@@ -345,7 +345,7 @@ async function main() {
                 },
                 parentObservationId: span.id,
                 traceId: trace.id,
-                Project: { connect: { id: trace.projectId } },
+                project: { connect: { id: trace.projectId } },
               },
             });
           }
@@ -387,7 +387,7 @@ async function main() {
         },
       });
 
-      await prisma.datasetRunItem.create({
+      await prisma.datasetRunItems.create({
         data: {
           datasetItemId: datasetItem.id,
           observationId: runObservationId!,
