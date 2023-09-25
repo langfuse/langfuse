@@ -4,8 +4,9 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 
-const DatasetsGetSchema = z.object({
+const DatasetRunsGetSchema = z.object({
   name: z.string(),
+  runName: z.string(),
 });
 
 export default async function handler(
@@ -29,51 +30,56 @@ export default async function handler(
     return res.status(401).json({
       success: false,
       message:
-        "Access denied - need to use basic auth with secret key to GET scores",
+        "Access denied - need to use basic auth with secret key to GET dataset runs",
     });
   }
 
   if (req.method === "GET") {
     try {
       console.log(
-        "trying to get dataset, project ",
+        "trying to get dataset runs, project ",
         authCheck.scope.projectId,
         ", body:",
         JSON.stringify(req.body, null, 2),
         ", query:",
         JSON.stringify(req.query, null, 2),
       );
-      const { name } = DatasetsGetSchema.parse(req.query);
+      const { name, runName } = DatasetRunsGetSchema.parse(req.query);
 
-      const dataset = await prisma.dataset.findFirst({
+      const datasetRuns = await prisma.datasetRuns.findMany({
         where: {
-          name: name,
-          projectId: authCheck.scope.projectId,
-          status: "ACTIVE",
+          name: runName,
+          dataset: {
+            name: name,
+            projectId: authCheck.scope.projectId,
+          },
         },
         include: {
-          datasetItems: {
-            where: {
-              status: "ACTIVE",
-            },
-          },
+          datasetRunItems: true,
         },
       });
 
-      if (!dataset) {
-        return res.status(404).json({
+      if (datasetRuns.length > 1) {
+        console.error(
+          "Found more than one dataset run with name",
+          runName,
+          "for dataset",
+          name,
+          "and project",
+          authCheck.scope.projectId,
+        );
+        return res.status(500).json({
           success: false,
-          message: "Dataset not found or not active",
+          message: "Found more than one dataset run with that name",
         });
       }
+      if (!datasetRuns[0])
+        return res.status(404).json({
+          success: false,
+          message: "Dataset run not found",
+        });
 
-      const { datasetItems, ...params } = dataset;
-      const output = {
-        ...params,
-        items: datasetItems,
-      };
-
-      return res.status(200).json(output);
+      return res.status(200).json(datasetRuns[0]);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
