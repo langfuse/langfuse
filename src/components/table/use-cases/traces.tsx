@@ -248,11 +248,7 @@ export default function TracesTable({
       },
       cell: ({ row }) => {
         const values: Score[] = row.getValue("scores");
-        return (
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            <GroupedScoreBadges scores={values} inline />
-          </div>
-        );
+        return <GroupedScoreBadges scores={values} variant="headings" />;
       },
     },
     {

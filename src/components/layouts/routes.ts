@@ -1,4 +1,6 @@
+import { env } from "@/src/env.mjs";
 import {
+  Database,
   FlaskConical,
   LayoutDashboard,
   LifeBuoy,
@@ -40,6 +42,15 @@ export const ROUTES = [
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
   },
+  ...(env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES === "true"
+    ? [
+        {
+          name: "Datasets",
+          pathname: `/project/[projectId]/datasets`,
+          icon: Database,
+        },
+      ]
+    : []),
   {
     name: "Settings",
     pathname: "/project/[projectId]/settings",

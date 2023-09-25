@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      method: POST
+      docs: Create a dataset item
+      path: /dataset-items
+      request: CreateDatasetItemRequest
+      response: commons.DatasetItem
+types:
+  CreateDatasetItemRequest:
+    properties:
+      datasetName: string
+      input: unknown
+      expectedOutput: optional<unknown>

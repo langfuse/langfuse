@@ -1,41 +1,58 @@
 import { Badge } from "@/src/components/ui/badge";
-import { type Score } from "@prisma/client";
 
-export const GroupedScoreBadges = (props: {
-  scores: Score[];
-  inline?: boolean;
+type ScoreSimplified = {
+  name: string;
+  value: number;
+};
+
+export const GroupedScoreBadges = ({
+  scores,
+  variant = "badge",
+}: {
+  scores: ScoreSimplified[];
+  variant?: "badge" | "headings";
 }) => {
-  const groupedScores = props.scores.reduce(
+  const groupedScores = scores.reduce(
     (acc, score) => {
       if (!acc[score.name] || !Array.isArray(acc[score.name])) {
         acc[score.name] = [score];
       } else {
-        (acc[score.name] as Score[]).push(score);
+        (acc[score.name] as ScoreSimplified[]).push(score);
       }
       return acc;
     },
-    {} as Record<string, Score[]>,
+    {} as Record<string, ScoreSimplified[]>,
   );
 
-  return (
-    <>
-      {Object.entries(groupedScores)
-        .sort(([a], [b]) => (a < b ? -1 : 1))
-        .map(([name, scores]) =>
-          props.inline ? (
-            <span key={name} className="break-all font-normal">
-              {name}: {scores.map((s) => s.value).join(", ")}
-            </span>
-          ) : (
+  if (variant === "headings")
+    return (
+      <div className="flex items-center gap-3">
+        {Object.entries(groupedScores)
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([name, scores]) => (
+            <div key={name}>
+              <div className="text-xs text-gray-500">{name}</div>
+              <div className="text-sm">
+                {scores.map((s) => s.value.toFixed(4)).join(", ")}
+              </div>
+            </div>
+          ))}
+      </div>
+    );
+  else
+    return (
+      <>
+        {Object.entries(groupedScores)
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([name, scores]) => (
             <Badge
               variant="outline"
               key={name}
               className="break-all font-normal"
             >
-              {name}: {scores.map((s) => s.value).join(", ")}
+              {name}: {scores.map((s) => s.value.toFixed(4)).join(", ")}
             </Badge>
-          ),
-        )}
-    </>
-  );
+          ))}
+      </>
+    );
 };

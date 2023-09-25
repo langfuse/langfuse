@@ -85,6 +85,42 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
+  Dataset:
+    properties:
+      id: string
+      name: string
+      status: DatasetStatus
+      projectId: string
+      createdAt: datetime
+      updatedAt: datetime
+      items: list<DatasetItem>
+      runs: list<string>
+  DatasetItem:
+    properties:
+      id: string
+      status: DatasetStatus
+      input: unknown
+      expectedOutput: optional<unknown>
+      sourceObservationId: optional<string>
+      datasetId: string
+      createdAt: datetime
+      updatedAt: datetime
+  DatasetRunItem:
+    properties:
+      id: string
+      datasetRunId: string
+      datasetItemId: string
+      observationId: string
+      createdAt: datetime
+      updatedAt: datetime
+  DatasetRun:
+    properties:
+      id: string
+      name: string
+      datasetId: string
+      createdAt: datetime
+      updatedAt: datetime
+      datasetRunItems: list<DatasetRunItem>
 
   # Utilities
   ObservationLevel:
@@ -108,6 +144,10 @@ types:
       promptTokens: optional<integer>
       completionTokens: optional<integer>
       totalTokens: optional<integer>
+  DatasetStatus:
+    enum:
+      - ACTIVE
+      - ARCHIVED
 
 errors:
   Error:

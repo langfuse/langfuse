@@ -108,7 +108,7 @@ export function DataTable<TData, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="whitespace-nowrap p-2 text-xs"
+                        className="overflow-hidden whitespace-nowrap p-2 text-xs"
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

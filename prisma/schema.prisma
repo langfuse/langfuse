@@ -81,6 +81,7 @@ model Project {
     traces       Trace[]
     observations Observation[]
     apiKeys      ApiKey[]
+    dataset      Dataset[]
 
     @@map("projects")
 }
@@ -164,13 +165,14 @@ model Observation {
     modelParameters     Json?
     input               Json?
     output              Json?
-    promptTokens        Int       @default(0) @map("prompt_tokens")
-    completionTokens    Int       @default(0) @map("completion_tokens")
-    totalTokens         Int       @default(0) @map("total_tokens")
-    completionStartTime DateTime? @map("completion_start_time")
-
-    scores  Score[]
-    Project Project @relation(fields: [projectId], references: [id])
+    promptTokens        Int               @default(0) @map("prompt_tokens")
+    completionTokens    Int               @default(0) @map("completion_tokens")
+    totalTokens         Int               @default(0) @map("total_tokens")
+    completionStartTime DateTime?         @map("completion_start_time")
+    scores              Score[]
+    project             Project           @relation(fields: [projectId], references: [id])
+    derivedDatasetItems DatasetItem[]
+    datasetRunItems     DatasetRunItems[]
 
     @@index([traceId])
     @@index([type])
@@ -234,4 +236,67 @@ model CronJobs {
     state   String?
 
     @@map("cron_jobs")
+}
+
+model Dataset {
+    id           String        @id @default(cuid())
+    name         String
+    status       DatasetStatus @default(ACTIVE)
+    projectId    String        @map("project_id")
+    project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt    DateTime      @default(now()) @map("created_at")
+    updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
+    datasetItems DatasetItem[]
+    datasetRuns  DatasetRuns[]
+
+    @@unique([projectId, name])
+    @@map("datasets")
+}
+
+model DatasetItem {
+    id                  String            @id @default(cuid())
+    status              DatasetStatus     @default(ACTIVE)
+    input               Json
+    expectedOutput      Json?             @map("expected_output")
+    sourceObservationId String?           @map("source_observation_id")
+    sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
+    datasetId           String            @map("dataset_id")
+    dataset             Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+    createdAt           DateTime          @default(now()) @map("created_at")
+    updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
+    datasetRunItems     DatasetRunItems[]
+
+    @@map("dataset_items")
+}
+
+enum DatasetStatus {
+    ACTIVE
+    ARCHIVED
+}
+
+model DatasetRuns {
+    id              String            @id @default(cuid())
+    name            String
+    datasetId       String            @map("dataset_id")
+    dataset         Dataset           @relation(fields: [datasetId], references: [id])
+    createdAt       DateTime          @default(now()) @map("created_at")
+    updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
+    datasetRunItems DatasetRunItems[]
+
+    @@unique([datasetId, name])
+    @@map("dataset_runs")
+}
+
+model DatasetRunItems {
+    id            String      @id @default(cuid())
+    datasetRunId  String      @map("dataset_run_id")
+    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id])
+    datasetItemId String      @map("dataset_item_id")
+    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id])
+    observationId String      @map("observation_id")
+    observation   Observation @relation(fields: [observationId], references: [id])
+    createdAt     DateTime    @default(now()) @map("created_at")
+    updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+
+    @@map("dataset_run_items")
 }
