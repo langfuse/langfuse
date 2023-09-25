@@ -2,24 +2,27 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+// rename jsonview import to tmp
+import { default as React18JsonView } from "react18-json-view";
 
 export function JSONView(props: {
   json: unknown;
-  defaultCollapsed?: boolean;
-  scrollable?: boolean;
   title?: string;
   className?: string;
 }) {
   const text = parseJsonInput(props.json);
 
   return (
-    <CodeView
-      content={text}
-      defaultCollapsed={props.defaultCollapsed}
-      scrollable={props.scrollable}
-      title={props.title}
-      className={props.className}
-    />
+    <div className={cn("max-w-full rounded-md border ", props.className)}>
+      {props.title ? (
+        <div className="border-b px-4 py-1 text-xs font-medium">
+          {props.title}
+        </div>
+      ) : undefined}
+      <div className="flex gap-2 p-3 text-xs">
+        <React18JsonView src={props.json} theme="github" />
+      </div>
+    </div>
   );
 }
 

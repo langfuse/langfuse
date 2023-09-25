@@ -79,6 +79,7 @@
     "react-dom": "18.2.0",
     "react-hook-form": "^7.46.2",
     "react-icons": "^4.11.0",
+    "react18-json-view": "^0.2.5",
     "sharp": "^0.32.6",
     "superagent": "^8.1.2",
     "superjson": "1.13.1",
