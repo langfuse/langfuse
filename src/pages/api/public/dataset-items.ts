@@ -3,29 +3,12 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { jsonSchema } from "@/src/utils/zod";
 
 const CreateDatasetItemSchema = z.object({
   datasetName: z.string(),
-  input: z.string().refine((value) => {
-    try {
-      JSON.parse(value);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }, "must be valid JSON"),
-  expectedOutput: z
-    .string()
-    .optional()
-    .refine((value) => {
-      if (value === undefined) return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    }, "must be valid JSON"),
+  input: jsonSchema,
+  expectedOutput: jsonSchema.optional(),
 });
 
 export default async function handler(
