@@ -342,7 +342,7 @@ export default function TracesTable({
           columnDefs={columns}
           options={tableOptions.data}
           searchConfig={{
-            placeholder: "Search traces (ID, External ID, Name, User ID)",
+            placeholder: "Search by id, name, user id",
             updateQuery: updateSearchQuery,
             currentQuery: queryOptions.searchQuery ?? undefined,
           }}

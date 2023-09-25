@@ -177,6 +177,7 @@ model Observation {
     @@index([traceId])
     @@index([type])
     @@index(startTime)
+    @@index(projectId)
     @@map("observations")
 }
 

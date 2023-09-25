@@ -19,7 +19,13 @@ import { Button } from "@/src/components/ui/button";
 import { ChevronDownIcon, Loader } from "lucide-react";
 import { type ExportFileFormats } from "@/src/server/api/routers/generations";
 import { usePostHog } from "posthog-js/react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import {
+  DelimitedArrayParam,
+  NumberParam,
+  StringParam,
+  useQueryParams,
+  withDefault,
+} from "use-query-params";
 
 type GenerationTableRow = {
   id: string;
@@ -64,12 +70,21 @@ export default function Generations() {
   const projectId = router.query.projectId as string;
   const [isExporting, setIsExporting] = useState(false);
 
-  const [queryOptions, setQueryOptions] = useState<GenerationFilterInput>({
-    traceId: null,
-    name: null,
-    model: null,
-    traceName: null,
+  const [rawQueryOptions, setQueryOptions] = useQueryParams({
+    traceId: withDefault(DelimitedArrayParam, null),
+    name: withDefault(DelimitedArrayParam, null),
+    model: withDefault(DelimitedArrayParam, null),
+    traceName: withDefault(DelimitedArrayParam, null),
+    searchQuery: withDefault(StringParam, ""),
   });
+  // Fix typings of useQueryParams
+  const queryOptions: GenerationFilterInput & { searchQuery: string } = {
+    traceId: rawQueryOptions.traceId as string[] | null,
+    name: rawQueryOptions.name as string[] | null,
+    model: rawQueryOptions.model as string[] | null,
+    traceName: rawQueryOptions.traceName as string[] | null,
+    searchQuery: rawQueryOptions.searchQuery,
+  };
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -292,7 +307,9 @@ export default function Generations() {
     });
 
   const isFiltered = () =>
-    Object.entries(queryOptions).filter(([_k, v]) => v !== null).length > 0;
+    Object.entries(queryOptions).filter(
+      ([k, v]) => k !== "searchQuery" && v !== null,
+    ).length > 0;
 
   return (
     <div>
@@ -303,6 +320,12 @@ export default function Generations() {
           options={tableOptions.data}
           resetFilters={resetFilters}
           isFiltered={isFiltered}
+          searchConfig={{
+            placeholder: "Search by id, name, traceName, model",
+            updateQuery: (newQuery) =>
+              setQueryOptions({ searchQuery: newQuery }),
+            currentQuery: queryOptions.searchQuery,
+          }}
           actionButtons={
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
