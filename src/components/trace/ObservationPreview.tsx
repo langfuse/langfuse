@@ -99,12 +99,10 @@ export const ObservationPreview = (props: {
         <JSONView
           title={observation.type === "GENERATION" ? "Prompt" : "Input"}
           json={observation.input}
-          defaultCollapsed
         />
         <JSONView
           title={observation.type === "GENERATION" ? "Completion" : "Output"}
           json={observation.output}
-          defaultCollapsed
         />
         <JSONView title="Status Message" json={observation.statusMessage} />
         <JSONView title="Metadata" json={observation.metadata} />

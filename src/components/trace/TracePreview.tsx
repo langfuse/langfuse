@@ -57,7 +57,7 @@ export const TracePreview = ({
         />
       </CardHeader>
       <CardContent>
-        <JSONView title="Metadata" json={trace.metadata} scrollable />
+        <JSONView title="Metadata" json={trace.metadata} />
         {scores.find((s) => s.observationId === null) ? (
           <div className="mt-5 flex flex-col gap-2">
             <h3>Scores</h3>
