@@ -1236,7 +1236,7 @@ components:
         datasetName:
           type: string
         input: {}
-        observationId:
+        expectedOutput:
           nullable: true
       required:
         - datasetName

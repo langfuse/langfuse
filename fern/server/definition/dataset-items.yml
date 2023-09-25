@@ -16,4 +16,4 @@ types:
     properties:
       datasetName: string
       input: unknown
-      observationId: optional<unknown>
+      expectedOutput: optional<unknown>
