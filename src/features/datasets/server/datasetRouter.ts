@@ -37,7 +37,7 @@ export const datasetRouter = createTRPCRouter({
         LEFT JOIN dataset_runs dr ON dr.dataset_id = d.id
         WHERE d.project_id = ${input.projectId}
         GROUP BY 1,2,3,4,5
-        ORDER BY d.created_at DESC
+        ORDER BY d.status ASC, d.created_at DESC
       `);
     }),
   byId: protectedProjectProcedure
