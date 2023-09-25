@@ -67,30 +67,64 @@ export const datasetRouter = createTRPCRouter({
         Array<
           DatasetRuns & {
             countRunItems: number;
-            scores: { [name: string]: number };
+            scores: Record<string, number>;
           }
         >
       >(Prisma.sql`
+        WITH avg_scores_by_run_id AS (
+          SELECT
+            ri.dataset_run_id run_id,
+            s.name score_name,
+            AVG(s.value) AS average_score_value
+          FROM
+            dataset_run_items ri
+            JOIN observations o ON o.id = ri.observation_id
+            LEFT JOIN scores s ON s.trace_id = o.trace_id
+          WHERE o.project_id = ${input.projectId}
+          GROUP BY
+            ri.dataset_run_id,
+            s.name
+          ORDER BY
+            1,
+            2
+        ),
+        json_avg_scores_by_run_id AS (
+          SELECT
+            run_id,
+            jsonb_object_agg(score_name,
+              average_score_value) AS scores
+          FROM
+            avg_scores_by_run_id
+          GROUP BY
+            run_id
+          ORDER BY
+            run_id
+        )
         SELECT
           runs.id,
           runs.name,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          count(distinct ri.id)::int "countRunItems"
-        FROM dataset_runs runs
-        JOIN datasets ON datasets.id = runs.dataset_id
-        LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
-        LEFT JOIN observations o ON o.id = ri.observation_id
+          avg_scores.scores scores,
+          count(DISTINCT ri.id)::int "countRunItems"
+        FROM
+          dataset_runs runs
+          JOIN datasets ON datasets.id = runs.dataset_id
+          LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
+          LEFT JOIN json_avg_scores_by_run_id avg_scores ON avg_scores.run_id = runs.id
         WHERE runs.dataset_id = ${input.datasetId}
-        AND datasets.project_id = ${input.projectId}
-        GROUP BY 1,2,3,4
-        ORDER BY runs.created_at DESC
+          AND datasets.project_id = ${input.projectId}
+        GROUP BY
+          1,
+          2,
+          3,
+          4,
+          5
+        ORDER BY
+          runs.created_at DESC
       `);
-      const output = runs.map((run) => ({
-        ...run,
-        scores: {},
-      }));
-      return output;
+
+      return runs;
     }),
   itemById: protectedProjectProcedure
     .input(
