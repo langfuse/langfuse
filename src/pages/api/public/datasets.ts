@@ -51,7 +51,7 @@ export default async function handler(
         },
       });
 
-      res.status(200).json(newDataset);
+      res.status(200).json({ ...newDataset, items: [] });
     }
   } catch (error: unknown) {
     console.error(error);
