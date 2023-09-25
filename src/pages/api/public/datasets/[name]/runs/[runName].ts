@@ -30,7 +30,7 @@ export default async function handler(
     return res.status(401).json({
       success: false,
       message:
-        "Access denied - need to use basic auth with secret key to GET scores",
+        "Access denied - need to use basic auth with secret key to GET dataset runs",
     });
   }
 
@@ -73,6 +73,11 @@ export default async function handler(
           message: "Found more than one dataset run with that name",
         });
       }
+      if (!datasetRuns[0])
+        return res.status(404).json({
+          success: false,
+          message: "Dataset run not found",
+        });
 
       return res.status(200).json(datasetRuns[0]);
     } catch (error: unknown) {
