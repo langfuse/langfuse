@@ -57,8 +57,15 @@ export default async function handler(
               status: "ACTIVE",
             },
           },
+          datasetRuns: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
+
+      console.log("dataset", dataset);
 
       if (!dataset) {
         return res.status(404).json({
@@ -67,10 +74,11 @@ export default async function handler(
         });
       }
 
-      const { datasetItems, ...params } = dataset;
+      const { datasetItems, datasetRuns, ...params } = dataset;
       const output = {
         ...params,
         items: datasetItems,
+        runs: datasetRuns,
       };
 
       return res.status(200).json(output);

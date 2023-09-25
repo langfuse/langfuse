@@ -94,6 +94,7 @@ types:
       createdAt: datetime
       updatedAt: datetime
       items: list<DatasetItem>
+      runs: list<string>
   DatasetItem:
     properties:
       id: string
@@ -112,6 +113,14 @@ types:
       observationId: string
       createdAt: datetime
       updatedAt: datetime
+  DatasetRun:
+    properties:
+      id: string
+      name: string
+      datasetId: string
+      createdAt: datetime
+      updatedAt: datetime
+      datasetRunItems: list<DatasetRunItem>
 
   # Utilities
   ObservationLevel:

@@ -18,6 +18,15 @@ service:
       path: /datasets
       request: CreateDatasetRequest
       response: commons.Dataset
+    getRuns:
+      method: GET
+      docs: Get a dataset run and its items
+      path: /datasets/{datasetName}/runs/{runName}
+      path-parameters:
+        datasetName: string
+        runName: string
+      response: commons.DatasetRun
+
 types:
   CreateDatasetRequest:
     properties:

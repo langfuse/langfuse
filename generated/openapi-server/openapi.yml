@@ -207,6 +207,61 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRequest'
+  /api/public/datasets/{datasetName}/runs/{runName}:
+    get:
+      description: Get a dataset run and its items
+      operationId: datasets_getRuns
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetRun'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
   /api/public/events:
     post:
       description: Add an event to the database
@@ -1125,6 +1180,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DatasetItem'
+        runs:
+          type: array
+          items:
+            type: string
       required:
         - id
         - name
@@ -1133,6 +1192,7 @@ components:
         - createdAt
         - updatedAt
         - items
+        - runs
     DatasetItem:
       title: DatasetItem
       type: object
@@ -1187,6 +1247,33 @@ components:
         - observationId
         - createdAt
         - updatedAt
+    DatasetRun:
+      title: DatasetRun
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        datasetId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        datasetRunItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRunItem'
+      required:
+        - id
+        - name
+        - datasetId
+        - createdAt
+        - updatedAt
+        - datasetRunItems
     ObservationLevel:
       title: ObservationLevel
       type: string
