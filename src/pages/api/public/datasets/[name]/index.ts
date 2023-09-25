@@ -65,8 +65,6 @@ export default async function handler(
         },
       });
 
-      console.log("dataset", dataset);
-
       if (!dataset) {
         return res.status(404).json({
           success: false,
