@@ -3,6 +3,265 @@ info:
   title: langfuse
   version: ''
 paths:
+  /api/public/dataset-items:
+    post:
+      description: Create a dataset item
+      operationId: datasetItems_create
+      tags:
+        - DatasetItems
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: &ref_0
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDatasetItemRequest'
+  /api/public/dataset-run-items:
+    post:
+      description: Create a dataset run item
+      operationId: datasetRunItems_create
+      tags:
+        - DatasetRunItems
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetRunItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDatasetRunItemRequest'
+  /api/public/datasets/{datasetName}:
+    get:
+      description: Get a dataset and its items
+      operationId: datasets_get
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+  /api/public/datasets:
+    post:
+      description: Create a dataset
+      operationId: datasets_create
+      tags:
+        - Datasets
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDatasetRequest'
+  /api/public/datasets/{datasetName}/runs/{runName}:
+    get:
+      description: Get a dataset run and its items
+      operationId: datasets_getRuns
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetRun'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
   /api/public/events:
     post:
       description: Add an event to the database
@@ -47,8 +306,7 @@ paths:
             application/json:
               schema:
                 type: string
-      security: &ref_0
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -900,6 +1158,122 @@ components:
         - name
         - value
         - timestamp
+    Dataset:
+      title: Dataset
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/DatasetStatus'
+        projectId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetItem'
+        runs:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - name
+        - status
+        - projectId
+        - createdAt
+        - updatedAt
+        - items
+        - runs
+    DatasetItem:
+      title: DatasetItem
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          $ref: '#/components/schemas/DatasetStatus'
+        input: {}
+        expectedOutput:
+          nullable: true
+        sourceObservationId:
+          type: string
+          nullable: true
+        datasetId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - status
+        - input
+        - datasetId
+        - createdAt
+        - updatedAt
+    DatasetRunItem:
+      title: DatasetRunItem
+      type: object
+      properties:
+        id:
+          type: string
+        datasetRunId:
+          type: string
+        datasetItemId:
+          type: string
+        observationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - datasetRunId
+        - datasetItemId
+        - observationId
+        - createdAt
+        - updatedAt
+    DatasetRun:
+      title: DatasetRun
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        datasetId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        datasetRunItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRunItem'
+      required:
+        - id
+        - name
+        - datasetId
+        - createdAt
+        - updatedAt
+        - datasetRunItems
     ObservationLevel:
       title: ObservationLevel
       type: string
@@ -936,6 +1310,46 @@ components:
         totalTokens:
           type: integer
           nullable: true
+    DatasetStatus:
+      title: DatasetStatus
+      type: string
+      enum:
+        - ACTIVE
+        - ARCHIVED
+    CreateDatasetItemRequest:
+      title: CreateDatasetItemRequest
+      type: object
+      properties:
+        datasetName:
+          type: string
+        input: {}
+        expectedOutput:
+          nullable: true
+      required:
+        - datasetName
+        - input
+    CreateDatasetRunItemRequest:
+      title: CreateDatasetRunItemRequest
+      type: object
+      properties:
+        runName:
+          type: string
+        datasetItemId:
+          type: string
+        observationId:
+          type: string
+      required:
+        - runName
+        - datasetItemId
+        - observationId
+    CreateDatasetRequest:
+      title: CreateDatasetRequest
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
     UpdateGenerationRequest:
       title: UpdateGenerationRequest
       type: object

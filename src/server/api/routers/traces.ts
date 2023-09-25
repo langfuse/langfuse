@@ -269,7 +269,7 @@ export const traceRouter = createTRPCRouter({
             equals: input,
             not: null,
           },
-          Project: {
+          project: {
             members: {
               some: {
                 userId: ctx.session.user.id,

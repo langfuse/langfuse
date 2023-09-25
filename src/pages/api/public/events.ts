@@ -112,7 +112,7 @@ export default async function handler(
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,
         version: version ?? undefined,
-        Project: { connect: { id: authCheck.scope.projectId } },
+        project: { connect: { id: authCheck.scope.projectId } },
       },
       update: {
         type: ObservationType.EVENT,

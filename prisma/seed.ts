@@ -12,7 +12,7 @@ const options = {
 
 const prisma = new PrismaClient();
 
-const TRACE_VOLUME = 1000;
+const TRACE_VOLUME = 100;
 
 async function main() {
   const environment = parseArgs({
@@ -102,6 +102,8 @@ async function main() {
       },
     });
 
+    const generationIds: string[] = [];
+
     for (let i = 0; i < TRACE_VOLUME; i++) {
       // print progress to console with a progress bar that refreshes every 10 iterations
       if (i % 10 === 0) {
@@ -181,7 +183,7 @@ async function main() {
             metadata: {
               user: `user-${i}@langfuse.com`,
             },
-            Project: { connect: { id: trace.projectId } },
+            project: { connect: { id: trace.projectId } },
             traceId: trace.id,
             // if this is the first span or in 50% of cases, add no parent; otherwise randomly select parent from existing spans
             ...(existingSpanIds.length === 0 || Math.random() > 0.5
@@ -216,14 +218,14 @@ async function main() {
           const promptTokens = Math.floor(Math.random() * 1000) + 300;
           const completionTokens = Math.floor(Math.random() * 500) + 100;
 
-          await prisma.observation.create({
+          const generation = await prisma.observation.create({
             data: {
               type: "GENERATION",
               id: `generation-${Math.floor(Math.random() * 1000000000)}`,
               startTime: generationTsStart,
               endTime: generationTsEnd,
               name: `generation-${i}-${j}-${k}`,
-              Project: { connect: { id: trace.projectId } },
+              project: { connect: { id: trace.projectId } },
               input:
                 Math.random() > 0.5
                   ? [
@@ -304,6 +306,25 @@ async function main() {
             },
           });
 
+          await prisma.score.create({
+            data: {
+              name: "quality",
+              value: Math.random() * 2 - 1,
+              observationId: generation.id,
+              traceId: trace.id,
+            },
+          });
+          await prisma.score.create({
+            data: {
+              name: "conciseness",
+              value: Math.random() * 2 - 1,
+              observationId: generation.id,
+              traceId: trace.id,
+            },
+          });
+
+          generationIds.push(generation.id);
+
           for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
             // random start time within span
             const eventTs = new Date(
@@ -324,12 +345,55 @@ async function main() {
                 },
                 parentObservationId: span.id,
                 traceId: trace.id,
-                Project: { connect: { id: trace.projectId } },
+                project: { connect: { id: trace.projectId } },
               },
             });
           }
         }
       }
+    }
+
+    const dataset = await prisma.dataset.create({
+      data: {
+        name: "demo-dataset",
+        projectId: project2.id,
+      },
+    });
+
+    const datasetRun = await prisma.datasetRuns.create({
+      data: {
+        name: "demo-dataset-run",
+        datasetId: dataset.id,
+      },
+    });
+
+    for (let runNumber = 0; runNumber < 10; runNumber++) {
+      //pick randomly from existingSpanIds
+      const sourceObservationId =
+        generationIds[Math.floor(Math.random() * generationIds.length)];
+      const runObservationId =
+        generationIds[Math.floor(Math.random() * generationIds.length)];
+
+      const datasetItem = await prisma.datasetItem.create({
+        data: {
+          datasetId: dataset.id,
+          sourceObservationId:
+            Math.random() > 0.5 ? sourceObservationId : undefined,
+          input: [
+            { role: "user", content: "How can i create a React component?" },
+          ],
+          expectedOutput:
+            "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.",
+        },
+      });
+
+      await prisma.datasetRunItems.create({
+        data: {
+          datasetItemId: datasetItem.id,
+          observationId: runObservationId!,
+          datasetRunId: datasetRun.id,
+        },
+      });
     }
   }
 }

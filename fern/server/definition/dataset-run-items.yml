@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      method: POST
+      docs: Create a dataset run item
+      path: /dataset-run-items
+      request: CreateDatasetRunItemRequest
+      response: commons.DatasetRunItem
+types:
+  CreateDatasetRunItemRequest:
+    properties:
+      runName: string
+      datasetItemId: string
+      observationId: string
