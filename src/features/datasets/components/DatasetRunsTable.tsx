@@ -1,3 +1,4 @@
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { api } from "@/src/utils/api";
@@ -51,17 +52,15 @@ export function DatasetRunsTable(props: {
       header: "Scores (avg)",
       cell: ({ row }) => {
         const scores: RowData["scores"] = row.getValue("scores");
+        console.log(scores);
         return (
-          <div className="flex items-center gap-3">
-            {Object.entries(scores)
-              .sort(([aName], [bName]) => aName.localeCompare(bName))
-              .map(([name, _value]) => (
-                <div key={name}>
-                  <div className="text-xs text-gray-500">{name}</div>
-                  <div className="text-sm">{}</div>
-                </div>
-              ))}
-          </div>
+          <GroupedScoreBadges
+            scores={Object.entries(scores).map(([k, v]) => ({
+              name: k,
+              value: v,
+            }))}
+            variant="headings"
+          />
         );
       },
     },
