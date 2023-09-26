@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
-import { env } from "@/src/env.mjs";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { NewDatasetForm } from "@/src/features/datasets/components/NewDatasetForm";
 
@@ -17,7 +16,6 @@ export const NewDatasetButton = (props: {
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  if (env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES !== "true") return null;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
