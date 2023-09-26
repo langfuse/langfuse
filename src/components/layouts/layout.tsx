@@ -39,10 +39,18 @@ const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
+  const session = useSession();
+
   const projectId = router.query.projectId as string | undefined;
   const navigation = ROUTES.filter(
     ({ pathname }) => projectId || !pathname.includes("[projectId]"),
   )
+    .filter(
+      ({ featureFlag }) =>
+        featureFlag === undefined ||
+        env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES === "true" ||
+        session.data?.user?.featureFlags[featureFlag],
+    )
     .map(({ pathname, ...rest }) => ({
       pathname,
       href: pathname.replace("[projectId]", projectId ?? ""),
@@ -55,8 +63,6 @@ export default function Layout(props: PropsWithChildren) {
     }));
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
-
-  const session = useSession();
 
   const projects = api.projects.all.useQuery(undefined, {
     enabled: session.status === "authenticated",
