@@ -16,7 +16,7 @@ export function JSONView(props: {
           {props.title}
         </div>
       ) : undefined}
-      <div className="flex gap-2 p-3 text-xs">
+      <div className="flex gap-2 whitespace-pre-wrap p-3 text-xs">
         <React18JsonView
           src={props.json}
           theme="github"
