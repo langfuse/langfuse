@@ -17,7 +17,13 @@ export function JSONView(props: {
         </div>
       ) : undefined}
       <div className="flex gap-2 p-3 text-xs">
-        <React18JsonView src={props.json} theme="github" />
+        <React18JsonView
+          src={props.json}
+          theme="github"
+          collapseObjectsAfterLength={20}
+          collapseStringsAfterLength={500}
+          collapsed={3}
+        />
       </div>
     </div>
   );
