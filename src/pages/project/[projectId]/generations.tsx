@@ -93,7 +93,8 @@ export default function Generations() {
 
   const generations = api.generations.all.useQuery({
     ...queryOptions,
-    ...paginationState,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     projectId,
   });
   const totalCount = generations.data?.slice(1)[0]?.totalCount ?? 0;

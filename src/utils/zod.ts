@@ -37,3 +37,14 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
     z.record(jsonSchemaNullable),
   ]),
 );
+
+export const paginationZod = {
+  page: z.preprocess(
+    (x) => (x === "" ? undefined : Number(x)),
+    z.number().default(1),
+  ),
+  limit: z.preprocess(
+    (x) => (x === "" ? undefined : Number(x)),
+    z.number().lte(100).default(50),
+  ),
+};

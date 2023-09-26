@@ -33,7 +33,8 @@ export default function UsersPage() {
 
   const users = api.users.all.useQuery({
     ...queryOptions,
-    ...paginationState,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     projectId,
   });
   const totalCount = users.data?.slice(1)[0]?.totalCount ?? 0;
