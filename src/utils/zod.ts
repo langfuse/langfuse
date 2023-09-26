@@ -38,18 +38,13 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   ]),
 );
 
-export const zodInputStringPipe = (zodPipe: z.ZodTypeAny) =>
-  z
-    .string()
-    .transform((value) => (value === "" ? null : value))
-    .nullable()
-    .refine((value) => value === null || !isNaN(Number(value)), {
-      message: "Invalid Number",
-    })
-    .transform((value) => (value === null ? undefined : Number(value)))
-    .pipe(zodPipe);
-
 export const paginationZod = {
-  page: zodInputStringPipe(z.number().default(1)),
-  limit: zodInputStringPipe(z.number().lte(100).default(50)),
+  page: z.preprocess(
+    (x) => (x === "" ? undefined : Number(x)),
+    z.number().default(1),
+  ),
+  limit: z.preprocess(
+    (x) => (x === "" ? undefined : Number(x)),
+    z.number().lte(100).default(50),
+  ),
 };

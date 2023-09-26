@@ -42,7 +42,8 @@ export default function ScoresTable({
 
   const scores = api.scores.all.useQuery({
     ...queryOptions,
-    ...paginationState,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     userId: userId || null,
     projectId,
   });
