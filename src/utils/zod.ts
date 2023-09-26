@@ -38,58 +38,18 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   ]),
 );
 
-export const paginationZod = {
-  page: z
-    .number()
-    .int()
-    .positive()
-    .default(1)
-    .nullish()
-    .transform((value, ctx): number => {
-      if (value == null) {
-        ctx.addIssue({
-          code: "invalid_type",
-          expected: "number",
-          received: "null",
-        });
-        return z.NEVER;
-      }
-      return value;
-    }),
-  limit: z
-    .number()
-    .int()
-    .positive()
-    .lte(100)
-    .default(50)
-    .nullish()
-    .transform((value, ctx): number => {
-      if (value == null) {
-        ctx.addIssue({
-          code: "invalid_type",
-          expected: "number",
-          received: "null",
-        });
-        return z.NEVER;
-      }
-      return value;
-    }),
-};
+export const zodInputStringPipe = (zodPipe: z.ZodTypeAny) =>
+  z
+    .string()
+    .transform((value) => (value === "" ? null : value))
+    .nullable()
+    .refine((value) => value === null || !isNaN(Number(value)), {
+      message: "Invalid Number",
+    })
+    .transform((value) => (value === null ? undefined : Number(value)))
+    .pipe(zodPipe);
 
-export const pageZod = z
-  .number()
-  .int()
-  .positive()
-  .default(1)
-  .nullish()
-  .transform((value, ctx): number => {
-    if (value == null) {
-      ctx.addIssue({
-        code: "invalid_type",
-        expected: "number",
-        received: "null",
-      });
-      return z.NEVER;
-    }
-    return value;
-  });
+export const paginationZod = {
+  page: zodInputStringPipe(z.number().default(1)),
+  limit: zodInputStringPipe(z.number().lte(100).default(50)),
+};

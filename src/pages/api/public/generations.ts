@@ -327,7 +327,6 @@ export default async function handler(
         authCheck.scope.projectId,
         searchParams,
       );
-
       return res.status(200).json({
         data: generations.map((generation) => {
           const { input, output, ...otherFields } = generation;
