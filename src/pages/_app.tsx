@@ -18,6 +18,9 @@ import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
 
+// Other CSS
+import "react18-json-view/src/style.css";
+
 const setProjectInPosthog = () => {
   // project
   const url = window.location.href;
