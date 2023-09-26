@@ -3,10 +3,10 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { paginationZod } from "@/src/utils/zod";
 
 const GetUsersSchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().lte(100).default(50),
+  ...paginationZod,
 });
 
 export default async function handler(

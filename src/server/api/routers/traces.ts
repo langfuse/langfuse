@@ -9,6 +9,7 @@ import {
 import { Prisma, type Score, type Trace } from "@prisma/client";
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
+import { paginationZod } from "@/src/utils/zod";
 
 const ScoreFilter = z.object({
   name: z.string(),
@@ -27,8 +28,7 @@ const TraceFilterOptions = z.object({
   metadata: z
     .array(z.object({ key: z.string(), value: z.string() }))
     .nullable(),
-  pageIndex: z.number().int().gte(0).nullable().default(0),
-  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
+  ...paginationZod,
 });
 
 export const traceRouter = createTRPCRouter({
@@ -126,8 +126,8 @@ export const traceRouter = createTRPCRouter({
         ${scoreCondition}
         ${joinedMetadataCondition}
       ORDER BY t."timestamp" DESC
-      LIMIT ${input.pageSize ?? 50}
-      OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)};
+      LIMIT ${input.limit}
+      OFFSET ${input.page * input.limit};
     `);
 
       const scores = traces.length
