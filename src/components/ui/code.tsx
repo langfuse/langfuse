@@ -22,7 +22,6 @@ export function JSONView(props: {
           theme="github"
           collapseObjectsAfterLength={20}
           collapseStringsAfterLength={500}
-          collapsed={3}
         />
       </div>
     </div>
