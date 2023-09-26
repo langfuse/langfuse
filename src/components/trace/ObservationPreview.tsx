@@ -97,15 +97,25 @@ export const ObservationPreview = (props: {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <JSONView
+          key={observation.id + "-input"}
           title={observation.type === "GENERATION" ? "Prompt" : "Input"}
           json={observation.input}
         />
         <JSONView
+          key={observation.id + "-output"}
           title={observation.type === "GENERATION" ? "Completion" : "Output"}
           json={observation.output}
         />
-        <JSONView title="Status Message" json={observation.statusMessage} />
-        <JSONView title="Metadata" json={observation.metadata} />
+        <JSONView
+          key={observation.id + "-status"}
+          title="Status Message"
+          json={observation.statusMessage}
+        />
+        <JSONView
+          key={observation.id + "-metadata"}
+          title="Metadata"
+          json={observation.metadata}
+        />
         {props.scores.find((s) => s.observationId === observation.id) ? (
           <div className="flex flex-col gap-2">
             <h3>Scores</h3>
