@@ -5,6 +5,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
+import { paginationZod } from "@/src/utils/zod";
 
 const ScoreCreateSchema = z.object({
   id: z.string().nullish(),
@@ -17,8 +18,7 @@ const ScoreCreateSchema = z.object({
 });
 
 const ScoresGetSchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().lte(100).default(50),
+  ...paginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
 });

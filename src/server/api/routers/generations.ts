@@ -7,6 +7,7 @@ import {
 } from "@/src/server/api/trpc";
 import { type Generation } from "@/src/utils/types";
 import { type Observation, Prisma } from "@prisma/client";
+import { paginationZod } from "@/src/utils/zod";
 
 const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
 export type ExportFileFormats = (typeof exportFileFormats)[number];
@@ -65,8 +66,7 @@ const generationsFilterPrismaCondition = (
 };
 
 const ListInputs = GenerationFilterOptions.extend({
-  pageIndex: z.number().int().gte(0).nullable().default(0),
-  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
+  ...paginationZod,
 });
 
 // extend generationfilteroptions with export options
@@ -112,8 +112,8 @@ export const generationsRouter = createTRPCRouter({
             AND t.project_id = ${input.projectId}
             ${generationsFilterPrismaCondition(input)}
           ORDER BY o.start_time DESC
-          LIMIT ${input.pageSize ?? 50}
-          OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)}
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.page}
         `,
       );
 

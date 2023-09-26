@@ -14,10 +14,10 @@ import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
+import { paginationZod } from "@/src/utils/zod";
 
 const GenerationsGetSchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().lte(100).default(50),
+  ...paginationZod,
   name: z.string().nullish(),
   userId: z.string().nullish(),
 });
@@ -319,7 +319,8 @@ export default async function handler(
         });
       }
 
-      const searchParams = GenerationsGetSchema.parse(req.query);
+      const searchParams: z.output<typeof GenerationsGetSchema> =
+        GenerationsGetSchema.parse(req.query);
 
       const [generations, totalGenerations] = await getGenerations(
         prisma,

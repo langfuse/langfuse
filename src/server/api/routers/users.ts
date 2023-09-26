@@ -5,14 +5,14 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Score } from "@prisma/client";
+import { paginationZod } from "@/src/utils/zod";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
 });
 
 const UserAllOptions = UserFilterOptions.extend({
-  pageIndex: z.number().int().gte(0).nullable().default(0),
-  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
+  ...paginationZod,
 });
 
 export const userRouter = createTRPCRouter({
@@ -53,8 +53,8 @@ export const userRouter = createTRPCRouter({
         AND o.project_id = ${input.projectId}
         GROUP BY 1
         ORDER BY "totalTokens" DESC
-        LIMIT ${input.pageSize ?? 50}
-        OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)}
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
       `;
 
       if (users.length === 0) {

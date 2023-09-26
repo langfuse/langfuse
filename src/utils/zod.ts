@@ -37,3 +37,59 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
     z.record(jsonSchemaNullable),
   ]),
 );
+
+export const paginationZod = {
+  page: z
+    .number()
+    .int()
+    .positive()
+    .default(1)
+    .nullish()
+    .transform((value, ctx): number => {
+      if (value == null) {
+        ctx.addIssue({
+          code: "invalid_type",
+          expected: "number",
+          received: "null",
+        });
+        return z.NEVER;
+      }
+      return value;
+    }),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .lte(100)
+    .default(50)
+    .nullish()
+    .transform((value, ctx): number => {
+      if (value == null) {
+        ctx.addIssue({
+          code: "invalid_type",
+          expected: "number",
+          received: "null",
+        });
+        return z.NEVER;
+      }
+      return value;
+    }),
+};
+
+export const pageZod = z
+  .number()
+  .int()
+  .positive()
+  .default(1)
+  .nullish()
+  .transform((value, ctx): number => {
+    if (value == null) {
+      ctx.addIssue({
+        code: "invalid_type",
+        expected: "number",
+        received: "null",
+      });
+      return z.NEVER;
+    }
+    return value;
+  });

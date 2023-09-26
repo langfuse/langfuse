@@ -4,10 +4,10 @@ import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
 import { Prisma } from "@prisma/client";
+import { paginationZod } from "@/src/utils/zod";
 
 const GetUsageSchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().lte(100).default(50),
+  ...paginationZod,
   group_by: z.enum(["trace_name"]).nullish(),
   trace_name: z.string().nullish(),
 });

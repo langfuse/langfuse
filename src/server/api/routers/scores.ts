@@ -7,6 +7,7 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Prisma, type Score } from "@prisma/client";
+import { paginationZod } from "@/src/utils/zod";
 
 const ScoreFilterOptions = z.object({
   traceId: z.array(z.string()).nullable(),
@@ -25,8 +26,7 @@ const scoresFilterPrismaCondition = (
 };
 
 const ScoreAllOptions = ScoreFilterOptions.extend({
-  pageIndex: z.number().int().gte(0).nullable().default(0),
-  pageSize: z.number().int().gte(0).lte(100).nullable().default(50),
+  ...paginationZod,
 });
 
 export const scoresRouter = createTRPCRouter({
@@ -51,8 +51,8 @@ export const scoresRouter = createTRPCRouter({
           WHERE t.project_id = ${input.projectId}
           ${scoresFilterPrismaCondition(input)}
           ORDER BY s.timestamp DESC
-          LIMIT ${input.pageSize ?? 50}
-          OFFSET ${(input.pageIndex ?? 0) * (input.pageSize ?? 50)}
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.page}
       `);
       return scores;
     }),
