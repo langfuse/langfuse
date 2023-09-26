@@ -319,8 +319,7 @@ export default async function handler(
         });
       }
 
-      const searchParams: z.output<typeof GenerationsGetSchema> =
-        GenerationsGetSchema.parse(req.query);
+      const searchParams = GenerationsGetSchema.parse(req.query);
 
       const [generations, totalGenerations] = await getGenerations(
         prisma,
