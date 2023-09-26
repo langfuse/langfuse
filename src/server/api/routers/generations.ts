@@ -113,7 +113,7 @@ export const generationsRouter = createTRPCRouter({
             ${generationsFilterPrismaCondition(input)}
           ORDER BY o.start_time DESC
           LIMIT ${input.limit}
-          OFFSET ${input.page * input.page}
+          OFFSET ${input.page * input.limit}
         `,
       );
 

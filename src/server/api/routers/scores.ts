@@ -52,7 +52,7 @@ export const scoresRouter = createTRPCRouter({
           ${scoresFilterPrismaCondition(input)}
           ORDER BY s.timestamp DESC
           LIMIT ${input.limit}
-          OFFSET ${input.page * input.page}
+          OFFSET ${input.page * input.limit}
       `);
       return scores;
     }),
