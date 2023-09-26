@@ -49,7 +49,6 @@ export function ManualScoreButton({
     projectId,
     scope: "scores:CUD",
   });
-  console.log(hasAccess);
   const score = scores.find(
     (s) =>
       s.name === SCORE_NAME &&

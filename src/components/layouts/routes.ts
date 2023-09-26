@@ -1,4 +1,4 @@
-import { env } from "@/src/env.mjs";
+import { type Flag } from "@/src/features/featureFlags/types";
 import {
   Database,
   FlaskConical,
@@ -6,12 +6,18 @@ import {
   LifeBuoy,
   LineChart,
   ListTree,
+  type LucideIcon,
   Settings,
   TextSelect,
   UsersIcon,
 } from "lucide-react";
 
-export const ROUTES = [
+export const ROUTES: Array<{
+  name: string;
+  pathname: string;
+  icon: LucideIcon;
+  featureFlag?: Flag;
+}> = [
   {
     name: "Dashboard",
     pathname: `/project/[projectId]`,
@@ -42,15 +48,12 @@ export const ROUTES = [
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
   },
-  ...(env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES === "true"
-    ? [
-        {
-          name: "Datasets",
-          pathname: `/project/[projectId]/datasets`,
-          icon: Database,
-        },
-      ]
-    : []),
+  {
+    name: "Datasets",
+    pathname: `/project/[projectId]/datasets`,
+    icon: Database,
+    featureFlag: "datasets",
+  },
   {
     name: "Settings",
     pathname: "/project/[projectId]/settings",

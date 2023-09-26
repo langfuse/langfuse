@@ -1,1 +1,1 @@
-export const availableFlags = ["analytics-alpha"] as const;
+export const availableFlags = ["datasets"] as const;
