@@ -1,4 +1,4 @@
-import { availableFlags } from "./availableFlags";
+import { availableFlags } from "./available-flags";
 import { type Flags } from "./types";
 
 export const parseFlags = (dbFlags: string[]): Flags => {

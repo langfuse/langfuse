@@ -1,7 +1,7 @@
 import {
   hashSecretKey,
   getDisplaySecretKey,
-} from "@/src/features/publicApi/lib/apiKeys";
+} from "@/src/features/public-api/lib/apiKeys";
 import { prisma } from "@/src/server/db";
 import { hash } from "bcryptjs";
 

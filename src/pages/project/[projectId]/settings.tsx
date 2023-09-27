@@ -2,7 +2,7 @@ import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { CommandLineIcon, RocketLaunchIcon } from "@heroicons/react/24/outline";
 import { SiPython } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
-import { ApiKeyList } from "@/src/features/publicApi/components/ApiKeyList";
+import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import { useRouter } from "next/router";
 import { Code, Bird, GraduationCap } from "lucide-react";
 import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";

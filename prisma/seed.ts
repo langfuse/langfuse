@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   hashSecretKey,
   getDisplaySecretKey,
-} from "@/src/features/publicApi/lib/apiKeys";
+} from "@/src/features/public-api/lib/apiKeys";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 

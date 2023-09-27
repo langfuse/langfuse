@@ -4,7 +4,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import {
   dateTimeAggregationOptions,
   type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseriesAggregation";
+} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import {
   ChartScores,
   ChartTraces,
