@@ -104,7 +104,9 @@ export const traceRouter = createTRPCRouter({
           sum(completion_tokens) AS "completionTokens",
           sum(total_tokens) AS "totalTokens"
         FROM "observations"
-        WHERE "trace_id" IS NOT NULL AND "project_id" = ${input.projectId}
+        WHERE "trace_id" IS NOT NULL AND "type" = 'GENERATION' AND "project_id" = ${
+          input.projectId
+        }
         GROUP BY trace_id
       )
       SELECT

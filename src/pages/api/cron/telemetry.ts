@@ -57,6 +57,46 @@ export default async function handler(
       },
     });
 
+    // Count datasets
+    const countDatasets = await prisma.dataset.count({
+      where: {
+        createdAt: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+    });
+
+    // Count dataset items
+    const countDatasetItems = await prisma.datasetItem.count({
+      where: {
+        createdAt: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+    });
+
+    // Count dataset runs
+    const countDatasetRuns = await prisma.datasetRuns.count({
+      where: {
+        createdAt: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+    });
+
+    // Count dataset run items
+    const countDatasetRunItems = await prisma.datasetRunItems.count({
+      where: {
+        createdAt: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+    });
+
     posthog.identify({
       distinctId: "docker:" + clientId,
       properties: {
@@ -72,6 +112,10 @@ export default async function handler(
         traces: countTraces,
         scores: countScores,
         observations: countObservations,
+        datasets: countDatasets,
+        datasetItems: countDatasetItems,
+        datasetRuns: countDatasetRuns,
+        datasetRunItems: countDatasetRunItems,
         startTimeframe: startTimeframe?.toISOString(),
         endTimeframe: endTimeframe.toISOString(),
       },

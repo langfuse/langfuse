@@ -37,7 +37,13 @@ export default function Dataset() {
 
       <DatasetRunsTable projectId={projectId} datasetId={datasetId} />
 
-      <p className="mt-3 text-xs text-gray-600">Add new run via Python SDK</p>
+      <p className="mt-3 text-xs text-gray-600">
+        Add new runs via Python or JS/TS SDKs. See{" "}
+        <a href="https://langfuse.com/docs/datasets" className="underline">
+          documentation
+        </a>{" "}
+        for details.
+      </p>
     </div>
   );
 }

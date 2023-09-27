@@ -103,6 +103,103 @@ export default async function handler(
       });
     });
 
+    // datasets
+    const datasetCountPerProject = await prisma.dataset.groupBy({
+      by: ["projectId"],
+      where: {
+        createdAt: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
+    datasetCountPerProject.forEach((value) => {
+      posthog.capture({
+        event: "ingestion_metrics",
+        distinctId: posthog_event_user_id,
+        groups: {
+          project: value.projectId,
+        },
+        properties: {
+          datasets: value._count.id,
+        },
+      });
+    });
+
+    const datasetItemsPerProject = await prisma.$queryRaw<
+      Array<{
+        project_id: string;
+        count_dataset_items: number;
+      }>
+    >`
+      SELECT
+        datasets.project_id project_id,
+        count(DISTINCT item.id)::integer count_dataset_items
+      FROM
+        dataset_items item
+        JOIN datasets ON datasets.id = item.dataset_id
+      WHERE
+        item.created_at < ${endTimeframe}
+        ${
+          startTimeframe
+            ? Prisma.sql`AND item.created_at >= ${startTimeframe}`
+            : Prisma.empty
+        }
+      GROUP BY
+        1
+    `;
+    datasetItemsPerProject.forEach((value) => {
+      posthog.capture({
+        event: "ingestion_metrics",
+        distinctId: posthog_event_user_id,
+        groups: {
+          project: value.project_id,
+        },
+        properties: {
+          dataset_items: value.count_dataset_items,
+        },
+      });
+    });
+
+    const datasetRunItemsPerProject = await prisma.$queryRaw<
+      Array<{
+        project_id: string;
+        count_dataset_run_items: number;
+      }>
+    >`
+      SELECT
+        datasets.project_id project_id,
+        count(DISTINCT run_item.id)::integer count_dataset_run_items
+      FROM
+        dataset_run_items run_item
+        JOIN dataset_runs run ON run.id = run_item.dataset_run_id
+        JOIN datasets ON datasets.id = run.dataset_id
+      WHERE
+        run_item.created_at < ${endTimeframe}
+          ${
+            startTimeframe
+              ? Prisma.sql`AND run_item.created_at >= ${startTimeframe}`
+              : Prisma.empty
+          }
+      GROUP BY
+        1
+    `;
+    datasetRunItemsPerProject.forEach((value) => {
+      posthog.capture({
+        event: "ingestion_metrics",
+        distinctId: posthog_event_user_id,
+        groups: {
+          project: value.project_id,
+        },
+        properties: {
+          dataset_run_items: value.count_dataset_run_items,
+        },
+      });
+    });
+
     // scores
     const scoreCountPerProject = await prisma.$queryRaw<
       Array<{
@@ -194,6 +291,9 @@ export default async function handler(
         "#projects with observations": observationCountPerProject.length,
         "#projects with scores": scoreCountPerProject.length,
         "#projects (new/updated)": projects.length,
+        "#projects with datasets": datasetCountPerProject.length,
+        "#projects with dataset items": datasetItemsPerProject.length,
+        "#projects with dataset run items": datasetRunItemsPerProject.length,
         "db size in MB": dbSize[0]?.size_in_mb,
       },
     );
