@@ -1,8 +1,8 @@
 import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 
 const DatasetRunsGetSchema = z.object({
   name: z.string(),

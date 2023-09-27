@@ -1,5 +1,5 @@
-import { verifySecretKey } from "@/src/features/publicApi/lib/apiKeys";
-import { type ApiAccessScope } from "@/src/features/publicApi/server/types";
+import { verifySecretKey } from "@/src/features/public-api/lib/apiKeys";
+import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 
 type AuthHeaderVerificationResult =

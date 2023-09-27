@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { Loader } from "lucide-react";
 import { useState } from "react";
 import {

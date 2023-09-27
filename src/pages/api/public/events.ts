@@ -2,8 +2,8 @@ import { prisma } from "@/src/server/db";
 import { ObservationLevel, ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 
 const ObservationSchema = z.object({

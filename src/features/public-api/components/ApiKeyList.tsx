@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { CreateApiKeyButton } from "@/src/features/publicApi/components/CreateApiKeyButton";
+import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";

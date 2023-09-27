@@ -1,4 +1,4 @@
-import { generateKeySet } from "@/src/features/publicApi/lib/apiKeys";
+import { generateKeySet } from "@/src/features/public-api/lib/apiKeys";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,

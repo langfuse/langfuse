@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { ManualScoreButton } from "@/src/features/manualScoring/components";
+import { ManualScoreButton } from "@/src/features/manual-scoring/components";
 import { Badge } from "@/src/components/ui/badge";
 
 export const TracePreview = ({

@@ -19,7 +19,7 @@ import {
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { type Prisma } from "@prisma/client";
-import { FeatureFlagToggle } from "@/src/features/featureFlags/components/FeatureFlagToggle";
+import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 
 export const NewDatasetItemFromObservationButton = (props: {
   projectId: string;

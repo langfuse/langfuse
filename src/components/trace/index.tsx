@@ -9,7 +9,7 @@ import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import Decimal from "decimal.js";
 import { type RouterOutput } from "@/src/utils/types";
 import { StringParam, useQueryParam } from "use-query-params";
-import { PublishTraceSwitch } from "@/src/features/publicTraces/components/PublishTraceSwitch";
+import { PublishTraceSwitch } from "@/src/features/public-traces/components/PublishTraceSwitch";
 
 export function Trace(props: {
   observations: Array<Observation & { traceId: string }>;

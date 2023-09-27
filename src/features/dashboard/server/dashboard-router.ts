@@ -1,7 +1,7 @@
 import {
   dateTimeAggregationOptions,
   dateTimeAggregationSettings,
-} from "@/src/features/dashboard/lib/timeseriesAggregation";
+} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { z } from "zod";
 
 import {
