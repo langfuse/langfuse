@@ -291,6 +291,9 @@ export default async function handler(
         "#projects with observations": observationCountPerProject.length,
         "#projects with scores": scoreCountPerProject.length,
         "#projects (new/updated)": projects.length,
+        "#projects with datasets": datasetCountPerProject.length,
+        "#projects with dataset items": datasetItemsPerProject.length,
+        "#projects with dataset run items": datasetRunItemsPerProject.length,
         "db size in MB": dbSize[0]?.size_in_mb,
       },
     );
