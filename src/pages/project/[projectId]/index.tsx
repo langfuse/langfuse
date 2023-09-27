@@ -11,11 +11,19 @@ import {
   ChartUsage,
 } from "@/src/features/dashboard/components/charts";
 import { useRouter } from "next/router";
+import { api } from "@/src/utils/api";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const a = api.dashboard.chart.useQuery({
+    metric: "tokens:total",
+    agg: "1 month",
+    projectId: projectId ?? "",
+  });
+
+  console.log(a);
 
   return (
     <>

@@ -10,6 +10,40 @@ import {
 } from "@/src/server/api/trpc";
 
 export const dashboardRouter = createTRPCRouter({
+  chart: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        metric: z.enum(["tokens:total", "tokens:prompt", "tokens:completion"]),
+        agg: z.enum(dateTimeAggregationOptions),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const output = await ctx.prisma.$queryRawUnsafe<
+        {
+          date_trunc: Date;
+          values: {
+            [key: string]: number;
+          };
+        }[]
+      >(`
+    WITH timeseries AS (
+      SELECT
+        date_trunc('${
+          dateTimeAggregationSettings[input.agg].date_trunc
+        }', dt) as date_trunc,
+        0 as value
+      FROM generate_series(
+        NOW() - INTERVAL '${input.agg}', NOW(), INTERVAL '1 minute'
+      ) as dt
+      WHERE dt > NOW() - INTERVAL '${input.agg}'
+      GROUP BY 1
+    )
+    select * from timeseries`);
+
+      console.log(input, output);
+    }),
+
   generations: protectedProjectProcedure
     .input(
       z.object({
