@@ -391,6 +391,7 @@ const getGenerations = async (
       AND o."type" = 'GENERATION'
       ${nameCondition}
       ${userIdCondition}
+      ORDER by o."start_time" DESC
       OFFSET ${(query.page - 1) * query.limit}
       LIMIT ${query.limit}
     `,
