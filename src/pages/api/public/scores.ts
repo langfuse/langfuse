@@ -2,9 +2,9 @@ import { prisma } from "@/src/server/db";
 import { Prisma, type Score } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { cors, runMiddleware } from "@/src/features/publicApi/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/publicApi/server/apiAuth";
-import { checkApiAccessScope } from "@/src/features/publicApi/server/apiScope";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { paginationZod } from "@/src/utils/zod";
 
 const ScoreCreateSchema = z.object({

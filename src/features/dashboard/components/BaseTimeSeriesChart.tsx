@@ -1,4 +1,4 @@
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseriesAggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { numberFormatter } from "@/src/utils/numbers";
 import { AreaChart } from "@tremor/react";
 

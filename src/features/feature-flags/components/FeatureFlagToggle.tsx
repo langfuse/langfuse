@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { type Flag } from "@/src/features/featureFlags/types";
+import { type Flag } from "@/src/features/feature-flags/types";
 import { useSession } from "next-auth/react";
 
 export const FeatureFlagToggle = (props: {

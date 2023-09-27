@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { ManualScoreButton } from "@/src/features/manualScoring/components";
+import { ManualScoreButton } from "@/src/features/manual-scoring/components";
 import type Decimal from "decimal.js";
 import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 

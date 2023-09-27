@@ -1,4 +1,4 @@
-import { type availableFlags } from "./availableFlags";
+import { type availableFlags } from "./available-flags";
 
 export type Flag = (typeof availableFlags)[number];
 export type Flags = {

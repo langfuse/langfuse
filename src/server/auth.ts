@@ -9,7 +9,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/src/server/db";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
-import { parseFlags } from "@/src/features/featureFlags/utils";
+import { parseFlags } from "@/src/features/feature-flags/utils";
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
