@@ -137,7 +137,7 @@ export default async function handler(
     >`
       SELECT
         datasets.project_id project_id,
-        count(DISTINCT item.id) count_dataset_items
+        count(DISTINCT item.id)::integer count_dataset_items
       FROM
         dataset_items item
         JOIN datasets ON datasets.id = item.dataset_id
@@ -172,7 +172,7 @@ export default async function handler(
     >`
       SELECT
         datasets.project_id project_id,
-        count(DISTINCT run_item.id) count_dataset_run_items
+        count(DISTINCT run_item.id)::integer count_dataset_run_items
       FROM
         dataset_run_items run_item
         JOIN dataset_runs run ON run.id = run_item.dataset_run_id
