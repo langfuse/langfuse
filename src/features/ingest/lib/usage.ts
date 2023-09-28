@@ -24,7 +24,13 @@ export function tokenCount(p: {
   model: string;
   text: unknown;
 }): number | undefined {
-  if (isOpenAiModel(p.model)) {
+  if (
+    p.text === null ||
+    p.text === undefined ||
+    (Array.isArray(p.text) && p.text.length === 0)
+  ) {
+    return undefined;
+  } else if (isOpenAiModel(p.model)) {
     return isChatMessageArray(p.text)
       ? openAiChatTokenCount({
           model: p.model,
