@@ -33,7 +33,8 @@ describe("Token Count Functions", () => {
   describe("token count for chat messages", () => {
     [
       { model: "gpt-4", tokens: 44 },
-      { model: "gpt-3.5-turbo-16k-0613", tokens: 47 },
+      { model: "gpt-3.5-turbo-16k-0613", tokens: 44 },
+      { model: "claude-instant-1.2", tokens: 48 },
     ].forEach(({ model, tokens }) => {
       it(`should return token count ${tokens} for ${model}`, () => {
         const result = tokenCount({
@@ -48,7 +49,7 @@ describe("Token Count Functions", () => {
           ],
         });
         expect(result).toBeDefined();
-        expect(result).toBe(44);
+        expect(result).toBe(tokens);
       });
     });
 

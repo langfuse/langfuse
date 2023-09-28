@@ -9,30 +9,6 @@ import { countTokens } from "@anthropic-ai/tokenizer";
 import { type Pricing } from "@prisma/client";
 import { Decimal } from "decimal.js";
 
-export function tokenCount(p: {
-  model: string;
-  text: unknown;
-}): number | undefined {
-  if (isString(p.text)) {
-    return stringTokenCount({ model: p.model, text: p.text });
-  } else if (isChatMessageArray(p.text)) {
-    console.log("isChatMessageArray");
-    if (!isValidModel(p.model)) {
-      console.log(`Unknown model ${p.model} for chat model`);
-      return undefined;
-    }
-    return numTokensFromMessages({
-      model: p.model,
-      messages: p.text,
-    });
-  } else {
-    console.log(
-      "It is neither a string nor a ChatMessage array, converting into string",
-    );
-    return stringTokenCount({ model: p.model, text: JSON.stringify(p.text) });
-  }
-}
-
 type ChatMessage = {
   role: string;
   name?: string;
@@ -44,7 +20,36 @@ type TokenCalculationParams = {
   model: TiktokenModel;
 };
 
-function numTokensFromMessages(params: TokenCalculationParams) {
+export function tokenCount(p: {
+  model: string;
+  text: unknown;
+}): number | undefined {
+  if (isOpenAiModel(p.model)) {
+    return isChatMessageArray(p.text)
+      ? openAiChatTokenCount({
+          model: p.model,
+          messages: p.text,
+        })
+      : isString(p.text)
+      ? openAiStringTokenCount({ model: p.model, text: p.text })
+      : openAiStringTokenCount({
+          model: p.model,
+          text: JSON.stringify(p.text),
+        });
+  } else if (isClaudeModel(p.model)) {
+    return isString(p.text)
+      ? claudeStringTokenCount({ model: p.model, text: p.text })
+      : claudeStringTokenCount({
+          model: p.model,
+          text: JSON.stringify(p.text),
+        });
+  } else {
+    console.log("Unknown model provider", p.model);
+    return undefined;
+  }
+}
+
+function openAiChatTokenCount(params: TokenCalculationParams) {
   let encoding: Tiktoken;
   try {
     encoding = encoding_for_model(params.model);
@@ -70,10 +75,13 @@ function numTokensFromMessages(params: TokenCalculationParams) {
   } else if (params.model === "gpt-3.5-turbo-0301") {
     tokens_per_message = 4; // every message follows <|start|>{role/name}\n{content}<|end|>\n
     tokens_per_name = -1; // if there's a name, the role is omitted
-  } else if (params.model.includes("gpt-3.5-turbo")) {
-    return numTokensFromMessages({ ...params, model: "gpt-3.5-turbo-0613" });
+  } else if (
+    params.model.includes("gpt-3.5-turbo") ||
+    params.model.startsWith("gpt-3.5")
+  ) {
+    return openAiChatTokenCount({ ...params, model: "gpt-3.5-turbo-0613" });
   } else if (params.model.includes("gpt-4")) {
-    return numTokensFromMessages({ ...params, model: "gpt-4-0613" });
+    return openAiChatTokenCount({ ...params, model: "gpt-4-0613" });
   } else {
     console.error(`Not implemented for model ${params.model}`);
     throw new Error(`Not implemented for model ${params.model}`);
@@ -96,22 +104,20 @@ function numTokensFromMessages(params: TokenCalculationParams) {
   return num_tokens;
 }
 
-export function stringTokenCount(p: {
-  model: string;
-  text: string;
-}): number | undefined {
+const openAiStringTokenCount = (p: { model: string; text: string }) => {
   if (p.model.toLowerCase().startsWith("gpt")) {
     return getTokens("cl100k_base", p.text);
   }
   if (p.model.toLowerCase().startsWith("text-davinci")) {
     return getTokens("p50k_base", p.text);
   }
-  if (p.model.toLowerCase().startsWith("claude")) {
-    return countTokens(p.text);
-  }
   console.log("Unknown model", p.model);
   return undefined;
-}
+};
+
+const claudeStringTokenCount = (p: { model: string; text: string }) => {
+  return countTokens(p.text);
+};
 
 const getTokens = (name: TiktokenEncoding, text: string) => {
   const encoding = get_encoding(name);
@@ -124,7 +130,11 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function isValidModel(model: string): model is TiktokenModel {
+function isClaudeModel(model: string) {
+  return model.toLowerCase().startsWith("claude");
+}
+
+function isOpenAiModel(model: string): model is TiktokenModel {
   return (
     [
       "text-davinci-003",
@@ -163,6 +173,7 @@ function isValidModel(model: string): model is TiktokenModel {
       "gpt-4-32k",
       "gpt-4-32k-0314",
       "gpt-4-32k-0613",
+      "gpt-3.5",
       "gpt-3.5-turbo",
       "gpt-3.5-turbo-0301",
       "gpt-3.5-turbo-0613",
