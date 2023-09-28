@@ -24,6 +24,7 @@ export const env = createEnv({
       // VERCEL_URL doesn't include `https` so it can't be validated as a URL
       process.env.VERCEL ? z.string().min(1) : z.string().url(),
     ),
+    LANGFUSE_TEAM_SLACK_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
   },
 
@@ -58,5 +59,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
   },
 });
