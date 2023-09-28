@@ -18,8 +18,10 @@ import type * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { usePostHog } from "posthog-js/react";
 
 export default function SignIn() {
+  const posthog = usePostHog();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
@@ -27,12 +29,20 @@ export default function SignIn() {
       name: "",
       email: "",
       password: "",
+      referralSource: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof signupSchema>) {
     try {
       setFormError(null);
+      if (values.referralSource !== "") {
+        posthog.capture("survey sent", {
+          $survey_id: "018ade05-4d8c-0000-36b7-fc390b221590",
+          $survey_name: "Referral source",
+          $survey_response: values.referralSource,
+        });
+      }
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,6 +135,24 @@ export default function SignIn() {
                     </FormItem>
                   )}
                 />
+                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+                  <FormField
+                    control={form.control}
+                    name="referralSource"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Where did you hear about us?{" "}
+                          <span className="font-normal">(optional)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="referralSource" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
                 <Button
                   type="submit"
                   className="w-full"
