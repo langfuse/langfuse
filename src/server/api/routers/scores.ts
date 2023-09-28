@@ -33,8 +33,6 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
-      console.log("input", input);
-
       const userIdCondition = input.userId
         ? Prisma.sql`AND t.user_id = ${input.userId}`
         : Prisma.empty;
