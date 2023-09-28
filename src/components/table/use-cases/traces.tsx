@@ -309,8 +309,13 @@ export default function TracesTable({
         data: convertToOptions(options.data),
       };
 
-  const isFiltered = () =>
-    Object.entries(queryOptions).filter(([_k, v]) => v !== null).length > 0;
+  const isFiltered = () => {
+    return (
+      Object.entries(queryOptions).filter(
+        ([k, v]) => v !== null && !omittedFilter.find((f) => f === k),
+      ).length > 0
+    );
+  };
 
   const resetFilters = () => {
     setQueryOptions({
