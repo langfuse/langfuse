@@ -33,6 +33,10 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      const userIdCondition = input.userId
+        ? Prisma.sql`AND t.user_id = ${input.userId}`
+        : Prisma.empty;
+
       const scores = await ctx.prisma.$queryRaw<
         Array<Score & { traceName: string; totalCount: number }>
       >(Prisma.sql`
@@ -49,6 +53,7 @@ export const scoresRouter = createTRPCRouter({
           FROM scores s
           JOIN traces t ON t.id = s.trace_id
           WHERE t.project_id = ${input.projectId}
+          ${userIdCondition}
           ${scoresFilterPrismaCondition(input)}
           ORDER BY s.timestamp DESC
           LIMIT ${input.limit}
