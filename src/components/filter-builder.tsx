@@ -56,8 +56,24 @@ export function FilterBuilder<T extends Columns>({
   filterState,
   onChange,
 }: FilterBuilderProps<T>) {
+  const addNewFilter = () => {
+    onChange((prev) => [
+      ...prev,
+      { column: null, operator: null, value: null },
+    ]);
+  };
+  const removeUnfilledFilters = () => {
+    onChange((prev) => prev.filter((f) => isValidFilter(f)));
+  };
   return (
-    <Popover>
+    <Popover
+      onOpenChange={(open) => {
+        // Create empty filter when opening popover
+        if (open && filterState.length === 0) addNewFilter();
+        // Remove filters that are not fully filled out when closing popover
+        if (!open) removeUnfilledFilters();
+      }}
+    >
       <PopoverTrigger asChild>
         <Button variant="outline">
           <Filter className="mr-3 h-4 w-4" />
