@@ -310,9 +310,11 @@ export default function TracesTable({
       };
 
   const isFiltered = () => {
-    Object.entries(queryOptions).filter(
-      ([k, v]) => v !== null && !omittedFilter.find((f) => f === k),
-    ).length > 0;
+    return (
+      Object.entries(queryOptions).filter(
+        ([k, v]) => v !== null && !omittedFilter.find((f) => f === k),
+      ).length > 0
+    );
   };
 
   const resetFilters = () => {
