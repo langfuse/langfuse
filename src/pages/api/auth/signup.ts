@@ -23,6 +23,31 @@ export default async function handler(
 
   const body = validBody.data;
 
+  // Track referral source
+  if (
+    env.LANGFUSE_TEAM_SLACK_WEBHOOK &&
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+    body.referralSource &&
+    body.referralSource !== ""
+  ) {
+    await fetch(env.LANGFUSE_TEAM_SLACK_WEBHOOK, {
+      method: "POST",
+      body: JSON.stringify({
+        rawBody: JSON.stringify(
+          {
+            email: body.email,
+            referralSource: body.referralSource,
+          },
+          null,
+          2,
+        ),
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  }
+
   // create the user
   try {
     await createUserEmailPassword(body.email, body.password, body.name);

@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { runFeedbackCorsMiddleware } from "@/src/features/feedback/server/corsMiddleware";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -9,10 +10,10 @@ export default async function feedbackApiHandler(
   await runFeedbackCorsMiddleware(req, res);
 
   try {
-    if (!process.env.SLACK_WEBHOOK_FEEDBACK_URL)
-      throw new Error("SLACK_WEBHOOK_FEEDBACK_URL is not set");
+    if (!env.LANGFUSE_TEAM_SLACK_WEBHOOK)
+      throw new Error("LANGFUSE_TEAM_SLACK_WEBHOOK is not set");
 
-    const slackResponse = await fetch(process.env.SLACK_WEBHOOK_FEEDBACK_URL, {
+    const slackResponse = await fetch(env.LANGFUSE_TEAM_SLACK_WEBHOOK, {
       method: "POST",
       body: JSON.stringify({ rawBody: JSON.stringify(req.body, null, 2) }),
       headers: {

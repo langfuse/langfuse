@@ -27,6 +27,7 @@ export default function SignIn() {
       name: "",
       email: "",
       password: "",
+      referralSource: "",
     },
   });
 
@@ -125,6 +126,24 @@ export default function SignIn() {
                     </FormItem>
                   )}
                 />
+                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+                  <FormField
+                    control={form.control}
+                    name="referralSource"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Where did you hear about us?{" "}
+                          <span className="font-normal">(optional)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="referralSource" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
                 <Button
                   type="submit"
                   className="w-full"
