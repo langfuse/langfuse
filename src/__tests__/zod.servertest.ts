@@ -1,4 +1,5 @@
 import { paginationZod } from "@/src/utils/zod";
+import { ZodError } from "zod";
 
 // Create test cases
 describe("Pagination Zod Schema", () => {
@@ -19,7 +20,7 @@ describe("Pagination Zod Schema", () => {
   });
 
   it("should handle invalid input", () => {
-    expect(paginationZod.page.parse("abc")).toThrow();
-    expect(paginationZod.limit.parse("abc")).toThrow();
+    expect(() => paginationZod.page.parse("abc")).toThrowError(ZodError);
+    expect(() => paginationZod.limit.parse("abc")).toThrowError(ZodError);
   });
 });
