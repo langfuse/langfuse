@@ -21,23 +21,13 @@ import {
   type FilterCondition,
   filterOperators,
 } from "@/src/features/filters/types";
+import { isValidFilter } from "@/src/features/filters/lib/utils";
 
 type FilterBuilderProps<cols extends FilterColumns = []> = {
   columns: cols;
   filterState: FilterState<cols>;
   onChange: Dispatch<SetStateAction<FilterState<cols>>>;
 };
-
-function isValidFilter<T extends FilterColumns = []>(
-  filter: FilterCondition<T>,
-) {
-  return (
-    filter.column !== null &&
-    filter.operator !== null &&
-    filter.value !== null &&
-    filter.value !== ""
-  );
-}
 
 export function FilterBuilder<T extends FilterColumns>({
   columns,
