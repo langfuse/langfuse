@@ -14,6 +14,14 @@ const cols = [
     name: "col3",
     type: "datetime",
   },
+  {
+    name: "col4",
+    type: "stringOptions",
+    options: ["option1", "option2", "option3"].map((o, i) => ({
+      value: o,
+      count: i,
+    })),
+  },
 ] as const;
 
 const FilterPage = () => {

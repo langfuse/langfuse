@@ -22,6 +22,7 @@ import {
   filterOperators,
 } from "@/src/features/filters/types";
 import { isValidFilter } from "@/src/features/filters/lib/utils";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 type FilterBuilderProps<cols extends FilterColumns = []> = {
   columns: cols;
@@ -80,7 +81,10 @@ export function FilterBuilder<T extends FilterColumns>({
             : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-fit">
+      <PopoverContent
+        className="w-fit max-w-[90vw] overflow-x-auto"
+        align="start"
+      >
         <FilterBuilderForm
           columns={columns}
           filterState={filterState}
@@ -124,8 +128,7 @@ function FilterBuilderForm<T extends FilterColumns>({
       <table className="table-auto">
         <tbody>
           {filterState.map((filter, i) => {
-            const colDtype = columns.find((c) => c.name === filter.column)
-              ?.type;
+            const colDef = columns.find((c) => c.name === filter.column);
             return (
               <tr key={i}>
                 <td className="p-2">{i === 0 ? "Where" : "And"}</td>
@@ -159,23 +162,27 @@ function FilterBuilderForm<T extends FilterColumns>({
                 <td className="p-2">
                   <Select
                     disabled={!filter.column}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
                       handleFilterChange(
                         {
                           ...filter,
                           operator: value as typeof filter.operator,
+                          // reset value when switching to selection operator
+                          value: ["any of", "none of"].includes(value)
+                            ? ""
+                            : filter.value,
                         },
                         i,
-                      )
-                    }
+                      );
+                    }}
                     value={filter.operator ?? ""}
                   >
                     <SelectTrigger className="min-w-[100px]">
                       <SelectValue placeholder="Operator" />
                     </SelectTrigger>
                     <SelectContent>
-                      {colDtype
-                        ? filterOperators[colDtype].map((option) => (
+                      {colDef?.type
+                        ? filterOperators[colDef.type].map((option) => (
                             <SelectItem key={option} value={option}>
                               {option}
                             </SelectItem>
@@ -185,7 +192,7 @@ function FilterBuilderForm<T extends FilterColumns>({
                   </Select>
                 </td>
                 <td className="p-2">
-                  {colDtype === "datetime" ? (
+                  {colDef?.type === "datetime" ? (
                     <DatePicker
                       className="min-w-[100px]"
                       date={filter.value ? new Date(filter.value) : undefined}
@@ -199,11 +206,29 @@ function FilterBuilderForm<T extends FilterColumns>({
                         );
                       }}
                     />
+                  ) : colDef?.type === "stringOptions" &&
+                    filter.operator &&
+                    ["any of", "none of"].includes(filter.operator) ? (
+                    <MultiSelect
+                      title="Value"
+                      className="min-w-[100px]"
+                      options={colDef.options}
+                      onValueChange={(value) =>
+                        handleFilterChange(
+                          { ...filter, value: JSON.stringify(value) },
+                          i,
+                        )
+                      }
+                      values={
+                        filter.value
+                          ? (JSON.parse(filter.value) as string[])
+                          : []
+                      }
+                    />
                   ) : (
                     <Input
                       disabled={!filter.operator}
                       value={filter.value ?? ""}
-                      className="min-w-[100px]"
                       onChange={(e) =>
                         handleFilterChange(
                           { ...filter, value: e.target.value },

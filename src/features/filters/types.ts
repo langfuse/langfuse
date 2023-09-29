@@ -1,12 +1,25 @@
-type dtype = "string" | "number" | "datetime";
-
-export type FilterColumn = { name: string; type: dtype };
+export type FilterOption = { value: string; count?: number };
+export type FilterColumn =
+  | { name: string; type: "number" | "datetime" | "string" }
+  | {
+      name: string;
+      type: "stringOptions";
+      options: FilterOption[] | readonly FilterOption[];
+    };
 export type FilterColumns = readonly FilterColumn[];
 
 type ColumnNames<C extends FilterColumns> = C[number]["name"];
 
 export const filterOperators = {
   string: ["=", "!=", "starts with", "ends with", "contains", "regex"],
+  stringOptions: [
+    "any of",
+    "none of",
+    "starts with",
+    "ends with",
+    "contains",
+    "regex",
+  ],
   number: ["=", "!=", ">", "<"],
   datetime: [">", "<"],
 } as const;
