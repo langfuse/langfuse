@@ -53,7 +53,6 @@ describe("Build valid SQL queries", () => {
       await prisma.observation.createMany({
         data: [
           {
-            id: "trace-1",
             traceId: "trace-1",
             name: "trace-1",
             projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -61,7 +60,6 @@ describe("Build valid SQL queries", () => {
             completionTokens: 5,
           },
           {
-            id: "trace-2",
             traceId: "trace-1",
             name: "trace-1",
             projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -69,7 +67,6 @@ describe("Build valid SQL queries", () => {
             completionTokens: 3,
           },
           {
-            id: "trace-3",
             traceId: "trace-1",
             name: "trace-2",
             projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -93,21 +90,18 @@ describe("Build valid SQL queries", () => {
 
       if (isArrayOfDatabaseRow(result)) {
         result.map((x, i) => {
-          console.log(
-            x.completion_tokens,
-            typeof x.completion_tokens,
-            x.completion_tokens instanceof Decimal,
-            Decimal.isDecimal(x.completion_tokens),
-          );
-
-          if (i === 0)
+          if (i === 0) {
             expect(x.completion_tokens.toString()).toStrictEqual(
               prop.one.toString(),
             );
-          if (i === 1)
+            expect(x.name).toStrictEqual("trace-1");
+          }
+          if (i === 1) {
             expect(x.completion_tokens.toString()).toStrictEqual(
               prop.two.toString(),
             );
+            expect(x.name).toStrictEqual("trace-2");
+          }
         });
       } else {
         fail("Expected result to be an array of Database Row");
