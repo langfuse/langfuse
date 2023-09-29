@@ -8,41 +8,29 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
-import { type Dispatch, type SetStateAction, useState } from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import { Filter, Plus, Trash } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  type FilterState,
+  type FilterColumns,
+  type FilterCondition,
+  filterOperators,
+} from "@/src/features/filters/types";
 
-type dtype = "string" | "number" | "datetime";
-
-export type Column = { name: string; type: dtype };
-export type Columns = readonly Column[];
-
-type ColumnNames<C extends Columns> = C[number]["name"];
-
-const operators = {
-  string: ["=", "!=", "starts with", "ends with", "contains", "regex"],
-  number: ["=", "!=", ">", "<"],
-  datetime: [">", "<"],
-} as const;
-
-type Filter<cols extends Columns = []> = {
-  column: ColumnNames<cols> | null;
-  operator: (typeof operators)[cols[number]["type"]][number] | null;
-  value: string | null;
-};
-type FilterState<cols extends Columns = []> = Filter<cols>[];
-
-type FilterBuilderProps<cols extends Columns = []> = {
+type FilterBuilderProps<cols extends FilterColumns = []> = {
   columns: cols;
   filterState: FilterState<cols>;
   onChange: Dispatch<SetStateAction<FilterState<cols>>>;
 };
 
-function isValidFilter<T extends Columns = []>(filter: Filter<T>) {
+function isValidFilter<T extends FilterColumns = []>(
+  filter: FilterCondition<T>,
+) {
   return (
     filter.column !== null &&
     filter.operator !== null &&
@@ -51,7 +39,7 @@ function isValidFilter<T extends Columns = []>(filter: Filter<T>) {
   );
 }
 
-export function FilterBuilder<T extends Columns>({
+export function FilterBuilder<T extends FilterColumns>({
   columns,
   filterState,
   onChange,
@@ -113,12 +101,12 @@ export function FilterBuilder<T extends Columns>({
   );
 }
 
-function FilterBuilderForm<T extends Columns>({
+function FilterBuilderForm<T extends FilterColumns>({
   columns,
   filterState,
   onChange,
 }: FilterBuilderProps<T>) {
-  const handleFilterChange = (filter: Filter<T>, i: number) => {
+  const handleFilterChange = (filter: FilterCondition<T>, i: number) => {
     onChange((prev) => {
       const newState = [...prev];
       newState[i] = filter;
@@ -197,7 +185,7 @@ function FilterBuilderForm<T extends Columns>({
                     </SelectTrigger>
                     <SelectContent>
                       {colDtype
-                        ? operators[colDtype].map((option) => (
+                        ? filterOperators[colDtype].map((option) => (
                             <SelectItem key={option} value={option}>
                               {option}
                             </SelectItem>
@@ -257,14 +245,3 @@ function FilterBuilderForm<T extends Columns>({
     </>
   );
 }
-
-// manage state with hook
-export const useFilterState = <cols extends Columns>(
-  columns: cols,
-  initialState: FilterState<cols> = [],
-) => {
-  // TODO: switch to query params
-  const [filterState, setFilterState] = useState(initialState);
-
-  return [filterState, setFilterState] as const;
-};

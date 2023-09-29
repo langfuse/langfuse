@@ -1,4 +1,5 @@
-import { useFilterState, FilterBuilder } from "@/src/components/filter-builder";
+import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { useFilterState } from "@/src/features/filters/hooks/useFilterState";
 
 const cols = [
   {
