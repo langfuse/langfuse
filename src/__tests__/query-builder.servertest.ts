@@ -91,13 +91,13 @@ describe("Build valid SQL queries", () => {
       if (isArrayOfDatabaseRow(result)) {
         result.map((x, i) => {
           if (i === 0) {
-            expect(x.completion_tokens.toString()).toStrictEqual(
+            expect(x.completion_tokens!.toString()).toStrictEqual(
               prop.one.toString(),
             );
             expect(x.name).toStrictEqual("trace-1");
           }
           if (i === 1) {
-            expect(x.completion_tokens.toString()).toStrictEqual(
+            expect(x.completion_tokens!.toString()).toStrictEqual(
               prop.two.toString(),
             );
             expect(x.name).toStrictEqual("trace-2");
@@ -111,8 +111,7 @@ describe("Build valid SQL queries", () => {
 });
 
 type DatabaseRow = {
-  completion_tokens: bigint | number | Decimal;
-  name: string;
+  [key: string]: bigint | number | Decimal | string;
 };
 
 function isDatabaseRow(value: unknown): value is DatabaseRow {
