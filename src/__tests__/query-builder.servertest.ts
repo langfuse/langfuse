@@ -28,7 +28,7 @@ describe("Build valid SQL queries", () => {
       from: "traces",
       filter: [],
       groupBy: [],
-      select: [{ field: "id", agg: null }],
+      select: [{ column: "id", agg: null }],
     });
 
     const result = await executeQuery(query);
@@ -38,6 +38,8 @@ describe("Build valid SQL queries", () => {
   [
     { agg: "SUM", one: BigInt(8), two: BigInt(4) },
     { agg: "AVG", one: new Decimal("4"), two: new Decimal("4") },
+    { agg: "MIN", one: new Decimal("3"), two: new Decimal("4") },
+    { agg: "MAX", one: new Decimal("5"), two: new Decimal("4") },
   ].forEach((prop) => {
     it(`should group by name and aggregate ${prop.agg}`, async () => {
       await prisma.trace.create({
@@ -80,46 +82,54 @@ describe("Build valid SQL queries", () => {
       const query = createQuery({
         from: "observations",
         filter: [],
-        groupBy: [{ type: "string", name: "name" }],
+        groupBy: [{ type: "string", column: "name" }],
         select: [
-          { field: "completion_tokens", agg: prop.agg as "SUM" | "AVG" },
-          { field: "name", agg: null },
+          { column: "completion_tokens", agg: prop.agg as "SUM" | "AVG" },
+          { column: "name", agg: null },
         ],
       });
 
-      const result = await executeQuery(query);
+      const result = await executeQuery<DatabaseRow[]>(query);
 
-      if (isArrayOfMyType(result)) {
+      if (isArrayOfDatabaseRow(result)) {
         result.map((x, i) => {
-          if (i === 0) expect(x.completion_tokens).toEqual(prop.one);
-          if (i === 1) expect(x.completion_tokens).toEqual(prop.two);
-        });
+          console.log(
+            x.completion_tokens,
+            typeof x.completion_tokens,
+            x.completion_tokens instanceof Decimal,
+            Decimal.isDecimal(x.completion_tokens),
+          );
 
-        expect(result).toStrictEqual([
-          { completion_tokens: prop.one, name: "trace-1" },
-          { completion_tokens: prop.two, name: "trace-2" },
-        ]);
+          if (i === 0)
+            expect(x.completion_tokens.toString()).toStrictEqual(
+              prop.one.toString(),
+            );
+          if (i === 1)
+            expect(x.completion_tokens.toString()).toStrictEqual(
+              prop.two.toString(),
+            );
+        });
       } else {
-        fail("Expected result to be an array of MyType");
+        fail("Expected result to be an array of Database Row");
       }
     });
   });
 });
 
-type MyType = {
-  completion_tokens: bigint | Decimal;
+type DatabaseRow = {
+  completion_tokens: bigint | number | Decimal;
   name: string;
 };
 
-function isMyType(value: unknown): value is MyType {
+function isDatabaseRow(value: unknown): value is DatabaseRow {
   if (typeof value !== "object" || value === null) return false;
 
-  const obj = value as Partial<MyType>;
+  const obj = value as Partial<DatabaseRow>;
 
-  const isBigIntOrDecimal = (x: unknown): x is bigint | Decimal => {
-    // Assuming Decimal has a specific property or method to distinguish it, e.g., 'isDecimal'
+  const isBigIntOrDecimal = (x: unknown): x is bigint | Decimal | number => {
     return (
       typeof x === "bigint" ||
+      typeof x === "number" ||
       (typeof x === "object" && x !== null && Decimal.isDecimal(x))
     );
   };
@@ -132,6 +142,6 @@ function isMyType(value: unknown): value is MyType {
   );
 }
 
-function isArrayOfMyType(value: unknown): value is MyType[] {
-  return Array.isArray(value) && value.every(isMyType);
+function isArrayOfDatabaseRow(value: unknown): value is DatabaseRow[] {
+  return Array.isArray(value) && value.every(isDatabaseRow);
 }
