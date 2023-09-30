@@ -23,7 +23,7 @@ describe("Build valid SQL queries", () => {
       },
     });
 
-    const result = await executeQuery({
+    const result = await executeQuery(prisma, {
       from: "traces",
       filter: [],
       groupBy: [],
@@ -74,7 +74,7 @@ describe("Build valid SQL queries", () => {
         ],
       });
 
-      const result = await executeQuery({
+      const result = await executeQuery(prisma, {
         from: "observations",
         filter: [],
         groupBy: [{ type: "string", column: "name" }],
@@ -144,7 +144,7 @@ describe("Build valid SQL queries", () => {
         ],
       });
 
-      const result = await executeQuery({
+      const result = await executeQuery(prisma, {
         from: "observations",
         filter: [
           {

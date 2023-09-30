@@ -1,5 +1,4 @@
-import { prisma } from "@/src/server/db";
-
+import { type PrismaClient } from "@prisma/client";
 import Decimal from "decimal.js";
 import { z } from "zod";
 
@@ -130,7 +129,7 @@ const singleFilter = z.discriminatedUnion("type", [
   }),
 ]);
 
-const sqlInterface = z.object({
+export const sqlInterface = z.object({
   from: z.enum([
     "traces",
     "traces_observations",
@@ -154,7 +153,10 @@ const sqlInterface = z.object({
   ),
 });
 
-export const executeQuery = async (query: z.TypeOf<typeof sqlInterface>) => {
+export const executeQuery = async (
+  prisma: PrismaClient,
+  query: z.TypeOf<typeof sqlInterface>,
+) => {
   console.log("query", query);
   const stringQuery = createQuery(query);
   console.log("stringQuery", stringQuery);
