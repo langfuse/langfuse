@@ -1,7 +1,7 @@
 /** @jest-environment node */
 
 import { prisma } from "@/src/server/db";
-import { makeAPICall } from "@/src/__tests__/test-utils";
+import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/spans API Endpoint", () => {
