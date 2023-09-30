@@ -15,9 +15,9 @@ import {
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
-    .input(sqlInterface)
+    .input(sqlInterface.extend({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      return await executeQuery(ctx.prisma, input);
+      return await executeQuery(ctx.prisma, input.projectId, input);
     }),
 
   generations: protectedProjectProcedure

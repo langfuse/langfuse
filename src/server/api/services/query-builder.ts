@@ -91,7 +91,9 @@ const tableDefinitions = {
   },
   traces_scores: {
     table: ` traces t JOIN scores s ON t.id = s.trace_id`,
-    columns: [],
+    columns: [
+      { name: "projectId", type: "string", internal: 't."project_id"' },
+    ],
   },
 };
 
@@ -155,10 +157,24 @@ export const sqlInterface = z.object({
 
 export const executeQuery = async (
   prisma: PrismaClient,
+  projectId: string,
   query: z.TypeOf<typeof sqlInterface>,
 ) => {
   console.log("query", query);
-  const stringQuery = createQuery(query);
+  const safeQuery = {
+    ...query,
+    filter: [
+      ...query.filter,
+      {
+        type: "string" as const,
+        column: "projectId",
+        operator: "=" as const,
+        value: projectId,
+      },
+    ],
+  };
+  console.log("safe query", safeQuery);
+  const stringQuery = createQuery(safeQuery);
   console.log("stringQuery", stringQuery);
   const response =
     await prisma.$queryRawUnsafe<InternalDatabaseRow[]>(stringQuery);
@@ -194,7 +210,30 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   let orderByString = "";
   if (cte) orderByString = ` ORDER BY series."date" DESC`;
 
-  return `${selectString}${fromString}${groupString}${orderByString};`;
+  const filterString = prepareFilterString(query.from, query.filter);
+
+  return `${selectString}${fromString}${filterString}${groupString}${orderByString};`;
+};
+
+const prepareFilterString = (
+  table: z.infer<typeof sqlInterface>["from"],
+  filter: z.infer<typeof sqlInterface>["filter"],
+) => {
+  return filter.length > 0
+    ? " WHERE " +
+        filter
+          .map((filter) => {
+            const internalColumn = getColumnSql(table, filter.column).internal;
+            if (filter.type === "datetime") {
+              return `${internalColumn} ${
+                filter.operator
+              } '${filter.value.toISOString()}'`;
+            } else {
+              return `${internalColumn} ${filter.operator} '${filter.value}'`;
+            }
+          })
+          .join(" AND ")
+    : "";
 };
 
 const prepareGroupBy = (
