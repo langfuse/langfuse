@@ -1,6 +1,40 @@
 import { prisma } from "@/src/server/db";
-import { Prisma } from "@prisma/client";
+
+import Decimal from "decimal.js";
 import { z } from "zod";
+
+export type InternalDatabaseRow = {
+  [key: string]: bigint | number | Decimal | string | Date;
+};
+
+export type DatabaseRow = {
+  [key: string]: string | number | Date;
+};
+
+export function isDatabaseRow(value: unknown): value is DatabaseRow {
+  if (typeof value !== "object" || value === null) return false;
+
+  const obj = value as Record<string, unknown>;
+
+  const isBigIntOrDecimal = (x: unknown): x is bigint | Decimal | number => {
+    return (
+      typeof x === "bigint" || typeof x === "number" || Decimal.isDecimal(x)
+    );
+  };
+
+  for (const key in obj) {
+    const val = obj[key];
+    if (typeof val !== "string" && !isBigIntOrDecimal(val)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function isArrayOfDatabaseRow(value: unknown): value is DatabaseRow[] {
+  return Array.isArray(value) && value.every(isDatabaseRow);
+}
 
 type Column = {
   name: string;
@@ -11,57 +45,90 @@ type Column = {
 const comlpetionTokens = {
   name: "completionTokens",
   type: "number",
-  internal: '"o"."completion_tokens"',
+  internal: 'o."completion_tokens"',
 };
 const observationId = {
   name: "observationId",
   type: "string",
-  internal: '"o"."project_id"',
+  internal: 'o."project_id"',
 };
 const observationName = {
   name: "name",
   type: "string",
-  internal: '"o"."name"',
+  internal: 'o."name"',
 };
 
-const traceId = { name: "traceId", type: "string", internal: '"t"."id"' };
+const traceId = { name: "traceId", type: "string", internal: 't."id"' };
 
 const tableDefinitions = {
   traces: {
+    table: ` traces as t`,
     columns: [
-      { name: "id", type: "string", internal: '"t"."id"' },
-      { name: "projectId", type: "string", internal: '"t"."project_id"' },
+      { name: "id", type: "string", internal: 't."id"' },
+      { name: "projectId", type: "string", internal: 't."project_id"' },
     ],
   },
   traces_observations: {
+    table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
     columns: [
       traceId,
       observationId,
-      { name: "type", type: "string", internal: '"o"."type"' },
-      { name: "projectId", type: "string", internal: '"t"."project_id"' },
+      { name: "type", type: "string", internal: 'o."type"' },
+      { name: "projectId", type: "string", internal: 't."project_id"' },
     ],
   },
   observations: {
+    table: ` observations as o`,
     columns: [
       traceId,
       observationName,
-      { name: "type", type: "string", internal: '"o"."type"' },
+      { name: "type", type: "string", internal: 'o."type"' },
       comlpetionTokens,
       observationId,
-      { name: "projectId", type: "string", internal: '"o"."project_id"' },
+      { name: "projectId", type: "string", internal: 'o."project_id"' },
+      { name: "startTime", type: "datetime", internal: 'o."start_time"' },
+      { name: "endTime", type: "datetime", internal: 'o."end_time"' },
     ],
+  },
+  traces_scores: {
+    table: ` traces t JOIN scores s ON t.id = s.trace_id`,
+    columns: [],
   },
 };
 
-const singleFilter = z.object({
+const timeFilter = z.object({
   column: z.string(),
   operator: z.enum(["=", ">", "<", ">=", "<=", "in", "like"]),
-  value: z.any(),
+  value: z.date(),
+  type: z.literal("datetime"),
 });
 
-export const executeQuery = async <T>(query: string) => {
-  return await prisma.$queryRawUnsafe<T>(query);
-};
+const temporalUnit = z.enum([
+  "year",
+  "month",
+  "day",
+  "hour",
+  "minute",
+  "second",
+  "millisecond",
+  "microsecond",
+  "nanosecond",
+]);
+const singleFilter = z.discriminatedUnion("type", [
+  timeFilter,
+  z.object({
+    column: z.string(),
+    operator: z.enum(["=", ">", "<", ">=", "<=", "in", "like"]),
+    value: z.string(),
+    type: z.literal("string"),
+  }),
+  z.object({
+    column: z.string(),
+    operator: z.enum(["=", ">", "<", ">=", "<=", "in", "like"]),
+    value: z.number(),
+    type: z.literal("number"),
+  }),
+]);
 
 const sqlInterface = z.object({
   from: z.enum([
@@ -70,28 +137,13 @@ const sqlInterface = z.object({
     "observations",
     "traces_scores",
   ]), // predefined views on our db
-  filter: z.array(
-    z.object({
-      operator: z.enum(["AND", "OR"]),
-      filters: z.array(singleFilter),
-    }),
-  ),
+  filter: z.array(singleFilter),
   groupBy: z.array(
     z.discriminatedUnion("type", [
       z.object({
         type: z.literal("datetime"),
         column: z.string(),
-        temporalUnit: z.enum([
-          "year",
-          "month",
-          "day",
-          "hour",
-          "minute",
-          "second",
-          "millisecond",
-          "microsecond",
-          "nanosecond",
-        ]),
+        temporalUnit: temporalUnit,
       }),
       z.object({ type: z.literal("number"), column: z.string() }),
       z.object({ type: z.literal("string"), column: z.string() }),
@@ -102,52 +154,185 @@ const sqlInterface = z.object({
   ),
 });
 
-export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
+export const executeQuery = async (query: z.TypeOf<typeof sqlInterface>) => {
+  console.log("query", query);
+  const stringQuery = createQuery(query);
+  console.log("stringQuery", stringQuery);
+  const response =
+    await prisma.$queryRawUnsafe<InternalDatabaseRow[]>(stringQuery);
+  console.log("response", response);
+
+  return outputParser(response);
+};
+
+const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
+  const cte = createDateRangeCte(query.from, query.filter, query.groupBy);
+  const fromString = cte?.query ?? ` FROM ${getTableSql(query.from)}`;
+
   const selectFields = query.select.map((field) =>
     field.agg
-      ? `${field.agg}(${field.column}) as ${field.column}`
-      : `${field.column}`,
+      ? `${field.agg}(${getColumnSql(query.from, field.column).internal}) as "${
+          field.column
+        }"`
+      : `${getColumnSql(query.from, field.column).internal}`,
   );
-  const selectString = `SELECT ${selectFields.join(", ")}`;
 
-  const fromString = ` FROM ${getTableSql(query.from)}`;
+  if (cte) selectFields.unshift(`series."date" as "${cte.column.name}"`);
 
   let groupString = "";
-  if (query.groupBy.length > 0) {
-    const groupByFields = query.groupBy.map((groupBy) => {
-      if (groupBy.type === "datetime") {
-        return `DATE_TRUNC('${groupBy.temporalUnit}', ${groupBy.column})`;
-      } else {
-        return groupBy.column;
-      }
-    });
+
+  if (query.groupBy.length > 0 || cte) {
+    const groupByFields = query.groupBy.map((groupBy) =>
+      prepareGroupBy(query.from, groupBy),
+    );
     groupString = ` GROUP BY ${groupByFields.join(", ")}`;
   }
+  const selectString = `SELECT ${selectFields.join(", ")}`;
 
-  return `${selectString}${fromString}${groupString};`;
+  let orderByString = "";
+  if (cte) orderByString = ` ORDER BY series."date" DESC`;
+
+  return `${selectString}${fromString}${groupString}${orderByString};`;
+};
+
+const prepareGroupBy = (
+  table: z.infer<typeof sqlInterface>["from"],
+  groupBy: z.infer<typeof sqlInterface>["groupBy"][number],
+) => {
+  const internalColumn = getColumnSql(table, groupBy.column).internal;
+  if (groupBy.type === "datetime") {
+    return `series."date"`;
+  } else {
+    return internalColumn;
+  }
+};
+
+function isTimeRangeFilter(
+  filter: z.infer<typeof sqlInterface>["filter"][number],
+): filter is z.infer<typeof timeFilter> {
+  return filter.type === "datetime";
+}
+
+const createDateRangeCte = (
+  from: z.infer<typeof sqlInterface>["from"],
+  filters: z.infer<typeof singleFilter>[],
+  groupBy: z.infer<typeof sqlInterface>["groupBy"],
+) => {
+  const groupByColumns = groupBy.filter((x) => x.type === "datetime");
+
+  if (groupByColumns.length === 0) return undefined;
+  if (groupByColumns.length > 1)
+    throw new Error("Only one datetime group by is supported");
+  const groupByColumn = groupByColumns[0];
+
+  const dateTimeFilters = filters.filter(isTimeRangeFilter);
+
+  const minDateColumn =
+    dateTimeFilters.length > 1
+      ? dateTimeFilters.find((x) => x.operator === ">")
+      : undefined;
+
+  const maxDateColumn =
+    dateTimeFilters.length > 1
+      ? dateTimeFilters.find((x) => x.operator === "<")
+      : undefined;
+
+  if (
+    groupByColumn &&
+    "temporalUnit" in groupByColumn &&
+    minDateColumn &&
+    maxDateColumn
+  ) {
+    if (
+      minDateColumn?.column !== groupByColumn?.column ||
+      maxDateColumn?.column !== groupByColumn?.column
+    ) {
+      throw new Error(
+        "Min date column, max date column must match group by column",
+      );
+    }
+    const startColumn = getColumnSql(from, minDateColumn.column);
+
+    const series = `
+      generate_series('${minDateColumn.value.toISOString()}'::timestamp, '${maxDateColumn.value.toISOString()}'::timestamp, '${mapTemporalUnitToInterval(
+        groupByColumn.temporalUnit,
+      )}') as series(date)
+    `;
+
+    return {
+      query: ` FROM  ${series} LEFT JOIN ${getTableSql(from)} ON DATE_TRUNC('${
+        groupByColumn.temporalUnit
+      }', ${startColumn.internal}) = series.date`,
+      column: startColumn,
+    };
+  }
+
+  return undefined;
 };
 
 const getTableSql = (table: z.infer<typeof sqlInterface>["from"]): string => {
-  const tables = {
-    traces: ` traces as t`,
-    observations: ` observations as o`,
-    traces_observations: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
-    traces_scores: ` traces t JOIN scores s ON t.id = s.trace_id`,
-  };
-
-  return tables[table];
+  return tableDefinitions[table].table;
 };
 
 const getColumnSql = (
   table: z.infer<typeof sqlInterface>["from"],
-  column: Column,
-): string => {
-  const tables = {
-    traces: ` FROM traces as t`,
-    observations: ` FROM observations as o`,
-    traces_observations: ` FROM traces t LEFT JOIN observations o ON t.id = o.trace_id`,
-    traces_scores: ` FROM traces t JOIN scores s ON t.id = s.trace_id`,
-  };
+  column: string,
+): Column => {
+  const foundColumn = tableDefinitions[table].columns.find((c) => {
+    return c.name === column;
+  });
+  if (!foundColumn) {
+    console.error(`Column ${column} not found in table ${table}`);
+    throw new Error(`Column ${column} not found in table ${table}`);
+  }
+  return foundColumn;
+};
 
-  return tables[table];
+const mapTemporalUnitToInterval = (unit: z.infer<typeof temporalUnit>) => {
+  switch (unit) {
+    case "year":
+      return "1 year";
+    case "month":
+      return "1 month";
+    case "day":
+      return "1 day";
+    case "hour":
+      return "1 hour";
+    case "minute":
+      return "1 minute";
+    case "second":
+      return "1 second";
+    case "millisecond":
+      return "1 millisecond";
+    case "microsecond":
+      return "1 microsecond";
+    case "nanosecond":
+      return "1 nanosecond";
+  }
+};
+
+const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
+  return output.map((row) => {
+    const newRow: DatabaseRow = {};
+    for (const key in row) {
+      const val = row[key];
+      if (typeof val === "bigint") {
+        newRow[key] = Number(val);
+      } else if (typeof val === "number") {
+        newRow[key] = val;
+      } else if (Decimal.isDecimal(val)) {
+        newRow[key] = val.toNumber();
+      } else if (typeof val === "string") {
+        newRow[key] = val;
+      } else if (val instanceof Date) {
+        newRow[key] = val;
+      } else if (val === null) {
+        newRow[key] = val;
+      } else {
+        console.log(`Unknown type ${typeof val} for ${val}`);
+        throw new Error(`Unknown type ${typeof val}`);
+      }
+    }
+    return newRow;
+  });
 };
