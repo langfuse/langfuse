@@ -1,11 +1,9 @@
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
-  type DatabaseRow,
   executeQuery,
   isArrayOfDatabaseRow,
 } from "@/src/server/api/services/query-builder";
 import { prisma } from "@/src/server/db";
-import Decimal from "decimal.js";
 
 // Create test cases
 describe("Build valid SQL queries", () => {
