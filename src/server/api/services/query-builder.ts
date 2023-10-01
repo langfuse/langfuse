@@ -1,6 +1,5 @@
 import { type PrismaClient } from "@prisma/client";
 import Decimal from "decimal.js";
-import { type } from "os";
 import { z } from "zod";
 
 export type InternalDatabaseRow = {
@@ -42,7 +41,7 @@ type Column = {
   internal: string;
 };
 
-const comlpetionTokens = {
+const completionTokens = {
   name: "completionTokens",
   type: "number",
   internal: 'o."completion_tokens"',
@@ -83,7 +82,17 @@ const tableDefinitions = {
       traceId,
       observationName,
       { name: "type", type: "string", internal: 'o."type"' },
-      comlpetionTokens,
+      completionTokens,
+      {
+        name: "promptTokens",
+        type: "number",
+        internal: 'o."prompt_tokens"',
+      },
+      {
+        name: "totalTokens",
+        type: "number",
+        internal: 'o."total_tokens"',
+      },
       observationId,
       { name: "projectId", type: "string", internal: 'o."project_id"' },
       { name: "startTime", type: "datetime", internal: 'o."start_time"' },
