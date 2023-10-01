@@ -1,26 +1,33 @@
 import { z } from "zod";
 
+export const filterOperators = {
+  datetime: ["=", ">", "<", ">=", "<="],
+  string: ["="],
+  stringOptions: ["any of", "none of"],
+  number: ["=", ">", "<", ">=", "<="],
+} as const;
+
 export const timeFilter = z.object({
   column: z.string(),
-  operator: z.enum(["=", ">", "<", ">=", "<="]),
+  operator: z.enum(filterOperators.datetime),
   value: z.date(),
   type: z.literal("datetime"),
 });
 export const stringFilter = z.object({
   column: z.string(),
-  operator: z.enum(["="]),
+  operator: z.enum(filterOperators.string),
   value: z.string(),
   type: z.literal("string"),
 });
 export const numberFilter = z.object({
   column: z.string(),
-  operator: z.enum(["=", ">", "<", ">=", "<="]),
+  operator: z.enum(filterOperators.number),
   value: z.number(),
   type: z.literal("number"),
 });
 export const stringOptionsFilter = z.object({
   column: z.string(),
-  operator: z.enum(["any of", "none of"]),
+  operator: z.enum(filterOperators.stringOptions),
   value: z.array(z.string()),
   type: z.literal("stringOptions"),
 });
