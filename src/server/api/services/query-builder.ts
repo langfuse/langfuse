@@ -1,6 +1,8 @@
 import {
+  type Column,
   singleFilter,
   type timeFilter,
+  type TableDefinitions,
 } from "@/src/server/api/services/interfaces";
 import { type PrismaClient } from "@prisma/client";
 import Decimal from "decimal.js";
@@ -39,12 +41,6 @@ export function isArrayOfDatabaseRow(value: unknown): value is DatabaseRow[] {
   return Array.isArray(value) && value.every(isDatabaseRow);
 }
 
-type Column = {
-  name: string;
-  type: string;
-  internal: string;
-};
-
 const completionTokens = {
   name: "completionTokens",
   type: "number",
@@ -63,7 +59,7 @@ const observationName = {
 
 const traceId = { name: "traceId", type: "string", internal: 't."id"' };
 
-const tableDefinitions = {
+const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces as t`,
     columns: [

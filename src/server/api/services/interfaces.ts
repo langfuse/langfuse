@@ -22,3 +22,16 @@ export const singleFilter = z.discriminatedUnion("type", [
     type: z.literal("number"),
   }),
 ]);
+
+export type Column = {
+  name: string;
+  type: string;
+  internal: string;
+};
+
+export type TableDefinitions = {
+  [tableName: string]: {
+    table: string;
+    columns: Column[];
+  };
+};
