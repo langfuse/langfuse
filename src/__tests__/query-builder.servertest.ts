@@ -181,13 +181,13 @@ describe("Build valid SQL queries", () => {
             {
               type: "datetime",
               column: "startTime",
-              operator: ">",
+              operator: ">=",
               value: new Date("2021-01-01T00:00:00.000Z"),
             },
             {
               type: "datetime",
               column: "startTime",
-              operator: "<",
+              operator: "<=",
               value: new Date("2021-01-04T00:00:00.000Z"),
             },
           ],

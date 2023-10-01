@@ -1,5 +1,6 @@
 import { type PrismaClient } from "@prisma/client";
 import Decimal from "decimal.js";
+import { type } from "os";
 import { z } from "zod";
 
 export type InternalDatabaseRow = {
@@ -185,7 +186,8 @@ export const executeQuery = async (
 
 const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const cte = createDateRangeCte(query.from, query.filter, query.groupBy);
-  const fromString = cte?.query ?? ` FROM ${getTableSql(query.from)}`;
+
+  const fromString = cte?.from ?? ` FROM ${getTableSql(query.from)}`;
 
   const selectFields = query.select.map((field) =>
     field.agg
@@ -195,7 +197,7 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
       : `${getColumnSql(query.from, field.column).internal}`,
   );
 
-  if (cte) selectFields.unshift(`series."date" as "${cte.column.name}"`);
+  if (cte) selectFields.unshift(`date_series."date" as "${cte.column.name}"`);
 
   let groupString = "";
 
@@ -208,19 +210,26 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const selectString = `SELECT ${selectFields.join(", ")}`;
 
   let orderByString = "";
-  if (cte) orderByString = ` ORDER BY series."date" DESC`;
+  if (cte) orderByString = ` ORDER BY date_series."date" DESC`;
 
-  const filterString = prepareFilterString(query.from, query.filter);
+  const filterString = prepareFilterString(
+    query.from,
+    query.filter,
+    cte ? true : false,
+  );
 
-  return `${selectString}${fromString}${filterString}${groupString}${orderByString};`;
+  return `${
+    cte?.cte ?? ""
+  }${selectString}${fromString}${filterString}${groupString}${orderByString};`;
 };
 
 const prepareFilterString = (
   table: z.infer<typeof sqlInterface>["from"],
   filter: z.infer<typeof sqlInterface>["filter"],
+  joinCondition: boolean,
 ) => {
   return filter.length > 0
-    ? " WHERE " +
+    ? (joinCondition ? " AND " : " WHERE ") +
         filter
           .map((filter) => {
             const internalColumn = getColumnSql(table, filter.column).internal;
@@ -242,7 +251,7 @@ const prepareGroupBy = (
 ) => {
   const internalColumn = getColumnSql(table, groupBy.column).internal;
   if (groupBy.type === "datetime") {
-    return `series."date"`;
+    return `date_series."date"`;
   } else {
     return internalColumn;
   }
@@ -270,12 +279,12 @@ const createDateRangeCte = (
 
   const minDateColumn =
     dateTimeFilters.length > 1
-      ? dateTimeFilters.find((x) => x.operator === ">")
+      ? dateTimeFilters.find((x) => x.operator === ">" || x.operator === ">=")
       : undefined;
 
   const maxDateColumn =
     dateTimeFilters.length > 1
-      ? dateTimeFilters.find((x) => x.operator === "<")
+      ? dateTimeFilters.find((x) => x.operator === "<" || x.operator === "<=")
       : undefined;
 
   if (
@@ -294,18 +303,21 @@ const createDateRangeCte = (
     }
     const startColumn = getColumnSql(from, minDateColumn.column);
 
-    const series = `
-      generate_series('${minDateColumn.value.toISOString()}'::timestamp, '${maxDateColumn.value.toISOString()}'::timestamp, '${mapTemporalUnitToInterval(
-        groupByColumn.temporalUnit,
-      )}') as series(date)
+    const cteString = `
+      WITH date_series AS (
+        SELECT generate_series('${minDateColumn.value.toISOString()}'::timestamp, '${maxDateColumn.value.toISOString()}'::timestamp, '${mapTemporalUnitToInterval(
+          groupByColumn.temporalUnit,
+        )}') as date
+      )
     `;
 
-    return {
-      query: ` FROM  ${series} LEFT JOIN ${getTableSql(from)} ON DATE_TRUNC('${
-        groupByColumn.temporalUnit
-      }', ${startColumn.internal}) = series.date`,
-      column: startColumn,
-    };
+    const modifiedFrom = ` FROM date_series LEFT JOIN ${getTableSql(
+      from,
+    )} ON DATE_TRUNC('${groupByColumn.temporalUnit}', ${
+      startColumn.internal
+    }) = date_series.date`;
+
+    return { cte: cteString, from: modifiedFrom, column: startColumn };
   }
 
   return undefined;
