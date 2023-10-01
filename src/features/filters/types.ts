@@ -22,12 +22,14 @@ export const filterOperators = {
   ],
   number: ["=", "!=", ">", "<"],
   datetime: [">", "<"],
+  object: ["=", "!=", "starts with", "ends with", "contains", "regex"],
 } as const;
 
 export type FilterCondition<cols extends FilterColumns = []> = {
   column: ColumnNames<cols> | null;
   operator: (typeof filterOperators)[cols[number]["type"]][number] | null;
   value: string | null;
+  objectKey?: string; // key of object to filter on
 };
 export type FilterState<cols extends FilterColumns = []> =
   FilterCondition<cols>[];
