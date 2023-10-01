@@ -1,3 +1,7 @@
+import {
+  singleFilter,
+  type timeFilter,
+} from "@/src/server/api/services/interfaces";
 import { type PrismaClient } from "@prisma/client";
 import Decimal from "decimal.js";
 import { z } from "zod";
@@ -107,13 +111,6 @@ const tableDefinitions = {
   },
 };
 
-const timeFilter = z.object({
-  column: z.string(),
-  operator: z.enum(["=", ">", "<", ">=", "<=", "in", "like"]),
-  value: z.date(),
-  type: z.literal("datetime"),
-});
-
 const temporalUnit = z.enum([
   "year",
   "month",
@@ -124,21 +121,6 @@ const temporalUnit = z.enum([
   "millisecond",
   "microsecond",
   "nanosecond",
-]);
-const singleFilter = z.discriminatedUnion("type", [
-  timeFilter,
-  z.object({
-    column: z.string(),
-    operator: z.enum(["=", ">", "<", ">=", "<=", "in", "like"]),
-    value: z.string(),
-    type: z.literal("string"),
-  }),
-  z.object({
-    column: z.string(),
-    operator: z.enum(["=", ">", "<", ">=", "<=", "in", "like"]),
-    value: z.number(),
-    type: z.literal("number"),
-  }),
 ]);
 
 export const sqlInterface = z.object({
