@@ -1,9 +1,11 @@
 import {
-  type Column,
   singleFilter,
   type timeFilter,
+} from "@/src/server/api/interfaces/filters";
+import {
+  type ColumnDefinition,
   type TableDefinitions,
-} from "@/src/server/api/services/interfaces";
+} from "@/src/server/api/interfaces/tableDefinition";
 import { type PrismaClient } from "@prisma/client";
 import Decimal from "decimal.js";
 import { z } from "zod";
@@ -45,19 +47,23 @@ const completionTokens = {
   name: "completionTokens",
   type: "number",
   internal: 'o."completion_tokens"',
-};
+} as const;
 const observationId = {
   name: "observationId",
   type: "string",
   internal: 'o."project_id"',
-};
+} as const;
 const observationName = {
   name: "name",
   type: "string",
   internal: 'o."name"',
-};
+} as const;
 
-const traceId = { name: "traceId", type: "string", internal: 't."id"' };
+const traceId = {
+  name: "traceId",
+  type: "string",
+  internal: 't."id"',
+} as const;
 
 const tableDefinitions: TableDefinitions = {
   traces: {
@@ -202,7 +208,7 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const filterString =
     query.filter.length > 0
       ? (cte ? " AND " : " WHERE ") +
-        prepareFilterString(query.filter, tableDefinitions[query.from].columns)
+        prepareFilterString(query.filter, tableDefinitions[query.from]!.columns)
       : "";
 
   return `${
@@ -212,7 +218,7 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
 
 const prepareFilterString = (
   filter: z.infer<typeof sqlInterface>["filter"],
-  columnDefinitions: Column[],
+  columnDefinitions: ColumnDefinition[],
 ) => {
   return filter
     .map((filter) => {
@@ -311,14 +317,14 @@ const createDateRangeCte = (
 };
 
 const getTableSql = (table: z.infer<typeof sqlInterface>["from"]): string => {
-  return tableDefinitions[table].table;
+  return tableDefinitions[table]!.table;
 };
 
 const getColumnSql = (
   table: z.infer<typeof sqlInterface>["from"],
   column: string,
-): Column => {
-  const foundColumn = tableDefinitions[table].columns.find((c) => {
+): ColumnDefinition => {
+  const foundColumn = tableDefinitions[table]!.columns.find((c) => {
     return c.name === column;
   });
   if (!foundColumn) {
