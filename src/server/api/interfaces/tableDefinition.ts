@@ -7,7 +7,7 @@ export type ColumnDefinition =
   | {
       name: string;
       type: "stringOptions";
-      options: string[];
+      options: { value: string; count?: number }[];
       internal: string;
     };
 
