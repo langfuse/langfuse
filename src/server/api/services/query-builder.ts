@@ -203,11 +203,11 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   let orderByString = "";
   if (cte) orderByString = ` ORDER BY date_series."date" DESC`;
 
-  const filterString = prepareFilterString(
-    query.from,
-    query.filter,
-    cte ? true : false,
-  );
+  const filterString =
+    query.filter.length > 0
+      ? (cte ? " AND " : " WHERE ") +
+        prepareFilterString(query.filter, tableDefinitions[query.from].columns)
+      : "";
 
   return `${
     cte?.cte ?? ""
@@ -215,25 +215,25 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
 };
 
 const prepareFilterString = (
-  table: z.infer<typeof sqlInterface>["from"],
   filter: z.infer<typeof sqlInterface>["filter"],
-  joinCondition: boolean,
+  columnDefinitions: Column[],
 ) => {
-  return filter.length > 0
-    ? (joinCondition ? " AND " : " WHERE ") +
-        filter
-          .map((filter) => {
-            const internalColumn = getColumnSql(table, filter.column).internal;
-            if (filter.type === "datetime") {
-              return `${internalColumn} ${
-                filter.operator
-              } '${filter.value.toISOString()}'`;
-            } else {
-              return `${internalColumn} ${filter.operator} '${filter.value}'`;
-            }
-          })
-          .join(" AND ")
-    : "";
+  return filter
+    .map((filter) => {
+      const column = columnDefinitions.find((x) => x.name === filter.column);
+      if (!column) {
+        console.error(`Column ${filter.column} not found`);
+        throw new Error(`Column ${filter.column} not found`);
+      }
+      if (filter.type === "datetime") {
+        return `${column.internal} ${
+          filter.operator
+        } '${filter.value.toISOString()}'`;
+      } else {
+        return `${column.internal} ${filter.operator} '${filter.value}'`;
+      }
+    })
+    .join(" AND ");
 };
 
 const prepareGroupBy = (
