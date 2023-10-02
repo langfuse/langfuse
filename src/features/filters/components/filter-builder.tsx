@@ -85,7 +85,7 @@ export function FilterBuilder({
                   return (
                     <span
                       key={i}
-                      className="ml-3 rounded-md bg-slate-200 px-2 text-xs"
+                      className="ml-3 rounded-md bg-slate-200 px-2 py-1 text-xs"
                     >
                       {filter.column} {filter.operator}{" "}
                       {filter.value
