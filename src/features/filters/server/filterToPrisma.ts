@@ -2,6 +2,11 @@ import { type FilterState } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma } from "@prisma/client";
 
+const operatorReplacements = {
+  "any of": "IN",
+  "none of": "NOT IN",
+};
+
 export function filterToPrismaSql(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
@@ -15,7 +20,14 @@ export function filterToPrismaSql(
     }
 
     const colPrisma = Prisma.raw(col.internal);
-    const operatorPrisma = Prisma.raw(filter.operator); //checked by zod
+    const operatorPrisma =
+      filter.operator in operatorReplacements
+        ? Prisma.raw(
+            operatorReplacements[
+              filter.operator as keyof typeof operatorReplacements
+            ],
+          )
+        : Prisma.raw(filter.operator); //checked by zod
 
     // Get prisma value
     let valuePrisma: Prisma.Sql;
