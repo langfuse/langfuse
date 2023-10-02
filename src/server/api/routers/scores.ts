@@ -8,22 +8,14 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Prisma, type Score } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
+import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
+import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 
 const ScoreFilterOptions = z.object({
-  traceId: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
-  userId: z.string().nullable(),
+  filter: z.array(singleFilter),
 });
-
-const scoresFilterPrismaCondition = (
-  filter: z.infer<typeof ScoreFilterOptions>,
-) => {
-  const traceIdCondition = filter.traceId
-    ? Prisma.sql`AND s.trace_id IN (${Prisma.join(filter.traceId)})`
-    : Prisma.empty;
-
-  return Prisma.join([traceIdCondition], " ");
-};
 
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
@@ -33,9 +25,15 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
-      const userIdCondition = input.userId
-        ? Prisma.sql`AND t.user_id = ${input.userId}`
-        : Prisma.empty;
+      // const userIdCondition = input.userId
+      //   ? Prisma.sql`AND t.user_id = ${input.userId}`
+      //   : Prisma.empty;
+
+      const filterCondition = filterToPrismaSql(
+        input.filter ?? [],
+        scoresTableCols,
+      );
+      console.log("filters: ", filterCondition);
 
       const scores = await ctx.prisma.$queryRaw<
         Array<Score & { traceName: string; totalCount: number }>
@@ -53,63 +51,62 @@ export const scoresRouter = createTRPCRouter({
           FROM scores s
           JOIN traces t ON t.id = s.trace_id
           WHERE t.project_id = ${input.projectId}
-          ${userIdCondition}
-          ${scoresFilterPrismaCondition(input)}
+          ${filterCondition}
           ORDER BY s.timestamp DESC
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
       `);
       return scores;
     }),
-  availableFilterOptions: protectedProjectProcedure
-    .input(ScoreFilterOptions)
-    .query(async ({ input, ctx }) => {
-      const filter = {
-        trace: {
-          projectId: input.projectId,
-          ...(input.userId ? { userId: input.userId } : undefined),
-        },
-        ...(input.traceId
-          ? {
-              traceId: {
-                in: input.traceId,
-              },
-            }
-          : undefined),
-      };
+  // availableFilterOptions: protectedProjectProcedure
+  //   .input(ScoreFilterOptions)
+  //   .query(async ({ input, ctx }) => {
+  //     const filter = {
+  //       trace: {
+  //         projectId: input.projectId,
+  //         ...(input.userId ? { userId: input.userId } : undefined),
+  //       },
+  //       ...(input.traceId
+  //         ? {
+  //             traceId: {
+  //               in: input.traceId,
+  //             },
+  //           }
+  //         : undefined),
+  //     };
 
-      const [ids, traceIds] = await Promise.all([
-        ctx.prisma.score.groupBy({
-          where: filter,
-          by: ["id"],
-          _count: {
-            _all: true,
-          },
-        }),
-        ctx.prisma.score.groupBy({
-          where: filter,
-          by: ["traceId"],
-          _count: {
-            _all: true,
-          },
-        }),
-      ]);
+  //     const [ids, traceIds] = await Promise.all([
+  //       ctx.prisma.score.groupBy({
+  //         where: filter,
+  //         by: ["id"],
+  //         _count: {
+  //           _all: true,
+  //         },
+  //       }),
+  //       ctx.prisma.score.groupBy({
+  //         where: filter,
+  //         by: ["traceId"],
+  //         _count: {
+  //           _all: true,
+  //         },
+  //       }),
+  //     ]);
 
-      return [
-        {
-          key: "id",
-          occurrences: ids.map((i) => {
-            return { key: i.id, count: i._count };
-          }),
-        },
-        {
-          key: "traceId",
-          occurrences: traceIds.map((i) => {
-            return { key: i.traceId, count: i._count };
-          }),
-        },
-      ];
-    }),
+  //     return [
+  //       {
+  //         key: "id",
+  //         occurrences: ids.map((i) => {
+  //           return { key: i.id, count: i._count };
+  //         }),
+  //       },
+  //       {
+  //         key: "traceId",
+  //         occurrences: traceIds.map((i) => {
+  //           return { key: i.traceId, count: i._count };
+  //         }),
+  //       },
+  //     ];
+  //   }),
   byId: protectedProcedure.input(z.string()).query(({ input, ctx }) =>
     ctx.prisma.score.findFirstOrThrow({
       where: {

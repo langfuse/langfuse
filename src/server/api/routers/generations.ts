@@ -8,62 +8,62 @@ import {
 import { type Generation } from "@/src/utils/types";
 import { type Observation, Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
+import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
+import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
 
 const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
 export type ExportFileFormats = (typeof exportFileFormats)[number];
 
 const GenerationFilterOptions = z.object({
-  traceId: z.array(z.string()).nullable(),
   projectId: z.string(), // Required for protectedProjectProcedure
-  name: z.array(z.string()).nullable(),
-  model: z.array(z.string()).nullable(),
-  traceName: z.array(z.string()).nullable(),
+  filter: z.array(singleFilter),
   searchQuery: z.string().nullable(),
 });
 
-const generationsFilterPrismaCondition = (
-  filter: z.infer<typeof GenerationFilterOptions>,
-) => {
-  const traceIdCondition =
-    filter.traceId !== null
-      ? Prisma.sql`AND o.trace_id IN (${Prisma.join(filter.traceId)})`
-      : Prisma.empty;
+// const generationsFilterPrismaCondition = (
+//   filter: z.infer<typeof GenerationFilterOptions>,
+// ) => {
+//   const traceIdCondition =
+//     filter.traceId !== null
+//       ? Prisma.sql`AND o.trace_id IN (${Prisma.join(filter.traceId)})`
+//       : Prisma.empty;
 
-  const nameCondition =
-    filter.name !== null
-      ? Prisma.sql`AND o.name IN (${Prisma.join(filter.name)})`
-      : Prisma.empty;
+//   const nameCondition =
+//     filter.name !== null
+//       ? Prisma.sql`AND o.name IN (${Prisma.join(filter.name)})`
+//       : Prisma.empty;
 
-  const modelCondition =
-    filter.model !== null
-      ? Prisma.sql`AND o.model IN (${Prisma.join(filter.model)})`
-      : Prisma.empty;
+//   const modelCondition =
+//     filter.model !== null
+//       ? Prisma.sql`AND o.model IN (${Prisma.join(filter.model)})`
+//       : Prisma.empty;
 
-  const traceNameCondition =
-    filter.traceName !== null
-      ? Prisma.sql`AND t.name IN (${Prisma.join(filter.traceName)})`
-      : Prisma.empty;
+//   const traceNameCondition =
+//     filter.traceName !== null
+//       ? Prisma.sql`AND t.name IN (${Prisma.join(filter.traceName)})`
+//       : Prisma.empty;
 
-  const searchCondition = filter.searchQuery
-    ? Prisma.sql`AND (
-        o."id" ILIKE ${`%${filter.searchQuery}%`} OR 
-        o."name" ILIKE ${`%${filter.searchQuery}%`} OR 
-        o."model" ILIKE ${`%${filter.searchQuery}%`} OR 
-        t."name" ILIKE ${`%${filter.searchQuery}%`}
-      )`
-    : Prisma.empty;
+//   const searchCondition = filter.searchQuery
+//     ? Prisma.sql`AND (
+//         o."id" ILIKE ${`%${filter.searchQuery}%`} OR
+//         o."name" ILIKE ${`%${filter.searchQuery}%`} OR
+//         o."model" ILIKE ${`%${filter.searchQuery}%`} OR
+//         t."name" ILIKE ${`%${filter.searchQuery}%`}
+//       )`
+//     : Prisma.empty;
 
-  return Prisma.join(
-    [
-      traceIdCondition,
-      nameCondition,
-      modelCondition,
-      traceNameCondition,
-      searchCondition,
-    ],
-    " ",
-  );
-};
+//   return Prisma.join(
+//     [
+//       traceIdCondition,
+//       nameCondition,
+//       modelCondition,
+//       traceNameCondition,
+//       searchCondition,
+//     ],
+//     " ",
+//   );
+// };
 
 const ListInputs = GenerationFilterOptions.extend({
   ...paginationZod,
@@ -78,6 +78,21 @@ export const generationsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ListInputs)
     .query(async ({ input, ctx }) => {
+      const searchCondition = input.searchQuery
+        ? Prisma.sql`AND (
+        o."id" ILIKE ${`%${input.searchQuery}%`} OR
+        o."name" ILIKE ${`%${input.searchQuery}%`} OR
+        o."model" ILIKE ${`%${input.searchQuery}%`} OR
+        t."name" ILIKE ${`%${input.searchQuery}%`}
+      )`
+        : Prisma.empty;
+
+      const filterCondition = filterToPrismaSql(
+        input.filter ?? [],
+        observationsTableCols,
+      );
+      console.log("filters: ", filterCondition);
+
       const generations = await ctx.prisma.$queryRaw<
         Array<
           Observation & {
@@ -110,7 +125,8 @@ export const generationsRouter = createTRPCRouter({
           WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             AND t.project_id = ${input.projectId}
-            ${generationsFilterPrismaCondition(input)}
+            ${searchCondition}
+            ${filterCondition}
           ORDER BY o.start_time DESC
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
@@ -123,41 +139,56 @@ export const generationsRouter = createTRPCRouter({
   export: protectedProjectProcedure
     .input(ExportInputs)
     .query(async ({ input, ctx }) => {
-      const generations = (await ctx.prisma.observation.findMany({
-        where: {
-          type: "GENERATION",
-          projectId: input.projectId,
-          ...(input.name
-            ? {
-                name: {
-                  in: input.name,
-                },
-              }
-            : undefined),
-          ...(input.model
-            ? {
-                model: {
-                  in: input.model,
-                },
-              }
-            : undefined),
-          traceId: {
-            not: null,
-            ...(input.traceId
-              ? {
-                  in: input.traceId,
-                }
-              : undefined),
-          },
-        },
-        orderBy: {
-          startTime: "desc",
-        },
-      })) as Array<
-        Generation & {
-          traceId: string;
-        }
-      >;
+      const searchCondition = input.searchQuery
+        ? Prisma.sql`AND (
+        o."id" ILIKE ${`%${input.searchQuery}%`} OR
+        o."name" ILIKE ${`%${input.searchQuery}%`} OR
+        o."model" ILIKE ${`%${input.searchQuery}%`} OR
+        t."name" ILIKE ${`%${input.searchQuery}%`}
+      )`
+        : Prisma.empty;
+
+      const filterCondition = filterToPrismaSql(
+        input.filter ?? [],
+        observationsTableCols,
+      );
+      console.log("filters: ", filterCondition);
+
+      const generations = await ctx.prisma.$queryRaw<
+        Array<
+          Observation & {
+            traceId: string;
+            traceName: string;
+          }
+        >
+      >(
+        Prisma.sql`
+          SELECT
+            o.id,
+            o.name,
+            o.model,
+            o.start_time as "startTime",
+            o.end_time as "endTime",
+            o.input,
+            o.output,
+            o.metadata,
+            o.trace_id as "traceId",
+            t.name as "traceName",
+            o.completion_start_time as "completionStartTime",
+            o.prompt_tokens as "promptTokens",
+            o.completion_tokens as "completionTokens",
+            o.total_tokens as "totalTokens",
+            o.version
+          FROM observations o
+          JOIN traces t ON t.id = o.trace_id
+          WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            AND t.project_id = ${input.projectId}
+            ${searchCondition}
+            ${filterCondition}
+          ORDER BY o.start_time DESC
+        `,
+      );
 
       // create csv
       switch (input.fileFormat) {
@@ -234,115 +265,115 @@ export const generationsRouter = createTRPCRouter({
       }
     }),
 
-  availableFilterOptions: protectedProjectProcedure
-    .input(GenerationFilterOptions)
-    .query(async ({ input, ctx }) => {
-      const [traceIds, names, models, traceNames] = await Promise.all([
-        ctx.prisma.$queryRaw<
-          Array<{
-            traceId: string | null;
-            count: number;
-          }>
-        >(Prisma.sql`
-        SELECT
-          t.id as "traceId",
-          count(*)::int AS count
-        FROM traces t
-        JOIN observations o ON o.trace_id = t.id
-        WHERE o.type = 'GENERATION'
-          AND o.project_id = ${input.projectId}
-          AND t.project_id = ${input.projectId}
-          ${generationsFilterPrismaCondition(input)}
-        GROUP BY 1
-      `),
-        ctx.prisma.$queryRaw<
-          Array<{
-            name: string | null;
-            count: number;
-          }>
-        >(Prisma.sql`
-        SELECT
-          o.name,
-          count(*)::int AS count
-        FROM traces t
-        JOIN observations o ON o.trace_id = t.id
-        WHERE o.type = 'GENERATION'
-          AND o.project_id = ${input.projectId}
-          AND t.project_id = ${input.projectId}
-          ${generationsFilterPrismaCondition(input)}
-        GROUP BY 1
-      `),
-        ctx.prisma.$queryRaw<
-          Array<{
-            model: string | null;
-            count: number;
-          }>
-        >(Prisma.sql`
-        SELECT
-          o.model,
-          count(*)::int AS count
-        FROM traces t
-        JOIN observations o ON o.trace_id = t.id
-        WHERE o.type = 'GENERATION'
-          AND o.project_id = ${input.projectId}
-          AND t.project_id = ${input.projectId}
-          ${generationsFilterPrismaCondition(input)}
-        GROUP BY 1
-      `),
-        ctx.prisma.$queryRaw<
-          Array<{
-            name: string | null;
-            count: number;
-          }>
-        >(Prisma.sql`
-        SELECT
-          t.name,
-          count(*)::int AS count
-        FROM traces t
-        JOIN observations o ON o.trace_id = t.id
-        WHERE o.type = 'GENERATION'
-          AND o.project_id = ${input.projectId}
-          AND t.project_id = ${input.projectId}
-          ${generationsFilterPrismaCondition(input)}
-        GROUP BY 1
-      `),
-      ]);
+  // availableFilterOptions: protectedProjectProcedure
+  //   .input(GenerationFilterOptions)
+  //   .query(async ({ input, ctx }) => {
+  //     const [traceIds, names, models, traceNames] = await Promise.all([
+  //       ctx.prisma.$queryRaw<
+  //         Array<{
+  //           traceId: string | null;
+  //           count: number;
+  //         }>
+  //       >(Prisma.sql`
+  //       SELECT
+  //         t.id as "traceId",
+  //         count(*)::int AS count
+  //       FROM traces t
+  //       JOIN observations o ON o.trace_id = t.id
+  //       WHERE o.type = 'GENERATION'
+  //         AND o.project_id = ${input.projectId}
+  //         AND t.project_id = ${input.projectId}
+  //         ${generationsFilterPrismaCondition(input)}
+  //       GROUP BY 1
+  //     `),
+  //       ctx.prisma.$queryRaw<
+  //         Array<{
+  //           name: string | null;
+  //           count: number;
+  //         }>
+  //       >(Prisma.sql`
+  //       SELECT
+  //         o.name,
+  //         count(*)::int AS count
+  //       FROM traces t
+  //       JOIN observations o ON o.trace_id = t.id
+  //       WHERE o.type = 'GENERATION'
+  //         AND o.project_id = ${input.projectId}
+  //         AND t.project_id = ${input.projectId}
+  //         ${generationsFilterPrismaCondition(input)}
+  //       GROUP BY 1
+  //     `),
+  //       ctx.prisma.$queryRaw<
+  //         Array<{
+  //           model: string | null;
+  //           count: number;
+  //         }>
+  //       >(Prisma.sql`
+  //       SELECT
+  //         o.model,
+  //         count(*)::int AS count
+  //       FROM traces t
+  //       JOIN observations o ON o.trace_id = t.id
+  //       WHERE o.type = 'GENERATION'
+  //         AND o.project_id = ${input.projectId}
+  //         AND t.project_id = ${input.projectId}
+  //         ${generationsFilterPrismaCondition(input)}
+  //       GROUP BY 1
+  //     `),
+  //       ctx.prisma.$queryRaw<
+  //         Array<{
+  //           name: string | null;
+  //           count: number;
+  //         }>
+  //       >(Prisma.sql`
+  //       SELECT
+  //         t.name,
+  //         count(*)::int AS count
+  //       FROM traces t
+  //       JOIN observations o ON o.trace_id = t.id
+  //       WHERE o.type = 'GENERATION'
+  //         AND o.project_id = ${input.projectId}
+  //         AND t.project_id = ${input.projectId}
+  //         ${generationsFilterPrismaCondition(input)}
+  //       GROUP BY 1
+  //     `),
+  //     ]);
 
-      return [
-        {
-          key: "traceId",
-          occurrences: traceIds
-            .filter((i) => i.traceId !== null)
-            .map((i) => {
-              return { key: i.traceId ?? "null", count: i.count };
-            }),
-        },
-        {
-          key: "name",
-          occurrences: names
-            .filter((i) => i.name !== null)
-            .map((i) => {
-              return { key: i.name ?? "null", count: i.count };
-            }),
-        },
-        {
-          key: "model",
-          occurrences: models
-            .filter((i) => i.model !== null)
-            .map((i) => {
-              return { key: i.model ?? "null", count: i.count };
-            }),
-        },
-        {
-          key: "traceName",
-          occurrences: traceNames
-            .filter((i) => i.name !== null)
-            .map((i) => {
-              return { key: i.name ?? "null", count: i.count };
-            }),
-        },
-      ];
-    }),
+  //     return [
+  //       {
+  //         key: "traceId",
+  //         occurrences: traceIds
+  //           .filter((i) => i.traceId !== null)
+  //           .map((i) => {
+  //             return { key: i.traceId ?? "null", count: i.count };
+  //           }),
+  //       },
+  //       {
+  //         key: "name",
+  //         occurrences: names
+  //           .filter((i) => i.name !== null)
+  //           .map((i) => {
+  //             return { key: i.name ?? "null", count: i.count };
+  //           }),
+  //       },
+  //       {
+  //         key: "model",
+  //         occurrences: models
+  //           .filter((i) => i.model !== null)
+  //           .map((i) => {
+  //             return { key: i.model ?? "null", count: i.count };
+  //           }),
+  //       },
+  //       {
+  //         key: "traceName",
+  //         occurrences: traceNames
+  //           .filter((i) => i.name !== null)
+  //           .map((i) => {
+  //             return { key: i.name ?? "null", count: i.count };
+  //           }),
+  //       },
+  //     ];
+  //   }),
 
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     // also works for other observations

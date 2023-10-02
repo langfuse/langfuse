@@ -10,24 +10,14 @@ import { Prisma, type Score, type Trace } from "@prisma/client";
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
-
-const ScoreFilter = z.object({
-  name: z.string(),
-  operator: z.enum(["lt", "gt", "equals", "lte", "gte"]),
-  value: z.number(),
-});
-
-type ScoreFilter = z.infer<typeof ScoreFilter>;
+import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
+import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  userId: z.array(z.string()).nullable(),
-  name: z.array(z.string()).nullable(),
-  scores: ScoreFilter.nullable(),
   searchQuery: z.string().nullable(),
-  metadata: z
-    .array(z.object({ key: z.string(), value: z.string() }))
-    .nullable(),
+  filter: z.array(singleFilter).nullable(),
   ...paginationZod,
 });
 
@@ -35,48 +25,54 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const metadataCondition = input.metadata
-        ? input.metadata.map(
-            (m) => Prisma.sql`AND t."metadata"->>${m.key} = ${m.value}`,
-          )
-        : undefined;
+      // const metadataCondition = input.metadata
+      //   ? input.metadata.map(
+      //       (m) => Prisma.sql`AND t."metadata"->>${m.key} = ${m.value}`,
+      //     )
+      //   : undefined;
 
-      const joinedMetadataCondition =
-        metadataCondition && metadataCondition.length > 0
-          ? Prisma.join(metadataCondition, " ")
-          : Prisma.empty;
+      // const joinedMetadataCondition =
+      //   metadataCondition && metadataCondition.length > 0
+      //     ? Prisma.join(metadataCondition, " ")
+      //     : Prisma.empty;
 
-      const userIdCondition =
-        input.userId !== null && input.userId.length
-          ? Prisma.sql`AND t."user_id" IN (${Prisma.join(input.userId)})`
-          : Prisma.empty;
+      // const userIdCondition =
+      //   input.userId !== null && input.userId.length
+      //     ? Prisma.sql`AND t."user_id" IN (${Prisma.join(input.userId)})`
+      //     : Prisma.empty;
 
-      const nameCondition =
-        input.name !== null && input.name.length
-          ? Prisma.sql`AND t."name" IN (${Prisma.join(input.name)})`
-          : Prisma.empty;
+      // const nameCondition =
+      //   input.name !== null && input.name.length
+      //     ? Prisma.sql`AND t."name" IN (${Prisma.join(input.name)})`
+      //     : Prisma.empty;
 
-      let scoreCondition = Prisma.empty;
-      if (input.scores) {
-        const base = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.name = ${input.scores.name}`;
-        switch (input.scores.operator) {
-          case "lt":
-            scoreCondition = Prisma.sql`${base} AND scores.value < ${input.scores.value})`;
-            break;
-          case "gt":
-            scoreCondition = Prisma.sql`${base} AND scores.value > ${input.scores.value})`;
-            break;
-          case "equals":
-            scoreCondition = Prisma.sql`${base} AND scores.value = ${input.scores.value})`;
-            break;
-          case "lte":
-            scoreCondition = Prisma.sql`${base} AND scores.value <= ${input.scores.value})`;
-            break;
-          case "gte":
-            scoreCondition = Prisma.sql`${base} AND scores.value >= ${input.scores.value})`;
-            break;
-        }
-      }
+      // let scoreCondition = Prisma.empty;
+      // if (input.scores) {
+      //   const base = Prisma.sql`AND "trace_id" in (SELECT distinct trace_id from scores WHERE trace_id IS NOT NULL AND scores.name = ${input.scores.name}`;
+      //   switch (input.scores.operator) {
+      //     case "lt":
+      //       scoreCondition = Prisma.sql`${base} AND scores.value < ${input.scores.value})`;
+      //       break;
+      //     case "gt":
+      //       scoreCondition = Prisma.sql`${base} AND scores.value > ${input.scores.value})`;
+      //       break;
+      //     case "equals":
+      //       scoreCondition = Prisma.sql`${base} AND scores.value = ${input.scores.value})`;
+      //       break;
+      //     case "lte":
+      //       scoreCondition = Prisma.sql`${base} AND scores.value <= ${input.scores.value})`;
+      //       break;
+      //     case "gte":
+      //       scoreCondition = Prisma.sql`${base} AND scores.value >= ${input.scores.value})`;
+      //       break;
+      //   }
+      // }
+
+      const filterCondition = filterToPrismaSql(
+        input.filter ?? [],
+        tracesTableCols,
+      );
+      console.log("filters: ", filterCondition);
 
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
@@ -122,11 +118,8 @@ export const traceRouter = createTRPCRouter({
       LEFT JOIN usage AS u ON u.trace_id = t.id
       WHERE 
         t."project_id" = ${input.projectId}
-        ${userIdCondition}
-        ${nameCondition}
         ${searchCondition}
-        ${scoreCondition}
-        ${joinedMetadataCondition}
+        ${filterCondition}
       ORDER BY t."timestamp" DESC
       LIMIT ${input.limit}
       OFFSET ${input.page * input.limit};
@@ -151,102 +144,102 @@ export const traceRouter = createTRPCRouter({
         scores: scores.filter((score) => score.traceId === trace.id),
       }));
     }),
-  availableFilterOptions: protectedProjectProcedure
-    .input(TraceFilterOptions)
-    .query(async ({ input, ctx }) => {
-      const metadataConditions = input.metadata
-        ? input.metadata.map((m) => ({
-            metadata: { path: [m.key], equals: m.value },
-          }))
-        : undefined;
+  // availableFilterOptions: protectedProjectProcedure
+  //   .input(TraceFilterOptions)
+  //   .query(async ({ input, ctx }) => {
+  //     const metadataConditions = input.metadata
+  //       ? input.metadata.map((m) => ({
+  //           metadata: { path: [m.key], equals: m.value },
+  //         }))
+  //       : undefined;
 
-      const filter = {
-        AND: [
-          {
-            projectId: input.projectId,
-            ...(input.name ? { name: { in: input.name } } : undefined),
-            ...(input.userId ? { userId: { in: input.userId } } : undefined),
-            ...(input.scores
-              ? { scores: { some: createScoreCondition(input.scores) } }
-              : undefined),
-          },
-          ...(metadataConditions ? metadataConditions : []),
-          input.searchQuery
-            ? {
-                OR: [
-                  { id: { contains: input.searchQuery } },
-                  { externalId: { contains: input.searchQuery } },
-                  { userId: { contains: input.searchQuery } },
-                  { name: { contains: input.searchQuery } },
-                ],
-              }
-            : {},
-        ],
-      };
+  //     const filter = {
+  //       AND: [
+  //         {
+  //           projectId: input.projectId,
+  //           ...(input.name ? { name: { in: input.name } } : undefined),
+  //           ...(input.userId ? { userId: { in: input.userId } } : undefined),
+  //           ...(input.scores
+  //             ? { scores: { some: createScoreCondition(input.scores) } }
+  //             : undefined),
+  //         },
+  //         ...(metadataConditions ? metadataConditions : []),
+  //         input.searchQuery
+  //           ? {
+  //               OR: [
+  //                 { id: { contains: input.searchQuery } },
+  //                 { externalId: { contains: input.searchQuery } },
+  //                 { userId: { contains: input.searchQuery } },
+  //                 { name: { contains: input.searchQuery } },
+  //               ],
+  //             }
+  //           : {},
+  //       ],
+  //     };
 
-      const [scores, names, userIds] = await Promise.all([
-        ctx.prisma.score.groupBy({
-          where: {
-            trace: filter,
-          },
-          by: ["name", "traceId"],
-          _count: {
-            _all: true,
-          },
-        }),
-        ctx.prisma.trace.groupBy({
-          where: filter,
-          by: ["name"],
-          _count: {
-            _all: true,
-          },
-        }),
-        ctx.prisma.trace.groupBy({
-          where: filter,
-          by: ["userId"],
-          _count: {
-            _all: true,
-          },
-        }),
-      ]);
+  //     const [scores, names, userIds] = await Promise.all([
+  //       ctx.prisma.score.groupBy({
+  //         where: {
+  //           trace: filter,
+  //         },
+  //         by: ["name", "traceId"],
+  //         _count: {
+  //           _all: true,
+  //         },
+  //       }),
+  //       ctx.prisma.trace.groupBy({
+  //         where: filter,
+  //         by: ["name"],
+  //         _count: {
+  //           _all: true,
+  //         },
+  //       }),
+  //       ctx.prisma.trace.groupBy({
+  //         where: filter,
+  //         by: ["userId"],
+  //         _count: {
+  //           _all: true,
+  //         },
+  //       }),
+  //     ]);
 
-      let groupedCounts: Map<string, number> = new Map();
+  //     let groupedCounts: Map<string, number> = new Map();
 
-      for (const item of scores) {
-        const current = groupedCounts.get(item.name);
-        groupedCounts = groupedCounts.set(item.name, current ? current + 1 : 1);
-      }
+  //     for (const item of scores) {
+  //       const current = groupedCounts.get(item.name);
+  //       groupedCounts = groupedCounts.set(item.name, current ? current + 1 : 1);
+  //     }
 
-      const scoresArray: { key: string; value: number }[] = [];
-      for (const [key, value] of groupedCounts) {
-        scoresArray.push({ key, value });
-      }
+  //     const scoresArray: { key: string; value: number }[] = [];
+  //     for (const [key, value] of groupedCounts) {
+  //       scoresArray.push({ key, value });
+  //     }
 
-      return [
-        {
-          key: "name",
-          occurrences: names.map((i) => {
-            return { key: i.name ?? "undefined", count: i._count };
-          }),
-        },
-        {
-          key: "userId",
-          occurrences: userIds.map((i) => {
-            return { key: i.userId ?? "undefined", count: i._count };
-          }),
-        },
-        {
-          key: "scores",
-          occurrences: scoresArray.map((i) => {
-            return { key: i.key, count: { _all: i.value } };
-          }),
-        },
-        {
-          key: "metadata",
-          occurrences: [],
-        },
-      ];
-    }),
+  //     return [
+  //       {
+  //         key: "name",
+  //         occurrences: names.map((i) => {
+  //           return { key: i.name ?? "undefined", count: i._count };
+  //         }),
+  //       },
+  //       {
+  //         key: "userId",
+  //         occurrences: userIds.map((i) => {
+  //           return { key: i.userId ?? "undefined", count: i._count };
+  //         }),
+  //       },
+  //       {
+  //         key: "scores",
+  //         occurrences: scoresArray.map((i) => {
+  //           return { key: i.key, count: { _all: i.value } };
+  //         }),
+  //       },
+  //       {
+  //         key: "metadata",
+  //         occurrences: [],
+  //       },
+  //     ];
+  //   }),
 
   byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
     const [trace, observations, pricings] = await Promise.all([
@@ -357,29 +350,3 @@ export const traceRouter = createTRPCRouter({
       };
     }),
 });
-
-function createScoreCondition(score: ScoreFilter) {
-  let filter = {};
-  switch (score.operator) {
-    case "lt":
-      filter = { lt: score.value };
-      break;
-    case "gt":
-      filter = { gt: score.value };
-      break;
-    case "equals":
-      filter = { equals: score.value };
-      break;
-    case "lte":
-      filter = { lte: score.value };
-      break;
-    case "gte":
-      filter = { gte: score.value };
-      break;
-  }
-
-  return {
-    name: score.name,
-    value: filter,
-  };
-}

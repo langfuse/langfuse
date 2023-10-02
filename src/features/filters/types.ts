@@ -18,3 +18,8 @@ export type WipFilterCondition = AllowStringAsValue<
   MakeOptional<FilterCondition>
 >;
 export type WipFilterState = WipFilterCondition[];
+
+export type FilterOption = {
+  value: string;
+  count?: number;
+};

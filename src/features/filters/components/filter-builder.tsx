@@ -196,6 +196,7 @@ function FilterBuilderForm({
                       handleFilterChange(
                         {
                           ...filter,
+                          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
                           operator: value as any,
                         },
                         i,
@@ -298,7 +299,6 @@ function FilterBuilderForm({
         <Plus className="mr-2 h-4 w-4" />
         Add filter
       </Button>
-      <pre>{JSON.stringify(filterState, null, 2)}</pre>
     </>
   );
 }
