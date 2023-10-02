@@ -157,12 +157,13 @@ const VersionTable = ({
 }) => {
   const data = api.dashboard.chart.useQuery({
     projectId,
-    from: "traces_scores",
+    from: "traces_parent_observation_scores",
     select: [
       { column: "value", agg: "AVG" },
       { column: "version", agg: null },
       { column: "value", agg: "COUNT" },
       { column: "scoreName", agg: null },
+      { column: "duration", agg: "AVG" },
     ],
     filter: globalFilterState.get("traces") ?? [],
     groupBy: [
@@ -170,6 +171,8 @@ const VersionTable = ({
       { type: "string", column: "scoreName" },
     ],
   });
+
+  console.log(data);
 
   return (
     <div className="md:container">
@@ -207,7 +210,9 @@ const VersionTable = ({
                   </TableCell>
                   <TableCell>{row.avgValue as number}</TableCell>
                   <TableCell>{row.countValue as number}</TableCell>
-                  <TableCell className="text-right">10s</TableCell>
+                  <TableCell className="text-right">
+                    {row.avgDuration as number}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
