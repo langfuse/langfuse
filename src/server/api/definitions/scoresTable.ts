@@ -4,4 +4,5 @@ export const scoresTableCols: ColumnDefinition[] = [
   { name: "name", type: "string", internal: 's."name"' },
   { name: "userId", type: "string", internal: 't."user_id"' },
   { name: "timestamp", type: "datetime", internal: 's."timestamp"' },
+  { name: "value", type: "number", internal: 's."value"' },
 ];

@@ -26,9 +26,11 @@ export function filterToPrismaSql(
             .toISOString()
             .split(".")[0]! // remove milliseconds
             .replace("T", " ") // to Postgres datetime
-        }::timestamp`;
+        }::TIMESTAMP`;
         break;
       case "number":
+        valuePrisma = Prisma.sql`${filter.value}::DOUBLE PRECISION`;
+        break;
       case "string":
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
