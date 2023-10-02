@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Filter, Plus, Trash } from "lucide-react";
+import { Filter, Plus, Trash, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -67,52 +67,64 @@ export function FilterBuilder({
   };
 
   return (
-    <Popover
-      onOpenChange={(open) => {
-        // Create empty filter when opening popover
-        if (open && filterState.length === 0) addNewFilter();
-        // Discard all wip filters when closing popover
-        if (!open) setWipFilterState(filterState);
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button variant="outline">
-          <Filter className="mr-3 h-4 w-4" />
-          <span>Filter</span>
-          {filterState.length > 0
-            ? filterState.map((filter, i) => {
-                return (
-                  <span
-                    key={i}
-                    className="ml-3 rounded-md bg-slate-200 p-1 px-2 text-xs"
-                  >
-                    {filter.column} {filter.operator}{" "}
-                    {filter.value
-                      ? filter.type === "datetime"
-                        ? new Date(filter.value).toLocaleDateString()
-                        : filter.type === "stringOptions"
-                        ? filter.value.join(", ")
-                        : filter.type === "number"
-                        ? filter.value
-                        : `"${filter.value}"`
-                      : null}
-                  </span>
-                );
-              })
-            : null}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-fit max-w-[90vw] overflow-x-auto"
-        align="start"
+    <div className="flex items-center">
+      <Popover
+        onOpenChange={(open) => {
+          // Create empty filter when opening popover
+          if (open && filterState.length === 0) addNewFilter();
+          // Discard all wip filters when closing popover
+          if (!open) setWipFilterState(filterState);
+        }}
       >
-        <FilterBuilderForm
-          columns={columns}
-          filterState={wipFilterState}
-          onChange={setWipFilterState}
-        />
-      </PopoverContent>
-    </Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline">
+            <Filter className="mr-3 h-4 w-4" />
+            <span>Filter</span>
+            {filterState.length > 0
+              ? filterState.map((filter, i) => {
+                  return (
+                    <span
+                      key={i}
+                      className="ml-3 rounded-md bg-slate-200 px-2 text-xs"
+                    >
+                      {filter.column} {filter.operator}{" "}
+                      {filter.value
+                        ? filter.type === "datetime"
+                          ? new Date(filter.value).toLocaleDateString()
+                          : filter.type === "stringOptions"
+                          ? filter.value.join(", ")
+                          : filter.type === "number"
+                          ? filter.value
+                          : `"${filter.value}"`
+                        : null}
+                    </span>
+                  );
+                })
+              : null}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-fit max-w-[90vw] overflow-x-auto"
+          align="start"
+        >
+          <FilterBuilderForm
+            columns={columns}
+            filterState={wipFilterState}
+            onChange={setWipFilterState}
+          />
+        </PopoverContent>
+      </Popover>
+      {filterState.length > 0 ? (
+        <Button
+          onClick={() => setWipFilterState([])}
+          variant="ghost"
+          size="icon"
+          className="ml-2"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
