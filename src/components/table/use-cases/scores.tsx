@@ -1,7 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
-import { useFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
@@ -36,7 +36,7 @@ export default function ScoresTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [userFilterState, setUserFilterState] = useFilterState([]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
   const filterState = userId
     ? userFilterState.concat([
         {

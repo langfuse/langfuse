@@ -21,7 +21,12 @@ export function filterToPrismaSql(
     let valuePrisma: Prisma.Sql;
     switch (filter.type) {
       case "datetime":
-        valuePrisma = Prisma.sql`${filter.value.toISOString()}`;
+        valuePrisma = Prisma.sql`${
+          filter.value
+            .toISOString()
+            .split(".")[0]! // remove milliseconds
+            .replace("T", " ") // to Postgres datetime
+        }::timestamp`;
         break;
       case "number":
       case "string":

@@ -13,7 +13,7 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useEffect, useState } from "react";
-import { useFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { type FilterState } from "@/src/features/filters/types";
@@ -32,7 +32,7 @@ export default function AnalyticsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const [filterState, setFilterState] = useFilterState([
+  const [filterState, setFilterState] = useQueryFilterState([
     {
       column: "startTime",
       operator: "<",

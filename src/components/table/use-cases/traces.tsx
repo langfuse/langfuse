@@ -3,7 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import { useFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { lastCharacters } from "@/src/utils/string";
@@ -51,7 +51,7 @@ export default function TracesTable({
     withDefault(StringParam, null),
   );
 
-  const [userFilterState, setUserFilterState] = useFilterState([]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
   const filterState = userId
     ? userFilterState.concat([
         {

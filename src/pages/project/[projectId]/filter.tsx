@@ -1,5 +1,5 @@
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { useFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 
 const cols: ColumnDefinition[] = [
@@ -30,7 +30,7 @@ const cols: ColumnDefinition[] = [
 ];
 
 const FilterPage = () => {
-  const [filterState, setFilterState] = useFilterState([]);
+  const [filterState, setFilterState] = useQueryFilterState([]);
 
   return (
     <>

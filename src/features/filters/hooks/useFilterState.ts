@@ -1,5 +1,6 @@
 import { type FilterState } from "@/src/features/filters/types";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { useState } from "react";
 import {
   useQueryParam,
   encodeDelimitedArray,
@@ -11,34 +12,60 @@ const CommaArrayParam = {
   encode: (state: FilterState) =>
     encodeDelimitedArray(
       state.map(
-        (f) => `${f.column}:${f.type}:${f.operator}:${f.value.toString()}`,
+        (f) =>
+          `${f.column};${f.type};${f.operator};${
+            f.type === "datetime"
+              ? f.value.toISOString()
+              : f.type === "number"
+              ? f.value
+              : f.type === "stringOptions"
+              ? f.value.join(",")
+              : f.value
+          }`,
       ),
       ",",
     ),
 
   decode: (arrayStr: string | (string | null)[] | null | undefined) =>
-    decodeDelimitedArray(arrayStr, ",")
+    (decodeDelimitedArray(arrayStr, ",")
       ?.map((f) => {
         if (!f) return null;
-        const [column, type, operator, value] = f.split(":");
+        const [column, type, operator, value] = f.split(";");
+        console.log("values", [column, type, operator, value]);
+        const parsedValue =
+          value === undefined || type === undefined
+            ? undefined
+            : type === "datetime"
+            ? new Date(value)
+            : type === "number"
+            ? Number(value)
+            : type === "stringOptions"
+            ? value.split(",")
+            : value;
+        console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,
           operator,
-          value,
+          value: parsedValue,
           type,
         });
         if (!parsed.success) return null;
         return parsed.data;
       })
-      .filter(Boolean) ?? [],
+      .filter((v) => v !== null) as FilterState) ?? [],
 };
 
 // manage state with hook
-export const useFilterState = (initialState: FilterState = []) => {
+export const useQueryFilterState = (initialState: FilterState = []) => {
   const [filterState, setFilterState] = useQueryParam(
     "filter",
     withDefault(CommaArrayParam, initialState),
   );
 
+  return [filterState, setFilterState] as const;
+};
+
+export const useMemoryFilterState = (initialState: FilterState = []) => {
+  const [filterState, setFilterState] = useState(initialState);
   return [filterState, setFilterState] as const;
 };

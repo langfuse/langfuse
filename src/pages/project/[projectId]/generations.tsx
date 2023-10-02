@@ -24,7 +24,7 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { useFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
 
 type GenerationTableRow = {
@@ -75,7 +75,7 @@ export default function Generations() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [filterState, setFilterState] = useFilterState([]);
+  const [filterState, setFilterState] = useQueryFilterState([]);
 
   const generations = api.generations.all.useQuery({
     page: paginationState.pageIndex,
