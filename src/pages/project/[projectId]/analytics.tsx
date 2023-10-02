@@ -196,7 +196,7 @@ const VersionTable = ({
                 <TableHead className="w-[100px]">Score Name</TableHead>
                 <TableHead>Average Score</TableHead>
                 <TableHead>Number of traces</TableHead>
-                <TableHead className="text-right">Averade duration</TableHead>
+                <TableHead className="text-right">Average duration</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
