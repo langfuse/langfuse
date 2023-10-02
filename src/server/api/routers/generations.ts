@@ -10,7 +10,10 @@ import { type Observation, Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
-import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
+import {
+  type ObservationFilterOptions,
+  observationsTableCols,
+} from "@/src/server/api/definitions/observationsTable";
 
 const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
 export type ExportFileFormats = (typeof exportFileFormats)[number];
@@ -264,7 +267,65 @@ export const generationsRouter = createTRPCRouter({
           );
       }
     }),
+  filterOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const queryFilter = {
+        projectId: input.projectId,
+        type: "GENERATION",
+      } as const;
 
+      const [model, name, traceName] = await Promise.all([
+        ctx.prisma.observation.groupBy({
+          by: ["model"],
+          where: queryFilter,
+          _count: { _all: true },
+        }),
+        ctx.prisma.observation.groupBy({
+          by: ["name"],
+          where: queryFilter,
+          _count: { _all: true },
+        }),
+        ctx.prisma.$queryRaw<
+          Array<{
+            traceName: string | null;
+            count: number;
+          }>
+        >(Prisma.sql`
+        SELECT
+          t.name "traceName",
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+        GROUP BY 1
+      `),
+      ]);
+      // typecheck filter options, needs to include all columns with options
+      const res: ObservationFilterOptions = {
+        model: model
+          .filter((i) => i.model !== null)
+          .map((i) => ({
+            value: i.model as string,
+            count: i._count._all,
+          })),
+        name: name
+          .filter((i) => i.name !== null)
+          .map((i) => ({
+            value: i.name as string,
+            count: i._count._all,
+          })),
+        traceName: traceName
+          .filter((i) => i.traceName !== null)
+          .map((i) => ({
+            value: i.traceName as string,
+            count: i.count,
+          })),
+      };
+      return res;
+    }),
   // availableFilterOptions: protectedProjectProcedure
   //   .input(GenerationFilterOptions)
   //   .query(async ({ input, ctx }) => {

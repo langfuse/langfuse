@@ -1,3 +1,8 @@
+export type OptionsDefinition = {
+  value: string;
+  count?: number;
+};
+
 export type ColumnDefinition =
   | {
       name: string;
@@ -7,8 +12,14 @@ export type ColumnDefinition =
   | {
       name: string;
       type: "stringOptions";
-      options: { value: string; count?: number }[];
+      options: Array<OptionsDefinition>;
       internal: string;
+    }
+  | {
+      name: string;
+      type: "stringObject" | "numberObject";
+      internal: string;
+      keyOptions?: Array<string>;
     };
 
 export type TableDefinitions = {

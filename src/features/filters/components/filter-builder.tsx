@@ -311,6 +311,9 @@ function FilterBuilderForm({
         <Plus className="mr-2 h-4 w-4" />
         Add filter
       </Button>
+      {/* <pre>
+        <code>{JSON.stringify(filterState, null, 2)}</code>
+      </pre> */}
     </>
   );
 }

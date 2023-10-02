@@ -8,6 +8,8 @@ import {
   withDefault,
 } from "use-query-params";
 
+const DEBUG_QUERY_STATE = false;
+
 const CommaArrayParam = {
   encode: (state: FilterState) =>
     encodeDelimitedArray(
@@ -19,7 +21,7 @@ const CommaArrayParam = {
               : f.type === "number"
               ? f.value
               : f.type === "stringOptions"
-              ? f.value.join(",")
+              ? f.value.join("|")
               : f.value
           }`,
       ),
@@ -31,7 +33,8 @@ const CommaArrayParam = {
       ?.map((f) => {
         if (!f) return null;
         const [column, type, operator, value] = f.split(";");
-        console.log("values", [column, type, operator, value]);
+        if (DEBUG_QUERY_STATE)
+          console.log("values", [column, type, operator, value]);
         const parsedValue =
           value === undefined || type === undefined
             ? undefined
@@ -40,9 +43,9 @@ const CommaArrayParam = {
             : type === "number"
             ? Number(value)
             : type === "stringOptions"
-            ? value.split(",")
+            ? value.split("|")
             : value;
-        console.log("parsedValue", parsedValue);
+        if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,
           operator,

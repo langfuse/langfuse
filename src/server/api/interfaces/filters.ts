@@ -28,7 +28,8 @@ export const numberFilter = z.object({
 export const stringOptionsFilter = z.object({
   column: z.string(),
   operator: z.enum(filterOperators.stringOptions),
-  value: z.array(z.string()),
+  // do not filter on empty arrays, use refine to check this only at runtime (no type checking)
+  value: z.array(z.string()).refine((v) => v.length > 0),
   type: z.literal("stringOptions"),
 });
 export const singleFilter = z.discriminatedUnion("type", [

@@ -25,7 +25,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
+import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
 
 type GenerationTableRow = {
   id: string;
@@ -85,6 +85,10 @@ export default function Generations() {
     searchQuery,
   });
   const totalCount = generations.data?.slice(1)[0]?.totalCount ?? 0;
+
+  const filterOptions = api.generations.filterOptions.useQuery({
+    projectId,
+  });
 
   const handleExport = async (fileFormat: ExportFileFormats) => {
     if (isExporting) return;
@@ -215,7 +219,9 @@ export default function Generations() {
     <div>
       <Header title="Generations" />
       <DataTableToolbar
-        filterColumnDefinition={observationsTableCols}
+        filterColumnDefinition={observationsTableColsWithOptions(
+          filterOptions.data,
+        )}
         filterState={filterState}
         setFilterState={setFilterState}
         searchConfig={{
