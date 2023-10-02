@@ -34,12 +34,12 @@ export function DataTableToolbar({
     <div className="my-2 flex max-w-full items-center justify-between overflow-x-auto">
       <div className="flex flex-1 items-center space-x-2">
         {searchConfig ? (
-          <div className="flex w-full max-w-md items-center space-x-2">
+          <div className="flex max-w-md items-center space-x-2">
             <Input
               autoFocus
               placeholder={searchConfig.placeholder}
               value={searchString}
-              className="h-8 w-[350px]"
+              className="h-10 w-[200px] lg:w-[350px]"
               onChange={(event) => {
                 setSearchString(event.currentTarget.value);
               }}
