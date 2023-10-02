@@ -7,7 +7,6 @@ import {
   type TableDefinitions,
 } from "@/src/server/api/interfaces/tableDefinition";
 import { type PrismaClient } from "@prisma/client";
-import { type ColumnOrderState } from "@tanstack/react-table";
 import Decimal from "decimal.js";
 import { z } from "zod";
 
@@ -84,6 +83,12 @@ const scoreName = {
   type: "string",
   internal: 's."name"',
 } as const;
+const duration = {
+  name: "duration",
+  type: "number",
+  internal:
+    'EXTRACT(EPOCH FROM o."end_time") * 1000 - EXTRACT(EPOCH FROM o."start_time") * 1000',
+} as const;
 
 const tableDefinitions: TableDefinitions = {
   traces: {
@@ -102,6 +107,7 @@ const tableDefinitions: TableDefinitions = {
       observationId,
       { name: "type", type: "string", internal: 'o."type"' },
       { name: "projectId", type: "string", internal: 't."project_id"' },
+      duration,
     ],
   },
   observations: {
@@ -126,6 +132,7 @@ const tableDefinitions: TableDefinitions = {
       { name: "projectId", type: "string", internal: 'o."project_id"' },
       startTime,
       { name: "endTime", type: "datetime", internal: 'o."end_time"' },
+      duration,
     ],
   },
   traces_scores: {
@@ -141,6 +148,22 @@ const tableDefinitions: TableDefinitions = {
       traceVersion,
       traceTimestamp,
       scoreName,
+    ],
+  },
+  traces_parent_observation_scores: {
+    table: ` traces t LEFT JOIN observations o on t."id" = o."trace_id" and o."parent_observation_id" is NULL LEFT JOIN scores s ON t."id" = s."trace_id"`,
+    columns: [
+      { name: "projectId", type: "string", internal: 't."project_id"' },
+      { name: "value", type: "number", internal: 's."value"' },
+      {
+        name: "name",
+        type: "number",
+        internal: 's."name"',
+      },
+      traceVersion,
+      traceTimestamp,
+      scoreName,
+      duration,
     ],
   },
 };
@@ -163,6 +186,7 @@ export const sqlInterface = z.object({
     "traces_observations",
     "observations",
     "traces_scores",
+    "traces_parent_observation_scores",
   ]), // predefined views on our db
   filter: z.array(singleFilter),
   groupBy: z.array(
