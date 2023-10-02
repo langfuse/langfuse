@@ -8,49 +8,71 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
-import { type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { Filter, Plus, Trash } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  type FilterState,
-  type FilterColumns,
-  type FilterCondition,
-  filterOperators,
-} from "@/src/features/filters/types";
-import { isValidFilter } from "@/src/features/filters/lib/utils";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import {
+  type WipFilterState,
+  type FilterState,
+  type WipFilterCondition,
+} from "@/src/features/filters/types";
+import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import {
+  filterOperators,
+  singleFilter,
+} from "@/src/server/api/interfaces/filters";
 
-type FilterBuilderProps<cols extends FilterColumns = []> = {
-  columns: cols;
-  filterState: FilterState<cols>;
-  onChange: Dispatch<SetStateAction<FilterState<cols>>>;
-};
-
-export function FilterBuilder<T extends FilterColumns>({
+// Has WipFilterState, passes all valid filters to parent onChange
+export function FilterBuilder({
   columns,
   filterState,
   onChange,
-}: FilterBuilderProps<T>) {
+}: {
+  columns: ColumnDefinition[];
+  filterState: FilterState;
+  onChange: Dispatch<SetStateAction<FilterState>>;
+}) {
+  const [wipFilterState, _setWipFilterState] =
+    useState<WipFilterState>(filterState);
+
   const addNewFilter = () => {
-    onChange((prev) => [
+    setWipFilterState((prev) => [
       ...prev,
-      { column: null, operator: null, value: null },
+      {
+        column: undefined,
+        type: undefined,
+        operator: undefined,
+        value: undefined,
+      },
     ]);
   };
-  const removeUnfilledFilters = () => {
-    onChange((prev) => prev.filter((f) => isValidFilter(f)));
+
+  const setWipFilterState = (
+    state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
+  ) => {
+    _setWipFilterState((prev) => {
+      const newState = state instanceof Function ? state(prev) : state;
+      onChange(
+        newState.filter(
+          (f) => singleFilter.safeParse(f).success,
+        ) as FilterState,
+      );
+      return newState;
+    });
   };
+
   return (
     <Popover
       onOpenChange={(open) => {
         // Create empty filter when opening popover
         if (open && filterState.length === 0) addNewFilter();
-        // Remove filters that are not fully filled out when closing popover
-        if (!open) removeUnfilledFilters();
+        // Discard all wip filters when closing popover
+        if (!open) setWipFilterState(filterState);
       }}
     >
       <PopoverTrigger asChild>
@@ -58,26 +80,25 @@ export function FilterBuilder<T extends FilterColumns>({
           <Filter className="mr-3 h-4 w-4" />
           <span>Filter</span>
           {filterState.length > 0
-            ? filterState
-                .filter((f) => isValidFilter(f))
-                .map((filter, i) => {
-                  const colDtype = columns.find((c) => c.name === filter.column)
-                    ?.type;
-
-                  return (
-                    <span
-                      key={i}
-                      className="ml-3 rounded-md bg-slate-200 p-1 px-2 text-xs"
-                    >
-                      {filter.column} {filter.operator}{" "}
-                      {filter.value
-                        ? colDtype === "datetime"
-                          ? new Date(filter.value).toLocaleDateString()
-                          : `"${filter.value}"`
-                        : null}
-                    </span>
-                  );
-                })
+            ? filterState.map((filter, i) => {
+                return (
+                  <span
+                    key={i}
+                    className="ml-3 rounded-md bg-slate-200 p-1 px-2 text-xs"
+                  >
+                    {filter.column} {filter.operator}{" "}
+                    {filter.value
+                      ? filter.type === "datetime"
+                        ? new Date(filter.value).toLocaleDateString()
+                        : filter.type === "stringOptions"
+                        ? filter.value.join(", ")
+                        : filter.type === "number"
+                        ? filter.value
+                        : `"${filter.value}"`
+                      : null}
+                  </span>
+                );
+              })
             : null}
         </Button>
       </PopoverTrigger>
@@ -87,20 +108,24 @@ export function FilterBuilder<T extends FilterColumns>({
       >
         <FilterBuilderForm
           columns={columns}
-          filterState={filterState}
-          onChange={onChange}
+          filterState={wipFilterState}
+          onChange={setWipFilterState}
         />
       </PopoverContent>
     </Popover>
   );
 }
 
-function FilterBuilderForm<T extends FilterColumns>({
+function FilterBuilderForm({
   columns,
   filterState,
   onChange,
-}: FilterBuilderProps<T>) {
-  const handleFilterChange = (filter: FilterCondition<T>, i: number) => {
+}: {
+  columns: ColumnDefinition[];
+  filterState: WipFilterState;
+  onChange: Dispatch<SetStateAction<WipFilterState>>;
+}) {
+  const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
       const newState = [...prev];
       newState[i] = filter;
@@ -111,7 +136,12 @@ function FilterBuilderForm<T extends FilterColumns>({
   const addNewFilter = () => {
     onChange((prev) => [
       ...prev,
-      { column: null, operator: null, value: null },
+      {
+        column: undefined,
+        operator: undefined,
+        value: undefined,
+        type: undefined,
+      },
     ]);
   };
 
@@ -128,7 +158,7 @@ function FilterBuilderForm<T extends FilterColumns>({
       <table className="table-auto">
         <tbody>
           {filterState.map((filter, i) => {
-            const colDef = columns.find((c) => c.name === filter.column);
+            const column = columns.find((c) => c.name === filter.column);
             return (
               <tr key={i}>
                 <td className="p-2">{i === 0 ? "Where" : "And"}</td>
@@ -138,10 +168,10 @@ function FilterBuilderForm<T extends FilterColumns>({
                     onValueChange={(value) =>
                       handleFilterChange(
                         {
-                          ...filter,
-                          column: value as typeof filter.column,
-                          operator: null,
-                          value: null,
+                          column: value,
+                          type: columns.find((c) => c.name === value)?.type,
+                          operator: undefined,
+                          value: undefined,
                         },
                         i,
                       )
@@ -166,11 +196,7 @@ function FilterBuilderForm<T extends FilterColumns>({
                       handleFilterChange(
                         {
                           ...filter,
-                          operator: value as typeof filter.operator,
-                          // reset value when switching to selection operator
-                          value: ["any of", "none of"].includes(value)
-                            ? ""
-                            : filter.value,
+                          operator: value as any,
                         },
                         i,
                       );
@@ -181,8 +207,8 @@ function FilterBuilderForm<T extends FilterColumns>({
                       <SelectValue placeholder="Operator" />
                     </SelectTrigger>
                     <SelectContent>
-                      {colDef?.type
-                        ? filterOperators[colDef.type].map((option) => (
+                      {filter.type !== undefined
+                        ? filterOperators[filter.type].map((option) => (
                             <SelectItem key={option} value={option}>
                               {option}
                             </SelectItem>
@@ -192,7 +218,7 @@ function FilterBuilderForm<T extends FilterColumns>({
                   </Select>
                 </td>
                 <td className="p-2">
-                  {colDef?.type === "datetime" ? (
+                  {filter.type === "datetime" ? (
                     <DatePicker
                       className="min-w-[100px]"
                       date={filter.value ? new Date(filter.value) : undefined}
@@ -200,35 +226,48 @@ function FilterBuilderForm<T extends FilterColumns>({
                         handleFilterChange(
                           {
                             ...filter,
-                            value: date ? date.toISOString() : null,
+                            value: date,
                           },
                           i,
                         );
                       }}
                     />
-                  ) : colDef?.type === "stringOptions" &&
+                  ) : filter.type === "stringOptions" &&
                     filter.operator &&
                     ["any of", "none of"].includes(filter.operator) ? (
                     <MultiSelect
                       title="Value"
                       className="min-w-[100px]"
-                      options={colDef.options}
+                      options={
+                        column?.type === "stringOptions" ? column.options : []
+                      }
                       onValueChange={(value) =>
+                        handleFilterChange({ ...filter, value }, i)
+                      }
+                      values={Array.isArray(filter.value) ? filter.value : []}
+                    />
+                  ) : filter.type === "number" ? (
+                    <Input
+                      value={filter.value?.toString() ?? ""}
+                      placeholder="number"
+                      onChange={(e) =>
                         handleFilterChange(
-                          { ...filter, value: JSON.stringify(value) },
+                          {
+                            ...filter,
+                            value:
+                              isNaN(Number(e.target.value)) ||
+                              e.target.value.endsWith(".")
+                                ? e.target.value
+                                : Number(e.target.value),
+                          },
                           i,
                         )
                       }
-                      values={
-                        filter.value
-                          ? (JSON.parse(filter.value) as string[])
-                          : []
-                      }
                     />
-                  ) : (
+                  ) : filter.type === "string" ? (
                     <Input
-                      disabled={!filter.operator}
                       value={filter.value ?? ""}
+                      placeholder="string"
                       onChange={(e) =>
                         handleFilterChange(
                           { ...filter, value: e.target.value },
@@ -236,6 +275,8 @@ function FilterBuilderForm<T extends FilterColumns>({
                         )
                       }
                     />
+                  ) : (
+                    <Input disabled />
                   )}
                 </td>
                 <td>
@@ -257,6 +298,7 @@ function FilterBuilderForm<T extends FilterColumns>({
         <Plus className="mr-2 h-4 w-4" />
         Add filter
       </Button>
+      <pre>{JSON.stringify(filterState, null, 2)}</pre>
     </>
   );
 }

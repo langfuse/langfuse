@@ -1,35 +1,20 @@
-export type FilterOption = { value: string; count?: number };
-export type FilterColumn =
-  | { name: string; type: "number" | "datetime" | "string" }
-  | {
-      name: string;
-      type: "stringOptions";
-      options: FilterOption[] | readonly FilterOption[];
-    };
-export type FilterColumns = readonly FilterColumn[];
+import { type singleFilter } from "@/src/server/api/interfaces/filters";
+import { type z } from "zod";
 
-type ColumnNames<C extends FilterColumns> = C[number]["name"];
+// to be sent to the server
+export type FilterCondition = z.infer<typeof singleFilter>;
+export type FilterState = FilterCondition[];
 
-export const filterOperators = {
-  string: ["=", "!=", "starts with", "ends with", "contains", "regex"],
-  stringOptions: [
-    "any of",
-    "none of",
-    "starts with",
-    "ends with",
-    "contains",
-    "regex",
-  ],
-  number: ["=", "!=", ">", "<"],
-  datetime: [">", "<"],
-  object: ["=", "!=", "starts with", "ends with", "contains", "regex"],
-} as const;
-
-export type FilterCondition<cols extends FilterColumns = []> = {
-  column: ColumnNames<cols> | null;
-  operator: (typeof filterOperators)[cols[number]["type"]][number] | null;
-  value: string | null;
-  objectKey?: string; // key of object to filter on
+// to be used in the client during editing
+type MakeOptional<T> = {
+  [K in keyof T]?: T[K];
 };
-export type FilterState<cols extends FilterColumns = []> =
-  FilterCondition<cols>[];
+// if key is value, add string as value
+type AllowStringAsValue<T> = {
+  [K in keyof T]: K extends "value" ? string | T[K] : T[K];
+};
+
+export type WipFilterCondition = AllowStringAsValue<
+  MakeOptional<FilterCondition>
+>;
+export type WipFilterState = WipFilterCondition[];

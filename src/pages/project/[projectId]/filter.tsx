@@ -1,31 +1,36 @@
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 
-const cols = [
+const cols: ColumnDefinition[] = [
   {
     name: "col1",
     type: "string",
+    internal: "col1",
   },
   {
     name: "col2",
     type: "number",
+    internal: "col2",
   },
   {
     name: "col3",
     type: "datetime",
+    internal: "col3",
   },
   {
     name: "col4",
     type: "stringOptions",
+    internal: "col4",
     options: ["option1", "option2", "option3"].map((o, i) => ({
       value: o,
       count: i,
     })),
   },
-] as const;
+];
 
 const FilterPage = () => {
-  const [filterState, setFilterState] = useFilterState(cols, []);
+  const [filterState, setFilterState] = useFilterState([]);
 
   return (
     <>
