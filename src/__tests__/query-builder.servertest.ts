@@ -1,14 +1,10 @@
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import {
-  executeQuery,
-  isArrayOfDatabaseRow,
-} from "@/src/server/api/services/query-builder";
+import { executeQuery } from "@/src/server/api/services/query-builder";
 import { prisma } from "@/src/server/db";
 
-// Create test cases
 describe("Build valid SQL queries", () => {
   beforeEach(async () => await pruneDatabase());
-  afterEach(async () => await pruneDatabase());
+  // afterEach(async () => await pruneDatabase());
 
   it("should get a simple trace", async () => {
     await prisma.project.upsert({
@@ -58,10 +54,31 @@ describe("Build valid SQL queries", () => {
   });
 
   [
-    { agg: "SUM", one: 8, two: 4 },
-    { agg: "AVG", one: 4, two: 4 },
-    { agg: "MIN", one: 3, two: 4 },
-    { agg: "MAX", one: 5, two: 4 },
+    {
+      agg: "SUM",
+      first: { sumCompletionTokens: 8, name: "trace-1" },
+      second: { sumCompletionTokens: 4, name: "trace-2" },
+    },
+    {
+      agg: "AVG",
+      first: { avgCompletionTokens: 4, name: "trace-1" },
+      second: { avgCompletionTokens: 4, name: "trace-2" },
+    },
+    {
+      agg: "MIN",
+      first: { minCompletionTokens: 3, name: "trace-1" },
+      second: { minCompletionTokens: 4, name: "trace-2" },
+    },
+    {
+      agg: "MAX",
+      first: { maxCompletionTokens: 5, name: "trace-1" },
+      second: { maxCompletionTokens: 4, name: "trace-2" },
+    },
+    {
+      agg: "COUNT",
+      first: { countCompletionTokens: 2, name: "trace-1" },
+      second: { countCompletionTokens: 1, name: "trace-2" },
+    },
   ].forEach((prop) => {
     it(`should group by name and aggregate ${prop.agg}`, async () => {
       await prisma.trace.create({
@@ -112,24 +129,8 @@ describe("Build valid SQL queries", () => {
         },
       );
 
-      if (isArrayOfDatabaseRow(result)) {
-        result.map((x, i) => {
-          if (i === 0) {
-            expect(x.completionTokens!.toString()).toStrictEqual(
-              prop.one.toString(),
-            );
-            expect(x.name).toStrictEqual("trace-1");
-          }
-          if (i === 1) {
-            expect(x.completionTokens!.toString()).toStrictEqual(
-              prop.two.toString(),
-            );
-            expect(x.name).toStrictEqual("trace-2");
-          }
-        });
-      } else {
-        throw Error("Expected result to be an array of Database Row");
-      }
+      expect(result[0]!).toStrictEqual(prop.first);
+      expect(result[1]!).toStrictEqual(prop.second);
     });
   });
 
@@ -202,20 +203,20 @@ describe("Build valid SQL queries", () => {
 
       expect(result).toStrictEqual([
         {
-          startTime: new Date("2021-01-04T00:00:00.000Z"),
-          completionTokens: null,
-        },
-        {
-          startTime: new Date("2021-01-03T00:00:00.000Z"),
-          completionTokens: null,
+          startTime: new Date("2021-01-01T00:00:00.000Z"),
+          sumCompletionTokens: 8,
         },
         {
           startTime: new Date("2021-01-02T00:00:00.000Z"),
-          completionTokens: 4,
+          sumCompletionTokens: 4,
         },
         {
-          startTime: new Date("2021-01-01T00:00:00.000Z"),
-          completionTokens: 8,
+          startTime: new Date("2021-01-03T00:00:00.000Z"),
+          sumCompletionTokens: null,
+        },
+        {
+          startTime: new Date("2021-01-04T00:00:00.000Z"),
+          sumCompletionTokens: null,
         },
       ]);
     });
