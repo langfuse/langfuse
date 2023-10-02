@@ -29,14 +29,14 @@ export const observationsTableCols: ColumnDefinition[] = [
 
 // to be used client side, insert options for use in filter-builder
 // allows for undefined options, to offer filters while options are still loading
-export type ObservationFilterOptions = {
+export type ObservationOptions = {
   model: Array<OptionsDefinition>;
   name: Array<OptionsDefinition>;
   traceName: Array<OptionsDefinition>;
 };
 
 export function observationsTableColsWithOptions(
-  options?: ObservationFilterOptions,
+  options?: ObservationOptions,
 ): ColumnDefinition[] {
   return observationsTableCols.map((col) => {
     if (col.name === "model") {

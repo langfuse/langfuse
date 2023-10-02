@@ -11,7 +11,7 @@ import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
 import {
-  type ObservationFilterOptions,
+  type ObservationOptions,
   observationsTableCols,
 } from "@/src/server/api/definitions/observationsTable";
 
@@ -304,7 +304,7 @@ export const generationsRouter = createTRPCRouter({
       `),
       ]);
       // typecheck filter options, needs to include all columns with options
-      const res: ObservationFilterOptions = {
+      const res: ObservationOptions = {
         model: model
           .filter((i) => i.model !== null)
           .map((i) => ({
