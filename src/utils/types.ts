@@ -31,3 +31,7 @@ export type Generation = Observation & {
 
 export type RouterInput = inferRouterInputs<AppRouter>;
 export type RouterOutput = inferRouterOutputs<AppRouter>;
+
+export const isNotUndefinedOrNull = <T>(
+  val?: T | null,
+): val is undefined | null => val !== undefined || val !== null;

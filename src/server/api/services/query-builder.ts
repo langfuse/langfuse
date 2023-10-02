@@ -7,6 +7,7 @@ import {
   type TableDefinitions,
 } from "@/src/server/api/interfaces/tableDefinition";
 import { type PrismaClient } from "@prisma/client";
+import { type ColumnOrderState } from "@tanstack/react-table";
 import Decimal from "decimal.js";
 import { z } from "zod";
 
@@ -58,11 +59,30 @@ const observationName = {
   type: "string",
   internal: 'o."name"',
 } as const;
-
+const startTime = {
+  name: "startTime",
+  type: "datetime",
+  internal: 'o."start_time"',
+} as const;
 const traceId = {
   name: "traceId",
   type: "string",
   internal: 't."id"',
+} as const;
+const traceVersion = {
+  name: "version",
+  type: "string",
+  internal: 't."version"',
+} as const;
+const traceTimestamp = {
+  name: "timestamp",
+  type: "string",
+  internal: 't."timestamp"',
+} as const;
+const scoreName = {
+  name: "scoreName",
+  type: "string",
+  internal: 's."name"',
 } as const;
 
 const tableDefinitions: TableDefinitions = {
@@ -71,6 +91,8 @@ const tableDefinitions: TableDefinitions = {
     columns: [
       { name: "id", type: "string", internal: 't."id"' },
       { name: "projectId", type: "string", internal: 't."project_id"' },
+
+      traceVersion,
     ],
   },
   traces_observations: {
@@ -100,8 +122,9 @@ const tableDefinitions: TableDefinitions = {
         internal: 'o."total_tokens"',
       },
       observationId,
+      { name: "model", type: "string", internal: 'o."model"' },
       { name: "projectId", type: "string", internal: 'o."project_id"' },
-      { name: "startTime", type: "datetime", internal: 'o."start_time"' },
+      startTime,
       { name: "endTime", type: "datetime", internal: 'o."end_time"' },
     ],
   },
@@ -109,6 +132,15 @@ const tableDefinitions: TableDefinitions = {
     table: ` traces t JOIN scores s ON t.id = s.trace_id`,
     columns: [
       { name: "projectId", type: "string", internal: 't."project_id"' },
+      { name: "value", type: "number", internal: 's."value"' },
+      {
+        name: "name",
+        type: "number",
+        internal: 's."name"',
+      },
+      traceVersion,
+      traceTimestamp,
+      scoreName,
     ],
   },
 };
@@ -145,7 +177,10 @@ export const sqlInterface = z.object({
     ]),
   ),
   select: z.array(
-    z.object({ column: z.string(), agg: z.enum(["SUM", "AVG"]).nullable() }),
+    z.object({
+      column: z.string(),
+      agg: z.enum(["SUM", "AVG", "COUNT"]).nullable(),
+    }),
   ),
 });
 
@@ -174,7 +209,9 @@ export const executeQuery = async (
     await prisma.$queryRawUnsafe<InternalDatabaseRow[]>(stringQuery);
   console.log("response", response);
 
-  return outputParser(response);
+  const a = outputParser(response);
+  console.log("a", a, response);
+  return a;
 };
 
 const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
@@ -184,9 +221,11 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
 
   const selectFields = query.select.map((field) =>
     field.agg
-      ? `${field.agg}(${getColumnSql(query.from, field.column).internal}) as "${
-          field.column
-        }"`
+      ? `${field.agg}(${
+          getColumnSql(query.from, field.column).internal
+        }) as "${field.agg.toLowerCase()}${capitalizeFirstLetter(
+          field.column,
+        )}"`
       : `${getColumnSql(query.from, field.column).internal}`,
   );
 
@@ -203,7 +242,7 @@ const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const selectString = `SELECT ${selectFields.join(", ")}`;
 
   let orderByString = "";
-  if (cte) orderByString = ` ORDER BY date_series."date" DESC`;
+  if (cte) orderByString = ` ORDER BY date_series."date" ASC`;
 
   const filterString =
     query.filter.length > 0
@@ -308,7 +347,7 @@ const createDateRangeCte = (
       from,
     )} ON DATE_TRUNC('${groupByColumn.temporalUnit}', ${
       startColumn.internal
-    }) = date_series.date`;
+    }) = DATE_TRUNC('${groupByColumn.temporalUnit}', date_series.date)`;
 
     return { cte: cteString, from: modifiedFrom, column: startColumn };
   }
@@ -382,3 +421,7 @@ const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
     return newRow;
   });
 };
+
+function capitalizeFirstLetter(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
