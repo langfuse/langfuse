@@ -23,18 +23,17 @@ export const executeQuery = async (
   projectId: string,
   query: z.TypeOf<typeof sqlInterface>,
 ) => {
-  console.log("query", query);
   const safeQuery = {
     ...query,
     filter: [...query.filter, ...getMandatoryFilter(query.from, projectId)],
   };
-  console.log("safe query", safeQuery);
+
   const stringQuery = createQuery(safeQuery);
-  console.log("stringQuery", stringQuery.inspect());
+
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(stringQuery);
 
   const parsedResult = outputParser(response);
-  console.log("parsedResult", parsedResult);
+
   return parsedResult;
 };
 
