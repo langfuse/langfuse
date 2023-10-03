@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
+import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
@@ -55,6 +55,10 @@ export default function ScoresTable({
     filter: filterState,
   });
   const totalCount = scores.data?.slice(1)[0]?.totalCount ?? 0;
+
+  const filterOptions = api.scores.filterOptions.useQuery({
+    projectId,
+  });
 
   const columns: ColumnDef<RowData>[] = [
     {
@@ -121,7 +125,7 @@ export default function ScoresTable({
   return (
     <div>
       <DataTableToolbar
-        filterColumnDefinition={scoresTableCols}
+        filterColumnDefinition={scoresTableColsWithOptions(filterOptions.data)}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
       />

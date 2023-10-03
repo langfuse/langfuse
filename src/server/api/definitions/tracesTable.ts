@@ -5,13 +5,18 @@ import {
 
 export const tracesTableCols: ColumnDefinition[] = [
   { name: "id", type: "string", internal: "t.id" },
-  { name: "userId", type: "string", internal: 't."user_id"' },
   {
     name: "name",
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be filled in at runtime
   },
+  {
+    name: "timestamp",
+    type: "datetime",
+    internal: 't."timestamp"',
+  },
+  { name: "userId", type: "string", internal: 't."user_id"' },
   {
     name: "metadata",
     type: "stringObject",
