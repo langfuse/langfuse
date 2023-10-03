@@ -11,10 +11,12 @@ export function BaseTimeSeriesChart(props: {
     props.data.flatMap((d) => d.values.map((v) => v.label)),
   );
 
-  type ChartInput = { timestamp: string } & { [key: string]: number };
+  type ChartInput = { timestamp: string } & {
+    [key: string]: number | undefined;
+  };
 
   function transformArray(
-    array: { ts: number; values: { label: string; value: number }[] }[],
+    array: { ts: number; values: { label: string; value?: number }[] }[],
   ): ChartInput[] {
     return array.map((item) => {
       const outputObject: ChartInput = {

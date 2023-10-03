@@ -8,7 +8,6 @@ import {
 } from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
-import { table } from "console";
 import Decimal from "decimal.js";
 import { z } from "zod";
 

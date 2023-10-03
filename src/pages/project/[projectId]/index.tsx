@@ -46,7 +46,7 @@ export default function Start() {
   };
 
   return (
-    <>
+    <div className="md:container">
       <Header title="Dashboard" />
       <Tabs
         value={agg}
@@ -103,6 +103,6 @@ export default function Start() {
           />
         </div>
       </div>
-    </>
+    </div>
   );
 }

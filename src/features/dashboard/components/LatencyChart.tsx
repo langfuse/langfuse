@@ -90,21 +90,23 @@ export const LatencyChart = ({
   }
 
   return (
-    <div className="md:container">
-      <Card>
-        <CardHeader className="relative">
-          <CardTitle>Model latencies</CardTitle>
-          <CardDescription>Average latency (ms)</CardDescription>
-          {data.isLoading ? (
-            <div className="absolute right-5 top-5 ">
-              <Loader className="h-5 w-5 animate-spin" />
-            </div>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          <BaseTimeSeriesChart agg={agg} data={transformedData ?? []} />
-        </CardContent>
-      </Card>
-    </div>
+    <Card>
+      <CardHeader className="relative">
+        <CardTitle>Model latencies</CardTitle>
+        <CardDescription>Average latency (ms)</CardDescription>
+        {data.isLoading ? (
+          <div className="absolute right-5 top-5 ">
+            <Loader className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        <BaseTimeSeriesChart
+          agg={agg}
+          data={transformedData ?? []}
+          connectNulls={true}
+        />
+      </CardContent>
+    </Card>
   );
 };
