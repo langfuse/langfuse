@@ -35,25 +35,44 @@ export const TokenChart = ({
 
   const transformedData = data.data
     ? data.data.map((item) => {
+        const values = [
+          ...(typeof item.sumCompletionTokens === "number"
+            ? [
+                {
+                  label: "Completion Tokens",
+                  value: item.sumCompletionTokens,
+                },
+              ]
+            : []),
+          ...(typeof item.sumPromptTokens === "number"
+            ? [
+                {
+                  label: "Prompt Tokens",
+                  value: item.sumPromptTokens,
+                },
+              ]
+            : []),
+          ...(typeof item.sumTotalTokens === "number"
+            ? [
+                {
+                  label: "Total Tokens",
+                  value: item.sumTotalTokens,
+                },
+              ]
+            : []),
+        ];
+
+        console.log(values);
         return {
           ts: (item.startTime as Date).getTime(),
-          values: [
-            {
-              label: "Completion Tokens",
-              value: (item.sumCompletionTokens ?? 0) as number,
-            },
-            {
-              label: "Prompt Tokens",
-              value: (item.sumPromptTokens ?? 0) as number,
-            },
-            {
-              label: "Total Tokens",
-              value: (item.sumTotalTokens ?? 0) as number,
-            },
-          ],
+          values: values,
         };
       })
     : [];
+
+  const filteredTimestamps = transformedData.filter(
+    (item) => item.values.length > 0,
+  );
 
   return (
     <Card>
@@ -69,7 +88,7 @@ export const TokenChart = ({
       <CardContent>
         <BaseTimeSeriesChart
           agg={agg}
-          data={transformedData ?? []}
+          data={filteredTimestamps ?? []}
           connectNulls={true}
         />
       </CardContent>
