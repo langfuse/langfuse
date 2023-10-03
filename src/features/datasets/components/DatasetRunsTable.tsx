@@ -95,7 +95,6 @@ export function DatasetRunsTable(props: {
               data: runs.data?.map((t) => convertToTableRow(t)),
             }
       }
-      options={{ isLoading: true, isError: false }}
     />
   );
 }

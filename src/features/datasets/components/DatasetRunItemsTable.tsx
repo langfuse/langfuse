@@ -107,7 +107,6 @@ export function DatasetRunItemsTable(
               data: runItems.data?.map((t) => convertToTableRow(t)),
             }
       }
-      options={{ isLoading: true, isError: false }}
     />
   );
 }

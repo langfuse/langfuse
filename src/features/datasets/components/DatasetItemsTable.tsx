@@ -160,7 +160,6 @@ export function DatasetItemsTable({
                 data: items.data?.map((t) => convertToTableRow(t)),
               }
         }
-        options={{ isLoading: true, isError: false }}
       />
       <NewDatasetItemButton
         projectId={projectId}
