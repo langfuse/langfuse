@@ -318,7 +318,10 @@ const prepareOrderByString = (
   const addedCte = hasCte
     ? [Prisma.sql`date_series."date" ASC`, ...orderBys]
     : orderBys;
-  return Prisma.sql` ORDER BY ${Prisma.join(addedCte, ", ")}`;
+
+  return addedCte.length > 0
+    ? Prisma.sql` ORDER BY ${Prisma.join(addedCte, ", ")}`
+    : Prisma.empty;
 };
 
 const prepareFilterString = (

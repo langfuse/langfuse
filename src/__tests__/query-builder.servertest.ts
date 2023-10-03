@@ -23,6 +23,7 @@ describe("Build valid SQL queries", () => {
         ],
         groupBy: [],
         select: [{ column: "id", agg: null }],
+        orderBy: [],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -42,6 +43,7 @@ describe("Build valid SQL queries", () => {
         ],
         groupBy: [{ type: "string", column: "version" }],
         select: [{ column: "id", agg: null }],
+        orderBy: [],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -92,6 +94,7 @@ describe("Build valid SQL queries", () => {
           filter: [],
           groupBy: [],
           select: [{ column: "id", agg: null }],
+          orderBy: [],
         },
       );
 
@@ -171,6 +174,7 @@ describe("Build valid SQL queries", () => {
               { column: "completionTokens", agg: prop.agg as "SUM" | "AVG" },
               { column: "name", agg: null },
             ],
+            orderBy: [],
           },
         );
 
@@ -258,6 +262,7 @@ describe("Build valid SQL queries", () => {
             select: [
               { column: "completionTokens", agg: prop.agg as "SUM" | "AVG" },
             ],
+            orderBy: [],
           },
         );
 

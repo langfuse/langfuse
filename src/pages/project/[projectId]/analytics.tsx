@@ -169,8 +169,6 @@ const ReleaseTable = ({
     orderBy: [{ column: "release", direction: "DESC" }],
   });
 
-  console.log(data);
-
   return (
     <div className="md:container">
       <Header title="Releases" />
