@@ -14,12 +14,12 @@ import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 
 type ChartData = {
   model: string;
-  avgDuration: number;
+  avgDuration?: number;
 };
 
 type Result = {
   ts: number;
-  values: { label: string; value: number }[];
+  values: { label: string; value?: number }[];
 };
 
 export const LatencyChart = ({
@@ -56,11 +56,11 @@ export const LatencyChart = ({
     return data.reduce((acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
       const date = new Date(curr.startTime as Date).getTime();
 
-      if (curr.model === null && curr.avgDuration === null) return acc;
-
       const reducedData: ChartData = {
-        model: curr.model as string,
-        avgDuration: curr.avgDuration as number,
+        model: curr.model ? (curr.model as string) : "unknown",
+        avgDuration: curr.avgDuration
+          ? (curr.avgDuration as number)
+          : undefined,
       };
 
       if (acc.has(date)) {
