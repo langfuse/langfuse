@@ -310,6 +310,76 @@ describe("Build valid SQL queries", () => {
       });
     });
 
+    it("should  order by a column", async () => {
+      await prisma.trace.create({
+        data: {
+          id: "trace-1",
+          name: "trace-1",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      });
+
+      await prisma.observation.createMany({
+        data: [
+          {
+            traceId: "trace-1",
+            name: "trace-1",
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            type: "GENERATION",
+            completionTokens: 5,
+            startTime: new Date("2021-01-01T00:00:00.000Z"),
+          },
+          {
+            traceId: "trace-1",
+            name: "trace-1",
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            type: "GENERATION",
+            completionTokens: 3,
+            startTime: new Date("2021-01-01T00:00:00.000Z"),
+          },
+          {
+            traceId: "trace-1",
+            name: "trace-2",
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            type: "GENERATION",
+            completionTokens: 4,
+            startTime: new Date("2021-01-02T00:00:00.000Z"),
+          },
+        ],
+      });
+
+      const result = await executeQuery(
+        prisma,
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        {
+          from: "observations",
+          filter: [
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: new Date("2021-01-01T00:00:00.000Z"),
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: "<=",
+              value: new Date("2021-01-04T00:00:00.000Z"),
+            },
+          ],
+          groupBy: [],
+          select: [{ column: "completionTokens", agg: null }],
+          orderBy: [{ column: "completionTokens", direction: "ASC" }],
+        },
+      );
+
+      expect(result).toStrictEqual([
+        { completionTokens: 3 },
+        { completionTokens: 4 },
+        { completionTokens: 5 },
+      ]);
+    });
+
     [{ agg: "SUM", one: 8, two: 4 }].forEach((prop) => {
       it(`should aggregate time series ${prop.agg}`, async () => {
         await prisma.trace.create({

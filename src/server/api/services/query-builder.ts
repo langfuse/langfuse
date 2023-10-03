@@ -24,7 +24,7 @@ export const executeQuery = async (
   query: z.TypeOf<typeof sqlInterface>,
 ) => {
   const sql = enrichAndCreateQuery(projectId, query);
-
+  console.log(sql.inspect());
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
@@ -48,16 +48,22 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
   const selectFields = query.select.map((field) =>
+    // raw mandatory everywhere here as this creates the selection
+    // agg is typed via zod
+    // column names come from our defs via the table definitions
     field.agg
       ? Prisma.sql`${Prisma.raw(field.agg)}(${getInternalSql(
           getColumnSql(query.from, field.column),
         )}) as "${Prisma.raw(field.agg.toLowerCase())}${Prisma.raw(
           capitalizeFirstLetter(field.column),
         )}"`
-      : Prisma.sql`${getInternalSql(getColumnSql(query.from, field.column))}`,
+      : Prisma.sql`${getInternalSql(
+          getColumnSql(query.from, field.column),
+        )} as "${Prisma.raw(getColumnSql(query.from, field.column).name)}"`,
   );
 
   if (cte)
+    // raw mandatory here
     selectFields.unshift(
       Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.name)}"`,
     );
@@ -87,7 +93,7 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const filterString =
     query.filter.length > 0
       ? Prisma.sql` ${
-          cte ? Prisma.raw(` AND `) : Prisma.raw(` WHERE `)
+          cte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
         } ${prepareFilterString(
           query.from,
           query.filter,
@@ -111,6 +117,8 @@ const prepareOrderByString = (
       console.error(`Column ${orderBy.column} not found`);
       throw new Error(`Column ${orderBy.column} not found`);
     }
+
+    // raw mandatory here
     return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
       orderBy.direction,
     )}`;
@@ -135,6 +143,8 @@ const prepareFilterString = (
       console.error(`Column ${filter.column} not found`);
       throw new Error(`Column ${filter.column} not found`);
     }
+    // raw manfatory for column defs and operator
+    // non raw for value, which will go into parameterised string
     if (filter.type === "datetime") {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
@@ -212,6 +222,8 @@ const createDateRangeCte = (
 
     const startColumn = getColumnSql(from, minDateColumn.column);
 
+    // raw mandatory for temporal unit. From and to are parameterised values
+    // temporal unit is typed
     const cteString = Prisma.sql`
       WITH date_series AS (
         SELECT generate_series(${minDateColumn.value}, ${
@@ -222,6 +234,7 @@ const createDateRangeCte = (
       )
     `;
 
+    // as above, raw is mandatory for columns and temporal unit
     const modifiedFrom = Prisma.sql` FROM date_series LEFT JOIN ${getTableSql(
       from,
     )} ON DATE_TRUNC('${Prisma.raw(
@@ -239,6 +252,7 @@ const createDateRangeCte = (
 const getTableSql = (
   table: z.infer<typeof sqlInterface>["from"],
 ): Prisma.Sql => {
+  // raw required here, everyrhing is typed
   return Prisma.raw(tableDefinitions[table]!.table);
 };
 
@@ -257,6 +271,7 @@ const getColumnSql = (
 };
 
 const getInternalSql = (colDef: ColumnDefinition): Sql =>
+  // raw required here, everything is typed
   Prisma.raw(colDef.internal);
 
 const mapTemporalUnitToInterval = (unit: z.infer<typeof temporalUnit>) => {
