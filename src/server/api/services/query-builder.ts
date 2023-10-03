@@ -275,9 +275,15 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
     const groupByFields = query.groupBy.map((groupBy) =>
       prepareGroupBy(query.from, groupBy),
     );
-    groupString = Prisma.sql` GROUP BY ${Prisma.join(groupByFields, ", ")}`;
+    groupString =
+      groupByFields.length > 0
+        ? Prisma.sql` GROUP BY ${Prisma.join(groupByFields, ", ")}`
+        : Prisma.empty;
   }
-  const selectString = Prisma.sql` SELECT ${Prisma.join(selectFields, ", ")}`;
+  const selectString =
+    selectFields.length > 0
+      ? Prisma.sql` SELECT ${Prisma.join(selectFields, ", ")}`
+      : Prisma.empty;
 
   const orderByString = prepareOrderByString(
     query.orderBy,

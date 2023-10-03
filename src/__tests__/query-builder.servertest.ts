@@ -50,6 +50,54 @@ describe("Build valid SQL queries", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       ]);
     });
+    it("should not filter an unknown column", () => {
+      expect(() =>
+        createQuery({
+          from: "traces",
+          filter: [
+            { type: "string", column: "unknown", operator: "=", value: "" },
+          ],
+          groupBy: [],
+          select: [],
+          orderBy: [],
+        }),
+      ).toThrow("Column unknown not found");
+    });
+
+    it("should not select an unknown column", () => {
+      expect(() =>
+        createQuery({
+          from: "traces",
+          filter: [],
+          groupBy: [],
+          select: [{ column: "unknown", agg: null }],
+          orderBy: [],
+        }),
+      ).toThrow("Column unknown not found");
+    });
+
+    it("should not group by an unknown column", () => {
+      expect(() =>
+        createQuery({
+          from: "traces",
+          filter: [],
+          groupBy: [{ column: "unknown", type: "string" }],
+          select: [],
+          orderBy: [],
+        }),
+      ).toThrow("Column unknown not found");
+    });
+    it("should not order by an unknown column", () => {
+      expect(() =>
+        createQuery({
+          from: "traces",
+          filter: [],
+          groupBy: [],
+          select: [],
+          orderBy: [{ column: "unknown", direction: "ASC" }],
+        }),
+      ).toThrow("Column unknown not found");
+    });
   });
 
   describe("should retrieve data", () => {
