@@ -9,7 +9,6 @@ import {
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
 import Decimal from "decimal.js";
-import { trace } from "node:console";
 import { z } from "zod";
 
 export type InternalDatabaseRow = {
