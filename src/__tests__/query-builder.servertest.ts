@@ -4,7 +4,6 @@ import {
   executeQuery,
 } from "@/src/server/api/services/query-builder";
 import { prisma } from "@/src/server/db";
-import { Prisma } from "@prisma/client";
 
 describe("Build valid SQL queries", () => {
   beforeEach(async () => await pruneDatabase());
