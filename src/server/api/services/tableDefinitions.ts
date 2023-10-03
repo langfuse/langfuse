@@ -64,7 +64,7 @@ export const observationsProjectId = {
 
 export const tableDefinitions: TableDefinitions = {
   traces: {
-    table: ` traces as t`,
+    table: ` traces t`,
     columns: [
       { name: "id", type: "string", internal: 't."id"' },
       tracesProjectId,
@@ -84,7 +84,7 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
   observations: {
-    table: ` observations as o`,
+    table: ` observations o`,
     columns: [
       traceId,
       observationName,

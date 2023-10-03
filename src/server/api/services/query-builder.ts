@@ -23,18 +23,23 @@ export const executeQuery = async (
   projectId: string,
   query: z.TypeOf<typeof sqlInterface>,
 ) => {
-  const safeQuery = {
-    ...query,
-    filter: [...query.filter, ...getMandatoryFilter(query.from, projectId)],
-  };
+  const sql = enrichAndCreateQuery(projectId, query);
 
-  const stringQuery = createQuery(safeQuery);
-
-  const response = await prisma.$queryRaw<InternalDatabaseRow[]>(stringQuery);
+  const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
 
   return parsedResult;
+};
+
+export const enrichAndCreateQuery = (
+  projectId: string,
+  query: z.TypeOf<typeof sqlInterface>,
+) => {
+  return createQuery({
+    ...query,
+    filter: [...query.filter, ...getMandatoryFilter(query.from, projectId)],
+  });
 };
 
 export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {

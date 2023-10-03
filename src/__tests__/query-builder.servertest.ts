@@ -1,12 +1,57 @@
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   createQuery,
+  enrichAndCreateQuery,
   executeQuery,
 } from "@/src/server/api/services/query-builder";
 import { prisma } from "@/src/server/db";
 
 describe("Build valid SQL queries", () => {
   beforeEach(async () => await pruneDatabase());
+
+  describe("should enrich mandatory filters", () => {
+    [
+      {
+        table: "traces",
+        values: ["project-id"],
+        strings: [' FROM  traces t  WHERE  t."project_id" = ', " ;"],
+      } as const,
+      {
+        table: "traces_observations",
+        values: ["project-id", "project-id"],
+        strings: [
+          ' FROM  traces t LEFT JOIN observations o ON t.id = o.trace_id  WHERE  t."project_id" = ',
+          '  AND o."project_id" = ',
+          " ;",
+        ],
+      } as const,
+      {
+        table: "observations",
+        values: ["project-id"],
+        strings: [' FROM  observations o  WHERE  o."project_id" = ', " ;"],
+      } as const,
+      {
+        table: "traces_scores",
+        values: ["project-id"],
+        strings: [
+          ' FROM  traces t JOIN scores s ON t.id = s.trace_id  WHERE  t."project_id" = ',
+          " ;",
+        ],
+      } as const,
+    ].forEach((prop) => {
+      it(`should enrich mandatory filters ${prop.table}`, () => {
+        const preparedQuery = enrichAndCreateQuery("project-id", {
+          from: prop.table,
+          filter: [],
+          groupBy: [],
+          select: [],
+          orderBy: [],
+        });
+        expect(preparedQuery.values).toEqual(prop.values);
+        expect(preparedQuery.strings).toEqual(prop.strings);
+      });
+    });
+  });
 
   describe("should build safe SQL", () => {
     it("should build a simple filter query", () => {
