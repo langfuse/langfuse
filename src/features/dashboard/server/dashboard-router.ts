@@ -8,10 +8,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  executeQuery,
-  sqlInterface,
-} from "@/src/server/api/services/query-builder";
+import { executeQuery } from "@/src/server/api/services/query-builder";
+import { sqlInterface } from "@/src/server/api/services/sqlInterface";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
