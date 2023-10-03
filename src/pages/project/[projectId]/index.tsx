@@ -15,7 +15,7 @@ export default function Start() {
 
   const convertAggToDateTime = (agg: DateTimeAggregationOption) => {
     const [num, unit] = agg.split(" ");
-    console.log(num, unit);
+
     if (!num || !unit) throw new Error("Invalid agg");
     const now = new Date();
     switch (unit) {

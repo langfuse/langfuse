@@ -257,7 +257,7 @@ export const executeQuery = async (
 
 export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const cte = createDateRangeCte(query.from, query.filter, query.groupBy);
-  console.log("cte", cte);
+
   const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
   const selectFields = query.select.map((field) =>
@@ -391,7 +391,7 @@ const createDateRangeCte = (
   const groupByColumn = groupByColumns[0];
 
   const dateTimeFilters = filters.filter(isTimeRangeFilter);
-  console.log("dateTimeFilters", dateTimeFilters);
+
   const minDateColumn =
     dateTimeFilters.length > 1
       ? dateTimeFilters.find((x) => x.operator === ">" || x.operator === ">=")
