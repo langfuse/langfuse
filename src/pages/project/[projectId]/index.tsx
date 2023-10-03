@@ -63,6 +63,7 @@ export default function Start() {
       {/* <div className="grid gap-4 xl:grid-cols-2"> */}
       <TokenChart
         projectId={projectId}
+        agg={agg}
         globalFilterState={[
           {
             column: "startTime",
