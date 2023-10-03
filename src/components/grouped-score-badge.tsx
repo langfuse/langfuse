@@ -32,7 +32,7 @@ export const GroupedScoreBadges = ({
           .map(([name, scores]) => (
             <div key={name}>
               <div className="text-xs text-gray-500">{name}</div>
-              <div className="text-sm">
+              <div className="text-xs">
                 {scores.map((s) => s.value.toFixed(2)).join(", ")}
               </div>
             </div>

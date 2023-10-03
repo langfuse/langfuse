@@ -11,7 +11,10 @@ import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
+import {
+  type TraceOptions,
+  tracesTableCols,
+} from "@/src/server/api/definitions/tracesTable";
 import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
 
 const TraceFilterOptions = z.object({
@@ -90,59 +93,141 @@ export const traceRouter = createTRPCRouter({
             completionTokens: number;
             totalTokens: number;
             totalCount: number;
+            scores: Score[];
           }
         >
       >(Prisma.sql`
-      WITH usage as (
-        SELECT 
+      WITH usage AS (
+        SELECT
           trace_id,
           sum(prompt_tokens) AS "promptTokens",
           sum(completion_tokens) AS "completionTokens",
           sum(total_tokens) AS "totalTokens"
-        FROM "observations"
-        WHERE "trace_id" IS NOT NULL AND "type" = 'GENERATION' AND "project_id" = ${
-          input.projectId
-        }
-        GROUP BY trace_id
+        FROM
+          "observations"
+        WHERE
+          "trace_id" IS NOT NULL
+          AND "type" = 'GENERATION'
+          AND "project_id" = ${input.projectId}
+        GROUP BY
+          trace_id
+      ),
+      -- used for filtering
+      scores_avg AS (
+        SELECT
+          trace_id,
+          jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+        FROM (
+          SELECT
+            trace_id,
+            name,
+            avg(value) avg_value
+          FROM
+            scores
+          GROUP BY
+            1,
+            2
+          ORDER BY
+            1) tmp
+        GROUP BY
+          1
+      ),
+      scores_json AS (
+        SELECT
+          trace_id,
+          json_agg(json_build_object('id',
+              "id",
+              'timestamp',
+              "timestamp",
+              'name',
+              "name",
+              'value',
+              "value",
+              'traceId',
+              "trace_id",
+              'observationId',
+              "observation_id",
+              'comment',
+              "comment")) AS scores
+        FROM
+          scores
+        GROUP BY
+          1
       )
       SELECT
         t.*,
-        t."external_id" AS "externalId",
-        t."user_id" AS "userId",
-        t."metadata" AS "metadata",
+        t. "external_id" AS "externalId",
+        t. "user_id" AS "userId",
+        t. "metadata" AS "metadata",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
         COALESCE(u."totalTokens", 0)::int AS "totalTokens",
-        (count(*) OVER())::int AS "totalCount"
-      FROM "traces" AS t
-      LEFT JOIN usage AS u ON u.trace_id = t.id
+        COALESCE(s_json.scores, '[]'::json) AS "scores",
+        (count(*) OVER ())::int AS "totalCount"
+      FROM
+        "traces" AS t
+        LEFT JOIN usage AS u ON u.trace_id = t.id
+        -- used for filtering
+        LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
+        LEFT JOIN scores_json AS s_json ON s_json.trace_id = t.id
       WHERE 
-        t."project_id" = ${input.projectId}
-        ${searchCondition}
-        ${filterCondition}
-      ORDER BY t."timestamp" DESC
+              t."project_id" = ${input.projectId}
+              ${searchCondition}
+              ${filterCondition}
+      ORDER BY
+        t. "timestamp" DESC
       LIMIT ${input.limit}
-      OFFSET ${input.page * input.limit};
+      OFFSET ${input.page * input.limit}
     `);
 
-      const scores = traces.length
-        ? await ctx.prisma.$queryRaw<Score[]>(
-            Prisma.sql`
-          SELECT
-            s.*,
-            s."trace_id" AS "traceId",
-            s."observation_id" AS "observationId"
-          FROM "scores" s
-          WHERE s."trace_id" IN (${Prisma.join(
-            traces.map((trace) => trace.id),
-          )})`,
-          )
-        : [];
+      // const scores = traces.length
+      //   ? await ctx.prisma.$queryRaw<Score[]>(
+      //       Prisma.sql`
+      //     SELECT
+      //       s.*,
+      //       s."trace_id" AS "traceId",
+      //       s."observation_id" AS "observationId"
+      //     FROM "scores" s
+      //     WHERE s."trace_id" IN (${Prisma.join(
+      //       traces.map((trace) => trace.id),
+      //     )})`,
+      //     )
+      //   : [];
 
-      return traces.map((trace) => ({
-        ...trace,
-        scores: scores.filter((score) => score.traceId === trace.id),
-      }));
+      return traces;
+    }),
+  filterOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const [scores, names] = await Promise.all([
+        ctx.prisma.score.groupBy({
+          where: {
+            trace: {
+              projectId: input.projectId,
+            },
+          },
+          by: ["name"],
+        }),
+        ctx.prisma.trace.groupBy({
+          where: {
+            projectId: input.projectId,
+          },
+          by: ["name"],
+          _count: {
+            _all: true,
+          },
+        }),
+      ]);
+      const res: TraceOptions = {
+        scores_avg: scores.map((score) => score.name),
+        name: names
+          .filter((n) => n.name !== null)
+          .map((name) => ({
+            value: name.name ?? "undefined",
+            count: name._count._all,
+          })),
+      };
+      return res;
     }),
   // availableFilterOptions: protectedProjectProcedure
   //   .input(TraceFilterOptions)

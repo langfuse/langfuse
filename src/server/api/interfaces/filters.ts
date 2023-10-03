@@ -5,6 +5,8 @@ export const filterOperators = {
   string: ["="],
   stringOptions: ["any of", "none of"],
   number: ["=", ">", "<", ">=", "<="],
+  stringObject: ["="],
+  numberObject: ["=", ">", "<", ">=", "<="],
 } as const;
 
 export const timeFilter = z.object({
@@ -32,9 +34,25 @@ export const stringOptionsFilter = z.object({
   value: z.array(z.string()).refine((v) => v.length > 0),
   type: z.literal("stringOptions"),
 });
+export const stringObjectFilter = z.object({
+  type: z.literal("stringObject"),
+  column: z.string(),
+  key: z.string(), // eg metadata --> "environment"
+  operator: z.enum(filterOperators.string),
+  value: z.string(),
+});
+export const numberObjectFilter = z.object({
+  type: z.literal("numberObject"),
+  column: z.string(),
+  key: z.string(), // eg scores --> "accuracy"
+  operator: z.enum(filterOperators.number),
+  value: z.number(),
+});
 export const singleFilter = z.discriminatedUnion("type", [
   timeFilter,
   stringFilter,
   numberFilter,
   stringOptionsFilter,
+  stringObjectFilter,
+  numberObjectFilter,
 ]);

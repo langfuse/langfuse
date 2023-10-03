@@ -41,9 +41,11 @@ export function filterToPrismaSql(
         }::TIMESTAMP`;
         break;
       case "number":
+      case "numberObject":
         valuePrisma = Prisma.sql`${filter.value}::DOUBLE PRECISION`;
         break;
       case "string":
+      case "stringObject":
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
       case "stringOptions":
@@ -52,8 +54,16 @@ export function filterToPrismaSql(
         )})`;
         break;
     }
+    const jsonKeyPrisma =
+      filter.type === "stringObject" || filter.type === "numberObject"
+        ? Prisma.sql`->>${filter.key}`
+        : Prisma.empty;
+    const [cast1, cast2] =
+      filter.type === "numberObject"
+        ? [Prisma.raw("cast("), Prisma.raw(" as double precision)")]
+        : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${colPrisma} ${operatorPrisma} ${valuePrisma}`;
+    return Prisma.sql`${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrisma}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;

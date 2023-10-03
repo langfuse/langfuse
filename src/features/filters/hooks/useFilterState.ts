@@ -13,18 +13,21 @@ const DEBUG_QUERY_STATE = false;
 const CommaArrayParam = {
   encode: (state: FilterState) =>
     encodeDelimitedArray(
-      state.map(
-        (f) =>
-          `${f.column};${f.type};${f.operator};${
-            f.type === "datetime"
-              ? f.value.toISOString()
-              : f.type === "number"
-              ? f.value
-              : f.type === "stringOptions"
-              ? f.value.join("|")
-              : f.value
-          }`,
-      ),
+      state.map((f) => {
+        const stringified = `${f.column};${f.type};${
+          f.type === "numberObject" || f.type === "stringObject"
+            ? f.key ?? ""
+            : ""
+        };${f.operator};${
+          f.type === "datetime"
+            ? f.value.toISOString()
+            : f.type === "stringOptions"
+            ? f.value.join("|")
+            : f.value
+        }`;
+        if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
+        return stringified;
+      }),
       ",",
     ),
 
@@ -32,15 +35,15 @@ const CommaArrayParam = {
     (decodeDelimitedArray(arrayStr, ",")
       ?.map((f) => {
         if (!f) return null;
-        const [column, type, operator, value] = f.split(";");
+        const [column, type, key, operator, value] = f.split(";");
         if (DEBUG_QUERY_STATE)
-          console.log("values", [column, type, operator, value]);
+          console.log("values", [column, type, key, operator, value]);
         const parsedValue =
           value === undefined || type === undefined
             ? undefined
             : type === "datetime"
             ? new Date(value)
-            : type === "number"
+            : type === "number" || type === "numberObject"
             ? Number(value)
             : type === "stringOptions"
             ? value.split("|")
@@ -48,6 +51,7 @@ const CommaArrayParam = {
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,
+          key: key !== "" ? key : undefined,
           operator,
           value: parsedValue,
           type,

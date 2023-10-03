@@ -4,7 +4,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
+import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { lastCharacters } from "@/src/utils/string";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
@@ -76,6 +76,10 @@ export default function TracesTable({
     searchQuery,
   });
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
+
+  const traceFilterOptions = api.traces.filterOptions.useQuery({
+    projectId,
+  });
 
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"][0],
@@ -184,7 +188,9 @@ export default function TracesTable({
   return (
     <div>
       <DataTableToolbar
-        filterColumnDefinition={tracesTableCols}
+        filterColumnDefinition={tracesTableColsWithOptions(
+          traceFilterOptions.data,
+        )}
         searchConfig={{
           placeholder: "Search by id, name, user id",
           updateQuery: setSearchQuery,
