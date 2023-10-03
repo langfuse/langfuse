@@ -9,14 +9,6 @@ import {
 import { BaseTimeSeriesChart } from "./BaseTimeSeriesChart";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { Loader } from "lucide-react";
-import { useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 
 export function ChartScores(props: {
   agg: DateTimeAggregationOption;
