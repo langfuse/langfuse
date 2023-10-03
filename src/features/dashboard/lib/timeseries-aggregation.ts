@@ -18,12 +18,12 @@ export const dateTimeAggregationSettings: Record<
   }
 > = {
   "1 year": {
-    date_trunc: "month",
+    date_trunc: "day",
     date_formatter: (date) =>
       date.toLocaleDateString("en-US", { year: "2-digit", month: "short" }),
   },
   "3 months": {
-    date_trunc: "week",
+    date_trunc: "day",
     date_formatter: (date) =>
       date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
   },
@@ -38,12 +38,12 @@ export const dateTimeAggregationSettings: Record<
       date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
   },
   "24 hours": {
-    date_trunc: "hour",
+    date_trunc: "day",
     date_formatter: (date) =>
       date.toLocaleTimeString("en-US", { hour: "numeric" }),
   },
   "1 hour": {
-    date_trunc: "minute",
+    date_trunc: "day",
     date_formatter: (date) =>
       date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),
   },
