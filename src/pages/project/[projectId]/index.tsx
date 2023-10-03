@@ -5,7 +5,6 @@ import {
   dateTimeAggregationOptions,
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { ChartScores } from "@/src/features/dashboard/components/charts";
 import { useRouter } from "next/router";
 import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
 
