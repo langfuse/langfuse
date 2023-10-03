@@ -38,7 +38,11 @@ export const LatencyChart = ({
       { column: "duration", agg: "AVG" },
       { column: "model", agg: null },
     ],
-    filter: globalFilterState ?? [],
+    filter:
+      [
+        ...globalFilterState,
+        { type: "string", column: "type", operator: "=", value: "GENERATION" },
+      ] ?? [],
     groupBy: [
       { type: "datetime", column: "startTime", temporalUnit: "day" },
       { type: "string", column: "model" },

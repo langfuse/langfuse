@@ -8,6 +8,7 @@ import {
 } from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
+import { table } from "console";
 import Decimal from "decimal.js";
 import { z } from "zod";
 
@@ -302,6 +303,7 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
       ? Prisma.sql` ${
           cte ? Prisma.raw(` AND `) : Prisma.raw(` WHERE `)
         } ${prepareFilterString(
+          query.from,
           query.filter,
           tableDefinitions[query.from]!.columns,
         )}`
@@ -337,6 +339,7 @@ const prepareOrderByString = (
 };
 
 const prepareFilterString = (
+  table: z.infer<typeof sqlInterface>["from"],
   filter: z.infer<typeof sqlInterface>["filter"],
   columnDefinitions: ColumnDefinition[],
 ): Prisma.Sql => {
@@ -353,7 +356,11 @@ const prepareFilterString = (
     } else {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
-      )} ${filter.value}`;
+      )} ${filter.value} ${
+        column.name === "type" && table === "observations"
+          ? Prisma.sql`::"ObservationType"`
+          : Prisma.empty
+      }`;
     }
   });
   return Prisma.join(filters, " AND ");
