@@ -16,7 +16,7 @@ describe("Build valid SQL queries", () => {
         filter: [
           {
             type: "string" as const,
-            column: "projectId",
+            column: "tracesProjectId",
             operator: "=" as const,
             value: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
@@ -36,7 +36,7 @@ describe("Build valid SQL queries", () => {
         filter: [
           {
             type: "string" as const,
-            column: "projectId",
+            column: "tracesProjectId",
             operator: "=" as const,
             value: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
@@ -87,6 +87,7 @@ describe("Build valid SQL queries", () => {
         }),
       ).toThrow("Column unknown not found");
     });
+
     it("should not order by an unknown column", () => {
       expect(() =>
         createQuery({

@@ -9,6 +9,7 @@ import {
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
 import Decimal from "decimal.js";
+import { trace } from "node:console";
 import { z } from "zod";
 
 export type InternalDatabaseRow = {
@@ -95,13 +96,23 @@ const release = {
   type: "string",
   internal: 't."release"',
 } as const;
+const tracesProjectId = {
+  name: "tracesProjectId",
+  type: "string",
+  internal: 't."project_id"',
+} as const;
+const observationsProjectId = {
+  name: "observationsProjectId",
+  type: "string",
+  internal: 'o."project_id"',
+} as const;
 
 const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces as t`,
     columns: [
       { name: "id", type: "string", internal: 't."id"' },
-      { name: "projectId", type: "string", internal: 't."project_id"' },
+      tracesProjectId,
       traceVersion,
       release,
     ],
@@ -112,7 +123,8 @@ const tableDefinitions: TableDefinitions = {
       traceId,
       observationId,
       { name: "type", type: "string", internal: 'o."type"' },
-      { name: "projectId", type: "string", internal: 't."project_id"' },
+      tracesProjectId,
+      observationsProjectId,
       duration,
     ],
   },
@@ -135,7 +147,7 @@ const tableDefinitions: TableDefinitions = {
       },
       observationId,
       { name: "model", type: "string", internal: 'o."model"' },
-      { name: "projectId", type: "string", internal: 'o."project_id"' },
+      observationsProjectId,
       startTime,
       { name: "endTime", type: "datetime", internal: 'o."end_time"' },
       duration,
@@ -154,6 +166,7 @@ const tableDefinitions: TableDefinitions = {
       traceVersion,
       traceTimestamp,
       scoreName,
+      tracesProjectId,
     ],
   },
   traces_parent_observation_scores: {
@@ -171,6 +184,8 @@ const tableDefinitions: TableDefinitions = {
       scoreName,
       duration,
       release,
+      tracesProjectId,
+      observationsProjectId,
     ],
   },
 };
@@ -229,15 +244,7 @@ export const executeQuery = async (
   console.log("query", query);
   const safeQuery = {
     ...query,
-    filter: [
-      ...query.filter,
-      {
-        type: "string" as const,
-        column: "projectId",
-        operator: "=" as const,
-        value: projectId,
-      },
-    ],
+    filter: [...query.filter, ...getMandatoryFilter(query.from, projectId)],
   };
   console.log("safe query", safeQuery);
   const stringQuery = createQuery(safeQuery);
@@ -396,14 +403,6 @@ const createDateRangeCte = (
       ? dateTimeFilters.find((x) => x.operator === "<" || x.operator === "<=")
       : undefined;
 
-  console.log(
-    "blub",
-    groupByColumn,
-
-    minDateColumn,
-    maxDateColumn,
-    maxDateColumn,
-  );
   if (
     groupByColumn &&
     "temporalUnit" in groupByColumn &&
@@ -520,3 +519,33 @@ const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
 function capitalizeFirstLetter(str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+const getMandatoryFilter = (
+  table: z.infer<typeof sqlInterface>["from"],
+  projectId: string,
+) => {
+  const observationFilter = {
+    type: "string" as const,
+    column: "observationsProjectId",
+    operator: "=" as const,
+    value: projectId,
+  };
+
+  const traceFilter = {
+    type: "string" as const,
+    column: "tracesProjectId",
+    operator: "=" as const,
+    value: projectId,
+  };
+
+  switch (table) {
+    case "traces":
+    case "traces_scores":
+      return [traceFilter];
+    case "traces_observations":
+    case "traces_parent_observation_scores":
+      return [traceFilter, observationFilter];
+    case "observations":
+      return [observationFilter];
+  }
+};
