@@ -64,7 +64,7 @@ export default function Start() {
         </TabsList>
       </Tabs>
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="col-span-full">
+        <div className="col-span-1">
           <EventsCard
             projectId={projectId}
             agg={agg}
