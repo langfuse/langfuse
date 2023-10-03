@@ -95,7 +95,8 @@ const TokenChart = ({
     orderBy: [],
   });
 
-  const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
+  // TODO: set agg from UI
+  const [agg] = useState<DateTimeAggregationOption>("7 days");
 
   const transformedData = data.data
     ? data.data.map((item) => {
