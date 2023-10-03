@@ -225,7 +225,7 @@ describe("Build valid SQL queries", () => {
         },
       );
 
-      expect(result).toEqual([{ id: "trace-1" }]);
+      expect(result).toEqual([{ traceId: "trace-1" }]);
     });
 
     [
