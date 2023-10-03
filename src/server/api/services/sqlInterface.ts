@@ -4,13 +4,10 @@ import { z } from "zod";
 export const temporalUnit = z.enum([
   "year",
   "month",
+  "week",
   "day",
   "hour",
   "minute",
-  "second",
-  "millisecond",
-  "microsecond",
-  "nanosecond",
 ]);
 
 export const sqlInterface = z.object({

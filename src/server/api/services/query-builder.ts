@@ -228,9 +228,7 @@ const createDateRangeCte = (
       WITH date_series AS (
         SELECT generate_series(${minDateColumn.value}, ${
           maxDateColumn.value
-        }, '${Prisma.raw(
-          mapTemporalUnitToInterval(groupByColumn.temporalUnit),
-        )}') as date
+        }, '1 ${Prisma.raw(groupByColumn.temporalUnit)}') as date
       )
     `;
 
@@ -273,29 +271,6 @@ const getColumnSql = (
 const getInternalSql = (colDef: ColumnDefinition): Sql =>
   // raw required here, everything is typed
   Prisma.raw(colDef.internal);
-
-const mapTemporalUnitToInterval = (unit: z.infer<typeof temporalUnit>) => {
-  switch (unit) {
-    case "year":
-      return "1 year";
-    case "month":
-      return "1 month";
-    case "day":
-      return "1 day";
-    case "hour":
-      return "1 hour";
-    case "minute":
-      return "1 minute";
-    case "second":
-      return "1 second";
-    case "millisecond":
-      return "1 millisecond";
-    case "microsecond":
-      return "1 microsecond";
-    case "nanosecond":
-      return "1 nanosecond";
-  }
-};
 
 const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
   return output.map((row) => {

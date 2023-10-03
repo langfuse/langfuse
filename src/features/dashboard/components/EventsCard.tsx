@@ -7,7 +7,10 @@ import {
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import {
+  dateTimeAggregationSettings,
+  type DateTimeAggregationOption,
+} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
 import { Loader } from "lucide-react";
 
@@ -25,7 +28,13 @@ export const EventsCard = ({
     from: "observations",
     select: [{ column: "observationId", agg: "COUNT" }],
     filter: globalFilterState ?? [],
-    groupBy: [{ type: "datetime", column: "startTime", temporalUnit: "day" }],
+    groupBy: [
+      {
+        type: "datetime",
+        column: "startTime",
+        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+      },
+    ],
     orderBy: [],
   });
 
@@ -37,7 +46,13 @@ export const EventsCard = ({
       globalFilterState.map((f) =>
         f.type === "datetime" ? { ...f, column: "timestamp" } : f,
       ) ?? [],
-    groupBy: [{ type: "datetime", column: "timestamp", temporalUnit: "day" }],
+    groupBy: [
+      {
+        type: "datetime",
+        column: "timestamp",
+        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+      },
+    ],
     orderBy: [],
   });
 
@@ -49,68 +64,63 @@ export const EventsCard = ({
       globalFilterState.map((f) =>
         f.type === "datetime" ? { ...f, column: "timestamp" } : f,
       ) ?? [],
-    groupBy: [{ type: "datetime", column: "timestamp", temporalUnit: "day" }],
+    groupBy: [
+      {
+        type: "datetime",
+        column: "timestamp",
+        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+      },
+    ],
     orderBy: [],
   });
 
-  console.log("###", observations.data, traces.data);
-
   const transformedObservations = observations.data
     ? observations.data.map((item) => {
-        const values = [
-          ...(typeof item.countObservationId === "number"
-            ? [
-                {
-                  label: "Observations",
-                  value: item.countObservationId,
-                },
-              ]
-            : []),
-        ];
-
         return {
           ts: (item.startTime as Date).getTime(),
-          values: values,
+          values: [
+            {
+              label: "Observations",
+              value:
+                typeof item.countObservationId === "number"
+                  ? item.countObservationId
+                  : undefined,
+            },
+          ],
         };
       })
     : [];
 
   const transformedTraces = traces.data
     ? traces.data.map((item) => {
-        const values = [
-          ...(typeof item.countTraceId === "number"
-            ? [
-                {
-                  label: "Traces",
-                  value: item.countTraceId,
-                },
-              ]
-            : []),
-        ];
-
         return {
           ts: (item.timestamp as Date).getTime(),
-          values: values,
+          values: [
+            {
+              label: "Traces",
+              value:
+                typeof item.countTraceId === "number"
+                  ? item.countTraceId
+                  : undefined,
+            },
+          ],
         };
       })
     : [];
 
   const transformedScores = scores.data
     ? scores.data.map((item) => {
-        const values = [
-          ...(typeof item.countScoreId === "number"
-            ? [
-                {
-                  label: "Scores",
-                  value: item.countScoreId,
-                },
-              ]
-            : []),
-        ];
-
         return {
           ts: (item.timestamp as Date).getTime(),
-          values: values,
+          values: [
+            {
+              label: "Scores",
+              value:
+                typeof item.countScoreId === "number"
+                  ? item.countScoreId
+                  : undefined,
+            },
+          ],
         };
       })
     : [];

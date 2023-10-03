@@ -7,7 +7,10 @@ import {
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import {
+  dateTimeAggregationSettings,
+  type DateTimeAggregationOption,
+} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
 import { Loader } from "lucide-react";
 
@@ -29,7 +32,13 @@ export const TokenChart = ({
       { column: "totalTokens", agg: "SUM" },
     ],
     filter: globalFilterState ?? [],
-    groupBy: [{ type: "datetime", column: "startTime", temporalUnit: "day" }],
+    groupBy: [
+      {
+        type: "datetime",
+        column: "startTime",
+        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+      },
+    ],
     orderBy: [],
   });
 
@@ -41,7 +50,7 @@ export const TokenChart = ({
             value:
               typeof item.sumCompletionTokens === "number"
                 ? item.sumCompletionTokens
-                : undefined,
+                : 0,
           },
 
           {
@@ -49,14 +58,12 @@ export const TokenChart = ({
             value:
               typeof item.sumPromptTokens === "number"
                 ? item.sumPromptTokens
-                : undefined,
+                : 0,
           },
           {
             label: "Total Tokens",
             value:
-              typeof item.sumTotalTokens === "number"
-                ? item.sumTotalTokens
-                : undefined,
+              typeof item.sumTotalTokens === "number" ? item.sumTotalTokens : 0,
           },
         ];
 
