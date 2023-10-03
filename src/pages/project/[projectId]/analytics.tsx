@@ -12,7 +12,7 @@ import { api } from "@/src/utils/api";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
@@ -27,12 +27,19 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { Loader } from "lucide-react";
+import { numberFormatter } from "@/src/utils/numbers";
 
 export default function AnalyticsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const [filterState, setFilterState] = useQueryFilterState([
+  const [filterState, setFilterState] = useQueryFilterState();
+
+  const globalFilterCols: ColumnDefinition[] = [
+    { name: "startTime", type: "datetime", internal: 'o."start_time"' },
+  ];
+
+  const initial = [
     {
       column: "startTime",
       operator: "<",
@@ -45,37 +52,24 @@ export default function AnalyticsPage() {
       type: "datetime",
       value: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     },
-  ]);
-
-  const [golbalState, setNewGlobalState] = useState<Map<string, FilterState>>(
-    new Map(),
-  );
-
-  useEffect(() => {
-    setNewGlobalState(
-      new Map([
-        ["traces", filterState.map((f) => ({ ...f, column: "timestamp" }))],
-        ["observations", filterState],
-      ]),
-    );
-  }, [filterState]);
-
-  console.log("global state entries", golbalState.entries());
-
-  const globalFilterCols: ColumnDefinition[] = [
-    { name: "startTime", type: "datetime", internal: 'o."start_time"' },
-  ];
+  ] as const;
 
   return (
     <div className="md:container">
       <Header title="Analytics" />
       <FilterBuilder
         columns={globalFilterCols}
-        filterState={golbalState.get("observations") ?? []}
+        filterState={[...filterState] ?? []}
         onChange={setFilterState}
       />
-      <TokenChart projectId={projectId} globalFilterState={golbalState} />
-      <VersionTable projectId={projectId} globalFilterState={golbalState} />
+      <TokenChart
+        projectId={projectId}
+        globalFilterState={[...filterState, ...initial]}
+      />
+      <VersionTable
+        projectId={projectId}
+        globalFilterState={[...filterState, ...initial]}
+      />
     </div>
   );
 }
@@ -85,12 +79,9 @@ const TokenChart = ({
   globalFilterState,
 }: {
   projectId: string;
-  globalFilterState: Map<string, FilterState>;
+  globalFilterState: FilterState;
 }) => {
-  console.log(
-    "globalFilterState.get(observations)",
-    globalFilterState.get("observations"),
-  );
+  console.log("globalFilterState.get(observations)", globalFilterState);
   const data = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
@@ -99,7 +90,7 @@ const TokenChart = ({
       { column: "promptTokens", agg: "SUM" },
       { column: "totalTokens", agg: "SUM" },
     ],
-    filter: globalFilterState.get("observations") ?? [],
+    filter: globalFilterState ?? [],
     groupBy: [{ type: "datetime", column: "startTime", temporalUnit: "day" }],
   });
 
@@ -153,7 +144,7 @@ const VersionTable = ({
   globalFilterState,
 }: {
   projectId: string;
-  globalFilterState: Map<string, FilterState>;
+  globalFilterState: FilterState;
 }) => {
   const data = api.dashboard.chart.useQuery({
     projectId,
@@ -165,7 +156,11 @@ const VersionTable = ({
       { column: "scoreName", agg: null },
       { column: "duration", agg: "AVG" },
     ],
-    filter: globalFilterState.get("traces") ?? [],
+    filter:
+      globalFilterState.map((f) => ({
+        ...f,
+        column: "timestamp",
+      })) ?? [],
     groupBy: [
       { type: "string", column: "version" },
       { type: "string", column: "scoreName" },
@@ -208,10 +203,12 @@ const VersionTable = ({
                   <TableCell className="font-medium">
                     {row.name as string}
                   </TableCell>
-                  <TableCell>{row.avgValue as number}</TableCell>
+                  <TableCell>
+                    {numberFormatter(row.avgValue as number)}
+                  </TableCell>
                   <TableCell>{row.countValue as number}</TableCell>
                   <TableCell className="text-right">
-                    {row.avgDuration as number}
+                    {numberFormatter(row.avgDuration as number)}
                   </TableCell>
                 </TableRow>
               ))}

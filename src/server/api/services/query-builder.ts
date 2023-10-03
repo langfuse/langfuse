@@ -240,7 +240,7 @@ export const executeQuery = async (
 
 export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const cte = createDateRangeCte(query.from, query.filter, query.groupBy);
-
+  console.log("cte", cte);
   const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
   const selectFields = query.select.map((field) =>
@@ -337,10 +337,11 @@ const createDateRangeCte = (
   if (groupByColumns.length === 0) return undefined;
   if (groupByColumns.length > 1)
     throw new Error("Only one datetime group by is supported");
+
   const groupByColumn = groupByColumns[0];
 
   const dateTimeFilters = filters.filter(isTimeRangeFilter);
-
+  console.log("dateTimeFilters", dateTimeFilters);
   const minDateColumn =
     dateTimeFilters.length > 1
       ? dateTimeFilters.find((x) => x.operator === ">" || x.operator === ">=")
@@ -351,6 +352,14 @@ const createDateRangeCte = (
       ? dateTimeFilters.find((x) => x.operator === "<" || x.operator === "<=")
       : undefined;
 
+  console.log(
+    "blub",
+    groupByColumn,
+
+    minDateColumn,
+    maxDateColumn,
+    maxDateColumn,
+  );
   if (
     groupByColumn &&
     "temporalUnit" in groupByColumn &&
@@ -365,6 +374,7 @@ const createDateRangeCte = (
         "Min date column, max date column must match group by column",
       );
     }
+
     const startColumn = getColumnSql(from, minDateColumn.column);
 
     const cteString = Prisma.sql`
