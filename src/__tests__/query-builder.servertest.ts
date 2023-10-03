@@ -232,21 +232,6 @@ describe("Build valid SQL queries", () => {
       });
     });
 
-    it("can do stuff", async () => {
-      const a = await prisma.$queryRawUnsafe(
-        "SELECT * FROM observations WHERE completion_tokens > $1;",
-        0,
-      );
-      console.log(a);
-
-      const b = "observations";
-      const raw = Prisma.raw(b);
-
-      const c = await prisma.$queryRaw(
-        Prisma.sql`SELECT * FROM ${raw} WHERE completion_tokens > ${0};`,
-      );
-      console.log(c);
-    });
     [{ agg: "SUM", one: 8, two: 4 }].forEach((prop) => {
       it(`should aggregate time series ${prop.agg}`, async () => {
         await prisma.trace.create({

@@ -7,6 +7,7 @@ import {
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
 import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
+import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -60,29 +61,48 @@ export default function Start() {
           ))}
         </TabsList>
       </Tabs>
-      {/* <div className="grid gap-4 xl:grid-cols-2"> */}
-      <TokenChart
-        projectId={projectId}
-        agg={agg}
-        globalFilterState={[
-          {
-            column: "startTime",
-            operator: ">",
-            type: "datetime",
-            value: convertAggToDateTime(agg),
-          },
-          {
-            column: "startTime",
-            operator: "<",
-            type: "datetime",
-            value: new Date(),
-          },
-        ]}
-      />
-      {/* <div className="col-span-full">
-          <ChartScores agg={agg} projectId={projectId} />
-        </div> */}
-      {/* </div> */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="col-span-full">
+          <TokenChart
+            projectId={projectId}
+            agg={agg}
+            globalFilterState={[
+              {
+                column: "startTime",
+                operator: ">",
+                type: "datetime",
+                value: convertAggToDateTime(agg),
+              },
+              {
+                column: "startTime",
+                operator: "<",
+                type: "datetime",
+                value: new Date(),
+              },
+            ]}
+          />
+        </div>
+        <div className="col-span-full">
+          <LatencyChart
+            projectId={projectId}
+            agg={agg}
+            globalFilterState={[
+              {
+                column: "startTime",
+                operator: ">",
+                type: "datetime",
+                value: convertAggToDateTime(agg),
+              },
+              {
+                column: "startTime",
+                operator: "<",
+                type: "datetime",
+                value: new Date(),
+              },
+            ]}
+          />
+        </div>
+      </div>
     </>
   );
 }

@@ -52,7 +52,6 @@ export function DatasetRunsTable(props: {
       header: "Scores (avg)",
       cell: ({ row }) => {
         const scores: RowData["scores"] = row.getValue("scores");
-        console.log(scores);
         return (
           <GroupedScoreBadges
             scores={Object.entries(scores).map(([k, v]) => ({
