@@ -56,8 +56,10 @@ export const LatencyChart = ({
     return data.reduce((acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
       const date = new Date(curr.startTime as Date).getTime();
 
+      if (curr.model === null && curr.avgDuration === null) return acc;
+
       const reducedData: ChartData = {
-        model: typeof curr.model === "string" ? curr.model : "unknown",
+        model: curr.model as string,
         avgDuration: curr.avgDuration as number,
       };
 
