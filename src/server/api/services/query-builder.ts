@@ -7,7 +7,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
 import Decimal from "decimal.js";
 import { type z } from "zod";
-import { type temporalUnit, type sqlInterface } from "./sqlInterface";
+import { type sqlInterface } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
 
 export type InternalDatabaseRow = {
