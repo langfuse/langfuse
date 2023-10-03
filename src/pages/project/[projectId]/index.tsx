@@ -84,7 +84,7 @@ export default function Start() {
             ]}
           />
         </div>
-        <div className="col-span-1">
+        <div className="col-span-2">
           <TokenChart
             projectId={projectId}
             agg={agg}
@@ -104,7 +104,7 @@ export default function Start() {
             ]}
           />
         </div>
-        <div className="col-span-1">
+        <div className="col-span-2">
           <LatencyChart
             projectId={projectId}
             agg={agg}
