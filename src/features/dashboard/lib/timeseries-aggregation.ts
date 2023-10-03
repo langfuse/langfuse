@@ -3,8 +3,8 @@ export const dateTimeAggregationOptions = [
   "3 months",
   "1 month",
   "7 days",
-  "24 hours",
-  "1 hour",
+  // "24 hours",
+  // "1 hour",
 ] as const;
 
 export type DateTimeAggregationOption =
@@ -37,14 +37,14 @@ export const dateTimeAggregationSettings: Record<
     date_formatter: (date) =>
       date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
   },
-  "24 hours": {
-    date_trunc: "day",
-    date_formatter: (date) =>
-      date.toLocaleTimeString("en-US", { hour: "numeric" }),
-  },
-  "1 hour": {
-    date_trunc: "day",
-    date_formatter: (date) =>
-      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),
-  },
+  // "24 hours": {
+  //   date_trunc: "day",
+  //   date_formatter: (date) =>
+  //     date.toLocaleTimeString("en-US", { hour: "numeric" }),
+  // },
+  // "1 hour": {
+  //   date_trunc: "day",
+  //   date_formatter: (date) =>
+  //     date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),
+  // },
 };

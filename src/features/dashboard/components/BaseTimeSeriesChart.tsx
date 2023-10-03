@@ -31,17 +31,16 @@ export function BaseTimeSeriesChart(props: {
     });
   }
 
-  const convertDate = (date: number, agg: DateTimeAggregationOption) => {
-    if (agg === "24 hours" || agg === "1 hour") {
-      return new Date(date).toLocaleTimeString("en-US", {
-        year: "2-digit",
-        month: "numeric",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
-
+  const convertDate = (date: number, _agg: DateTimeAggregationOption) => {
+    // if (agg === "24 hours" || agg === "1 hour") {
+    //   return new Date(date).toLocaleTimeString("en-US", {
+    //     year: "2-digit",
+    //     month: "numeric",
+    //     day: "numeric",
+    //     hour: "2-digit",
+    //     minute: "2-digit",
+    //   });
+    // }
     return new Date(date).toLocaleDateString("en-US", {
       year: "2-digit",
       month: "numeric",

@@ -84,7 +84,7 @@ export default function Start() {
             ]}
           />
         </div>
-        <div className="col-span-full">
+        <div className="col-span-1">
           <TokenChart
             projectId={projectId}
             agg={agg}
