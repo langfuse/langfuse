@@ -171,9 +171,9 @@ export const traceRouter = createTRPCRouter({
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
         LEFT JOIN scores_json AS s_json ON s_json.trace_id = t.id
       WHERE 
-              t."project_id" = ${input.projectId}
-              ${searchCondition}
-              ${filterCondition}
+        t."project_id" = ${input.projectId}
+        ${searchCondition}
+        ${filterCondition}
       ORDER BY
         t. "timestamp" DESC
       LIMIT ${input.limit}

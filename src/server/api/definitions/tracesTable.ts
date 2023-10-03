@@ -12,13 +12,6 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: 't."name"',
     options: [], // to be filled in at runtime
   },
-  { name: "prompt tokens", type: "number", internal: 'u."promptTokens"' },
-  {
-    name: "completion tokens",
-    type: "number",
-    internal: 'u."completionTokens"',
-  },
-  { name: "total tokens", type: "number", internal: 'u."totalTokens"' },
   {
     name: "metadata",
     type: "stringObject",
