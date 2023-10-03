@@ -74,6 +74,7 @@ describe("Build valid SQL queries", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       ]);
     });
+
     it("should build a simple group by and filter query", () => {
       const preparedQuery = createQuery({
         from: "traces",
@@ -94,6 +95,39 @@ describe("Build valid SQL queries", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       ]);
     });
+
+    it("should build a time series group", () => {
+      const preparedQuery = createQuery({
+        from: "observations",
+        filter: [
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: ">=",
+            value: new Date("2021-01-01T00:00:00.000Z"),
+          },
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: "<=",
+            value: new Date("2021-01-04T00:00:00.000Z"),
+          },
+        ],
+        groupBy: [
+          { type: "datetime", column: "startTime", temporalUnit: "day" },
+        ],
+        select: [{ column: "completionTokens", agg: "SUM" }],
+        orderBy: [],
+      });
+
+      expect(preparedQuery.values).toEqual([
+        new Date("2021-01-01T00:00:00.000Z"),
+        new Date("2021-01-04T00:00:00.000Z"),
+        new Date("2021-01-01T00:00:00.000Z"),
+        new Date("2021-01-04T00:00:00.000Z"),
+      ]);
+    });
+
     it("should not filter an unknown column", () => {
       expect(() =>
         createQuery({
