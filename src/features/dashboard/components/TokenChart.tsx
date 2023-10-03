@@ -13,6 +13,11 @@ import {
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
 import { Loader } from "lucide-react";
+import {
+  getAllModels,
+  reduceData,
+  transformMap,
+} from "@/src/features/dashboard/components/hooks";
 
 export const TokenChart = ({
   projectId,
@@ -23,13 +28,12 @@ export const TokenChart = ({
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
-  const data = api.dashboard.chart.useQuery({
+  const totalTokens = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
     select: [
-      { column: "completionTokens", agg: "SUM" },
-      { column: "promptTokens", agg: "SUM" },
       { column: "totalTokens", agg: "SUM" },
+      { column: "model", agg: null },
     ],
     filter: globalFilterState ?? [],
     groupBy: [
@@ -38,64 +42,86 @@ export const TokenChart = ({
         column: "startTime",
         temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
       },
+      {
+        type: "string",
+        column: "model",
+      },
     ],
     orderBy: [],
   });
 
-  const transformedData = data.data
-    ? data.data.map((item) => {
-        const values = [
-          {
-            label: "Completion Tokens",
-            value:
-              typeof item.sumCompletionTokens === "number"
-                ? item.sumCompletionTokens
-                : 0,
-          },
+  const modelCost = api.dashboard.chart.useQuery({
+    projectId,
+    from: "observations",
+    select: [
+      { column: "totalTokenCost", agg: null },
+      { column: "model", agg: null },
+    ],
+    filter: globalFilterState ?? [],
+    groupBy: [
+      {
+        type: "datetime",
+        column: "startTime",
+        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+      },
+      {
+        type: "string",
+        column: "model",
+      },
+    ],
+    orderBy: [],
+  });
 
-          {
-            label: "Prompt Tokens",
-            value:
-              typeof item.sumPromptTokens === "number"
-                ? item.sumPromptTokens
-                : 0,
-          },
-          {
-            label: "Total Tokens",
-            value:
-              typeof item.sumTotalTokens === "number" ? item.sumTotalTokens : 0,
-          },
-        ];
+  const allModels = getAllModels(projectId, globalFilterState);
 
-        return {
-          ts: (item.startTime as Date).getTime(),
-          values: values,
-        };
-      })
-    : [];
+  const transformedTotalTokens =
+    totalTokens.data && allModels
+      ? transformMap(reduceData(totalTokens.data, "sumTotalTokens"), allModels)
+      : [];
 
-  const filteredTimestamps = transformedData.filter(
-    (item) => item.values.length > 0,
-  );
+  const transformedModelCost =
+    modelCost.data && allModels
+      ? transformMap(reduceData(modelCost.data, "totalTokenCost"), allModels)
+      : [];
 
   return (
-    <Card>
-      <CardHeader className="relative">
-        <CardTitle>Number of tokens</CardTitle>
-        <CardDescription>Count</CardDescription>
-        {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <BaseTimeSeriesChart
-          agg={agg}
-          data={filteredTimestamps ?? []}
-          connectNulls={true}
-        />
-      </CardContent>
-    </Card>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card>
+        <CardHeader className="relative">
+          <CardTitle>Number of tokens</CardTitle>
+          <CardDescription>Count</CardDescription>
+          {totalTokens.isLoading ? (
+            <div className="absolute right-5 top-5 ">
+              <Loader className="h-5 w-5 animate-spin" />
+            </div>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <BaseTimeSeriesChart
+            agg={agg}
+            data={transformedTotalTokens ?? []}
+            connectNulls={true}
+          />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="relative">
+          <CardTitle>Model cost</CardTitle>
+          <CardDescription>USD</CardDescription>
+          {totalTokens.isLoading ? (
+            <div className="absolute right-5 top-5 ">
+              <Loader className="h-5 w-5 animate-spin" />
+            </div>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <BaseTimeSeriesChart
+            agg={agg}
+            data={transformedModelCost ?? []}
+            connectNulls={true}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 };

@@ -96,7 +96,7 @@ export const totalTokenCost = {
     END
     ) / 1000
     `,
-};
+} as const;
 
 export const tableDefinitions: TableDefinitions = {
   traces: {
@@ -112,12 +112,14 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       observationsProjectId,
       duration,
+      totalTokenCost,
     ],
   },
   observations: {
     table: ` observations o`,
     columns: [
       traceId,
+      totalTokenCost,
       observationName,
       { name: "type", type: "string", internal: 'o."type"' },
       completionTokens,
