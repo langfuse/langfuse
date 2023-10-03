@@ -95,7 +95,9 @@ export const LatencyChart = ({
     <Card>
       <CardHeader className="relative">
         <CardTitle>Model latencies</CardTitle>
-        <CardDescription>Average latency (ms)</CardDescription>
+        <CardDescription>
+          Average latency (ms) per LLM generation
+        </CardDescription>
         {data.isLoading ? (
           <div className="absolute right-5 top-5 ">
             <Loader className="h-5 w-5 animate-spin" />
