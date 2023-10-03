@@ -66,7 +66,7 @@ describe("Build valid SQL queries", () => {
           },
         ],
         groupBy: [],
-        select: [{ column: "tracesId", agg: null }],
+        select: [{ column: "traceId", agg: null }],
         orderBy: [],
       });
 
@@ -87,7 +87,7 @@ describe("Build valid SQL queries", () => {
           },
         ],
         groupBy: [{ type: "string", column: "version" }],
-        select: [{ column: "tracesId", agg: null }],
+        select: [{ column: "traceId", agg: null }],
         orderBy: [],
       });
 
@@ -220,7 +220,7 @@ describe("Build valid SQL queries", () => {
           from: "traces",
           filter: [],
           groupBy: [],
-          select: [{ column: "tracesId", agg: null }],
+          select: [{ column: "traceId", agg: null }],
           orderBy: [],
         },
       );
