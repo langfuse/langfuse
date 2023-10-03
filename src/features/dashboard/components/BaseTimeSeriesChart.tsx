@@ -48,7 +48,6 @@ export function BaseTimeSeriesChart(props: {
       day: "numeric",
     });
   };
-
   return (
     <AreaChart
       className="mt-4 h-72"
@@ -58,7 +57,7 @@ export function BaseTimeSeriesChart(props: {
       connectNulls={props.connectNulls}
       colors={["indigo", "cyan"]}
       valueFormatter={numberFormatter}
-      noDataText="Loading ..."
+      noDataText="No data"
     />
   );
 }
