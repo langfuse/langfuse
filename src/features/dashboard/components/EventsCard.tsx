@@ -115,57 +115,17 @@ export const EventsCard = ({
       })
     : [];
 
-  // const transformedData = data.data
-  //   ? data.data.map((item) => {
-  //       const values = [
-  //         ...(typeof item.sumCompletionTokens === "number"
-  //           ? [
-  //               {
-  //                 label: "Completion Tokens",
-  //                 value: item.sumCompletionTokens,
-  //               },
-  //             ]
-  //           : []),
-  //         ...(typeof item.sumPromptTokens === "number"
-  //           ? [
-  //               {
-  //                 label: "Prompt Tokens",
-  //                 value: item.sumPromptTokens,
-  //               },
-  //             ]
-  //           : []),
-  //         ...(typeof item.sumTotalTokens === "number"
-  //           ? [
-  //               {
-  //                 label: "Total Tokens",
-  //                 value: item.sumTotalTokens,
-  //               },
-  //             ]
-  //           : []),
-  //       ];
-
-  //       return {
-  //         ts: (item.startTime as Date).getTime(),
-  //         values: values,
-  //       };
-  //     })
-  //   : [];
-
-  // const filteredTimestamps = transformedData.filter(
-  //   (item) => item.values.length > 0,
-  // );
-
   return (
     <div className="grid gap-4 xl:grid-cols-3">
       <Card>
         <CardHeader className="relative">
           <CardTitle>Number of traces</CardTitle>
           <CardDescription>Count</CardDescription>
-          {/* {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null} */}
+          {traces.isLoading ? (
+            <div className="absolute right-5 top-5 ">
+              <Loader className="h-5 w-5 animate-spin" />
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent>
           <BaseTimeSeriesChart
@@ -179,11 +139,11 @@ export const EventsCard = ({
         <CardHeader className="relative">
           <CardTitle>Number of observations</CardTitle>
           <CardDescription>Count</CardDescription>
-          {/* {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null} */}
+          {observations.isLoading ? (
+            <div className="absolute right-5 top-5 ">
+              <Loader className="h-5 w-5 animate-spin" />
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent>
           <BaseTimeSeriesChart
@@ -197,11 +157,11 @@ export const EventsCard = ({
         <CardHeader className="relative">
           <CardTitle>Number of scores</CardTitle>
           <CardDescription>Count</CardDescription>
-          {/* {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null} */}
+          {scores.isLoading ? (
+            <div className="absolute right-5 top-5 ">
+              <Loader className="h-5 w-5 animate-spin" />
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent>
           <BaseTimeSeriesChart
