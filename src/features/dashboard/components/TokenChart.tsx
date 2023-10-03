@@ -16,7 +16,7 @@ import { Loader } from "lucide-react";
 import {
   getAllModels,
   reduceData,
-  transformMap,
+  transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
 
 export const TokenChart = ({
@@ -76,14 +76,21 @@ export const TokenChart = ({
 
   const transformedTotalTokens =
     totalTokens.data && allModels
-      ? transformMap(reduceData(totalTokens.data, "sumTotalTokens"), allModels)
+      ? transformMapAndFillZeroValues(
+          reduceData(totalTokens.data, "sumTotalTokens"),
+          allModels,
+        )
       : [];
 
   const transformedModelCost =
     modelCost.data && allModels
-      ? transformMap(reduceData(modelCost.data, "totalTokenCost"), allModels)
+      ? transformMapAndFillZeroValues(
+          reduceData(modelCost.data, "totalTokenCost"),
+          allModels,
+        )
       : [];
 
+  console.log(transformedTotalTokens);
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Card>

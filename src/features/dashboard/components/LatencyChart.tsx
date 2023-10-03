@@ -16,7 +16,7 @@ import { Loader } from "lucide-react";
 import {
   getAllModels,
   reduceData,
-  transformMap,
+  transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
 
 export const LatencyChart = ({
@@ -55,7 +55,10 @@ export const LatencyChart = ({
 
   const transformedData =
     data.data && allModels
-      ? transformMap(reduceData(data.data, "avgDuration"), allModels)
+      ? transformMapAndFillZeroValues(
+          reduceData(data.data, "avgDuration"),
+          allModels,
+        )
       : [];
 
   return (

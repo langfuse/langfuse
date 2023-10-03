@@ -61,30 +61,25 @@ export function reduceData(
   }, new Map<number, ChartData[]>());
 }
 
-export function transformMap(
+export function transformMapAndFillZeroValues(
   map: Map<number, ChartData[]>,
   allModels: string[],
 ): Result[] {
   const result: Result[] = [];
 
+  console.log("transformMapAndFillZeroValues", map);
+
   for (const [date, items] of map) {
-    console.log("items", items);
     const values = items.map((item) => ({
       label: item.model,
       value: item.value,
     }));
 
-    console.log("values", values);
-
-    console.log("allModels", date, allModels);
-
     for (const model of allModels) {
       if (!values.find((value) => value.label === model)) {
-        console.log("no model found", date, model, values);
         values.push({ label: model, value: 0 });
       }
     }
-    console.log("push", { ts: date, values: values });
     result.push({
       ts: date,
       values: values,
