@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
         projectId={projectId}
         globalFilterState={[...filterState, ...initial]}
       />
-      <VersionTable
+      <ReleaseTable
         projectId={projectId}
         globalFilterState={[...filterState, ...initial]}
       />
@@ -92,6 +92,7 @@ const TokenChart = ({
     ],
     filter: globalFilterState ?? [],
     groupBy: [{ type: "datetime", column: "startTime", temporalUnit: "day" }],
+    orderBy: [],
   });
 
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -139,7 +140,7 @@ const TokenChart = ({
   );
 };
 
-const VersionTable = ({
+const ReleaseTable = ({
   projectId,
   globalFilterState,
 }: {
@@ -151,7 +152,7 @@ const VersionTable = ({
     from: "traces_parent_observation_scores",
     select: [
       { column: "value", agg: "AVG" },
-      { column: "version", agg: null },
+      { column: "release", agg: null },
       { column: "value", agg: "COUNT" },
       { column: "scoreName", agg: null },
       { column: "duration", agg: "AVG" },
@@ -162,9 +163,10 @@ const VersionTable = ({
         column: "timestamp",
       })) ?? [],
     groupBy: [
-      { type: "string", column: "version" },
+      { type: "string", column: "release" },
       { type: "string", column: "scoreName" },
     ],
+    orderBy: [{ column: "release", direction: "DESC" }],
   });
 
   console.log(data);
@@ -184,21 +186,25 @@ const VersionTable = ({
         </CardHeader>
         <CardContent>
           <Table>
-            <TableCaption>A list of your recent trace versions.</TableCaption>
+            <TableCaption>A list of your recent releases.</TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">Version</TableHead>
+                <TableHead className="w-[100px]">Release</TableHead>
                 <TableHead className="w-[100px]">Score Name</TableHead>
                 <TableHead>Average Score</TableHead>
                 <TableHead>Number of traces</TableHead>
-                <TableHead className="text-right">Average duration</TableHead>
+                <TableHead className="text-right">
+                  Average duration (ms)
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.data?.map((row) => (
-                <TableRow key={row.version as string}>
+                <TableRow
+                  key={(row.release as string) + "-" + (row.name as string)}
+                >
                   <TableCell className="font-medium">
-                    {row.version ? (row.version as string) : "-"}
+                    {row.release ? (row.release as string) : "-"}
                   </TableCell>
                   <TableCell className="font-medium">
                     {row.name as string}

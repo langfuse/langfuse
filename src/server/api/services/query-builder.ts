@@ -8,9 +8,7 @@ import {
 } from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
-import { Column } from "@tanstack/react-table";
 import Decimal from "decimal.js";
-import internal from "stream";
 import { z } from "zod";
 
 export type InternalDatabaseRow = {
@@ -92,6 +90,11 @@ const duration = {
   internal:
     'EXTRACT(EPOCH FROM o."end_time") * 1000 - EXTRACT(EPOCH FROM o."start_time") * 1000',
 } as const;
+const release = {
+  name: "release",
+  type: "string",
+  internal: 't."release"',
+} as const;
 
 const tableDefinitions: TableDefinitions = {
   traces: {
@@ -100,6 +103,7 @@ const tableDefinitions: TableDefinitions = {
       { name: "id", type: "string", internal: 't."id"' },
       { name: "projectId", type: "string", internal: 't."project_id"' },
       traceVersion,
+      release,
     ],
   },
   traces_observations: {
@@ -166,6 +170,7 @@ const tableDefinitions: TableDefinitions = {
       traceTimestamp,
       scoreName,
       duration,
+      release,
     ],
   },
 };
@@ -206,6 +211,12 @@ export const sqlInterface = z.object({
     z.object({
       column: z.string(),
       agg: z.enum(["SUM", "AVG", "COUNT"]).nullable(),
+    }),
+  ),
+  orderBy: z.array(
+    z.object({
+      column: z.string(),
+      direction: z.enum(["ASC", "DESC"]),
     }),
   ),
 });
@@ -268,8 +279,11 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   }
   const selectString = Prisma.sql` SELECT ${Prisma.join(selectFields, ", ")}`;
 
-  let orderByString = Prisma.empty;
-  if (cte) orderByString = Prisma.sql` ORDER BY date_series."date" ASC`;
+  const orderByString = prepareOrderByString(
+    query.orderBy,
+    tableDefinitions[query.from]!.columns,
+    cte ? true : false,
+  );
 
   const filterString =
     query.filter.length > 0
@@ -284,6 +298,27 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   return Prisma.sql`${
     cte?.cte ?? Prisma.empty
   }${selectString}${fromString}${filterString}${groupString}${orderByString};`;
+};
+
+const prepareOrderByString = (
+  orderBy: z.infer<typeof sqlInterface>["orderBy"],
+  columnDefinitions: ColumnDefinition[],
+  hasCte: boolean,
+): Prisma.Sql => {
+  const orderBys = orderBy.map((orderBy) => {
+    const column = columnDefinitions.find((x) => x.name === orderBy.column);
+    if (!column) {
+      console.error(`Column ${orderBy.column} not found`);
+      throw new Error(`Column ${orderBy.column} not found`);
+    }
+    return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
+      orderBy.direction,
+    )}`;
+  });
+  const addedCte = hasCte
+    ? [Prisma.sql`date_series."date" ASC`, ...orderBys]
+    : orderBys;
+  return Prisma.sql` ORDER BY ${Prisma.join(addedCte, ", ")}`;
 };
 
 const prepareFilterString = (
