@@ -69,7 +69,7 @@
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.279.0",
-    "next": "^13.5.3",
+    "next": "^13.5.4",
     "next-auth": "^4.23.2",
     "next-query-params": "^4.2.3",
     "next-swagger-doc": "^0.4.0",
@@ -89,7 +89,7 @@
     "ts-pattern": "^5.0.5",
     "use-query-params": "^2.2.1",
     "uuid": "^9.0.1",
-    "zod": "^3.22.2"
+    "zod": "^3.22.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.38.1",
@@ -110,12 +110,12 @@
     "autoprefixer": "^10.4.16",
     "dotenv-cli": "^7.3.0",
     "eslint": "^8.50.0",
-    "eslint-config-next": "^13.5.3",
+    "eslint-config-next": "^13.5.4",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.31",
     "prettier": "^3.0.3",
-    "prettier-plugin-tailwindcss": "^0.5.4",
+    "prettier-plugin-tailwindcss": "^0.5.5",
     "prisma": "^5.3.1",
     "swagger-jsdoc": "^6.2.8",
     "tailwindcss": "^3.3.3",
