@@ -6,8 +6,11 @@ import {
   type ColumnDefinition,
   type TableDefinitions,
 } from "@/src/server/api/interfaces/tableDefinition";
-import { type PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { type Sql } from "@prisma/client/runtime/library";
+import { Column } from "@tanstack/react-table";
 import Decimal from "decimal.js";
+import internal from "stream";
 import { z } from "zod";
 
 export type InternalDatabaseRow = {
@@ -96,7 +99,6 @@ const tableDefinitions: TableDefinitions = {
     columns: [
       { name: "id", type: "string", internal: 't."id"' },
       { name: "projectId", type: "string", internal: 't."project_id"' },
-
       traceVersion,
     ],
   },
@@ -228,86 +230,92 @@ export const executeQuery = async (
   };
   console.log("safe query", safeQuery);
   const stringQuery = createQuery(safeQuery);
-  console.log("stringQuery", stringQuery);
-  const response =
-    await prisma.$queryRawUnsafe<InternalDatabaseRow[]>(stringQuery);
-  console.log("response", response);
+  console.log("stringQuery", stringQuery.inspect());
+  const response = await prisma.$queryRaw<InternalDatabaseRow[]>(stringQuery);
 
-  const a = outputParser(response);
-  console.log("a", a, response);
-  return a;
+  const parsedResult = outputParser(response);
+  console.log("parsedResult", parsedResult);
+  return parsedResult;
 };
 
-const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
+export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
   const cte = createDateRangeCte(query.from, query.filter, query.groupBy);
 
-  const fromString = cte?.from ?? ` FROM ${getTableSql(query.from)}`;
+  const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
   const selectFields = query.select.map((field) =>
     field.agg
-      ? `${field.agg}(${
-          getColumnSql(query.from, field.column).internal
-        }) as "${field.agg.toLowerCase()}${capitalizeFirstLetter(
-          field.column,
+      ? Prisma.sql`${Prisma.raw(field.agg)}(${getInternalSql(
+          getColumnSql(query.from, field.column),
+        )}) as "${Prisma.raw(field.agg.toLowerCase())}${Prisma.raw(
+          capitalizeFirstLetter(field.column),
         )}"`
-      : `${getColumnSql(query.from, field.column).internal}`,
+      : Prisma.sql`${getInternalSql(getColumnSql(query.from, field.column))}`,
   );
 
-  if (cte) selectFields.unshift(`date_series."date" as "${cte.column.name}"`);
+  if (cte)
+    selectFields.unshift(
+      Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.name)}"`,
+    );
 
-  let groupString = "";
+  let groupString = Prisma.empty;
 
   if (query.groupBy.length > 0 || cte) {
     const groupByFields = query.groupBy.map((groupBy) =>
       prepareGroupBy(query.from, groupBy),
     );
-    groupString = ` GROUP BY ${groupByFields.join(", ")}`;
+    groupString = Prisma.sql` GROUP BY ${Prisma.join(groupByFields, ", ")}`;
   }
-  const selectString = `SELECT ${selectFields.join(", ")}`;
+  const selectString = Prisma.sql` SELECT ${Prisma.join(selectFields, ", ")}`;
 
-  let orderByString = "";
-  if (cte) orderByString = ` ORDER BY date_series."date" ASC`;
+  let orderByString = Prisma.empty;
+  if (cte) orderByString = Prisma.sql` ORDER BY date_series."date" ASC`;
 
   const filterString =
     query.filter.length > 0
-      ? (cte ? " AND " : " WHERE ") +
-        prepareFilterString(query.filter, tableDefinitions[query.from]!.columns)
-      : "";
+      ? Prisma.sql` ${
+          cte ? Prisma.raw(` AND `) : Prisma.raw(` WHERE `)
+        } ${prepareFilterString(
+          query.filter,
+          tableDefinitions[query.from]!.columns,
+        )}`
+      : Prisma.empty;
 
-  return `${
-    cte?.cte ?? ""
+  return Prisma.sql`${
+    cte?.cte ?? Prisma.empty
   }${selectString}${fromString}${filterString}${groupString}${orderByString};`;
 };
 
 const prepareFilterString = (
   filter: z.infer<typeof sqlInterface>["filter"],
   columnDefinitions: ColumnDefinition[],
-) => {
-  return filter
-    .map((filter) => {
-      const column = columnDefinitions.find((x) => x.name === filter.column);
-      if (!column) {
-        console.error(`Column ${filter.column} not found`);
-        throw new Error(`Column ${filter.column} not found`);
-      }
-      if (filter.type === "datetime") {
-        return `${column.internal} ${
-          filter.operator
-        } '${filter.value.toISOString()}'`;
-      } else {
-        return `${column.internal} ${filter.operator} '${filter.value}'`;
-      }
-    })
-    .join(" AND ");
+): Prisma.Sql => {
+  const filters = filter.map((filter) => {
+    const column = columnDefinitions.find((x) => x.name === filter.column);
+    if (!column) {
+      console.error(`Column ${filter.column} not found`);
+      throw new Error(`Column ${filter.column} not found`);
+    }
+    if (filter.type === "datetime") {
+      return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
+        filter.operator,
+      )} ${filter.value}`;
+    } else {
+      return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
+        filter.operator,
+      )} ${filter.value}`;
+    }
+  });
+  return Prisma.join(filters, " AND ");
 };
 
 const prepareGroupBy = (
   table: z.infer<typeof sqlInterface>["from"],
   groupBy: z.infer<typeof sqlInterface>["groupBy"][number],
 ) => {
-  const internalColumn = getColumnSql(table, groupBy.column).internal;
+  const internalColumn = getInternalSql(getColumnSql(table, groupBy.column));
   if (groupBy.type === "datetime") {
-    return `date_series."date"`;
+    return Prisma.sql`date_series."date"`;
   } else {
     return internalColumn;
   }
@@ -359,19 +367,23 @@ const createDateRangeCte = (
     }
     const startColumn = getColumnSql(from, minDateColumn.column);
 
-    const cteString = `
+    const cteString = Prisma.sql`
       WITH date_series AS (
-        SELECT generate_series('${minDateColumn.value.toISOString()}'::timestamp, '${maxDateColumn.value.toISOString()}'::timestamp, '${mapTemporalUnitToInterval(
-          groupByColumn.temporalUnit,
+        SELECT generate_series(${minDateColumn.value}, ${
+          maxDateColumn.value
+        }, '${Prisma.raw(
+          mapTemporalUnitToInterval(groupByColumn.temporalUnit),
         )}') as date
       )
     `;
 
-    const modifiedFrom = ` FROM date_series LEFT JOIN ${getTableSql(
+    const modifiedFrom = Prisma.sql` FROM date_series LEFT JOIN ${getTableSql(
       from,
-    )} ON DATE_TRUNC('${groupByColumn.temporalUnit}', ${
-      startColumn.internal
-    }) = DATE_TRUNC('${groupByColumn.temporalUnit}', date_series.date)`;
+    )} ON DATE_TRUNC('${Prisma.raw(
+      groupByColumn.temporalUnit,
+    )}', ${getInternalSql(startColumn)}) = DATE_TRUNC('${Prisma.raw(
+      groupByColumn.temporalUnit,
+    )}', date_series."date")`;
 
     return { cte: cteString, from: modifiedFrom, column: startColumn };
   }
@@ -379,8 +391,10 @@ const createDateRangeCte = (
   return undefined;
 };
 
-const getTableSql = (table: z.infer<typeof sqlInterface>["from"]): string => {
-  return tableDefinitions[table]!.table;
+const getTableSql = (
+  table: z.infer<typeof sqlInterface>["from"],
+): Prisma.Sql => {
+  return Prisma.raw(tableDefinitions[table]!.table);
 };
 
 const getColumnSql = (
@@ -396,6 +410,9 @@ const getColumnSql = (
   }
   return foundColumn;
 };
+
+const getInternalSql = (colDef: ColumnDefinition): Sql =>
+  Prisma.raw(colDef.internal);
 
 const mapTemporalUnitToInterval = (unit: z.infer<typeof temporalUnit>) => {
   switch (unit) {
