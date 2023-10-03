@@ -8,10 +8,8 @@ import {
 import { useRouter } from "next/router";
 import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
-import {
-  ChartScores,
-  ChartTraces,
-} from "@/src/features/dashboard/components/charts";
+import { ChartScores } from "@/src/features/dashboard/components/charts";
+import { EventsCard } from "@/src/features/dashboard/components/EventsCard";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -66,10 +64,27 @@ export default function Start() {
         </TabsList>
       </Tabs>
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="col-span-1">
-          <ChartTraces agg={agg} projectId={projectId} />
+        <div className="col-span-2">
+          <EventsCard
+            projectId={projectId}
+            agg={agg}
+            globalFilterState={[
+              {
+                column: "startTime",
+                operator: ">",
+                type: "datetime",
+                value: convertAggToDateTime(agg),
+              },
+              {
+                column: "startTime",
+                operator: "<",
+                type: "datetime",
+                value: new Date(),
+              },
+            ]}
+          />
         </div>
-        <div className="col-span-1">
+        <div className="col-span-2">
           <TokenChart
             projectId={projectId}
             agg={agg}
@@ -89,7 +104,7 @@ export default function Start() {
             ]}
           />
         </div>
-        <div className="col-span-full">
+        <div className="col-span-2">
           <LatencyChart
             projectId={projectId}
             agg={agg}

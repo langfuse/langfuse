@@ -8,7 +8,7 @@ export const completionTokens = {
 export const observationId = {
   name: "observationId",
   type: "string",
-  internal: 'o."project_id"',
+  internal: 'o."id"',
 } as const;
 export const observationName = {
   name: "name",
@@ -61,16 +61,16 @@ export const observationsProjectId = {
   type: "string",
   internal: 'o."project_id"',
 } as const;
+export const scoreId = {
+  name: "scoreId",
+  type: "string",
+  internal: 's."id"',
+} as const;
 
 export const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces t`,
-    columns: [
-      { name: "id", type: "string", internal: 't."id"' },
-      tracesProjectId,
-      traceVersion,
-      release,
-    ],
+    columns: [tracesProjectId, traceVersion, release, traceId, traceTimestamp],
   },
   traces_observations: {
     table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
@@ -111,13 +111,14 @@ export const tableDefinitions: TableDefinitions = {
   traces_scores: {
     table: ` traces t JOIN scores s ON t.id = s.trace_id`,
     columns: [
-      { name: "projectId", type: "string", internal: 't."project_id"' },
+      tracesProjectId,
       { name: "value", type: "number", internal: 's."value"' },
       {
         name: "name",
         type: "number",
         internal: 's."name"',
       },
+      scoreId,
       traceVersion,
       traceTimestamp,
       scoreName,

@@ -36,30 +36,28 @@ export const TokenChart = ({
   const transformedData = data.data
     ? data.data.map((item) => {
         const values = [
-          ...(typeof item.sumCompletionTokens === "number"
-            ? [
-                {
-                  label: "Completion Tokens",
-                  value: item.sumCompletionTokens,
-                },
-              ]
-            : []),
-          ...(typeof item.sumPromptTokens === "number"
-            ? [
-                {
-                  label: "Prompt Tokens",
-                  value: item.sumPromptTokens,
-                },
-              ]
-            : []),
-          ...(typeof item.sumTotalTokens === "number"
-            ? [
-                {
-                  label: "Total Tokens",
-                  value: item.sumTotalTokens,
-                },
-              ]
-            : []),
+          {
+            label: "Completion Tokens",
+            value:
+              typeof item.sumCompletionTokens === "number"
+                ? item.sumCompletionTokens
+                : undefined,
+          },
+
+          {
+            label: "Prompt Tokens",
+            value:
+              typeof item.sumPromptTokens === "number"
+                ? item.sumPromptTokens
+                : undefined,
+          },
+          {
+            label: "Total Tokens",
+            value:
+              typeof item.sumTotalTokens === "number"
+                ? item.sumTotalTokens
+                : undefined,
+          },
         ];
 
         return {

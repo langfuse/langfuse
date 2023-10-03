@@ -4,7 +4,7 @@ import { AreaChart } from "@tremor/react";
 
 export function BaseTimeSeriesChart(props: {
   agg: DateTimeAggregationOption;
-  data: { ts: number; values: { label: string; value: number }[] }[];
+  data: { ts: number; values: { label: string; value?: number }[] }[];
   connectNulls?: boolean;
 }) {
   const labels = new Set(
