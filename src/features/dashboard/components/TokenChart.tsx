@@ -62,7 +62,6 @@ export const TokenChart = ({
             : []),
         ];
 
-        console.log(values);
         return {
           ts: (item.startTime as Date).getTime(),
           values: values,
