@@ -1,12 +1,12 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
-import { type TableRowOptions } from "@/src/components/table/types";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 type RowData = {
@@ -31,27 +31,32 @@ export default function ScoresTable({
   projectId: string;
   userId?: string;
 }) {
-  const [queryOptions, setQueryOptions] = useState<ScoreFilterInput>({
-    traceId: null,
-  });
-
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
+  const filterState = userId
+    ? userFilterState.concat([
+        {
+          column: "userId",
+          type: "string",
+          operator: "=",
+          value: userId,
+        },
+      ])
+    : userFilterState;
+
   const scores = api.scores.all.useQuery({
-    ...queryOptions,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    userId: userId || null,
     projectId,
+    filter: filterState,
   });
   const totalCount = scores.data?.slice(1)[0]?.totalCount ?? 0;
 
-  const scoresOptions = api.scores.availableFilterOptions.useQuery({
-    ...queryOptions,
-    userId: userId || null,
+  const filterOptions = api.scores.filterOptions.useQuery({
     projectId,
   });
 
@@ -70,16 +75,6 @@ export default function ScoresTable({
             />
           </>
         ) : undefined;
-      },
-      meta: {
-        label: "TraceID",
-        filter: {
-          type: "select",
-          values: queryOptions.traceId,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, traceId: newValues });
-          },
-        },
       },
     },
     {
@@ -115,33 +110,6 @@ export default function ScoresTable({
     },
   ];
 
-  const convertToOptions = (
-    options: RouterOutput["scores"]["availableFilterOptions"],
-  ): TableRowOptions[] => {
-    return options.map((o) => {
-      return {
-        columnId: o.key,
-        options: o.occurrences.map((o) => {
-          return { label: o.key, value: o.count._all };
-        }),
-      };
-    });
-  };
-
-  const tableOptions = scoresOptions.isLoading
-    ? { isLoading: true, isError: false }
-    : scoresOptions.isError
-    ? {
-        isLoading: false,
-        isError: true,
-        error: scoresOptions.error.message,
-      }
-    : {
-        isLoading: false,
-        isError: false,
-        data: convertToOptions(scoresOptions.data),
-      };
-
   const convertToTableRow = (score: Score): RowData => {
     return {
       id: score.id,
@@ -154,24 +122,13 @@ export default function ScoresTable({
     };
   };
 
-  const isFiltered = () =>
-    Object.entries(queryOptions).filter(([_k, v]) => v !== null).length > 0;
-
-  const resetFilters = () =>
-    setQueryOptions({
-      traceId: null,
-    });
-
   return (
     <div>
-      {tableOptions.data ? (
-        <DataTableToolbar
-          columnDefs={columns}
-          options={tableOptions.data}
-          resetFilters={resetFilters}
-          isFiltered={isFiltered}
-        />
-      ) : undefined}
+      <DataTableToolbar
+        filterColumnDefinition={scoresTableColsWithOptions(filterOptions.data)}
+        filterState={userFilterState}
+        setFilterState={setUserFilterState}
+      />
       <DataTable
         columns={columns}
         data={
@@ -189,7 +146,6 @@ export default function ScoresTable({
                 data: scores.data?.map((t) => convertToTableRow(t)),
               }
         }
-        options={{ isLoading: true, isError: false }}
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,

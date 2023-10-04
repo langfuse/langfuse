@@ -1,13 +1,9 @@
-import { type ColumnDef } from "@tanstack/react-table";
-import { X } from "lucide-react";
-
 import { Button } from "@/src/components/ui/button";
-import { type TableRowOptions } from "@/src/components/table/types";
-import { DataTableSelectFilter } from "@/src/components/table/data-table-select-filter";
-import { DataTableNumberFilter } from "@/src/components/table/data-table-number-filter";
-import React, { useState } from "react";
+import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
-import { DataTableKeyValueFilter } from "@/src/components/table/data-table-key-value-filter";
+import { type FilterState } from "@/src/features/filters/types";
+import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 
 interface SearchConfig {
   placeholder: string;
@@ -15,84 +11,35 @@ interface SearchConfig {
   currentQuery?: string;
 }
 
-interface DataTableToolbarProps<TData, TValue> {
-  columnDefs: ColumnDef<TData, TValue>[];
-  options: TableRowOptions[];
+interface DataTableToolbarProps {
+  filterColumnDefinition: ColumnDefinition[];
   searchConfig?: SearchConfig;
-  resetFilters: () => void;
-  isFiltered: () => boolean;
   actionButtons?: React.ReactNode;
+  filterState: FilterState;
+  setFilterState: Dispatch<SetStateAction<FilterState>>;
 }
 
-export function DataTableToolbar<TData, TValue>({
-  columnDefs,
-  options,
+export function DataTableToolbar({
+  filterColumnDefinition,
   searchConfig,
-  resetFilters,
-  isFiltered,
   actionButtons,
-}: DataTableToolbarProps<TData, TValue>) {
+  filterState,
+  setFilterState,
+}: DataTableToolbarProps) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
-
-  const renderFilter = (
-    column: ColumnDef<TData, TValue>,
-    columnOptions: TableRowOptions | undefined,
-  ) => {
-    if (
-      !column ||
-      !column.enableColumnFilter ||
-      !columnOptions ||
-      !column?.meta?.filter
-    )
-      return undefined;
-
-    const filter = column.meta.filter;
-    const label = column.meta?.label;
-    const type = filter.type;
-
-    if (type === "select") {
-      return (
-        <DataTableSelectFilter
-          key={label}
-          title={label}
-          meta={filter}
-          options={columnOptions}
-        />
-      );
-    }
-
-    if (type === "number-comparison") {
-      return (
-        <DataTableNumberFilter
-          key={label}
-          title={label}
-          meta={filter}
-          options={columnOptions}
-        />
-      );
-    }
-
-    if (type === "key-value") {
-      return (
-        <DataTableKeyValueFilter key={label} title={label} meta={filter} />
-      );
-    }
-
-    return undefined;
-  };
 
   return (
     <div className="my-2 flex max-w-full items-center justify-between overflow-x-auto">
       <div className="flex flex-1 items-center space-x-2">
         {searchConfig ? (
-          <div className="flex w-full max-w-md items-center space-x-2">
+          <div className="flex max-w-md items-center space-x-2">
             <Input
               autoFocus
               placeholder={searchConfig.placeholder}
               value={searchString}
-              className="h-8 w-[350px]"
+              className="h-10 w-[200px] lg:w-[350px]"
               onChange={(event) => {
                 setSearchString(event.currentTarget.value);
               }}
@@ -106,26 +53,11 @@ export function DataTableToolbar<TData, TValue>({
             </Button>
           </div>
         ) : undefined}
-        {options
-          ? columnDefs.map((column) => {
-              const columnOptions = options.find(
-                (o) =>
-                  o.columnId.toLowerCase() ===
-                  column.meta?.label?.toLowerCase(),
-              );
-              return renderFilter(column, columnOptions);
-            })
-          : undefined}
-        {isFiltered() && (
-          <Button
-            variant="ghost"
-            onClick={() => resetFilters()}
-            className="h-8 px-2 lg:px-3"
-          >
-            Reset
-            <X className="ml-2 h-4 w-4" />
-          </Button>
-        )}
+        <FilterBuilder
+          columns={filterColumnDefinition}
+          filterState={filterState}
+          onChange={setFilterState}
+        />
         <div className="flex-1" />
         {actionButtons ? actionButtons : null}
       </div>

@@ -157,7 +157,6 @@ export function DatasetsTable(props: { projectId: string }) {
                 data: datasets.data?.map((t) => convertToTableRow(t)),
               }
         }
-        options={{ isLoading: true, isError: false }}
       />
       <NewDatasetButton projectId={props.projectId} className="mt-4" />
     </div>

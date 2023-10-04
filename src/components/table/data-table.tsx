@@ -19,13 +19,11 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { useState } from "react";
-import { type TableRowOptions } from "@/src/components/table/types";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
-  options: AsyncTableData<TableRowOptions[]>;
   pagination?: {
     pageCount: number;
     onChange: OnChangeFn<PaginationState>;

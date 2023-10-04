@@ -4,9 +4,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
-import { type TableRowOptions } from "@/src/components/table/types";
 import { useRouter } from "next/router";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
@@ -20,12 +18,14 @@ import { ChevronDownIcon, Loader } from "lucide-react";
 import { type ExportFileFormats } from "@/src/server/api/routers/generations";
 import { usePostHog } from "posthog-js/react";
 import {
-  DelimitedArrayParam,
   NumberParam,
   StringParam,
+  useQueryParam,
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
 
 type GenerationTableRow = {
   id: string;
@@ -41,11 +41,6 @@ type GenerationTableRow = {
     totalTokens: number;
   };
 };
-
-export type GenerationFilterInput = Omit<
-  RouterInput["generations"]["all"],
-  "projectId"
->;
 
 const exportOptions: Record<
   ExportFileFormats,
@@ -70,37 +65,28 @@ export default function Generations() {
   const projectId = router.query.projectId as string;
   const [isExporting, setIsExporting] = useState(false);
 
-  const [rawQueryOptions, setQueryOptions] = useQueryParams({
-    traceId: withDefault(DelimitedArrayParam, null),
-    name: withDefault(DelimitedArrayParam, null),
-    model: withDefault(DelimitedArrayParam, null),
-    traceName: withDefault(DelimitedArrayParam, null),
-    searchQuery: withDefault(StringParam, ""),
-  });
-  // Fix typings of useQueryParams
-  const queryOptions: GenerationFilterInput & { searchQuery: string } = {
-    traceId: rawQueryOptions.traceId as string[] | null,
-    name: rawQueryOptions.name as string[] | null,
-    model: rawQueryOptions.model as string[] | null,
-    traceName: rawQueryOptions.traceName as string[] | null,
-    searchQuery: rawQueryOptions.searchQuery,
-  };
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [filterState, setFilterState] = useQueryFilterState([]);
+
   const generations = api.generations.all.useQuery({
-    ...queryOptions,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
+    filter: filterState,
+    searchQuery,
   });
   const totalCount = generations.data?.slice(1)[0]?.totalCount ?? 0;
 
-  const generationOptions = api.generations.availableFilterOptions.useQuery({
-    ...queryOptions,
+  const filterOptions = api.generations.filterOptions.useQuery({
     projectId,
   });
 
@@ -110,9 +96,10 @@ export default function Generations() {
     setIsExporting(true);
     posthog.capture("generations:export", { file_format: fileFormat });
     const fileData = await directApi.generations.export.query({
-      ...queryOptions,
       projectId,
       fileFormat,
+      filter: filterState,
+      searchQuery,
     });
 
     if (fileData) {
@@ -159,22 +146,10 @@ export default function Generations() {
     },
     {
       accessorKey: "name",
-      enableColumnFilter: true,
       header: "name",
-      meta: {
-        label: "Name",
-        filter: {
-          type: "select",
-          values: queryOptions.name,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, name: newValues });
-          },
-        },
-      },
     },
     {
       accessorKey: "traceId",
-      enableColumnFilter: true,
       header: "Trace ID",
       cell: ({ row }) => {
         const value = row.getValue("traceId");
@@ -185,31 +160,10 @@ export default function Generations() {
           />
         ) : undefined;
       },
-      meta: {
-        label: "TraceId",
-        filter: {
-          type: "select",
-          values: queryOptions.traceId,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, traceId: newValues });
-          },
-        },
-      },
     },
     {
       accessorKey: "traceName",
-      enableColumnFilter: true,
       header: "Trace Name",
-      meta: {
-        label: "TraceName",
-        filter: {
-          type: "select",
-          values: queryOptions.traceName,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, traceName: newValues });
-          },
-        },
-      },
     },
     {
       accessorKey: "startTime",
@@ -222,17 +176,6 @@ export default function Generations() {
     {
       accessorKey: "model",
       header: "Model",
-      enableColumnFilter: true,
-      meta: {
-        label: "Model",
-        filter: {
-          type: "select",
-          values: queryOptions.model,
-          updateFunction: (newValues: string[] | null) => {
-            setQueryOptions({ ...queryOptions, model: newValues });
-          },
-        },
-      },
     },
     {
       accessorKey: "usage",
@@ -255,33 +198,6 @@ export default function Generations() {
     },
   ];
 
-  const convertToOptions = (
-    options: RouterOutput["generations"]["availableFilterOptions"],
-  ): TableRowOptions[] => {
-    return options.map((o) => {
-      return {
-        columnId: o.key,
-        options: o.occurrences.map((o) => {
-          return { label: o.key, value: o.count };
-        }),
-      };
-    });
-  };
-
-  const tableOptions = generationOptions.isLoading
-    ? { isLoading: true, isError: false }
-    : generationOptions.isError
-    ? {
-        isLoading: false,
-        isError: true,
-        error: generationOptions.error.message,
-      }
-    : {
-        isLoading: false,
-        isError: false,
-        data: convertToOptions(generationOptions.data),
-      };
-
   const rows: GenerationTableRow[] = generations.isSuccess
     ? generations.data.map((generation) => ({
         id: generation.id,
@@ -299,65 +215,52 @@ export default function Generations() {
       }))
     : [];
 
-  const resetFilters = () =>
-    setQueryOptions({
-      traceId: null,
-      name: null,
-      model: null,
-      traceName: null,
-    });
-
-  const isFiltered = () =>
-    Object.entries(queryOptions).filter(
-      ([k, v]) => k !== "searchQuery" && v !== null,
-    ).length > 0;
-
   return (
     <div>
       <Header title="Generations" />
-      {tableOptions.data ? (
-        <DataTableToolbar
-          columnDefs={columns}
-          options={tableOptions.data}
-          resetFilters={resetFilters}
-          isFiltered={isFiltered}
-          searchConfig={{
-            placeholder: "Search by id, name, traceName, model",
-            updateQuery: (newQuery) =>
-              setQueryOptions({ searchQuery: newQuery }),
-            currentQuery: queryOptions.searchQuery,
-          }}
-          actionButtons={
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="ml-auto whitespace-nowrap"
-                  size="sm"
+      <DataTableToolbar
+        filterColumnDefinition={observationsTableColsWithOptions(
+          filterOptions.data,
+        )}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        searchConfig={{
+          placeholder: "Search by id, name, traceName, model",
+          updateQuery: setSearchQuery,
+          currentQuery: searchQuery ?? undefined,
+        }}
+        actionButtons={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="ml-auto whitespace-nowrap"
+                size="sm"
+              >
+                {filterState.length > 0 || searchQuery
+                  ? "Export selection"
+                  : "Export all"}{" "}
+                {isExporting ? (
+                  <Loader className="ml-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronDownIcon className="ml-2 h-4 w-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {Object.entries(exportOptions).map(([key, options]) => (
+                <DropdownMenuItem
+                  key={key}
+                  className="capitalize"
+                  onClick={() => void handleExport(key as ExportFileFormats)}
                 >
-                  {isFiltered() ? "Export selection" : "Export all"}{" "}
-                  {isExporting ? (
-                    <Loader className="ml-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ChevronDownIcon className="ml-2 h-4 w-4" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {Object.entries(exportOptions).map(([key, options]) => (
-                  <DropdownMenuItem
-                    key={key}
-                    className="capitalize"
-                    onClick={() => void handleExport(key as ExportFileFormats)}
-                  >
-                    as {options.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          }
-        />
-      ) : undefined}
+                  as {options.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
       <DataTable
         columns={columns}
         data={
@@ -375,7 +278,6 @@ export default function Generations() {
                 data: rows,
               }
         }
-        options={{ isLoading: true, isError: false }}
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,

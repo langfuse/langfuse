@@ -1,15 +1,9 @@
 /** @jest-environment node */
 
-import { makeAPICall } from "@/src/__tests__/test-utils";
+import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@/src/server/db";
 
 describe("/api/public/traces API Endpoint", () => {
-  const pruneDatabase = async () => {
-    await prisma.observation.deleteMany();
-    await prisma.score.deleteMany();
-    await prisma.trace.deleteMany();
-  };
-
   beforeEach(async () => await pruneDatabase());
   afterEach(async () => await pruneDatabase());
 
