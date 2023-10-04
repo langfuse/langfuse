@@ -178,6 +178,7 @@ model Observation {
     @@index([type])
     @@index(startTime)
     @@index(projectId)
+    @@index(parentObservationId)
     @@map("observations")
 }
 
