@@ -67,8 +67,6 @@ export function transformMapAndFillZeroValues(
 ): Result[] {
   const result: Result[] = [];
 
-  console.log("transformMapAndFillZeroValues", map);
-
   for (const [date, items] of map) {
     const values = items.map((item) => ({
       label: item.model,

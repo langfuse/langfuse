@@ -90,7 +90,6 @@ export const TokenChart = ({
         )
       : [];
 
-  console.log(transformedTotalTokens);
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Card>

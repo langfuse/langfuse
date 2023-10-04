@@ -142,6 +142,7 @@ export const EventsCard = ({
             agg={agg}
             data={transformedTraces ?? []}
             connectNulls={true}
+            showLegend={false}
           />
         </CardContent>
       </Card>
@@ -160,6 +161,7 @@ export const EventsCard = ({
             agg={agg}
             data={transformedObservations ?? []}
             connectNulls={true}
+            showLegend={false}
           />
         </CardContent>
       </Card>
@@ -178,6 +180,7 @@ export const EventsCard = ({
             agg={agg}
             data={transformedScores ?? []}
             connectNulls={true}
+            showLegend={false}
           />
         </CardContent>
       </Card>
