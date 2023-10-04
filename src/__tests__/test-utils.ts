@@ -5,6 +5,12 @@ import {
 import { prisma } from "@/src/server/db";
 import { hash } from "bcryptjs";
 
+export const pruneDatabase = async () => {
+  await prisma.score.deleteMany();
+  await prisma.observation.deleteMany();
+  await prisma.trace.deleteMany();
+};
+
 export function createBasicAuthHeader(
   username: string,
   password: string,

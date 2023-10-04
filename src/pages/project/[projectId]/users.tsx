@@ -134,7 +134,6 @@ export default function UsersPage() {
                 }),
               }
         }
-        options={{ isLoading: true, isError: false }}
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,

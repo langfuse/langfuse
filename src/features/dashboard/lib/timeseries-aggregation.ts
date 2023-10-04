@@ -13,7 +13,7 @@ export type DateTimeAggregationOption =
 export const dateTimeAggregationSettings: Record<
   DateTimeAggregationOption,
   {
-    date_trunc: string;
+    date_trunc: "year" | "month" | "week" | "day" | "hour" | "minute";
     date_formatter: (date: Date) => string;
   }
 > = {

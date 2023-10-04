@@ -4,17 +4,20 @@ import { AreaChart } from "@tremor/react";
 
 export function BaseTimeSeriesChart(props: {
   agg: DateTimeAggregationOption;
-  data: { ts: number; values: { label: string; value: number }[] }[];
+  data: { ts: number; values: { label: string; value?: number }[] }[];
+  showLegend?: boolean;
   connectNulls?: boolean;
 }) {
   const labels = new Set(
     props.data.flatMap((d) => d.values.map((v) => v.label)),
   );
 
-  type ChartInput = { timestamp: string } & { [key: string]: number };
+  type ChartInput = { timestamp: string } & {
+    [key: string]: number | undefined;
+  };
 
   function transformArray(
-    array: { ts: number; values: { label: string; value: number }[] }[],
+    array: { ts: number; values: { label: string; value?: number }[] }[],
   ): ChartInput[] {
     return array.map((item) => {
       const outputObject: ChartInput = {
@@ -39,14 +42,12 @@ export function BaseTimeSeriesChart(props: {
         minute: "2-digit",
       });
     }
-
     return new Date(date).toLocaleDateString("en-US", {
       year: "2-digit",
       month: "numeric",
       day: "numeric",
     });
   };
-
   return (
     <AreaChart
       className="mt-4 h-72"
@@ -56,7 +57,8 @@ export function BaseTimeSeriesChart(props: {
       connectNulls={props.connectNulls}
       colors={["indigo", "cyan"]}
       valueFormatter={numberFormatter}
-      noDataText="Loading ..."
+      noDataText="No data"
+      showLegend={props.showLegend}
     />
   );
 }
