@@ -79,7 +79,7 @@
     "react": "18.2.0",
     "react-day-picker": "^8.8.2",
     "react-dom": "18.2.0",
-    "react-hook-form": "^7.46.2",
+    "react-hook-form": "^7.47.0",
     "react-icons": "^4.11.0",
     "react18-json-view": "^0.2.6-canary.3",
     "sharp": "^0.32.6",
