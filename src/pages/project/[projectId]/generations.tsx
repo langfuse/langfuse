@@ -32,6 +32,7 @@ type GenerationTableRow = {
   traceId: string;
   startTime: string;
   endTime?: string;
+  latency?: number;
   name?: string;
   model?: string;
   traceName?: string;
@@ -170,8 +171,14 @@ export default function Generations() {
       header: "Start Time",
     },
     {
-      accessorKey: "endTime",
-      header: "End Time",
+      accessorKey: "latency",
+      header: "Latency",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("latency");
+        return value !== undefined ? (
+          <span>{value.toFixed(2)} sec</span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "model",
@@ -205,6 +212,7 @@ export default function Generations() {
         traceName: generation.traceName,
         startTime: generation.startTime.toLocaleString(),
         endTime: generation.endTime?.toLocaleString() ?? undefined,
+        latency: generation.latency === null ? undefined : generation.latency,
         name: generation.name ?? undefined,
         model: generation.model ?? "",
         usage: {

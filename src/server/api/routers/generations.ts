@@ -58,16 +58,26 @@ export const generationsRouter = createTRPCRouter({
             traceId: string;
             traceName: string;
             totalCount: number;
+            latency: number | null;
           }
         >
       >(
         Prisma.sql`
+          WITH latency AS (
+            SELECT
+              o.id,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+          )
           SELECT
             o.id,
             o.name,
             o.model,
             o.start_time as "startTime",
             o.end_time as "endTime",
+            latency.latency,
             o.input,
             o.output,
             o.metadata,
@@ -81,6 +91,7 @@ export const generationsRouter = createTRPCRouter({
             (count(*) OVER())::int AS "totalCount"
           FROM observations o
           JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN latency ON latency.id = o.id
           WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             AND t.project_id = ${input.projectId}

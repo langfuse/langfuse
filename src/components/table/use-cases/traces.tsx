@@ -25,6 +25,7 @@ export type TraceTableRow = {
   name: string;
   userId: string;
   metadata?: string;
+  latency?: number;
   scores: Score[];
   usage: {
     promptTokens: number;
@@ -92,6 +93,7 @@ export default function TracesTable({
       metadata: JSON.stringify(trace.metadata),
       userId: trace.userId ?? "",
       scores: trace.scores,
+      latency: trace.latency === null ? undefined : trace.latency,
       usage: {
         promptTokens: trace.promptTokens,
         completionTokens: trace.completionTokens,
@@ -145,6 +147,15 @@ export default function TracesTable({
             truncateAt={40}
           />
         ) : undefined;
+      },
+    },
+    {
+      accessorKey: "latency",
+      header: "Latency",
+      // add seconds to the end of the latency
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("latency");
+        return value !== undefined ? `${value.toFixed(2)} sec` : undefined;
       },
     },
     {
