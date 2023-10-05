@@ -83,7 +83,7 @@ function Instructions() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-gray-900">
-                  <a href={item.href} target="_blank">
+                  <a href={item.href} target="_blank" rel="noreferrer noopener">
                     <span className="absolute inset-0" aria-hidden="true" />
                     {item.name}
                   </a>
