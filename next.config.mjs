@@ -30,9 +30,6 @@ const nextConfig = {
 
     return config;
   },
-  experimental: {
-    instrumentationHook: true,
-  },
   sentry: {
     // See the sections below for information on the following options:
     //   'Configure Source Maps':
