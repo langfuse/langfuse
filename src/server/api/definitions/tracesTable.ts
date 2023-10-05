@@ -27,6 +27,16 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "numberObject",
     internal: "scores_avg",
   },
+  {
+    name: "version",
+    type: "string",
+    internal: 't."version"',
+  },
+  {
+    name: "release",
+    type: "string",
+    internal: 't."release"',
+  },
 ];
 
 export type TraceOptions = {

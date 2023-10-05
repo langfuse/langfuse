@@ -40,6 +40,11 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."model"',
     options: [], // to be added at runtime
   },
+  {
+    name: "version",
+    type: "string",
+    internal: 'o."version"',
+  },
 ];
 
 // to be used client side, insert options for use in filter-builder
