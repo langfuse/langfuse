@@ -327,17 +327,7 @@ export default async function handler(
         searchParams,
       );
       return res.status(200).json({
-        data: generations.map((generation) => {
-          const { input, output, ...otherFields } = generation;
-          return {
-            ...otherFields,
-            prompt: input,
-            completion:
-              output && typeof output === "object" && "completion" in output
-                ? output.completion
-                : null,
-          };
-        }),
+        data: generations,
         meta: {
           page: searchParams.page,
           limit: searchParams.limit,

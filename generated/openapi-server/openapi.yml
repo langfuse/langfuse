@@ -1098,15 +1098,14 @@ components:
           additionalProperties:
             $ref: '#/components/schemas/MapValue'
           nullable: true
-        prompt:
+        input:
           nullable: true
         version:
           type: string
           nullable: true
         metadata:
           nullable: true
-        completion:
-          type: string
+        output:
           nullable: true
         promptTokens:
           type: integer

@@ -66,10 +66,10 @@ types:
       completionStartTime: optional<datetime>
       model: optional<string>
       modelParameters: optional<map<string, MapValue>>
-      prompt: optional<unknown>
+      input: optional<unknown>
       version: optional<string>
       metadata: optional<unknown>
-      completion: optional<string>
+      output: optional<unknown>
       promptTokens: integer
       completionTokens: integer
       totalTokens: integer
