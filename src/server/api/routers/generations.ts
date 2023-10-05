@@ -9,7 +9,10 @@ import { type Generation } from "@/src/utils/types";
 import { type Observation, Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
+import {
+  datetimeFilterToPrismaSql,
+  filterToPrismaSql,
+} from "@/src/features/filters/server/filterToPrisma";
 import {
   type ObservationOptions,
   observationsTableCols,
@@ -50,7 +53,19 @@ export const generationsRouter = createTRPCRouter({
         input.filter ?? [],
         observationsTableCols,
       );
-      console.log("filters: ", filterCondition);
+
+      // to improve query performance, add timeseries filter to observation queries as well
+      const startTimeFilter = input.filter?.find(
+        (f) => f.column === "start_time" && f.type === "datetime",
+      );
+      const datetimeFilter =
+        startTimeFilter && startTimeFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "start_time",
+              startTimeFilter.operator,
+              startTimeFilter.value,
+            )
+          : Prisma.empty;
 
       const generations = await ctx.prisma.$queryRaw<
         Array<
@@ -70,6 +85,7 @@ export const generationsRouter = createTRPCRouter({
             FROM observations o
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
           )
           SELECT
             o.id,

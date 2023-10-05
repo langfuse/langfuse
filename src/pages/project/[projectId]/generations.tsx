@@ -26,6 +26,7 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
+import { utcDateOffsetByDays } from "@/src/utils/dates";
 
 type GenerationTableRow = {
   id: string;
@@ -76,7 +77,14 @@ export default function Generations() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [filterState, setFilterState] = useQueryFilterState([]);
+  const [filterState, setFilterState] = useQueryFilterState([
+    {
+      column: "start_time",
+      type: "datetime",
+      operator: ">",
+      value: utcDateOffsetByDays(-14),
+    },
+  ]);
 
   const generations = api.generations.all.useQuery({
     page: paginationState.pageIndex,

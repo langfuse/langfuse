@@ -15,7 +15,10 @@ import {
   type TraceOptions,
   tracesTableCols,
 } from "@/src/server/api/definitions/tracesTable";
-import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
+import {
+  datetimeFilterToPrismaSql,
+  filterToPrismaSql,
+} from "@/src/features/filters/server/filterToPrisma";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -32,7 +35,19 @@ export const traceRouter = createTRPCRouter({
         input.filter ?? [],
         tracesTableCols,
       );
-      console.log("filters: ", filterCondition);
+
+      // to improve query performance, add timeseries filter to observation queries as well
+      const timeseriesFilter = input.filter?.find(
+        (f) => f.column === "timestamp" && f.type === "datetime",
+      );
+      const observationTimeseriesFilter =
+        timeseriesFilter && timeseriesFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "start_time",
+              timeseriesFilter.operator,
+              timeseriesFilter.value,
+            )
+          : Prisma.empty;
 
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
@@ -67,6 +82,7 @@ export const traceRouter = createTRPCRouter({
           "trace_id" IS NOT NULL
           AND "type" = 'GENERATION'
           AND "project_id" = ${input.projectId}
+          ${observationTimeseriesFilter}
         GROUP BY
           trace_id
       ),
@@ -79,6 +95,7 @@ export const traceRouter = createTRPCRouter({
         WHERE
           "trace_id" IS NOT NULL
           AND "project_id" = ${input.projectId}
+          ${observationTimeseriesFilter}
         GROUP BY
           trace_id
       ),
