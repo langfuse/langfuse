@@ -102,7 +102,7 @@
     "@types/jest": "^29.5.5",
     "@types/js-yaml": "^4.0.6",
     "@types/lodash": "^4.14.199",
-    "@types/node": "^20.7.2",
+    "@types/node": "^20.8.2",
     "@types/react": "^18.2.25",
     "@types/react-dom": "^18.2.10",
     "@types/swagger-ui-react": "^4.18.1",
