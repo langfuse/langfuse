@@ -8,6 +8,9 @@ import { appRouter } from "@/src/server/api/root";
 export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
+  batching: {
+    enabled: false,
+  },
   onError:
     env.NODE_ENV === "development"
       ? ({ path, error }) => {
