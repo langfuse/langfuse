@@ -306,8 +306,27 @@ export const traceRouter = createTRPCRouter({
         };
       });
 
+      const obsStartTimes = observations
+        .map((o) => o.startTime)
+        .sort((a, b) => a.getTime() - b.getTime());
+      const obsEndTimes = observations
+        .map((o) => o.endTime)
+        .filter((t) => t)
+        .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
+      const latencyMs =
+        obsStartTimes.length > 0
+          ? obsEndTimes.length > 0
+            ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+              obsStartTimes[0]!.getTime()
+            : obsStartTimes.length > 1
+            ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+              obsStartTimes[0]!.getTime()
+            : undefined
+          : undefined;
+
       return {
         ...trace,
+        latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: enrichedObservations as Array<
           (typeof observations)[0] & { traceId: string } & { price?: Decimal }
         >,
