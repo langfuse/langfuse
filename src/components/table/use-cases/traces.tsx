@@ -26,6 +26,8 @@ export type TraceTableRow = {
   userId: string;
   metadata?: string;
   latency?: number;
+  release?: string;
+  version?: string;
   scores: Score[];
   usage: {
     promptTokens: number;
@@ -91,6 +93,8 @@ export default function TracesTable({
       timestamp: trace.timestamp.toLocaleString(),
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
+      release: trace.release ?? undefined,
+      version: trace.version ?? undefined,
       userId: trace.userId ?? "",
       scores: trace.scores,
       latency: trace.latency === null ? undefined : trace.latency,
@@ -193,6 +197,14 @@ export default function TracesTable({
         const values: string = row.getValue("metadata");
         return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
       },
+    },
+    {
+      accessorKey: "version",
+      header: "Version",
+    },
+    {
+      accessorKey: "release",
+      header: "Release",
     },
   ];
 
