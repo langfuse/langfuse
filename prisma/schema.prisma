@@ -143,6 +143,7 @@ model Trace {
     @@index([userId])
     @@index([externalId])
     @@index(timestamp)
+    @@index(release)
     @@map("traces")
 }
 
