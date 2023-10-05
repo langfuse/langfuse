@@ -29,7 +29,7 @@ service:
       response: Observations
 
 types:
-  Generations:
+  Observations:
     properties:
       data: list<commons.Observation>
       meta: pagination.MetaResponse
