@@ -5,6 +5,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
+import { jsonSchema } from "@/src/utils/zod";
 
 const ObservationSchema = z.object({
   id: z.string().nullish(),
@@ -12,9 +13,9 @@ const ObservationSchema = z.object({
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
-  metadata: z.unknown().nullish(),
-  input: z.unknown().nullish(),
-  output: z.unknown().nullish(),
+  metadata: jsonSchema,
+  input: jsonSchema,
+  output: jsonSchema,
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   parentObservationId: z.string().nullish(),

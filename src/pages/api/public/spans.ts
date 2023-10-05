@@ -11,6 +11,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
+import { jsonSchema } from "@/src/utils/zod";
 
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
@@ -19,9 +20,9 @@ const SpanPostSchema = z.object({
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
-  metadata: z.unknown().nullish(),
-  input: z.unknown().nullish(),
-  output: z.unknown().nullish(),
+  metadata: jsonSchema,
+  input: jsonSchema,
+  output: jsonSchema,
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
@@ -33,9 +34,9 @@ const SpanPatchSchema = z.object({
   traceId: z.string().nullish(),
   name: z.string().nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
-  metadata: z.unknown().nullish(),
-  input: z.unknown().nullish(),
-  output: z.unknown().nullish(),
+  metadata: jsonSchema,
+  input: jsonSchema,
+  output: jsonSchema,
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),

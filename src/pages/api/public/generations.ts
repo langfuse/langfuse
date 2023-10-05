@@ -14,7 +14,7 @@ import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
-import { paginationZod } from "@/src/utils/zod";
+import { jsonSchema, paginationZod } from "@/src/utils/zod";
 
 const GenerationsGetSchema = z.object({
   ...paginationZod,
@@ -37,8 +37,8 @@ export const GenerationsCreateSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: z.unknown().nullish(),
-  completion: z.string().nullish(),
+  prompt: jsonSchema,
+  completion: jsonSchema,
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -66,8 +66,8 @@ const GenerationPatchSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: z.unknown().nullish(),
-  completion: z.string().nullish(),
+  prompt: jsonSchema,
+  completion: jsonSchema,
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -75,7 +75,7 @@ const GenerationPatchSchema = z.object({
       totalTokens: z.number().nullish(),
     })
     .nullish(),
-  metadata: z.unknown().nullish(),
+  metadata: jsonSchema,
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
@@ -206,7 +206,10 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output: completion ? { completion: completion } : undefined,
+          output:
+            typeof completion === "string"
+              ? { completion: completion }
+              : completion,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:
@@ -230,7 +233,10 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output: completion ? { completion: completion } : undefined,
+          output:
+            typeof completion === "string"
+              ? { completion: completion }
+              : completion,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:

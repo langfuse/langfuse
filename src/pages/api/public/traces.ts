@@ -5,14 +5,14 @@ import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
-import { paginationZod } from "@/src/utils/zod";
+import { jsonSchema, paginationZod } from "@/src/utils/zod";
 
 const CreateTraceSchema = z.object({
   id: z.string().nullish(),
   name: z.string().nullish(),
   externalId: z.string().nullish(),
   userId: z.string().nullish(),
-  metadata: z.unknown().nullish(),
+  metadata: jsonSchema,
   release: z.string().nullish(),
   version: z.string().nullish(),
 });
