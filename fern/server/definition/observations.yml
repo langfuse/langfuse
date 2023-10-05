@@ -16,7 +16,7 @@ service:
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
       response: commons.Observation
     getMany:
-      docs: Get a list of generations
+      docs: Get a list of observations
       method: GET
       path: /observations
       request:
