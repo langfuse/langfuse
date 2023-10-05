@@ -9,6 +9,7 @@ import { z } from "zod";
 
 const ObservationsGetSchema = z.object({
   ...paginationZod,
+  observationType: z.enum(["GENERATION", "SPAN", "EVENT"]).nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
 });
@@ -92,6 +93,10 @@ const getObservation = async (
     ? Prisma.sql`AND o."name" = ${query.name}`
     : Prisma.empty;
 
+  const observationTypeCondition = query.observationType
+    ? Prisma.sql`AND o."type" = ${query.observationType}::ObservationType`
+    : Prisma.empty;
+
   const [observations, count] = await Promise.all([
     prisma.$queryRaw<Observation[]>`
       SELECT 
@@ -109,6 +114,7 @@ const getObservation = async (
       WHERE o."project_id" = ${authenticatedProjectId}
       ${nameCondition}
       ${userIdCondition}
+      ${observationTypeCondition}
       ORDER by o."start_time" DESC
       OFFSET ${(query.page - 1) * query.limit}
       LIMIT ${query.limit}
@@ -116,7 +122,7 @@ const getObservation = async (
     prisma.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*) FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
       WHERE o."project_id" = ${authenticatedProjectId}
-      AND type = 'GENERATION'
+      ${observationTypeCondition}
       ${nameCondition}
       ${userIdCondition}
   `,
