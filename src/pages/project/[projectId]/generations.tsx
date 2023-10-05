@@ -196,6 +196,10 @@ export default function Generations() {
         );
       },
     },
+    {
+      accessorKey: "version",
+      header: "Version",
+    },
   ];
 
   const rows: GenerationTableRow[] = generations.isSuccess
@@ -206,6 +210,7 @@ export default function Generations() {
         startTime: generation.startTime.toLocaleString(),
         endTime: generation.endTime?.toLocaleString() ?? undefined,
         name: generation.name ?? undefined,
+        version: generation.version ?? "",
         model: generation.model ?? "",
         usage: {
           promptTokens: generation.promptTokens,
