@@ -16,18 +16,6 @@ service:
       path: /generations
       request: UpdateGenerationRequest
       response: commons.Observation
-    get:
-      docs: Get a list of generations
-      method: GET
-      path: /generations
-      request:
-        name: GetGenerationsRequest
-        query-parameters:
-          page: optional<integer>
-          limit: optional<integer>
-          name: optional<string>
-          userId: optional<string>
-      response: Generations
 
 types:
   UpdateGenerationRequest:
@@ -46,7 +34,3 @@ types:
       usage: optional<commons.LLMUsage>
       level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
-  Generations:
-    properties:
-      data: list<commons.Observation>
-      meta: pagination.MetaResponse

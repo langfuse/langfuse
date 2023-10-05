@@ -15,3 +15,21 @@ service:
           type: string
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
       response: commons.Observation
+    getMany:
+      docs: Get a list of generations
+      method: GET
+      path: /observations
+      request:
+        name: GetObservationsRequest
+        query-parameters:
+          page: optional<integer>
+          limit: optional<integer>
+          name: optional<string>
+          userId: optional<string>
+      response: Observations
+
+types:
+  Generations:
+    properties:
+      data: list<commons.Observation>
+      meta: pagination.MetaResponse
