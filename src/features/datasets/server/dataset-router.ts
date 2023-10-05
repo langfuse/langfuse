@@ -79,7 +79,7 @@ export const datasetRouter = createTRPCRouter({
           FROM
             dataset_run_items ri
             JOIN observations o ON o.id = ri.observation_id
-            LEFT JOIN scores s ON s.trace_id = o.trace_id
+            JOIN scores s ON s.trace_id = o.trace_id
           WHERE o.project_id = ${input.projectId}
           GROUP BY
             ri.dataset_run_id,
@@ -105,7 +105,7 @@ export const datasetRouter = createTRPCRouter({
           runs.name,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          avg_scores.scores scores,
+          COALESCE(avg_scores.scores, '[]'::jsonb) scores,
           count(DISTINCT ri.id)::int "countRunItems"
         FROM
           dataset_runs runs
