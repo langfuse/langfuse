@@ -28,7 +28,8 @@
     "**/*.ts",
     "**/*.tsx",
     "**/*.cjs",
-    "**/*.mjs"
+    "**/*.mjs",
+    "src/features/navigate-detail-pages"
   ],
   "exclude": ["node_modules", "sdk"]
 }
