@@ -58,6 +58,7 @@ export default async function handler(
       authCheck.scope.projectId,
       searchParams,
     );
+    console.log(observations);
     return res.status(200).json({
       data: observations,
       meta: {
@@ -99,16 +100,25 @@ const getObservation = async (
   const [observations, count] = await Promise.all([
     prisma.$queryRaw<Observation[]>`
       SELECT 
-        o.*,
-        o."trace_id" AS "traceId",
-        o."project_id" AS "projectId",
+        o."id",
+        o."name",
         o."start_time" AS "startTime",
         o."end_time" AS "endTime",
         o."parent_observation_id" AS "parentObservationId",
+        o."type",
+        o."metadata",
+        o."model",
+        o."input",
+        o."output",
+        o."level",
         o."status_message" AS "statusMessage",
-        o."prompt_tokens" AS "promptTokens",
+        o."completion_start_time" AS "completionStartTime",
         o."completion_tokens" AS "completionTokens",
-        o."completion_start_time" AS "completionStartTime"
+        o."prompt_tokens" AS "promptTokens",
+        o."total_tokens" AS "totalTokens",
+        o."version",
+        o."project_id" AS "projectId",
+        o."trace_id" AS "traceId"
       FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${nameCondition}

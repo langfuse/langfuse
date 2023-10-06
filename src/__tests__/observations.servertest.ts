@@ -4,6 +4,7 @@ import { prisma } from "@/src/server/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 import { type Observation } from "@prisma/client";
+import { type } from "node:os";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -36,7 +37,7 @@ describe("/api/public/generations API Endpoint", () => {
         model: "model-name",
         modelParameters: { key: "value" },
         input: { key: "input" },
-        metadata: { key: "output" },
+        output: { key: "output" },
         version: "2.0.0",
         type: "GENERATION",
         project: {
@@ -57,28 +58,37 @@ describe("/api/public/generations API Endpoint", () => {
       throw new Error("Expected body to be an array of observations");
     }
 
-    expect(fetchedObservations.body.length).toBe(1);
-    expect(fetchedObservations.body[0]?.traceId).toBe(traceId);
-    expect(fetchedObservations.body[0]?.input).toBe({ key: "input" });
-    expect(fetchedObservations.body[0]?.output).toBe({ key: "output" });
+    expect(fetchedObservations.body.data.length).toBe(1);
+    expect(fetchedObservations.body.data[0]?.traceId).toBe(traceId);
+    expect(fetchedObservations.body.data[0]?.input).toEqual({ key: "input" });
+    expect(fetchedObservations.body.data[0]?.output).toEqual({ key: "output" });
   });
 });
 
-const isObservationList = (val: unknown): val is Observation[] =>
-  Array.isArray(val) &&
-  val.every(
-    (element) =>
-      typeof element === "object" &&
-      element !== null &&
-      "id" in element &&
-      "traceId" in element &&
-      "name" in element &&
-      "startTime" in element &&
-      "endTime" in element &&
-      "model" in element &&
-      "modelParameters" in element &&
-      "input" in element &&
-      "output" in element &&
-      "metadata" in element &&
-      "version" in element,
+const isObservationList = (val: unknown): val is ObservationResponse => {
+  return (
+    typeof val === "object" &&
+    val !== null &&
+    "data" in val &&
+    Array.isArray(val.data) &&
+    val.data.every(
+      (element) =>
+        typeof element === "object" &&
+        element !== null &&
+        "id" in element &&
+        "traceId" in element &&
+        "name" in element &&
+        "startTime" in element &&
+        "endTime" in element &&
+        "model" in element &&
+        "input" in element &&
+        "output" in element &&
+        "metadata" in element &&
+        "version" in element,
+    )
   );
+};
+
+type ObservationResponse = {
+  data: Observation[];
+};
