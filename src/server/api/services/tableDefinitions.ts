@@ -71,6 +71,16 @@ export const traceName = {
   type: "string",
   internal: 't."name"',
 } as const;
+export const totalTokens = {
+  name: "totalTokens",
+  type: "number",
+  internal: 'o."total_tokens"',
+} as const;
+export const model = {
+  name: "model",
+  type: "string",
+  internal: 'o."model"',
+} as const;
 
 export const totalTokenCost = {
   name: "totalTokenCost",
@@ -125,6 +135,9 @@ export const tableDefinitions: TableDefinitions = {
       observationsProjectId,
       duration,
       totalTokenCost,
+      totalTokens,
+      model,
+      traceTimestamp,
     ],
   },
   observations: {
@@ -140,13 +153,9 @@ export const tableDefinitions: TableDefinitions = {
         type: "number",
         internal: 'o."prompt_tokens"',
       },
-      {
-        name: "totalTokens",
-        type: "number",
-        internal: 'o."total_tokens"',
-      },
+      totalTokens,
       observationId,
-      { name: "model", type: "string", internal: 'o."model"' },
+      model,
       observationsProjectId,
       startTime,
       { name: "endTime", type: "datetime", internal: 'o."end_time"' },

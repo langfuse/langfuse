@@ -106,7 +106,7 @@ export default function Start() {
           />
         </div>
         <div className="col-span-2">
-          <EventsCard
+          {/* <EventsCard
             projectId={projectId}
             agg={agg}
             globalFilterState={[
@@ -123,10 +123,10 @@ export default function Start() {
                 value: new Date(),
               },
             ]}
-          />
+          /> */}
         </div>
         <div className="col-span-2">
-          <TokenChart
+          {/* <TokenChart
             projectId={projectId}
             agg={agg}
             globalFilterState={[
@@ -143,7 +143,7 @@ export default function Start() {
                 value: new Date(),
               },
             ]}
-          />
+          /> */}
         </div>
         <div className="col-span-2">
           <LatencyChart

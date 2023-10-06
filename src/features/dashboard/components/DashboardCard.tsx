@@ -34,7 +34,7 @@ export const DashboardCard = ({
           </div>
         ) : null}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="h-80">{children}</CardContent>
     </Card>
   );
 };

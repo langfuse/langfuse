@@ -1,8 +1,8 @@
-import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@/src/features/filters/types";
-import { DashboardTable } from "./DashboardTable";
 import { TotalMetric } from "./TotalMetric";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { DashboardTable } from "@/src/features/dashboard/components/DashboardTable";
 
 export const MetricTable = ({
   projectId,
@@ -11,27 +11,35 @@ export const MetricTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
+  const localFilters = globalFilterState.map((f) => ({
+    ...f,
+    column: "timestamp",
+  }));
+
+  localFilters.push({
+    type: "string",
+    column: "model",
+    operator: "!=",
+    value: { specialValue: "NULL" },
+  });
+
   const metrics = api.dashboard.chart.useQuery({
     projectId,
     from: "traces_observations",
     select: [
-      { column: "cost", agg: "SUM" },
+      { column: "totalTokenCost", agg: null },
       { column: "totalTokens", agg: "SUM" },
       { column: "model", agg: null },
     ],
-    filter:
-      globalFilterState.map((f) => ({
-        ...f,
-        column: "timestamp",
-      })) ?? [],
+    filter: localFilters ?? [],
     groupBy: [{ type: "string", column: "model" }],
-    orderBy: [{ column: "cost", direction: "DESC", agg: "SUM" }],
+    orderBy: [{ column: "totalTokenCost", direction: "DESC", agg: null }],
     limit: null,
   });
 
   const totalTokens = metrics.data?.reduce(
     (acc, curr) =>
-      acc + (curr.sumTotalTokens ? (curr.sumTotalTokens as number) : 0),
+      acc + (curr.totalTokenCost ? (curr.totalTokenCost as number) : 0),
     0,
   );
 
@@ -39,16 +47,22 @@ export const MetricTable = ({
     <DashboardTable
       title="Model costs"
       isLoading={metrics.isLoading}
-      headers={["Model", "Total tokens", "Total cost (USD)"]}
-      rows={[
-        ["c", "d"],
-        ["1", "2"],
-        ["1", "2"],
-      ]}
+      headers={["Model", "Total tokens", "Total cost"]}
+      rows={
+        metrics.data?.map((item) => [
+          item.model as string,
+          item.sumTotalTokens
+            ? numberFormatter(item.sumTotalTokens as number)
+            : "0",
+          item.totalTokenCost
+            ? usdFormatter.format(item.totalTokenCost as number)
+            : "$0",
+        ]) ?? []
+      }
     >
       <TotalMetric
-        metric={totalTokens?.toLocaleString() ?? "0"}
-        description="Total tokens"
+        metric={totalTokens ? usdFormatter.format(totalTokens) : "$0"}
+        description="Total token cost"
       />
     </DashboardTable>
   );

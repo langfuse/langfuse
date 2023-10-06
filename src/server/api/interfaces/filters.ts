@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const filterOperators = {
   datetime: ["=", ">", "<", ">=", "<="],
-  string: ["="],
+  string: ["=", "!="],
   stringOptions: ["any of", "none of"],
   number: ["=", ">", "<", ">=", "<="],
   stringObject: ["="],
@@ -18,7 +18,7 @@ export const timeFilter = z.object({
 export const stringFilter = z.object({
   column: z.string(),
   operator: z.enum(filterOperators.string),
-  value: z.string(),
+  value: z.string().or(z.object({ specialValue: z.enum(["NULL"]) })),
   type: z.literal("string"),
 });
 export const numberFilter = z.object({
