@@ -9,10 +9,11 @@ import { Loader } from "lucide-react";
 import { type ReactNode } from "react";
 
 export type DashboardCardProps = {
-  title: string;
-  description?: string;
+  title: ReactNode;
+  description?: ReactNode;
   isLoading: boolean;
-  children: ReactNode;
+  children?: ReactNode;
+  headerChildren?: ReactNode;
 };
 
 export const DashboardCard = ({
@@ -20,6 +21,7 @@ export const DashboardCard = ({
   description,
   isLoading,
   children,
+  headerChildren,
 }: DashboardCardProps) => {
   return (
     <Card>
@@ -28,6 +30,7 @@ export const DashboardCard = ({
         {description ? (
           <CardDescription>{description}</CardDescription>
         ) : undefined}
+        {headerChildren ?? undefined}
         {isLoading ? (
           <div className="absolute right-5 top-5 ">
             <Loader className="h-5 w-5 animate-spin" />

@@ -51,14 +51,14 @@ export const MetricTable = ({
                   ? numberFormatter(item.sumTotalTokens as number)
                   : "0",
                 item.totalTokenCost
-                  ? usdFormatter.format(item.totalTokenCost as number)
+                  ? usdFormatter(item.totalTokenCost as number)
                   : "$0",
               ])
           : []
       }
     >
       <TotalMetric
-        metric={totalTokens ? usdFormatter.format(totalTokens) : "$0"}
+        metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
         description="Total token cost"
       />
     </DashboardTable>

@@ -1,16 +1,6 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { type ReactNode } from "react";
 import { DashboardCard } from "./DashboardCard";
-import { PersonIcon } from "@radix-ui/react-icons";
-import { Flex, Text } from "@tremor/react";
-import { twMerge } from "tailwind-merge";
+import { NoData } from "./NoData";
 
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];
@@ -21,6 +11,7 @@ type DashboardTableProps = {
   headers: TableHeaders;
   rows: TableRows;
   children?: ReactNode;
+  headerChildren?: ReactNode;
 };
 
 export const DashboardTable = ({
@@ -30,6 +21,7 @@ export const DashboardTable = ({
   headers,
   rows,
   children,
+  headerChildren,
 }: DashboardTableProps) => {
   console.log(headers, rows);
   return (
@@ -37,6 +29,7 @@ export const DashboardTable = ({
       title={title}
       description={description}
       isLoading={isLoading}
+      headerChildren={headerChildren}
     >
       {children}
       {rows.length > 0 ? (
@@ -80,20 +73,5 @@ export const DashboardTable = ({
         <NoData noDataText="No data" />
       )}
     </DashboardCard>
-  );
-};
-
-interface NoDataProps {
-  noDataText?: string;
-}
-const NoData = ({ noDataText = "No data" }: NoDataProps) => {
-  return (
-    <Flex
-      alignItems="center"
-      justifyContent="center"
-      className="h-5/6 w-full rounded-tremor-default border border-dashed border-tremor-border"
-    >
-      <Text className="text-tremor-content">{noDataText}</Text>
-    </Flex>
   );
 };

@@ -1,5 +1,8 @@
-import { Card, Metric, Text, Title, BarList, Flex } from "@tremor/react";
-import { Loader } from "lucide-react";
+import { DashboardCard } from "@/src/features/dashboard/components/DashboardCard";
+import { NoData } from "@/src/features/dashboard/components/NoData";
+import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { numberFormatter } from "@/src/utils/numbers";
+import { BarList } from "@tremor/react";
 
 type BarChartDataPoint = {
   name: string;
@@ -25,31 +28,29 @@ export default function BarChartCard({
   chart,
   isLoading,
 }: BarChartCardProps) {
+  const stat = header.stat ? numberFormatter(header.stat) : "0";
   return (
-    <Card>
-      <Title>{header.category}</Title>
-      {isLoading ? (
-        <div className="absolute right-5 top-5 ">
-          <Loader className="h-5 w-5 animate-spin" />
-        </div>
-      ) : null}
-      <Flex justifyContent="start" alignItems="baseline" className="space-x-2">
-        <Metric>{header.stat}</Metric>
-        <Text>{header.metric}</Text>
-      </Flex>
-      <Flex className="mt-6">
-        <Text>{chart.header}</Text>
-        <Text className="text-right">{chart.metric}</Text>
-      </Flex>
-      <BarList
-        data={chart.data}
-        valueFormatter={(number: number) =>
-          Intl.NumberFormat("us").format(number).toString()
-        }
-        className="mt-2 h-64"
-        color={"indigo"}
-        showAnimation={true}
-      />
-    </Card>
+    <DashboardCard
+      title={header.category}
+      description={null}
+      isLoading={isLoading}
+    >
+      <TotalMetric metric={stat} description={header.metric} />
+      {chart.data.length > 0 ? (
+        <>
+          <BarList
+            data={chart.data}
+            valueFormatter={(number: number) =>
+              Intl.NumberFormat("us").format(number).toString()
+            }
+            className="mt-2"
+            color={"indigo"}
+            showAnimation={true}
+          />
+        </>
+      ) : (
+        <NoData noDataText="No data" />
+      )}
+    </DashboardCard>
   );
 }

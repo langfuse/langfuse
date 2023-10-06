@@ -119,7 +119,7 @@ const createAggregatedColumn = (
   // agg is typed via zod
   // column names come from our defs via the table definitions
   return agg
-    ? Prisma.sql`${Prisma.raw(agg)}(${getInternalSql(
+    ? Prisma.sql`${Prisma.raw(agg as string)}(${getInternalSql(
         getColumnSql(from, column),
       )})`
     : Prisma.sql`${getInternalSql(getColumnSql(from, column))}`;
