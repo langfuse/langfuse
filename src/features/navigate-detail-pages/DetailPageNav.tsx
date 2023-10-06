@@ -21,7 +21,7 @@ export const DetailPageNav = (props: {
 
   const router = useRouter();
   const currentIndex = ids.findIndex((id) => id === props.currentId);
-  const previousPageId = currentIndex > 1 ? ids[currentIndex - 1] : undefined;
+  const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
   const nextPageId =
     currentIndex < ids.length - 1 ? ids[currentIndex + 1] : undefined;
 
