@@ -11,7 +11,7 @@ import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/charts";
 import { EventsCard } from "@/src/features/dashboard/components/EventsCard";
 import { TracesChart } from "@/src/features/dashboard/components/TracesChart";
-import { MetricTable } from "@/src/features/dashboard/components/ReleaseTable";
+import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -104,46 +104,6 @@ export default function Start() {
               },
             ]}
           />
-        </div>
-        <div className="col-span-2">
-          {/* <EventsCard
-            projectId={projectId}
-            agg={agg}
-            globalFilterState={[
-              {
-                column: "startTime",
-                operator: ">",
-                type: "datetime",
-                value: convertAggToDateTime(agg),
-              },
-              {
-                column: "startTime",
-                operator: "<",
-                type: "datetime",
-                value: new Date(),
-              },
-            ]}
-          /> */}
-        </div>
-        <div className="col-span-2">
-          {/* <TokenChart
-            projectId={projectId}
-            agg={agg}
-            globalFilterState={[
-              {
-                column: "startTime",
-                operator: ">",
-                type: "datetime",
-                value: convertAggToDateTime(agg),
-              },
-              {
-                column: "startTime",
-                operator: "<",
-                type: "datetime",
-                value: new Date(),
-              },
-            ]}
-          /> */}
         </div>
         <div className="col-span-2">
           <LatencyChart
