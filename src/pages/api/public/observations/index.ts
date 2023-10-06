@@ -58,7 +58,7 @@ export default async function handler(
       authCheck.scope.projectId,
       searchParams,
     );
-    console.log(observations);
+
     return res.status(200).json({
       data: observations,
       meta: {
