@@ -54,7 +54,7 @@
     "@tanstack/react-query": "^4.35.7",
     "@tanstack/react-table": "^8.10.3",
     "@tremor/react": "^3.8.2",
-    "@trpc/client": "^10.38.5",
+    "@trpc/client": "^10.40.0",
     "@trpc/next": "^10.38.5",
     "@trpc/react-query": "^10.38.5",
     "@trpc/server": "^10.38.5",
