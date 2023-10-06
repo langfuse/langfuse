@@ -83,7 +83,6 @@ export default function Start() {
                 value: new Date(),
               },
             ]}
-            agg={agg}
           />
         </div>
         <div className="col-span-2">

@@ -1,16 +1,13 @@
 import { api } from "@/src/utils/api";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
 import BarChartCard from "@/src/features/dashboard/components/BarChartCard";
 
 export const TracesChart = ({
   projectId,
   globalFilterState,
-  agg,
 }: {
   projectId: string;
   globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
 }) => {
   const timeFilter =
     globalFilterState.map((f) =>
