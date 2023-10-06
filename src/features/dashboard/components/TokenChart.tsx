@@ -32,7 +32,7 @@ export const TokenChart = ({
     projectId,
     from: "observations",
     select: [
-      { column: "totalTokens", agg: "SUM" },
+      { column: "totalTokenCost", agg: "SUM" },
       { column: "model", agg: null },
     ],
     filter: globalFilterState ?? [],

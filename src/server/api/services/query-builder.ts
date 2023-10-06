@@ -24,6 +24,7 @@ export const executeQuery = async (
   query: z.TypeOf<typeof sqlInterface>,
 ) => {
   const sql = enrichAndCreateQuery(projectId, query);
+  console.log(sql.inspect());
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
