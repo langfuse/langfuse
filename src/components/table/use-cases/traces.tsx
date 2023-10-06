@@ -5,6 +5,7 @@ import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
@@ -12,6 +13,7 @@ import { lastCharacters } from "@/src/utils/string";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
+import { useEffect } from "react";
 import {
   NumberParam,
   StringParam,
@@ -51,6 +53,7 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
 }: TraceTableProps) {
+  const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
@@ -91,6 +94,16 @@ export default function TracesTable({
     searchQuery,
   });
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
+  useEffect(() => {
+    if (traces.isSuccess && traces.data) {
+      console.log("setting detail page list");
+      setDetailPageList(
+        "traces",
+        traces.data.map((t) => t.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [traces.isSuccess, traces.data]);
 
   const traceFilterOptions = api.traces.filterOptions.useQuery({
     projectId,
