@@ -94,7 +94,7 @@ const getObservation = async (
     : Prisma.empty;
 
   const observationTypeCondition = query.type
-    ? Prisma.sql`AND o."type" = ${query.type}::ObservationType`
+    ? Prisma.sql`AND o."type" = ${query.type}::"ObservationType"`
     : Prisma.empty;
 
   const [observations, count] = await Promise.all([
