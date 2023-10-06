@@ -7,6 +7,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import TableLink from "@/src/components/table/table-link";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 
 const tabs = ["Details", "Traces", "Scores"] as const;
 
@@ -45,6 +46,13 @@ export default function TracePage() {
           { name: "Users", href: `/project/${projectId}/users` },
           { name: userId },
         ]}
+        actionButtons={
+          <DetailPageNav
+            currentId={userId}
+            path={(id) => `/project/${projectId}/users/${id}`}
+            listKey="users"
+          />
+        }
       />
 
       <div>
