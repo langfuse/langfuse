@@ -18,7 +18,7 @@ export const timeFilter = z.object({
 export const stringFilter = z.object({
   column: z.string(),
   operator: z.enum(filterOperators.string),
-  value: z.string().or(z.object({ specialValue: z.enum(["NULL"]) })),
+  value: z.string(),
   type: z.literal("string"),
 });
 export const numberFilter = z.object({

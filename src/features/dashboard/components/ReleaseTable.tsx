@@ -16,13 +16,6 @@ export const MetricTable = ({
     column: "timestamp",
   }));
 
-  localFilters.push({
-    type: "string",
-    column: "model",
-    operator: "!=",
-    value: { specialValue: "NULL" },
-  });
-
   const metrics = api.dashboard.chart.useQuery({
     projectId,
     from: "traces_observations",
@@ -49,15 +42,19 @@ export const MetricTable = ({
       isLoading={metrics.isLoading}
       headers={["Model", "Total tokens", "Total cost"]}
       rows={
-        metrics.data?.map((item) => [
-          item.model as string,
-          item.sumTotalTokens
-            ? numberFormatter(item.sumTotalTokens as number)
-            : "0",
-          item.totalTokenCost
-            ? usdFormatter.format(item.totalTokenCost as number)
-            : "$0",
-        ]) ?? []
+        metrics.data
+          ? metrics.data
+              .filter((item) => item.model !== null)
+              .map((item) => [
+                item.model as string,
+                item.sumTotalTokens
+                  ? numberFormatter(item.sumTotalTokens as number)
+                  : "0",
+                item.totalTokenCost
+                  ? usdFormatter.format(item.totalTokenCost as number)
+                  : "$0",
+              ])
+          : []
       }
     >
       <TotalMetric
