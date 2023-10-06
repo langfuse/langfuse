@@ -34,7 +34,7 @@ export default async function handler(
       message: authCheck.error,
     });
   // END CHECK AUTH
-  console.log("auth check passed");
+
   try {
     console.log(
       "trying to get observations, project ",
