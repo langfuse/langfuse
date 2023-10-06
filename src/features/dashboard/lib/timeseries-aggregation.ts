@@ -5,6 +5,7 @@ export const dateTimeAggregationOptions = [
   "7 days",
   "24 hours",
   "1 hour",
+  "30 minutes",
 ] as const;
 
 export type DateTimeAggregationOption =
@@ -43,6 +44,11 @@ export const dateTimeAggregationSettings: Record<
       date.toLocaleTimeString("en-US", { hour: "numeric" }),
   },
   "1 hour": {
+    date_trunc: "minute",
+    date_formatter: (date) =>
+      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),
+  },
+  "30 minutes": {
     date_trunc: "minute",
     date_formatter: (date) =>
       date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),

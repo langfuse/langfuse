@@ -23,6 +23,7 @@ export default function Start() {
     const now = new Date();
     switch (unit) {
       case "minutes":
+      case "minute":
         return new Date(now.getTime() - parseInt(num) * 60 * 1000);
       case "hours":
       case "hour":
