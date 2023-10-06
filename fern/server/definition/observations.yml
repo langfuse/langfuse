@@ -26,6 +26,7 @@ service:
           limit: optional<integer>
           name: optional<string>
           userId: optional<string>
+          type: optional<string>
       response: Observations
 
 types:

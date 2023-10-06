@@ -1,15 +1,14 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { runMiddleware } from "@/src/features/public-api/server/cors";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { paginationZod } from "@/src/utils/zod";
 import { Prisma, type PrismaClient, type Observation } from "@prisma/client";
-import cors from "cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
 const ObservationsGetSchema = z.object({
   ...paginationZod,
-  observationType: z.enum(["GENERATION", "SPAN", "EVENT"]).nullish(),
+  type: z.enum(["GENERATION", "SPAN", "EVENT"]).nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
 });
@@ -35,7 +34,7 @@ export default async function handler(
       message: authCheck.error,
     });
   // END CHECK AUTH
-
+  console.log("auth check passed");
   try {
     console.log(
       "trying to get observations, project ",
@@ -93,8 +92,8 @@ const getObservation = async (
     ? Prisma.sql`AND o."name" = ${query.name}`
     : Prisma.empty;
 
-  const observationTypeCondition = query.observationType
-    ? Prisma.sql`AND o."type" = ${query.observationType}::ObservationType`
+  const observationTypeCondition = query.type
+    ? Prisma.sql`AND o."type" = ${query.type}::ObservationType`
     : Prisma.empty;
 
   const [observations, count] = await Promise.all([

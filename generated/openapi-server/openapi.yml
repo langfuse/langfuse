@@ -496,6 +496,12 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
