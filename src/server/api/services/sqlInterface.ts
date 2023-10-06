@@ -10,6 +10,8 @@ export const temporalUnit = z.enum([
   "minute",
 ]);
 
+export const aggregations = z.enum(["SUM", "AVG", "COUNT"]).nullable();
+
 export const sqlInterface = z.object({
   from: z.enum([
     "traces",
@@ -33,13 +35,15 @@ export const sqlInterface = z.object({
   select: z.array(
     z.object({
       column: z.string(),
-      agg: z.enum(["SUM", "AVG", "COUNT"]).nullable(),
+      agg: aggregations,
     }),
   ),
   orderBy: z.array(
     z.object({
       column: z.string(),
       direction: z.enum(["ASC", "DESC"]),
+      agg: aggregations,
     }),
   ),
+  limit: z.number().nullable(),
 });

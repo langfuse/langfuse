@@ -7,7 +7,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
 import Decimal from "decimal.js";
 import { type z } from "zod";
-import { type sqlInterface } from "./sqlInterface";
+import { type aggregations, type sqlInterface } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
 
 export type InternalDatabaseRow = {
@@ -23,8 +23,9 @@ export const executeQuery = async (
   projectId: string,
   query: z.TypeOf<typeof sqlInterface>,
 ) => {
+  console.log("executeQuery", query);
   const sql = enrichAndCreateQuery(projectId, query);
-
+  console.log("sql", sql);
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
@@ -85,8 +86,8 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
       : Prisma.empty;
 
   const orderByString = prepareOrderByString(
+    query.from,
     query.orderBy,
-    tableDefinitions[query.from]!.columns,
     cte ? true : false,
   );
 
@@ -101,27 +102,42 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
         )}`
       : Prisma.empty;
 
+  const limitString = query.limit
+    ? Prisma.sql` LIMIT ${query.limit}`
+    : Prisma.empty;
+
   return Prisma.sql`${
     cte?.cte ?? Prisma.empty
-  }${selectString}${fromString}${filterString}${groupString}${orderByString};`;
+  }${selectString}${fromString}${filterString}${groupString}${orderByString}${limitString};`;
+};
+
+const createAggregatedColumn = (
+  from: z.infer<typeof sqlInterface>["from"],
+  column: string,
+  agg?: z.infer<typeof aggregations>,
+): Prisma.Sql => {
+  // raw mandatory everywhere here as this creates the selection
+  // agg is typed via zod
+  // column names come from our defs via the table definitions
+  return agg
+    ? Prisma.sql`${Prisma.raw(agg)}(${getInternalSql(
+        getColumnSql(from, column),
+      )})`
+    : Prisma.sql`${getInternalSql(getColumnSql(from, column))}`;
 };
 
 const prepareOrderByString = (
+  from: z.infer<typeof sqlInterface>["from"],
   orderBy: z.infer<typeof sqlInterface>["orderBy"],
-  columnDefinitions: ColumnDefinition[],
   hasCte: boolean,
 ): Prisma.Sql => {
   const orderBys = orderBy.map((orderBy) => {
-    const column = columnDefinitions.find((x) => x.name === orderBy.column);
-    if (!column) {
-      console.error(`Column ${orderBy.column} not found`);
-      throw new Error(`Column ${orderBy.column} not found`);
-    }
-
     // raw mandatory here
-    return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-      orderBy.direction,
-    )}`;
+    return Prisma.sql`${createAggregatedColumn(
+      from,
+      orderBy.column,
+      orderBy.agg,
+    )} ${Prisma.raw(orderBy.direction)}`;
   });
   const addedCte = hasCte
     ? [Prisma.sql`date_series."date" ASC`, ...orderBys]

@@ -1,3 +1,4 @@
+import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/TimeSeriesChartCard";
 import { type FilterState } from "@/src/features/filters/types";
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 import { api } from "@/src/utils/api";
@@ -17,6 +18,7 @@ export const getAllModels = (
       ] ?? [],
     groupBy: [{ type: "string", column: "model" }],
     orderBy: [],
+    limit: null,
   });
 
   return allModels.data ? extractAllModels(allModels.data) : [];
@@ -33,10 +35,6 @@ type ChartData = {
   value?: number;
 };
 
-type Result = {
-  ts: number;
-  values: { label: string; value?: number }[];
-};
 export function reduceData(
   data: DatabaseRow[],
   field: Field,
@@ -64,8 +62,8 @@ export function reduceData(
 export function transformMapAndFillZeroValues(
   map: Map<number, ChartData[]>,
   allModels: string[],
-): Result[] {
-  const result: Result[] = [];
+): TimeSeriesChartDataPoint[] {
+  const result: TimeSeriesChartDataPoint[] = [];
 
   for (const [date, items] of map) {
     const values = items.map((item) => ({

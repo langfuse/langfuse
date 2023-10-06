@@ -36,24 +36,7 @@ export const EventsCard = ({
       },
     ],
     orderBy: [],
-  });
-
-  const traces = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces",
-    select: [{ column: "traceId", agg: "COUNT" }],
-    filter:
-      globalFilterState.map((f) =>
-        f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-      ) ?? [],
-    groupBy: [
-      {
-        type: "datetime",
-        column: "timestamp",
-        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
-      },
-    ],
-    orderBy: [],
+    limit: null,
   });
 
   const scores = api.dashboard.chart.useQuery({
@@ -72,6 +55,7 @@ export const EventsCard = ({
       },
     ],
     orderBy: [],
+    limit: 0,
   });
 
   const transformedObservations = observations.data
@@ -84,23 +68,6 @@ export const EventsCard = ({
               value:
                 typeof item.countObservationId === "number"
                   ? item.countObservationId
-                  : undefined,
-            },
-          ],
-        };
-      })
-    : [];
-
-  const transformedTraces = traces.data
-    ? traces.data.map((item) => {
-        return {
-          ts: (item.timestamp as Date).getTime(),
-          values: [
-            {
-              label: "Traces",
-              value:
-                typeof item.countTraceId === "number"
-                  ? item.countTraceId
                   : undefined,
             },
           ],
@@ -126,26 +93,7 @@ export const EventsCard = ({
     : [];
 
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
-      <Card>
-        <CardHeader className="relative">
-          <CardTitle>Number of traces</CardTitle>
-          <CardDescription>Count</CardDescription>
-          {traces.isLoading ? (
-            <div className="absolute right-5 top-5 ">
-              <Loader className="h-5 w-5 animate-spin" />
-            </div>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          <BaseTimeSeriesChart
-            agg={agg}
-            data={transformedTraces ?? []}
-            connectNulls={true}
-            showLegend={false}
-          />
-        </CardContent>
-      </Card>
+    <div className="grid gap-4 xl:grid-cols-2">
       <Card>
         <CardHeader className="relative">
           <CardTitle>Number of observations</CardTitle>

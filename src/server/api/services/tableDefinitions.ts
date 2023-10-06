@@ -66,6 +66,11 @@ export const scoreId = {
   type: "string",
   internal: 's."id"',
 } as const;
+export const traceName = {
+  name: "traceName",
+  type: "string",
+  internal: 't."name"',
+} as const;
 
 export const totalTokenCost = {
   name: "totalTokenCost",
@@ -101,7 +106,14 @@ export const totalTokenCost = {
 export const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces t`,
-    columns: [tracesProjectId, traceVersion, release, traceId, traceTimestamp],
+    columns: [
+      tracesProjectId,
+      traceVersion,
+      release,
+      traceId,
+      traceTimestamp,
+      traceName,
+    ],
   },
   traces_observations: {
     table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,

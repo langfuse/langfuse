@@ -48,6 +48,7 @@ export const TokenChart = ({
       },
     ],
     orderBy: [],
+    limit: null,
   });
 
   const modelCost = api.dashboard.chart.useQuery({
@@ -70,6 +71,7 @@ export const TokenChart = ({
       },
     ],
     orderBy: [],
+    limit: null,
   });
 
   const allModels = getAllModels(projectId, globalFilterState);

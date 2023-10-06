@@ -18,6 +18,7 @@ import {
   reduceData,
   transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
+import { TimeSeriesChartCard } from "@/src/features/dashboard/components/TimeSeriesChartCard";
 
 export const LatencyChart = ({
   projectId,
@@ -49,6 +50,7 @@ export const LatencyChart = ({
       { type: "string", column: "model" },
     ],
     orderBy: [],
+    limit: null,
   });
 
   const allModels = getAllModels(projectId, globalFilterState);
@@ -62,25 +64,13 @@ export const LatencyChart = ({
       : [];
 
   return (
-    <Card>
-      <CardHeader className="relative">
-        <CardTitle>Model latencies</CardTitle>
-        <CardDescription>
-          Average latency (ms) per LLM generation
-        </CardDescription>
-        {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <BaseTimeSeriesChart
-          agg={agg}
-          data={transformedData ?? []}
-          connectNulls={true}
-        />
-      </CardContent>
-    </Card>
+    <TimeSeriesChartCard
+      title="Model latencies"
+      metric="Average latency (ms) per LLM generation"
+      isLoading={data.isLoading}
+      data={transformedData}
+      agg={agg}
+      connectNulls={true}
+    />
   );
 };

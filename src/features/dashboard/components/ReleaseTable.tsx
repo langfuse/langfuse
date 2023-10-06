@@ -46,7 +46,8 @@ export const ReleaseTable = ({
       { type: "string", column: "release" },
       { type: "string", column: "scoreName" },
     ],
-    orderBy: [{ column: "release", direction: "DESC" }],
+    orderBy: [{ column: "release", direction: "DESC", agg: null }],
+    limit: null,
   });
 
   return (

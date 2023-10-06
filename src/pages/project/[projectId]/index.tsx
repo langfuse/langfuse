@@ -10,6 +10,8 @@ import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/charts";
 import { EventsCard } from "@/src/features/dashboard/components/EventsCard";
+import BarChartCard from "@/src/features/dashboard/components/BarChartCard";
+import { TracesChart } from "@/src/features/dashboard/components/TracesChart";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -64,7 +66,27 @@ export default function Start() {
           ))}
         </TabsList>
       </Tabs>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid h-full items-stretch gap-4 xl:grid-cols-3">
+        <div className="col-span-1 items-stretch">
+          <TracesChart
+            projectId={projectId}
+            globalFilterState={[
+              {
+                column: "startTime",
+                operator: ">",
+                type: "datetime",
+                value: convertAggToDateTime(agg),
+              },
+              {
+                column: "startTime",
+                operator: "<",
+                type: "datetime",
+                value: new Date(),
+              },
+            ]}
+            agg={agg}
+          />
+        </div>
         <div className="col-span-2">
           <EventsCard
             projectId={projectId}
