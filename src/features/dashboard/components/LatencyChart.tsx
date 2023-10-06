@@ -1,18 +1,9 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import {
   dateTimeAggregationSettings,
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
-import { Loader } from "lucide-react";
 import {
   getAllModels,
   reduceData,

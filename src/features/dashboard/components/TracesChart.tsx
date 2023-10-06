@@ -37,7 +37,7 @@ export const TracesChart = ({
     filter: timeFilter,
     groupBy: [{ column: "traceName", type: "string" }],
     orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
-    limit: 5,
+    limit: 6,
   });
 
   const transformedTraces = traces.data

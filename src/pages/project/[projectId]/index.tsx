@@ -10,7 +10,6 @@ import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/charts";
 import { EventsCard } from "@/src/features/dashboard/components/EventsCard";
-import BarChartCard from "@/src/features/dashboard/components/BarChartCard";
 import { TracesChart } from "@/src/features/dashboard/components/TracesChart";
 
 export default function Start() {
