@@ -6,10 +6,8 @@ import {
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
-import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/charts";
-import { EventsCard } from "@/src/features/dashboard/components/EventsCard";
 import { TracesChart } from "@/src/features/dashboard/components/TracesChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
 
