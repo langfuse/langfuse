@@ -4,8 +4,10 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { type FilterState } from "@/src/features/filters/types";
 import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
+import { utcDateOffsetByDays } from "@/src/utils/dates";
 import { lastCharacters } from "@/src/utils/string";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
@@ -25,6 +27,7 @@ export type TraceTableRow = {
   name: string;
   userId: string;
   metadata?: string;
+  latency?: number;
   release?: string;
   version?: string;
   scores: Score[];
@@ -53,17 +56,27 @@ export default function TracesTable({
     withDefault(StringParam, null),
   );
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
-  const filterState = userId
-    ? userFilterState.concat([
+  const [userFilterState, setUserFilterState] = useQueryFilterState([
+    {
+      column: "timestamp",
+      type: "datetime",
+      operator: ">",
+      value: utcDateOffsetByDays(-14),
+    },
+  ]);
+
+  const userIdFilter: FilterState = userId
+    ? [
         {
           column: "userId",
           type: "string",
           operator: "=",
           value: userId,
         },
-      ])
-    : userFilterState;
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(userIdFilter);
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -96,6 +109,7 @@ export default function TracesTable({
       version: trace.version ?? undefined,
       userId: trace.userId ?? "",
       scores: trace.scores,
+      latency: trace.latency === null ? undefined : trace.latency,
       usage: {
         promptTokens: trace.promptTokens,
         completionTokens: trace.completionTokens,
@@ -149,6 +163,15 @@ export default function TracesTable({
             truncateAt={40}
           />
         ) : undefined;
+      },
+    },
+    {
+      accessorKey: "latency",
+      header: "Latency",
+      // add seconds to the end of the latency
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("latency");
+        return value !== undefined ? `${value.toFixed(2)} sec` : undefined;
       },
     },
     {

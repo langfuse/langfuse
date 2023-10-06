@@ -59,7 +59,7 @@ const CommaArrayParam = {
         if (!parsed.success) return null;
         return parsed.data;
       })
-      .filter((v) => v !== null) as FilterState) ?? [],
+      .filter((v) => v !== null) as FilterState) ?? undefined,
 };
 
 // manage state with hook

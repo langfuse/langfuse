@@ -15,7 +15,10 @@ import {
   type TraceOptions,
   tracesTableCols,
 } from "@/src/server/api/definitions/tracesTable";
-import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
+import {
+  datetimeFilterToPrismaSql,
+  filterToPrismaSql,
+} from "@/src/features/filters/server/filterToPrisma";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -32,7 +35,19 @@ export const traceRouter = createTRPCRouter({
         input.filter ?? [],
         tracesTableCols,
       );
-      console.log("filters: ", filterCondition);
+
+      // to improve query performance, add timeseries filter to observation queries as well
+      const timeseriesFilter = input.filter?.find(
+        (f) => f.column === "timestamp" && f.type === "datetime",
+      );
+      const observationTimeseriesFilter =
+        timeseriesFilter && timeseriesFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "start_time",
+              timeseriesFilter.operator,
+              timeseriesFilter.value,
+            )
+          : Prisma.empty;
 
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
@@ -50,6 +65,7 @@ export const traceRouter = createTRPCRouter({
             completionTokens: number;
             totalTokens: number;
             totalCount: number;
+            latency: number | null;
             scores: Score[];
           }
         >
@@ -66,6 +82,20 @@ export const traceRouter = createTRPCRouter({
           "trace_id" IS NOT NULL
           AND "type" = 'GENERATION'
           AND "project_id" = ${input.projectId}
+          ${observationTimeseriesFilter}
+        GROUP BY
+          trace_id
+      ),
+      trace_latency AS (
+        SELECT
+          trace_id,
+          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) * 1000 - EXTRACT(EPOCH FROM MIN("start_time")) * 1000 AS "latency"
+        FROM
+          "observations"
+        WHERE
+          "trace_id" IS NOT NULL
+          AND "project_id" = ${input.projectId}
+          ${observationTimeseriesFilter}
         GROUP BY
           trace_id
       ),
@@ -120,6 +150,7 @@ export const traceRouter = createTRPCRouter({
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
         COALESCE(u."totalTokens", 0)::int AS "totalTokens",
         COALESCE(s_json.scores, '[]'::json) AS "scores",
+        tl.latency/1000::double precision AS "latency",
         (count(*) OVER ())::int AS "totalCount"
       FROM
         "traces" AS t
@@ -127,6 +158,7 @@ export const traceRouter = createTRPCRouter({
         -- used for filtering
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
         LEFT JOIN scores_json AS s_json ON s_json.trace_id = t.id
+        LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
       WHERE 
         t."project_id" = ${input.projectId}
         ${searchCondition}
