@@ -4,7 +4,6 @@ import { prisma } from "@/src/server/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 import { type Observation } from "@prisma/client";
-import { type } from "node:os";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
