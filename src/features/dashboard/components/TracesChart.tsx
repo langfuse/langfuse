@@ -57,7 +57,7 @@ export const TracesChart = ({
       isLoading={traces.isLoading || totalTraces.isLoading}
       chart={{
         data: transformedTraces,
-        header: "Traces",
+        header: "Trace Name",
         metric: "Count",
       }}
     />
