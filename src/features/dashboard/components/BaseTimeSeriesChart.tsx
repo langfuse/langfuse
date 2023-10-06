@@ -33,7 +33,7 @@ export function BaseTimeSeriesChart(props: {
   }
 
   const convertDate = (date: number, agg: DateTimeAggregationOption) => {
-    if (agg === "24 hours" || agg === "1 hour") {
+    if (agg === "24 hours" || agg === "1 hour" || agg === "30 minutes") {
       return new Date(date).toLocaleTimeString("en-US", {
         year: "2-digit",
         month: "numeric",

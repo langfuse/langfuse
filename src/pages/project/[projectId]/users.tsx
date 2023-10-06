@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import { type ColumnDef } from "@tanstack/react-table";
 import { type RouterInput } from "@/src/utils/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
@@ -11,6 +11,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 
 type RowData = {
   userId: string;
@@ -26,6 +27,8 @@ export default function UsersPage() {
   const projectId = router.query.projectId as string;
   const [queryOptions] = useState<ScoreFilterInput>({});
 
+  const { setDetailPageList } = useDetailPageLists();
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -38,6 +41,17 @@ export default function UsersPage() {
     projectId,
   });
   const totalCount = users.data?.slice(1)[0]?.totalCount ?? 0;
+
+  useEffect(() => {
+    if (users.isSuccess && users.data) {
+      console.log("setting detail page list");
+      setDetailPageList(
+        "users",
+        users.data.map((u) => u.userId),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users.isSuccess, users.data]);
 
   const columns: ColumnDef<RowData>[] = [
     {

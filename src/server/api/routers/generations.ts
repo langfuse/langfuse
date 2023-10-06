@@ -9,7 +9,10 @@ import { type Generation } from "@/src/utils/types";
 import { type Observation, Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
+import {
+  datetimeFilterToPrismaSql,
+  filterToPrismaSql,
+} from "@/src/features/filters/server/filterToPrisma";
 import {
   type ObservationOptions,
   observationsTableCols,
@@ -50,7 +53,19 @@ export const generationsRouter = createTRPCRouter({
         input.filter ?? [],
         observationsTableCols,
       );
-      console.log("filters: ", filterCondition);
+
+      // to improve query performance, add timeseries filter to observation queries as well
+      const startTimeFilter = input.filter?.find(
+        (f) => f.column === "start_time" && f.type === "datetime",
+      );
+      const datetimeFilter =
+        startTimeFilter && startTimeFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "start_time",
+              startTimeFilter.operator,
+              startTimeFilter.value,
+            )
+          : Prisma.empty;
 
       const generations = await ctx.prisma.$queryRaw<
         Array<
@@ -58,16 +73,27 @@ export const generationsRouter = createTRPCRouter({
             traceId: string;
             traceName: string;
             totalCount: number;
+            latency: number | null;
           }
         >
       >(
         Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          )
           SELECT
             o.id,
             o.name,
             o.model,
             o.start_time as "startTime",
             o.end_time as "endTime",
+            o.latency,
             o.input,
             o.output,
             o.metadata,
@@ -79,11 +105,10 @@ export const generationsRouter = createTRPCRouter({
             o.total_tokens as "totalTokens",
             o.version,
             (count(*) OVER())::int AS "totalCount"
-          FROM observations o
+          FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
-          WHERE o.type = 'GENERATION'
-            AND o.project_id = ${input.projectId}
-            AND t.project_id = ${input.projectId}
+          WHERE
+            t.project_id = ${input.projectId}
             ${searchCondition}
             ${filterCondition}
           ORDER BY o.start_time DESC

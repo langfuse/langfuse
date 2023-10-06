@@ -10,6 +10,8 @@ import Decimal from "decimal.js";
 import { type RouterOutput } from "@/src/utils/types";
 import { StringParam, useQueryParam } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/features/public-traces/components/PublishTraceSwitch";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { useRouter } from "next/router";
 
 export function Trace(props: {
   observations: Array<Observation & { traceId: string }>;
@@ -67,6 +69,7 @@ export function TracePage({
 }: {
   trace: RouterOutput["traces"]["byId"];
 }) {
+  const router = useRouter();
   const totalCost = trace.observations.reduce(
     (acc, o) => {
       if (!o.price) return acc;
@@ -83,11 +86,20 @@ export function TracePage({
       <Header
         title="Trace Detail"
         actionButtons={
-          <PublishTraceSwitch
-            traceId={trace.id}
-            projectId={trace.projectId}
-            isPublic={trace.public}
-          />
+          <>
+            <PublishTraceSwitch
+              traceId={trace.id}
+              projectId={trace.projectId}
+              isPublic={trace.public}
+            />
+            <DetailPageNav
+              currentId={router.query.traceId as string}
+              path={(id) =>
+                `/project/${router.query.projectId as string}/traces/${id}`
+              }
+              listKey="traces"
+            />
+          </>
         }
       />
       <div className="flex gap-2">
