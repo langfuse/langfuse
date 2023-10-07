@@ -1,18 +1,7 @@
 import { api } from "@/src/utils/api";
-
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
-
-import {
-  getAllModels,
-  reduceData,
-  transformMapAndFillZeroValues,
-} from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTabTimeseriesChart } from "@/src/features/dashboard/components/TabTimeSeriesChart";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BarList } from "@tremor/react";

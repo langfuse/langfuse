@@ -12,7 +12,6 @@ import {
   transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTabTimeseriesChart } from "@/src/features/dashboard/components/TabTimeSeriesChart";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
