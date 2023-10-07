@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 import { type FilterState } from "@/src/features/filters/types";
 import { TotalMetric } from "./TotalMetric";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTableCard";
+import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { ChevronButton } from "@/src/features/dashboard/components/cards/ChevronButton";

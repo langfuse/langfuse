@@ -46,7 +46,7 @@ export default function BarChartCard({
             valueFormatter={(number: number) =>
               Intl.NumberFormat("us").format(number).toString()
             }
-            className="mt-2"
+            className="mt-6"
             showAnimation={true}
             color={"indigo"}
           />
