@@ -1,6 +1,4 @@
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { cn } from "@/src/utils/tailwind";
-import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@tremor/react";
 import { type ReactNode, useState } from "react";
 
 export type TabComponentProps = {
@@ -14,30 +12,6 @@ export type TabComponentProps = {
 
 export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
-
-  // <div className="flex flex-col justify-between">
-  //   <TotalMetric
-  //     metric={props.data[selectedIndex]?.totalMetric}
-  //     description={props.data[selectedIndex]?.metricDescription}
-  //   />
-  //   <TabGroup
-  //     className="mt-4"
-  //     index={selectedIndex}
-  //     onIndexChange={(i) => setSelectedIndex(i)}
-  //     defaultIndex={0}
-  //   >
-  //     <TabList className="h-10" color="orange">
-  //       {props.data.map((data, index) => (
-  //         <Tab key={index}>{data.tabTitle}</Tab>
-  //       ))}
-  //     </TabList>
-  //     <TabPanels>
-  //       {props.data.map((data, index) => (
-  //         <TabPanel key={index}>{data.content}</TabPanel>
-  //       ))}
-  //     </TabPanels>
-  //   </TabGroup>
-  // </div>
   return (
     <div>
       <div className="sm:hidden">

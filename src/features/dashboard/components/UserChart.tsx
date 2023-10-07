@@ -7,6 +7,7 @@ import { TabComponent } from "@/src/features/dashboard/components/TabsComponent"
 import { BarList } from "@tremor/react";
 import { isNotUndefinedOrNull } from "@/src/utils/types";
 import { type BarChartDataPoint } from "@/src/features/dashboard/components/cards/BarChartCard";
+import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 
 export const UserChart = ({
   className,
@@ -121,13 +122,19 @@ export const UserChart = ({
             totalMetric: item.totalMetric,
             metricDescription: item.metricDescription,
             content: (
-              <BarList
-                data={item.data}
-                valueFormatter={item.formatter}
-                className="mt-2"
-                showAnimation={true}
-                color={"indigo"}
-              />
+              <>
+                <TotalMetric
+                  metric={item.totalMetric}
+                  description={item.metricDescription}
+                />
+                <BarList
+                  data={item.data}
+                  valueFormatter={item.formatter}
+                  className="mt-2"
+                  showAnimation={true}
+                  color={"indigo"}
+                />
+              </>
             ),
           };
         })}

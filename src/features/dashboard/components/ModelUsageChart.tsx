@@ -15,6 +15,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 
 export const ModelUsageChart = ({
   className,
@@ -108,11 +109,17 @@ export const ModelUsageChart = ({
             totalMetric: item.totalMetric,
             metricDescription: item.metricDescription,
             content: (
-              <BaseTimeSeriesChart
-                agg={agg}
-                data={item.data}
-                showLegend={true}
-              />
+              <>
+                <TotalMetric
+                  metric={item.totalMetric}
+                  description={item.metricDescription}
+                />
+                <BaseTimeSeriesChart
+                  agg={agg}
+                  data={item.data}
+                  showLegend={true}
+                />
+              </>
             ),
           };
         })}
