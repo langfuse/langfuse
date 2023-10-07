@@ -24,7 +24,7 @@ export const executeQuery = async (
   query: z.TypeOf<typeof sqlInterface>,
 ) => {
   const sql = enrichAndCreateQuery(projectId, query);
-  console.log(sql.inspect());
+
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
@@ -53,13 +53,15 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
     // column names come from our defs via the table definitions
     field.agg
       ? Prisma.sql`${Prisma.raw(field.agg)}(${getInternalSql(
-          getColumnSql(query.from, field.column),
+          getColumnDefinition(query.from, field.column),
         )}) as "${Prisma.raw(field.agg.toLowerCase())}${Prisma.raw(
           capitalizeFirstLetter(field.column),
         )}"`
       : Prisma.sql`${getInternalSql(
-          getColumnSql(query.from, field.column),
-        )} as "${Prisma.raw(getColumnSql(query.from, field.column).name)}"`,
+          getColumnDefinition(query.from, field.column),
+        )} as "${Prisma.raw(
+          getColumnDefinition(query.from, field.column).name,
+        )}"`,
   );
 
   if (cte)
@@ -120,9 +122,9 @@ const createAggregatedColumn = (
   // column names come from our defs via the table definitions
   return agg
     ? Prisma.sql`${Prisma.raw(agg as string)}(${getInternalSql(
-        getColumnSql(from, column),
+        getColumnDefinition(from, column),
       )})`
-    : Prisma.sql`${getInternalSql(getColumnSql(from, column))}`;
+    : Prisma.sql`${getInternalSql(getColumnDefinition(from, column))}`;
 };
 
 const prepareOrderByString = (
@@ -181,7 +183,9 @@ const prepareGroupBy = (
   table: z.infer<typeof sqlInterface>["from"],
   groupBy: z.infer<typeof sqlInterface>["groupBy"][number],
 ) => {
-  const internalColumn = getInternalSql(getColumnSql(table, groupBy.column));
+  const internalColumn = getInternalSql(
+    getColumnDefinition(table, groupBy.column),
+  );
   if (groupBy.type === "datetime") {
     return Prisma.sql`date_series."date"`;
   } else {
@@ -235,7 +239,7 @@ const createDateRangeCte = (
       );
     }
 
-    const startColumn = getColumnSql(from, minDateColumn.column);
+    const startColumn = getColumnDefinition(from, minDateColumn.column);
 
     // raw mandatory for temporal unit. From and to are parameterised values
     // temporal unit is typed
@@ -269,7 +273,7 @@ const getTableSql = (
   return Prisma.raw(tableDefinitions[table]!.table);
 };
 
-const getColumnSql = (
+const getColumnDefinition = (
   table: z.infer<typeof sqlInterface>["from"],
   column: string,
 ): ColumnDefinition => {

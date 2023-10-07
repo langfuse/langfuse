@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const filterOperators = {
   datetime: ["=", ">", "<", ">=", "<="],
-  string: ["=", "!="],
+  string: ["="],
   stringOptions: ["any of", "none of"],
   number: ["=", ">", "<", ">=", "<="],
   stringObject: ["="],
