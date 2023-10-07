@@ -3,9 +3,11 @@ import { type FilterState } from "@/src/features/filters/types";
 import { TotalMetric } from "./TotalMetric";
 import { numberFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTableCard";
+import { ChevronButton } from "./cards/ChevronButton";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { RightAlignedCell } from "./RightAlignedCell";
+import { useState } from "react";
 
 export const ScoresTable = ({
   className,
@@ -16,6 +18,7 @@ export const ScoresTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const localFilters = globalFilterState.map((f) => ({
     ...f,
     column: "timestamp",
@@ -95,14 +98,19 @@ export const ScoresTable = ({
     });
   };
 
+  const maxNumberOfEntries = 5;
   const joinedData = joinRequestData();
+  const adjustedData = isExpanded
+    ? joinedData
+    : joinedData.slice(0, maxNumberOfEntries);
+
   const totalScores = joinedData.reduce(
     (acc, curr) => acc + (curr.countScoreId as number),
     0,
   );
 
   return (
-    <DashboardTable
+    <DashboardCard
       className={className}
       title="Scores"
       isLoading={
@@ -110,35 +118,44 @@ export const ScoresTable = ({
         zeroValueScores.isLoading ||
         oneValueScores.isLoading
       }
-      headers={[
-        "Name",
-        <RightAlignedCell key={1}>Count</RightAlignedCell>,
-        <RightAlignedCell key={1}>Average</RightAlignedCell>,
-        <RightAlignedCell key={1}>0</RightAlignedCell>,
-        <RightAlignedCell key={1}>1</RightAlignedCell>,
-      ]}
-      rows={
-        joinedData.map((item, i) => [
-          item.scoreName,
-          <RightAlignedCell key={i}>
-            {numberFormatter(item.countScoreId as number)}
-          </RightAlignedCell>,
-          <RightAlignedCell key={i}>
-            {numberFormatter(item.avgValue)}
-          </RightAlignedCell>,
-          <RightAlignedCell key={i}>
-            {numberFormatter(item.zeroValueScore as number)}
-          </RightAlignedCell>,
-          <RightAlignedCell key={i}>
-            {numberFormatter(item.oneValueScore)}
-          </RightAlignedCell>,
-        ]) ?? []
-      }
     >
-      <TotalMetric
-        metric={totalScores ? numberFormatter(totalScores) : "0"}
-        description="Scores tracked"
+      <DashboardTable
+        headers={[
+          "Name",
+          <RightAlignedCell key={1}>Count</RightAlignedCell>,
+          <RightAlignedCell key={1}>Average</RightAlignedCell>,
+          <RightAlignedCell key={1}>0</RightAlignedCell>,
+          <RightAlignedCell key={1}>1</RightAlignedCell>,
+        ]}
+        rows={
+          adjustedData.map((item, i) => [
+            item.scoreName,
+            <RightAlignedCell key={i}>
+              {numberFormatter(item.countScoreId as number)}
+            </RightAlignedCell>,
+            <RightAlignedCell key={i}>
+              {numberFormatter(item.avgValue)}
+            </RightAlignedCell>,
+            <RightAlignedCell key={i}>
+              {numberFormatter(item.zeroValueScore as number)}
+            </RightAlignedCell>,
+            <RightAlignedCell key={i}>
+              {numberFormatter(item.oneValueScore)}
+            </RightAlignedCell>,
+          ]) ?? []
+        }
+      >
+        <TotalMetric
+          metric={totalScores ? numberFormatter(totalScores) : "0"}
+          description="Scores tracked"
+        />
+      </DashboardTable>
+      <ChevronButton
+        isExpanded={isExpanded}
+        setExpanded={setIsExpanded}
+        totalLength={joinedData.length}
+        maxLength={maxNumberOfEntries}
       />
-    </DashboardTable>
+    </DashboardCard>
   );
 };

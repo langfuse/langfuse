@@ -8,6 +8,8 @@ import { BarList } from "@tremor/react";
 import { isNotUndefinedOrNull } from "@/src/utils/types";
 import { type BarChartDataPoint } from "@/src/features/dashboard/components/cards/BarChartCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { ChevronButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+import { useState } from "react";
 
 export const UserChart = ({
   className,
@@ -19,6 +21,7 @@ export const UserChart = ({
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const user = api.dashboard.chart.useQuery({
     projectId,
     from: "traces_observations",
@@ -93,17 +96,23 @@ export const UserChart = ({
     0,
   );
 
+  const maxNumberOfEntries = 5;
+
   const data = [
     {
       tabTitle: "Token cost",
-      data: transformedCost,
+      data: isExpanded
+        ? transformedCost
+        : transformedCost.slice(0, maxNumberOfEntries),
       totalMetric: totalCost ? usdFormatter(totalCost) : "-",
       metricDescription: "Total cost",
       formatter: usdFormatter,
     },
     {
       tabTitle: "Count of Traces",
-      data: transformedNumberOfTraces,
+      data: isExpanded
+        ? transformedCost
+        : transformedCost.slice(0, maxNumberOfEntries),
       totalMetric: totalTraces ? numberFormatter(totalTraces) : "-",
       metricDescription: "Total traces",
     },
@@ -138,6 +147,12 @@ export const UserChart = ({
             ),
           };
         })}
+      />
+      <ChevronButton
+        isExpanded={isExpanded}
+        setExpanded={setIsExpanded}
+        totalLength={transformedCost.length}
+        maxLength={maxNumberOfEntries}
       />
     </DashboardCard>
   );

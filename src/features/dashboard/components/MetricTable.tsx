@@ -4,6 +4,9 @@ import { TotalMetric } from "./TotalMetric";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTableCard";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { ChevronButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+import { useState } from "react";
 
 export const MetricTable = ({
   className,
@@ -14,6 +17,7 @@ export const MetricTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const localFilters = globalFilterState.map((f) => ({
     ...f,
     column: "timestamp",
@@ -39,40 +43,54 @@ export const MetricTable = ({
     0,
   );
 
+  const metricsData = metrics.data
+    ? metrics.data
+        .filter((item) => item.model !== null)
+        .map((item, i) => [
+          item.model as string,
+          <RightAlignedCell key={i}>
+            {item.sumTotalTokens
+              ? numberFormatter(item.sumTotalTokens as number)
+              : "0"}
+          </RightAlignedCell>,
+          <RightAlignedCell key={i}>
+            {item.totalTokenCost
+              ? usdFormatter(item.totalTokenCost as number)
+              : "$0"}
+          </RightAlignedCell>,
+        ])
+    : [];
+
+  const maxNumberOfEntries = 5;
+  const expandedMetricsData = isExpanded
+    ? metricsData
+    : metricsData.slice(0, maxNumberOfEntries);
+
   return (
-    <DashboardTable
+    <DashboardCard
       className={className}
       title="Model costs"
       isLoading={metrics.isLoading}
-      headers={[
-        "Model",
-        <RightAlignedCell key={1}>Total tokens</RightAlignedCell>,
-        <RightAlignedCell key={1}>Total cost</RightAlignedCell>,
-      ]}
-      rows={
-        metrics.data
-          ? metrics.data
-              .filter((item) => item.model !== null)
-              .map((item, i) => [
-                item.model as string,
-                <RightAlignedCell key={i}>
-                  {item.sumTotalTokens
-                    ? numberFormatter(item.sumTotalTokens as number)
-                    : "0"}
-                </RightAlignedCell>,
-                <RightAlignedCell key={i}>
-                  {item.totalTokenCost
-                    ? usdFormatter(item.totalTokenCost as number)
-                    : "$0"}
-                </RightAlignedCell>,
-              ])
-          : []
-      }
     >
-      <TotalMetric
-        metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
-        description="Total cost"
+      <DashboardTable
+        headers={[
+          "Model",
+          <RightAlignedCell key={1}>Total tokens</RightAlignedCell>,
+          <RightAlignedCell key={1}>Total cost</RightAlignedCell>,
+        ]}
+        rows={expandedMetricsData}
+      >
+        <TotalMetric
+          metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
+          description="Total cost"
+        />
+      </DashboardTable>
+      <ChevronButton
+        isExpanded={isExpanded}
+        setExpanded={setIsExpanded}
+        totalLength={metricsData.length}
+        maxLength={maxNumberOfEntries}
       />
-    </DashboardTable>
+    </DashboardCard>
   );
 };

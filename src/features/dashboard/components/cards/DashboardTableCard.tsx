@@ -1,38 +1,21 @@
-import { type ReactNode } from "react";
-import { DashboardCard } from "./DashboardCard";
 import { NoData } from "../NoData";
+import { type ReactNode } from "react";
 
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];
 type DashboardTableProps = {
-  className: string;
-  title: string;
-  description?: string;
-  isLoading: boolean;
   headers: TableHeaders;
   rows: TableRows;
   children?: ReactNode;
-  headerChildren?: ReactNode;
 };
 
 export const DashboardTable = ({
-  className,
-  title,
-  description,
-  isLoading,
   headers,
   rows,
   children,
-  headerChildren,
 }: DashboardTableProps) => {
   return (
-    <DashboardCard
-      className={className}
-      title={title}
-      description={description}
-      isLoading={isLoading}
-      headerChildren={headerChildren}
-    >
+    <>
       {children}
       {rows.length > 0 ? (
         <div className="mt-8 flow-root">
@@ -74,6 +57,6 @@ export const DashboardTable = ({
       ) : (
         <NoData noDataText="No data" />
       )}
-    </DashboardCard>
+    </>
   );
 };
