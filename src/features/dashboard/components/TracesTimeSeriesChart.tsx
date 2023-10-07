@@ -60,8 +60,10 @@ export const TracesTimeSeriesChart = ({
       title="Traces"
       description="Number of traces tracked"
       isLoading={traces.isLoading}
+      cardContentClassName="flex flex-col content-end"
     >
       <BaseTimeSeriesChart
+        className="mt-auto max-h-80"
         agg={agg}
         data={transformedTraces ?? []}
         connectNulls={true}

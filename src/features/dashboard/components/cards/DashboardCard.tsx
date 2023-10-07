@@ -16,6 +16,7 @@ export type DashboardCardProps = {
   isLoading: boolean;
   children?: ReactNode;
   headerChildren?: ReactNode;
+  cardContentClassName?: string;
 };
 
 export const DashboardCard = ({
@@ -25,6 +26,7 @@ export const DashboardCard = ({
   isLoading,
   children,
   headerChildren,
+  cardContentClassName,
 }: DashboardCardProps) => {
   return (
     <Card className={cn("flex flex-col", className)}>
@@ -40,7 +42,9 @@ export const DashboardCard = ({
           </div>
         ) : null}
       </CardHeader>
-      <CardContent className="flex-1">{children}</CardContent>
+      <CardContent className={cn("flex-1", cardContentClassName)}>
+        {children}
+      </CardContent>
     </Card>
   );
 };
