@@ -8,10 +8,11 @@ import {
 } from "@/src/components/ui/card";
 
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { Loader } from "lucide-react";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 
 export function ChartScores(props: {
+  className?: string;
   agg: DateTimeAggregationOption;
   projectId: string;
 }) {
@@ -21,23 +22,17 @@ export function ChartScores(props: {
   });
 
   return (
-    <Card>
-      <CardHeader className="relative">
-        <CardTitle>Scores</CardTitle>
-        <CardDescription>Average</CardDescription>
-        {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <BaseTimeSeriesChart
-          agg={props.agg}
-          data={data.data ?? []}
-          connectNulls
-        />
-      </CardContent>
-    </Card>
+    <DashboardCard
+      className={props.className}
+      title="Scores"
+      description="Average"
+      isLoading={data.isLoading}
+    >
+      <BaseTimeSeriesChart
+        agg={props.agg}
+        data={data.data ?? []}
+        connectNulls
+      />
+    </DashboardCard>
   );
 }

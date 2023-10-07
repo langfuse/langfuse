@@ -180,8 +180,9 @@ export default function Start() {
           ]}
           agg={agg}
         />
+        <ChartScores className="col-span-3" agg={agg} projectId={projectId} />
         <LatencyChart
-          className="col-span-3 flex-auto justify-between"
+          className="col-span-full flex-auto justify-between"
           projectId={projectId}
           agg={agg}
           globalFilterState={[
@@ -199,9 +200,6 @@ export default function Start() {
             },
           ]}
         />
-        <div className="col-span-full">
-          <ChartScores agg={agg} projectId={projectId} />
-        </div>
       </div>
     </div>
   );
