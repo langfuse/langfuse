@@ -39,7 +39,7 @@ export const TracesBarListChart = ({
     filter: timeFilter,
     groupBy: [{ column: "traceName", type: "string" }],
     orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
-    limit: 6,
+    limit: null,
   });
 
   const transformedTraces = traces.data
@@ -56,13 +56,6 @@ export const TracesBarListChart = ({
   const adjustedData = isExpanded
     ? transformedTraces
     : transformedTraces.slice(0, maxNumberOfEntries);
-
-  console.log(
-    "adjustedData",
-    adjustedData,
-    "transformedTraces",
-    transformedTraces,
-  );
 
   return (
     <>
