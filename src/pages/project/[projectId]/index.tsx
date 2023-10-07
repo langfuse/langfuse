@@ -68,9 +68,9 @@ export default function Start() {
           ))}
         </TabsList>
       </Tabs>
-      <div className="grid gap-4 xl:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
-          className="col-span-2"
+          className="col-span-1 xl:col-span-2 "
           projectId={projectId}
           globalFilterState={[
             {
@@ -88,7 +88,7 @@ export default function Start() {
           ]}
         />
         <MetricTable
-          className="col-span-2"
+          className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={[
             {
@@ -106,7 +106,7 @@ export default function Start() {
           ]}
         />
         <ScoresTable
-          className="col-span-2"
+          className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={[
             {
@@ -124,7 +124,7 @@ export default function Start() {
           ]}
         />
         <TracesTimeSeriesChart
-          className="col-span-3"
+          className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={[
             {
@@ -143,7 +143,7 @@ export default function Start() {
           agg={agg}
         />
         <ModelUsageChart
-          className="min-h-24 col-span-3"
+          className="min-h-24  col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={[
             {
@@ -162,7 +162,7 @@ export default function Start() {
           agg={agg}
         />
         <UserChart
-          className="col-span-3"
+          className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={[
             {
@@ -180,9 +180,13 @@ export default function Start() {
           ]}
           agg={agg}
         />
-        <ChartScores className="col-span-3" agg={agg} projectId={projectId} />
+        <ChartScores
+          className="col-span-1 xl:col-span-3"
+          agg={agg}
+          projectId={projectId}
+        />
         <LatencyChart
-          className="col-span-full flex-auto justify-between"
+          className="col-span-1 flex-auto justify-between xl:col-span-full"
           projectId={projectId}
           agg={agg}
           globalFilterState={[
