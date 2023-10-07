@@ -1,4 +1,4 @@
-import { type TimeSeriesChartDataPoint } from "./base/BaseTimeSeriesChart";
+import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { type FilterState } from "@/src/features/filters/types";
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 import { api } from "@/src/utils/api";

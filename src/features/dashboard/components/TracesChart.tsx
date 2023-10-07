@@ -41,7 +41,6 @@ export const TracesBarListChart = ({
 
   const transformedTraces = traces.data
     ? traces.data.map((item) => {
-        console.log(item.traceName, item.countTraceId);
         return {
           name: item.traceName ? (item.traceName as string) : "Unknown",
           value: item.countTraceId as number,

@@ -5,7 +5,7 @@ import {
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/base/BaseTimeSeriesChart";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 
 export const TracesTimeSeriesChart = ({
   className,

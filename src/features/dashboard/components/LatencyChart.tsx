@@ -10,7 +10,7 @@ import {
   transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/base/BaseTimeSeriesChart";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 
 export const LatencyChart = ({
   className,

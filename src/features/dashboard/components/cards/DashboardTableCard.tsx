@@ -25,7 +25,6 @@ export const DashboardTable = ({
   children,
   headerChildren,
 }: DashboardTableProps) => {
-  console.log(headers, rows);
   return (
     <DashboardCard
       className={className}

@@ -6,9 +6,10 @@ import {
   CardDescription,
   CardTitle,
 } from "@/src/components/ui/card";
-import { BaseTimeSeriesChart } from "./base/BaseTimeSeriesChart";
+
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { Loader } from "lucide-react";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 
 export function ChartScores(props: {
   agg: DateTimeAggregationOption;

@@ -12,10 +12,12 @@ import {
   transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTabTimeseriesChart } from "@/src/features/dashboard/components/base/BaseTabTimeSeriesChart";
+import { BaseTabTimeseriesChart } from "@/src/features/dashboard/components/TabTimeSeriesChart";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 
-export const TokenChart = ({
+export const ModelUsageChart = ({
   className,
   projectId,
   globalFilterState,
@@ -31,28 +33,6 @@ export const TokenChart = ({
     from: "observations",
     select: [
       { column: "totalTokens", agg: "SUM" },
-      { column: "model", agg: null },
-    ],
-    filter: globalFilterState ?? [],
-    groupBy: [
-      {
-        type: "datetime",
-        column: "startTime",
-        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
-      },
-      {
-        type: "string",
-        column: "model",
-      },
-    ],
-    orderBy: [],
-    limit: null,
-  });
-
-  const modelCost = api.dashboard.chart.useQuery({
-    projectId,
-    from: "observations",
-    select: [
       { column: "totalTokenCost", agg: null },
       { column: "model", agg: null },
     ],
@@ -68,7 +48,7 @@ export const TokenChart = ({
         column: "model",
       },
     ],
-    orderBy: [],
+    orderBy: [{ column: "totalTokenCost", direction: "DESC", agg: null }],
     limit: null,
   });
 
@@ -83,14 +63,14 @@ export const TokenChart = ({
       : [];
 
   const transformedModelCost =
-    modelCost.data && allModels
+    tokens.data && allModels
       ? transformMapAndFillZeroValues(
-          reduceData(modelCost.data, "totalTokenCost"),
+          reduceData(tokens.data, "totalTokenCost"),
           allModels,
         )
       : [];
 
-  const totalCost = modelCost.data?.reduce(
+  const totalCost = tokens.data?.reduce(
     (acc, curr) => acc + (curr.totalTokenCost as number),
     0,
   );
@@ -120,9 +100,24 @@ export const TokenChart = ({
     <DashboardCard
       className={className}
       title={"Model Usage"}
-      isLoading={tokens.isLoading || modelCost.isLoading}
+      isLoading={tokens.isLoading}
     >
-      <BaseTabTimeseriesChart agg={agg} data={data} />
+      <TabComponent
+        data={data.map((item) => {
+          return {
+            tabTitle: item.tabTitle,
+            totalMetric: item.totalMetric,
+            metricDescription: item.metricDescription,
+            content: (
+              <BaseTimeSeriesChart
+                agg={agg}
+                data={item.data}
+                showLegend={true}
+              />
+            ),
+          };
+        })}
+      />
     </DashboardCard>
   );
 };

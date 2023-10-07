@@ -4,7 +4,7 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { numberFormatter } from "@/src/utils/numbers";
 import { BarList } from "@tremor/react";
 
-type BarChartDataPoint = {
+export type BarChartDataPoint = {
   name: string;
   value: number;
 };

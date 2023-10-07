@@ -11,8 +11,9 @@ import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
-import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
+import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
+import { UserChart } from "@/src/features/dashboard/components/UserChart";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -141,8 +142,27 @@ export default function Start() {
           ]}
           agg={agg}
         />
-        <TokenChart
+        <ModelUsageChart
           className="min-h-24 col-span-3"
+          projectId={projectId}
+          globalFilterState={[
+            {
+              column: "startTime",
+              operator: ">",
+              type: "datetime",
+              value: convertAggToDateTime(agg),
+            },
+            {
+              column: "startTime",
+              operator: "<",
+              type: "datetime",
+              value: new Date(),
+            },
+          ]}
+          agg={agg}
+        />
+        <UserChart
+          className="col-span-3"
           projectId={projectId}
           globalFilterState={[
             {

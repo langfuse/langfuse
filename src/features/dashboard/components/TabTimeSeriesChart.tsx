@@ -1,7 +1,7 @@
 import {
   BaseTimeSeriesChart,
   type TimeSeriesChartDataPoint,
-} from "@/src/features/dashboard/components/base/BaseTimeSeriesChart";
+} from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { Tab, TabList, TabGroup, TabPanel, TabPanels } from "@tremor/react";

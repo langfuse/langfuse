@@ -81,6 +81,11 @@ export const model = {
   type: "string",
   internal: 'o."model"',
 } as const;
+export const traceUser = {
+  name: "user",
+  type: "string",
+  internal: 't."user_id"',
+} as const;
 
 export const totalTokenCost = {
   name: "totalTokenCost",
@@ -123,6 +128,7 @@ export const tableDefinitions: TableDefinitions = {
       traceId,
       traceTimestamp,
       traceName,
+      traceUser,
     ],
   },
   traces_observations: {
@@ -138,6 +144,8 @@ export const tableDefinitions: TableDefinitions = {
       totalTokens,
       model,
       traceTimestamp,
+      traceUser,
+      startTime,
     ],
   },
   observations: {
@@ -176,6 +184,7 @@ export const tableDefinitions: TableDefinitions = {
       traceVersion,
       traceTimestamp,
       scoreName,
+      traceUser,
       tracesProjectId,
     ],
   },
