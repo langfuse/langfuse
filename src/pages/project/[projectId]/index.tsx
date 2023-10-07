@@ -8,10 +8,11 @@ import {
 import { useRouter } from "next/router";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { TracesChart } from "@/src/features/dashboard/components/TracesChart";
+import { TracesBarListChart } from "@/src/features/dashboard/components/TracesChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
+import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -67,7 +68,7 @@ export default function Start() {
         </TabsList>
       </Tabs>
       <div className="grid gap-4 xl:grid-cols-6">
-        <TracesChart
+        <TracesBarListChart
           className="col-span-2"
           projectId={projectId}
           globalFilterState={[
@@ -120,6 +121,25 @@ export default function Start() {
               value: new Date(),
             },
           ]}
+        />
+        <TracesTimeSeriesChart
+          className="col-span-3"
+          projectId={projectId}
+          globalFilterState={[
+            {
+              column: "startTime",
+              operator: ">",
+              type: "datetime",
+              value: convertAggToDateTime(agg),
+            },
+            {
+              column: "startTime",
+              operator: "<",
+              type: "datetime",
+              value: new Date(),
+            },
+          ]}
+          agg={agg}
         />
         <TokenChart
           className="min-h-24 col-span-3"

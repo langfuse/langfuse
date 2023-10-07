@@ -1,4 +1,4 @@
-import { DashboardCard } from "@/src/features/dashboard/components/DashboardCard";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { numberFormatter } from "@/src/utils/numbers";

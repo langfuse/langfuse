@@ -11,8 +11,8 @@ import {
   reduceData,
   transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
-import { DashboardCard } from "@/src/features/dashboard/components/DashboardCard";
-import { BaseTabTimeseriesChart } from "@/src/features/dashboard/components/BaseTabTimeSeriesChart";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { BaseTabTimeseriesChart } from "@/src/features/dashboard/components/base/BaseTabTimeSeriesChart";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 
 export const TokenChart = ({

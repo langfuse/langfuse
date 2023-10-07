@@ -4,15 +4,10 @@ import {
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
-import {
-  getAllModels,
-  reduceData,
-  transformMapAndFillZeroValues,
-} from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/base/BaseTimeSeriesChart";
 
-export const LatencyChart = ({
+export const TracesTimeSeriesChart = ({
   className,
   projectId,
   globalFilterState,
@@ -23,50 +18,52 @@ export const LatencyChart = ({
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
-  const data = api.dashboard.chart.useQuery({
+  const traces = api.dashboard.chart.useQuery({
     projectId,
-    from: "observations",
-    select: [
-      { column: "duration", agg: "AVG" },
-      { column: "model", agg: null },
-    ],
+    from: "traces",
+    select: [{ column: "traceId", agg: "COUNT" }],
     filter:
-      [
-        ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
-      ] ?? [],
+      globalFilterState.map((f) =>
+        f.type === "datetime" ? { ...f, column: "timestamp" } : f,
+      ) ?? [],
     groupBy: [
       {
         type: "datetime",
-        column: "startTime",
+        column: "timestamp",
         temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
       },
-      { type: "string", column: "model" },
     ],
     orderBy: [],
     limit: null,
   });
 
-  const allModels = getAllModels(projectId, globalFilterState);
-
-  const transformedData =
-    data.data && allModels
-      ? transformMapAndFillZeroValues(
-          reduceData(data.data, "avgDuration"),
-          allModels,
-        )
-      : [];
+  const transformedTraces = traces.data
+    ? traces.data.map((item) => {
+        return {
+          ts: (item.timestamp as Date).getTime(),
+          values: [
+            {
+              label: "Traces",
+              value:
+                typeof item.countTraceId === "number"
+                  ? item.countTraceId
+                  : undefined,
+            },
+          ],
+        };
+      })
+    : [];
 
   return (
     <DashboardCard
       className={className}
-      title="Model latencies"
-      description="Average latency (ms) per LLM generation"
-      isLoading={data.isLoading}
+      title="Traces"
+      description="Number of traces tracked"
+      isLoading={traces.isLoading}
     >
       <BaseTimeSeriesChart
         agg={agg}
-        data={transformedData ?? []}
+        data={transformedTraces ?? []}
         connectNulls={true}
       />
     </DashboardCard>

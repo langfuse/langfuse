@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { DashboardCard } from "./DashboardCard";
-import { NoData } from "./NoData";
+import { NoData } from "../NoData";
 
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];

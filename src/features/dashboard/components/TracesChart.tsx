@@ -1,8 +1,8 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@/src/features/filters/types";
-import BarChartCard from "@/src/features/dashboard/components/BarChartCard";
+import BarChartCard from "@/src/features/dashboard/components/cards/BarChartCard";
 
-export const TracesChart = ({
+export const TracesBarListChart = ({
   className,
   projectId,
   globalFilterState,

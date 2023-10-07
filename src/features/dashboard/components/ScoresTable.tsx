@@ -2,10 +2,10 @@ import { api } from "@/src/utils/api";
 import { type FilterState } from "@/src/features/filters/types";
 import { TotalMetric } from "./TotalMetric";
 import { numberFormatter } from "@/src/utils/numbers";
-import { DashboardTable } from "@/src/features/dashboard/components/DashboardTable";
-import { DashboardCard } from "@/src/features/dashboard/components/DashboardCard";
+import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTableCard";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { NoData } from "@/src/features/dashboard/components/NoData";
-import { RightAlighnedCell } from "./RightAlighnedCell";
+import { RightAlignedCell } from "./RightAlignedCell";
 
 export const ScoresTable = ({
   className,
@@ -112,26 +112,26 @@ export const ScoresTable = ({
       }
       headers={[
         "Name",
-        <RightAlighnedCell key={1}>Count</RightAlighnedCell>,
-        <RightAlighnedCell key={1}>Average</RightAlighnedCell>,
-        <RightAlighnedCell key={1}>0</RightAlighnedCell>,
-        <RightAlighnedCell key={1}>1</RightAlighnedCell>,
+        <RightAlignedCell key={1}>Count</RightAlignedCell>,
+        <RightAlignedCell key={1}>Average</RightAlignedCell>,
+        <RightAlignedCell key={1}>0</RightAlignedCell>,
+        <RightAlignedCell key={1}>1</RightAlignedCell>,
       ]}
       rows={
         joinedData.map((item, i) => [
           item.scoreName,
-          <RightAlighnedCell key={i}>
+          <RightAlignedCell key={i}>
             {numberFormatter(item.countScoreId as number)}
-          </RightAlighnedCell>,
-          <RightAlighnedCell key={i}>
+          </RightAlignedCell>,
+          <RightAlignedCell key={i}>
             {numberFormatter(item.avgValue)}
-          </RightAlighnedCell>,
-          <RightAlighnedCell key={i}>
+          </RightAlignedCell>,
+          <RightAlignedCell key={i}>
             {numberFormatter(item.zeroValueScore as number)}
-          </RightAlighnedCell>,
-          <RightAlighnedCell key={i}>
+          </RightAlignedCell>,
+          <RightAlignedCell key={i}>
             {numberFormatter(item.oneValueScore)}
-          </RightAlighnedCell>,
+          </RightAlignedCell>,
         ]) ?? []
       }
     >

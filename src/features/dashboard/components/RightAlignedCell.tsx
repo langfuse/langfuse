@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 
-export const RightAlighnedCell = ({
+export const RightAlignedCell = ({
   children,
   className,
   key,
