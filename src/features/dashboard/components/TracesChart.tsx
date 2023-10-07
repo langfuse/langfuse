@@ -57,6 +57,13 @@ export const TracesBarListChart = ({
     ? transformedTraces
     : transformedTraces.slice(0, maxNumberOfEntries);
 
+  console.log(
+    "adjustedData",
+    adjustedData,
+    "transformedTraces",
+    transformedTraces,
+  );
+
   return (
     <>
       <BarChartCard
