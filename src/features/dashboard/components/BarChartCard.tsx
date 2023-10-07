@@ -44,8 +44,8 @@ export default function BarChartCard({
               Intl.NumberFormat("us").format(number).toString()
             }
             className="mt-2"
-            color={"indigo"}
             showAnimation={true}
+            color={"indigo"}
           />
         </>
       ) : (

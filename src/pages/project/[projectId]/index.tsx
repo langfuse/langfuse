@@ -10,6 +10,7 @@ import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/charts";
 import { TracesChart } from "@/src/features/dashboard/components/TracesChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
+import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -64,8 +65,8 @@ export default function Start() {
           ))}
         </TabsList>
       </Tabs>
-      <div className="grid h-full items-stretch gap-4 xl:grid-cols-3">
-        <div className="col-span-1 items-stretch">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="col-span-1 ">
           <TracesChart
             projectId={projectId}
             globalFilterState={[
@@ -84,7 +85,7 @@ export default function Start() {
             ]}
           />
         </div>
-        <div className="col-span-1 items-stretch">
+        <div className="col-span-1 ">
           <MetricTable
             projectId={projectId}
             globalFilterState={[
@@ -103,7 +104,26 @@ export default function Start() {
             ]}
           />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 ">
+          <ScoresTable
+            projectId={projectId}
+            globalFilterState={[
+              {
+                column: "startTime",
+                operator: ">",
+                type: "datetime",
+                value: convertAggToDateTime(agg),
+              },
+              {
+                column: "startTime",
+                operator: "<",
+                type: "datetime",
+                value: new Date(),
+              },
+            ]}
+          />
+        </div>
+        <div className="col-span-3">
           <LatencyChart
             projectId={projectId}
             agg={agg}

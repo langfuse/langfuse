@@ -3,6 +3,7 @@ import { type FilterState } from "@/src/features/filters/types";
 import { TotalMetric } from "./TotalMetric";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/DashboardTable";
+import { RightAlighnedCell } from "@/src/features/dashboard/components/RightAlighnedCell";
 
 export const MetricTable = ({
   projectId,
@@ -40,19 +41,27 @@ export const MetricTable = ({
     <DashboardTable
       title="Model costs"
       isLoading={metrics.isLoading}
-      headers={["Model", "Total tokens", "Total cost"]}
+      headers={[
+        "Model",
+        <RightAlighnedCell key={1}>Total tokens</RightAlighnedCell>,
+        <RightAlighnedCell key={1}>Total cost</RightAlighnedCell>,
+      ]}
       rows={
         metrics.data
           ? metrics.data
               .filter((item) => item.model !== null)
-              .map((item) => [
+              .map((item, i) => [
                 item.model as string,
-                item.sumTotalTokens
-                  ? numberFormatter(item.sumTotalTokens as number)
-                  : "0",
-                item.totalTokenCost
-                  ? usdFormatter(item.totalTokenCost as number)
-                  : "$0",
+                <RightAlighnedCell key={i}>
+                  {item.sumTotalTokens
+                    ? numberFormatter(item.sumTotalTokens as number)
+                    : "0"}
+                </RightAlighnedCell>,
+                <RightAlighnedCell key={i}>
+                  {item.totalTokenCost
+                    ? usdFormatter(item.totalTokenCost as number)
+                    : "$0"}
+                </RightAlighnedCell>,
               ])
           : []
       }

@@ -168,7 +168,7 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       { name: "value", type: "number", internal: 's."value"' },
       {
-        name: "name",
+        name: "scoreName",
         type: "number",
         internal: 's."name"',
       },
