@@ -106,6 +106,7 @@ export const TokenChart = ({
       data: transformedModelCost,
       totalMetric: totalCost ? usdFormatter(totalCost) : "-",
       metricDescription: "Total cost",
+      formatter: usdFormatter,
     },
     {
       tabTitle: "Token count",

@@ -14,6 +14,7 @@ export function BaseTimeSeriesChart(props: {
   data: TimeSeriesChartDataPoint[];
   showLegend?: boolean;
   connectNulls?: boolean;
+  valueFormatter?: (value: number) => string;
 }) {
   const labels = new Set(
     props.data.flatMap((d) => d.values.map((v) => v.label)),
@@ -61,7 +62,9 @@ export function BaseTimeSeriesChart(props: {
       categories={Array.from(labels)}
       connectNulls={props.connectNulls}
       colors={["indigo", "cyan"]}
-      valueFormatter={numberFormatter}
+      valueFormatter={
+        props.valueFormatter ? props.valueFormatter : numberFormatter
+      }
       noDataText="No data"
       showLegend={props.showLegend}
     />

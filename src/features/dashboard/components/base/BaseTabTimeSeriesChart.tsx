@@ -16,6 +16,7 @@ export type BaseTabTimeseriesChartProps = {
     totalMetric: ReactNode;
     metricDescription: ReactNode;
     tabTitle: string;
+    formatter?: (value: number) => string;
     data: TimeSeriesChartDataPoint[];
   }[];
 };
@@ -49,6 +50,7 @@ export const BaseTabTimeseriesChart = (props: BaseTabTimeseriesChartProps) => {
                 agg={props.agg}
                 data={data.data}
                 showLegend={true}
+                valueFormatter={data.formatter}
               />
             </TabPanel>
           ))}
