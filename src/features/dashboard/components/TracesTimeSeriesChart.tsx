@@ -6,6 +6,7 @@ import {
 import { type FilterState } from "@/src/features/filters/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -62,8 +63,14 @@ export const TracesTimeSeriesChart = ({
       isLoading={traces.isLoading}
       cardContentClassName="flex flex-col content-end"
     >
+      <TotalMetric
+        description="Traces tracked"
+        metric={traces.data?.reduce((acc, item) => {
+          return acc + (item.countTraceId as number);
+        }, 0)}
+      />
       <BaseTimeSeriesChart
-        className="mt-auto max-h-80"
+        className="h-69 h-full"
         agg={agg}
         data={transformedTraces ?? []}
         connectNulls={true}
