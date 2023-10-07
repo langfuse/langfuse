@@ -111,8 +111,8 @@ export const UserChart = ({
     {
       tabTitle: "Count of Traces",
       data: isExpanded
-        ? transformedCost
-        : transformedCost.slice(0, maxNumberOfEntries),
+        ? transformedNumberOfTraces
+        : transformedNumberOfTraces.slice(0, maxNumberOfEntries),
       totalMetric: totalTraces ? numberFormatter(totalTraces) : "-",
       metricDescription: "Total traces",
     },
