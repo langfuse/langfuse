@@ -72,13 +72,14 @@ export const TracesBarListChart = ({
           header: "Trace Name",
           metric: "Count",
         }}
-      />
-      <ChevronButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={transformedTraces.length}
-        maxLength={maxNumberOfEntries}
-      />
+      >
+        <ChevronButton
+          isExpanded={isExpanded}
+          setExpanded={setIsExpanded}
+          totalLength={transformedTraces.length}
+          maxLength={maxNumberOfEntries}
+        />
+      </BarChartCard>
     </>
   );
 };

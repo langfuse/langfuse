@@ -10,6 +10,7 @@ export type BarChartDataPoint = {
 };
 
 interface BarChartCardProps {
+  children?: React.ReactNode;
   className?: string;
   isLoading: boolean;
   header: {
@@ -29,6 +30,7 @@ export default function BarChartCard({
   header,
   chart,
   isLoading,
+  children,
 }: BarChartCardProps) {
   const stat = header.stat ? numberFormatter(header.stat) : "0";
   return (
@@ -38,22 +40,25 @@ export default function BarChartCard({
       description={null}
       isLoading={isLoading}
     >
-      <TotalMetric metric={stat} description={header.metric} />
-      {chart.data.length > 0 ? (
-        <>
-          <BarList
-            data={chart.data}
-            valueFormatter={(number: number) =>
-              Intl.NumberFormat("us").format(number).toString()
-            }
-            className="mt-6"
-            showAnimation={true}
-            color={"indigo"}
-          />
-        </>
-      ) : (
-        <NoData noDataText="No data" />
-      )}
+      <>
+        <TotalMetric metric={stat} description={header.metric} />
+        {chart.data.length > 0 ? (
+          <>
+            <BarList
+              data={chart.data}
+              valueFormatter={(number: number) =>
+                Intl.NumberFormat("us").format(number).toString()
+              }
+              className="mt-6"
+              showAnimation={true}
+              color={"indigo"}
+            />
+          </>
+        ) : (
+          <NoData noDataText="No data" />
+        )}
+        {children}
+      </>
     </DashboardCard>
   );
 }
