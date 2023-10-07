@@ -102,7 +102,7 @@ export const ModelUsageChart = ({
       isLoading={tokens.isLoading}
     >
       <TabComponent
-        data={data.map((item) => {
+        tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
             totalMetric: item.totalMetric,

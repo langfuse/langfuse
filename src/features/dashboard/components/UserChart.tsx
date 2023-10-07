@@ -101,7 +101,7 @@ export const UserChart = ({
       formatter: usdFormatter,
     },
     {
-      tabTitle: "Amount of Traces",
+      tabTitle: "Count of Traces",
       data: transformedNumberOfTraces,
       totalMetric: totalTraces ? numberFormatter(totalTraces) : "-",
       metricDescription: "Total traces",
@@ -115,7 +115,7 @@ export const UserChart = ({
       isLoading={user.isLoading}
     >
       <TabComponent
-        data={data.map((item) => {
+        tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
             totalMetric: item.totalMetric,

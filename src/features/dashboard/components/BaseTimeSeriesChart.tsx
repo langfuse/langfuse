@@ -67,6 +67,7 @@ export function BaseTimeSeriesChart(props: {
       }
       noDataText="No data"
       showLegend={props.showLegend}
+      showAnimation={true}
     />
   );
 }
