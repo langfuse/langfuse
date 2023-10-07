@@ -7,7 +7,6 @@ import { type FilterState } from "@/src/features/filters/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { number } from "zod";
 import { numberFormatter } from "@/src/utils/numbers";
 
 export const TracesTimeSeriesChart = ({
