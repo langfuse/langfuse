@@ -10,6 +10,7 @@ type BarChartDataPoint = {
 };
 
 interface BarChartCardProps {
+  className?: string;
   isLoading: boolean;
   header: {
     metric: string;
@@ -24,6 +25,7 @@ interface BarChartCardProps {
 }
 
 export default function BarChartCard({
+  className,
   header,
   chart,
   isLoading,
@@ -31,6 +33,7 @@ export default function BarChartCard({
   const stat = header.stat ? numberFormatter(header.stat) : "0";
   return (
     <DashboardCard
+      className={className}
       title={header.category}
       description={null}
       isLoading={isLoading}

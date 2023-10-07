@@ -5,10 +5,12 @@ import {
   CardDescription,
   CardContent,
 } from "@/src/components/ui/card";
+import { cn } from "@/src/utils/tailwind";
 import { Loader } from "lucide-react";
 import { type ReactNode } from "react";
 
 export type DashboardCardProps = {
+  className?: string;
   title: ReactNode;
   description?: ReactNode;
   isLoading: boolean;
@@ -17,6 +19,7 @@ export type DashboardCardProps = {
 };
 
 export const DashboardCard = ({
+  className,
   title,
   description,
   isLoading,
@@ -24,7 +27,7 @@ export const DashboardCard = ({
   headerChildren,
 }: DashboardCardProps) => {
   return (
-    <Card>
+    <Card className={cn("flex flex-col", className)}>
       <CardHeader className="relative">
         <CardTitle>{title}</CardTitle>
         {description ? (
@@ -37,7 +40,7 @@ export const DashboardCard = ({
           </div>
         ) : null}
       </CardHeader>
-      <CardContent className="h-80">{children}</CardContent>
+      <CardContent className="flex-1">{children}</CardContent>
     </Card>
   );
 };

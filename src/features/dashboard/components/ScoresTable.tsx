@@ -8,9 +8,11 @@ import { NoData } from "@/src/features/dashboard/components/NoData";
 import { RightAlighnedCell } from "./RightAlighnedCell";
 
 export const ScoresTable = ({
+  className,
   projectId,
   globalFilterState,
 }: {
+  className: string;
   projectId: string;
   globalFilterState: FilterState;
 }) => {
@@ -69,13 +71,6 @@ export const ScoresTable = ({
     if (!metrics.data || !zeroValueScores.data || !oneValueScores.data)
       return [];
 
-    console.log(
-      "metrics.data",
-      metrics.data,
-      zeroValueScores.data,
-      oneValueScores.data,
-    );
-
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;
 
@@ -108,6 +103,7 @@ export const ScoresTable = ({
 
   return (
     <DashboardTable
+      className={className}
       title="Scores"
       isLoading={
         metrics.isLoading ||
@@ -118,8 +114,8 @@ export const ScoresTable = ({
         "Name",
         <RightAlighnedCell key={1}>Count</RightAlighnedCell>,
         <RightAlighnedCell key={1}>Average</RightAlighnedCell>,
-        <RightAlighnedCell key={1}>1</RightAlighnedCell>,
         <RightAlighnedCell key={1}>0</RightAlighnedCell>,
+        <RightAlighnedCell key={1}>1</RightAlighnedCell>,
       ]}
       rows={
         joinedData.map((item, i) => [
@@ -141,7 +137,7 @@ export const ScoresTable = ({
     >
       <TotalMetric
         metric={totalScores ? numberFormatter(totalScores) : "0"}
-        description="Total scores tracked"
+        description="Scores tracked"
       />
     </DashboardTable>
   );

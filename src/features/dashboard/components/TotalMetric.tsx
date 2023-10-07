@@ -1,11 +1,12 @@
 import { Flex, Metric, Text } from "@tremor/react";
+import { type ReactNode } from "react";
 
 export const TotalMetric = ({
   metric,
   description,
 }: {
-  metric: string;
-  description?: string;
+  metric: ReactNode;
+  description?: ReactNode;
 }) => {
   return (
     <Flex

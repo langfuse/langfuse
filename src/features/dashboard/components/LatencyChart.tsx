@@ -12,10 +12,12 @@ import {
 import { TimeSeriesChartCard } from "@/src/features/dashboard/components/TimeSeriesChartCard";
 
 export const LatencyChart = ({
+  className,
   projectId,
   globalFilterState,
   agg,
 }: {
+  className?: string;
   projectId: string;
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
@@ -56,6 +58,7 @@ export const LatencyChart = ({
 
   return (
     <TimeSeriesChartCard
+      className={className}
       title="Model latencies"
       metric="Average latency (ms) per LLM generation"
       isLoading={data.isLoading}

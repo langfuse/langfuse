@@ -7,10 +7,11 @@ import {
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
-import { ChartScores } from "@/src/features/dashboard/components/charts";
+import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesChart } from "@/src/features/dashboard/components/TracesChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
+import { TokenChart } from "@/src/features/dashboard/components/TokenChart";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -65,84 +66,99 @@ export default function Start() {
           ))}
         </TabsList>
       </Tabs>
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="col-span-1 ">
-          <TracesChart
-            projectId={projectId}
-            globalFilterState={[
-              {
-                column: "startTime",
-                operator: ">",
-                type: "datetime",
-                value: convertAggToDateTime(agg),
-              },
-              {
-                column: "startTime",
-                operator: "<",
-                type: "datetime",
-                value: new Date(),
-              },
-            ]}
-          />
-        </div>
-        <div className="col-span-1 ">
-          <MetricTable
-            projectId={projectId}
-            globalFilterState={[
-              {
-                column: "startTime",
-                operator: ">",
-                type: "datetime",
-                value: convertAggToDateTime(agg),
-              },
-              {
-                column: "startTime",
-                operator: "<",
-                type: "datetime",
-                value: new Date(),
-              },
-            ]}
-          />
-        </div>
-        <div className="col-span-1 ">
-          <ScoresTable
-            projectId={projectId}
-            globalFilterState={[
-              {
-                column: "startTime",
-                operator: ">",
-                type: "datetime",
-                value: convertAggToDateTime(agg),
-              },
-              {
-                column: "startTime",
-                operator: "<",
-                type: "datetime",
-                value: new Date(),
-              },
-            ]}
-          />
-        </div>
-        <div className="col-span-3">
-          <LatencyChart
-            projectId={projectId}
-            agg={agg}
-            globalFilterState={[
-              {
-                column: "startTime",
-                operator: ">",
-                type: "datetime",
-                value: convertAggToDateTime(agg),
-              },
-              {
-                column: "startTime",
-                operator: "<",
-                type: "datetime",
-                value: new Date(),
-              },
-            ]}
-          />
-        </div>
+      <div className="grid gap-4 xl:grid-cols-6">
+        <TracesChart
+          className="col-span-2"
+          projectId={projectId}
+          globalFilterState={[
+            {
+              column: "startTime",
+              operator: ">",
+              type: "datetime",
+              value: convertAggToDateTime(agg),
+            },
+            {
+              column: "startTime",
+              operator: "<",
+              type: "datetime",
+              value: new Date(),
+            },
+          ]}
+        />
+        <MetricTable
+          className="col-span-2"
+          projectId={projectId}
+          globalFilterState={[
+            {
+              column: "startTime",
+              operator: ">",
+              type: "datetime",
+              value: convertAggToDateTime(agg),
+            },
+            {
+              column: "startTime",
+              operator: "<",
+              type: "datetime",
+              value: new Date(),
+            },
+          ]}
+        />
+        <ScoresTable
+          className="col-span-2"
+          projectId={projectId}
+          globalFilterState={[
+            {
+              column: "startTime",
+              operator: ">",
+              type: "datetime",
+              value: convertAggToDateTime(agg),
+            },
+            {
+              column: "startTime",
+              operator: "<",
+              type: "datetime",
+              value: new Date(),
+            },
+          ]}
+        />
+        <TokenChart
+          className="min-h-24 col-span-3"
+          projectId={projectId}
+          globalFilterState={[
+            {
+              column: "startTime",
+              operator: ">",
+              type: "datetime",
+              value: convertAggToDateTime(agg),
+            },
+            {
+              column: "startTime",
+              operator: "<",
+              type: "datetime",
+              value: new Date(),
+            },
+          ]}
+          agg={agg}
+        />
+        <LatencyChart
+          className="col-span-3 flex-auto justify-between"
+          projectId={projectId}
+          agg={agg}
+          globalFilterState={[
+            {
+              column: "startTime",
+              operator: ">",
+              type: "datetime",
+              value: convertAggToDateTime(agg),
+            },
+            {
+              column: "startTime",
+              operator: "<",
+              type: "datetime",
+              value: new Date(),
+            },
+          ]}
+        />
         <div className="col-span-full">
           <ChartScores agg={agg} projectId={projectId} />
         </div>

@@ -1,22 +1,13 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/src/components/ui/card";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/base-charts/BaseTimeSeriesChart";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { Loader } from "lucide-react";
 import {} from "@/src/features/dashboard/components/hooks";
-
-export type TimeSeriesChartDataPoint = {
-  ts: number;
-  values: { label: string; value?: number }[];
-};
+import { type TimeSeriesChartDataPoint } from "./base-charts/BaseTimeSeriesChart";
+import { DashboardCard } from "@/src/features/dashboard/components/DashboardCard";
 
 interface TimeSeriesChartCardProps {
   title: string;
+  className?: string;
+  description?: string;
   metric: string;
   isLoading: boolean;
   data?: TimeSeriesChartDataPoint[];
@@ -26,30 +17,25 @@ interface TimeSeriesChartCardProps {
 
 export const TimeSeriesChartCard = ({
   title,
-  metric,
+  description,
+  className,
   isLoading,
   data,
   agg,
   connectNulls,
 }: TimeSeriesChartCardProps) => {
   return (
-    <Card className="relative">
-      <CardHeader className="relative">
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{metric}</CardDescription>
-        {isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <BaseTimeSeriesChart
-          agg={agg}
-          data={data ?? []}
-          connectNulls={connectNulls}
-        />
-      </CardContent>
-    </Card>
+    <DashboardCard
+      className={className}
+      title={title}
+      description={description}
+      isLoading={isLoading}
+    >
+      <BaseTimeSeriesChart
+        agg={agg}
+        data={data ?? []}
+        connectNulls={connectNulls}
+      />
+    </DashboardCard>
   );
 };

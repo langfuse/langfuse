@@ -6,9 +6,11 @@ import { DashboardTable } from "@/src/features/dashboard/components/DashboardTab
 import { RightAlighnedCell } from "@/src/features/dashboard/components/RightAlighnedCell";
 
 export const MetricTable = ({
+  className,
   projectId,
   globalFilterState,
 }: {
+  className: string;
   projectId: string;
   globalFilterState: FilterState;
 }) => {
@@ -39,6 +41,7 @@ export const MetricTable = ({
 
   return (
     <DashboardTable
+      className={className}
       title="Model costs"
       isLoading={metrics.isLoading}
       headers={[
@@ -68,7 +71,7 @@ export const MetricTable = ({
     >
       <TotalMetric
         metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
-        description="Total token cost"
+        description="Total cost"
       />
     </DashboardTable>
   );

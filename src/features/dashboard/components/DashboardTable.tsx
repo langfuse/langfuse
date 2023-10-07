@@ -5,6 +5,7 @@ import { NoData } from "./NoData";
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];
 type DashboardTableProps = {
+  className: string;
   title: string;
   description?: string;
   isLoading: boolean;
@@ -15,6 +16,7 @@ type DashboardTableProps = {
 };
 
 export const DashboardTable = ({
+  className,
   title,
   description,
   isLoading,
@@ -26,6 +28,7 @@ export const DashboardTable = ({
   console.log(headers, rows);
   return (
     <DashboardCard
+      className={className}
       title={title}
       description={description}
       isLoading={isLoading}

@@ -3,9 +3,11 @@ import { type FilterState } from "@/src/features/filters/types";
 import BarChartCard from "@/src/features/dashboard/components/BarChartCard";
 
 export const TracesChart = ({
+  className,
   projectId,
   globalFilterState,
 }: {
+  className?: string;
   projectId: string;
   globalFilterState: FilterState;
 }) => {
@@ -49,8 +51,9 @@ export const TracesChart = ({
 
   return (
     <BarChartCard
+      className={className}
       header={{
-        metric: "Count",
+        metric: "Traces tracked",
         stat: (totalTraces.data?.[0]?.countTraceId as number) ?? 0,
         category: "Traces",
       }}
