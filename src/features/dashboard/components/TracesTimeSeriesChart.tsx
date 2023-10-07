@@ -7,6 +7,8 @@ import { type FilterState } from "@/src/features/filters/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { number } from "zod";
+import { numberFormatter } from "@/src/utils/numbers";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -55,6 +57,10 @@ export const TracesTimeSeriesChart = ({
       })
     : [];
 
+  const total = traces.data?.reduce((acc, item) => {
+    return acc + (item.countTraceId as number);
+  }, 0);
+
   return (
     <DashboardCard
       className={className}
@@ -65,9 +71,7 @@ export const TracesTimeSeriesChart = ({
     >
       <TotalMetric
         description="Traces tracked"
-        metric={traces.data?.reduce((acc, item) => {
-          return acc + (item.countTraceId as number);
-        }, 0)}
+        metric={total ? numberFormatter(total) : "-"}
       />
       <BaseTimeSeriesChart
         className="h-69 h-full"
