@@ -70,14 +70,14 @@ export function DatePickerWithRange({
   setDateRange,
 }: DateTimeAggregationOption) {
   const availableSelections = [
-    { interval: null, label: "Select an interval" },
-    { interval: 30, label: "Last 30 minutes" },
-    { interval: 60, label: "Last 60 minutes" },
-    { interval: 24 * 60, label: "Last 24 hours" },
-    { interval: 7 * 24 * 60, label: "7 Days" },
-    { interval: 30 * 24 * 60, label: "Last Month" },
-    { interval: 3 * 30 * 24 * 60, label: "Last 3 Months" },
-    { interval: 365 * 24 * 60 * 60, label: "Last Year" },
+    { key: "0", interval: null, label: "Select date" },
+    { key: "1", interval: 30, label: "Last 30 minutes" },
+    { key: "2", interval: 60, label: "Last 60 minutes" },
+    { key: "3", interval: 24 * 60, label: "Last 24 hours" },
+    { key: "4", interval: 7 * 24 * 60, label: "7 Days" },
+    { key: "5", interval: 30 * 24 * 60, label: "Last Month" },
+    { key: "6", interval: 3 * 30 * 24 * 60, label: "Last 3 Months" },
+    { key: "7", interval: 365 * 24 * 60 * 60, label: "Last Year" },
   ];
 
   const getMatchingInterval = (range: DateRange) => {
@@ -85,15 +85,19 @@ export function DatePickerWithRange({
 
     const difference = differenceInMinutes(range.from, range.to);
     console.log("difference", difference);
-    return availableSelections.find((option) => option.interval === difference);
+    const found = availableSelections.find(
+      (option) => option.interval === difference,
+    );
+    console.log("found", found);
+    return found;
   };
 
-  const defaultOption = dateRange
-    ? getMatchingInterval(dateRange)
-    : availableSelections[0];
+  const defaultOptionKey = dateRange
+    ? getMatchingInterval(dateRange)?.key ?? "default"
+    : "default";
 
-  const [selectedOption, setSelectedOption] = useState(defaultOption);
-
+  const [selectedOption, setSelectedOption] = useState(defaultOptionKey);
+  console.log("selectedOption", selectedOption);
   return (
     <div className={cn("flex gap-2", className)}>
       <Popover>
@@ -132,7 +136,7 @@ export function DatePickerWithRange({
               if (!range || !range.from) return;
               const matchingOption = getMatchingInterval(range);
               if (matchingOption) {
-                setSelectedOption(matchingOption);
+                setSelectedOption(matchingOption.key);
               }
             }}
             numberOfMonths={2}
@@ -140,14 +144,23 @@ export function DatePickerWithRange({
         </PopoverContent>
       </Popover>
       <Select
-        value={selectedOption ? `${selectedOption.interval}` : "default"}
+        value={
+          availableSelections.find((item) => item.key === selectedOption) ??
+          availableSelections[0]!
+        }
         onValueChange={(value) => {
-          const fromDate = addMinutes(new Date(), -1 * parseInt(value));
-          setDateRange({ from: fromDate, to: new Date() });
+          console.log("value change", value);
+          if (value !== "default") {
+            const fromDate = addMinutes(new Date(), -1 * parseInt(value));
+            setDateRange({ from: fromDate, to: new Date() });
+          }
+
           setSelectedOption(
-            availableSelections.find(
-              (item) => item.interval === parseInt(value),
-            ),
+            value === "default"
+              ? "default"
+              : availableSelections.find(
+                  (item) => item.interval === parseInt(value),
+                )?.key ?? "default",
           );
         }}
       >
@@ -155,11 +168,11 @@ export function DatePickerWithRange({
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
+          <SelectItem key="default" value="default">
+            Select date
+          </SelectItem>
           {availableSelections.map((item) => (
-            <SelectItem
-              key={item.interval ?? "default"}
-              value={`${item.interval ?? "default"}`}
-            >
+            <SelectItem key={item.interval} value={`${item.interval}`}>
               {item.label}
             </SelectItem>
           ))}
