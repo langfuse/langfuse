@@ -73,7 +73,6 @@ export const TracesTimeSeriesChart = ({
         metric={total ? numberFormatter(total) : "-"}
       />
       <BaseTimeSeriesChart
-        className="h-69 h-full"
         agg={agg}
         data={transformedTraces ?? []}
         connectNulls={true}
