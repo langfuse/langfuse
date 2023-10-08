@@ -1,5 +1,8 @@
 export const numberFormatter = (number: number) => {
-  return Intl.NumberFormat("us").format(number);
+  return Intl.NumberFormat("us", {
+    notation: "compact",
+    compactDisplay: "short",
+  }).format(number);
 };
 
 export const usdFormatter = (number: number) =>
