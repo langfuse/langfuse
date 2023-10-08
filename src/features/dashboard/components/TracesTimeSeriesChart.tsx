@@ -65,13 +65,14 @@ export const TracesTimeSeriesChart = ({
       className={className}
       title="Traces"
       isLoading={traces.isLoading}
-      cardContentClassName="flex flex-col content-end"
+      cardContentClassName="flex flex-col content-end "
     >
       <TotalMetric
         description={`Traces tracked per ${dateTimeAggregationSettings[agg].date_trunc}`}
         metric={total ? numberFormatter(total) : "-"}
       />
       <BaseTimeSeriesChart
+        className="min-h-80 lg:h-full"
         agg={agg}
         data={transformedTraces ?? []}
         connectNulls={true}
