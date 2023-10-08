@@ -80,23 +80,8 @@ export function DatePickerWithRange({
     { key: "7", interval: 365 * 24 * 60 * 60, label: "Last Year" },
   ];
 
-  const getMatchingInterval = (range: DateRange) => {
-    if (!range.from || !range.to) return availableSelections[0];
+  const [selectedOption, setSelectedOption] = useState(availableSelections[0]);
 
-    const difference = differenceInMinutes(range.from, range.to);
-    console.log("difference", difference);
-    const found = availableSelections.find(
-      (option) => option.interval === difference,
-    );
-    console.log("found", found);
-    return found;
-  };
-
-  const defaultOptionKey = dateRange
-    ? getMatchingInterval(dateRange)?.key ?? "default"
-    : "default";
-
-  const [selectedOption, setSelectedOption] = useState(defaultOptionKey);
   console.log("selectedOption", selectedOption);
   return (
     <div className={cn("flex gap-2", className)}>
@@ -133,23 +118,15 @@ export function DatePickerWithRange({
             selected={dateRange}
             onSelect={(range) => {
               setDateRange(range);
-              if (!range || !range.from) return;
-              const matchingOption = getMatchingInterval(range);
-              if (matchingOption) {
-                setSelectedOption(matchingOption.key);
-              }
+              setSelectedOption(availableSelections[0]);
             }}
             numberOfMonths={2}
           />
         </PopoverContent>
       </Popover>
       <Select
-        value={
-          availableSelections.find((item) => item.key === selectedOption) ??
-          availableSelections[0]!
-        }
+        value={selectedOption?.key}
         onValueChange={(value) => {
-          console.log("value change", value);
           if (value !== "default") {
             const fromDate = addMinutes(new Date(), -1 * parseInt(value));
             setDateRange({ from: fromDate, to: new Date() });
@@ -157,10 +134,10 @@ export function DatePickerWithRange({
 
           setSelectedOption(
             value === "default"
-              ? "default"
+              ? availableSelections[0]
               : availableSelections.find(
                   (item) => item.interval === parseInt(value),
-                )?.key ?? "default",
+                ),
           );
         }}
       >
@@ -168,11 +145,8 @@ export function DatePickerWithRange({
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
-          <SelectItem key="default" value="default">
-            Select date
-          </SelectItem>
           {availableSelections.map((item) => (
-            <SelectItem key={item.interval} value={`${item.interval}`}>
+            <SelectItem key={item.key} value={`${item.key}`}>
               {item.label}
             </SelectItem>
           ))}
