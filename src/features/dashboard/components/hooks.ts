@@ -25,7 +25,9 @@ export const getAllModels = (
 };
 
 const extractAllModels = (data: DatabaseRow[]): string[] => {
-  return data.map((item) => item.model as string);
+  return data
+    .filter((item) => item.model !== null)
+    .map((item) => item.model as string);
 };
 
 type Field = string;

@@ -62,7 +62,7 @@ export const TracesBarListChart = ({
       <BarChartCard
         className={className}
         header={{
-          metric: "Traces tracked",
+          metric: "Total traces tracked",
           stat: (totalTraces.data?.[0]?.countTraceId as number) ?? 0,
           category: "Traces",
         }}

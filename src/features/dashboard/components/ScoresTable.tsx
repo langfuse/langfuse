@@ -147,7 +147,7 @@ export const ScoresTable = ({
       >
         <TotalMetric
           metric={totalScores ? numberFormatter(totalScores) : "0"}
-          description="Scores tracked"
+          description="Total scores tracked"
         />
       </DashboardTable>
       <ChevronButton

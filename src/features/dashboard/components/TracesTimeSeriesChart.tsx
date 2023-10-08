@@ -64,12 +64,11 @@ export const TracesTimeSeriesChart = ({
     <DashboardCard
       className={className}
       title="Traces"
-      description="Number of traces tracked"
       isLoading={traces.isLoading}
       cardContentClassName="flex flex-col content-end"
     >
       <TotalMetric
-        description="Traces tracked"
+        description={`Traces tracked per ${dateTimeAggregationSettings[agg].date_trunc}`}
         metric={total ? numberFormatter(total) : "-"}
       />
       <BaseTimeSeriesChart
