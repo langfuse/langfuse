@@ -118,6 +118,7 @@ export const ModelUsageChart = ({
                   agg={agg}
                   data={item.data}
                   showLegend={true}
+                  valueFormatter={item.formatter}
                 />
               </>
             ),
