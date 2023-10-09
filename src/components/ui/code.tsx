@@ -9,6 +9,18 @@ export function JSONView(props: {
   title?: string;
   className?: string;
 }) {
+  const isCompletion =
+    props.json &&
+    typeof props.json === "object" &&
+    Object.keys(props.json).length === 1 &&
+    "completion" in props.json &&
+    typeof props.json.completion === "string";
+
+  // some users ingest stringified json, parse it
+  const json = isCompletion
+    ? parseJson((props.json as { completion: string }).completion)
+    : props.json;
+
   return (
     <div className={cn("max-w-full rounded-md border ", props.className)}>
       {props.title ? (
@@ -18,7 +30,7 @@ export function JSONView(props: {
       ) : undefined}
       <div className="flex gap-2 whitespace-pre-wrap p-3 text-xs">
         <React18JsonView
-          src={props.json}
+          src={json}
           theme="github"
           collapseObjectsAfterLength={20}
           collapseStringsAfterLength={500}
@@ -29,64 +41,13 @@ export function JSONView(props: {
   );
 }
 
-// const parseJsonInput = (jsonIn: unknown): string => {
-//   if (typeof jsonIn === "string") return jsonIn;
-
-//   try {
-//     if (jsonIn && typeof jsonIn === "object") {
-//       // For completions of generations, display the generation as text
-//       // { completion: "<completion>" } ->  "<completion>"
-//       if (
-//         Object.keys(jsonIn).length === 1 &&
-//         "completion" in jsonIn &&
-//         typeof jsonIn.completion === "string"
-//       ) {
-//         return jsonIn.completion;
-//       }
-
-//       // For OpenAI ChatCompletion Prompts, concat the messages
-//       // [ { "role": "<role>", "content": "<content>" } ] -> "<role>\n<content>\n\n"
-//       if (
-//         Array.isArray(jsonIn) &&
-//         jsonIn.length > 0 &&
-//         typeof jsonIn[0] === "object" &&
-//         "role" in jsonIn[0] &&
-//         "content" in jsonIn[0]
-//       ) {
-//         return (jsonIn as { role: string; content: string }[])
-//           .map(
-//             (message) => `${message.role.toUpperCase()}\n\n${message.content}`,
-//           )
-//           .join("\n\n------\n\n");
-//       }
-
-//       // If it is an array with a single string, return the string
-//       // [ "<string>" ] -> "<string>"
-//       if (
-//         Array.isArray(jsonIn) &&
-//         jsonIn.length === 1 &&
-//         typeof jsonIn[0] === "string"
-//       ) {
-//         return jsonIn[0];
-//       }
-
-//       // If it is an Object with a single key, listed in the list of keys, return the value if it is a string
-//       // { "<key>": "<string>" } -> "<string>"
-//       const keys = ["input", "output", "text", "prompt"];
-//       if (
-//         Object.keys(jsonIn).length === 1 &&
-//         keys.includes(Object.keys(jsonIn)[0] as string) &&
-//         typeof Object.values(jsonIn)[0] === "string"
-//       ) {
-//         return Object.values(jsonIn)[0] as string;
-//       }
-//     }
-//   } catch (e) {
-//     console.error("Error while trying to parse the string", e, jsonIn);
-//   }
-
-//   return JSON.stringify(jsonIn, null, 2);
-// };
+const parseJson = (input: string) => {
+  try {
+    return JSON.parse(input) as unknown;
+  } catch {
+    return input;
+  }
+};
 
 export function CodeView(props: {
   content: string | undefined | null;
