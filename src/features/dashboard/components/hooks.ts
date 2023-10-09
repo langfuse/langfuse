@@ -10,15 +10,13 @@ export const getAllModels = (
   const allModels = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
-    select: [{ column: "model", agg: null }],
+    select: [{ column: "model" }],
     filter:
       [
         ...globalFilterState,
         { type: "string", column: "type", operator: "=", value: "GENERATION" },
       ] ?? [],
     groupBy: [{ type: "string", column: "model" }],
-    orderBy: [],
-    limit: null,
   });
 
   return allModels.data ? extractAllModels(allModels.data) : [];

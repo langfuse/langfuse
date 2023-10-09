@@ -33,8 +33,8 @@ export const ModelUsageChart = ({
     from: "observations",
     select: [
       { column: "totalTokens", agg: "SUM" },
-      { column: "totalTokenCost", agg: null },
-      { column: "model", agg: null },
+      { column: "totalTokenCost" },
+      { column: "model" },
     ],
     filter: globalFilterState ?? [],
     groupBy: [
@@ -48,8 +48,7 @@ export const ModelUsageChart = ({
         column: "model",
       },
     ],
-    orderBy: [{ column: "totalTokenCost", direction: "DESC", agg: null }],
-    limit: null,
+    orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
   });
 
   const allModels = getAllModels(projectId, globalFilterState);

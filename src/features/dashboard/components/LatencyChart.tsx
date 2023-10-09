@@ -26,10 +26,7 @@ export const LatencyChart = ({
   const data = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
-    select: [
-      { column: "duration", agg: "AVG" },
-      { column: "model", agg: null },
-    ],
+    select: [{ column: "duration", agg: "AVG" }, { column: "model" }],
     filter:
       [
         ...globalFilterState,
@@ -43,8 +40,6 @@ export const LatencyChart = ({
       },
       { type: "string", column: "model" },
     ],
-    orderBy: [],
-    limit: null,
   });
 
   const allModels = getAllModels(projectId, globalFilterState);

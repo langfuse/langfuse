@@ -26,8 +26,8 @@ export const UserChart = ({
     projectId,
     from: "traces_observations",
     select: [
-      { column: "totalTokenCost", agg: null },
-      { column: "user", agg: null },
+      { column: "totalTokenCost" },
+      { column: "user" },
       { column: "traceId", agg: "COUNT" },
     ],
     filter: globalFilterState ?? [],
@@ -37,17 +37,13 @@ export const UserChart = ({
         column: "user",
       },
     ],
-    orderBy: [{ column: "totalTokenCost", agg: null, direction: "DESC" }],
-    limit: null,
+    orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
   });
 
   const traces = api.dashboard.chart.useQuery({
     projectId,
     from: "traces",
-    select: [
-      { column: "user", agg: null },
-      { column: "traceId", agg: "COUNT" },
-    ],
+    select: [{ column: "user" }, { column: "traceId", agg: "COUNT" }],
     filter:
       globalFilterState.map((f) => ({
         ...f,
@@ -60,7 +56,6 @@ export const UserChart = ({
       },
     ],
     orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
-    limit: null,
   });
 
   const transformedNumberOfTraces: BarChartDataPoint[] = traces.data
