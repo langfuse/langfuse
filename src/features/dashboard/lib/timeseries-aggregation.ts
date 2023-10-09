@@ -24,7 +24,7 @@ export const dateTimeAggregationSettings: Record<
       date.toLocaleDateString("en-US", { year: "2-digit", month: "short" }),
   },
   "3 months": {
-    date_trunc: "week",
+    date_trunc: "day",
     date_formatter: (date) =>
       date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
   },

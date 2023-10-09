@@ -1,29 +1,24 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import {
   dateTimeAggregationSettings,
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
-import { Loader } from "lucide-react";
 import {
   getAllModels,
   reduceData,
   transformMapAndFillZeroValues,
 } from "@/src/features/dashboard/components/hooks";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 
 export const LatencyChart = ({
+  className,
   projectId,
   globalFilterState,
   agg,
 }: {
+  className?: string;
   projectId: string;
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
@@ -31,10 +26,7 @@ export const LatencyChart = ({
   const data = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
-    select: [
-      { column: "duration", agg: "AVG" },
-      { column: "model", agg: null },
-    ],
+    select: [{ column: "duration", agg: "AVG" }, { column: "model" }],
     filter:
       [
         ...globalFilterState,
@@ -48,7 +40,6 @@ export const LatencyChart = ({
       },
       { type: "string", column: "model" },
     ],
-    orderBy: [],
   });
 
   const allModels = getAllModels(projectId, globalFilterState);
@@ -62,25 +53,17 @@ export const LatencyChart = ({
       : [];
 
   return (
-    <Card>
-      <CardHeader className="relative">
-        <CardTitle>Model latencies</CardTitle>
-        <CardDescription>
-          Average latency (ms) per LLM generation
-        </CardDescription>
-        {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <BaseTimeSeriesChart
-          agg={agg}
-          data={transformedData ?? []}
-          connectNulls={true}
-        />
-      </CardContent>
-    </Card>
+    <DashboardCard
+      className={className}
+      title="Model latencies"
+      description="Average latency (ms) per LLM generation"
+      isLoading={data.isLoading}
+    >
+      <BaseTimeSeriesChart
+        agg={agg}
+        data={transformedData ?? []}
+        connectNulls={true}
+      />
+    </DashboardCard>
   );
 };
