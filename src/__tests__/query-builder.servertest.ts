@@ -42,10 +42,7 @@ describe("Build valid SQL queries", () => {
       it(`should enrich mandatory filters ${prop.table}`, () => {
         const preparedQuery = enrichAndCreateQuery("project-id", {
           from: prop.table,
-          filter: [],
-          groupBy: [],
           select: [],
-          orderBy: [],
         });
         expect(preparedQuery.values).toEqual(prop.values);
         expect(preparedQuery.strings).toEqual(prop.strings);
@@ -65,9 +62,8 @@ describe("Build valid SQL queries", () => {
             value: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
         ],
-        groupBy: [],
-        select: [{ column: "traceId", agg: null }],
-        orderBy: [],
+
+        select: [{ column: "traceId" }],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -87,8 +83,7 @@ describe("Build valid SQL queries", () => {
           },
         ],
         groupBy: [{ type: "string", column: "version" }],
-        select: [{ column: "traceId", agg: null }],
-        orderBy: [],
+        select: [{ column: "traceId" }],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -117,7 +112,6 @@ describe("Build valid SQL queries", () => {
           { type: "datetime", column: "startTime", temporalUnit: "day" },
         ],
         select: [{ column: "completionTokens", agg: "SUM" }],
-        orderBy: [],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -135,9 +129,7 @@ describe("Build valid SQL queries", () => {
           filter: [
             { type: "string", column: "unknown", operator: "=", value: "" },
           ],
-          groupBy: [],
           select: [],
-          orderBy: [],
         }),
       ).toThrow("Column unknown not found");
     });
@@ -146,10 +138,7 @@ describe("Build valid SQL queries", () => {
       expect(() =>
         createQuery({
           from: "traces",
-          filter: [],
-          groupBy: [],
-          select: [{ column: "unknown", agg: null }],
-          orderBy: [],
+          select: [{ column: "unknown" }],
         }),
       ).toThrow("Column unknown not found");
     });
@@ -158,10 +147,8 @@ describe("Build valid SQL queries", () => {
       expect(() =>
         createQuery({
           from: "traces",
-          filter: [],
           groupBy: [{ column: "unknown", type: "string" }],
           select: [],
-          orderBy: [],
         }),
       ).toThrow("Column unknown not found");
     });
@@ -170,8 +157,6 @@ describe("Build valid SQL queries", () => {
       expect(() =>
         createQuery({
           from: "traces",
-          filter: [],
-          groupBy: [],
           select: [],
           orderBy: [{ column: "unknown", direction: "ASC" }],
         }),
@@ -218,10 +203,7 @@ describe("Build valid SQL queries", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         {
           from: "traces",
-          filter: [],
-          groupBy: [],
-          select: [{ column: "traceId", agg: null }],
-          orderBy: [],
+          select: [{ column: "traceId" }],
         },
       );
 
@@ -295,13 +277,11 @@ describe("Build valid SQL queries", () => {
           "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           {
             from: "observations",
-            filter: [],
             groupBy: [{ type: "string", column: "name" }],
             select: [
               { column: "completionTokens", agg: prop.agg as "SUM" | "AVG" },
-              { column: "name", agg: null },
+              { column: "name" },
             ],
-            orderBy: [],
           },
         );
 
@@ -367,8 +347,8 @@ describe("Build valid SQL queries", () => {
               value: new Date("2021-01-04T00:00:00.000Z"),
             },
           ],
-          groupBy: [],
-          select: [{ column: "completionTokens", agg: null }],
+
+          select: [{ column: "completionTokens" }],
           orderBy: [{ column: "completionTokens", direction: "ASC" }],
         },
       );
@@ -444,7 +424,6 @@ describe("Build valid SQL queries", () => {
             select: [
               { column: "completionTokens", agg: prop.agg as "SUM" | "AVG" },
             ],
-            orderBy: [],
           },
         );
 

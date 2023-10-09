@@ -7,7 +7,12 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
 import Decimal from "decimal.js";
 import { type z } from "zod";
-import { sqlInterface, aggregations } from "./sqlInterface";
+import {
+  sqlInterface,
+  aggregations,
+  groupByInterface,
+  filterInterface,
+} from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
 
 export type InternalDatabaseRow = {
@@ -41,14 +46,21 @@ export const enrichAndCreateQuery = (
   const query = sqlInterface.parse(queryUnsafe);
   return createQuery({
     ...query,
-    filter: [...query.filter, ...getMandatoryFilter(query.from, projectId)],
+    filter: [
+      ...(query.filter ?? []),
+      ...getMandatoryFilter(query.from, projectId),
+    ],
   });
 };
 
 export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   const query = sqlInterface.parse(queryUnsafe);
 
-  const cte = createDateRangeCte(query.from, query.filter, query.groupBy);
+  const cte = createDateRangeCte(
+    query.from,
+    query.filter ?? [],
+    query.groupBy ?? [],
+  );
 
   const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
@@ -78,8 +90,8 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
 
   let groupString = Prisma.empty;
 
-  if (query.groupBy.length > 0 || cte) {
-    const groupByFields = query.groupBy.map((groupBy) =>
+  if ((query.groupBy && query.groupBy.length > 0) || cte) {
+    const groupByFields = (query.groupBy ?? []).map((groupBy) =>
       prepareGroupBy(query.from, groupBy),
     );
     groupString =
@@ -99,7 +111,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   );
 
   const filterString =
-    query.filter.length > 0
+    query.filter && query.filter.length > 0
       ? Prisma.sql` ${
           cte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
         } ${prepareFilterString(
@@ -138,7 +150,7 @@ const prepareOrderByString = (
   orderBy: z.infer<typeof sqlInterface>["orderBy"],
   hasCte: boolean,
 ): Prisma.Sql => {
-  const orderBys = orderBy.map((orderBy) => {
+  const orderBys = (orderBy ?? []).map((orderBy) => {
     // raw mandatory here
     return Prisma.sql`${createAggregatedColumn(
       from,
@@ -157,10 +169,10 @@ const prepareOrderByString = (
 
 const prepareFilterString = (
   table: z.infer<typeof sqlInterface>["from"],
-  filter: z.infer<typeof sqlInterface>["filter"],
+  filter: z.infer<typeof filterInterface>,
   columnDefinitions: ColumnDefinition[],
 ): Prisma.Sql => {
-  const filters = filter.map((filter) => {
+  const filters = (filter ?? []).map((filter) => {
     const column = columnDefinitions.find((x) => x.name === filter.column);
     if (!column) {
       console.error(`Column ${filter.column} not found`);
@@ -187,7 +199,7 @@ const prepareFilterString = (
 
 const prepareGroupBy = (
   table: z.infer<typeof sqlInterface>["from"],
-  groupBy: z.infer<typeof sqlInterface>["groupBy"][number],
+  groupBy: z.infer<typeof groupByInterface>[number],
 ) => {
   const internalColumn = getInternalSql(
     getColumnDefinition(table, groupBy.column),
@@ -200,7 +212,7 @@ const prepareGroupBy = (
 };
 
 function isTimeRangeFilter(
-  filter: z.infer<typeof sqlInterface>["filter"][number],
+  filter: z.infer<typeof filterInterface>[number],
 ): filter is z.infer<typeof timeFilter> {
   return filter.type === "datetime";
 }
@@ -208,11 +220,11 @@ function isTimeRangeFilter(
 const createDateRangeCte = (
   fromUnsafe: z.infer<typeof sqlInterface>["from"],
   filtersUnsafe: z.infer<typeof singleFilter>[],
-  groupByUnsafe: z.infer<typeof sqlInterface>["groupBy"],
+  groupByUnsafe: z.infer<typeof groupByInterface>,
 ) => {
   const from = sqlInterface.shape.from.parse(fromUnsafe);
-  const groupBy = sqlInterface.shape.groupBy.parse(groupByUnsafe);
-  const filters = sqlInterface.shape.filter.parse(filtersUnsafe);
+  const groupBy = groupByInterface.parse(groupByUnsafe);
+  const filters = filterInterface.parse(filtersUnsafe);
 
   const groupByColumns = groupBy.filter((x) => x.type === "datetime");
 
