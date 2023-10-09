@@ -289,9 +289,10 @@ const createDateRangeCte = (
 };
 
 const getTableSql = (
-  table: z.infer<typeof sqlInterface>["from"],
+  tableUnsafe: z.infer<typeof sqlInterface>["from"],
 ): Prisma.Sql => {
-  return Prisma.raw(sqlInterface.shape.from.parse(table));
+  const table = sqlInterface.shape.from.parse(tableUnsafe);
+  return Prisma.raw(tableDefinitions[table]!.table);
 };
 
 const getColumnDefinition = (
