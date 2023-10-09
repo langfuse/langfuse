@@ -66,6 +66,26 @@ export const scoreId = {
   type: "string",
   internal: 's."id"',
 } as const;
+export const traceName = {
+  name: "traceName",
+  type: "string",
+  internal: 't."name"',
+} as const;
+export const totalTokens = {
+  name: "totalTokens",
+  type: "number",
+  internal: 'o."total_tokens"',
+} as const;
+export const model = {
+  name: "model",
+  type: "string",
+  internal: 'o."model"',
+} as const;
+export const traceUser = {
+  name: "user",
+  type: "string",
+  internal: 't."user_id"',
+} as const;
 
 export const totalTokenCost = {
   name: "totalTokenCost",
@@ -101,7 +121,15 @@ export const totalTokenCost = {
 export const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces t`,
-    columns: [tracesProjectId, traceVersion, release, traceId, traceTimestamp],
+    columns: [
+      tracesProjectId,
+      traceVersion,
+      release,
+      traceId,
+      traceTimestamp,
+      traceName,
+      traceUser,
+    ],
   },
   traces_observations: {
     table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
@@ -113,6 +141,11 @@ export const tableDefinitions: TableDefinitions = {
       observationsProjectId,
       duration,
       totalTokenCost,
+      totalTokens,
+      model,
+      traceTimestamp,
+      traceUser,
+      startTime,
     ],
   },
   observations: {
@@ -128,13 +161,9 @@ export const tableDefinitions: TableDefinitions = {
         type: "number",
         internal: 'o."prompt_tokens"',
       },
-      {
-        name: "totalTokens",
-        type: "number",
-        internal: 'o."total_tokens"',
-      },
+      totalTokens,
       observationId,
-      { name: "model", type: "string", internal: 'o."model"' },
+      model,
       observationsProjectId,
       startTime,
       { name: "endTime", type: "datetime", internal: 'o."end_time"' },
@@ -147,7 +176,7 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       { name: "value", type: "number", internal: 's."value"' },
       {
-        name: "name",
+        name: "scoreName",
         type: "number",
         internal: 's."name"',
       },
@@ -155,6 +184,7 @@ export const tableDefinitions: TableDefinitions = {
       traceVersion,
       traceTimestamp,
       scoreName,
+      traceUser,
       tracesProjectId,
     ],
   },

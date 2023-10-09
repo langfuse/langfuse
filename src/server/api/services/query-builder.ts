@@ -7,7 +7,12 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
 import Decimal from "decimal.js";
 import { type z } from "zod";
-import { type sqlInterface } from "./sqlInterface";
+import {
+  sqlInterface,
+  aggregations,
+  groupByInterface,
+  filterInterface,
+} from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
 
 export type InternalDatabaseRow = {
@@ -21,8 +26,10 @@ export type DatabaseRow = {
 export const executeQuery = async (
   prisma: PrismaClient,
   projectId: string,
-  query: z.TypeOf<typeof sqlInterface>,
+  unsafeQuery: z.TypeOf<typeof sqlInterface>,
 ) => {
+  const query = sqlInterface.parse(unsafeQuery);
+
   const sql = enrichAndCreateQuery(projectId, query);
 
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
@@ -34,16 +41,26 @@ export const executeQuery = async (
 
 export const enrichAndCreateQuery = (
   projectId: string,
-  query: z.TypeOf<typeof sqlInterface>,
+  queryUnsafe: z.TypeOf<typeof sqlInterface>,
 ) => {
+  const query = sqlInterface.parse(queryUnsafe);
   return createQuery({
     ...query,
-    filter: [...query.filter, ...getMandatoryFilter(query.from, projectId)],
+    filter: [
+      ...(query.filter ?? []),
+      ...getMandatoryFilter(query.from, projectId),
+    ],
   });
 };
 
-export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
-  const cte = createDateRangeCte(query.from, query.filter, query.groupBy);
+export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
+  const query = sqlInterface.parse(queryUnsafe);
+
+  const cte = createDateRangeCte(
+    query.from,
+    query.filter ?? [],
+    query.groupBy ?? [],
+  );
 
   const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
@@ -51,15 +68,18 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
     // raw mandatory everywhere here as this creates the selection
     // agg is typed via zod
     // column names come from our defs via the table definitions
-    field.agg
-      ? Prisma.sql`${Prisma.raw(field.agg)}(${getInternalSql(
-          getColumnSql(query.from, field.column),
-        )}) as "${Prisma.raw(field.agg.toLowerCase())}${Prisma.raw(
-          capitalizeFirstLetter(field.column),
-        )}"`
-      : Prisma.sql`${getInternalSql(
-          getColumnSql(query.from, field.column),
-        )} as "${Prisma.raw(getColumnSql(query.from, field.column).name)}"`,
+    {
+      const safeColumn = getColumnDefinition(query.from, field.column);
+      return field.agg
+        ? Prisma.sql`${Prisma.raw(field.agg)}(${getInternalSql(
+            safeColumn,
+          )}) as "${Prisma.raw(field.agg.toLowerCase())}${Prisma.raw(
+            capitalizeFirstLetter(safeColumn.name),
+          )}"`
+        : Prisma.sql`${getInternalSql(safeColumn)} as "${Prisma.raw(
+            safeColumn.name,
+          )}"`;
+    },
   );
 
   if (cte)
@@ -70,8 +90,8 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
 
   let groupString = Prisma.empty;
 
-  if (query.groupBy.length > 0 || cte) {
-    const groupByFields = query.groupBy.map((groupBy) =>
+  if ((query.groupBy && query.groupBy.length > 0) || cte) {
+    const groupByFields = (query.groupBy ?? []).map((groupBy) =>
       prepareGroupBy(query.from, groupBy),
     );
     groupString =
@@ -85,13 +105,13 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
       : Prisma.empty;
 
   const orderByString = prepareOrderByString(
+    query.from,
     query.orderBy,
-    tableDefinitions[query.from]!.columns,
     cte ? true : false,
   );
 
   const filterString =
-    query.filter.length > 0
+    query.filter && query.filter.length > 0
       ? Prisma.sql` ${
           cte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
         } ${prepareFilterString(
@@ -101,27 +121,42 @@ export const createQuery = (query: z.TypeOf<typeof sqlInterface>) => {
         )}`
       : Prisma.empty;
 
+  const limitString = query.limit
+    ? Prisma.sql` LIMIT ${query.limit}`
+    : Prisma.empty;
+
   return Prisma.sql`${
     cte?.cte ?? Prisma.empty
-  }${selectString}${fromString}${filterString}${groupString}${orderByString};`;
+  }${selectString}${fromString}${filterString}${groupString}${orderByString}${limitString};`;
+};
+
+const createAggregatedColumn = (
+  from: z.infer<typeof sqlInterface>["from"],
+  column: string,
+  agg?: z.infer<typeof aggregations>,
+): Prisma.Sql => {
+  // raw mandatory everywhere here as this creates the selection
+  // agg is typed via zod
+  // column names come from our defs via the table definitions
+  return agg
+    ? Prisma.sql`${Prisma.raw(
+        aggregations.parse(agg) as string,
+      )}(${getInternalSql(getColumnDefinition(from, column))})`
+    : Prisma.sql`${getInternalSql(getColumnDefinition(from, column))}`;
 };
 
 const prepareOrderByString = (
+  from: z.infer<typeof sqlInterface>["from"],
   orderBy: z.infer<typeof sqlInterface>["orderBy"],
-  columnDefinitions: ColumnDefinition[],
   hasCte: boolean,
 ): Prisma.Sql => {
-  const orderBys = orderBy.map((orderBy) => {
-    const column = columnDefinitions.find((x) => x.name === orderBy.column);
-    if (!column) {
-      console.error(`Column ${orderBy.column} not found`);
-      throw new Error(`Column ${orderBy.column} not found`);
-    }
-
+  const orderBys = (orderBy ?? []).map((orderBy) => {
     // raw mandatory here
-    return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-      orderBy.direction,
-    )}`;
+    return Prisma.sql`${createAggregatedColumn(
+      from,
+      orderBy.column,
+      orderBy.agg,
+    )} ${Prisma.raw(orderBy.direction)}`;
   });
   const addedCte = hasCte
     ? [Prisma.sql`date_series."date" ASC`, ...orderBys]
@@ -134,10 +169,10 @@ const prepareOrderByString = (
 
 const prepareFilterString = (
   table: z.infer<typeof sqlInterface>["from"],
-  filter: z.infer<typeof sqlInterface>["filter"],
+  filter: z.infer<typeof filterInterface>,
   columnDefinitions: ColumnDefinition[],
 ): Prisma.Sql => {
-  const filters = filter.map((filter) => {
+  const filters = (filter ?? []).map((filter) => {
     const column = columnDefinitions.find((x) => x.name === filter.column);
     if (!column) {
       console.error(`Column ${filter.column} not found`);
@@ -164,9 +199,11 @@ const prepareFilterString = (
 
 const prepareGroupBy = (
   table: z.infer<typeof sqlInterface>["from"],
-  groupBy: z.infer<typeof sqlInterface>["groupBy"][number],
+  groupBy: z.infer<typeof groupByInterface>[number],
 ) => {
-  const internalColumn = getInternalSql(getColumnSql(table, groupBy.column));
+  const internalColumn = getInternalSql(
+    getColumnDefinition(table, groupBy.column),
+  );
   if (groupBy.type === "datetime") {
     return Prisma.sql`date_series."date"`;
   } else {
@@ -175,16 +212,20 @@ const prepareGroupBy = (
 };
 
 function isTimeRangeFilter(
-  filter: z.infer<typeof sqlInterface>["filter"][number],
+  filter: z.infer<typeof filterInterface>[number],
 ): filter is z.infer<typeof timeFilter> {
   return filter.type === "datetime";
 }
 
 const createDateRangeCte = (
-  from: z.infer<typeof sqlInterface>["from"],
-  filters: z.infer<typeof singleFilter>[],
-  groupBy: z.infer<typeof sqlInterface>["groupBy"],
+  fromUnsafe: z.infer<typeof sqlInterface>["from"],
+  filtersUnsafe: z.infer<typeof singleFilter>[],
+  groupByUnsafe: z.infer<typeof groupByInterface>,
 ) => {
+  const from = sqlInterface.shape.from.parse(fromUnsafe);
+  const groupBy = groupByInterface.parse(groupByUnsafe);
+  const filters = filterInterface.parse(filtersUnsafe);
+
   const groupByColumns = groupBy.filter((x) => x.type === "datetime");
 
   if (groupByColumns.length === 0) return undefined;
@@ -220,7 +261,7 @@ const createDateRangeCte = (
       );
     }
 
-    const startColumn = getColumnSql(from, minDateColumn.column);
+    const startColumn = getColumnDefinition(from, minDateColumn.column);
 
     // raw mandatory for temporal unit. From and to are parameterised values
     // temporal unit is typed
@@ -248,16 +289,18 @@ const createDateRangeCte = (
 };
 
 const getTableSql = (
-  table: z.infer<typeof sqlInterface>["from"],
+  tableUnsafe: z.infer<typeof sqlInterface>["from"],
 ): Prisma.Sql => {
-  // raw required here, everyrhing is typed
+  const table = sqlInterface.shape.from.parse(tableUnsafe);
   return Prisma.raw(tableDefinitions[table]!.table);
 };
 
-const getColumnSql = (
-  table: z.infer<typeof sqlInterface>["from"],
+const getColumnDefinition = (
+  tableUnsafe: z.infer<typeof sqlInterface>["from"],
   column: string,
 ): ColumnDefinition => {
+  const table = sqlInterface.shape.from.parse(tableUnsafe);
+
   const foundColumn = tableDefinitions[table]!.columns.find((c) => {
     return c.name === column;
   });
@@ -303,9 +346,11 @@ function capitalizeFirstLetter(str: string) {
 }
 
 const getMandatoryFilter = (
-  table: z.infer<typeof sqlInterface>["from"],
+  tableUnsafe: z.infer<typeof sqlInterface>["from"],
   projectId: string,
 ) => {
+  const table = sqlInterface.shape.from.parse(tableUnsafe);
+
   const observationFilter = {
     type: "string" as const,
     column: "observationsProjectId",

@@ -1,3 +1,4 @@
+import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { type FilterState } from "@/src/features/filters/types";
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 import { api } from "@/src/utils/api";
@@ -9,21 +10,22 @@ export const getAllModels = (
   const allModels = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
-    select: [{ column: "model", agg: null }],
+    select: [{ column: "model" }],
     filter:
       [
         ...globalFilterState,
         { type: "string", column: "type", operator: "=", value: "GENERATION" },
       ] ?? [],
     groupBy: [{ type: "string", column: "model" }],
-    orderBy: [],
   });
 
   return allModels.data ? extractAllModels(allModels.data) : [];
 };
 
 const extractAllModels = (data: DatabaseRow[]): string[] => {
-  return data.map((item) => item.model as string);
+  return data
+    .filter((item) => item.model !== null)
+    .map((item) => item.model as string);
 };
 
 type Field = string;
@@ -33,10 +35,6 @@ type ChartData = {
   value?: number;
 };
 
-type Result = {
-  ts: number;
-  values: { label: string; value?: number }[];
-};
 export function reduceData(
   data: DatabaseRow[],
   field: Field,
@@ -64,8 +62,8 @@ export function reduceData(
 export function transformMapAndFillZeroValues(
   map: Map<number, ChartData[]>,
   allModels: string[],
-): Result[] {
-  const result: Result[] = [];
+): TimeSeriesChartDataPoint[] {
+  const result: TimeSeriesChartDataPoint[] = [];
 
   for (const [date, items] of map) {
     const values = items.map((item) => ({
