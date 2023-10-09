@@ -7,7 +7,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { type Sql } from "@prisma/client/runtime/library";
 import Decimal from "decimal.js";
 import { type z } from "zod";
-import { type aggregations, type sqlInterface } from "./sqlInterface";
+import { sqlInterface, type aggregations } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
 
 export type InternalDatabaseRow = {
@@ -21,10 +21,17 @@ export type DatabaseRow = {
 export const executeQuery = async (
   prisma: PrismaClient,
   projectId: string,
-  query: z.TypeOf<typeof sqlInterface>,
+  unsafeQuery: z.TypeOf<typeof sqlInterface>,
 ) => {
+  const queryZod = sqlInterface.safeParse(unsafeQuery);
+  if (queryZod.success === false) {
+    console.error(queryZod.error);
+    throw new Error("Invalid query");
+  }
+  const query = queryZod.data;
+
   const sql = enrichAndCreateQuery(projectId, query);
-  console.log(sql.inspect());
+
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
