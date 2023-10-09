@@ -58,9 +58,9 @@ export function DatePicker({
 }
 
 export type DateTimeAggregationOption = {
-  className?: React.ReactNode;
   dateRange?: DateRange;
   setDateRange: (date?: DateRange) => void;
+  className?: string;
 };
 
 export function DatePickerWithRange({
@@ -79,7 +79,25 @@ export function DatePickerWithRange({
     { key: "7", interval: 365 * 24 * 60 * 60, label: "Last Year" },
   ];
 
-  const [selectedOption, setSelectedOption] = useState(availableSelections[0]);
+  const [selectedOption, setSelectedOption] = useState(availableSelections[2]);
+
+  const onDropDownSelection = (value: string) => {
+    const interval = availableSelections.find((s) => s.key === value)?.interval;
+    if (interval) {
+      const fromDate = addMinutes(new Date(), -1 * interval);
+
+      setDateRange({ from: fromDate, to: new Date() });
+    }
+
+    setSelectedOption(
+      availableSelections.find((item) => item.interval === parseInt(value)),
+    );
+  };
+
+  const onCalendarSelection = (range?: DateRange) => {
+    setDateRange(range);
+    setSelectedOption(availableSelections[0]);
+  };
 
   return (
     <div className={cn("flex flex-col gap-2 md:flex-row", className)}>
@@ -114,36 +132,12 @@ export function DatePickerWithRange({
             mode="range"
             defaultMonth={dateRange?.from}
             selected={dateRange}
-            onSelect={(range) => {
-              setDateRange(range);
-              setSelectedOption(availableSelections[0]);
-            }}
+            onSelect={onCalendarSelection}
             numberOfMonths={2}
           />
         </PopoverContent>
       </Popover>
-      <Select
-        value={selectedOption?.key}
-        onValueChange={(value) => {
-          if (value !== "default") {
-            const interval = availableSelections.find((s) => s.key === value)
-              ?.interval;
-            if (interval) {
-              const fromDate = addMinutes(new Date(), -1 * interval);
-
-              setDateRange({ from: fromDate, to: new Date() });
-            }
-          }
-
-          setSelectedOption(
-            value === "default"
-              ? availableSelections[0]
-              : availableSelections.find(
-                  (item) => item.interval === parseInt(value),
-                ),
-          );
-        }}
-      >
+      <Select value={selectedOption?.key} onValueChange={onDropDownSelection}>
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Select" className="w-96" />
         </SelectTrigger>
