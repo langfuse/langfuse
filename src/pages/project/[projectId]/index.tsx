@@ -42,8 +42,6 @@ export default function Start() {
         ]
       : [];
 
-  console.log("globalfilter", globalFilterState);
-
   return (
     <div className="md:container">
       <Header title="Dashboard" />

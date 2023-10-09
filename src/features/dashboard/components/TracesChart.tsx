@@ -29,8 +29,6 @@ export const TracesBarListChart = ({
     limit: null,
   });
 
-  console.log("totaltraces", totalTraces.data);
-
   const traces = api.dashboard.chart.useQuery({
     projectId,
     from: "traces",

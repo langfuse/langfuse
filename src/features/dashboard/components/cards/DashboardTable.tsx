@@ -37,8 +37,8 @@ export const DashboardTable = ({
                 </thead>
 
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {rows.map((row) => (
-                    <tr key={"1"}>
+                  {rows.map((row, i) => (
+                    <tr key={i}>
                       {row.map((cell, i) => (
                         <td
                           key={i}

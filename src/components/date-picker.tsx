@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { differenceInMinutes } from "date-fns";
 import { useState } from "react";
 
 export function DatePicker({
@@ -82,9 +81,8 @@ export function DatePickerWithRange({
 
   const [selectedOption, setSelectedOption] = useState(availableSelections[0]);
 
-  console.log("selectedOption", selectedOption);
   return (
-    <div className={cn("flex gap-2", className)}>
+    <div className={cn("flex flex-col gap-2 md:flex-row", className)}>
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -128,8 +126,13 @@ export function DatePickerWithRange({
         value={selectedOption?.key}
         onValueChange={(value) => {
           if (value !== "default") {
-            const fromDate = addMinutes(new Date(), -1 * parseInt(value));
-            setDateRange({ from: fromDate, to: new Date() });
+            const interval = availableSelections.find((s) => s.key === value)
+              ?.interval;
+            if (interval) {
+              const fromDate = addMinutes(new Date(), -1 * interval);
+
+              setDateRange({ from: fromDate, to: new Date() });
+            }
           }
 
           setSelectedOption(
@@ -141,8 +144,8 @@ export function DatePickerWithRange({
           );
         }}
       >
-        <SelectTrigger className="w-auto">
-          <SelectValue placeholder="Select" />
+        <SelectTrigger className="w-40">
+          <SelectValue placeholder="Select" className="w-96" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
           {availableSelections.map((item) => (
