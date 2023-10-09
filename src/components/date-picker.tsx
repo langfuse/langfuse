@@ -79,7 +79,7 @@ export function DatePickerWithRange({
     { key: "7", interval: 365 * 24 * 60 * 60, label: "Last Year" },
   ];
 
-  const [selectedOption, setSelectedOption] = useState(availableSelections[2]);
+  const [selectedOption, setSelectedOption] = useState(availableSelections[0]);
 
   const onDropDownSelection = (value: string) => {
     const interval = availableSelections.find((s) => s.key === value)?.interval;
@@ -99,8 +99,12 @@ export function DatePickerWithRange({
     setSelectedOption(availableSelections[0]);
   };
 
+  console.log("dateRange", dateRange);
+
   return (
-    <div className={cn("flex flex-col gap-2 md:flex-row", className)}>
+    <div
+      className={cn("my-3 flex flex-col-reverse gap-2 md:flex-row", className)}
+    >
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -138,8 +142,8 @@ export function DatePickerWithRange({
         </PopoverContent>
       </Popover>
       <Select value={selectedOption?.key} onValueChange={onDropDownSelection}>
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="Select" className="w-96" />
+        <SelectTrigger className="w-40 hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
+          <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
           {availableSelections.map((item) => (

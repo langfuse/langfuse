@@ -20,8 +20,8 @@ export default function Start() {
   const projectId = router.query.projectId as string;
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: addDays(new Date(), -1),
+    from: addDays(new Date(), -30),
+    to: new Date(),
   });
 
   const globalFilterState =
@@ -48,7 +48,7 @@ export default function Start() {
       <DatePickerWithRange
         dateRange={dateRange}
         setDateRange={setDateRange}
-        className="mb-4 max-w-full overflow-x-auto"
+        className=" max-w-full overflow-x-auto"
       />
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
@@ -88,6 +88,7 @@ export default function Start() {
           className="col-span-1 xl:col-span-3"
           agg={agg}
           projectId={projectId}
+          globalFilterState={globalFilterState}
         />
         <LatencyChart
           className="col-span-1 flex-auto justify-between xl:col-span-full"
