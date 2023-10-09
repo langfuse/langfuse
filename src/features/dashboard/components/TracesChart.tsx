@@ -24,22 +24,15 @@ export const TracesBarListChart = ({
     from: "traces",
     select: [{ column: "traceId", agg: "COUNT" }],
     filter: timeFilter,
-    groupBy: [],
-    orderBy: [],
-    limit: null,
   });
 
   const traces = api.dashboard.chart.useQuery({
     projectId,
     from: "traces",
-    select: [
-      { column: "traceId", agg: "COUNT" },
-      { column: "traceName", agg: null },
-    ],
+    select: [{ column: "traceId", agg: "COUNT" }, { column: "traceName" }],
     filter: timeFilter,
     groupBy: [{ column: "traceName", type: "string" }],
     orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
-    limit: null,
   });
 
   const transformedTraces = traces.data

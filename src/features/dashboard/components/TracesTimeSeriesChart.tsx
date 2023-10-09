@@ -35,8 +35,6 @@ export const TracesTimeSeriesChart = ({
         temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
       },
     ],
-    orderBy: [],
-    limit: null,
   });
 
   const transformedTraces = traces.data

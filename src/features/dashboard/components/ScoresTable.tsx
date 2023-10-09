@@ -28,24 +28,20 @@ export const ScoresTable = ({
     projectId,
     from: "traces_scores",
     select: [
-      { column: "scoreName", agg: null },
+      { column: "scoreName" },
       { column: "scoreId", agg: "COUNT" },
       { column: "value", agg: "AVG" },
     ],
     filter: localFilters ?? [],
     groupBy: [{ type: "string", column: "scoreName" }],
     orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-    limit: null,
   });
 
   const [zeroValueScores, oneValueScores] = [0, 1].map((i) =>
     api.dashboard.chart.useQuery({
       projectId,
       from: "traces_scores",
-      select: [
-        { column: "scoreName", agg: null },
-        { column: "scoreId", agg: "COUNT" },
-      ],
+      select: [{ column: "scoreName" }, { column: "scoreId", agg: "COUNT" }],
       filter:
         [
           ...localFilters,
@@ -58,7 +54,6 @@ export const ScoresTable = ({
         ] ?? [],
       groupBy: [{ type: "string", column: "scoreName" }],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-      limit: null,
     }),
   );
 

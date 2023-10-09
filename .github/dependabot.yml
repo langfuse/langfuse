@@ -15,13 +15,6 @@ updates:
       prefix-development: chore
       include: scope
     groups:
-      patches:
-        update-types:
-          - "patch"
-      next:
-        patterns:
-          - "eslint-config-next"
-          - "next"
       trpc:
         patterns:
           - ^@trpc/.*
@@ -29,3 +22,10 @@ updates:
         patterns:
           - ^prisma
           - ^@prisma/.*
+      next:
+        patterns:
+          - "eslint-config-next"
+          - "next"
+      patches:
+        update-types:
+          - "patch"

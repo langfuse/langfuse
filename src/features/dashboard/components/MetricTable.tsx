@@ -27,14 +27,13 @@ export const MetricTable = ({
     projectId,
     from: "traces_observations",
     select: [
-      { column: "totalTokenCost", agg: null },
+      { column: "totalTokenCost" },
       { column: "totalTokens", agg: "SUM" },
-      { column: "model", agg: null },
+      { column: "model" },
     ],
     filter: localFilters ?? [],
     groupBy: [{ type: "string", column: "model" }],
-    orderBy: [{ column: "totalTokenCost", direction: "DESC", agg: null }],
-    limit: null,
+    orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
   });
 
   const totalTokens = metrics.data?.reduce(
