@@ -44,11 +44,11 @@ export const TracesBarListChart = ({
       })
     : [];
 
-  const maxNumberOfEntries = 5;
+  const maxNumberOfEntries = { collapsed: 5, expanded: 20 };
 
   const adjustedData = isExpanded
-    ? transformedTraces
-    : transformedTraces.slice(0, maxNumberOfEntries);
+    ? transformedTraces.slice(0, maxNumberOfEntries.expanded)
+    : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
 
   return (
     <>
@@ -70,7 +70,12 @@ export const TracesBarListChart = ({
           isExpanded={isExpanded}
           setExpanded={setIsExpanded}
           totalLength={transformedTraces.length}
-          maxLength={maxNumberOfEntries}
+          maxLength={maxNumberOfEntries.collapsed}
+          expandText={
+            transformedTraces.length > maxNumberOfEntries.expanded
+              ? `Show top ${maxNumberOfEntries.expanded}`
+              : "Show all"
+          }
         />
       </BarChartCard>
     </>
