@@ -58,6 +58,7 @@ export const TracesTimeSeriesChart = ({
     return acc + (item.countTraceId as number);
   }, 0);
 
+  console.log("traces", transformedTraces, traces.data);
   return (
     <DashboardCard
       className={className}

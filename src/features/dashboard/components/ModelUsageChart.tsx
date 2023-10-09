@@ -72,6 +72,7 @@ export const ModelUsageChart = ({
           allModels,
         )
       : [];
+  console.log("transformedModelCost", transformedModelCost, tokens.data);
 
   const totalCost = tokens.data?.reduce(
     (acc, curr) => acc + (curr.totalTokenCost as number),
