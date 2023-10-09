@@ -6,18 +6,23 @@ import { type NextRequest } from "next/server";
 import { get } from "@vercel/edge-config";
 
 export async function middleware(req: NextRequest) {
-  if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
-    const config = await get("blockedIps");
-    const blockedIps = Array.isArray(config) ? config : [config];
+  try {
+    if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
+      const config = await get("blockedIps");
+      const blockedIps = Array.isArray(config) ? config : [config];
 
-    const ip = getIP(req);
-    if (ip && blockedIps.includes(ip)) {
-      console.log("Blocked request by ip: ", ip);
-      return new Response("Access denied", { status: 403 });
+      const ip = getIP(req);
+      if (ip && blockedIps.includes(ip)) {
+        console.log("Blocked request by ip: ", ip);
+        return new Response("Access denied", { status: 403 });
+      }
     }
-  }
 
-  return;
+    return;
+  } catch (e) {
+    console.error("Error in middleware: ", e);
+    return new Response("Internal server error", { status: 500 });
+  }
 }
 
 export default function getIP(request: Request | NextApiRequest) {
