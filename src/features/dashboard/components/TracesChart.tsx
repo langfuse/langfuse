@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@/src/features/filters/types";
 import BarChartCard from "@/src/features/dashboard/components/cards/BarChartCard";
-import { ChevronButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 
 export const TracesBarListChart = ({
@@ -73,7 +73,7 @@ export const TracesBarListChart = ({
           metric: "Count",
         }}
       >
-        <ChevronButton
+        <ExpandListButton
           isExpanded={isExpanded}
           setExpanded={setIsExpanded}
           totalLength={transformedTraces.length}

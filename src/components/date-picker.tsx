@@ -58,7 +58,7 @@ export function DatePicker({
 }
 
 export type DateTimeAggregationOption = {
-  className: React.ReactNode;
+  className?: React.ReactNode;
   dateRange?: DateRange;
   setDateRange: (date?: DateRange) => void;
 };

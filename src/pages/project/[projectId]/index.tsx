@@ -45,12 +45,8 @@ export default function Start() {
   return (
     <div className="md:container">
       <Header title="Dashboard" />
-      <DatePickerWithRange
-        className="mb-4"
-        dateRange={dateRange}
-        setDateRange={setDateRange}
-      />
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-6">
+      <DatePickerWithRange dateRange={dateRange} setDateRange={setDateRange} />
+      <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
           className="col-span-1 xl:col-span-2 "
           projectId={projectId}
