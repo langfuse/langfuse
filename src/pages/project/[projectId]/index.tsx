@@ -68,7 +68,7 @@ export default function Start() {
           ))}
         </TabsList>
       </Tabs>
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-6">
+      <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
           className="col-span-1 xl:col-span-2 "
           projectId={projectId}
