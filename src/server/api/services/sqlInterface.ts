@@ -12,7 +12,7 @@ export const temporalUnit = z.enum([
 
 export const aggregations = z
   .enum(["SUM", "AVG", "COUNT", "MAX", "MIN"])
-  .nullable();
+  .optional();
 
 export const sqlInterface = z.object({
   from: z.enum([
@@ -22,7 +22,7 @@ export const sqlInterface = z.object({
     "traces_scores",
     "traces_parent_observation_scores",
   ]),
-  filter: z.array(singleFilter).optional().default([]),
+  filter: z.array(singleFilter).optional(),
   groupBy: z
     .array(
       z.discriminatedUnion("type", [
@@ -35,8 +35,7 @@ export const sqlInterface = z.object({
         z.object({ type: z.literal("string"), column: z.string() }),
       ]),
     )
-    .optional()
-    .default([]),
+    .optional(),
   select: z.array(
     z.object({
       column: z.string(),
@@ -51,7 +50,6 @@ export const sqlInterface = z.object({
         agg: aggregations,
       }),
     )
-    .optional()
-    .default([]),
+    .optional(),
   limit: z.number().optional(),
 });
