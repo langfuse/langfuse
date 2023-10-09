@@ -5,7 +5,7 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { ChevronButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 
 export const MetricTable = ({
@@ -85,7 +85,7 @@ export const MetricTable = ({
           description="Total cost"
         />
       </DashboardTable>
-      <ChevronButton
+      <ExpandListButton
         isExpanded={isExpanded}
         setExpanded={setIsExpanded}
         totalLength={metricsData.length}

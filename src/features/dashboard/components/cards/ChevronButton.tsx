@@ -1,16 +1,18 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
-export const ChevronButton = ({
+export const ExpandListButton = ({
   isExpanded,
   setExpanded,
   totalLength,
   maxLength,
+  expandText = "See more",
 }: {
   isExpanded: boolean;
   setExpanded: (isExpanded: boolean) => void;
   totalLength: number;
   maxLength: number;
+  expandText?: string;
 }) => {
   if (totalLength <= maxLength) {
     return null;
@@ -28,7 +30,7 @@ export const ChevronButton = ({
         </>
       ) : (
         <>
-          <ChevronDown className="mr-2 h-4 w-4" /> See more
+          <ChevronDown className="mr-2 h-4 w-4" /> {expandText}
         </>
       )}
     </Button>
