@@ -171,7 +171,7 @@ model Observation {
     totalTokens         Int               @default(0) @map("total_tokens")
     completionStartTime DateTime?         @map("completion_start_time")
     scores              Score[]
-    project             Project           @relation(fields: [projectId], references: [id])
+    project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
 
@@ -280,7 +280,7 @@ model DatasetRuns {
     id              String            @id @default(cuid())
     name            String
     datasetId       String            @map("dataset_id")
-    dataset         Dataset           @relation(fields: [datasetId], references: [id])
+    dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
     createdAt       DateTime          @default(now()) @map("created_at")
     updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItems DatasetRunItems[]
@@ -292,11 +292,11 @@ model DatasetRuns {
 model DatasetRunItems {
     id            String      @id @default(cuid())
     datasetRunId  String      @map("dataset_run_id")
-    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id])
+    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
     datasetItemId String      @map("dataset_item_id")
-    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id])
+    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
     observationId String      @map("observation_id")
-    observation   Observation @relation(fields: [observationId], references: [id])
+    observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
     createdAt     DateTime    @default(now()) @map("created_at")
     updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
 
