@@ -1,5 +1,6 @@
+import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { NoData } from "../NoData";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];
@@ -7,13 +8,19 @@ type DashboardTableProps = {
   headers: TableHeaders;
   rows: TableRows;
   children?: ReactNode;
+  collapse?: {
+    collapsed: number;
+    expanded: number;
+  };
 };
 
 export const DashboardTable = ({
   headers,
   rows,
   children,
+  collapse,
 }: DashboardTableProps) => {
+  const [isExpanded, setExpanded] = useState(false);
   return (
     <>
       {children}
@@ -37,22 +44,44 @@ export const DashboardTable = ({
                 </thead>
 
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {rows.map((row) => (
-                    <tr key={"1"}>
-                      {row.map((cell, i) => (
-                        <td
-                          key={i}
-                          className="whitespace-nowrap py-2 pl-3 pr-2 text-xs text-gray-500 sm:pl-0"
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {rows
+                    .slice(
+                      0,
+                      collapse
+                        ? isExpanded
+                          ? collapse.expanded
+                          : collapse.collapsed
+                        : undefined,
+                    )
+                    .map((row) => (
+                      <tr key={"1"}>
+                        {row.map((cell, i) => (
+                          <td
+                            key={i}
+                            className="whitespace-nowrap py-2 pl-3 pr-2 text-xs text-gray-500 sm:pl-0"
+                          >
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
           </div>
+          {collapse ? (
+            <ExpandListButton
+              isExpanded={isExpanded}
+              setExpanded={setExpanded}
+              totalLength={rows.length}
+              maxLength={collapse.collapsed}
+              expandText={
+                rows.length > collapse.expanded
+                  ? `Show top ${collapse.expanded}`
+                  : "Show all"
+              }
+            />
+          ) : null}
         </div>
       ) : (
         <NoData noDataText="No data" />
