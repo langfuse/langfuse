@@ -20,7 +20,7 @@ export async function middleware(req: NextRequest) {
 
     return;
   } catch (e) {
-    console.error("Error in middleware: ", e);
+    console.error("Server side error in middleware: ", e);
     return new Response("Internal server error", { status: 500 });
   }
 }
