@@ -125,16 +125,16 @@ export const ScoresTable = ({
         rows={
           adjustedData.map((item, i) => [
             item.scoreName,
-            <RightAlignedCell>
+            <RightAlignedCell key={i}>
               {numberFormatter(item.countScoreId as number)}
             </RightAlignedCell>,
-            <RightAlignedCell>
+            <RightAlignedCell key={i}>
               {numberFormatter(item.avgValue)}
             </RightAlignedCell>,
-            <RightAlignedCell>
+            <RightAlignedCell key={i}>
               {numberFormatter(item.zeroValueScore as number)}
             </RightAlignedCell>,
-            <RightAlignedCell>
+            <RightAlignedCell key={i}>
               {numberFormatter(item.oneValueScore)}
             </RightAlignedCell>,
           ]) ?? []
