@@ -19,6 +19,7 @@ services:
       - NEXTAUTH_SECRET=mysecret
       - NEXTAUTH_URL=http:localhost:3000
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
+      - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=false
 
   db:
     image: postgres
