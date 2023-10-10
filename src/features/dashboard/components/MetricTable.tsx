@@ -5,8 +5,6 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
-import { useState } from "react";
 
 export const MetricTable = ({
   className,
@@ -17,7 +15,6 @@ export const MetricTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const localFilters = globalFilterState.map((f) => ({
     ...f,
     column: "timestamp",
@@ -60,11 +57,6 @@ export const MetricTable = ({
         ])
     : [];
 
-  const maxNumberOfEntries = 5;
-  const expandedMetricsData = isExpanded
-    ? metricsData
-    : metricsData.slice(0, maxNumberOfEntries);
-
   return (
     <DashboardCard
       className={className}
@@ -77,19 +69,14 @@ export const MetricTable = ({
           <RightAlignedCell key={0}>Total tokens</RightAlignedCell>,
           <RightAlignedCell key={0}>Total cost</RightAlignedCell>,
         ]}
-        rows={expandedMetricsData}
+        rows={metricsData}
+        collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
           metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
           description="Total cost"
         />
       </DashboardTable>
-      <ExpandListButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={metricsData.length}
-        maxLength={maxNumberOfEntries}
-      />
     </DashboardCard>
   );
 };

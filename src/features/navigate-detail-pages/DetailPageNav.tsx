@@ -9,6 +9,7 @@ import {
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
+import { usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
 export const DetailPageNav = (props: {
@@ -18,6 +19,8 @@ export const DetailPageNav = (props: {
 }) => {
   const { detailPagelists } = useDetailPageLists();
   const ids = detailPagelists[props.listKey] ?? [];
+
+  const posthog = usePostHog();
 
   const router = useRouter();
   const currentIndex = ids.findIndex((id) => id === props.currentId);
@@ -49,8 +52,12 @@ export const DetailPageNav = (props: {
                 size="icon"
                 disabled={!previousPageId}
                 onClick={() => {
-                  if (previousPageId)
+                  if (previousPageId) {
+                    posthog.capture(
+                      "navigate_detail_pages:button_click_prev_or_next",
+                    );
                     void router.push(props.path(previousPageId));
+                  }
                 }}
                 className="mr-2"
               >
@@ -73,7 +80,12 @@ export const DetailPageNav = (props: {
                 size="icon"
                 disabled={!nextPageId}
                 onClick={() => {
-                  if (nextPageId) void router.push(props.path(nextPageId));
+                  if (nextPageId) {
+                    posthog.capture(
+                      "navigate_detail_pages:button_click_prev_or_next",
+                    );
+                    void router.push(props.path(nextPageId));
+                  }
                 }}
               >
                 <ChevronDown className="h-4 w-4" />

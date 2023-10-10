@@ -40,6 +40,7 @@ export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const session = useSession();
+  const runtimeEnv = api.runtimeEnv.all.useQuery();
 
   const projectId = router.query.projectId as string | undefined;
   const navigation = ROUTES.filter(
@@ -48,7 +49,7 @@ export default function Layout(props: PropsWithChildren) {
     .filter(
       ({ featureFlag }) =>
         featureFlag === undefined ||
-        env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_FEATURES === "true" ||
+        runtimeEnv.data?.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true" ||
         session.data?.user?.featureFlags[featureFlag],
     )
     .map(({ pathname, ...rest }) => ({

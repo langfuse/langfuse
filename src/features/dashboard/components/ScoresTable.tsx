@@ -3,11 +3,9 @@ import { type FilterState } from "@/src/features/filters/types";
 import { TotalMetric } from "./TotalMetric";
 import { numberFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { ExpandListButton } from "./cards/ChevronButton";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { RightAlignedCell } from "./RightAlignedCell";
-import { useState } from "react";
 
 export const ScoresTable = ({
   className,
@@ -18,7 +16,6 @@ export const ScoresTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const localFilters = globalFilterState.map((f) => ({
     ...f,
     column: "timestamp",
@@ -93,13 +90,9 @@ export const ScoresTable = ({
     });
   };
 
-  const maxNumberOfEntries = 5;
-  const joinedData = joinRequestData();
-  const adjustedData = isExpanded
-    ? joinedData
-    : joinedData.slice(0, maxNumberOfEntries);
+  const data = joinRequestData();
 
-  const totalScores = joinedData.reduce(
+  const totalScores = data.reduce(
     (acc, curr) => acc + (curr.countScoreId as number),
     0,
   );
@@ -123,7 +116,7 @@ export const ScoresTable = ({
           <RightAlignedCell key={0}>1</RightAlignedCell>,
         ]}
         rows={
-          adjustedData.map((item, i) => [
+          data.map((item, i) => [
             item.scoreName,
             <RightAlignedCell key={i}>
               {numberFormatter(item.countScoreId as number)}
@@ -139,18 +132,13 @@ export const ScoresTable = ({
             </RightAlignedCell>,
           ]) ?? []
         }
+        collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
           metric={totalScores ? numberFormatter(totalScores) : "0"}
           description="Total scores tracked"
         />
       </DashboardTable>
-      <ExpandListButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={joinedData.length}
-        maxLength={maxNumberOfEntries}
-      />
     </DashboardCard>
   );
 };

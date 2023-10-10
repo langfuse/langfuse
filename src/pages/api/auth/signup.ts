@@ -23,34 +23,14 @@ export default async function handler(
 
   const body = validBody.data;
 
-  // Track referral source
-  if (
-    env.LANGFUSE_TEAM_SLACK_WEBHOOK &&
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-    body.referralSource &&
-    body.referralSource !== ""
-  ) {
-    await fetch(env.LANGFUSE_TEAM_SLACK_WEBHOOK, {
-      method: "POST",
-      body: JSON.stringify({
-        rawBody: JSON.stringify(
-          {
-            email: body.email,
-            referralSource: body.referralSource,
-          },
-          null,
-          2,
-        ),
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-  }
-
   // create the user
+  let userId: string;
   try {
-    await createUserEmailPassword(body.email, body.password, body.name);
+    userId = await createUserEmailPassword(
+      body.email,
+      body.password,
+      body.name,
+    );
   } catch (error) {
     if (error instanceof Error) {
       console.log(
@@ -62,6 +42,26 @@ export default async function handler(
       res.status(422).json({ message: error.message });
     }
     return;
+  }
+
+  // Trigger new user signup event
+  if (
+    env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  ) {
+    await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
+      method: "POST",
+      body: JSON.stringify({
+        name: body.name,
+        email: body.email,
+        referralSource: body.referralSource,
+        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        userId: userId,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
   }
 
   res.status(200).json({ message: "User created" });
