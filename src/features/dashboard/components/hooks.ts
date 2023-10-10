@@ -33,7 +33,7 @@ type ChartData = {
   value?: number;
 };
 
-// we get data for time series in the follwing format:
+// we get data for time series in the following format:
 // ts: 123, label1: 1, label2: 2
 // ts: 456, label1: 5, label2: 9
 // This needs to be mapped to the following format:
