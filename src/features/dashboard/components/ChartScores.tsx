@@ -1,5 +1,8 @@
 import { api } from "@/src/utils/api";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import {
+  dateTimeAggregationSettings,
+  type DateTimeAggregationOption,
+} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 
@@ -16,7 +19,7 @@ export function ChartScores(props: {
   return (
     <DashboardCard
       className={props.className}
-      title="Scores"
+      title={`Scores per ${dateTimeAggregationSettings[props.agg].date_trunc}`}
       description="Average"
       isLoading={data.isLoading}
     >

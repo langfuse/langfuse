@@ -55,7 +55,7 @@ export const LatencyChart = ({
   return (
     <DashboardCard
       className={className}
-      title="Model latencies"
+      title={`Model latencies per ${dateTimeAggregationSettings[agg].date_trunc}`}
       description="Average latency (ms) per LLM generation"
       isLoading={data.isLoading}
     >

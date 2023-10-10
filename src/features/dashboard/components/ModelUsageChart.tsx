@@ -81,17 +81,17 @@ export const ModelUsageChart = ({
 
   const data = [
     {
-      tabTitle: "Total cost",
+      tabTitle: `Total cost per ${dateTimeAggregationSettings[agg].date_trunc}`,
       data: transformedModelCost,
       totalMetric: totalCost ? usdFormatter(totalCost) : "-",
-      metricDescription: `Token cost per ${dateTimeAggregationSettings[agg].date_trunc}`,
+      metricDescription: `Token cost`,
       formatter: usdFormatter,
     },
     {
-      tabTitle: "Total tokens",
+      tabTitle: `Total tokens per ${dateTimeAggregationSettings[agg].date_trunc}`,
       data: transformedTotalTokens,
       totalMetric: totalTokens ? numberFormatter(totalTokens) : "-",
-      metricDescription: `Token count per ${dateTimeAggregationSettings[agg].date_trunc}`,
+      metricDescription: `Token count`,
     },
   ];
 
