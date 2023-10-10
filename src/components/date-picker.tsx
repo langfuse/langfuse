@@ -20,6 +20,10 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { useState } from "react";
+import {
+  type DateTimeAggregationOption,
+  findClosestInterval,
+} from "@/src/features/dashboard/lib/timeseries-aggregation";
 
 export function DatePicker({
   date,
@@ -57,17 +61,19 @@ export function DatePicker({
   );
 }
 
-export type DateTimeAggregationOption = {
+export type DatePickerWithRangeProps = {
   dateRange?: DateRange;
   setDateRange: (date?: DateRange) => void;
   className?: string;
+  setAgg: (agg: DateTimeAggregationOption) => void;
 };
 
 export function DatePickerWithRange({
   className,
   dateRange,
   setDateRange,
-}: DateTimeAggregationOption) {
+  setAgg,
+}: DatePickerWithRangeProps) {
   const availableSelections = [
     { key: "0", interval: null, label: "Select date" },
     { key: "1", interval: 30, label: "Last 30 minutes" },
@@ -80,6 +86,12 @@ export function DatePickerWithRange({
   ];
 
   const [selectedOption, setSelectedOption] = useState(availableSelections[0]);
+
+  const closestInterval = dateRange
+    ? findClosestInterval(dateRange)
+    : undefined;
+
+  closestInterval ? setAgg(closestInterval) : null;
 
   const onDropDownSelection = (value: string) => {
     const interval = availableSelections.find((s) => s.key === value)?.interval;
@@ -98,8 +110,6 @@ export function DatePickerWithRange({
     setDateRange(range);
     setSelectedOption(availableSelections[0]);
   };
-
-  console.log("dateRange", dateRange);
 
   return (
     <div

@@ -48,6 +48,7 @@ export default function Start() {
       <DatePickerWithRange
         dateRange={dateRange}
         setDateRange={setDateRange}
+        setAgg={setAgg}
         className=" max-w-full overflow-x-auto"
       />
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">

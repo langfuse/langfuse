@@ -49,7 +49,6 @@ export function extractTimeSeriesData(
   timeColumn: string,
   mapping: FieldMappingItem[],
 ): Map<number, ChartData[]> {
-  console.log("reduceDataNew", data, timeColumn, mapping);
   return data.reduce((acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
     const date = new Date(curr[timeColumn] as Date).getTime();
 
