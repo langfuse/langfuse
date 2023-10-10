@@ -74,7 +74,7 @@ export const UserChart = ({
         .filter((item) => item.user !== undefined)
         .map((item) => {
           return {
-            name: item.user as string,
+            name: (item.user as string) ?? "Unknown",
             value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
           };
         })
