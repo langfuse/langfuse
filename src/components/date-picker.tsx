@@ -23,6 +23,8 @@ import { useState } from "react";
 import {
   type DateTimeAggregationOption,
   findClosestInterval,
+  dateTimeAggregationSettings,
+  dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 
 export function DatePicker({
@@ -74,18 +76,16 @@ export function DatePickerWithRange({
   setDateRange,
   setAgg,
 }: DatePickerWithRangeProps) {
-  const availableSelections = [
-    { key: "0", interval: null, label: "Select date" },
-    { key: "1", interval: 30, label: "Last 30 minutes" },
-    { key: "2", interval: 60, label: "Last 60 minutes" },
-    { key: "3", interval: 24 * 60, label: "Last 24 hours" },
-    { key: "4", interval: 7 * 24 * 60, label: "7 Days" },
-    { key: "5", interval: 30 * 24 * 60, label: "Last Month" },
-    { key: "6", interval: 3 * 30 * 24 * 60, label: "Last 3 Months" },
-    { key: "7", interval: 365 * 24 * 60 * 60, label: "Last Year" },
-  ];
+  const [selectedOption, setSelectedOption] = useState<
+    DateTimeAggregationOption | "Select date"
+  >("Select date");
 
-  const [selectedOption, setSelectedOption] = useState(availableSelections[0]);
+  function isValidOption(value: unknown): value is DateTimeAggregationOption {
+    return (
+      typeof value === "string" &&
+      dateTimeAggregationOptions.includes(value as DateTimeAggregationOption)
+    );
+  }
 
   const closestInterval = dateRange
     ? findClosestInterval(dateRange)
@@ -94,21 +94,20 @@ export function DatePickerWithRange({
   closestInterval ? setAgg(closestInterval) : null;
 
   const onDropDownSelection = (value: string) => {
-    const interval = availableSelections.find((s) => s.key === value)?.interval;
-    if (interval) {
-      const fromDate = addMinutes(new Date(), -1 * interval);
+    if (isValidOption(value)) {
+      const setting = dateTimeAggregationSettings[value];
+      const fromDate = addMinutes(new Date(), -1 * setting.minutes);
 
       setDateRange({ from: fromDate, to: new Date() });
+      setSelectedOption(value);
     }
 
-    setSelectedOption(
-      availableSelections.find((item) => item.interval === parseInt(value)),
-    );
+    setSelectedOption("Select date");
   };
 
   const onCalendarSelection = (range?: DateRange) => {
     setDateRange(range);
-    setSelectedOption(availableSelections[0]);
+    setSelectedOption("Select date");
   };
 
   return (
@@ -151,16 +150,19 @@ export function DatePickerWithRange({
           />
         </PopoverContent>
       </Popover>
-      <Select value={selectedOption?.key} onValueChange={onDropDownSelection}>
+      <Select value={selectedOption} onValueChange={onDropDownSelection}>
         <SelectTrigger className="w-40 hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
-          {availableSelections.map((item) => (
-            <SelectItem key={item.key} value={`${item.key}`}>
-              {item.label}
+          {dateTimeAggregationOptions.map((item) => (
+            <SelectItem key={item} value={`${item}`}>
+              {item}
             </SelectItem>
           ))}
+          <SelectItem key={"Select date"} value={"Select date"}>
+            {"Select date"}
+          </SelectItem>
         </SelectContent>
       </Select>
     </div>
