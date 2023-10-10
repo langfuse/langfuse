@@ -39,7 +39,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                   index === selectedIndex
                     ? "border-indigo-500 text-indigo-600"
                     : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700",
-                  "whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium",
+                  "cursor-pointer whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}
                 onClick={() => setSelectedIndex(index)}
