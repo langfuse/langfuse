@@ -26,9 +26,7 @@ export const env = createEnv({
     ),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
-    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z
-      .enum(["true", "false"])
-      .optional(),
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
   },
 
   /**
