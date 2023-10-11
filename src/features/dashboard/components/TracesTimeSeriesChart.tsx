@@ -66,7 +66,7 @@ export const TracesTimeSeriesChart = ({
       cardContentClassName="flex flex-col content-end "
     >
       <TotalMetric
-        description={`Traces tracked per ${dateTimeAggregationSettings[agg].date_trunc}`}
+        description={`Traces tracked`}
         metric={total ? numberFormatter(total) : "-"}
       />
       <BaseTimeSeriesChart
