@@ -27,6 +27,7 @@ import {
   dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useMediaQuery } from "react-responsive";
+import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 
 export function DatePicker({
   date,
@@ -65,8 +66,8 @@ export function DatePicker({
 }
 
 export type DatePickerWithRangeProps = {
-  dateRange?: DateRange;
-  setDateRange: (date?: DateRange) => void;
+  dateRange?: DashboardDateRange;
+  setDateRange: (date?: DashboardDateRange) => void;
   className?: string;
   setAgg: (agg: DateTimeAggregationOption) => void;
 };
@@ -77,6 +78,9 @@ export function DatePickerWithRange({
   setDateRange,
   setAgg,
 }: DatePickerWithRangeProps) {
+  const [internalDateRange, setInternalDateRange] = useState<
+    DateRange | undefined
+  >(dateRange);
   const [selectedOption, setSelectedOption] = useState<
     DateTimeAggregationOption | "Select date"
   >("Select date");
@@ -87,6 +91,7 @@ export function DatePickerWithRange({
       dateTimeAggregationOptions.includes(value as DateTimeAggregationOption)
     );
   }
+  console.log(JSON.stringify(internalDateRange));
 
   const closestInterval = dateRange
     ? findClosestInterval(dateRange)
@@ -100,6 +105,7 @@ export function DatePickerWithRange({
       const fromDate = addMinutes(new Date(), -1 * setting.minutes);
 
       setDateRange({ from: fromDate, to: new Date() });
+      setInternalDateRange({ from: fromDate, to: new Date() });
       setSelectedOption(value);
     } else {
       setSelectedOption("Select date");
@@ -107,8 +113,11 @@ export function DatePickerWithRange({
   };
 
   const onCalendarSelection = (range?: DateRange) => {
-    setDateRange(range);
-    setSelectedOption("Select date");
+    setInternalDateRange(range);
+    if (range && range.from && range.to) {
+      setDateRange({ from: range.from, to: range.to });
+      setSelectedOption("Select date");
+    }
   };
 
   const isSmallScreen = useMediaQuery({ query: "(max-width: 640px)" });
@@ -124,18 +133,18 @@ export function DatePickerWithRange({
             variant={"outline"}
             className={cn(
               "w-[350px] justify-start text-left font-normal",
-              !dateRange && "text-muted-foreground",
+              !internalDateRange && "text-muted-foreground",
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {dateRange?.from ? (
-              dateRange.to ? (
+            {internalDateRange?.from ? (
+              internalDateRange.to ? (
                 <>
-                  {format(dateRange.from, "LLL dd, y : hh:mm")} -{" "}
-                  {format(dateRange.to, "LLL dd, y : hh:mm")}
+                  {format(internalDateRange.from, "LLL dd, y : hh:mm")} -{" "}
+                  {format(internalDateRange.to, "LLL dd, y : hh:mm")}
                 </>
               ) : (
-                format(dateRange.from, "LLL dd, y")
+                format(internalDateRange.from, "LLL dd, y")
               )
             ) : (
               <span>Pick a date</span>
@@ -146,8 +155,8 @@ export function DatePickerWithRange({
           <Calendar
             initialFocus={true}
             mode="range"
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
+            defaultMonth={internalDateRange?.from}
+            selected={internalDateRange}
             onSelect={onCalendarSelection}
             numberOfMonths={isSmallScreen ? 1 : 2} // TODO: make this configurable to screen size
           />
