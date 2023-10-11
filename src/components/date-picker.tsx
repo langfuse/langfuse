@@ -101,9 +101,9 @@ export function DatePickerWithRange({
 
       setDateRange({ from: fromDate, to: new Date() });
       setSelectedOption(value);
+    } else {
+      setSelectedOption("Select date");
     }
-
-    setSelectedOption("Select date");
   };
 
   const onCalendarSelection = (range?: DateRange) => {
@@ -158,14 +158,14 @@ export function DatePickerWithRange({
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
-          {dateTimeAggregationOptions.map((item) => (
+          <SelectItem key={"Select date"} value={"Select date"}>
+            {"Select date"}
+          </SelectItem>
+          {dateTimeAggregationOptions.toReversed().map((item) => (
             <SelectItem key={item} value={`${item}`}>
               {item}
             </SelectItem>
           ))}
-          <SelectItem key={"Select date"} value={"Select date"}>
-            {"Select date"}
-          </SelectItem>
         </SelectContent>
       </Select>
     </div>
