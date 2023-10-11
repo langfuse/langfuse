@@ -14,15 +14,19 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { env } from "@/src/env.mjs";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import { type DateRange } from "react-day-picker";
 import { addDays } from "date-fns";
+
+export type DashboardDateRange = {
+  from: Date;
+  to: Date;
+};
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
   });
