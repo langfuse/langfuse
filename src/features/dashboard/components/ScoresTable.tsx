@@ -110,10 +110,10 @@ export const ScoresTable = ({
       <DashboardTable
         headers={[
           "Name",
-          <RightAlignedCell key={1}>Count</RightAlignedCell>,
-          <RightAlignedCell key={1}>Average</RightAlignedCell>,
-          <RightAlignedCell key={1}>0</RightAlignedCell>,
-          <RightAlignedCell key={1}>1</RightAlignedCell>,
+          <RightAlignedCell key={0}>Count</RightAlignedCell>,
+          <RightAlignedCell key={0}>Average</RightAlignedCell>,
+          <RightAlignedCell key={0}>0</RightAlignedCell>,
+          <RightAlignedCell key={0}>1</RightAlignedCell>,
         ]}
         rows={
           data.map((item, i) => [
