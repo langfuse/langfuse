@@ -8,8 +8,8 @@ import { type FilterState } from "@/src/features/filters/types";
 
 import {
   getAllModels,
-  reduceData,
-  transformMapAndFillZeroValues,
+  extractTimeSeriesData,
+  fillMissingValuesAndTransform,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -55,16 +55,20 @@ export const ModelUsageChart = ({
 
   const transformedTotalTokens =
     tokens.data && allModels
-      ? transformMapAndFillZeroValues(
-          reduceData(tokens.data, "sumTotalTokens"),
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(tokens.data, "startTime", [
+            { labelColumn: "model", valueColumn: "sumTotalTokens" },
+          ]),
           allModels,
         )
       : [];
 
   const transformedModelCost =
     tokens.data && allModels
-      ? transformMapAndFillZeroValues(
-          reduceData(tokens.data, "totalTokenCost"),
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(tokens.data, "startTime", [
+            { labelColumn: "model", valueColumn: "totalTokenCost" },
+          ]),
           allModels,
         )
       : [];
@@ -84,14 +88,14 @@ export const ModelUsageChart = ({
       tabTitle: "Total cost",
       data: transformedModelCost,
       totalMetric: totalCost ? usdFormatter(totalCost) : "-",
-      metricDescription: `Token cost per ${dateTimeAggregationSettings[agg].date_trunc}`,
+      metricDescription: `Token cost`,
       formatter: usdFormatter,
     },
     {
       tabTitle: "Total tokens",
       data: transformedTotalTokens,
       totalMetric: totalTokens ? numberFormatter(totalTokens) : "-",
-      metricDescription: `Token count per ${dateTimeAggregationSettings[agg].date_trunc}`,
+      metricDescription: `Token count`,
     },
   ];
 

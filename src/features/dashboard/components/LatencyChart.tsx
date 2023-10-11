@@ -6,8 +6,8 @@ import {
 import { type FilterState } from "@/src/features/filters/types";
 import {
   getAllModels,
-  reduceData,
-  transformMapAndFillZeroValues,
+  extractTimeSeriesData,
+  fillMissingValuesAndTransform,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
@@ -46,8 +46,10 @@ export const LatencyChart = ({
 
   const transformedData =
     data.data && allModels
-      ? transformMapAndFillZeroValues(
-          reduceData(data.data, "avgDuration"),
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(data.data, "startTime", [
+            { labelColumn: "model", valueColumn: "avgDuration" },
+          ]),
           allModels,
         )
       : [];
