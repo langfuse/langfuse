@@ -1,7 +1,6 @@
 import { type Flag } from "@/src/features/feature-flags/types";
 import {
   Database,
-  FlaskConical,
   LayoutDashboard,
   LifeBuoy,
   LineChart,
@@ -22,11 +21,6 @@ export const ROUTES: Array<{
     name: "Dashboard",
     pathname: `/project/[projectId]`,
     icon: LayoutDashboard,
-  },
-  {
-    name: "Analytics (alpha)",
-    pathname: `/project/[projectId]/analytics`,
-    icon: FlaskConical,
   },
   {
     name: "Traces",

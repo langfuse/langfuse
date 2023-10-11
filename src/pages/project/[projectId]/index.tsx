@@ -14,6 +14,9 @@ import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { env } from "@/src/env.mjs";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -54,7 +57,18 @@ export default function Start() {
 
   return (
     <div className="md:container">
-      <Header title="Dashboard" />
+      <Header
+        title="Dashboard"
+        actionButtons={
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/project/${projectId}/analytics`}>
+                Analytics (alpha) ↗
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
       <Tabs
         value={agg}
         onValueChange={(value) => setAgg(value as DateTimeAggregationOption)}
