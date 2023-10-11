@@ -11,7 +11,7 @@ export const RightAlignedCell = ({
   key?: Key;
 }) => {
   return (
-    <div className={cn("mr-2 text-right", className)} key={key}>
+    <div className={cn("text-right", className)} key={key}>
       {children}
     </div>
   );
