@@ -91,7 +91,6 @@ export function DatePickerWithRange({
       dateTimeAggregationOptions.includes(value as DateTimeAggregationOption)
     );
   }
-  console.log(JSON.stringify(internalDateRange));
 
   const closestInterval = dateRange
     ? findClosestInterval(dateRange)
