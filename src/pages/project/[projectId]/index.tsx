@@ -16,16 +16,33 @@ import { env } from "@/src/env.mjs";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { type DateRange } from "react-day-picker";
 import { addDays } from "date-fns";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: addDays(new Date(), -30),
-    to: new Date(),
+  const currDate = new Date();
+  const FromParam = withDefault(NumberParam, addDays(currDate, -30).getTime());
+  const ToParam = withDefault(NumberParam, currDate.getTime());
+
+  const [urlDateRange, setUrlDateRange] = useQueryParams({
+    from: FromParam,
+    to: ToParam,
   });
+
+  const dateRange =
+    urlDateRange.from && urlDateRange.to
+      ? { from: new Date(urlDateRange.from), to: new Date(urlDateRange.to) }
+      : undefined;
+
+  const setDateRange = (dateRange: DateRange) => {
+    setUrlDateRange({
+      from: dateRange.from?.getTime(),
+      to: dateRange.to?.getTime(),
+    });
+  };
 
   const globalFilterState =
     dateRange && dateRange.from && dateRange.to

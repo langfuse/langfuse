@@ -66,7 +66,7 @@ export function DatePicker({
 
 export type DatePickerWithRangeProps = {
   dateRange?: DateRange;
-  setDateRange: (date?: DateRange) => void;
+  setDateRange: (date: DateRange) => void;
   className?: string;
   setAgg: (agg: DateTimeAggregationOption) => void;
 };
@@ -107,7 +107,7 @@ export function DatePickerWithRange({
   };
 
   const onCalendarSelection = (range?: DateRange) => {
-    setDateRange(range);
+    range ? setDateRange(range) : undefined;
     setSelectedOption("Select date");
   };
 
