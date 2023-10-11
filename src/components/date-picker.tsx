@@ -81,6 +81,11 @@ export function DatePickerWithRange({
   const [internalDateRange, setInternalDateRange] = useState<
     DateRange | undefined
   >(dateRange);
+
+  React.useEffect(() => {
+    setInternalDateRange(dateRange);
+  }, [dateRange]);
+
   const [selectedOption, setSelectedOption] = useState<
     DateTimeAggregationOption | "Select date"
   >("Select date");

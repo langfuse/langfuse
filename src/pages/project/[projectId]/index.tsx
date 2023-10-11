@@ -41,30 +41,31 @@ export default function Start() {
       ? { from: new Date(urlDateRange.from), to: new Date(urlDateRange.to) }
       : undefined;
 
-  const setDateRange = (dateRange: DashboardDateRange) => {
-    setUrlDateRange({
-      from: dateRange.from?.getTime(),
-      to: dateRange.to?.getTime(),
-    });
+  const setDateRange = (dateRange?: DashboardDateRange) => {
+    if (dateRange) {
+      setUrlDateRange({
+        from: dateRange.from?.getTime(),
+        to: dateRange.to?.getTime(),
+      });
+    }
   };
 
-  const globalFilterState =
-    dateRange && dateRange.from && dateRange.to
-      ? [
-          {
-            type: "datetime" as const,
-            column: "startTime",
-            operator: ">" as const,
-            value: dateRange.from,
-          },
-          {
-            type: "datetime" as const,
-            column: "startTime",
-            operator: "<" as const,
-            value: dateRange.to,
-          },
-        ]
-      : [];
+  const globalFilterState = dateRange
+    ? [
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: ">" as const,
+          value: dateRange.from,
+        },
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: "<" as const,
+          value: dateRange.to,
+        },
+      ]
+    : [];
 
   return (
     <div className="md:container">
