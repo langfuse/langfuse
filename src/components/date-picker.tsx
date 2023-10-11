@@ -26,7 +26,7 @@ import {
   dateTimeAggregationSettings,
   dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { getCurrentBreakpoint } from "@/src/features/dashboard/components/hooks";
+import { useMediaQuery } from "react-responsive";
 
 export function DatePicker({
   date,
@@ -111,7 +111,7 @@ export function DatePickerWithRange({
     setSelectedOption("Select date");
   };
 
-  const breakpoint = getCurrentBreakpoint();
+  const isSmallScreen = useMediaQuery({ query: "(max-width: 640px)" });
 
   return (
     <div
@@ -149,7 +149,7 @@ export function DatePickerWithRange({
             defaultMonth={dateRange?.from}
             selected={dateRange}
             onSelect={onCalendarSelection}
-            numberOfMonths={!breakpoint || breakpoint == "sm" ? 1 : 2} // TODO: make this configurable to screen size
+            numberOfMonths={isSmallScreen ? 1 : 2} // TODO: make this configurable to screen size
           />
         </PopoverContent>
       </Popover>
