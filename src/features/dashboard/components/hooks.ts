@@ -110,7 +110,6 @@ export type Breakpoint = "sm" | "md" | "lg" | "xl" | "2xl" | null;
 // TODO: adjust breakpoints to match tailwind and make responsive
 export function getCurrentBreakpoint(): Breakpoint {
   const width = window.innerWidth;
-  s;
 
   if (width >= 1536) {
     return "2xl";
