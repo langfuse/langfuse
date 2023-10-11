@@ -14,9 +14,13 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { env } from "@/src/env.mjs";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import { type DateRange } from "react-day-picker";
 import { addDays } from "date-fns";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+
+export type DashboardDateRange = {
+  from: Date;
+  to: Date;
+};
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
@@ -37,7 +41,7 @@ export default function Start() {
       ? { from: new Date(urlDateRange.from), to: new Date(urlDateRange.to) }
       : undefined;
 
-  const setDateRange = (dateRange: DateRange) => {
+  const setDateRange = (dateRange: DashboardDateRange) => {
     setUrlDateRange({
       from: dateRange.from?.getTime(),
       to: dateRange.to?.getTime(),
