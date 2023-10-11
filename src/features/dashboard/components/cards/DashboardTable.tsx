@@ -26,48 +26,46 @@ export const DashboardTable = ({
       {children}
       {rows.length > 0 ? (
         <div className="mt-4">
-          <div className="overflow-x-auto">
-            <div className="inline-block min-w-full align-middle">
-              <table className="min-w-full divide-y divide-gray-300 animate-in animate-out">
-                <thead>
-                  <tr>
-                    {headers.map((header, i) => (
-                      <th
-                        key={i}
-                        scope="col"
-                        className="whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-xs font-semibold text-gray-900 sm:pl-0"
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-gray-300 animate-in animate-out">
+              <thead>
+                <tr>
+                  {headers.map((header, i) => (
+                    <th
+                      key={i}
+                      scope="col"
+                      className="whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-xs font-semibold text-gray-900 sm:pl-0"
+                    >
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {rows
-                    .slice(
-                      0,
-                      collapse
-                        ? isExpanded
-                          ? collapse.expanded
-                          : collapse.collapsed
-                        : undefined,
-                    )
-                    .map((row) => (
-                      <tr key={"1"}>
-                        {row.map((cell, i) => (
-                          <td
-                            key={i}
-                            className="whitespace-nowrap py-2 pl-3 pr-2 text-xs text-gray-500 sm:pl-0"
-                          >
-                            {cell}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {rows
+                  .slice(
+                    0,
+                    collapse
+                      ? isExpanded
+                        ? collapse.expanded
+                        : collapse.collapsed
+                      : undefined,
+                  )
+                  .map((row) => (
+                    <tr key={"1"}>
+                      {row.map((cell, i) => (
+                        <td
+                          key={i}
+                          className="hover:background-inherit max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap py-2 pl-3 pr-2 text-xs text-gray-500 hover:inline-flex hover:min-w-[100%] hover:overflow-visible sm:pl-0 "
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
           {collapse ? (
             <ExpandListButton
