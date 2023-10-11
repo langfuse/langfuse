@@ -26,6 +26,7 @@ import {
   dateTimeAggregationSettings,
   dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { getCurrentBreakpoint } from "@/src/features/dashboard/components/hooks";
 
 export function DatePicker({
   date,
@@ -110,6 +111,8 @@ export function DatePickerWithRange({
     setSelectedOption("Select date");
   };
 
+  const breakpoint = getCurrentBreakpoint();
+
   return (
     <div
       className={cn("my-3 flex flex-col-reverse gap-2 md:flex-row", className)}
@@ -146,7 +149,7 @@ export function DatePickerWithRange({
             defaultMonth={dateRange?.from}
             selected={dateRange}
             onSelect={onCalendarSelection}
-            numberOfMonths={2}
+            numberOfMonths={!breakpoint || breakpoint == "sm" ? 1 : 2} // TODO: make this configurable to screen size
           />
         </PopoverContent>
       </Popover>
