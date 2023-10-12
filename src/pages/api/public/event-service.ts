@@ -7,7 +7,7 @@ import { type NextApiRequest } from "next";
 // It checks that the event is valid JSON to avoid DB errors
 // It persists over which URL and Method the event came in
 // It does not extract more data to avoid any early errors such as schema parsing errors
-// this table eventualy becomes very large. Old data can be archived then in blob storage
+// this table eventually becomes very large. Old data can be archived then in blob storage
 export const persistEventMiddleware = async (
   prisma: PrismaClient,
   projectId: string,
