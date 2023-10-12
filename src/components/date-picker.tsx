@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   type DateTimeAggregationOption,
   findClosestInterval,
@@ -28,6 +28,12 @@ import {
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useMediaQuery } from "react-responsive";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
+import { isValidOption } from "@/src/utils/types";
+
+export const DEFAULT_DATE_RANGE_SELECTION = "Select date range" as const;
+export type AvailableDateRangeSelections =
+  | typeof DEFAULT_DATE_RANGE_SELECTION
+  | DateTimeAggregationOption;
 
 export function DatePicker({
   date,
@@ -67,35 +73,29 @@ export function DatePicker({
 
 export type DatePickerWithRangeProps = {
   dateRange?: DashboardDateRange;
-  setDateRange: (date?: DashboardDateRange) => void;
   className?: string;
   setAgg: (agg: DateTimeAggregationOption) => void;
+  selectedOption: AvailableDateRangeSelections;
+  setDateRangeAndOption: (
+    option: AvailableDateRangeSelections,
+    date?: DashboardDateRange,
+  ) => void;
 };
 
 export function DatePickerWithRange({
   className,
   dateRange,
-  setDateRange,
+  selectedOption,
   setAgg,
+  setDateRangeAndOption,
 }: DatePickerWithRangeProps) {
   const [internalDateRange, setInternalDateRange] = useState<
     DateRange | undefined
   >(dateRange);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setInternalDateRange(dateRange);
   }, [dateRange]);
-
-  const [selectedOption, setSelectedOption] = useState<
-    DateTimeAggregationOption | "Select date"
-  >("Select date");
-
-  function isValidOption(value: unknown): value is DateTimeAggregationOption {
-    return (
-      typeof value === "string" &&
-      dateTimeAggregationOptions.includes(value as DateTimeAggregationOption)
-    );
-  }
 
   const closestInterval = dateRange
     ? findClosestInterval(dateRange)
@@ -107,20 +107,24 @@ export function DatePickerWithRange({
     if (isValidOption(value)) {
       const setting = dateTimeAggregationSettings[value];
       const fromDate = addMinutes(new Date(), -1 * setting.minutes);
-
-      setDateRange({ from: fromDate, to: new Date() });
+      console.log(value);
+      setDateRangeAndOption(value, {
+        from: fromDate,
+        to: new Date(),
+      });
       setInternalDateRange({ from: fromDate, to: new Date() });
-      setSelectedOption(value);
     } else {
-      setSelectedOption("Select date");
+      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, undefined);
     }
   };
 
   const onCalendarSelection = (range?: DateRange) => {
     setInternalDateRange(range);
     if (range && range.from && range.to) {
-      setDateRange({ from: range.from, to: range.to });
-      setSelectedOption("Select date");
+      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, {
+        from: range.from,
+        to: range.to,
+      });
     }
   };
 
@@ -171,8 +175,11 @@ export function DatePickerWithRange({
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
-          <SelectItem key={"Select date"} value={"Select date"}>
-            {"Select date"}
+          <SelectItem
+            key={DEFAULT_DATE_RANGE_SELECTION}
+            value={DEFAULT_DATE_RANGE_SELECTION}
+          >
+            {DEFAULT_DATE_RANGE_SELECTION}
           </SelectItem>
           {dateTimeAggregationOptions.toReversed().map((item) => (
             <SelectItem key={item} value={`${item}`}>

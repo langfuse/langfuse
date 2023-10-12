@@ -13,9 +13,19 @@ import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { env } from "@/src/env.mjs";
-import { DatePickerWithRange } from "@/src/components/date-picker";
+import {
+  type AvailableDateRangeSelections,
+  DEFAULT_DATE_RANGE_SELECTION,
+  DatePickerWithRange,
+} from "@/src/components/date-picker";
 import { addDays } from "date-fns";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import {
+  NumberParam,
+  StringParam,
+  useQueryParams,
+  withDefault,
+} from "use-query-params";
+import { isValidOption } from "@/src/utils/types";
 
 export type DashboardDateRange = {
   from: Date;
@@ -28,26 +38,34 @@ export default function Start() {
   const projectId = router.query.projectId as string;
 
   const currDate = new Date();
-  const FromParam = withDefault(NumberParam, addDays(currDate, -30).getTime());
+  const FromParam = withDefault(NumberParam, addDays(currDate, -7).getTime());
   const ToParam = withDefault(NumberParam, currDate.getTime());
+  const SelectParam = withDefault(StringParam, "Select a date range");
 
-  const [urlDateRange, setUrlDateRange] = useQueryParams({
+  const [urlParams, setUrlParams] = useQueryParams({
     from: FromParam,
     to: ToParam,
+    select: SelectParam,
   });
 
   const dateRange =
-    urlDateRange.from && urlDateRange.to
-      ? { from: new Date(urlDateRange.from), to: new Date(urlDateRange.to) }
+    urlParams.from && urlParams.to
+      ? { from: new Date(urlParams.from), to: new Date(urlParams.to) }
       : undefined;
 
-  const setDateRange = (dateRange?: DashboardDateRange) => {
-    if (dateRange) {
-      setUrlDateRange({
-        from: dateRange.from?.getTime(),
-        to: dateRange.to?.getTime(),
-      });
-    }
+  const selectedOption = isValidOption(urlParams.select)
+    ? urlParams.select
+    : DEFAULT_DATE_RANGE_SELECTION;
+
+  const setDateRangeAndOption = (
+    option?: AvailableDateRangeSelections,
+    dateRange?: DashboardDateRange,
+  ) => {
+    setUrlParams({
+      select: option ? option.toString() : urlParams.select,
+      from: dateRange ? dateRange.from?.getTime() : urlParams.from,
+      to: dateRange ? dateRange.to?.getTime() : urlParams.to,
+    });
   };
 
   const globalFilterState = dateRange
@@ -83,8 +101,9 @@ export default function Start() {
       />
       <DatePickerWithRange
         dateRange={dateRange}
-        setDateRange={setDateRange}
         setAgg={setAgg}
+        setDateRangeAndOption={setDateRangeAndOption}
+        selectedOption={selectedOption}
         className=" max-w-full overflow-x-auto"
       />
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
