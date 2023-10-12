@@ -107,7 +107,7 @@ export function DatePickerWithRange({
     if (isValidOption(value)) {
       const setting = dateTimeAggregationSettings[value];
       const fromDate = addMinutes(new Date(), -1 * setting.minutes);
-      console.log(value);
+
       setDateRangeAndOption(value, {
         from: fromDate,
         to: new Date(),
