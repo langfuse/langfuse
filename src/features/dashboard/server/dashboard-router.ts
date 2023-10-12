@@ -15,7 +15,6 @@ export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
     .input(sqlInterface.extend({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      console.log(`Trying to fetch chart data`);
       return await executeQuery(ctx.prisma, input.projectId, input);
     }),
 

@@ -1,6 +1,10 @@
 import { type Observation } from "@prisma/client";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
+import {
+  type DateTimeAggregationOption,
+  dateTimeAggregationOptions,
+} from "@/src/features/dashboard/lib/timeseries-aggregation";
 
 export type NestedObservation = Observation & {
   children: NestedObservation[];
@@ -35,3 +39,12 @@ export type RouterOutput = inferRouterOutputs<AppRouter>;
 export const isNotUndefinedOrNull = <T>(
   val?: T | null,
 ): val is undefined | null => val !== undefined || val !== null;
+
+export function isValidOption(
+  value: unknown,
+): value is DateTimeAggregationOption {
+  return (
+    typeof value === "string" &&
+    dateTimeAggregationOptions.includes(value as DateTimeAggregationOption)
+  );
+}
