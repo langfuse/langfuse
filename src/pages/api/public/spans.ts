@@ -11,6 +11,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
+import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
 const SpanPostSchema = z.object({
   id: z.string().nullish(),
@@ -66,6 +67,9 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
+
+      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
+
       const obj = SpanPostSchema.parse(req.body);
       const {
         id,
@@ -182,6 +186,7 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
+      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
       const newObservation = await backOff(
         async () =>
           await patchSpan(
