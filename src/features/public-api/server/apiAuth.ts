@@ -2,7 +2,6 @@ import { verifySecretKey } from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { instrumentAsync } from "@/src/utils/instrumentation";
-import { type Span } from "@sentry/nextjs/types/client";
 
 type AuthHeaderVerificationResult =
   | {
