@@ -1,6 +1,8 @@
 import { verifySecretKey } from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
+import { instrumentAsync } from "@/src/utils/instrumentation";
+import { type Span } from "@sentry/nextjs/types/client";
 
 type AuthHeaderVerificationResult =
   | {
@@ -15,59 +17,67 @@ type AuthHeaderVerificationResult =
 export async function verifyAuthHeaderAndReturnScope(
   authHeader: string | undefined,
 ): Promise<AuthHeaderVerificationResult> {
-  if (!authHeader) {
-    console.error("No authorization header");
-    return {
-      validKey: false,
-      error: "No authorization header",
-    };
-  }
+  return instrumentAsync(
+    { name: "verifyAuthHeaderAndReturnScope" },
+    async () => {
+      if (!authHeader) {
+        console.error("No authorization header");
+        return {
+          validKey: false,
+          error: "No authorization header",
+        };
+      }
 
-  try {
-    // Basic auth, full scope, needs secret key and public key
-    if (authHeader.startsWith("Basic ")) {
-      const { username: publicKey, password: secretKey } =
-        extractBasicAuthCredentials(authHeader);
+      try {
+        // Basic auth, full scope, needs secret key and public key
+        if (authHeader.startsWith("Basic ")) {
+          const { username: publicKey, password: secretKey } =
+            extractBasicAuthCredentials(authHeader);
 
-      const dbKey = await findDbKeyOrThrow(publicKey);
+          const dbKey = await findDbKeyOrThrow(publicKey);
 
-      const isValid = await verifySecretKey(secretKey, dbKey.hashedSecretKey);
-      if (!isValid) throw new Error("Invalid credentials");
+          const isValid = await verifySecretKey(
+            secretKey,
+            dbKey.hashedSecretKey,
+          );
+          if (!isValid) throw new Error("Invalid credentials");
+
+          return {
+            validKey: true,
+            scope: {
+              projectId: dbKey.projectId,
+              accessLevel: "all",
+            },
+          };
+        }
+        // Bearer auth, limited scope, only needs public key
+        if (authHeader.startsWith("Bearer ")) {
+          const publicKey = authHeader.replace("Bearer ", "");
+
+          const dbKey = await findDbKeyOrThrow(publicKey);
+
+          return {
+            validKey: true,
+            scope: {
+              projectId: dbKey.projectId,
+              accessLevel: "scores",
+            },
+          };
+        }
+      } catch (error: unknown) {
+        console.error("Error verifying auth header: ", error);
+        return {
+          validKey: false,
+          error: error instanceof Error ? error.message : "Authorization error",
+        };
+      }
 
       return {
-        validKey: true,
-        scope: {
-          projectId: dbKey.projectId,
-          accessLevel: "all",
-        },
+        validKey: false,
+        error: "Invalid authorization header",
       };
-    }
-    // Bearer auth, limited scope, only needs public key
-    if (authHeader.startsWith("Bearer ")) {
-      const publicKey = authHeader.replace("Bearer ", "");
-
-      const dbKey = await findDbKeyOrThrow(publicKey);
-
-      return {
-        validKey: true,
-        scope: {
-          projectId: dbKey.projectId,
-          accessLevel: "scores",
-        },
-      };
-    }
-  } catch (error: unknown) {
-    console.error("Error verifying auth header: ", error);
-    return {
-      validKey: false,
-      error: error instanceof Error ? error.message : "Authorization error",
-    };
-  }
-
-  return {
-    validKey: false,
-    error: "Invalid authorization header",
-  };
+    },
+  );
 }
 
 function extractBasicAuthCredentials(basicAuthHeader: string): {
