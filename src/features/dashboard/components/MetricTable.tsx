@@ -41,7 +41,7 @@ export const MetricTable = ({
 
   const metricsData = metrics.data
     ? metrics.data
-        .filter((item) => item.model !== null)
+        .filter((item) => item.model !== null && item.model !== undefined)
         .map((item, i) => [
           item.model as string,
           <RightAlignedCell key={i}>
