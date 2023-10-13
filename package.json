@@ -51,7 +51,7 @@
     "@t3-oss/env-nextjs": "^0.7.0",
     "@tailwindcss/forms": "^0.5.6",
     "@tailwindcss/line-clamp": "^0.4.4",
-    "@tanstack/react-query": "^4.35.7",
+    "@tanstack/react-query": "^4.36.1",
     "@tanstack/react-table": "^8.10.6",
     "@tremor/react": "^3.9.2",
     "@trpc/client": "^10.38.5",
