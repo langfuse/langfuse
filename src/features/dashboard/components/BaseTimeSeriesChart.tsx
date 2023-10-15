@@ -1,5 +1,5 @@
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { AreaChart } from "@tremor/react";
 
@@ -63,7 +63,7 @@ export function BaseTimeSeriesChart(props: {
       connectNulls={props.connectNulls}
       colors={["indigo", "cyan"]}
       valueFormatter={
-        props.valueFormatter ? props.valueFormatter : numberFormatter
+        props.valueFormatter ? props.valueFormatter : compactNumberFormatter
       }
       noDataText="No data"
       showLegend={props.showLegend}

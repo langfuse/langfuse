@@ -5,8 +5,6 @@ export type TabComponentProps = {
   tabs: {
     tabTitle: string;
     content: ReactNode;
-    totalMetric: string;
-    metricDescription: string;
   }[];
 };
 
