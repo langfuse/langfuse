@@ -52,6 +52,8 @@ export const LatencyChart = ({
 
   const allModels = getAllModels(projectId, globalFilterState);
 
+  console.log("latencies", latencies.data);
+
   const getData = (valueColumn: string) => {
     return latencies.data && allModels
       ? fillMissingValuesAndTransform(

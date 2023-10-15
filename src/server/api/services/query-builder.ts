@@ -67,7 +67,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   // raw mandatory everywhere here as this creates the selection
   // agg is typed via zod
   // column names come from our defs via the table definitions
-  const selectFields = query.select.map((selectedColumn) => {
+  const selectedColumns = query.select.map((selectedColumn) => {
     const safeColumn = getColumnDefinition(query.from, selectedColumn.column);
     const columnDefinition = createAggregatedColumn(
       query.from,
@@ -83,7 +83,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
 
   if (cte)
     // raw mandatory here
-    selectFields.unshift(
+    selectedColumns.unshift(
       Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.name)}"`,
     );
 
@@ -99,8 +99,8 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
         : Prisma.empty;
   }
   const selectString =
-    selectFields.length > 0
-      ? Prisma.sql` SELECT ${Prisma.join(selectFields, ", ")}`
+    selectedColumns.length > 0
+      ? Prisma.sql` SELECT ${Prisma.join(selectedColumns, ", ")}`
       : Prisma.empty;
 
   const orderByString = prepareOrderByString(
