@@ -28,59 +28,79 @@ const extractAllModels = (data: DatabaseRow[]): string[] => {
     .map((item) => item.model as string);
 };
 
-type Field = string;
-
 type ChartData = {
-  model: string;
+  label: string;
   value?: number;
 };
 
-export function reduceData(
+// we get data for time series in the following format:
+// ts: 123, label1: 1, label2: 2
+// ts: 456, label1: 5, label2: 9
+// This needs to be mapped to the following format:
+// [{ts: 123, values: [{label1: 1, label2: 2}]}, {ts: 456, values: [{label1: 5, label2: 9}]]
+
+type FieldMappingItem = {
+  labelColumn: string;
+  valueColumn: string;
+};
+
+export function extractTimeSeriesData(
   data: DatabaseRow[],
-  field: Field,
+  timeColumn: string,
+  mapping: FieldMappingItem[],
 ): Map<number, ChartData[]> {
   return data.reduce((acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
-    const date = new Date(curr.startTime as Date).getTime();
+    const date = new Date(curr[timeColumn] as Date).getTime();
 
-    const reducedData: ChartData | undefined = curr.model
-      ? {
-          model: curr.model as string,
-          value: typeof curr[field] === "number" ? (curr[field] as number) : 0,
-        }
-      : undefined;
+    const reducedData: ChartData[] = [];
+    // Map the desired fields from the DatabaseRow to the ChartData based on the mapping provided
+    mapping.forEach((mapItem) => {
+      const labelValue = curr[mapItem.labelColumn] as string;
+      const columnValue = curr[mapItem.valueColumn];
+      if (
+        labelValue &&
+        columnValue !== undefined &&
+        typeof labelValue === "string"
+      ) {
+        reducedData.push({
+          label: labelValue,
+          value: columnValue ? (columnValue as number) : 0,
+        });
+      }
+    });
 
-    if (acc.has(date)) {
-      reducedData ? acc.get(date)!.push(reducedData) : null;
+    const existingData = acc.get(date);
+    if (existingData) {
+      existingData.push(...reducedData);
     } else {
-      acc.set(date, reducedData ? [reducedData] : []);
+      acc.set(date, reducedData);
     }
 
     return acc;
   }, new Map<number, ChartData[]>());
 }
 
-export function transformMapAndFillZeroValues(
-  map: Map<number, ChartData[]>,
-  allModels: string[],
+export function fillMissingValuesAndTransform(
+  inputMap: Map<number, ChartData[]>,
+  labelsToAdd: string[] = [],
 ): TimeSeriesChartDataPoint[] {
   const result: TimeSeriesChartDataPoint[] = [];
 
-  for (const [date, items] of map) {
-    const values = items.map((item) => ({
-      label: item.model,
-      value: item.value,
-    }));
+  inputMap.forEach((chartDataArray, timestamp) => {
+    const existingLabels = chartDataArray.map((value) => value.label);
 
-    for (const model of allModels) {
-      if (!values.find((value) => value.label === model)) {
-        values.push({ label: model, value: 0 });
+    // For each label in labelsToAdd, add a default value of 0
+    labelsToAdd.forEach((label) => {
+      if (!existingLabels.includes(label)) {
+        chartDataArray.push({ label: label, value: 0 });
       }
-    }
-    result.push({
-      ts: date,
-      values: values,
     });
-  }
+
+    result.push({
+      ts: timestamp,
+      values: chartDataArray,
+    });
+  });
 
   return result;
 }

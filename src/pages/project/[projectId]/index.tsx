@@ -1,10 +1,6 @@
 import { useState } from "react";
 import Header from "@/src/components/layouts/header";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import {
-  dateTimeAggregationOptions,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
@@ -14,195 +10,147 @@ import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { env } from "@/src/env.mjs";
+import {
+  type AvailableDateRangeSelections,
+  DEFAULT_DATE_RANGE_SELECTION,
+  DatePickerWithRange,
+} from "@/src/components/date-picker";
+import { addDays } from "date-fns";
+import {
+  NumberParam,
+  StringParam,
+  useQueryParams,
+  withDefault,
+} from "use-query-params";
+import { isValidOption } from "@/src/utils/types";
+
+export type DashboardDateRange = {
+  from: Date;
+  to: Date;
+};
 
 export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const convertAggToDateTime = (agg: DateTimeAggregationOption) => {
-    const [num, unit] = agg.split(" ");
+  const currDate = new Date();
+  const FromParam = withDefault(NumberParam, addDays(currDate, -7).getTime());
+  const ToParam = withDefault(NumberParam, currDate.getTime());
+  const SelectParam = withDefault(StringParam, "Select a date range");
 
-    if (!num || !unit) throw new Error("Invalid agg");
-    const now = new Date();
-    switch (unit) {
-      case "minutes":
-      case "minute":
-        return new Date(now.getTime() - parseInt(num) * 60 * 1000);
-      case "hours":
-      case "hour":
-        return new Date(now.getTime() - parseInt(num) * 60 * 60 * 1000);
-      case "days":
-        return new Date(now.getTime() - parseInt(num) * 24 * 60 * 60 * 1000);
-      case "weeks":
-        return new Date(
-          now.getTime() - parseInt(num) * 7 * 24 * 60 * 60 * 1000,
-        );
-      case "months":
-      case "month":
-        return new Date(
-          now.getTime() - parseInt(num) * 30 * 24 * 60 * 60 * 1000,
-        );
-      case "year":
-      case "years":
-        return new Date(
-          now.getTime() - parseInt(num) * 365 * 24 * 60 * 60 * 1000,
-        );
-    }
-    throw new Error("Invalid agg");
+  const [urlParams, setUrlParams] = useQueryParams({
+    from: FromParam,
+    to: ToParam,
+    select: SelectParam,
+  });
+
+  const dateRange =
+    urlParams.from && urlParams.to
+      ? { from: new Date(urlParams.from), to: new Date(urlParams.to) }
+      : undefined;
+
+  const selectedOption = isValidOption(urlParams.select)
+    ? urlParams.select
+    : DEFAULT_DATE_RANGE_SELECTION;
+
+  const setDateRangeAndOption = (
+    option?: AvailableDateRangeSelections,
+    dateRange?: DashboardDateRange,
+  ) => {
+    setUrlParams({
+      select: option ? option.toString() : urlParams.select,
+      from: dateRange ? dateRange.from?.getTime() : urlParams.from,
+      to: dateRange ? dateRange.to?.getTime() : urlParams.to,
+    });
   };
+
+  const globalFilterState = dateRange
+    ? [
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: ">" as const,
+          value: dateRange.from,
+        },
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: "<" as const,
+          value: dateRange.to,
+        },
+      ]
+    : [];
 
   return (
     <div className="md:container">
-      <Header title="Dashboard" />
-      <Tabs
-        value={agg}
-        onValueChange={(value) => setAgg(value as DateTimeAggregationOption)}
-        className="mb-4 max-w-full overflow-x-auto"
-      >
-        <TabsList>
-          {dateTimeAggregationOptions.map((option) => (
-            <TabsTrigger key={option} value={option}>
-              {option}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <Header
+        title="Dashboard"
+        actionButtons={
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/project/${projectId}/analytics`}>
+                Analytics (alpha) ↗
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
+      <DatePickerWithRange
+        dateRange={dateRange}
+        setAgg={setAgg}
+        setDateRangeAndOption={setDateRangeAndOption}
+        selectedOption={selectedOption}
+        className=" max-w-full overflow-x-auto"
+      />
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
           className="col-span-1 xl:col-span-2 "
           projectId={projectId}
-          globalFilterState={[
-            {
-              column: "startTime",
-              operator: ">",
-              type: "datetime",
-              value: convertAggToDateTime(agg),
-            },
-            {
-              column: "startTime",
-              operator: "<",
-              type: "datetime",
-              value: new Date(),
-            },
-          ]}
+          globalFilterState={globalFilterState}
         />
         <MetricTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
-          globalFilterState={[
-            {
-              column: "startTime",
-              operator: ">",
-              type: "datetime",
-              value: convertAggToDateTime(agg),
-            },
-            {
-              column: "startTime",
-              operator: "<",
-              type: "datetime",
-              value: new Date(),
-            },
-          ]}
+          globalFilterState={globalFilterState}
         />
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
-          globalFilterState={[
-            {
-              column: "startTime",
-              operator: ">",
-              type: "datetime",
-              value: convertAggToDateTime(agg),
-            },
-            {
-              column: "startTime",
-              operator: "<",
-              type: "datetime",
-              value: new Date(),
-            },
-          ]}
+          globalFilterState={globalFilterState}
         />
         <TracesTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={[
-            {
-              column: "startTime",
-              operator: ">",
-              type: "datetime",
-              value: convertAggToDateTime(agg),
-            },
-            {
-              column: "startTime",
-              operator: "<",
-              type: "datetime",
-              value: new Date(),
-            },
-          ]}
+          globalFilterState={globalFilterState}
           agg={agg}
         />
         <ModelUsageChart
           className="min-h-24  col-span-1 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={[
-            {
-              column: "startTime",
-              operator: ">",
-              type: "datetime",
-              value: convertAggToDateTime(agg),
-            },
-            {
-              column: "startTime",
-              operator: "<",
-              type: "datetime",
-              value: new Date(),
-            },
-          ]}
+          globalFilterState={globalFilterState}
           agg={agg}
         />
         <UserChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={[
-            {
-              column: "startTime",
-              operator: ">",
-              type: "datetime",
-              value: convertAggToDateTime(agg),
-            },
-            {
-              column: "startTime",
-              operator: "<",
-              type: "datetime",
-              value: new Date(),
-            },
-          ]}
+          globalFilterState={globalFilterState}
           agg={agg}
         />
         <ChartScores
           className="col-span-1 xl:col-span-3"
           agg={agg}
           projectId={projectId}
+          globalFilterState={globalFilterState}
         />
         <LatencyChart
           className="col-span-1 flex-auto justify-between xl:col-span-full"
           projectId={projectId}
           agg={agg}
-          globalFilterState={[
-            {
-              column: "startTime",
-              operator: ">",
-              type: "datetime",
-              value: convertAggToDateTime(agg),
-            },
-            {
-              column: "startTime",
-              operator: "<",
-              type: "datetime",
-              value: new Date(),
-            },
-          ]}
+          globalFilterState={globalFilterState}
         />
       </div>
     </div>

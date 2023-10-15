@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@/src/features/filters/types";
 import { TotalMetric } from "./TotalMetric";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
@@ -46,7 +46,7 @@ export const MetricTable = ({
           item.model as string,
           <RightAlignedCell key={i}>
             {item.sumTotalTokens
-              ? numberFormatter(item.sumTotalTokens as number)
+              ? compactNumberFormatter(item.sumTotalTokens as number)
               : "0"}
           </RightAlignedCell>,
           <RightAlignedCell key={i}>
@@ -66,8 +66,8 @@ export const MetricTable = ({
       <DashboardTable
         headers={[
           "Model",
-          <RightAlignedCell key={1}>Total tokens</RightAlignedCell>,
-          <RightAlignedCell key={1}>Total cost</RightAlignedCell>,
+          <RightAlignedCell key={0}>Total tokens</RightAlignedCell>,
+          <RightAlignedCell key={0}>Total cost</RightAlignedCell>,
         ]}
         rows={metricsData}
         collapse={{ collapsed: 5, expanded: 20 }}

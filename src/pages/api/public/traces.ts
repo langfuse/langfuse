@@ -6,6 +6,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { Prisma, type Trace } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
 import { paginationZod } from "@/src/utils/zod";
+import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
 const CreateTraceSchema = z.object({
   id: z.string().nullish(),
@@ -48,6 +49,7 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
+      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
 
       const { id, name, metadata, externalId, userId, release, version } =
         CreateTraceSchema.parse(req.body);

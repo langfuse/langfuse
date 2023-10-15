@@ -96,7 +96,6 @@ export default function TracesTable({
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
     if (traces.isSuccess && traces.data) {
-      console.log("setting detail page list");
       setDetailPageList(
         "traces",
         traces.data.map((t) => t.id),

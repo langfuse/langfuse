@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type Key, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 export const RightAlignedCell = ({
@@ -8,7 +8,7 @@ export const RightAlignedCell = ({
 }: {
   children: ReactNode;
   className?: string;
-  key: number;
+  key?: Key;
 }) => {
   return (
     <div className={cn("text-right", className)} key={key}>

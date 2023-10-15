@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import TableLink from "@/src/components/table/table-link";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
@@ -122,15 +122,15 @@ function DetailsTab({ userId, projectId }: TabProps) {
         { label: "Total Traces", value: user.data.totalTraces },
         {
           label: "Prompt Tokens",
-          value: numberFormatter(user.data.totalPromptTokens),
+          value: compactNumberFormatter(user.data.totalPromptTokens),
         },
         {
           label: "Completion Tokens",
-          value: numberFormatter(user.data.totalCompletionTokens),
+          value: compactNumberFormatter(user.data.totalCompletionTokens),
         },
         {
           label: "Total Tokens",
-          value: numberFormatter(user.data.totalTokens),
+          value: compactNumberFormatter(user.data.totalTokens),
         },
       ]
     : [];

@@ -6,6 +6,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { paginationZod } from "@/src/utils/zod";
+import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
 const ScoreCreateSchema = z.object({
   id: z.string().nullish(),
@@ -48,7 +49,7 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-
+      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
       const obj = ScoreCreateSchema.parse(req.body);
 
       // If externalTraceId is provided, find the traceId
