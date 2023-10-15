@@ -7,7 +7,7 @@ import { type FilterState } from "@/src/features/filters/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -67,7 +67,7 @@ export const TracesTimeSeriesChart = ({
     >
       <TotalMetric
         description={`Traces tracked`}
-        metric={total ? numberFormatter(total) : "-"}
+        metric={total ? compactNumberFormatter(total) : "-"}
       />
       <BaseTimeSeriesChart
         className="min-h-80 lg:h-full"

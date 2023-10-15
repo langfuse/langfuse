@@ -11,7 +11,17 @@ export const temporalUnit = z.enum([
 ]);
 
 export const aggregations = z
-  .enum(["SUM", "AVG", "COUNT", "MAX", "MIN"])
+  .enum([
+    "SUM",
+    "AVG",
+    "COUNT",
+    "MAX",
+    "MIN",
+    "50thPercentile",
+    "90thPercentile",
+    "95thPercentile",
+    "99thPercentile",
+  ])
   .optional();
 
 export const groupByInterface = z.array(
