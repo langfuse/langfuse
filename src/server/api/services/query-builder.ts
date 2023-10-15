@@ -69,13 +69,11 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   // column names come from our defs via the table definitions
   const selectedColumns = query.select.map((selectedColumn) => {
     const safeColumn = getColumnDefinition(query.from, selectedColumn.column);
-    const columnDefinition = createAggregatedColumn(
-      safeColumn,
-      selectedColumn.agg,
-    );
-    return selectedColumn.agg
+    const safeAgg = aggregations.parse(selectedColumn.agg);
+    const columnDefinition = createAggregatedColumn(safeColumn, safeAgg);
+    return safeAgg
       ? Prisma.sql`${columnDefinition} as "${Prisma.raw(
-          selectedColumn.agg.toLowerCase(),
+          safeAgg.toLowerCase(),
         )}${Prisma.raw(capitalizeFirstLetter(safeColumn.name))}"`
       : Prisma.sql`${columnDefinition} as "${Prisma.raw(safeColumn.name)}"`;
   });
@@ -174,9 +172,10 @@ const prepareOrderByString = (
   const orderBys = (orderBy ?? []).map((orderBy) => {
     // raw mandatory here
     const safeColumn = getColumnDefinition(from, orderBy.column);
+    const safeAgg = aggregations.parse(orderBy.agg);
     return Prisma.sql`${createAggregatedColumn(
       safeColumn,
-      orderBy.agg,
+      safeAgg,
     )} ${Prisma.raw(orderBy.direction)}`;
   });
   const addedCte = hasCte
