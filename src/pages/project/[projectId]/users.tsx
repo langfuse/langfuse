@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
-import { numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -138,11 +138,11 @@ export default function UsersPage() {
                       t.firstTrace?.toLocaleString() ?? "No event yet",
                     lastEvent:
                       t.lastObservation.toLocaleString() ?? "No event yet",
-                    totalEvents: numberFormatter(
+                    totalEvents: compactNumberFormatter(
                       (Number(t.totalTraces) || 0) +
                         (Number(t.totalObservations) || 0),
                     ),
-                    totalTokens: numberFormatter(t.totalTokens),
+                    totalTokens: compactNumberFormatter(t.totalTokens),
                     lastScore: t.lastScore,
                   };
                 }),

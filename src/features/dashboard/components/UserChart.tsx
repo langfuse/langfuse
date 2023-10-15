@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BarList } from "@tremor/react";
 import { isNotUndefinedOrNull } from "@/src/utils/types";
@@ -108,7 +108,7 @@ export const UserChart = ({
       data: isExpanded
         ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
         : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalTraces ? numberFormatter(totalTraces) : "-",
+      totalMetric: totalTraces ? compactNumberFormatter(totalTraces) : "-",
       metricDescription: "Total traces",
     },
   ];
@@ -123,8 +123,6 @@ export const UserChart = ({
         tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
-            totalMetric: item.totalMetric,
-            metricDescription: item.metricDescription,
             content: (
               <>
                 <TotalMetric
