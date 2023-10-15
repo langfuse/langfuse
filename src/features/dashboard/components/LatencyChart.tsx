@@ -66,19 +66,19 @@ export const LatencyChart = ({
   const data = [
     {
       tabTitle: "50th Percentile",
-      data: getData("50thpercentileDuration"),
+      data: getData("percentile50Duration"),
     },
     {
       tabTitle: "90th Percentile",
-      data: getData("90thpercentileDuration"),
+      data: getData("percentile90Duration"),
     },
     {
       tabTitle: "95th Percentile",
-      data: getData("95thpercentileDuration"),
+      data: getData("percentile95Duration"),
     },
     {
       tabTitle: "99th Percentile",
-      data: getData("99thpercentileDuration"),
+      data: getData("percentile99Duration"),
     },
   ];
 

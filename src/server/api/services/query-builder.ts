@@ -72,9 +72,10 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
     const safeAgg = aggregations.parse(selectedColumn.agg);
     const columnDefinition = createAggregatedColumn(safeColumn, safeAgg);
     return safeAgg
-      ? Prisma.sql`${columnDefinition} as "${Prisma.raw(
-          safeAgg.toLowerCase(),
-        )}${Prisma.raw(capitalizeFirstLetter(safeColumn.name))}"`
+      ? Prisma.sql`${columnDefinition} as "${createOutputColumnName(
+          safeColumn,
+          safeAgg,
+        )}"`
       : Prisma.sql`${columnDefinition} as "${Prisma.raw(safeColumn.name)}"`;
   });
 
@@ -126,6 +127,40 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   }${selectString}${fromString}${filterString}${groupString}${orderByString}${limitString};`;
 };
 
+const createOutputColumnName = (
+  columnDefinition: ColumnDefinition,
+  safeAgg: z.infer<typeof aggregations>,
+): Prisma.Sql => {
+  if (!safeAgg) return Prisma.empty;
+  if (["SUM", "AVG", "COUNT", "MAX", "MIN"].includes(safeAgg)) {
+    return Prisma.sql`${Prisma.raw(safeAgg.toLowerCase())}${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+
+  if (safeAgg === "50thPercentile") {
+    return Prisma.sql`percentile50${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  if (safeAgg === "90thPercentile") {
+    return Prisma.sql`percentile90${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  if (safeAgg === "95thPercentile") {
+    return Prisma.sql`percentile95${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  if (safeAgg === "99thPercentile") {
+    return Prisma.sql`percentile99${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  return Prisma.empty;
+};
+
 const createAggregatedColumn = (
   columnDefinition: ColumnDefinition,
   agg?: z.infer<typeof aggregations>,
@@ -144,19 +179,19 @@ const createAggregatedColumn = (
         aggregations.parse(agg) as string,
       )}(${getInternalSql(columnDefinition)})`;
     case "50thPercentile":
-      return Prisma.sql`percentile_const(0.5) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_disc(0.5) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case "90thPercentile":
-      return Prisma.sql`percentile_const(0.9) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_disc(0.9) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case "95thPercentile":
-      return Prisma.sql`percentile_const(0.95) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_disc(0.95) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case "99thPercentile":
-      return Prisma.sql`percentile_const(0.99) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_disc(0.99) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case undefined:
