@@ -131,7 +131,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
 
 const createAggregatedColumn = (
   from: z.infer<typeof sqlInterface>["from"],
-  column: string,
+  columnUnsafe: string,
   agg?: z.infer<typeof aggregations>,
 ): Prisma.Sql => {
   // raw mandatory everywhere here as this creates the selection
@@ -146,25 +146,27 @@ const createAggregatedColumn = (
     case "SUM":
       return Prisma.sql`${Prisma.raw(
         aggregations.parse(agg) as string,
-      )}(${getInternalSql(getColumnDefinition(from, column))})`;
+      )}(${getInternalSql(getColumnDefinition(from, columnUnsafe))})`;
     case "50thPercentile":
       return Prisma.sql`percentile_disc(0.5) within group (order by ${getInternalSql(
-        getColumnDefinition(from, column),
+        getColumnDefinition(from, columnUnsafe),
       )})`;
     case "90thPercentile":
       return Prisma.sql`percentile_disc(0.9) within group (order by ${getInternalSql(
-        getColumnDefinition(from, column),
+        getColumnDefinition(from, columnUnsafe),
       )})`;
     case "95thPercentile":
       return Prisma.sql`percentile_disc(0.95) within group (order by ${getInternalSql(
-        getColumnDefinition(from, column),
+        getColumnDefinition(from, columnUnsafe),
       )})`;
     case "99thPercentile":
       return Prisma.sql`percentile_disc(0.99) within group (order by ${getInternalSql(
-        getColumnDefinition(from, column),
+        getColumnDefinition(from, columnUnsafe),
       )})`;
     case undefined:
-      return Prisma.sql`${getInternalSql(getColumnDefinition(from, column))}`;
+      return Prisma.sql`${getInternalSql(
+        getColumnDefinition(from, columnUnsafe),
+      )}`;
   }
 };
 
