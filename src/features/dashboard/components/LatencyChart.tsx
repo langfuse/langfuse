@@ -11,7 +11,6 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 
 export const LatencyChart = ({
