@@ -144,19 +144,19 @@ const createAggregatedColumn = (
         aggregations.parse(agg) as string,
       )}(${getInternalSql(columnDefinition)})`;
     case "50thPercentile":
-      return Prisma.sql`percentile_disc(0.5) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_const(0.5) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case "90thPercentile":
-      return Prisma.sql`percentile_disc(0.9) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_const(0.9) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case "95thPercentile":
-      return Prisma.sql`percentile_disc(0.95) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_const(0.95) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case "99thPercentile":
-      return Prisma.sql`percentile_disc(0.99) within group (order by ${getInternalSql(
+      return Prisma.sql`percentile_const(0.99) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
     case undefined:
