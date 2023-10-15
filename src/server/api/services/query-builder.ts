@@ -70,8 +70,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   const selectedColumns = query.select.map((selectedColumn) => {
     const safeColumn = getColumnDefinition(query.from, selectedColumn.column);
     const columnDefinition = createAggregatedColumn(
-      query.from,
-      selectedColumn.column,
+      safeColumn,
       selectedColumn.agg,
     );
     return selectedColumn.agg
@@ -130,8 +129,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
 };
 
 const createAggregatedColumn = (
-  from: z.infer<typeof sqlInterface>["from"],
-  columnUnsafe: string,
+  columnDefinition: ColumnDefinition,
   agg?: z.infer<typeof aggregations>,
 ): Prisma.Sql => {
   // raw mandatory everywhere here as this creates the selection
@@ -146,27 +144,25 @@ const createAggregatedColumn = (
     case "SUM":
       return Prisma.sql`${Prisma.raw(
         aggregations.parse(agg) as string,
-      )}(${getInternalSql(getColumnDefinition(from, columnUnsafe))})`;
+      )}(${getInternalSql(columnDefinition)})`;
     case "50thPercentile":
       return Prisma.sql`percentile_disc(0.5) within group (order by ${getInternalSql(
-        getColumnDefinition(from, columnUnsafe),
+        columnDefinition,
       )})`;
     case "90thPercentile":
       return Prisma.sql`percentile_disc(0.9) within group (order by ${getInternalSql(
-        getColumnDefinition(from, columnUnsafe),
+        columnDefinition,
       )})`;
     case "95thPercentile":
       return Prisma.sql`percentile_disc(0.95) within group (order by ${getInternalSql(
-        getColumnDefinition(from, columnUnsafe),
+        columnDefinition,
       )})`;
     case "99thPercentile":
       return Prisma.sql`percentile_disc(0.99) within group (order by ${getInternalSql(
-        getColumnDefinition(from, columnUnsafe),
+        columnDefinition,
       )})`;
     case undefined:
-      return Prisma.sql`${getInternalSql(
-        getColumnDefinition(from, columnUnsafe),
-      )}`;
+      return Prisma.sql`${getInternalSql(columnDefinition)}`;
   }
 };
 
@@ -177,9 +173,9 @@ const prepareOrderByString = (
 ): Prisma.Sql => {
   const orderBys = (orderBy ?? []).map((orderBy) => {
     // raw mandatory here
+    const safeColumn = getColumnDefinition(from, orderBy.column);
     return Prisma.sql`${createAggregatedColumn(
-      from,
-      orderBy.column,
+      safeColumn,
       orderBy.agg,
     )} ${Prisma.raw(orderBy.direction)}`;
   });
