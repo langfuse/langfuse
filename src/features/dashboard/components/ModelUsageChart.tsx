@@ -12,7 +12,7 @@ import {
   fillMissingValuesAndTransform,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
@@ -94,7 +94,7 @@ export const ModelUsageChart = ({
     {
       tabTitle: "Total tokens",
       data: transformedTotalTokens,
-      totalMetric: totalTokens ? numberFormatter(totalTokens) : "-",
+      totalMetric: totalTokens ? compactNumberFormatter(totalTokens) : "-",
       metricDescription: `Token count`,
     },
   ];
@@ -109,8 +109,6 @@ export const ModelUsageChart = ({
         tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
-            totalMetric: item.totalMetric,
-            metricDescription: item.metricDescription,
             content: (
               <>
                 <TotalMetric

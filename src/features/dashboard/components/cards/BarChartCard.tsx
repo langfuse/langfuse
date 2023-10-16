@@ -1,7 +1,7 @@
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { BarList } from "@tremor/react";
 
 export type BarChartDataPoint = {
@@ -32,7 +32,7 @@ export default function BarChartCard({
   isLoading,
   children,
 }: BarChartCardProps) {
-  const stat = header.stat ? numberFormatter(header.stat) : "0";
+  const stat = header.stat ? compactNumberFormatter(header.stat) : "0";
   return (
     <DashboardCard
       className={className}
