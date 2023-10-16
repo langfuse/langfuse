@@ -10,6 +10,24 @@ import { prisma } from "@/src/server/db";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
+import { env } from "@/src/env.mjs";
+
+const cookieOptions = {
+  domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
+  httpOnly: true,
+  sameSite: "lax",
+  path: "/",
+  secure: process.env.NODE_ENV === "production",
+};
+
+const cookieName = (name: string) =>
+  [
+    process.env.NODE_ENV === "production" ? "__Secure-" : "",
+    name,
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
+      : "",
+  ].join("");
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
@@ -124,6 +142,32 @@ export const authOptions: NextAuthOptions = {
   ],
   pages: {
     signIn: "/auth/sign-in",
+  },
+  cookies: {
+    sessionToken: {
+      name: cookieName("next-auth.session-token"),
+      options: cookieOptions,
+    },
+    csrfToken: {
+      name: cookieName("next-auth.csrf-token"),
+      options: cookieOptions,
+    },
+    callbackUrl: {
+      name: cookieName("next-auth.callback-url"),
+      options: cookieOptions,
+    },
+    state: {
+      name: cookieName("next-auth.state"),
+      options: cookieOptions,
+    },
+    nonce: {
+      name: cookieName("next-auth.nonce"),
+      options: cookieOptions,
+    },
+    pkceCodeVerifier: {
+      name: cookieName("next-auth.pkce.code_verifier"),
+      options: cookieOptions,
+    },
   },
 };
 
