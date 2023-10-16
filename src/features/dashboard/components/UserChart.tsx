@@ -122,15 +122,7 @@ export const UserChart = ({
   return (
     <DashboardCard
       className={className}
-      title={
-        <div className="flex flex-row">
-          <div>User consumption</div>
-          <DocPopup
-            description="Calculated based on 'userIds' tracked on traces"
-            link="https://langfuse.com/docs/user-explorer"
-          />
-        </div>
-      }
+      title="User consumption"
       isLoading={user.isLoading}
     >
       <TabComponent
@@ -154,7 +146,12 @@ export const UserChart = ({
                     />
                   </>
                 ) : (
-                  <NoData noDataText="No data" />
+                  <NoData noDataText="No data">
+                    <DocPopup
+                      description="Consumption per user is tracked by passing their ids on traces."
+                      link="https://langfuse.com/docs/user-explorer"
+                    />
+                  </NoData>
                 )}
               </>
             ),

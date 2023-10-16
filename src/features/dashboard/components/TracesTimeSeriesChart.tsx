@@ -73,14 +73,7 @@ export const TracesTimeSeriesChart = ({
       <TotalMetric
         description={`Traces tracked`}
         metric={total ? compactNumberFormatter(total) : "-"}
-      >
-        <DocPopup
-          link={"https://langfuse.com/docs/integrations/sdk"}
-          description={
-            "Tracing of LLM applications can be enabled using our SDKs. This chart helps to understand how frequently the LLM app was used."
-          }
-        />
-      </TotalMetric>
+      />
       {!isEmptyTimeSeries(transformedTraces) ? (
         <BaseTimeSeriesChart
           className="min-h-80 h-full self-stretch"
