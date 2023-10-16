@@ -12,7 +12,8 @@ import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 
-const useSecureCookies = env.NEXTAUTH_URL.startsWith("https://");
+const useSecureCookies =
+  process.env.VERCEL === "1" || env.NEXTAUTH_URL.startsWith("https://");
 
 const cookieOptions = {
   domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
