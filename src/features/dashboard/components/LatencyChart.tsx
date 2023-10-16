@@ -8,11 +8,13 @@ import {
   getAllModels,
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
+  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { numberFormatter } from "@/src/utils/numbers";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const LatencyChart = ({
   className,
@@ -94,12 +96,18 @@ export const LatencyChart = ({
           return {
             tabTitle: item.tabTitle,
             content: (
-              <BaseTimeSeriesChart
-                agg={agg}
-                data={item.data}
-                connectNulls={true}
-                valueFormatter={numberFormatter}
-              />
+              <>
+                {!isEmptyTimeSeries(item.data) ? (
+                  <BaseTimeSeriesChart
+                    agg={agg}
+                    data={item.data}
+                    connectNulls={true}
+                    valueFormatter={numberFormatter}
+                  />
+                ) : (
+                  <NoData noDataText="No data" />
+                )}
+              </>
             ),
           };
         })}

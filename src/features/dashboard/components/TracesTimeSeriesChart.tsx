@@ -9,6 +9,8 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -59,6 +61,8 @@ export const TracesTimeSeriesChart = ({
     return acc + (item.countTraceId as number);
   }, 0);
 
+  console.log("traces", transformedTraces);
+
   return (
     <DashboardCard
       className={className}
@@ -77,12 +81,16 @@ export const TracesTimeSeriesChart = ({
           }
         />
       </TotalMetric>
-      <BaseTimeSeriesChart
-        className="min-h-80 lg:h-full"
-        agg={agg}
-        data={transformedTraces ?? []}
-        connectNulls={true}
-      />
+      {!isEmptyTimeSeries(transformedTraces) ? (
+        <BaseTimeSeriesChart
+          className="min-h-80 lg:h-full"
+          agg={agg}
+          data={transformedTraces ?? []}
+          connectNulls={true}
+        />
+      ) : (
+        <NoData noDataText="No data available" />
+      )}
     </DashboardCard>
   );
 };

@@ -104,3 +104,14 @@ export function fillMissingValuesAndTransform(
 
   return result;
 }
+
+export const isEmptyTimeSeries = (data: TimeSeriesChartDataPoint[]) => {
+  return (
+    data.length === 0 ||
+    data.every(
+      (item) =>
+        item.values.length === 0 ||
+        item.values.every((value) => value.value === 0),
+    )
+  );
+};

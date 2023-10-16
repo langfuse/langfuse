@@ -9,7 +9,9 @@ import { type FilterState } from "@/src/features/filters/types";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
+  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export function ChartScores(props: {
   className?: string;
@@ -56,11 +58,15 @@ export function ChartScores(props: {
       description="Average score per name"
       isLoading={scores.isLoading}
     >
-      <BaseTimeSeriesChart
-        agg={props.agg}
-        data={extractedScores ?? []}
-        connectNulls
-      />
+      {!isEmptyTimeSeries(extractedScores) ? (
+        <BaseTimeSeriesChart
+          agg={props.agg}
+          data={extractedScores ?? []}
+          connectNulls
+        />
+      ) : (
+        <NoData noDataText="No data" />
+      )}
     </DashboardCard>
   );
 }
