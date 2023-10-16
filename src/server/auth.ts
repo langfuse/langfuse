@@ -12,17 +12,19 @@ import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 
+const useSecureCookies = env.NEXTAUTH_URL.startsWith("https://");
+
 const cookieOptions = {
   domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
   httpOnly: true,
   sameSite: "lax",
   path: "/",
-  secure: process.env.NODE_ENV === "production",
+  secure: useSecureCookies,
 };
 
 const cookieName = (name: string) =>
   [
-    process.env.NODE_ENV === "production" ? "__Secure-" : "",
+    useSecureCookies ? "__Secure-" : "",
     name,
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
