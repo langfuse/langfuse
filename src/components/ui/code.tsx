@@ -21,6 +21,9 @@ export function JSONView(props: {
     ? parseJson((props.json as { completion: string }).completion)
     : props.json;
 
+  // some users ingest stringified json nested in json, parse it
+  const parsedJson = deepParseJson(json);
+
   return (
     <div className={cn("max-w-full rounded-md border ", props.className)}>
       {props.title ? (
@@ -30,7 +33,7 @@ export function JSONView(props: {
       ) : undefined}
       <div className="flex gap-2 whitespace-pre-wrap p-3 text-xs">
         <React18JsonView
-          src={json}
+          src={parsedJson}
           theme="github"
           collapseObjectsAfterLength={20}
           collapseStringsAfterLength={500}
@@ -40,14 +43,6 @@ export function JSONView(props: {
     </div>
   );
 }
-
-const parseJson = (input: string) => {
-  try {
-    return JSON.parse(input) as unknown;
-  } catch {
-    return input;
-  }
-};
 
 export function CodeView(props: {
   content: string | undefined | null;
@@ -105,4 +100,49 @@ export function CodeView(props: {
       </div>
     </div>
   );
+}
+
+const parseJson = (input: string) => {
+  try {
+    return JSON.parse(input) as unknown;
+  } catch {
+    return input;
+  }
+};
+
+/**
+ * Deeply parses a JSON string or object for nested stringified JSON
+ * @param json JSON string or object to parse
+ * @returns Parsed JSON object
+ */
+function deepParseJson(json: unknown): unknown {
+  if (typeof json === "string") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const parsed = JSON.parse(json);
+      return deepParseJson(parsed); // Recursively parse parsed value
+    } catch (e) {
+      return json; // If it's not a valid JSON string, just return the original string
+    }
+  } else if (typeof json === "object" && json !== null) {
+    // Handle arrays
+    if (Array.isArray(json)) {
+      for (let i = 0; i < json.length; i++) {
+        json[i] = deepParseJson(json[i]);
+      }
+    } else {
+      // Handle nested objects
+      for (const key in json) {
+        // Ensure we only iterate over the object's own properties
+        if (Object.prototype.hasOwnProperty.call(json, key)) {
+          (json as Record<string, unknown>)[key] = deepParseJson(
+            (json as Record<string, unknown>)[key],
+          );
+        }
+      }
+    }
+    return json;
+  }
+
+  return json;
 }
