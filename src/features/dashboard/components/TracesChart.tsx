@@ -3,6 +3,7 @@ import { type FilterState } from "@/src/features/filters/types";
 import BarChartCard from "@/src/features/dashboard/components/cards/BarChartCard";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export const TracesBarListChart = ({
   className,

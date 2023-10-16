@@ -8,6 +8,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -68,7 +69,14 @@ export const TracesTimeSeriesChart = ({
       <TotalMetric
         description={`Traces tracked`}
         metric={total ? compactNumberFormatter(total) : "-"}
-      />
+      >
+        <DocPopup
+          link={"https://langfuse.com/docs/integrations/sdk"}
+          description={
+            "Tracing of LLM applications can be enabled using the SDK"
+          }
+        />
+      </TotalMetric>
       <BaseTimeSeriesChart
         className="min-h-80 lg:h-full"
         agg={agg}
