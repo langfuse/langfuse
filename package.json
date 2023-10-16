@@ -96,7 +96,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@playwright/test": "^1.38.1",
+    "@playwright/test": "^1.39.0",
     "@testing-library/jest-dom": "^6.1.4",
     "@types/bcryptjs": "^2.4.4",
     "@types/cors": "^2.8.14",
