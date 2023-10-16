@@ -12,8 +12,9 @@ import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 
+// Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
-  process.env.VERCEL === "1" || env.NEXTAUTH_URL.startsWith("https://");
+  env.NEXTAUTH_URL.startsWith("https://") || process.env.VERCEL === "1";
 
 const cookieOptions = {
   domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
