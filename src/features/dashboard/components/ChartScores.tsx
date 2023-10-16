@@ -9,7 +9,10 @@ import { type FilterState } from "@/src/features/filters/types";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
+  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
+import { NoData } from "@/src/features/dashboard/components/NoData";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export function ChartScores(props: {
   className?: string;
@@ -53,14 +56,23 @@ export function ChartScores(props: {
     <DashboardCard
       className={props.className}
       title="Scores"
-      description="Average"
+      description="Average score per name"
       isLoading={scores.isLoading}
     >
-      <BaseTimeSeriesChart
-        agg={props.agg}
-        data={extractedScores ?? []}
-        connectNulls
-      />
+      {!isEmptyTimeSeries(extractedScores) ? (
+        <BaseTimeSeriesChart
+          agg={props.agg}
+          data={extractedScores ?? []}
+          connectNulls
+        />
+      ) : (
+        <NoData noDataText="No data">
+          <DocPopup
+            description="Scores evaluate LLM quality and can be created manually or using the SDK."
+            link="https://langfuse.com/docs/scores"
+          />
+        </NoData>
+      )}
     </DashboardCard>
   );
 }

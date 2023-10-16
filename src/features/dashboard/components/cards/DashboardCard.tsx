@@ -42,7 +42,9 @@ export const DashboardCard = ({
           </div>
         ) : null}
       </CardHeader>
-      <CardContent className={cn("flex-1", cardContentClassName)}>
+      <CardContent
+        className={cn("flex flex-1 flex-col gap-4", cardContentClassName)}
+      >
         {children}
       </CardContent>
     </Card>

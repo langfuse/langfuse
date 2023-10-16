@@ -6,10 +6,12 @@ export const TotalMetric = ({
   className,
   metric,
   description,
+  children,
 }: {
   className?: string;
   metric: ReactNode;
   description?: ReactNode;
+  children?: ReactNode;
 }) => {
   return (
     <Flex
@@ -19,6 +21,7 @@ export const TotalMetric = ({
     >
       <Metric>{metric}</Metric>
       <Text>{description}</Text>
+      {children}
     </Flex>
   );
 };

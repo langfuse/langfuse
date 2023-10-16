@@ -5,6 +5,7 @@ import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export const MetricTable = ({
   className,
@@ -75,7 +76,12 @@ export const MetricTable = ({
         <TotalMetric
           metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
           description="Total cost"
-        />
+        >
+          <DocPopup
+            description="Calculated multiplying the number of tokens with cost per token for each model."
+            link="https://langfuse.com/docs/token-usage"
+          />
+        </TotalMetric>
       </DashboardTable>
     </DashboardCard>
   );

@@ -8,6 +8,9 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import DocPopup from "@/src/components/layouts/doc-popup";
+import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -58,6 +61,8 @@ export const TracesTimeSeriesChart = ({
     return acc + (item.countTraceId as number);
   }, 0);
 
+  console.log("traces", transformedTraces);
+
   return (
     <DashboardCard
       className={className}
@@ -69,12 +74,21 @@ export const TracesTimeSeriesChart = ({
         description={`Traces tracked`}
         metric={total ? compactNumberFormatter(total) : "-"}
       />
-      <BaseTimeSeriesChart
-        className="min-h-80 lg:h-full"
-        agg={agg}
-        data={transformedTraces ?? []}
-        connectNulls={true}
-      />
+      {!isEmptyTimeSeries(transformedTraces) ? (
+        <BaseTimeSeriesChart
+          className="min-h-80 h-full self-stretch"
+          agg={agg}
+          data={transformedTraces ?? []}
+          connectNulls={true}
+        />
+      ) : (
+        <NoData noDataText="No data available">
+          <DocPopup
+            description="Traces contain details about LLM applications and can be created using the SDK."
+            link="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
+          />
+        </NoData>
+      )}
     </DashboardCard>
   );
 };

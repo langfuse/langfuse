@@ -10,12 +10,14 @@ import {
   getAllModels,
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
+  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const ModelUsageChart = ({
   className,
@@ -115,12 +117,16 @@ export const ModelUsageChart = ({
                   metric={item.totalMetric}
                   description={item.metricDescription}
                 />
-                <BaseTimeSeriesChart
-                  agg={agg}
-                  data={item.data}
-                  showLegend={true}
-                  valueFormatter={item.formatter}
-                />
+                {!isEmptyTimeSeries(item.data) ? (
+                  <BaseTimeSeriesChart
+                    agg={agg}
+                    data={item.data}
+                    showLegend={true}
+                    valueFormatter={item.formatter}
+                  />
+                ) : (
+                  <NoData noDataText="No data available" />
+                )}
               </>
             ),
           };
