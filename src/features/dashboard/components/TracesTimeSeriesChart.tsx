@@ -83,7 +83,7 @@ export const TracesTimeSeriesChart = ({
       </TotalMetric>
       {!isEmptyTimeSeries(transformedTraces) ? (
         <BaseTimeSeriesChart
-          className="min-h-80 lg:h-full"
+          className="min-h-80 h-full self-stretch"
           agg={agg}
           data={transformedTraces ?? []}
           connectNulls={true}

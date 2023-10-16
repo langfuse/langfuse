@@ -140,6 +140,7 @@ export const ScoresTable = ({
             link="https://langfuse.com/docs/scores"
           />
         }
+        noDataClassName="mt-0"
       >
         <TotalMetric
           metric={totalScores ? compactNumberFormatter(totalScores) : "0"}
