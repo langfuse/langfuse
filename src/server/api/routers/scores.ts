@@ -88,15 +88,19 @@ export const scoresRouter = createTRPCRouter({
     ctx.prisma.score.findFirstOrThrow({
       where: {
         id: input,
-        trace: {
-          project: {
-            members: {
-              some: {
-                userId: ctx.session.user.id,
+        ...(ctx.session.user.admin === true
+          ? undefined
+          : {
+              trace: {
+                project: {
+                  members: {
+                    some: {
+                      userId: ctx.session.user.id,
+                    },
+                  },
+                },
               },
-            },
-          },
-        },
+            }),
       },
     }),
   ),
