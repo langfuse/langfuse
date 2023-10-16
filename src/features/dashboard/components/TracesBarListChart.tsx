@@ -1,9 +1,12 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@/src/features/filters/types";
-import BarChartCard from "@/src/features/dashboard/components/cards/BarChartCard";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { BarList } from "@tremor/react";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const TracesBarListChart = ({
   className,
@@ -52,21 +55,37 @@ export const TracesBarListChart = ({
     : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
 
   return (
-    <>
-      <BarChartCard
-        className={className}
-        header={{
-          metric: "Total traces tracked",
-          stat: (totalTraces.data?.[0]?.countTraceId as number) ?? 0,
-          category: "Traces",
-        }}
-        isLoading={traces.isLoading || totalTraces.isLoading}
-        chart={{
-          data: adjustedData,
-          header: "Trace Name",
-          metric: "Count",
-        }}
-      >
+    <DashboardCard
+      className={className}
+      title={"Traces"}
+      description={null}
+      isLoading={traces.isLoading || totalTraces.isLoading}
+    >
+      <>
+        <TotalMetric
+          metric={(totalTraces.data?.[0]?.countTraceId as number) ?? 0}
+          description={"Total traces tracked"}
+        />
+        {adjustedData.length > 0 ? (
+          <>
+            <BarList
+              data={adjustedData}
+              valueFormatter={(number: number) =>
+                Intl.NumberFormat("us").format(number).toString()
+              }
+              className="mt-6"
+              showAnimation={true}
+              color={"indigo"}
+            />
+          </>
+        ) : (
+          <NoData noDataText="No data">
+            <DocPopup
+              description="Traces contain details about LLM applications and can be created using the SDK."
+              link="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
+            />
+          </NoData>
+        )}
         <ExpandListButton
           isExpanded={isExpanded}
           setExpanded={setIsExpanded}
@@ -78,7 +97,7 @@ export const TracesBarListChart = ({
               : "Show all"
           }
         />
-      </BarChartCard>
-    </>
+      </>
+    </DashboardCard>
   );
 };

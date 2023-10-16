@@ -6,6 +6,7 @@ import { DashboardTable } from "@/src/features/dashboard/components/cards/Dashbo
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { RightAlignedCell } from "./RightAlignedCell";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export const ScoresTable = ({
   className,
@@ -133,6 +134,12 @@ export const ScoresTable = ({
           ]) ?? []
         }
         collapse={{ collapsed: 5, expanded: 20 }}
+        noDataChildren={
+          <DocPopup
+            description="Scores evaluate LLM quality and can be created manually or using the SDK."
+            link="https://langfuse.com/docs/scores"
+          />
+        }
       >
         <TotalMetric
           metric={totalScores ? compactNumberFormatter(totalScores) : "0"}

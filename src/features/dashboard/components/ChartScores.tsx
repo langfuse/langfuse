@@ -53,7 +53,7 @@ export function ChartScores(props: {
     <DashboardCard
       className={props.className}
       title="Scores"
-      description="Average"
+      description="Average score per name"
       isLoading={scores.isLoading}
     >
       <BaseTimeSeriesChart

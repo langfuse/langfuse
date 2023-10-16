@@ -37,7 +37,7 @@ export default function DocPopup({ description, link, size }: DocPopupProps) {
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (
-          <div className="text-s whitespace-break-spaces text-gray-800 sm:pl-0">
+          <div className="whitespace-break-spaces text-xs font-normal text-gray-800 sm:pl-0">
             {description}
           </div>
         ) : (

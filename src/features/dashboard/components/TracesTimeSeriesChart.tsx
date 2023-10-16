@@ -73,7 +73,7 @@ export const TracesTimeSeriesChart = ({
         <DocPopup
           link={"https://langfuse.com/docs/integrations/sdk"}
           description={
-            "Tracing of LLM applications can be enabled using the SDK"
+            "Tracing of LLM applications can be enabled using our SDKs. This chart helps to understand how frequently the LLM app was used."
           }
         />
       </TotalMetric>

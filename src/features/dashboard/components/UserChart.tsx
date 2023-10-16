@@ -6,10 +6,16 @@ import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BarList } from "@tremor/react";
 import { isNotUndefinedOrNull } from "@/src/utils/types";
-import { type BarChartDataPoint } from "@/src/features/dashboard/components/cards/BarChartCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
+import DocPopup from "@/src/components/layouts/doc-popup";
+import { NoData } from "@/src/features/dashboard/components/NoData";
+
+type BarChartDataPoint = {
+  name: string;
+  value: number;
+};
 
 export const UserChart = ({
   className,
@@ -116,7 +122,15 @@ export const UserChart = ({
   return (
     <DashboardCard
       className={className}
-      title={"User consumption"}
+      title={
+        <div className="flex flex-row">
+          <div>User consumption</div>
+          <DocPopup
+            description="Calculated based on 'userIds' tracked on traces"
+            link="https://langfuse.com/docs/user-explorer"
+          />
+        </div>
+      }
       isLoading={user.isLoading}
     >
       <TabComponent
@@ -125,17 +139,23 @@ export const UserChart = ({
             tabTitle: item.tabTitle,
             content: (
               <>
-                <TotalMetric
-                  metric={item.totalMetric}
-                  description={item.metricDescription}
-                />
-                <BarList
-                  data={item.data}
-                  valueFormatter={item.formatter}
-                  className="mt-2"
-                  showAnimation={true}
-                  color={"indigo"}
-                />
+                {item.data.length > 0 ? (
+                  <>
+                    <TotalMetric
+                      metric={item.totalMetric}
+                      description={item.metricDescription}
+                    />
+                    <BarList
+                      data={item.data}
+                      valueFormatter={item.formatter}
+                      className="mt-2"
+                      showAnimation={true}
+                      color={"indigo"}
+                    />
+                  </>
+                ) : (
+                  <NoData noDataText="No data" />
+                )}
               </>
             ),
           };
