@@ -23,6 +23,7 @@ const nextConfig = {
   output: "standalone",
 
   async headers() {
+    // Required to check authentication status from langfuse.com
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
       return [
         {
