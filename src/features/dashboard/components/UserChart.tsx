@@ -105,7 +105,7 @@ export const UserChart = ({
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCost ? usdFormatter(totalCost) : "-",
+      totalMetric: totalCost ? usdFormatter(totalCost) : usdFormatter(0),
       metricDescription: "Total cost",
       formatter: usdFormatter,
     },
@@ -114,7 +114,9 @@ export const UserChart = ({
       data: isExpanded
         ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
         : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalTraces ? compactNumberFormatter(totalTraces) : "-",
+      totalMetric: totalTraces
+        ? compactNumberFormatter(totalTraces)
+        : compactNumberFormatter(0),
       metricDescription: "Total traces",
     },
   ];

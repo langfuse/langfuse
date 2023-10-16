@@ -89,14 +89,16 @@ export const ModelUsageChart = ({
     {
       tabTitle: "Total cost",
       data: transformedModelCost,
-      totalMetric: totalCost ? usdFormatter(totalCost) : "-",
+      totalMetric: totalCost ? usdFormatter(totalCost) : usdFormatter(0),
       metricDescription: `Token cost`,
       formatter: usdFormatter,
     },
     {
       tabTitle: "Total tokens",
       data: transformedTotalTokens,
-      totalMetric: totalTokens ? compactNumberFormatter(totalTokens) : "-",
+      totalMetric: totalTokens
+        ? compactNumberFormatter(totalTokens)
+        : compactNumberFormatter(0),
       metricDescription: `Token count`,
     },
   ];
