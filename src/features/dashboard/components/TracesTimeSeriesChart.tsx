@@ -61,8 +61,6 @@ export const TracesTimeSeriesChart = ({
     return acc + (item.countTraceId as number);
   }, 0);
 
-  console.log("traces", transformedTraces);
-
   return (
     <DashboardCard
       className={className}
@@ -72,7 +70,9 @@ export const TracesTimeSeriesChart = ({
     >
       <TotalMetric
         description={`Traces tracked`}
-        metric={total ? compactNumberFormatter(total) : "-"}
+        metric={
+          total ? compactNumberFormatter(total) : compactNumberFormatter(0)
+        }
       />
       {!isEmptyTimeSeries(transformedTraces) ? (
         <BaseTimeSeriesChart
