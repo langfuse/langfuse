@@ -33,6 +33,7 @@ export const authOptions: NextAuthOptions = {
           email: true,
           image: true,
           featureFlags: true,
+          admin: true,
           memberships: {
             include: {
               project: true,
@@ -51,6 +52,7 @@ export const authOptions: NextAuthOptions = {
                 name: dbUser.name,
                 email: dbUser.email,
                 image: dbUser.image,
+                admin: dbUser.admin,
                 projects: dbUser.memberships.map((membership) => ({
                   id: membership.project.id,
                   name: membership.project.name,

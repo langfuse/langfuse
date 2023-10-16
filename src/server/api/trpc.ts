@@ -158,7 +158,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
       ({ id }) => id === projectId,
     );
 
-    if (!sessionProject)
+    if (!sessionProject && ctx.session.user.admin !== true)
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "User is not a member of this project",
@@ -170,7 +170,8 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         session: {
           ...ctx.session,
           user: ctx.session.user,
-          projectRole: sessionProject.role,
+          projectRole:
+            ctx.session.user.admin === true ? "ADMIN" : sessionProject!.role,
         },
       },
     });
