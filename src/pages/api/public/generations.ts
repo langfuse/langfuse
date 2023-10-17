@@ -12,6 +12,7 @@ import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
+import { jsonSchema } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
 export const GenerationsCreateSchema = z.object({
@@ -29,8 +30,8 @@ export const GenerationsCreateSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: z.unknown().nullish(),
-  completion: z.string().nullish(),
+  prompt: jsonSchema.nullish(),
+  completion: jsonSchema.nullish(),
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -38,7 +39,7 @@ export const GenerationsCreateSchema = z.object({
       totalTokens: z.number().nullish(),
     })
     .nullish(),
-  metadata: z.unknown().nullish(),
+  metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
@@ -58,8 +59,8 @@ const GenerationPatchSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: z.unknown().nullish(),
-  completion: z.string().nullish(),
+  prompt: jsonSchema.nullish(),
+  completion: jsonSchema.nullish(),
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -67,7 +68,7 @@ const GenerationPatchSchema = z.object({
       totalTokens: z.number().nullish(),
     })
     .nullish(),
-  metadata: z.unknown().nullish(),
+  metadata: jsonSchema.nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
@@ -200,7 +201,7 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output: completion ? { completion: completion } : undefined,
+          output: completion ?? undefined,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:
@@ -224,7 +225,7 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output: completion ? { completion: completion } : undefined,
+          output: completion ?? undefined,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:
@@ -388,7 +389,7 @@ const patchGeneration = async (
         ? new Date(completionStartTime)
         : undefined,
       input: prompt ?? undefined,
-      output: completion ? { completion: completion } : undefined,
+      output: completion ?? undefined,
       promptTokens: newPromptTokens,
       completionTokens: newCompletionTokens,
       totalTokens: newTotalTokens,
@@ -406,7 +407,7 @@ const patchGeneration = async (
         ? new Date(completionStartTime)
         : undefined,
       input: prompt ?? undefined,
-      output: completion ? { completion: completion } : undefined,
+      output: completion ?? undefined,
       promptTokens: newPromptTokens,
       completionTokens: newCompletionTokens,
       totalTokens: newTotalTokens,

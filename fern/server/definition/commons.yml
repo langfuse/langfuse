@@ -25,7 +25,7 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, MapValue>>
       prompt: optional<unknown>
-      completion: optional<string>
+      completion: optional<unknown>
       usage: optional<LLMUsage>
 
   # Objects
