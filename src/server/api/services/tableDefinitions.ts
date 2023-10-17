@@ -44,7 +44,7 @@ export const duration = {
   name: "duration",
   type: "number",
   internal:
-    'EXTRACT(EPOCH FROM o."end_time") * 1000 - EXTRACT(EPOCH FROM o."start_time") * 1000',
+    'EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time")',
 } as const;
 export const release = {
   name: "release",
@@ -66,6 +66,26 @@ export const scoreId = {
   type: "string",
   internal: 's."id"',
 } as const;
+export const traceName = {
+  name: "traceName",
+  type: "string",
+  internal: 't."name"',
+} as const;
+export const totalTokens = {
+  name: "totalTokens",
+  type: "number",
+  internal: 'o."total_tokens"',
+} as const;
+export const model = {
+  name: "model",
+  type: "string",
+  internal: 'o."model"',
+} as const;
+export const traceUser = {
+  name: "user",
+  type: "string",
+  internal: 't."user_id"',
+} as const;
 
 export const totalTokenCost = {
   name: "totalTokenCost",
@@ -83,15 +103,16 @@ export const totalTokenCost = {
       WHEN (o."model" LIKE '%gpt-4-32k-0613%') THEN 0.06 * o."prompt_tokens" + 0.12 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-3.5-turbo-0613%') THEN 0.0015 * o."prompt_tokens" + 0.002 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-3.5-turbo-16k-0613%') THEN 0.003 * o."prompt_tokens" + 0.004 * o."completion_tokens"
-      WHEN (o."model" LIKE '%text-embedding-ada-002-v2%') THEN 0.0001 * o."prompt_tokens" + 0.0001 * coalesce(o."completion_tokens", 0)
+      WHEN (o."model" LIKE '%text-embedding-ada-002%') THEN 0.0001 * o."prompt_tokens" + 0.0001 * coalesce(o."completion_tokens", 0)
       WHEN (o."model" LIKE '%ada%') THEN 0.0004 * o."prompt_tokens" + 0.0004 * o."completion_tokens"
       WHEN (o."model" LIKE '%babbage%') THEN 0.0005 * o."prompt_tokens" + 0.0005 * o."completion_tokens"
       WHEN (o."model" LIKE '%curie%') THEN 0.002 * o."prompt_tokens" + 0.002 * o."completion_tokens"
       WHEN (o."model" LIKE '%davinci%') THEN 0.02 * o."prompt_tokens" + 0.02 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-3.5-turbo%') THEN 0.002 * o."prompt_tokens" + 0.002 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-4%') THEN 0.03 * o."prompt_tokens" + 0.06 * o."completion_tokens"
-      WHEN (o."model" LIKE '%claude-v1%') THEN 0.0163 * o."prompt_tokens" + 0.0551 * o."completion_tokens"
-      WHEN (o."model" LIKE '%claude-instant-v1%') THEN 0.01102 * o."prompt_tokens" + 0.03268 * o."completion_tokens"
+      WHEN (o."model" LIKE '%claude-1%') THEN 0.01102 * o."prompt_tokens" + 0.03268 * o."completion_tokens"
+      WHEN (o."model" LIKE '%claude-2%') THEN 0.01102 * o."prompt_tokens" + 0.03268 * o."completion_tokens"
+      WHEN (o."model" LIKE '%claude-instant-1%') THEN 0.00163 * o."prompt_tokens" + 0.00551 * o."completion_tokens"
       ELSE 0
     END
     ) / 1000
@@ -101,7 +122,15 @@ export const totalTokenCost = {
 export const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces t`,
-    columns: [tracesProjectId, traceVersion, release, traceId, traceTimestamp],
+    columns: [
+      tracesProjectId,
+      traceVersion,
+      release,
+      traceId,
+      traceTimestamp,
+      traceName,
+      traceUser,
+    ],
   },
   traces_observations: {
     table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
@@ -113,6 +142,11 @@ export const tableDefinitions: TableDefinitions = {
       observationsProjectId,
       duration,
       totalTokenCost,
+      totalTokens,
+      model,
+      traceTimestamp,
+      traceUser,
+      startTime,
     ],
   },
   observations: {
@@ -128,13 +162,9 @@ export const tableDefinitions: TableDefinitions = {
         type: "number",
         internal: 'o."prompt_tokens"',
       },
-      {
-        name: "totalTokens",
-        type: "number",
-        internal: 'o."total_tokens"',
-      },
+      totalTokens,
       observationId,
-      { name: "model", type: "string", internal: 'o."model"' },
+      model,
       observationsProjectId,
       startTime,
       { name: "endTime", type: "datetime", internal: 'o."end_time"' },
@@ -147,7 +177,7 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       { name: "value", type: "number", internal: 's."value"' },
       {
-        name: "name",
+        name: "scoreName",
         type: "number",
         internal: 's."name"',
       },
@@ -155,6 +185,7 @@ export const tableDefinitions: TableDefinitions = {
       traceVersion,
       traceTimestamp,
       scoreName,
+      traceUser,
       tracesProjectId,
     ],
   },

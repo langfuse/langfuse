@@ -31,7 +31,7 @@ export const ObservationTree = (props: {
   );
 };
 const ObservationTreeTraceNode = (props: {
-  trace: Trace;
+  trace: Trace & { latency?: number };
   scores: Score[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
@@ -50,11 +50,14 @@ const ObservationTreeTraceNode = (props: {
       <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>TRACE</span>
       <span>{props.trace.name}</span>
     </div>
-    <div className="flex gap-2">
-      <span className="text-xs text-gray-500">
-        {props.trace.timestamp.toLocaleString()}
-      </span>
-    </div>
+
+    {props.trace.latency ? (
+      <div className="flex gap-2">
+        <span className="text-xs text-gray-500">
+          {props.trace.latency.toFixed(2)} sec
+        </span>
+      </div>
+    ) : null}
     <div className="flex flex-wrap gap-1">
       {props.scores.find((s) => s.observationId === null) ? (
         <GroupedScoreBadges
@@ -102,9 +105,12 @@ const ObservationTreeNode = (props: {
               <div className="flex gap-2">
                 {observation.endTime ? (
                   <span className="text-xs text-gray-500">
-                    {observation.endTime.getTime() -
-                      observation.startTime.getTime()}{" "}
-                    ms
+                    {(
+                      (observation.endTime.getTime() -
+                        observation.startTime.getTime()) /
+                      1000
+                    ).toFixed(2)}{" "}
+                    sec
                   </span>
                 ) : null}
                 {observation.promptTokens ||

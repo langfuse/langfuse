@@ -1,12 +1,20 @@
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
+import { cn } from "@/src/utils/tailwind";
 import { AreaChart } from "@tremor/react";
 
+export type TimeSeriesChartDataPoint = {
+  ts: number;
+  values: { label: string; value?: number }[];
+};
+
 export function BaseTimeSeriesChart(props: {
+  className?: string;
   agg: DateTimeAggregationOption;
-  data: { ts: number; values: { label: string; value?: number }[] }[];
+  data: TimeSeriesChartDataPoint[];
   showLegend?: boolean;
   connectNulls?: boolean;
+  valueFormatter?: (value: number) => string;
 }) {
   const labels = new Set(
     props.data.flatMap((d) => d.values.map((v) => v.label)),
@@ -16,9 +24,7 @@ export function BaseTimeSeriesChart(props: {
     [key: string]: number | undefined;
   };
 
-  function transformArray(
-    array: { ts: number; values: { label: string; value?: number }[] }[],
-  ): ChartInput[] {
+  function transformArray(array: TimeSeriesChartDataPoint[]): ChartInput[] {
     return array.map((item) => {
       const outputObject: ChartInput = {
         timestamp: convertDate(item.ts, props.agg),
@@ -33,7 +39,7 @@ export function BaseTimeSeriesChart(props: {
   }
 
   const convertDate = (date: number, agg: DateTimeAggregationOption) => {
-    if (agg === "24 hours" || agg === "1 hour") {
+    if (agg === "24 hours" || agg === "1 hour" || agg === "30 minutes") {
       return new Date(date).toLocaleTimeString("en-US", {
         year: "2-digit",
         month: "numeric",
@@ -50,15 +56,18 @@ export function BaseTimeSeriesChart(props: {
   };
   return (
     <AreaChart
-      className="mt-4 h-72"
+      className={cn("mt-4", props.className)}
       data={transformArray(props.data)}
       index="timestamp"
       categories={Array.from(labels)}
       connectNulls={props.connectNulls}
-      colors={["indigo", "cyan"]}
-      valueFormatter={numberFormatter}
+      colors={["indigo", "cyan", "zinc", "purple"]}
+      valueFormatter={
+        props.valueFormatter ? props.valueFormatter : compactNumberFormatter
+      }
       noDataText="No data"
       showLegend={props.showLegend}
+      showAnimation={true}
     />
   );
 }

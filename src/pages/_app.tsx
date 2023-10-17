@@ -20,6 +20,7 @@ import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
 
 // Other CSS
 import "react18-json-view/src/style.css";
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 
 const setProjectInPosthog = () => {
   // project
@@ -78,11 +79,13 @@ const MyApp: AppType<{ session: Session | null }> = ({
     <QueryParamProvider adapter={NextAdapterPages}>
       <PostHogProvider client={posthog}>
         <SessionProvider session={session} refetchOnWindowFocus={true}>
-          <Layout>
-            <Component {...pageProps} />
-            <UserTracking />
-          </Layout>
-          <CrispWidget />
+          <DetailPageListsProvider>
+            <Layout>
+              <Component {...pageProps} />
+              <UserTracking />
+            </Layout>
+            <CrispWidget />
+          </DetailPageListsProvider>
         </SessionProvider>
       </PostHogProvider>
     </QueryParamProvider>

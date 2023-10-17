@@ -10,6 +10,28 @@ import { prisma } from "@/src/server/db";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
+import { env } from "@/src/env.mjs";
+
+// Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
+const useSecureCookies =
+  env.NEXTAUTH_URL.startsWith("https://") || process.env.VERCEL === "1";
+
+const cookieOptions = {
+  domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
+  httpOnly: true,
+  sameSite: "lax",
+  path: "/",
+  secure: useSecureCookies,
+};
+
+const cookieName = (name: string) =>
+  [
+    useSecureCookies ? "__Secure-" : "",
+    name,
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
+      : "",
+  ].join("");
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
@@ -33,6 +55,7 @@ export const authOptions: NextAuthOptions = {
           email: true,
           image: true,
           featureFlags: true,
+          admin: true,
           memberships: {
             include: {
               project: true,
@@ -51,6 +74,7 @@ export const authOptions: NextAuthOptions = {
                 name: dbUser.name,
                 email: dbUser.email,
                 image: dbUser.image,
+                admin: dbUser.admin,
                 projects: dbUser.memberships.map((membership) => ({
                   id: membership.project.id,
                   name: membership.project.name,
@@ -122,6 +146,32 @@ export const authOptions: NextAuthOptions = {
   ],
   pages: {
     signIn: "/auth/sign-in",
+  },
+  cookies: {
+    sessionToken: {
+      name: cookieName("next-auth.session-token"),
+      options: cookieOptions,
+    },
+    csrfToken: {
+      name: cookieName("next-auth.csrf-token"),
+      options: cookieOptions,
+    },
+    callbackUrl: {
+      name: cookieName("next-auth.callback-url"),
+      options: cookieOptions,
+    },
+    state: {
+      name: cookieName("next-auth.state"),
+      options: cookieOptions,
+    },
+    nonce: {
+      name: cookieName("next-auth.nonce"),
+      options: cookieOptions,
+    },
+    pkceCodeVerifier: {
+      name: cookieName("next-auth.pkce.code_verifier"),
+      options: cookieOptions,
+    },
   },
 };
 

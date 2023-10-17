@@ -4,6 +4,7 @@
  */
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
+import { env } from "./src/env.mjs";
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
@@ -20,6 +21,24 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async headers() {
+    // Required to check authentication status from langfuse.com
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
+      return [
+        {
+          source: '/api/auth/session',
+          headers: [
+            { key: "Access-Control-Allow-Origin", value: "https://langfuse.com" },
+            { key: "Access-Control-Allow-Credentials", value: "true" },
+            { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+            { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
+          ]
+        }
+      ]
+
+    return []
+  },
 
   // webassembly support for @dqbd/tiktoken
   webpack(config) {

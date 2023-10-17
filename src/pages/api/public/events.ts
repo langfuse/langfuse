@@ -6,6 +6,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 import { jsonSchema } from "@/src/utils/zod";
+import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
 const ObservationSchema = z.object({
   id: z.string().nullish(),
@@ -64,6 +65,8 @@ export default async function handler(
       statusMessage,
       version,
     } = obj;
+
+    await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
 
     const traceId = !obj.traceId
       ? // Create trace if no traceid - backwards compatibility

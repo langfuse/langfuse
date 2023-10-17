@@ -1,4 +1,5 @@
 import { type FilterState } from "@/src/features/filters/types";
+import { filterOperators } from "@/src/server/api/interfaces/filters";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma } from "@prisma/client";
 
@@ -74,3 +75,25 @@ export function filterToPrismaSql(
     "",
   );
 }
+
+const dateOperators = filterOperators["datetime"];
+
+export const datetimeFilterToPrismaSql = (
+  safeColumn: string,
+  operator: (typeof dateOperators)[number],
+  value: Date,
+) => {
+  if (!dateOperators.includes(operator)) {
+    throw new Error("Invalid operator: " + operator);
+  }
+  if (isNaN(value.getTime())) {
+    throw new Error("Invalid date: " + value.toString());
+  }
+
+  return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(operator)} ${
+    value
+      .toISOString()
+      .split(".")[0]! // remove milliseconds
+      .replace("T", " ") // to Postgres datetime
+  }::TIMESTAMP`;
+};

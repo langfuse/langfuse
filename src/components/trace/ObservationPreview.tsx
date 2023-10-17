@@ -46,10 +46,11 @@ export const ObservationPreview = (props: {
           <div className="flex flex-wrap gap-2">
             {observation.endTime ? (
               <Badge variant="outline">
-                {`${
-                  observation.endTime.getTime() -
-                  observation.startTime.getTime()
-                } ms`}
+                {`${(
+                  (observation.endTime.getTime() -
+                    observation.startTime.getTime()) /
+                  1000
+                ).toFixed(2)} sec`}
               </Badge>
             ) : null}
             <Badge variant="outline">

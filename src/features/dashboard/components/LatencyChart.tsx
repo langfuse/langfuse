@@ -1,39 +1,41 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import {
   dateTimeAggregationSettings,
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
-import { Loader } from "lucide-react";
 import {
   getAllModels,
-  reduceData,
-  transformMapAndFillZeroValues,
+  extractTimeSeriesData,
+  fillMissingValuesAndTransform,
+  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { numberFormatter } from "@/src/utils/numbers";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const LatencyChart = ({
+  className,
   projectId,
   globalFilterState,
   agg,
 }: {
+  className?: string;
   projectId: string;
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
-  const data = api.dashboard.chart.useQuery({
+  const latencies = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
     select: [
-      { column: "duration", agg: "AVG" },
-      { column: "model", agg: null },
+      { column: "duration", agg: "50thPercentile" },
+      { column: "duration", agg: "90thPercentile" },
+      { column: "duration", agg: "95thPercentile" },
+      { column: "duration", agg: "99thPercentile" },
+      { column: "model" },
     ],
     filter:
       [
@@ -48,39 +50,68 @@ export const LatencyChart = ({
       },
       { type: "string", column: "model" },
     ],
-    orderBy: [],
   });
 
   const allModels = getAllModels(projectId, globalFilterState);
 
-  const transformedData =
-    data.data && allModels
-      ? transformMapAndFillZeroValues(
-          reduceData(data.data, "avgDuration"),
+  const getData = (valueColumn: string) => {
+    return latencies.data && allModels
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(latencies.data, "startTime", [
+            { labelColumn: "model", valueColumn: valueColumn },
+          ]),
           allModels,
         )
       : [];
+  };
+
+  const data = [
+    {
+      tabTitle: "50th Percentile",
+      data: getData("percentile50Duration"),
+    },
+    {
+      tabTitle: "90th Percentile",
+      data: getData("percentile90Duration"),
+    },
+    {
+      tabTitle: "95th Percentile",
+      data: getData("percentile95Duration"),
+    },
+    {
+      tabTitle: "99th Percentile",
+      data: getData("percentile99Duration"),
+    },
+  ];
 
   return (
-    <Card>
-      <CardHeader className="relative">
-        <CardTitle>Model latencies</CardTitle>
-        <CardDescription>
-          Average latency (ms) per LLM generation
-        </CardDescription>
-        {data.isLoading ? (
-          <div className="absolute right-5 top-5 ">
-            <Loader className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <BaseTimeSeriesChart
-          agg={agg}
-          data={transformedData ?? []}
-          connectNulls={true}
-        />
-      </CardContent>
-    </Card>
+    <DashboardCard
+      className={className}
+      title="Model latencies"
+      description="Latencies (seconds) per LLM generation"
+      isLoading={latencies.isLoading}
+    >
+      <TabComponent
+        tabs={data.map((item) => {
+          return {
+            tabTitle: item.tabTitle,
+            content: (
+              <>
+                {!isEmptyTimeSeries(item.data) ? (
+                  <BaseTimeSeriesChart
+                    agg={agg}
+                    data={item.data}
+                    connectNulls={true}
+                    valueFormatter={numberFormatter}
+                  />
+                ) : (
+                  <NoData noDataText="No data" />
+                )}
+              </>
+            ),
+          };
+        })}
+      />
+    </DashboardCard>
   );
 };

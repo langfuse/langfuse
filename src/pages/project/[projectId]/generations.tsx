@@ -26,12 +26,14 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
+import { utcDateOffsetByDays } from "@/src/utils/dates";
 
 type GenerationTableRow = {
   id: string;
   traceId: string;
   startTime: string;
   endTime?: string;
+  latency?: number;
   name?: string;
   model?: string;
   traceName?: string;
@@ -75,7 +77,14 @@ export default function Generations() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [filterState, setFilterState] = useQueryFilterState([]);
+  const [filterState, setFilterState] = useQueryFilterState([
+    {
+      column: "start_time",
+      type: "datetime",
+      operator: ">",
+      value: utcDateOffsetByDays(-14),
+    },
+  ]);
 
   const generations = api.generations.all.useQuery({
     page: paginationState.pageIndex,
@@ -170,8 +179,14 @@ export default function Generations() {
       header: "Start Time",
     },
     {
-      accessorKey: "endTime",
-      header: "End Time",
+      accessorKey: "latency",
+      header: "Latency",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("latency");
+        return value !== undefined ? (
+          <span>{value.toFixed(2)} sec</span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "model",
@@ -196,6 +211,10 @@ export default function Generations() {
         );
       },
     },
+    {
+      accessorKey: "version",
+      header: "Version",
+    },
   ];
 
   const rows: GenerationTableRow[] = generations.isSuccess
@@ -205,7 +224,9 @@ export default function Generations() {
         traceName: generation.traceName,
         startTime: generation.startTime.toLocaleString(),
         endTime: generation.endTime?.toLocaleString() ?? undefined,
+        latency: generation.latency === null ? undefined : generation.latency,
         name: generation.name ?? undefined,
+        version: generation.version ?? "",
         model: generation.model ?? "",
         usage: {
           promptTokens: generation.promptTokens,

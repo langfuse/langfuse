@@ -4,7 +4,9 @@ import {
   enrichAndCreateQuery,
   executeQuery,
 } from "@/src/server/api/services/query-builder";
+import { type aggregations } from "@/src/server/api/services/sqlInterface";
 import { prisma } from "@/src/server/db";
+import { type z } from "zod";
 
 describe("Build valid SQL queries", () => {
   beforeEach(async () => await pruneDatabase());
@@ -42,10 +44,7 @@ describe("Build valid SQL queries", () => {
       it(`should enrich mandatory filters ${prop.table}`, () => {
         const preparedQuery = enrichAndCreateQuery("project-id", {
           from: prop.table,
-          filter: [],
-          groupBy: [],
           select: [],
-          orderBy: [],
         });
         expect(preparedQuery.values).toEqual(prop.values);
         expect(preparedQuery.strings).toEqual(prop.strings);
@@ -65,9 +64,8 @@ describe("Build valid SQL queries", () => {
             value: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
         ],
-        groupBy: [],
-        select: [{ column: "traceId", agg: null }],
-        orderBy: [],
+
+        select: [{ column: "traceId" }],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -87,8 +85,7 @@ describe("Build valid SQL queries", () => {
           },
         ],
         groupBy: [{ type: "string", column: "version" }],
-        select: [{ column: "traceId", agg: null }],
-        orderBy: [],
+        select: [{ column: "traceId" }],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -117,7 +114,6 @@ describe("Build valid SQL queries", () => {
           { type: "datetime", column: "startTime", temporalUnit: "day" },
         ],
         select: [{ column: "completionTokens", agg: "SUM" }],
-        orderBy: [],
       });
 
       expect(preparedQuery.values).toEqual([
@@ -135,9 +131,7 @@ describe("Build valid SQL queries", () => {
           filter: [
             { type: "string", column: "unknown", operator: "=", value: "" },
           ],
-          groupBy: [],
           select: [],
-          orderBy: [],
         }),
       ).toThrow("Column unknown not found");
     });
@@ -146,10 +140,7 @@ describe("Build valid SQL queries", () => {
       expect(() =>
         createQuery({
           from: "traces",
-          filter: [],
-          groupBy: [],
-          select: [{ column: "unknown", agg: null }],
-          orderBy: [],
+          select: [{ column: "unknown" }],
         }),
       ).toThrow("Column unknown not found");
     });
@@ -158,10 +149,8 @@ describe("Build valid SQL queries", () => {
       expect(() =>
         createQuery({
           from: "traces",
-          filter: [],
           groupBy: [{ column: "unknown", type: "string" }],
           select: [],
-          orderBy: [],
         }),
       ).toThrow("Column unknown not found");
     });
@@ -170,8 +159,6 @@ describe("Build valid SQL queries", () => {
       expect(() =>
         createQuery({
           from: "traces",
-          filter: [],
-          groupBy: [],
           select: [],
           orderBy: [{ column: "unknown", direction: "ASC" }],
         }),
@@ -218,10 +205,7 @@ describe("Build valid SQL queries", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         {
           from: "traces",
-          filter: [],
-          groupBy: [],
-          select: [{ column: "traceId", agg: null }],
-          orderBy: [],
+          select: [{ column: "traceId" }],
         },
       );
 
@@ -295,13 +279,11 @@ describe("Build valid SQL queries", () => {
           "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           {
             from: "observations",
-            filter: [],
             groupBy: [{ type: "string", column: "name" }],
             select: [
               { column: "completionTokens", agg: prop.agg as "SUM" | "AVG" },
-              { column: "name", agg: null },
+              { column: "name" },
             ],
-            orderBy: [],
           },
         );
 
@@ -367,8 +349,8 @@ describe("Build valid SQL queries", () => {
               value: new Date("2021-01-04T00:00:00.000Z"),
             },
           ],
-          groupBy: [],
-          select: [{ column: "completionTokens", agg: null }],
+
+          select: [{ column: "completionTokens" }],
           orderBy: [{ column: "completionTokens", direction: "ASC" }],
         },
       );
@@ -444,7 +426,6 @@ describe("Build valid SQL queries", () => {
             select: [
               { column: "completionTokens", agg: prop.agg as "SUM" | "AVG" },
             ],
-            orderBy: [],
           },
         );
 
@@ -466,6 +447,156 @@ describe("Build valid SQL queries", () => {
             sumCompletionTokens: null,
           },
         ]);
+      });
+    });
+
+    [
+      {
+        percentile: "50thPercentile",
+        expectedOutcome: [
+          {
+            startTime: new Date("2021-01-01T00:00:00.000Z"),
+            percentile50Duration: 8,
+          },
+          {
+            startTime: new Date("2021-01-02T00:00:00.000Z"),
+            percentile50Duration: 5,
+          },
+          {
+            startTime: new Date("2021-01-03T00:00:00.000Z"),
+            percentile50Duration: null,
+          },
+          {
+            startTime: new Date("2021-01-04T00:00:00.000Z"),
+            percentile50Duration: null,
+          },
+        ],
+      },
+      {
+        percentile: "99thPercentile",
+        expectedOutcome: [
+          {
+            startTime: new Date("2021-01-01T00:00:00.000Z"),
+            percentile99Duration: 10,
+          },
+          {
+            startTime: new Date("2021-01-02T00:00:00.000Z"),
+            percentile99Duration: 5,
+          },
+          {
+            startTime: new Date("2021-01-03T00:00:00.000Z"),
+            percentile99Duration: null,
+          },
+          {
+            startTime: new Date("2021-01-04T00:00:00.000Z"),
+            percentile99Duration: null,
+          },
+        ],
+      },
+      {
+        percentile: "90thPercentile",
+        expectedOutcome: [
+          {
+            startTime: new Date("2021-01-01T00:00:00.000Z"),
+            percentile90Duration: 10,
+          },
+          {
+            startTime: new Date("2021-01-02T00:00:00.000Z"),
+            percentile90Duration: 5,
+          },
+          {
+            startTime: new Date("2021-01-03T00:00:00.000Z"),
+            percentile90Duration: null,
+          },
+          {
+            startTime: new Date("2021-01-04T00:00:00.000Z"),
+            percentile90Duration: null,
+          },
+        ],
+      },
+    ].forEach((props) => {
+      it(`should calculate right percentiles ${props.percentile}`, async () => {
+        await prisma.trace.create({
+          data: {
+            id: "trace-1",
+            name: "trace-1",
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          },
+        });
+
+        await prisma.observation.createMany({
+          data: [
+            {
+              traceId: "trace-1",
+              name: "trace-1",
+              projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              type: "GENERATION",
+              completionTokens: 5,
+              startTime: new Date("2021-01-01T00:00:00.000Z"),
+              endTime: new Date("2021-01-01T00:00:10.000Z"),
+            },
+            {
+              traceId: "trace-1",
+              name: "trace-1",
+              projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              type: "GENERATION",
+              completionTokens: 3,
+              startTime: new Date("2021-01-01T00:00:00.000Z"),
+              endTime: new Date("2021-01-01T00:00:08.000Z"),
+            },
+            {
+              traceId: "trace-1",
+              name: "trace-1",
+              projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              type: "GENERATION",
+              completionTokens: 3,
+              startTime: new Date("2021-01-01T00:00:00.000Z"),
+              endTime: new Date("2021-01-01T00:00:01.000Z"),
+            },
+            {
+              traceId: "trace-1",
+              name: "trace-2",
+              projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              type: "GENERATION",
+              completionTokens: 4,
+              startTime: new Date("2021-01-02T00:00:00.000Z"),
+              endTime: new Date("2021-01-02T00:00:05.000Z"),
+            },
+          ],
+        });
+
+        const result = await executeQuery(
+          prisma,
+          "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          {
+            from: "observations",
+            filter: [
+              {
+                type: "datetime",
+                column: "startTime",
+                operator: ">=",
+                value: new Date("2021-01-01T00:00:00.000Z"),
+              },
+              {
+                type: "datetime",
+                column: "startTime",
+                operator: "<=",
+                value: new Date("2021-01-04T00:00:00.000Z"),
+              },
+            ],
+            groupBy: [
+              { type: "datetime", column: "startTime", temporalUnit: "day" },
+            ],
+            select: [
+              {
+                column: "duration",
+                agg: props.percentile as z.infer<typeof aggregations>,
+              },
+            ],
+          },
+        );
+
+        expect(result).toStrictEqual(props.expectedOutcome);
       });
     });
   });
