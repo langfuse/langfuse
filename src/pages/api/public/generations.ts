@@ -30,8 +30,8 @@ export const GenerationsCreateSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: jsonSchema,
-  completion: jsonSchema,
+  prompt: jsonSchema.optional(),
+  completion: jsonSchema.optional(),
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -39,7 +39,7 @@ export const GenerationsCreateSchema = z.object({
       totalTokens: z.number().nullish(),
     })
     .nullish(),
-  metadata: z.unknown().nullish(),
+  metadata: jsonSchema.optional(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
@@ -59,8 +59,8 @@ const GenerationPatchSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: jsonSchema,
-  completion: jsonSchema,
+  prompt: jsonSchema.optional(),
+  completion: jsonSchema.optional(),
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -68,7 +68,7 @@ const GenerationPatchSchema = z.object({
       totalTokens: z.number().nullish(),
     })
     .nullish(),
-  metadata: jsonSchema,
+  metadata: jsonSchema.optional(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
@@ -201,10 +201,7 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output:
-            typeof completion === "string"
-              ? { completion: completion }
-              : completion,
+          output: completion,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:
@@ -228,10 +225,7 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output:
-            typeof completion === "string"
-              ? { completion: completion }
-              : completion,
+          output: completion,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:
@@ -395,7 +389,7 @@ const patchGeneration = async (
         ? new Date(completionStartTime)
         : undefined,
       input: prompt ?? undefined,
-      output: completion ? { completion: completion } : undefined,
+      output: completion ?? undefined,
       promptTokens: newPromptTokens,
       completionTokens: newCompletionTokens,
       totalTokens: newTotalTokens,
@@ -413,7 +407,7 @@ const patchGeneration = async (
         ? new Date(completionStartTime)
         : undefined,
       input: prompt ?? undefined,
-      output: completion ? { completion: completion } : undefined,
+      output: completion ?? undefined,
       promptTokens: newPromptTokens,
       completionTokens: newCompletionTokens,
       totalTokens: newTotalTokens,

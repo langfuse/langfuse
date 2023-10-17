@@ -13,7 +13,7 @@ const CreateTraceSchema = z.object({
   name: z.string().nullish(),
   externalId: z.string().nullish(),
   userId: z.string().nullish(),
-  metadata: jsonSchema,
+  metadata: jsonSchema.optional(),
   release: z.string().nullish(),
   version: z.string().nullish(),
 });
