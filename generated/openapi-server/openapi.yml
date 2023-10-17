@@ -999,7 +999,6 @@ components:
         prompt:
           nullable: true
         completion:
-          type: string
           nullable: true
         usage:
           $ref: '#/components/schemas/LLMUsage'
@@ -1392,7 +1391,6 @@ components:
         metadata:
           nullable: true
         completion:
-          type: string
           nullable: true
         usage:
           $ref: '#/components/schemas/LLMUsage'

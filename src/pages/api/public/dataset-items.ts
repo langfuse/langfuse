@@ -8,7 +8,7 @@ import { jsonSchema } from "@/src/utils/zod";
 const CreateDatasetItemSchema = z.object({
   datasetName: z.string(),
   input: jsonSchema,
-  expectedOutput: jsonSchema.optional(),
+  expectedOutput: jsonSchema.nullish(),
 });
 
 export default async function handler(
@@ -65,7 +65,7 @@ export default async function handler(
       const item = await prisma.datasetItem.create({
         data: {
           input,
-          expectedOutput,
+          expectedOutput: expectedOutput ?? undefined,
           datasetId: dataset.id,
         },
       });

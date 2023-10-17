@@ -30,7 +30,7 @@ types:
       prompt: optional<unknown>
       version: optional<string>
       metadata: optional<unknown>
-      completion: optional<string>
+      completion: optional<unknown>
       usage: optional<commons.LLMUsage>
       level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
