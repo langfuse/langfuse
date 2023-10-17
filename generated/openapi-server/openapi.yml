@@ -502,6 +502,18 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: traceId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: parentObservationId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
