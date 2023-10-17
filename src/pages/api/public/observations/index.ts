@@ -11,6 +11,8 @@ const ObservationsGetSchema = z.object({
   type: z.enum(["GENERATION", "SPAN", "EVENT"]).nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
+  traceId: z.string().nullish(),
+  parentObservationId: z.string().nullish(),
 });
 
 export default async function handler(
@@ -97,6 +99,14 @@ const getObservation = async (
     ? Prisma.sql`AND o."type" = ${query.type}::"ObservationType"`
     : Prisma.empty;
 
+  const traceIdCondition = query.traceId
+    ? Prisma.sql`AND o."trace_id" = ${query.traceId}`
+    : Prisma.empty;
+
+  const parentObservationIdCondition = query.parentObservationId
+    ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
+    : Prisma.empty;
+
   const [observations, count] = await Promise.all([
     prisma.$queryRaw<Observation[]>`
       SELECT 
@@ -124,6 +134,8 @@ const getObservation = async (
       ${nameCondition}
       ${userIdCondition}
       ${observationTypeCondition}
+      ${traceIdCondition}
+      ${parentObservationIdCondition}
       ORDER by o."start_time" DESC
       OFFSET ${(query.page - 1) * query.limit}
       LIMIT ${query.limit}
@@ -134,6 +146,8 @@ const getObservation = async (
       ${observationTypeCondition}
       ${nameCondition}
       ${userIdCondition}
+      ${traceIdCondition}
+      ${parentObservationIdCondition}
   `,
   ]);
 

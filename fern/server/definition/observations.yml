@@ -27,6 +27,8 @@ service:
           name: optional<string>
           userId: optional<string>
           type: optional<string>
+          traceId: optional<string>
+          parentObservationId: optional<string>
       response: Observations
 
 types:
