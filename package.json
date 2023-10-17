@@ -76,7 +76,7 @@
     "next-auth": "^4.23.2",
     "next-query-params": "^4.2.3",
     "next-swagger-doc": "^0.4.0",
-    "posthog-js": "^1.83.1",
+    "posthog-js": "^1.83.3",
     "posthog-node": "^3.1.2",
     "react": "18.2.0",
     "react-day-picker": "^8.8.2",
