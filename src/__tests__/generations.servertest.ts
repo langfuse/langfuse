@@ -390,7 +390,7 @@ describe("/api/public/generations API Endpoint", () => {
 
     const dbTrace = await prisma.trace.findMany({
       where: {
-        id: dbGeneration.traceId,
+        id: dbGeneration.traceId!,
       },
     });
 
