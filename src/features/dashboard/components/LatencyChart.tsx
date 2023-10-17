@@ -8,9 +8,13 @@ import {
   getAllModels,
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
+  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { numberFormatter } from "@/src/utils/numbers";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const LatencyChart = ({
   className,
@@ -23,10 +27,16 @@ export const LatencyChart = ({
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
-  const data = api.dashboard.chart.useQuery({
+  const latencies = api.dashboard.chart.useQuery({
     projectId,
     from: "observations",
-    select: [{ column: "duration", agg: "AVG" }, { column: "model" }],
+    select: [
+      { column: "duration", agg: "50thPercentile" },
+      { column: "duration", agg: "90thPercentile" },
+      { column: "duration", agg: "95thPercentile" },
+      { column: "duration", agg: "99thPercentile" },
+      { column: "model" },
+    ],
     filter:
       [
         ...globalFilterState,
@@ -44,27 +54,63 @@ export const LatencyChart = ({
 
   const allModels = getAllModels(projectId, globalFilterState);
 
-  const transformedData =
-    data.data && allModels
+  const getData = (valueColumn: string) => {
+    return latencies.data && allModels
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(data.data, "startTime", [
-            { labelColumn: "model", valueColumn: "avgDuration" },
+          extractTimeSeriesData(latencies.data, "startTime", [
+            { labelColumn: "model", valueColumn: valueColumn },
           ]),
           allModels,
         )
       : [];
+  };
+
+  const data = [
+    {
+      tabTitle: "50th Percentile",
+      data: getData("percentile50Duration"),
+    },
+    {
+      tabTitle: "90th Percentile",
+      data: getData("percentile90Duration"),
+    },
+    {
+      tabTitle: "95th Percentile",
+      data: getData("percentile95Duration"),
+    },
+    {
+      tabTitle: "99th Percentile",
+      data: getData("percentile99Duration"),
+    },
+  ];
 
   return (
     <DashboardCard
       className={className}
       title="Model latencies"
-      description="Average latency (ms) per LLM generation"
-      isLoading={data.isLoading}
+      description="Latencies (seconds) per LLM generation"
+      isLoading={latencies.isLoading}
     >
-      <BaseTimeSeriesChart
-        agg={agg}
-        data={transformedData ?? []}
-        connectNulls={true}
+      <TabComponent
+        tabs={data.map((item) => {
+          return {
+            tabTitle: item.tabTitle,
+            content: (
+              <>
+                {!isEmptyTimeSeries(item.data) ? (
+                  <BaseTimeSeriesChart
+                    agg={agg}
+                    data={item.data}
+                    connectNulls={true}
+                    valueFormatter={numberFormatter}
+                  />
+                ) : (
+                  <NoData noDataText="No data" />
+                )}
+              </>
+            ),
+          };
+        })}
       />
     </DashboardCard>
   );

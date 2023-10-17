@@ -1,7 +1,16 @@
-export const numberFormatter = (number: number) => {
+export const compactNumberFormatter = (number: number) => {
   return Intl.NumberFormat("us", {
     notation: "compact",
     compactDisplay: "short",
+    maximumFractionDigits: 2,
+  }).format(number);
+};
+
+export const numberFormatter = (number: number) => {
+  return Intl.NumberFormat("us", {
+    notation: "standard",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(number);
 };
 

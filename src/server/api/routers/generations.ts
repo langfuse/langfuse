@@ -314,13 +314,17 @@ export const generationsRouter = createTRPCRouter({
       where: {
         id: input,
         type: "GENERATION",
-        project: {
-          members: {
-            some: {
-              userId: ctx.session.user.id,
-            },
-          },
-        },
+        ...(ctx.session.user.admin === true
+          ? undefined
+          : {
+              project: {
+                members: {
+                  some: {
+                    userId: ctx.session.user.id,
+                  },
+                },
+              },
+            }),
       },
     })) as Generation;
 

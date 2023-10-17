@@ -208,13 +208,17 @@ export const traceRouter = createTRPCRouter({
       ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input,
-          project: {
-            members: {
-              some: {
-                userId: ctx.session.user.id,
-              },
-            },
-          },
+          ...(ctx.session.user.admin === true
+            ? undefined
+            : {
+                project: {
+                  members: {
+                    some: {
+                      userId: ctx.session.user.id,
+                    },
+                  },
+                },
+              }),
         },
         include: {
           scores: true,
@@ -226,13 +230,17 @@ export const traceRouter = createTRPCRouter({
             equals: input,
             not: null,
           },
-          project: {
-            members: {
-              some: {
-                userId: ctx.session.user.id,
-              },
-            },
-          },
+          ...(ctx.session.user.admin === true
+            ? undefined
+            : {
+                project: {
+                  members: {
+                    some: {
+                      userId: ctx.session.user.id,
+                    },
+                  },
+                },
+              }),
         },
       }),
       ctx.prisma.pricing.findMany(),

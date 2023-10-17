@@ -4,7 +4,7 @@ import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/tim
 import { useRouter } from "next/router";
 import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { TracesBarListChart } from "@/src/features/dashboard/components/TracesChart";
+import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
@@ -26,6 +26,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { isValidOption } from "@/src/utils/types";
+import { api } from "@/src/utils/api";
 
 export type DashboardDateRange = {
   from: Date;
@@ -36,6 +37,9 @@ export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  const projects = api.projects.all.useQuery();
+  const project = projects.data?.find((p) => p.id === projectId);
 
   const currDate = new Date();
   const FromParam = withDefault(NumberParam, addDays(currDate, -7).getTime());
@@ -88,7 +92,7 @@ export default function Start() {
   return (
     <div className="md:container">
       <Header
-        title="Dashboard"
+        title={project?.name ?? "Dashboard"}
         actionButtons={
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
             <Button size="sm" variant="outline" asChild>

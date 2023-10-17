@@ -12,6 +12,8 @@ type DashboardTableProps = {
     collapsed: number;
     expanded: number;
   };
+  noDataChildren?: ReactNode;
+  noDataClassName?: string;
 };
 
 export const DashboardTable = ({
@@ -19,6 +21,8 @@ export const DashboardTable = ({
   rows,
   children,
   collapse,
+  noDataChildren,
+  noDataClassName,
 }: DashboardTableProps) => {
   const [isExpanded, setExpanded] = useState(false);
   return (
@@ -84,7 +88,9 @@ export const DashboardTable = ({
           ) : null}
         </div>
       ) : (
-        <NoData noDataText="No data" />
+        <NoData className={noDataClassName} noDataText="No data">
+          {noDataChildren}
+        </NoData>
       )}
     </>
   );

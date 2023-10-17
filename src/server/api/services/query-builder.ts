@@ -64,27 +64,24 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
 
   const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
-  const selectFields = query.select.map((field) =>
-    // raw mandatory everywhere here as this creates the selection
-    // agg is typed via zod
-    // column names come from our defs via the table definitions
-    {
-      const safeColumn = getColumnDefinition(query.from, field.column);
-      return field.agg
-        ? Prisma.sql`${Prisma.raw(field.agg)}(${getInternalSql(
-            safeColumn,
-          )}) as "${Prisma.raw(field.agg.toLowerCase())}${Prisma.raw(
-            capitalizeFirstLetter(safeColumn.name),
-          )}"`
-        : Prisma.sql`${getInternalSql(safeColumn)} as "${Prisma.raw(
-            safeColumn.name,
-          )}"`;
-    },
-  );
+  // raw mandatory everywhere here as this creates the selection
+  // agg is typed via zod
+  // column names come from our defs via the table definitions
+  const selectedColumns = query.select.map((selectedColumn) => {
+    const safeColumn = getColumnDefinition(query.from, selectedColumn.column);
+    const safeAgg = aggregations.parse(selectedColumn.agg);
+    const columnDefinition = createAggregatedColumn(safeColumn, safeAgg);
+    return safeAgg
+      ? Prisma.sql`${columnDefinition} as "${createOutputColumnName(
+          safeColumn,
+          safeAgg,
+        )}"`
+      : Prisma.sql`${columnDefinition} as "${Prisma.raw(safeColumn.name)}"`;
+  });
 
   if (cte)
     // raw mandatory here
-    selectFields.unshift(
+    selectedColumns.unshift(
       Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.name)}"`,
     );
 
@@ -100,8 +97,8 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
         : Prisma.empty;
   }
   const selectString =
-    selectFields.length > 0
-      ? Prisma.sql` SELECT ${Prisma.join(selectFields, ", ")}`
+    selectedColumns.length > 0
+      ? Prisma.sql` SELECT ${Prisma.join(selectedColumns, ", ")}`
       : Prisma.empty;
 
   const orderByString = prepareOrderByString(
@@ -130,19 +127,76 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   }${selectString}${fromString}${filterString}${groupString}${orderByString}${limitString};`;
 };
 
+const createOutputColumnName = (
+  columnDefinition: ColumnDefinition,
+  safeAgg: z.infer<typeof aggregations>,
+): Prisma.Sql => {
+  if (!safeAgg) return Prisma.empty;
+  if (["SUM", "AVG", "COUNT", "MAX", "MIN"].includes(safeAgg)) {
+    return Prisma.sql`${Prisma.raw(safeAgg.toLowerCase())}${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+
+  if (safeAgg === "50thPercentile") {
+    return Prisma.sql`percentile50${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  if (safeAgg === "90thPercentile") {
+    return Prisma.sql`percentile90${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  if (safeAgg === "95thPercentile") {
+    return Prisma.sql`percentile95${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  if (safeAgg === "99thPercentile") {
+    return Prisma.sql`percentile99${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  return Prisma.empty;
+};
+
 const createAggregatedColumn = (
-  from: z.infer<typeof sqlInterface>["from"],
-  column: string,
+  columnDefinition: ColumnDefinition,
   agg?: z.infer<typeof aggregations>,
 ): Prisma.Sql => {
   // raw mandatory everywhere here as this creates the selection
   // agg is typed via zod
   // column names come from our defs via the table definitions
-  return agg
-    ? Prisma.sql`${Prisma.raw(
+
+  switch (agg) {
+    case "AVG":
+    case "COUNT":
+    case "MAX":
+    case "MIN":
+    case "SUM":
+      return Prisma.sql`${Prisma.raw(
         aggregations.parse(agg) as string,
-      )}(${getInternalSql(getColumnDefinition(from, column))})`
-    : Prisma.sql`${getInternalSql(getColumnDefinition(from, column))}`;
+      )}(${getInternalSql(columnDefinition)})`;
+    case "50thPercentile":
+      return Prisma.sql`percentile_disc(0.5) within group (order by ${getInternalSql(
+        columnDefinition,
+      )})`;
+    case "90thPercentile":
+      return Prisma.sql`percentile_disc(0.9) within group (order by ${getInternalSql(
+        columnDefinition,
+      )})`;
+    case "95thPercentile":
+      return Prisma.sql`percentile_disc(0.95) within group (order by ${getInternalSql(
+        columnDefinition,
+      )})`;
+    case "99thPercentile":
+      return Prisma.sql`percentile_disc(0.99) within group (order by ${getInternalSql(
+        columnDefinition,
+      )})`;
+    case undefined:
+      return Prisma.sql`${getInternalSql(columnDefinition)}`;
+  }
 };
 
 const prepareOrderByString = (
@@ -152,10 +206,11 @@ const prepareOrderByString = (
 ): Prisma.Sql => {
   const orderBys = (orderBy ?? []).map((orderBy) => {
     // raw mandatory here
+    const safeColumn = getColumnDefinition(from, orderBy.column);
+    const safeAgg = aggregations.parse(orderBy.agg);
     return Prisma.sql`${createAggregatedColumn(
-      from,
-      orderBy.column,
-      orderBy.agg,
+      safeColumn,
+      safeAgg,
     )} ${Prisma.raw(orderBy.direction)}`;
   });
   const addedCte = hasCte

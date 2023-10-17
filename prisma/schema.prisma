@@ -53,6 +53,7 @@ model User {
     emailVerified DateTime?    @map("email_verified")
     password      String?
     image         String?
+    admin         Boolean      @default(false)
     accounts      Account[]
     sessions      Session[]
     memberships   Membership[]
