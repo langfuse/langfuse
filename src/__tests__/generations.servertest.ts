@@ -390,7 +390,7 @@ describe("/api/public/generations API Endpoint", () => {
 
     const dbTrace = await prisma.trace.findMany({
       where: {
-        id: dbGeneration.traceId,
+        id: dbGeneration.traceId!,
       },
     });
 
@@ -460,12 +460,58 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.model).toBe("model-name");
     expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
     expect(dbGeneration?.input).toEqual({ key: "value" });
-    expect(dbGeneration?.output).toEqual({
-      completion: "this is a great gpt response",
-    });
+    expect(dbGeneration?.output).toEqual("this is a great gpt response");
     expect(dbGeneration?.metadata).toEqual({ key: "value" });
     expect(dbGeneration?.version).toBe("2.0.0");
   });
+
+  it("should accept objects as i/o", async () => {
+    const generationName = uuidv4();
+
+    const generationId = uuidv4();
+    const createGeneration = await makeAPICall(
+      "POST",
+      "/api/public/generations",
+      {
+        id: generationId,
+        name: generationName,
+        prompt: { key: "value" },
+        completion: [
+          {
+            foo: "bar",
+          },
+        ],
+        metadata: [
+          {
+            tags: ["example tag", "second tag"],
+          },
+        ],
+      },
+    );
+
+    expect(createGeneration.status).toBe(200);
+
+    const dbGeneration = await prisma.observation.findUnique({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(dbGeneration?.id).toBe(generationId);
+    expect(dbGeneration?.name).toBe(generationName);
+    expect(dbGeneration?.input).toEqual({ key: "value" });
+    expect(dbGeneration?.output).toEqual([
+      {
+        foo: "bar",
+      },
+    ]);
+    expect(dbGeneration?.metadata).toEqual([
+      {
+        tags: ["example tag", "second tag"],
+      },
+    ]);
+  });
+
   it("should fail update if generation does not exist", async () => {
     const generationId = uuidv4();
 
