@@ -79,7 +79,7 @@
     "posthog-js": "^1.83.1",
     "posthog-node": "^3.1.2",
     "react": "18.2.0",
-    "react-day-picker": "^8.8.2",
+    "react-day-picker": "^8.9.0",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.47.0",
     "react-icons": "^4.11.0",
