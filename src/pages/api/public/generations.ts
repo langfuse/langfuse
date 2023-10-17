@@ -30,8 +30,8 @@ export const GenerationsCreateSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: jsonSchema.optional(),
-  completion: jsonSchema.optional(),
+  prompt: jsonSchema.nullish(),
+  completion: jsonSchema.nullish(),
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -39,7 +39,7 @@ export const GenerationsCreateSchema = z.object({
       totalTokens: z.number().nullish(),
     })
     .nullish(),
-  metadata: jsonSchema.optional(),
+  metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
@@ -59,8 +59,8 @@ const GenerationPatchSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: jsonSchema.optional(),
-  completion: jsonSchema.optional(),
+  prompt: jsonSchema.nullish(),
+  completion: jsonSchema.nullish(),
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -68,7 +68,7 @@ const GenerationPatchSchema = z.object({
       totalTokens: z.number().nullish(),
     })
     .nullish(),
-  metadata: jsonSchema.optional(),
+  metadata: jsonSchema.nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
@@ -201,7 +201,7 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output: completion,
+          output: completion ?? undefined,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:
@@ -225,7 +225,7 @@ export default async function handler(
           model: model ?? undefined,
           modelParameters: modelParameters ?? undefined,
           input: prompt ?? undefined,
-          output: completion,
+          output: completion ?? undefined,
           promptTokens: newPromptTokens,
           completionTokens: newCompletionTokens,
           totalTokens:
