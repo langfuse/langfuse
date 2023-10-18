@@ -273,6 +273,8 @@ export const traceRouter = createTRPCRouter({
               totalTokens: new Decimal(observation.totalTokens),
               promptTokens: new Decimal(observation.promptTokens),
               completionTokens: new Decimal(observation.completionTokens),
+              input: observation.input,
+              output: observation.output,
             })
           : undefined,
       };
@@ -326,6 +328,8 @@ export const traceRouter = createTRPCRouter({
                 totalTokens: new Decimal(observation.totalTokens),
                 promptTokens: new Decimal(observation.promptTokens),
                 completionTokens: new Decimal(observation.completionTokens),
+                input: observation.input,
+                output: observation.output,
               })
             : undefined,
         };

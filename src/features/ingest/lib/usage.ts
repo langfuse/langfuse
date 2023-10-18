@@ -6,7 +6,7 @@ import {
   type Tiktoken,
 } from "tiktoken";
 import { countTokens } from "@anthropic-ai/tokenizer";
-import { type Pricing } from "@prisma/client";
+import { type PricingUnit, type Pricing } from "@prisma/client";
 import { Decimal } from "decimal.js";
 
 type ChatMessage = {
@@ -210,6 +210,8 @@ export function calculateTokenCost(
   pricingList: Pricing[],
   input: {
     model: string;
+    input: unknown;
+    output: unknown;
     totalTokens: Decimal;
     promptTokens: Decimal;
     completionTokens: Decimal;
@@ -222,7 +224,12 @@ export function calculateTokenCost(
     return undefined;
   } else {
     if (pricing.length === 1 && pricing[0]?.tokenType === "TOTAL") {
-      return calculateValue(pricing[0].price, input.totalTokens);
+      return calculateValue(
+        pricing[0].price,
+        pricing[0].pricingUnit,
+        input.totalTokens,
+        JSON.stringify(input.input) + JSON.stringify(input.output),
+      );
     }
 
     if (pricing.length === 2) {
@@ -235,13 +242,20 @@ export function calculateTokenCost(
       );
 
       if (promptPricing) {
-        promptPrice = calculateValue(promptPricing.price, input.promptTokens);
+        promptPrice = calculateValue(
+          promptPricing.price,
+          promptPricing.pricingUnit,
+          input.promptTokens,
+          JSON.stringify(input.input),
+        );
       }
 
       if (completionPricing) {
         completionPrice = calculateValue(
           completionPricing.price,
+          completionPricing.pricingUnit,
           input.completionTokens,
+          JSON.stringify(input.output),
         );
       }
 
@@ -252,6 +266,21 @@ export function calculateTokenCost(
   }
 }
 
-const calculateValue = (price: Decimal, tokens: Decimal) => {
-  return price.times(tokens.dividedBy(new Decimal(1000))).toDecimalPlaces(5);
+const calculateValue = (
+  price: Decimal,
+  unit: PricingUnit,
+  tokens: Decimal,
+  characters: string,
+) => {
+  if (unit === "PER_1000_TOKENS")
+    return price.times(tokens.dividedBy(new Decimal(1000))).toDecimalPlaces(5);
+  else if (unit === "PER_1000_CHARS")
+    return (
+      price
+        // strip whitespace, default for google bison, only character based model for now
+        .times(new Decimal(characters.replace(/\s/g, "").length))
+        .dividedBy(new Decimal(1000))
+        .toDecimalPlaces(5)
+    );
+  else throw new Error("Unknown pricing unit", unit);
 };

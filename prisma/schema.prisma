@@ -215,6 +215,7 @@ model Score {
 
 enum PricingUnit {
     PER_1000_TOKENS
+    PER_1000_CHARS
 }
 
 enum TokenType {
