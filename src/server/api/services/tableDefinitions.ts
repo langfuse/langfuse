@@ -99,8 +99,7 @@ export const totalTokenCost = {
       WHEN (o."model" LIKE '%curie:%') THEN 0.012 * o."prompt_tokens" + 0.012 * o."completion_tokens"
       WHEN (o."model" LIKE '%davinci:%') THEN 0.12 * o."prompt_tokens" + 0.12 * o."completion_tokens"
       -- Non-finetuned
-      WHEN (o."model" LIKE '%gpt-4-32k-0314%') THEN 0.06 * o."prompt_tokens" + 0.12 * o."completion_tokens"
-      WHEN (o."model" LIKE '%gpt-4-32k-0613%') THEN 0.06 * o."prompt_tokens" + 0.12 * o."completion_tokens"
+      WHEN (o."model" LIKE '%gpt-4-32k%') THEN 0.06 * o."prompt_tokens" + 0.12 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-3.5-turbo-0613%') THEN 0.0015 * o."prompt_tokens" + 0.002 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-3.5-turbo-16k-0613%') THEN 0.003 * o."prompt_tokens" + 0.004 * o."completion_tokens"
       WHEN (o."model" LIKE '%text-embedding-ada-002%') THEN 0.0001 * o."prompt_tokens" + 0.0001 * coalesce(o."completion_tokens", 0)
@@ -108,7 +107,8 @@ export const totalTokenCost = {
       WHEN (o."model" LIKE '%babbage%') THEN 0.0005 * o."prompt_tokens" + 0.0005 * o."completion_tokens"
       WHEN (o."model" LIKE '%curie%') THEN 0.002 * o."prompt_tokens" + 0.002 * o."completion_tokens"
       WHEN (o."model" LIKE '%davinci%') THEN 0.02 * o."prompt_tokens" + 0.02 * o."completion_tokens"
-      WHEN (o."model" LIKE '%gpt-3.5-turbo%') THEN 0.002 * o."prompt_tokens" + 0.002 * o."completion_tokens"
+      WHEN (o."model" LIKE '%gpt-3.5-turbo%') THEN 0.0015 * o."prompt_tokens" + 0.002 * o."completion_tokens"
+      WHEN (o."model" LIKE '%gpt-35-turbo%') THEN 0.0015 * o."prompt_tokens" + 0.002 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-4%') THEN 0.03 * o."prompt_tokens" + 0.06 * o."completion_tokens"
       WHEN (o."model" LIKE '%claude-1%') THEN 0.01102 * o."prompt_tokens" + 0.03268 * o."completion_tokens"
       WHEN (o."model" LIKE '%claude-2%') THEN 0.01102 * o."prompt_tokens" + 0.03268 * o."completion_tokens"
