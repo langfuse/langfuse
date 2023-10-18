@@ -4,3 +4,13 @@ export const utcDateOffsetByDays = (days: number) => {
   date.setUTCDate(date.getUTCDate() + days);
   return date;
 };
+
+export const setBeginningOfDay = (date: Date) => {
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+export const setEndOfDay = (date: Date) => {
+  date.setHours(23, 59, 59, 999);
+  return date;
+};
