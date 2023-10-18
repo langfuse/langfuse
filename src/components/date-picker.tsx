@@ -29,6 +29,7 @@ import {
 import { useMediaQuery } from "react-responsive";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import { isValidOption } from "@/src/utils/types";
+import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 
 export const DEFAULT_DATE_RANGE_SELECTION = "Select date range" as const;
 export type AvailableDateRangeSelections =
@@ -119,12 +120,20 @@ export function DatePickerWithRange({
   };
 
   const onCalendarSelection = (range?: DateRange) => {
-    setInternalDateRange(range);
-    if (range && range.from && range.to) {
-      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, {
-        from: range.from,
-        to: range.to,
-      });
+    const newRange = range
+      ? {
+          from: range.from ? setBeginningOfDay(range.from) : undefined,
+          to: range.to ? setEndOfDay(range.to) : undefined,
+        }
+      : undefined;
+
+    setInternalDateRange(newRange);
+    if (newRange && newRange.from && newRange.to) {
+      const dashboardDateRange: DashboardDateRange = {
+        from: newRange.from,
+        to: newRange.to,
+      };
+      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, dashboardDateRange);
     }
   };
 
