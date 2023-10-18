@@ -113,6 +113,7 @@ export const totalTokenCost = {
       WHEN (o."model" LIKE '%claude-1%') THEN 0.01102 * o."prompt_tokens" + 0.03268 * o."completion_tokens"
       WHEN (o."model" LIKE '%claude-2%') THEN 0.01102 * o."prompt_tokens" + 0.03268 * o."completion_tokens"
       WHEN (o."model" LIKE '%claude-instant-1%') THEN 0.00163 * o."prompt_tokens" + 0.00551 * o."completion_tokens"
+      WHEN (o."model" LIKE '%bison%') THEN 0.0000005 * LENGTH(REPLACE(o."input"::text, ' ', '')) + 0.0000005 * LENGTH(REPLACE(o."output"::text, ' ', ''))
       ELSE 0
     END
     ) / 1000
