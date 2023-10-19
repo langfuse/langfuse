@@ -41,8 +41,10 @@ export async function verifySecretKey(key: string, hashedKey: string) {
 export function createShaHash(privateKey: string, salt: string): string {
   const hash = crypto
     .createHash("sha256")
-    .update(privateKey + salt)
+    .update(privateKey)
+    .update(crypto.createHash("sha256").update(salt, "utf8").digest("hex"))
     .digest("hex");
+
   return hash;
 }
 
