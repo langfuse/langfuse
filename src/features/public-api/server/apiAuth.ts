@@ -38,9 +38,7 @@ export async function verifyAuthHeaderAndReturnScope(
             extractBasicAuthCredentials(authHeader);
 
           const salt = env.SALT;
-
           const hashFromProvidedKey = createShaHash(secretKey, salt);
-
           const apiKey = await prisma.apiKey.findUnique({
             where: { fastHashedSecretKey: hashFromProvidedKey },
           });
