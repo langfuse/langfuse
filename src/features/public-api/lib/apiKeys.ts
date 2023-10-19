@@ -47,12 +47,3 @@ export function createShaHash(privateKey: string, salt: string): string {
 
   return hash;
 }
-
-export function verifyKey(
-  privateKey: string,
-  salt: string,
-  hashToVerify: string,
-): boolean {
-  const newHash = createShaHash(privateKey, salt);
-  return newHash === hashToVerify;
-}

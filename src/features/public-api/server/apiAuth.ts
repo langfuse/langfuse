@@ -1,7 +1,6 @@
 import { env } from "@/src/env.mjs";
 import {
   createShaHash,
-  verifyKey,
   verifySecretKey,
 } from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
