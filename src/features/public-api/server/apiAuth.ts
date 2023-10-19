@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import {
   createShaHash,
   verifyKey,
@@ -37,7 +38,7 @@ export async function verifyAuthHeaderAndReturnScope(
           const { username: publicKey, password: secretKey } =
             extractBasicAuthCredentials(authHeader);
 
-          const salt = "abc";
+          const salt = env.SALT;
 
           const sha = createShaHash(secretKey, salt);
           const newHash = await prisma.apiKey.findUnique({
