@@ -26,6 +26,7 @@ describe("Validate api calls", () => {
     expect(apiKey).not.toBeNull();
     expect(apiKey?.fastHashedSecretKey).not.toBeNull();
   });
+
   it("should fail on wrong api key with new key", async () => {
     await createAPIKey();
     const auth = await verifyAuthHeaderAndReturnScope(
