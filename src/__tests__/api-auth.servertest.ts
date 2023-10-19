@@ -27,6 +27,25 @@ describe("Validate api calls", () => {
     expect(apiKey?.fastHashedSecretKey).not.toBeNull();
   });
 
+  it("should create new api key and succeed with new key", async () => {
+    await createAPIKey();
+    const auth = await verifyAuthHeaderAndReturnScope(
+      "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+    );
+    expect(auth.validKey).toBe(true);
+
+    const apiKey = await prisma.apiKey.findUnique({
+      where: { publicKey: "pk-lf-1234567890" },
+    });
+    expect(apiKey).not.toBeNull();
+    expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+    const auth2 = await verifyAuthHeaderAndReturnScope(
+      "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+    );
+    expect(auth2.validKey).toBe(true);
+  });
+
   it("should fail on wrong api key with new key", async () => {
     await createAPIKey();
     const auth = await verifyAuthHeaderAndReturnScope(
