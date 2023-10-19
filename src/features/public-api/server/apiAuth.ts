@@ -39,17 +39,14 @@ export async function verifyAuthHeaderAndReturnScope(
 
           const salt = env.SALT;
 
-          const sha = createShaHash(secretKey, salt);
-          const newHash = await prisma.apiKey.findUnique({
-            where: { fastHashedSecretKey: sha },
-          });
-          let projectId = newHash?.projectId;
+          const hashFromProvidedKey = createShaHash(secretKey, salt);
 
-          if (newHash && newHash.fastHashedSecretKey) {
-            console.log("Using fast hash");
-            const isValid = sha === newHash.fastHashedSecretKey;
-            if (!isValid) throw new Error("Invalid credentials");
-          } else {
+          const apiKey = await prisma.apiKey.findUnique({
+            where: { fastHashedSecretKey: hashFromProvidedKey },
+          });
+          let projectId = apiKey?.projectId;
+
+          if (!apiKey || !apiKey.fastHashedSecretKey) {
             const dbKey = await findDbKeyOrThrow(publicKey);
             const isValid = await verifySecretKey(
               secretKey,
