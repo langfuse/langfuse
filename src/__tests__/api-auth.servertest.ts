@@ -84,27 +84,32 @@ describe("Validate api calls", () => {
     expect(apiKey).not.toBeNull();
     expect(apiKey?.fastHashedSecretKey).toBeNull();
   });
-});
 
-const createAPIKey = async () => {
-  const seedApiKey = {
-    id: "seed-api-key",
-    secret: process.env.SEED_SECRET_KEY!,
-    public: "pk-lf-1234567890",
-    note: "seeded key",
-  };
-  await prisma.apiKey.create({
-    data: {
-      note: seedApiKey.note,
-      id: seedApiKey.id,
-      publicKey: seedApiKey.public,
-      hashedSecretKey: await hashSecretKey(seedApiKey.secret),
-      displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
-      project: {
-        connect: {
-          id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+  const createAPIKey = async () => {
+    const seedApiKey = {
+      id: "seed-api-key",
+      secret: "sk-lf-1234567890",
+      public: "pk-lf-1234567890",
+      note: "seeded key",
+    };
+    await prisma.apiKey.create({
+      data: {
+        note: seedApiKey.note,
+        id: seedApiKey.id,
+        publicKey: seedApiKey.public,
+        hashedSecretKey: await hashSecretKey(seedApiKey.secret),
+        displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
+        project: {
+          connect: {
+            id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          },
         },
       },
-    },
+    });
+  };
+
+  afterAll(async () => {
+    await prisma.apiKey.deleteMany();
+    await createAPIKey();
   });
-};
+});
