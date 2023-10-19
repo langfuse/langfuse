@@ -1,4 +1,8 @@
-import { verifySecretKey } from "@/src/features/public-api/lib/apiKeys";
+import { env } from "@/src/env.mjs";
+import {
+  createShaHash,
+  verifySecretKey,
+} from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { instrumentAsync } from "@/src/utils/instrumentation";
@@ -33,18 +37,38 @@ export async function verifyAuthHeaderAndReturnScope(
           const { username: publicKey, password: secretKey } =
             extractBasicAuthCredentials(authHeader);
 
-          const dbKey = await findDbKeyOrThrow(publicKey);
+          const salt = env.SALT;
+          const hashFromProvidedKey = createShaHash(secretKey, salt);
+          const apiKey = await prisma.apiKey.findUnique({
+            where: { fastHashedSecretKey: hashFromProvidedKey },
+          });
+          let projectId = apiKey?.projectId;
 
-          const isValid = await verifySecretKey(
-            secretKey,
-            dbKey.hashedSecretKey,
-          );
-          if (!isValid) throw new Error("Invalid credentials");
+          if (!apiKey || !apiKey.fastHashedSecretKey) {
+            const dbKey = await findDbKeyOrThrow(publicKey);
+            const isValid = await verifySecretKey(
+              secretKey,
+              dbKey.hashedSecretKey,
+            );
+            if (!isValid) throw new Error("Invalid credentials");
+
+            const shaKey = createShaHash(secretKey, salt);
+
+            await prisma.apiKey.update({
+              where: { publicKey },
+              data: {
+                fastHashedSecretKey: shaKey,
+              },
+            });
+            projectId = dbKey.projectId;
+          }
+
+          if (!projectId) throw new Error("Invalid credentials");
 
           return {
             validKey: true,
             scope: {
-              projectId: dbKey.projectId,
+              projectId: projectId,
               accessLevel: "all",
             },
           };
