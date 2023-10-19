@@ -70,7 +70,7 @@ describe("Validate api calls", () => {
 const createAPIKey = async () => {
   const seedApiKey = {
     id: "seed-api-key",
-    secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890",
+    secret: process.env.SEED_SECRET_KEY!,
     public: "pk-lf-1234567890",
     note: "seeded key",
   };
