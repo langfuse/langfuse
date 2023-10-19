@@ -1,5 +1,6 @@
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
+import * as crypto from "crypto";
 
 export function generateSecretKey() {
   return `sk-lf-${randomUUID()}`;
@@ -35,4 +36,21 @@ export async function generateKeySet() {
 export async function verifySecretKey(key: string, hashedKey: string) {
   const isValid = await compare(key, hashedKey);
   return isValid;
+}
+
+export function createShaHash(privateKey: string, salt: string): string {
+  const hash = crypto
+    .createHash("sha256")
+    .update(privateKey + salt)
+    .digest("hex");
+  return hash;
+}
+
+export function verifyKey(
+  privateKey: string,
+  salt: string,
+  hashToVerify: string,
+): boolean {
+  const newHash = createShaHash(privateKey, salt);
+  return newHash === hashToVerify;
 }

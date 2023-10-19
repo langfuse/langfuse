@@ -1,4 +1,8 @@
-import { verifySecretKey } from "@/src/features/public-api/lib/apiKeys";
+import {
+  createShaHash,
+  verifyKey,
+  verifySecretKey,
+} from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { instrumentAsync } from "@/src/utils/instrumentation";
@@ -34,12 +38,32 @@ export async function verifyAuthHeaderAndReturnScope(
             extractBasicAuthCredentials(authHeader);
 
           const dbKey = await findDbKeyOrThrow(publicKey);
+          const salt = "abc";
 
-          const isValid = await verifySecretKey(
-            secretKey,
-            dbKey.hashedSecretKey,
-          );
-          if (!isValid) throw new Error("Invalid credentials");
+          if (dbKey.fastHashedSecretKey) {
+            console.log("Using fast hash");
+            const isValid = verifyKey(
+              secretKey,
+              salt,
+              dbKey.fastHashedSecretKey,
+            );
+            if (!isValid) throw new Error("Invalid credentials");
+          } else {
+            const isValid = await verifySecretKey(
+              secretKey,
+              dbKey.hashedSecretKey,
+            );
+            if (!isValid) throw new Error("Invalid credentials");
+
+            const shaKey = createShaHash(secretKey, salt);
+
+            await prisma.apiKey.update({
+              where: { publicKey },
+              data: {
+                fastHashedSecretKey: shaKey,
+              },
+            });
+          }
 
           return {
             validKey: true,
