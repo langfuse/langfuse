@@ -36,7 +36,7 @@
       <a href="https://discord.gg/7NXusRtqYU"><img src="https://img.shields.io/discord/1111061815649124414?style=flat-square&logo=Discord&logoColor=white&label=Discord&color=%23434EE4" alt="Discord"></a>
       <a href="https://github.com/langfuse/langfuse"><img src="https://img.shields.io/github/stars/langfuse/langfuse?style=flat-square&logo=GitHub&label=langfuse%2Flangfuse" alt="Github Repo Stars"></a>
       <a href="https://github.com/langfuse/langfuse/actions/workflows/pipeline.yml?query=branch:main"><img src="https://img.shields.io/github/actions/workflow/status/langfuse/langfuse/pipeline.yml?style=flat-square&label=All%20tests" alt="CI test status"></a>
-      <a href="https://status.langfuse.com"><img src="https://api.checklyhq.com/v1/badges/checks/62f11f82-33c0-40c1-a704-7b57518da517?style=flat-square&theme=default&responseTime=true" alt="Checkly Status"></a>
+      <a href="https://status.langfuse.com"><img src="https://uptime.betterstack.com/status-badges/v1/monitor/udlc.svg" alt="Uptime Status"/></a>
       <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
       <a href="https://github.com/langfuse/langfuse/pkgs/container/langfuse"><img alt="Docker Image" src="https://img.shields.io/badge/docker-langfuse-blue?logo=Docker&logoColor=white&style=flat-square"></a>
       <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse" alt="langfuse npm package"></a>
