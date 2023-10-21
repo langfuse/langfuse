@@ -37,10 +37,23 @@ test("Successfully sign up & able to go to homepage", async ({ page }) => {
   await expect(page).toHaveURL("/?getStarted=1");
 });
 
-test("Signup validation", async ({ page }) => {
+test("Successfully sign up & able to go to homepage with uppercase email", async ({
+  page,
+}) => {
+  await page.goto("auth/sign-up");
+  await page.fill('input[name="name"]', "demo lang");
+  await page.fill('input[name="email"]', "A" + randomEmailAddress());
+  await page.fill('input[type="password"]', "password3");
+  await page.click('button[type="submit"]');
+  await page.waitForTimeout(2000);
+  // see get started page
+  await expect(page).toHaveURL("/?getStarted=1");
+});
+
+test("Signup input validation", async ({ page }) => {
   await page.goto("auth/sign-up");
   await page.fill('input[name="email"]', "notanemail");
-  await page.fill('input[type="password"]', "pass3");
+  await page.fill('input[type="password"]', "shortPw");
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
   await expect(page.getByText("Invalid email")).toBeVisible();
