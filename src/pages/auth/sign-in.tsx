@@ -103,7 +103,7 @@ export default function SignIn() {
                   Sign in
                 </Button>
                 {formError ? (
-                  <div className="text-center text-sm text-red-500">
+                  <div className="text-center text-sm font-medium text-destructive">
                     {formError}, contact support if this error is unexpected.
                   </div>
                 ) : null}
