@@ -161,7 +161,7 @@ export default function SignIn() {
                   Sign up
                 </Button>
                 {formError ? (
-                  <div className="text-center text-sm text-red-500">
+                  <div className="text-center text-sm font-medium text-destructive">
                     {formError}
                   </div>
                 ) : null}
