@@ -94,10 +94,10 @@ export default function Start() {
       <Header
         title={project?.name ?? "Dashboard"}
         actionButtons={
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
-            <Button size="sm" variant="outline" asChild>
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ? (
+            <Button size="sm" variant="secondary" asChild>
               <Link href={`/project/${projectId}/analytics`}>
-                Analytics (alpha) ↗
+                Legacy Dashboards ↗
               </Link>
             </Button>
           ) : null
