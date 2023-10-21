@@ -27,29 +27,19 @@ test("should redirect to home if signed in", async ({ page }) => {
 });
 
 test("Successfully sign up & able to go to homepage", async ({ page }) => {
-  const randEmailAddr = `demo2${Math.floor(Math.random() * 10)}${Math.floor(
-    Math.random() * 10,
-  )}${Math.floor(Math.random() * 10)}${Math.floor(
-    Math.random() * 10,
-  )}@langfuse.com`;
-  page.goto("auth/sign-up");
+  await page.goto("auth/sign-up");
   await page.fill('input[name="name"]', "demo lang");
-  await page.fill('input[name="email"]', randEmailAddr);
+  await page.fill('input[name="email"]', randomEmailAddress());
   await page.fill('input[type="password"]', "password2");
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
-  // see projects page
+  // see get started page
   await expect(page).toHaveURL("/?getStarted=1");
 });
 
 test("Signup validation", async ({ page }) => {
-  const randEmailAddr = `demo2${Math.floor(Math.random() * 10)}${Math.floor(
-    Math.random() * 10,
-  )}${Math.floor(Math.random() * 10)}${Math.floor(
-    Math.random() * 10,
-  )}langfuse.com`;
-  page.goto("auth/sign-up");
-  await page.fill('input[name="email"]', randEmailAddr);
+  await page.goto("auth/sign-up");
+  await page.fill('input[name="email"]', randomEmailAddress());
   await page.fill('input[type="password"]', "pass3");
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
@@ -59,6 +49,10 @@ test("Signup validation", async ({ page }) => {
   ).toBeVisible();
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
-  // don't see projects page
+  // don't see get started page
   await expect(page).not.toHaveURL("/?getStarted=1");
 });
+
+// random email address to be used in tests
+const randomEmailAddress = () =>
+  Math.random().toString(36).substring(2, 11) + "@example.com";
