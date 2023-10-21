@@ -86,7 +86,7 @@
     "react-responsive": "^9.0.2",
     "react18-json-view": "^0.2.6",
     "superagent": "^8.1.2",
-    "superjson": "1.13.3",
+    "superjson": "2.0.0",
     "tailwind-merge": "^1.14.0",
     "tailwindcss-animate": "^1.0.7",
     "tiktoken": "^1.0.10",
