@@ -74,7 +74,11 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size={size} variant={size === "xs" ? "secondary" : "default"}>
+        <Button
+          size={size}
+          variant={size === "xs" ? "secondary" : "default"}
+          data-testid="create-project-btn"
+        >
           <PlusIcon
             className={cn(
               "-ml-0.5 mr-1.5",
