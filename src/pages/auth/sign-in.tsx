@@ -14,6 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -25,6 +26,7 @@ const formSchema = z.object({
 });
 
 export default function SignIn() {
+  const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -34,11 +36,16 @@ export default function SignIn() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    await signIn("credentials", {
+    setFormError(null);
+    const result = await signIn("credentials", {
       email: values.email,
       password: values.password,
       callbackUrl: "/",
+      redirect: false,
     });
+    if (result?.error) {
+      setFormError(result.error);
+    }
   }
 
   return (
@@ -95,6 +102,11 @@ export default function SignIn() {
                 >
                   Sign in
                 </Button>
+                {formError ? (
+                  <div className="text-center text-sm font-medium text-destructive">
+                    {formError}, contact support if this error is unexpected.
+                  </div>
+                ) : null}
               </form>
             </Form>
           </div>
