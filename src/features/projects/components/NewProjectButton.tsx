@@ -98,6 +98,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-8"
+            data-testid="new-project-form"
           >
             <FormField
               control={form.control}
@@ -106,7 +107,11 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
                 <FormItem>
                   <FormLabel>Project name</FormLabel>
                   <FormControl>
-                    <Input placeholder="my-llm-project" {...field} />
+                    <Input
+                      placeholder="my-llm-project"
+                      {...field}
+                      data-testid="new-project-name-input"
+                    />
                   </FormControl>
                   <FormDescription>
                     This is your public display name.
