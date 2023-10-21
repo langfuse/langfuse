@@ -85,7 +85,6 @@
     "react-icons": "^4.11.0",
     "react-responsive": "^9.0.2",
     "react18-json-view": "^0.2.6",
-    "sharp": "^0.32.6",
     "superagent": "^8.1.2",
     "superjson": "1.13.3",
     "tailwind-merge": "^1.14.0",
