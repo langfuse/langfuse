@@ -25,5 +25,6 @@ jobs:
       - name: Prettify code
         uses: creyD/prettier_action@v4.3
         with:
-          prettier_options: --write ./src *.{ts,js} --ignore-path .gitignore
-          commit_message: "Applied prettier formatting"
+          dry: ${{ github.repository != 'langfuse/langfuse' }}
+          prettier_options: ${{ github.repository != 'langfuse/langfuse' && '--check' || '--write' }} ./src *.{ts,js} --ignore-path .gitignore
+          commit_message: "Applied prettier formatting" # only applies to langfuse/langfuse and not to forks
