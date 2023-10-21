@@ -23,7 +23,7 @@ export async function createUserEmailPassword(
   // check that no user exists with this email
   const user = await prisma.user.findUnique({
     where: {
-      email,
+      email: email.toLowerCase(),
     },
   });
   if (user !== null) {
@@ -43,7 +43,7 @@ export async function createUserEmailPassword(
 
   const newUser = await prisma.user.create({
     data: {
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       name,
       // if demo project id is set grant user access to it
