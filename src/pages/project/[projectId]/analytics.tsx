@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { Construction } from "lucide-react";
+import { AlertTriangle, Construction } from "lucide-react";
 import {
   Tabs,
   TabsList,
@@ -84,31 +84,29 @@ const DashboardEmbed = (props: { projectId: string }) => {
 
   return (
     <>
-      <Alert>
-        <Construction className="h-4 w-4" />
-        <AlertTitle>Analytics is in alpha</AlertTitle>
-        <AlertDescription className="mt-2">
-          Limitations:
-          <ul className="mb-2 list-inside list-disc">
-            <li>
-              During the alpha we use Looker to power the dashboards. An open
-              source version is work in progress.
-            </li>
-            <li>
-              Looker requires to be signed in with a Google Account with the
-              same email address as your Langfuse account.
-            </li>
-            <li>
-              At times, high traffic may cause the dashboards to load slowly.
-            </li>
-            <li>Not optimized for mobile screens.</li>
-          </ul>
-          If you run into any issues, please let us know. We are adding new
-          dashboards on an ongoing bases. Reach out to us via{" "}
-          <a href="#" onClick={() => openChat()} className="underline">
-            chat
-          </a>{" "}
-          to request any additional charts.
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>These dashboards will be deprecated soon</AlertTitle>
+        <AlertDescription className="mt-4 text-sm">
+          <p className="mb-2">
+            Thanks to everyone who has provided feedback while we were in alpha,
+            we moved fast and iterated a lot on these dashboards. As of now, the
+            most useful charts are part of the core Langfuse dashboard.
+          </p>
+          <p className="mb-2">
+            Note: These legacy dashboards are slow, and not optimized for mobile
+            screens. Looker requires to be signed in with a Google Account with
+            the same email address as your Langfuse account.
+          </p>
+
+          <p>
+            If there are any charts that you use frequently and that are not
+            part of the new dashboard, reach out to us via the{" "}
+            <a href="#" onClick={() => openChat()} className="underline">
+              chat
+            </a>
+            .
+          </p>
         </AlertDescription>
       </Alert>
       <Tabs
