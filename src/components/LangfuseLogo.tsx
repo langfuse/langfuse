@@ -1,5 +1,4 @@
 import { cn } from "@/src/utils/tailwind";
-import Image from "next/image";
 
 export const LangfuseIcon = ({
   size = 32,
@@ -8,7 +7,8 @@ export const LangfuseIcon = ({
   size?: number;
   className?: string;
 }) => (
-  <Image
+  // eslint-disable-next-line @next/next/no-img-element
+  <img
     src="/icon256.png"
     width={size}
     height={size}
