@@ -74,7 +74,11 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size={size} variant={size === "xs" ? "secondary" : "default"}>
+        <Button
+          size={size}
+          variant={size === "xs" ? "secondary" : "default"}
+          data-testid="create-project-btn"
+        >
           <PlusIcon
             className={cn(
               "-ml-0.5 mr-1.5",
@@ -94,6 +98,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-8"
+            data-testid="new-project-form"
           >
             <FormField
               control={form.control}
@@ -102,7 +107,11 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
                 <FormItem>
                   <FormLabel>Project name</FormLabel>
                   <FormControl>
-                    <Input placeholder="my-llm-project" {...field} />
+                    <Input
+                      placeholder="my-llm-project"
+                      {...field}
+                      data-testid="new-project-name-input"
+                    />
                   </FormControl>
                   <FormDescription>
                     This is your public display name.
