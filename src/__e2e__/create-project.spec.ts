@@ -33,7 +33,7 @@ test("Create a project with provided name", async ({ page }) => {
   await page.waitForTimeout(2000);
   expect(page.url()).toContain("/project/");
   await page.waitForTimeout(2000);
-  expect(await page.getByTestId("project-title-span-0").textContent()).toBe(
+  expect(await page.getByTestId("project-title-span-1").textContent()).toBe(
     "my e2e demo project",
   );
 });
