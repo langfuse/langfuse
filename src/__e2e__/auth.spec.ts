@@ -39,7 +39,7 @@ test("Successfully sign up & able to go to homepage", async ({ page }) => {
 
 test("Signup validation", async ({ page }) => {
   await page.goto("auth/sign-up");
-  await page.fill('input[name="email"]', randomEmailAddress());
+  await page.fill('input[name="email"]', "notanemail");
   await page.fill('input[type="password"]', "pass3");
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
