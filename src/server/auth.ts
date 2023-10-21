@@ -47,7 +47,7 @@ export const authOptions: NextAuthOptions = {
       const dbUser = await prisma.user.findUnique({
         where: {
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          email: token.email!,
+          email: token.email!.toLowerCase(),
         },
         select: {
           id: true,
