@@ -1,3 +1,4 @@
+import { type GetServerSideProps } from "next";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -9,8 +10,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { Separator } from "@/src/components/ui/separator";
 import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { FcGoogle } from "react-icons/fc";
+import { FaGithub } from "react-icons/fa";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
@@ -25,7 +29,30 @@ const formSchema = z.object({
   }),
 });
 
-export default function SignIn() {
+type PageProps = {
+  authProviders: {
+    google: boolean;
+    github: boolean;
+  };
+};
+
+// eslint-disable-next-line @typescript-eslint/require-await
+export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
+  return {
+    props: {
+      authProviders: {
+        google:
+          env.AUTH_GOOGLE_CLIENT_ID !== undefined &&
+          env.AUTH_GOOGLE_CLIENT_SECRET !== undefined,
+        github:
+          env.AUTH_GITHUB_CLIENT_ID !== undefined &&
+          env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+      },
+    },
+  };
+};
+
+export default function SignIn(props: PageProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -109,6 +136,36 @@ export default function SignIn() {
                 ) : null}
               </form>
             </Form>
+
+            {
+              // any authprovider from props is enanbles
+              Object.values(props.authProviders).some((enabled) => enabled) ? (
+                <>
+                  <Separator className="mt-6" />
+
+                  <div className="mt-6 flex flex-row flex-wrap items-center justify-center gap-4">
+                    {props.authProviders.google ? (
+                      <Button
+                        onClick={() => void signIn("google")}
+                        variant="secondary"
+                      >
+                        <FcGoogle className="mr-3" size={18} />
+                        Sign in with Google
+                      </Button>
+                    ) : null}
+                    {props.authProviders.github ? (
+                      <Button
+                        onClick={() => void signIn("github")}
+                        variant="secondary"
+                      >
+                        <FaGithub className="mr-3" size={18} />
+                        Sign in with Github
+                      </Button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null
+            }
           </div>
 
           {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" ? (
