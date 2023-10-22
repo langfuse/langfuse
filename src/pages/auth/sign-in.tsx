@@ -10,7 +10,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { Separator } from "@/src/components/ui/separator";
 import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
@@ -22,15 +21,21 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-const formSchema = z.object({
+const credentialAuthForm = z.object({
   email: z.string().email(),
   password: z.string().min(8, {
     message: "Password must be at least 8 characters long",
   }),
 });
 
+const magicLinkAuthForm = z.object({
+  email: z.string().email(),
+});
+
 type PageProps = {
   authProviders: {
+    email: boolean;
+    credentials: boolean;
     google: boolean;
     github: boolean;
   };
@@ -47,23 +52,34 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        credentials: true,
+        email:
+          env.AUTH_EMAIL_FROM !== undefined &&
+          env.SMTP_CONNECTION_URL !== undefined,
       },
     },
   };
 };
 
 export default function SignIn(props: PageProps) {
-  const [formError, setFormError] = useState<string | null>(null);
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const [credentialsFormError, setCredentialsFormError] = useState<
+    string | null
+  >(null);
+  const [emailFormError, setEmailFormError] = useState<string | null>(null);
+  const [magicLinkSuccess, setMagicLinkSuccess] = useState<boolean>(false);
+
+  // Credentials
+  const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
+    resolver: zodResolver(credentialAuthForm),
     defaultValues: {
       email: "",
       password: "",
     },
   });
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setFormError(null);
+  async function onCredentialsSubmit(
+    values: z.infer<typeof credentialAuthForm>,
+  ) {
+    setCredentialsFormError(null);
     const result = await signIn("credentials", {
       email: values.email,
       password: values.password,
@@ -71,7 +87,28 @@ export default function SignIn(props: PageProps) {
       redirect: false,
     });
     if (result?.error) {
-      setFormError(result.error);
+      setCredentialsFormError(result.error);
+    }
+  }
+
+  // Magic link
+  const magicLinkForm = useForm<z.infer<typeof magicLinkAuthForm>>({
+    resolver: zodResolver(magicLinkAuthForm),
+    defaultValues: {
+      email: "",
+    },
+  });
+  async function onEmailSubmit(values: z.infer<typeof magicLinkAuthForm>) {
+    setEmailFormError(null);
+    const result = await signIn("email", {
+      email: values.email,
+      callbackUrl: "/",
+      redirect: false,
+    });
+    if (result?.error) {
+      setEmailFormError(result.error);
+    } else {
+      setMagicLinkSuccess(true);
     }
   }
 
@@ -89,86 +126,128 @@ export default function SignIn(props: PageProps) {
         </div>
 
         <div className="mt-14 sm:mx-auto sm:w-full sm:max-w-[480px]">
-          <div className="bg-white px-6 py-12 shadow sm:rounded-lg sm:px-12">
-            <Form {...form}>
-              <form
-                className="space-y-6"
-                // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                onSubmit={form.handleSubmit(onSubmit)}
-              >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="jsdoe@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button
-                  type="submit"
-                  className="w-full"
-                  loading={form.formState.isSubmitting}
+          <div className="divide-y bg-white p-6 py-6 shadow sm:rounded-lg sm:px-12">
+            {props.authProviders.credentials ? (
+              <Form {...credentialsForm}>
+                <form
+                  className="space-y-6 py-6"
+                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                  onSubmit={credentialsForm.handleSubmit(onCredentialsSubmit)}
                 >
-                  Sign in
-                </Button>
-                {formError ? (
-                  <div className="text-center text-sm font-medium text-destructive">
-                    {formError}, contact support if this error is unexpected.
-                  </div>
-                ) : null}
-              </form>
-            </Form>
+                  <FormField
+                    control={credentialsForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="jsdoe@example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={credentialsForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    loading={credentialsForm.formState.isSubmitting}
+                  >
+                    Sign in
+                  </Button>
+                  {credentialsFormError ? (
+                    <div className="text-center text-sm font-medium text-destructive">
+                      {credentialsFormError}, contact support if this error is
+                      unexpected.
+                    </div>
+                  ) : null}
+                </form>
+              </Form>
+            ) : null}
+
+            {props.authProviders.email ? (
+              <Form {...magicLinkForm}>
+                <form
+                  className="space-y-6 py-6"
+                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                  onSubmit={magicLinkForm.handleSubmit(onEmailSubmit)}
+                >
+                  <FormField
+                    control={magicLinkForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="jsdoe@example.com"
+                            disabled={magicLinkSuccess}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    loading={magicLinkForm.formState.isSubmitting}
+                    disabled={magicLinkSuccess}
+                  >
+                    {magicLinkSuccess ? "Check your inbox" : "Get magic link"}
+                  </Button>
+                  {emailFormError ? (
+                    <div className="text-center text-sm font-medium text-destructive">
+                      {emailFormError}, contact support if this error is
+                      unexpected.
+                    </div>
+                  ) : null}
+                </form>
+              </Form>
+            ) : null}
 
             {
               // any authprovider from props is enanbles
               Object.values(props.authProviders).some((enabled) => enabled) ? (
-                <>
-                  <Separator className="mt-6" />
-
-                  <div className="mt-6 flex flex-row flex-wrap items-center justify-center gap-4">
-                    {props.authProviders.google ? (
-                      <Button
-                        onClick={() => void signIn("google")}
-                        variant="secondary"
-                      >
-                        <FcGoogle className="mr-3" size={18} />
-                        Sign in with Google
-                      </Button>
-                    ) : null}
-                    {props.authProviders.github ? (
-                      <Button
-                        onClick={() => void signIn("github")}
-                        variant="secondary"
-                      >
-                        <FaGithub className="mr-3" size={18} />
-                        Sign in with Github
-                      </Button>
-                    ) : null}
-                  </div>
-                </>
+                <div className="flex flex-row flex-wrap items-center justify-center gap-4 py-6">
+                  {props.authProviders.google ? (
+                    <Button
+                      onClick={() => void signIn("google")}
+                      variant="secondary"
+                    >
+                      <FcGoogle className="mr-3" size={18} />
+                      Sign in with Google
+                    </Button>
+                  ) : null}
+                  {props.authProviders.github ? (
+                    <Button
+                      onClick={() => void signIn("github")}
+                      variant="secondary"
+                    >
+                      <FaGithub className="mr-3" size={18} />
+                      Sign in with Github
+                    </Button>
+                  ) : null}
+                </div>
               ) : null
             }
           </div>
 
-          {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" ? (
+          {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+          props.authProviders.credentials ? (
             <p className="mt-10 text-center text-sm text-gray-500">
               No account yet?{" "}
               <Link
