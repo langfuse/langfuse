@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { usePostHog } from "posthog-js/react";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -68,6 +69,8 @@ export default function SignIn(props: PageProps) {
   const [emailFormError, setEmailFormError] = useState<string | null>(null);
   const [magicLinkSuccess, setMagicLinkSuccess] = useState<boolean>(false);
 
+  const posthog = usePostHog();
+
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
     resolver: zodResolver(credentialAuthForm),
@@ -80,6 +83,7 @@ export default function SignIn(props: PageProps) {
     values: z.infer<typeof credentialAuthForm>,
   ) {
     setCredentialsFormError(null);
+    posthog.capture("sign_in:credentials_form_submit");
     const result = await signIn("credentials", {
       email: values.email,
       password: values.password,
@@ -100,6 +104,7 @@ export default function SignIn(props: PageProps) {
   });
   async function onEmailSubmit(values: z.infer<typeof magicLinkAuthForm>) {
     setEmailFormError(null);
+    posthog.capture("sign_in:magiclink_form_submit");
     const result = await signIn("email", {
       email: values.email,
       callbackUrl: "/",
@@ -225,7 +230,10 @@ export default function SignIn(props: PageProps) {
                 <div className="flex flex-row flex-wrap items-center justify-center gap-4 py-6">
                   {props.authProviders.google ? (
                     <Button
-                      onClick={() => void signIn("google")}
+                      onClick={() => {
+                        posthog.capture("sign_in:google_button_click");
+                        void signIn("google");
+                      }}
                       variant="secondary"
                     >
                       <FcGoogle className="mr-3" size={18} />
@@ -234,7 +242,10 @@ export default function SignIn(props: PageProps) {
                   ) : null}
                   {props.authProviders.github ? (
                     <Button
-                      onClick={() => void signIn("github")}
+                      onClick={() => {
+                        posthog.capture("sign_in:github_button_click");
+                        void signIn("github");
+                      }}
                       variant="secondary"
                     >
                       <FaGithub className="mr-3" size={18} />
