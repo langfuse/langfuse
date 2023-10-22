@@ -128,7 +128,8 @@ const getObservation = async (
         o."total_tokens" AS "totalTokens",
         o."version",
         o."project_id" AS "projectId",
-        o."trace_id" AS "traceId"
+        o."trace_id" AS "traceId",
+        o."model_parameters" AS "modelParameters"
       FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${nameCondition}
