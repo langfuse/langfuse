@@ -184,6 +184,31 @@ export const authOptions: NextAuthOptions = {
       options: cookieOptions,
     },
   },
+  events: {
+    createUser: async (message) => {
+      const { user } = message;
+      console.log("Sending new user signup webhook");
+      console.log(user);
+      if (
+        env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ) {
+        await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
+          method: "POST",
+          body: JSON.stringify({
+            name: user.name,
+            email: user.email,
+            cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+            userId: user.id,
+            // referralSource: ...
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      }
+    },
+  },
 };
 
 /**
