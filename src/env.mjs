@@ -40,6 +40,9 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_EMAIL_FROM: z.string().optional(),
+    AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
+    AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
+    AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
   },
 
   /**
@@ -82,5 +85,8 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_EMAIL_FROM: process.env.AUTH_EMAIL_FROM,
+    AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
+    AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
+    AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
   },
 });

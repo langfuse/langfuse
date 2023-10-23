@@ -17,6 +17,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import EmailProvider from "next-auth/providers/email";
+import AzureADProvider from "next-auth/providers/azure-ad";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -109,6 +110,19 @@ if (env.AUTH_EMAIL_FROM && env.SMTP_CONNECTION_URL)
     }),
   );
 
+if (
+  env.AUTH_AZURE_AD_CLIENT_ID &&
+  env.AUTH_AZURE_AD_CLIENT_SECRET &&
+  env.AUTH_AZURE_AD_TENANT_ID
+)
+  providers.push(
+    AzureADProvider({
+      clientId: env.AUTH_AZURE_AD_CLIENT_ID,
+      clientSecret: env.AUTH_AZURE_AD_CLIENT_SECRET,
+      tenantId: "common",
+      allowDangerousEmailAccountLinking: true,
+    }),
+  );
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *

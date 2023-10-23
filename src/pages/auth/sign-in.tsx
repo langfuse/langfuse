@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
+import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
@@ -39,6 +40,7 @@ type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    azureAd: boolean;
   };
 };
 
@@ -57,6 +59,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         email:
           env.AUTH_EMAIL_FROM !== undefined &&
           env.SMTP_CONNECTION_URL !== undefined,
+        azureAd:
+          env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
+          env.AUTH_AZURE_AD_CLIENT_SECRET !== undefined &&
+          env.AUTH_AZURE_AD_TENANT_ID !== undefined,
       },
     },
   };
@@ -250,6 +256,18 @@ export default function SignIn(props: PageProps) {
                     >
                       <FaGithub className="mr-3" size={18} />
                       Sign in with Github
+                    </Button>
+                  ) : null}
+                  {props.authProviders.azureAd ? (
+                    <Button
+                      onClick={() => {
+                        posthog.capture("sign_in:azure_ad_button_click");
+                        void signIn("azure-ad");
+                      }}
+                      variant="secondary"
+                    >
+                      <TbBrandAzure className="mr-3" size={18} />
+                      Sign in with Azure AD
                     </Button>
                   ) : null}
                 </div>
