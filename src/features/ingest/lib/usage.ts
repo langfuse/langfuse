@@ -111,7 +111,10 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
 }
 
 const openAiStringTokenCount = (p: { model: string; text: string }) => {
-  if (p.model.toLowerCase().startsWith("gpt")) {
+  if (
+    p.model.toLowerCase().startsWith("gpt") ||
+    p.model.toLowerCase().includes("ada")
+  ) {
     return getTokens("cl100k_base", p.text);
   }
   if (p.model.toLowerCase().startsWith("text-davinci")) {
