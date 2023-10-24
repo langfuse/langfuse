@@ -29,13 +29,8 @@ const credentialAuthForm = z.object({
   }),
 });
 
-const magicLinkAuthForm = z.object({
-  email: z.string().email(),
-});
-
 type PageProps = {
   authProviders: {
-    email: boolean;
     credentials: boolean;
     google: boolean;
     github: boolean;
@@ -54,9 +49,6 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
         credentials: true,
-        email:
-          env.AUTH_EMAIL_FROM !== undefined &&
-          env.SMTP_CONNECTION_URL !== undefined,
       },
     },
   };
@@ -66,8 +58,6 @@ export default function SignIn(props: PageProps) {
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
   >(null);
-  const [emailFormError, setEmailFormError] = useState<string | null>(null);
-  const [magicLinkSuccess, setMagicLinkSuccess] = useState<boolean>(false);
 
   const posthog = usePostHog();
 
@@ -92,28 +82,6 @@ export default function SignIn(props: PageProps) {
     });
     if (result?.error) {
       setCredentialsFormError(result.error);
-    }
-  }
-
-  // Magic link
-  const magicLinkForm = useForm<z.infer<typeof magicLinkAuthForm>>({
-    resolver: zodResolver(magicLinkAuthForm),
-    defaultValues: {
-      email: "",
-    },
-  });
-  async function onEmailSubmit(values: z.infer<typeof magicLinkAuthForm>) {
-    setEmailFormError(null);
-    posthog.capture("sign_in:magiclink_form_submit");
-    const result = await signIn("email", {
-      email: values.email,
-      callbackUrl: "/",
-      redirect: false,
-    });
-    if (result?.error) {
-      setEmailFormError(result.error);
-    } else {
-      setMagicLinkSuccess(true);
     }
   }
 
@@ -175,48 +143,6 @@ export default function SignIn(props: PageProps) {
                   {credentialsFormError ? (
                     <div className="text-center text-sm font-medium text-destructive">
                       {credentialsFormError}, contact support if this error is
-                      unexpected.
-                    </div>
-                  ) : null}
-                </form>
-              </Form>
-            ) : null}
-
-            {props.authProviders.email ? (
-              <Form {...magicLinkForm}>
-                <form
-                  className="space-y-6 py-6"
-                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                  onSubmit={magicLinkForm.handleSubmit(onEmailSubmit)}
-                >
-                  <FormField
-                    control={magicLinkForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="jsdoe@example.com"
-                            disabled={magicLinkSuccess}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    loading={magicLinkForm.formState.isSubmitting}
-                    disabled={magicLinkSuccess}
-                  >
-                    {magicLinkSuccess ? "Check your inbox" : "Get magic link"}
-                  </Button>
-                  {emailFormError ? (
-                    <div className="text-center text-sm font-medium text-destructive">
-                      {emailFormError}, contact support if this error is
                       unexpected.
                     </div>
                   ) : null}

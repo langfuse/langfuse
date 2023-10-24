@@ -16,7 +16,6 @@ import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
-import EmailProvider from "next-auth/providers/email";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -98,14 +97,6 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
       allowDangerousEmailAccountLinking: true,
-    }),
-  );
-
-if (env.AUTH_EMAIL_FROM && env.SMTP_CONNECTION_URL)
-  providers.push(
-    EmailProvider({
-      from: env.AUTH_EMAIL_FROM,
-      server: env.SMTP_CONNECTION_URL,
     }),
   );
 
