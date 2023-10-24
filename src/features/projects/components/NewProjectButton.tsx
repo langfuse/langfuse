@@ -13,7 +13,6 @@ import { useForm } from "react-hook-form";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -113,9 +112,6 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
                       data-testid="new-project-name-input"
                     />
                   </FormControl>
-                  <FormDescription>
-                    This is your public display name.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
