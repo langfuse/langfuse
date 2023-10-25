@@ -15,12 +15,17 @@ export const persistEventMiddleware = async (
 ) => {
   const filteredEvent = jsonSchema.parse(req.body);
 
+  const langfuseHeadersObject = Object.fromEntries(
+    Object.entries(req.headers).filter(([key]) => key.startsWith("x-langfuse")),
+  );
+
   await prisma.events.create({
     data: {
       project: { connect: { id: projectId } },
       url: req.url,
       method: req.method,
       data: filteredEvent,
+      headers: langfuseHeadersObject,
     },
   });
 };
