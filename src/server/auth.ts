@@ -16,6 +16,7 @@ import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import { type Adapter } from "next-auth/adapters";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -100,6 +101,43 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     }),
   );
 
+// Extend Prisma Adapter
+const prismaAdapter = PrismaAdapter(prisma);
+const extendedPrismaAdapter: Adapter = {
+  ...prismaAdapter,
+  async createUser(profile) {
+    if (!prismaAdapter.createUser)
+      throw new Error("createUser not implemented");
+    if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
+      throw new Error("Sign up is disabled.");
+    }
+
+    const user = await prismaAdapter.createUser(profile);
+
+    // Demo project access
+    const demoProjectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID
+      ? (
+          await prisma.project.findUnique({
+            where: {
+              id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+            },
+          })
+        )?.id
+      : undefined;
+    if (demoProjectId !== undefined) {
+      await prisma.membership.create({
+        data: {
+          projectId: demoProjectId,
+          userId: user.id,
+          role: "VIEWER",
+        },
+      });
+    }
+
+    return user;
+  },
+};
+
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
@@ -153,7 +191,7 @@ export const authOptions: NextAuthOptions = {
       };
     },
   },
-  adapter: PrismaAdapter(prisma),
+  adapter: extendedPrismaAdapter,
   providers,
   pages: {
     signIn: "/auth/sign-in",
@@ -185,10 +223,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   events: {
-    createUser: async (message) => {
-      const { user } = message;
-      console.log("Sending new user signup webhook");
-      console.log(user);
+    createUser: async ({ user }) => {
       if (
         env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
