@@ -103,9 +103,6 @@ export function TracePage({
         }
       />
       <div className="flex gap-2">
-        {trace.externalId ? (
-          <Badge variant="outline">External ID: {trace.externalId}</Badge>
-        ) : null}
         {trace.userId ? (
           <Badge variant="outline">User ID: {trace.userId}</Badge>
         ) : null}
