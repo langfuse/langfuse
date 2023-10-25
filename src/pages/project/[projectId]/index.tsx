@@ -27,6 +27,7 @@ import {
 } from "use-query-params";
 import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
+import { usePostHog } from "posthog-js/react";
 
 export type DashboardDateRange = {
   from: Date;
@@ -37,6 +38,7 @@ export default function Start() {
   const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const posthog = usePostHog();
 
   const projects = api.projects.all.useQuery();
   const project = projects.data?.find((p) => p.id === projectId);
@@ -65,6 +67,7 @@ export default function Start() {
     option?: AvailableDateRangeSelections,
     dateRange?: DashboardDateRange,
   ) => {
+    posthog.capture("dashboard:date_range_changed");
     setUrlParams({
       select: option ? option.toString() : urlParams.select,
       from: dateRange ? dateRange.from?.getTime() : urlParams.from,
