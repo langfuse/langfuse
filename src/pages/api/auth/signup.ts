@@ -36,7 +36,7 @@ export default async function handler(
       console.log(
         "Signup: Error creating user",
         error.message,
-        body.email,
+        body.email.toLowerCase(),
         body.name,
       );
       res.status(422).json({ message: error.message });
