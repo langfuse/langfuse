@@ -7,10 +7,15 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/src/server/db";
-import CredentialsProvider from "next-auth/providers/credentials";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
+
+// Providers
+import { type Provider } from "next-auth/providers";
+import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+import GitHubProvider from "next-auth/providers/github";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -32,6 +37,68 @@ const cookieName = (name: string) =>
       ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
       : "",
   ].join("");
+
+const providers: Provider[] = [
+  CredentialsProvider({
+    name: "credentials",
+    credentials: {
+      email: {
+        label: "Email",
+        type: "email",
+        placeholder: "jsmith@example.com",
+      },
+      password: { label: "Password", type: "password" },
+    },
+    async authorize(credentials, _req) {
+      if (!credentials) throw new Error("No credentials");
+
+      const dbUser = await prisma.user.findUnique({
+        where: {
+          email: credentials.email.toLowerCase(),
+        },
+      });
+
+      if (!dbUser) throw new Error("Invalid credentials");
+      if (dbUser.password === null) throw new Error("Invalid credentials");
+
+      const isValidPassword = await verifyPassword(
+        credentials.password,
+        dbUser.password,
+      );
+      if (!isValidPassword) throw new Error("Invalid credentials");
+
+      const userObj: User = {
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        image: dbUser.image,
+        emailVerified: dbUser.emailVerified,
+        featureFlags: parseFlags(dbUser.featureFlags),
+        projects: [],
+      };
+
+      return userObj;
+    },
+  }),
+];
+
+if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
+  providers.push(
+    GoogleProvider({
+      clientId: env.AUTH_GOOGLE_CLIENT_ID,
+      clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
+    }),
+  );
+
+if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
+  providers.push(
+    GitHubProvider({
+      clientId: env.AUTH_GITHUB_CLIENT_ID,
+      clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
+    }),
+  );
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
@@ -87,63 +154,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   adapter: PrismaAdapter(prisma),
-  providers: [
-    /**
-     * ...add more providers here.
-     *
-     * Most other providers require a bit more work than the Discord provider. For example, the
-     * GitHub provider requires you to add the `refresh_token_expires_in` field to the Account
-     * model. Refer to the NextAuth.js docs for the provider you want to use. Example:
-     *
-     * @see https://next-auth.js.org/providers/github
-     */
-    CredentialsProvider({
-      // The name to display on the sign in form (e.g. "Sign in with...")
-      name: "credentials",
-      // `credentials` is used to generate a form on the sign in page.
-      // You can specify which fields should be submitted, by adding keys to the `credentials` object.
-      // e.g. domain, username, password, 2FA token, etc.
-      // You can pass any HTML attribute to the <input> tag through the object.
-      credentials: {
-        email: {
-          label: "Email",
-          type: "email",
-          placeholder: "jsmith@example.com",
-        },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials, _req) {
-        if (!credentials) throw new Error("No credentials");
-
-        const dbUser = await prisma.user.findUnique({
-          where: {
-            email: credentials.email.toLowerCase(),
-          },
-        });
-
-        if (!dbUser) throw new Error("Invalid credentials");
-        if (dbUser.password === null) throw new Error("Invalid credentials");
-
-        const isValidPassword = await verifyPassword(
-          credentials.password,
-          dbUser.password,
-        );
-        if (!isValidPassword) throw new Error("Invalid credentials");
-
-        const userObj: User = {
-          id: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          image: dbUser.image,
-          emailVerified: dbUser.emailVerified,
-          featureFlags: parseFlags(dbUser.featureFlags),
-          projects: [],
-        };
-
-        return userObj;
-      },
-    }),
-  ],
+  providers,
   pages: {
     signIn: "/auth/sign-in",
   },
@@ -171,6 +182,31 @@ export const authOptions: NextAuthOptions = {
     pkceCodeVerifier: {
       name: cookieName("next-auth.pkce.code_verifier"),
       options: cookieOptions,
+    },
+  },
+  events: {
+    createUser: async (message) => {
+      const { user } = message;
+      console.log("Sending new user signup webhook");
+      console.log(user);
+      if (
+        env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ) {
+        await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
+          method: "POST",
+          body: JSON.stringify({
+            name: user.name,
+            email: user.email,
+            cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+            userId: user.id,
+            // referralSource: ...
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      }
     },
   },
 };
