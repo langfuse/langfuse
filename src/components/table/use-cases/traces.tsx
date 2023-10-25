@@ -9,7 +9,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
-import { lastCharacters } from "@/src/utils/string";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -24,7 +23,6 @@ import {
 
 export type TraceTableRow = {
   id: string;
-  externalId?: string;
   timestamp: string;
   name: string;
   userId: string;
@@ -113,7 +111,6 @@ export default function TracesTable({
   ): TraceTableRow => {
     return {
       id: trace.id,
-      externalId: trace.externalId ?? undefined,
       timestamp: trace.timestamp.toLocaleString(),
       name: trace.name ?? "",
       metadata: JSON.stringify(trace.metadata),
@@ -143,16 +140,6 @@ export default function TracesTable({
           />
         ) : undefined;
       },
-    },
-    {
-      accessorKey: "externalId",
-      header: "External ID",
-      cell: ({ row }) =>
-        row.getValue("externalId") ? (
-          <span>...{lastCharacters(row.getValue("externalId"), 7)}</span>
-        ) : (
-          <span></span>
-        ),
     },
     {
       accessorKey: "timestamp",

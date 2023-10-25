@@ -143,7 +143,6 @@ export const traceRouter = createTRPCRouter({
       )
       SELECT
         t.*,
-        t."external_id" AS "externalId",
         t."user_id" AS "userId",
         t."metadata" AS "metadata",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
