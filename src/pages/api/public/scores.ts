@@ -8,7 +8,7 @@ import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { paginationZod } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
-const ScoreCreateSchema = z.object({
+export const ScoreCreateSchema = z.object({
   id: z.string().nullish(),
   name: z.string(),
   value: z.number(),

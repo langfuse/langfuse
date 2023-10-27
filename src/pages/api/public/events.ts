@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { jsonSchema } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
-const ObservationSchema = z.object({
+export const EventSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
@@ -52,7 +52,7 @@ export default async function handler(
   );
 
   try {
-    const obj = ObservationSchema.parse(req.body);
+    const obj = EventSchema.parse(req.body);
     const {
       id,
       name,

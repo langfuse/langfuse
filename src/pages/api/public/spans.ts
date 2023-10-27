@@ -14,7 +14,7 @@ import { RessourceNotFoundError } from "../../../utils/exceptions";
 import { jsonSchema } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
-const SpanPostSchema = z.object({
+export const SpanPostSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
   traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
@@ -30,7 +30,7 @@ const SpanPostSchema = z.object({
   version: z.string().nullish(),
 });
 
-const SpanPatchSchema = z.object({
+export const SpanPatchSchema = z.object({
   spanId: z.string(),
   traceId: z.string().nullish(),
   name: z.string().nullish(),

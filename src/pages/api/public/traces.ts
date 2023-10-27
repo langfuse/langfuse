@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { jsonSchema, paginationZod } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
-const CreateTraceSchema = z.object({
+export const CreateTraceSchema = z.object({
   id: z.string().nullish(),
   name: z.string().nullish(),
   externalId: z.string().nullish(),

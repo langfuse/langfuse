@@ -46,7 +46,7 @@ export const GenerationsCreateSchema = z.object({
   version: z.string().nullish(),
 });
 
-const GenerationPatchSchema = z.object({
+export const GenerationPatchSchema = z.object({
   generationId: z.string(),
   traceId: z.string().nullish(),
   name: z.string().nullish(),
