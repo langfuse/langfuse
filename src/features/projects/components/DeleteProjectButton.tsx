@@ -3,7 +3,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -11,10 +10,8 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input"
@@ -28,18 +25,18 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 export function DeleteProjectButton(props: { projectId: string }) {
-  const posthog = usePostHog();
   const utils = api.useContext();
   const router = useRouter();
   const session = useSession()
+  const posthog = usePostHog();
 
+  //code for dynamic confirmation message 
   const userInfo = session?.data?.user
   const currentProject = userInfo?.projects?.find((project) => project.id == props.projectId)
-
-  const requiredString = userInfo?.name?.replace(" ", "-") + "/" + currentProject?.name?.replace(" ", "-");
+  const confirmMessage = userInfo?.name?.replace(" ", "-") + "/" + currentProject?.name?.replace(" ", "-");
 
   const formSchema = z.object({
-    name: z.string().includes(requiredString, { message: "wrong", }),
+    name: z.string().includes(confirmMessage, { message: "please write the correct name inside double quotes", }),
   });
 
   const hasAccess = useHasAccess({
@@ -61,6 +58,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
     },
   });
 
+  // delete project functionality
   const onSubmit = () => {
     deleteProject
       .mutateAsync({
@@ -72,7 +70,6 @@ export function DeleteProjectButton(props: { projectId: string }) {
       .catch((error) => {
         console.error(error);
       });
-
   }
 
   if (!hasAccess) return null;
@@ -80,13 +77,13 @@ export function DeleteProjectButton(props: { projectId: string }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant='secondary'>Delete Project</Button>
+        <Button>Delete Project</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold  ">Delete Project</DialogTitle>
           <DialogDescription className=" ">
-            {`To confirm, type "${requiredString}" in the input box `}
+            {`To confirm, type "${confirmMessage}" in the input box `}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
