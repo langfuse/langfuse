@@ -30,7 +30,6 @@ import {
 import { RessourceNotFoundError } from "@/src/utils/exceptions";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
-import { type BackoffOptions, backOff } from "exponential-backoff";
 
 export default async function handler(
   req: NextApiRequest,
