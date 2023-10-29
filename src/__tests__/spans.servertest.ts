@@ -194,30 +194,12 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    const dbTrace = await prisma.trace.findMany({
-      where: {
-        externalId: externalTraceId,
-      },
+    expect(createSpan.status).toBe(400);
+    expect(createSpan.body).toEqual({
+      error: "API does not support traceIdType",
+      message: "Invalid request data",
+      success: false,
     });
-
-    expect(dbTrace.length).toBe(1);
-    expect(dbTrace[0]?.name).toBeNull();
-
-    expect(createSpan.status).toBe(200);
-    const dbSpan = await prisma.observation.findUnique({
-      where: {
-        id: spanId,
-      },
-    });
-
-    expect(dbSpan?.id).toBe(spanId);
-    expect(dbSpan?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbSpan?.name).toBe(spanName);
-    expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbSpan?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbSpan?.input).toEqual({ input: "value" });
-    expect(dbSpan?.metadata).toEqual({ meta: "value" });
-    expect(dbSpan?.version).toBe("2.0.0");
   });
 
   it("should create trace when creating span without existing trace without traceId", async () => {

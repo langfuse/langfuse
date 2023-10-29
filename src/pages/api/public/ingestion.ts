@@ -17,6 +17,7 @@ import {
   type createGenerationEvent,
   type eventSchema,
 } from "./ingestion-api-schema";
+import { RessourceNotFoundError } from "@/src/utils/exceptions";
 
 export default async function handler(
   req: NextApiRequest,
@@ -134,7 +135,7 @@ const handleSingleEvent = async (
 
   return await prisma.observation.upsert({
     where: {
-      id: id ?? v4(),
+      id: createObservation.id ?? v4(),
       projectId: projectId,
     },
     create: createObservation,
@@ -190,6 +191,7 @@ class NonRetryError extends Error {
 
 interface ObservationProcessor {
   convertToObservation(projectId: string): Promise<{
+    id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }>;
@@ -203,6 +205,7 @@ class CreateEventProcessor implements ObservationProcessor {
   }
 
   async convertToObservation(projectId: string): Promise<{
+    id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }> {
@@ -232,9 +235,12 @@ class CreateEventProcessor implements ObservationProcessor {
         ).id
       : traceId;
 
+    const observationId = id ?? v4();
+
     return {
+      id: observationId,
       create: {
-        id: id ?? v4(),
+        id: observationId,
         traceId: finalTraceId,
         type: ObservationType.EVENT,
         name,
@@ -273,10 +279,13 @@ class UpdateSpanProcessor implements ObservationProcessor {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async convertToObservation(projectId: string): Promise<{
+    id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }> {
+    console.log("update span", this.event.body);
     const {
+      spanId,
       name,
       traceId,
       endTime,
@@ -288,9 +297,24 @@ class UpdateSpanProcessor implements ObservationProcessor {
       version,
     } = this.event.body;
 
+    const existingObservation = await prisma.observation.findUnique({
+      where: {
+        id: spanId,
+        projectId: projectId,
+      },
+    });
+
+    if (!existingObservation)
+      throw new RessourceNotFoundError(
+        "span",
+        "Could not find existing observation",
+      );
+
+    const observationId = spanId;
     return {
+      id: observationId,
       create: {
-        id: v4(),
+        id: observationId,
         traceId: traceId,
         type: ObservationType.SPAN,
         name,
@@ -327,12 +351,14 @@ class CreateSpanProcessor implements ObservationProcessor {
   }
 
   async convertToObservation(projectId: string): Promise<{
+    id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }> {
     const {
       id,
       traceId,
+      traceIdType,
       name,
       startTime,
       endTime,
@@ -345,6 +371,10 @@ class CreateSpanProcessor implements ObservationProcessor {
       version,
     } = this.event.body;
 
+    if (traceIdType)
+      throw new NonRetryError("API does not support traceIdType");
+
+    const observationId = id ?? v4();
     const finalTraceId = !traceId
       ? // Create trace if no traceid
         (
@@ -358,8 +388,9 @@ class CreateSpanProcessor implements ObservationProcessor {
       : traceId;
 
     return {
+      id: observationId,
       create: {
-        id: id ?? v4(),
+        id: observationId,
         traceId: finalTraceId,
         type: ObservationType.SPAN,
         name,
@@ -399,12 +430,14 @@ class UpdateGenerationProcessor implements ObservationProcessor {
     this.event = event;
   }
   async convertToObservation(projectId: string): Promise<{
+    id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }> {
     const { body } = this.event;
 
     const {
+      generationId,
       name,
       endTime,
       completionStartTime,
@@ -418,7 +451,7 @@ class UpdateGenerationProcessor implements ObservationProcessor {
       statusMessage,
       version,
     } = body;
-
+    const observationId = generationId;
     const existingObservation = await prisma.observation.findUnique({
       where: {
         id: body.generationId,
@@ -430,6 +463,12 @@ class UpdateGenerationProcessor implements ObservationProcessor {
         model: true,
       },
     });
+
+    if (!existingObservation)
+      throw new RessourceNotFoundError(
+        "generation",
+        "Could not find existing observation",
+      );
 
     const mergedModel = model ?? existingObservation?.model ?? null;
 
@@ -456,7 +495,9 @@ class UpdateGenerationProcessor implements ObservationProcessor {
       (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
         (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
     return {
+      id: observationId,
       create: {
+        id: observationId,
         type: ObservationType.GENERATION,
         name,
         endTime: endTime ? new Date(endTime) : undefined,
@@ -503,13 +544,16 @@ class CreateGenerationProcessor implements ObservationProcessor {
   }
 
   async convertToObservation(projectId: string): Promise<{
+    id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }> {
     const { body } = this.event;
 
     const {
+      id,
       traceId,
+      traceIdType,
       name,
       startTime,
       endTime,
@@ -525,6 +569,9 @@ class CreateGenerationProcessor implements ObservationProcessor {
       statusMessage,
       version,
     } = body;
+
+    if (traceIdType)
+      throw new NonRetryError("API does not support traceIdType");
 
     const finalTraceId = !traceId
       ? // Create trace if no traceid
@@ -556,9 +603,11 @@ class CreateGenerationProcessor implements ObservationProcessor {
           })
         : undefined);
 
+    const observationId = id ?? v4();
     return {
+      id: observationId,
       create: {
-        id: body.id ?? v4(),
+        id: observationId,
         traceId: finalTraceId,
         type: ObservationType.GENERATION,
         name,

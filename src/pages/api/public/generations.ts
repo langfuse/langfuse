@@ -11,8 +11,10 @@ import { RessourceNotFoundError } from "../../../utils/exceptions";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 import {
   GenerationsCreateSchema,
-  GenerationPatchSchema,
+  type GenerationPatchSchema,
+  eventTypes,
 } from "./ingestion-api-schema";
+import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
 
 export default async function handler(
   req: NextApiRequest,
@@ -39,146 +41,19 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
 
-      const obj = GenerationsCreateSchema.parse(req.body);
-      const {
-        id,
-        name,
-        startTime,
-        endTime,
-        completionStartTime,
-        model,
-        modelParameters,
-        prompt,
-        completion,
-        usage,
-        metadata,
-        parentObservationId,
-        level,
-        statusMessage,
-        version,
-      } = obj;
+      const event = {
+        id: uuidv4(),
+        type: eventTypes.GENERATION_CREATE,
+        body: req.body,
+      };
 
-      const traceId = !obj.traceId
-        ? // Create trace if no traceid - backwards compatibility
-          (
-            await prisma.trace.create({
-              data: {
-                projectId: authCheck.scope.projectId,
-                name: obj.name,
-              },
-            })
-          ).id
-        : obj.traceIdType === "EXTERNAL"
-        ? // Find or create trace if externalTraceId
-          (
-            await prisma.trace.upsert({
-              where: {
-                projectId_externalId: {
-                  projectId: authCheck.scope.projectId,
-                  externalId: obj.traceId,
-                },
-              },
-              create: {
-                projectId: authCheck.scope.projectId,
-                externalId: obj.traceId,
-              },
-              update: {},
-            })
-          ).id
-        : obj.traceId;
+      const response = await handleIngestionEvent(
+        event,
+        authCheck.scope.projectId,
+      );
 
-      const newPromptTokens =
-        usage?.promptTokens ??
-        (model && prompt
-          ? tokenCount({
-              model: model,
-              text: prompt,
-            })
-          : undefined);
-      const newCompletionTokens =
-        usage?.completionTokens ??
-        (model && completion
-          ? tokenCount({
-              model: model,
-              text: completion,
-            })
-          : undefined);
-
-      const newId = uuidv4();
-
-      // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
-      // Including projectid would lead to race conditions and unique key errors
-      const observationWithSameId = await prisma.observation.count({
-        where: {
-          id: id ?? newId,
-          projectId: {
-            not: authCheck.scope.projectId,
-          },
-        },
-      });
-      if (observationWithSameId > 0)
-        throw new Error(
-          "Observation with same id already exists in another project",
-        );
-
-      const newObservation = await prisma.observation.upsert({
-        where: {
-          id: id ?? newId,
-        },
-        create: {
-          id: id ?? newId,
-          traceId: traceId,
-          type: ObservationType.GENERATION,
-          name,
-          startTime: startTime ? new Date(startTime) : undefined,
-          endTime: endTime ? new Date(endTime) : undefined,
-          completionStartTime: completionStartTime
-            ? new Date(completionStartTime)
-            : undefined,
-          metadata: metadata ?? undefined,
-          model: model ?? undefined,
-          modelParameters: modelParameters ?? undefined,
-          input: prompt ?? undefined,
-          output: completion ?? undefined,
-          promptTokens: newPromptTokens,
-          completionTokens: newCompletionTokens,
-          totalTokens:
-            usage?.totalTokens ??
-            (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
-          level: level ?? undefined,
-          statusMessage: statusMessage ?? undefined,
-          parentObservationId: parentObservationId ?? undefined,
-          version: version ?? undefined,
-          projectId: authCheck.scope.projectId,
-        },
-        update: {
-          type: ObservationType.GENERATION,
-          name,
-          startTime: startTime ? new Date(startTime) : undefined,
-          endTime: endTime ? new Date(endTime) : undefined,
-          completionStartTime: completionStartTime
-            ? new Date(completionStartTime)
-            : undefined,
-          metadata: metadata ?? undefined,
-          model: model ?? undefined,
-          modelParameters: modelParameters ?? undefined,
-          input: prompt ?? undefined,
-          output: completion ?? undefined,
-          promptTokens: newPromptTokens,
-          completionTokens: newCompletionTokens,
-          totalTokens:
-            usage?.totalTokens ??
-            (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
-          level: level ?? undefined,
-          statusMessage: statusMessage ?? undefined,
-          parentObservationId: parentObservationId ?? undefined,
-          version: version ?? undefined,
-        },
-      });
-
-      res.status(200).json(newObservation);
+      res.status(200).json(response);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
@@ -190,35 +65,25 @@ export default async function handler(
       });
     }
   } else if (req.method === "PATCH") {
-    console.log(
-      "trying to update observation for generation, project ",
-      authCheck.scope.projectId,
-      ", body:",
-      JSON.stringify(req.body, null, 2),
-    );
-    await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
     try {
-      const newObservation = await backOff(
-        async () =>
-          await patchGeneration(
-            prisma,
-            GenerationPatchSchema.parse(req.body),
-            authCheck.scope.projectId,
-          ),
-        {
-          numOfAttempts: 5,
-          retry: (e: Error, attemptNumber: number) => {
-            if (e instanceof RessourceNotFoundError) {
-              console.log(
-                `retrying generation patch, attempt ${attemptNumber}`,
-              );
-              return true;
-            }
-            return false;
-          },
-        },
+      console.log(
+        "trying to update observation for generation, project ",
+        authCheck.scope.projectId,
+        ", body:",
+        JSON.stringify(req.body, null, 2),
       );
-      res.status(200).json(newObservation);
+
+      const event = {
+        id: uuidv4(),
+        type: eventTypes.GENERATION_PATCH,
+        body: req.body,
+      };
+
+      const response = await handleIngestionEvent(
+        event,
+        authCheck.scope.projectId,
+      );
+      res.status(200).json(response);
     } catch (error: unknown) {
       console.error(error);
 
@@ -241,123 +106,3 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 }
-
-const patchGeneration = async (
-  prisma: PrismaClient,
-  generationPatch: z.infer<typeof GenerationPatchSchema>,
-  authenticatedProjectId: string,
-) => {
-  const {
-    generationId,
-    traceId,
-    endTime,
-    completionStartTime,
-    prompt,
-    completion,
-    usage,
-    model,
-    ...otherFields
-  } = generationPatch;
-
-  const existingObservation = await prisma.observation.findUnique({
-    where: {
-      id: generationPatch.generationId,
-      projectId: authenticatedProjectId,
-    },
-    select: {
-      promptTokens: true,
-      completionTokens: true,
-      model: true,
-    },
-  });
-
-  if (!existingObservation) {
-    console.log(`generation with id ${generationId} not found`);
-    throw new RessourceNotFoundError("generation", generationId);
-  }
-
-  const mergedModel = model ?? existingObservation?.model ?? null;
-
-  const newPromptTokens =
-    usage?.promptTokens ??
-    (mergedModel && prompt
-      ? tokenCount({
-          model: mergedModel,
-          text: prompt,
-        })
-      : undefined);
-
-  const newCompletionTokens =
-    usage?.completionTokens ??
-    (mergedModel && completion
-      ? tokenCount({
-          model: mergedModel,
-          text: completion,
-        })
-      : undefined);
-
-  const newTotalTokens =
-    usage?.totalTokens ??
-    (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
-      (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
-
-  // Check before upsert as Prisma only upserts in DB transaction when using unique key in select
-  // Including projectid would lead to race conditions and unique key errors
-  const observationWithSameId = await prisma.observation.count({
-    where: {
-      id: generationId,
-      projectId: {
-        not: authenticatedProjectId,
-      },
-    },
-  });
-  if (observationWithSameId > 0)
-    throw new Error(
-      "Observation with same id already exists in another project",
-    );
-
-  return await prisma.observation.upsert({
-    where: {
-      id: generationId,
-    },
-    create: {
-      id: generationId,
-      traceId: traceId ?? undefined,
-      type: ObservationType.GENERATION,
-      endTime: endTime ? new Date(endTime) : undefined,
-      completionStartTime: completionStartTime
-        ? new Date(completionStartTime)
-        : undefined,
-      input: prompt ?? undefined,
-      output: completion ?? undefined,
-      promptTokens: newPromptTokens,
-      completionTokens: newCompletionTokens,
-      totalTokens: newTotalTokens,
-      model: model ?? undefined,
-      ...Object.fromEntries(
-        Object.entries(otherFields).filter(
-          ([_, v]) => v !== null && v !== undefined,
-        ),
-      ),
-      projectId: authenticatedProjectId,
-    },
-    update: {
-      endTime: endTime ? new Date(endTime) : undefined,
-      completionStartTime: completionStartTime
-        ? new Date(completionStartTime)
-        : undefined,
-      input: prompt ?? undefined,
-      output: completion ?? undefined,
-      promptTokens: newPromptTokens,
-      completionTokens: newCompletionTokens,
-      totalTokens: newTotalTokens,
-      traceId: traceId ?? undefined,
-      model: model ?? undefined,
-      ...Object.fromEntries(
-        Object.entries(otherFields).filter(
-          ([_, v]) => v !== null && v !== undefined,
-        ),
-      ),
-    },
-  });
-};

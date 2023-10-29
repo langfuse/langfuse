@@ -290,34 +290,12 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    const dbTrace = await prisma.trace.findMany({
-      where: {
-        externalId: externalTraceId,
-      },
+    expect(createGeneration.status).toBe(400);
+    expect(createGeneration.body).toEqual({
+      error: "API does not support traceIdType",
+      message: "Invalid request data",
+      success: false,
     });
-
-    expect(dbTrace.length).toBe(1);
-    expect(dbTrace[0]?.name).toBeNull();
-
-    expect(createGeneration.status).toBe(200);
-    const dbGeneration = await prisma.observation.findUnique({
-      where: {
-        id: generationId,
-      },
-    });
-
-    expect(dbGeneration?.id).toBe(generationId);
-    expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbGeneration?.name).toBe(generationName);
-    expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z"),
-    );
-    expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbGeneration?.model).toBe("model-name");
-    expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
-    expect(dbGeneration?.input).toEqual({ key: "value" });
-    expect(dbGeneration?.metadata).toEqual({ key: "value" });
-    expect(dbGeneration?.version).toBe("2.0.0");
   });
 
   it("should create trace when creating generation without existing trace without traceId", async () => {
