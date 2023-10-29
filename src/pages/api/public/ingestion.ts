@@ -192,7 +192,7 @@ class TraceProcessor implements EventProcessor {
   async process(
     apiScope: ApiAccessScope,
   ): Promise<Trace | Observation | Score> {
-    const { id, body } = this.event;
+    const { body } = this.event;
 
     if (apiScope.accessLevel !== "all")
       throw new AuthenticationError("Access denied for trace creation");
