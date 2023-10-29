@@ -30,6 +30,7 @@ import {
 import { RessourceNotFoundError } from "@/src/utils/exceptions";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
+import { type BackoffOptions, backOff } from "exponential-backoff";
 
 export default async function handler(
   req: NextApiRequest,
@@ -88,9 +89,22 @@ export const handleIngestionEvent = async (
       await handleSingleEvent(singleEvent, authCheck.scope);
     }
   } else {
-    return handleSingleEvent(event, authCheck.scope);
+    return await handleSingleEvent(event, authCheck.scope);
   }
 };
+
+// async function retry<T>(request: () => Promise<T>): Promise<T> {
+//   return await backOff(request, {
+//     numOfAttempts: 3,
+//     retry: (e: Error, attemptNumber: number) => {
+//       if (e instanceof RessourceNotFoundError) {
+//         console.log(`retrying generation patch, attempt ${attemptNumber}`);
+//         return true;
+//       }
+//       return false;
+//     },
+//   });
+// }
 
 const handleSingleEvent = async (
   event: z.infer<typeof eventSchema>,
@@ -249,7 +263,7 @@ class AuthenticationError extends Error {
     super(msg);
 
     // Set the prototype explicitly.
-    Object.setPrototypeOf(this, NonRetryError.prototype);
+    Object.setPrototypeOf(this, AuthenticationError.prototype);
   }
 }
 
