@@ -35,31 +35,44 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  await runMiddleware(req, res, cors);
+  try {
+    await runMiddleware(req, res, cors);
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
+    if (req.method !== "POST") {
+      return res.status(405).json({ message: "Method not allowed" });
+    }
+
+    // CHECK AUTH FOR ALL EVENTS
+    const authCheck = await verifyAuthHeaderAndReturnScope(
+      req.headers.authorization,
+    );
+    if (!authCheck.validKey)
+      return res.status(401).json({
+        success: false,
+        message: authCheck.error,
+      });
+
+    if (authCheck.scope.accessLevel !== "all")
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+
+    const parsedSchema = ingestionApiSchema.parse(req.body);
+
+    await handleIngestionEvent(parsedSchema, authCheck);
+
+    res.status(201).send({ status: "ok" });
+  } catch (error: unknown) {
+    console.error(error);
+    const errorMessage =
+      error instanceof Error ? error.message : "An unknown error occurred";
+    res.status(400).json({
+      success: false,
+      message: "Invalid request data",
+      error: errorMessage,
+    });
   }
-
-  // CHECK AUTH FOR ALL EVENTS
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      success: false,
-      message: authCheck.error,
-    });
-
-  if (authCheck.scope.accessLevel !== "all")
-    return res.status(403).json({
-      success: false,
-      message: "Access denied",
-    });
-
-  const parsedSchema = ingestionApiSchema.parse(req.body);
-
-  return await handleIngestionEvent(parsedSchema, authCheck);
 }
 
 export const handleIngestionEvent = async (
@@ -71,9 +84,9 @@ export const handleIngestionEvent = async (
   if (!authCheck.validKey) throw new AuthenticationError(authCheck.error);
 
   if (event instanceof Array) {
-    return event.map(async (event) =>
-      handleSingleEvent(event, authCheck.scope),
-    );
+    for (const singleEvent of event) {
+      await handleSingleEvent(singleEvent, authCheck.scope);
+    }
   } else {
     return handleSingleEvent(event, authCheck.scope);
   }
