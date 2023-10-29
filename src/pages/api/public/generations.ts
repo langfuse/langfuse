@@ -3,8 +3,12 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
-import { eventTypes } from "./ingestion-api-schema";
+import { eventTypes, ingestionApiSchema } from "./ingestion-api-schema";
 import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
+import {
+  CreateGenerationRequest,
+  UpdateGenerationRequest,
+} from "@/generated/typescript-server/serialization";
 
 export default async function handler(
   req: NextApiRequest,
@@ -35,10 +39,13 @@ export default async function handler(
       const event = {
         id: uuidv4(),
         type: eventTypes.GENERATION_CREATE,
-        body: req.body,
+        body: CreateGenerationRequest.parse(req.body),
       };
 
-      const response = await handleIngestionEvent(event, authCheck);
+      const response = await handleIngestionEvent(
+        ingestionApiSchema.parse(event),
+        authCheck,
+      );
 
       res.status(200).json(response);
     } catch (error: unknown) {
@@ -63,10 +70,13 @@ export default async function handler(
       const event = {
         id: uuidv4(),
         type: eventTypes.GENERATION_PATCH,
-        body: req.body,
+        body: UpdateGenerationRequest.parse(req.body),
       };
 
-      const response = await handleIngestionEvent(event, authCheck);
+      const response = await handleIngestionEvent(
+        ingestionApiSchema.parse(event),
+        authCheck,
+      );
       res.status(200).json(response);
     } catch (error: unknown) {
       console.error(error);
