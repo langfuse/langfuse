@@ -11,6 +11,8 @@ describe("/api/public/ingestion API Endpoint", () => {
   it("should create trace and generation", async () => {
     const traceId = v4();
     const generationId = v4();
+    const spanId = v4();
+    const scoreId = v4();
 
     const request = await makeAPICall("POST", "/api/public/ingestion", [
       {
@@ -40,6 +42,38 @@ describe("/api/public/ingestion API Endpoint", () => {
           prompt: { key: "value" },
           metadata: { key: "value" },
           version: "2.0.0",
+        },
+      },
+      {
+        id: v4(),
+        type: "generation:patch",
+        body: {
+          generationId: generationId,
+          completion: { key: "this is a great gpt output" },
+        },
+      },
+      {
+        id: v4(),
+        type: "span:create",
+        body: {
+          id: spanId,
+          traceId: traceId,
+          name: "span-name",
+          startTime: "2021-01-01T00:00:00.000Z",
+          endTime: "2021-01-01T00:00:00.000Z",
+          input: { input: "value" },
+          metadata: { meta: "value" },
+          version: "2.0.0",
+        },
+      },
+      {
+        id: v4(),
+        type: "score:create",
+        body: {
+          id: scoreId,
+          name: "score-name",
+          value: 100.5,
+          traceId: traceId,
         },
       },
     ]);
@@ -77,5 +111,34 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbGeneration?.input).toEqual({ key: "value" });
     expect(dbGeneration?.metadata).toEqual({ key: "value" });
     expect(dbGeneration?.version).toBe("2.0.0");
+    expect(dbGeneration?.output).toEqual({
+      key: "this is a great gpt output",
+    });
+
+    const dbSpan = await prisma.observation.findUnique({
+      where: {
+        id: spanId,
+      },
+    });
+
+    expect(dbSpan?.id).toBe(spanId);
+    expect(dbSpan?.name).toBe("span-name");
+    expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan?.endTime).toEqual(new Date("2021-01-:00:00.000Z"));
+    expect(dbSpan?.input).toEqual({ input: "value" });
+    expect(dbSpan?.metadata).toEqual({ meta: "value" });
+    expect(dbSpan?.version).toBe("2.0.0");
+
+    const dbScore = await prisma.score.findUnique({
+      where: {
+        id: scoreId,
+      },
+    });
+
+    expect(dbScore?.id).toBe(scoreId);
+    expect(dbScore?.traceId).toBe(traceId);
+    expect(dbScore?.name).toBe("score-name");
+    expect(dbScore?.value).toBe(100.5);
+    expect(dbScore?.observationId).toBeNull();
   });
 });

@@ -152,7 +152,7 @@ class ScoreProcessor implements EventProcessor {
     apiScope: ApiAccessScope,
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
-
+    console.log("score body", body);
     const accessCheck = await checkApiAccessScope(
       apiScope,
       [
@@ -200,7 +200,7 @@ class TraceProcessor implements EventProcessor {
     if (body.externalId)
       throw new NonRetryError("API does not support externalId");
 
-    const internalId = id ?? v4();
+    const internalId = body.id ?? v4();
 
     console.log(
       "Trying to create trace, project ",
