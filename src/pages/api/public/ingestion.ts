@@ -3,7 +3,13 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { v4 } from "uuid";
-import { ObservationType, type Prisma } from "@prisma/client";
+import {
+  ObservationType,
+  type Trace,
+  type Prisma,
+  type Observation,
+  type Score,
+} from "@prisma/client";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { type z } from "zod";
 import {
@@ -16,6 +22,7 @@ import {
   type updateGenerationEvent,
   type createGenerationEvent,
   type eventSchema,
+  type createScoreEvent,
 } from "./ingestion-api-schema";
 import { RessourceNotFoundError } from "@/src/utils/exceptions";
 
@@ -79,106 +86,105 @@ const handleSingleEvent = async (
     return;
   }
 
-  let createObservation: Prisma.ObservationCreateInput | undefined;
-  let updateObservation: Prisma.ObservationUpdateInput | undefined;
+  let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      return await handleTrace(projectId, event);
-    case eventTypes.GENERATION_CREATE: {
-      const { create, update } = await new CreateGenerationProcessor(
-        event,
-      ).convertToObservation(projectId);
-      createObservation = create;
-      updateObservation = update;
+      processor = new TraceProcessor(event);
       break;
-    }
-    case eventTypes.GENERATION_PATCH: {
-      const { create, update } = await new UpdateGenerationProcessor(
-        event,
-      ).convertToObservation(projectId);
-      createObservation = create;
-      updateObservation = update;
+    case eventTypes.GENERATION_CREATE:
+      processor = new CreateGenerationProcessor(event);
       break;
-    }
+    case eventTypes.GENERATION_PATCH:
+      processor = new UpdateGenerationProcessor(event);
+      break;
     case eventTypes.SPAN_CREATE: {
-      const { create, update } = await new CreateSpanProcessor(
-        event,
-      ).convertToObservation(projectId);
-      createObservation = create;
-      updateObservation = update;
+      processor = new CreateSpanProcessor(event);
       break;
     }
     case eventTypes.SPAN_PATCH: {
-      const { create, update } = await new UpdateSpanProcessor(
-        event,
-      ).convertToObservation(projectId);
-      createObservation = create;
-      updateObservation = update;
+      processor = new UpdateSpanProcessor(event);
       break;
     }
     case eventTypes.EVENT_CREATE: {
-      const { create, update } = await new CreateEventProcessor(
-        event,
-      ).convertToObservation(projectId);
-      createObservation = create;
-      updateObservation = update;
+      processor = new CreateEventProcessor(event);
       break;
     }
-    default:
-      console.log(`Unknown event type ${type}`);
-      throw new Error(`Unknown event type ${type}`);
+    case eventTypes.SCORE_CREATE: {
+      processor = new ScoreProcessor(event);
+      break;
+    }
   }
 
-  if (!createObservation || !updateObservation) {
-    throw new Error("Could not create observation");
+  return await processor.process(projectId);
+};
+
+class ScoreProcessor implements EventProcessor {
+  event: z.infer<typeof createScoreEvent>;
+
+  constructor(event: z.infer<typeof createScoreEvent>) {
+    this.event = event;
   }
 
-  return await prisma.observation.upsert({
-    where: {
-      id: createObservation.id ?? v4(),
-      projectId: projectId,
-    },
-    create: createObservation,
-    update: updateObservation,
-  });
-};
+  async process(projectId: string): Promise<Trace | Observation | Score> {
+    const { body } = this.event;
 
-const handleTrace = async (
-  projectId: string,
-  event: z.infer<typeof createTraceEvent>,
-) => {
-  const { id, body } = event;
-  if (body.externalId)
-    throw new NonRetryError("API does not support externalId");
+    return await prisma.score.create({
+      data: {
+        id: body.id ?? v4(),
+        timestamp: new Date(),
+        value: body.value,
+        name: body.name,
+        comment: body.comment,
+        trace: { connect: { id: body.traceId } },
+        ...(body.observationId && {
+          observation: { connect: { id: body.observationId } },
+        }),
+      },
+    });
+  }
+}
 
-  const internalId = id ?? v4();
+class TraceProcessor implements EventProcessor {
+  event: z.infer<typeof createTraceEvent>;
 
-  console.log("Trying to create trace, project ", projectId, ", body:", body);
+  constructor(event: z.infer<typeof createTraceEvent>) {
+    this.event = event;
+  }
 
-  const upsertedTrace = await prisma.trace.upsert({
-    where: {
-      id: internalId,
-      projectId: projectId,
-    },
-    create: {
-      id: internalId,
-      projectId: projectId,
-      name: body.name ?? undefined,
-      userId: body.userId ?? undefined,
-      metadata: body.metadata ?? undefined,
-      release: body.release ?? undefined,
-      version: body.version ?? undefined,
-    },
-    update: {
-      name: body.name ?? undefined,
-      userId: body.userId ?? undefined,
-      metadata: body.metadata ?? undefined,
-      release: body.release ?? undefined,
-      version: body.version ?? undefined,
-    },
-  });
-  return upsertedTrace;
-};
+  async process(projectId: string): Promise<Trace | Observation | Score> {
+    const { id, body } = this.event;
+    if (body.externalId)
+      throw new NonRetryError("API does not support externalId");
+
+    const internalId = id ?? v4();
+
+    console.log("Trying to create trace, project ", projectId, ", body:", body);
+
+    const upsertedTrace = await prisma.trace.upsert({
+      where: {
+        id: internalId,
+        projectId: projectId,
+      },
+      create: {
+        id: internalId,
+        name: body.name ?? undefined,
+        userId: body.userId ?? undefined,
+        metadata: body.metadata ?? undefined,
+        release: body.release ?? undefined,
+        version: body.version ?? undefined,
+        project: { connect: { id: projectId } },
+      },
+      update: {
+        name: body.name ?? undefined,
+        userId: body.userId ?? undefined,
+        metadata: body.metadata ?? undefined,
+        release: body.release ?? undefined,
+        version: body.version ?? undefined,
+      },
+    });
+    return upsertedTrace;
+  }
+}
 
 class NonRetryError extends Error {
   constructor(msg: string) {
@@ -189,18 +195,35 @@ class NonRetryError extends Error {
   }
 }
 
-interface ObservationProcessor {
-  convertToObservation(projectId: string): Promise<{
+interface EventProcessor {
+  process(projectId: string): Promise<Trace | Observation | Score>;
+}
+
+abstract class ObservationProcessor implements EventProcessor {
+  abstract convertToObservation(projectId: string): Promise<{
     id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }>;
+
+  async process(projectId: string): Promise<Trace | Observation | Score> {
+    const obs = await this.convertToObservation(projectId);
+    return await prisma.observation.upsert({
+      where: {
+        id: obs.id ?? v4(),
+        projectId: projectId,
+      },
+      create: obs.create,
+      update: obs.update,
+    });
+  }
 }
 
-class CreateEventProcessor implements ObservationProcessor {
+class CreateEventProcessor extends ObservationProcessor {
   event: z.infer<typeof createEventEvent>;
 
   constructor(event: z.infer<typeof createEventEvent>) {
+    super();
     this.event = event;
   }
 
@@ -274,10 +297,11 @@ class CreateEventProcessor implements ObservationProcessor {
   }
 }
 
-class UpdateSpanProcessor implements ObservationProcessor {
+class UpdateSpanProcessor extends ObservationProcessor {
   event: z.infer<typeof patchSpanEvent>;
 
   constructor(event: z.infer<typeof patchSpanEvent>) {
+    super();
     this.event = event;
   }
 
@@ -347,10 +371,11 @@ class UpdateSpanProcessor implements ObservationProcessor {
   }
 }
 
-class CreateSpanProcessor implements ObservationProcessor {
+class CreateSpanProcessor extends ObservationProcessor {
   event: z.infer<typeof createSpanEvent>;
 
   constructor(event: z.infer<typeof createSpanEvent>) {
+    super();
     this.event = event;
   }
 
@@ -427,10 +452,11 @@ class CreateSpanProcessor implements ObservationProcessor {
   }
 }
 
-class UpdateGenerationProcessor implements ObservationProcessor {
+class UpdateGenerationProcessor extends ObservationProcessor {
   event: z.infer<typeof updateGenerationEvent>;
 
   constructor(event: z.infer<typeof updateGenerationEvent>) {
+    super();
     this.event = event;
   }
   async convertToObservation(projectId: string): Promise<{
@@ -540,10 +566,11 @@ class UpdateGenerationProcessor implements ObservationProcessor {
   }
 }
 
-class CreateGenerationProcessor implements ObservationProcessor {
+class CreateGenerationProcessor extends ObservationProcessor {
   event: z.infer<typeof createGenerationEvent>;
 
   constructor(event: z.infer<typeof createGenerationEvent>) {
+    super();
     this.event = event;
   }
 

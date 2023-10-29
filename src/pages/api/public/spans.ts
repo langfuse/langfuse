@@ -1,18 +1,9 @@
-import { prisma } from "@/src/server/db";
-import { ObservationType, type PrismaClient } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { v4 as uuidv4, v4 } from "uuid";
-import { backOff } from "exponential-backoff";
+import { v4 } from "uuid";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
-import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-import {
-  SpanPostSchema,
-  type SpanPatchSchema,
-  eventTypes,
-} from "./ingestion-api-schema";
+import { eventTypes } from "./ingestion-api-schema";
 import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
 
 export default async function handler(
