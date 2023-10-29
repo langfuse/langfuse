@@ -66,7 +66,7 @@ const supportChannels = [
     icon: Calendar,
     title: "Schedule call",
     description: "Schedule a call with one of the founders.",
-    href: "https://cal.com/marc-kl/langfuse-cloud",
+    href: "https://cal.com/marc-kl/office-hours",
     buttonText: "Schedule Call",
   },
   {

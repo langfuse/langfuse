@@ -50,7 +50,11 @@ export async function verifyAuthHeaderAndReturnScope(
               secretKey,
               dbKey.hashedSecretKey,
             );
-            if (!isValid) throw new Error("Invalid credentials");
+
+            if (!isValid) {
+              console.log("Old key is invalid", publicKey);
+              throw new Error("Invalid credentials");
+            }
 
             const shaKey = createShaHash(secretKey, salt);
 
@@ -63,7 +67,10 @@ export async function verifyAuthHeaderAndReturnScope(
             projectId = dbKey.projectId;
           }
 
-          if (!projectId) throw new Error("Invalid credentials");
+          if (!projectId) {
+            console.log("No project id found for key", publicKey);
+            throw new Error("Invalid credentials");
+          }
 
           return {
             validKey: true,
