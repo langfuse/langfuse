@@ -57,10 +57,7 @@ export default async function handler(
         body: body,
       };
 
-      const result = await handleIngestionEvent(
-        event,
-        authCheck.scope.projectId,
-      );
+      const result = await handleIngestionEvent(event, authCheck);
       res.status(200).json(result);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {

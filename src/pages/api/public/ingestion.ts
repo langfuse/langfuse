@@ -1,4 +1,7 @@
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import {
+  type AuthHeaderVerificationResult,
+  verifyAuthHeaderAndReturnScope,
+} from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -25,6 +28,8 @@ import {
   type createScoreEvent,
 } from "./ingestion-api-schema";
 import { RessourceNotFoundError } from "@/src/utils/exceptions";
+import { type ApiAccessScope } from "@/src/features/public-api/server/types";
+import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 
 export default async function handler(
   req: NextApiRequest,
@@ -54,24 +59,29 @@ export default async function handler(
 
   const parsedSchema = ingestionApiSchema.parse(req.body);
 
-  return await handleIngestionEvent(parsedSchema, authCheck.scope.projectId);
+  return await handleIngestionEvent(parsedSchema, authCheck);
 }
 
 export const handleIngestionEvent = async (
   event: z.infer<typeof ingestionApiSchema>,
-  projectId: string,
+  authCheck: AuthHeaderVerificationResult,
 ) => {
   console.log("handling ingestion event", JSON.stringify(event, null, 2));
+
+  if (!authCheck.validKey) throw new AuthenticationError(authCheck.error);
+
   if (event instanceof Array) {
-    return event.map(async (event) => handleSingleEvent(event, projectId));
+    return event.map(async (event) =>
+      handleSingleEvent(event, authCheck.scope),
+    );
   } else {
-    return handleSingleEvent(event, projectId);
+    return handleSingleEvent(event, authCheck.scope);
   }
 };
 
 const handleSingleEvent = async (
   event: z.infer<typeof eventSchema>,
-  projectId: string,
+  apiScope: ApiAccessScope,
 ) => {
   console.log("handling single event", JSON.stringify(event, null, 2));
 
@@ -115,7 +125,7 @@ const handleSingleEvent = async (
     }
   }
 
-  return await processor.process(projectId);
+  return await processor.process(apiScope);
 };
 
 class ScoreProcessor implements EventProcessor {
@@ -125,8 +135,23 @@ class ScoreProcessor implements EventProcessor {
     this.event = event;
   }
 
-  async process(projectId: string): Promise<Trace | Observation | Score> {
+  async process(
+    apiScope: ApiAccessScope,
+  ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
+
+    const accessCheck = await checkApiAccessScope(
+      apiScope,
+      [
+        { type: "trace", id: body.traceId },
+        ...(body.observationId
+          ? [{ type: "observation" as const, id: body.observationId }]
+          : []),
+      ],
+      "score",
+    );
+    if (!accessCheck)
+      throw new AuthenticationError("Access denied for score creation");
 
     return await prisma.score.create({
       data: {
@@ -151,19 +176,30 @@ class TraceProcessor implements EventProcessor {
     this.event = event;
   }
 
-  async process(projectId: string): Promise<Trace | Observation | Score> {
+  async process(
+    apiScope: ApiAccessScope,
+  ): Promise<Trace | Observation | Score> {
     const { id, body } = this.event;
+
+    if (apiScope.accessLevel !== "all")
+      throw new AuthenticationError("Access denied for trace creation");
+
     if (body.externalId)
       throw new NonRetryError("API does not support externalId");
 
     const internalId = id ?? v4();
 
-    console.log("Trying to create trace, project ", projectId, ", body:", body);
+    console.log(
+      "Trying to create trace, project ",
+      apiScope.projectId,
+      ", body:",
+      body,
+    );
 
     const upsertedTrace = await prisma.trace.upsert({
       where: {
         id: internalId,
-        projectId: projectId,
+        projectId: apiScope.projectId,
       },
       create: {
         id: internalId,
@@ -172,7 +208,7 @@ class TraceProcessor implements EventProcessor {
         metadata: body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
-        project: { connect: { id: projectId } },
+        project: { connect: { id: apiScope.projectId } },
       },
       update: {
         name: body.name ?? undefined,
@@ -195,23 +231,37 @@ class NonRetryError extends Error {
   }
 }
 
+class AuthenticationError extends Error {
+  constructor(msg: string) {
+    super(msg);
+
+    // Set the prototype explicitly.
+    Object.setPrototypeOf(this, NonRetryError.prototype);
+  }
+}
+
 interface EventProcessor {
-  process(projectId: string): Promise<Trace | Observation | Score>;
+  process(apiScope: ApiAccessScope): Promise<Trace | Observation | Score>;
 }
 
 abstract class ObservationProcessor implements EventProcessor {
-  abstract convertToObservation(projectId: string): Promise<{
+  abstract convertToObservation(apiScope: ApiAccessScope): Promise<{
     id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
   }>;
 
-  async process(projectId: string): Promise<Trace | Observation | Score> {
-    const obs = await this.convertToObservation(projectId);
+  async process(
+    apiScope: ApiAccessScope,
+  ): Promise<Trace | Observation | Score> {
+    if (apiScope.accessLevel !== "all")
+      throw new AuthenticationError("Access denied for observation creation");
+
+    const obs = await this.convertToObservation(apiScope);
     return await prisma.observation.upsert({
       where: {
         id: obs.id ?? v4(),
-        projectId: projectId,
+        projectId: apiScope.projectId,
       },
       create: obs.create,
       update: obs.update,
@@ -227,7 +277,7 @@ class CreateEventProcessor extends ObservationProcessor {
     this.event = event;
   }
 
-  async convertToObservation(projectId: string): Promise<{
+  async convertToObservation(apiScope: ApiAccessScope): Promise<{
     id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
@@ -255,7 +305,7 @@ class CreateEventProcessor extends ObservationProcessor {
         (
           await prisma.trace.create({
             data: {
-              projectId: projectId,
+              projectId: apiScope.projectId,
               name: name,
             },
           })
@@ -279,7 +329,7 @@ class CreateEventProcessor extends ObservationProcessor {
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,
         version: version ?? undefined,
-        project: { connect: { id: projectId } },
+        project: { connect: { id: apiScope.projectId } },
       },
       update: {
         type: ObservationType.EVENT,
@@ -306,7 +356,7 @@ class UpdateSpanProcessor extends ObservationProcessor {
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async convertToObservation(projectId: string): Promise<{
+  async convertToObservation(apiScope: ApiAccessScope): Promise<{
     id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
@@ -328,7 +378,7 @@ class UpdateSpanProcessor extends ObservationProcessor {
     const existingObservation = await prisma.observation.findUnique({
       where: {
         id: spanId,
-        projectId: projectId,
+        projectId: apiScope.projectId,
       },
     });
 
@@ -353,7 +403,7 @@ class UpdateSpanProcessor extends ObservationProcessor {
         level: level ?? undefined,
         statusMessage: statusMessage ?? undefined,
         version: version ?? undefined,
-        project: { connect: { id: projectId } },
+        project: { connect: { id: apiScope.projectId } },
       },
       update: {
         traceId: traceId,
@@ -379,7 +429,7 @@ class CreateSpanProcessor extends ObservationProcessor {
     this.event = event;
   }
 
-  async convertToObservation(projectId: string): Promise<{
+  async convertToObservation(apiScope: ApiAccessScope): Promise<{
     id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
@@ -409,7 +459,7 @@ class CreateSpanProcessor extends ObservationProcessor {
         (
           await prisma.trace.create({
             data: {
-              projectId: projectId,
+              projectId: apiScope.projectId,
               name: name,
             },
           })
@@ -432,7 +482,7 @@ class CreateSpanProcessor extends ObservationProcessor {
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,
         version: version ?? undefined,
-        project: { connect: { id: projectId } },
+        project: { connect: { id: apiScope.projectId } },
       },
       update: {
         traceId: finalTraceId,
@@ -459,7 +509,7 @@ class UpdateGenerationProcessor extends ObservationProcessor {
     super();
     this.event = event;
   }
-  async convertToObservation(projectId: string): Promise<{
+  async convertToObservation(apiScope: ApiAccessScope): Promise<{
     id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
@@ -485,7 +535,7 @@ class UpdateGenerationProcessor extends ObservationProcessor {
     const existingObservation = await prisma.observation.findUnique({
       where: {
         id: body.generationId,
-        projectId: projectId,
+        projectId: apiScope.projectId,
       },
       select: {
         promptTokens: true,
@@ -547,7 +597,7 @@ class UpdateGenerationProcessor extends ObservationProcessor {
         level: level ?? undefined,
         statusMessage: statusMessage ?? undefined,
         version: version ?? undefined,
-        project: { connect: { id: projectId } },
+        project: { connect: { id: apiScope.projectId } },
       },
       update: {
         endTime: endTime ? new Date(endTime) : undefined,
@@ -574,7 +624,7 @@ class CreateGenerationProcessor extends ObservationProcessor {
     this.event = event;
   }
 
-  async convertToObservation(projectId: string): Promise<{
+  async convertToObservation(apiScope: ApiAccessScope): Promise<{
     id: string;
     create: Prisma.ObservationCreateInput;
     update: Prisma.ObservationUpdateInput;
@@ -609,7 +659,7 @@ class CreateGenerationProcessor extends ObservationProcessor {
         (
           await prisma.trace.create({
             data: {
-              projectId: projectId,
+              projectId: apiScope.projectId,
               name: name,
             },
           })
@@ -661,7 +711,7 @@ class CreateGenerationProcessor extends ObservationProcessor {
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,
         version: version ?? undefined,
-        project: { connect: { id: projectId } },
+        project: { connect: { id: apiScope.projectId } },
       },
       update: {
         type: ObservationType.GENERATION,

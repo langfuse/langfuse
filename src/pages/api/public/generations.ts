@@ -38,10 +38,7 @@ export default async function handler(
         body: req.body,
       };
 
-      const response = await handleIngestionEvent(
-        event,
-        authCheck.scope.projectId,
-      );
+      const response = await handleIngestionEvent(event, authCheck);
 
       res.status(200).json(response);
     } catch (error: unknown) {
@@ -69,10 +66,7 @@ export default async function handler(
         body: req.body,
       };
 
-      const response = await handleIngestionEvent(
-        event,
-        authCheck.scope.projectId,
-      );
+      const response = await handleIngestionEvent(event, authCheck);
       res.status(200).json(response);
     } catch (error: unknown) {
       console.error(error);

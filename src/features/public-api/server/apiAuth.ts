@@ -7,7 +7,7 @@ import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 
-type AuthHeaderVerificationResult =
+export type AuthHeaderVerificationResult =
   | {
       validKey: true;
       scope: ApiAccessScope;

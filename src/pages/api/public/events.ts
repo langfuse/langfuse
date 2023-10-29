@@ -39,10 +39,7 @@ export default async function handler(
       type: eventTypes.EVENT_CREATE,
       body: req.body,
     };
-    const response = await handleIngestionEvent(
-      event,
-      authCheck.scope.projectId,
-    );
+    const response = await handleIngestionEvent(event, authCheck);
     res.status(200).json(response);
   } catch (error: unknown) {
     console.error(error);
