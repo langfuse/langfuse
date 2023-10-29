@@ -1,11 +1,9 @@
-import { prisma } from "@/src/server/db";
-import { ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
-import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-import { EventSchema } from "./ingestion-api-schema";
+import { eventTypes } from "./ingestion-api-schema";
+import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
 
 export default async function handler(
   req: NextApiRequest,
@@ -36,87 +34,16 @@ export default async function handler(
   );
 
   try {
-    const obj = EventSchema.parse(req.body);
-    const {
-      id,
-      name,
-      startTime,
-      metadata,
-      input,
-      output,
-      parentObservationId,
-      level,
-      statusMessage,
-      version,
-    } = obj;
-
-    await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
-
-    const traceId = !obj.traceId
-      ? // Create trace if no traceid - backwards compatibility
-        (
-          await prisma.trace.create({
-            data: {
-              projectId: authCheck.scope.projectId,
-              name: obj.name,
-            },
-          })
-        ).id
-      : obj.traceIdType === "EXTERNAL"
-      ? // Find or create trace if externalTraceId
-        (
-          await prisma.trace.upsert({
-            where: {
-              projectId_externalId: {
-                projectId: authCheck.scope.projectId,
-                externalId: obj.traceId,
-              },
-            },
-            create: {
-              projectId: authCheck.scope.projectId,
-              externalId: obj.traceId,
-            },
-            update: {},
-          })
-        ).id
-      : obj.traceId;
-
-    const newId = uuidv4();
-    const newObservation = await prisma.observation.upsert({
-      where: {
-        id: id ?? newId,
-        projectId: authCheck.scope.projectId,
-      },
-      create: {
-        id: id ?? newId,
-        traceId: traceId,
-        type: ObservationType.EVENT,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-        project: { connect: { id: authCheck.scope.projectId } },
-      },
-      update: {
-        type: ObservationType.EVENT,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-      },
-    });
-
-    res.status(200).json(newObservation);
+    const event = {
+      id: uuidv4(),
+      type: eventTypes.EVENT_CREATE,
+      body: req.body,
+    };
+    const response = await handleIngestionEvent(
+      event,
+      authCheck.scope.projectId,
+    );
+    res.status(200).json(response);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =

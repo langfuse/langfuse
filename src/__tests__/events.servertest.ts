@@ -195,30 +195,12 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    const dbTrace = await prisma.trace.findMany({
-      where: {
-        externalId: externalTraceId,
-      },
+    expect(createEvent.status).toBe(400);
+    expect(createEvent.body).toEqual({
+      error: "API does not support traceIdType",
+      message: "Invalid request data",
+      success: false,
     });
-
-    expect(dbTrace.length).toBe(1);
-    expect(dbTrace[0]?.name).toBeNull();
-
-    expect(createEvent.status).toBe(200);
-    const dbEvent = await prisma.observation.findUnique({
-      where: {
-        id: spanId,
-      },
-    });
-
-    expect(dbEvent?.id).toBe(spanId);
-    expect(dbEvent?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbEvent?.name).toBe(eventName);
-    expect(dbEvent?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbEvent?.input).toEqual({ input: "value" });
-    expect(dbEvent?.output).toEqual({ output: "value" });
-    expect(dbEvent?.metadata).toEqual({ meta: "value" });
-    expect(dbEvent?.version).toBe("2.0.0");
   });
 
   it("should create event when creating generation without existing trace without traceId", async () => {

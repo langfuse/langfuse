@@ -211,6 +211,7 @@ class CreateEventProcessor implements ObservationProcessor {
   }> {
     const {
       id,
+      traceIdType,
       traceId,
       name,
       startTime,
@@ -222,6 +223,9 @@ class CreateEventProcessor implements ObservationProcessor {
       statusMessage,
       version,
     } = this.event.body;
+
+    if (traceIdType)
+      throw new NonRetryError("API does not support traceIdType");
 
     const finalTraceId = !traceId
       ? // Create trace if no traceid
