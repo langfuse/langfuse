@@ -1,27 +1,11 @@
 import { prisma } from "@/src/server/db";
-import { ObservationLevel, ObservationType } from "@prisma/client";
+import { ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
-import { jsonSchema } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-
-export const EventSchema = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
-  name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  metadata: jsonSchema.nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
-  statusMessage: z.string().nullish(),
-  parentObservationId: z.string().nullish(),
-  version: z.string().nullish(),
-});
+import { EventSchema } from "./ingestion-api-schema";
 
 export default async function handler(
   req: NextApiRequest,

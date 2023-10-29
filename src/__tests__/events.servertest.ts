@@ -119,7 +119,7 @@ describe("/api/public/events API Endpoint", () => {
 
     const traceId = uuidv4();
 
-    await makeAPICall("POST", "/api/public/traces", {
+    const response = await makeAPICall("POST", "/api/public/traces", {
       externalId: traceId,
       name: "trace-name",
       userId: "user-1",
@@ -129,44 +129,12 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    const dbTrace = await prisma.trace.findMany({
-      where: {
-        externalId: traceId,
-      },
+    expect(response.status).toEqual(400);
+    expect(response.body).toEqual({
+      error: "API does not support externalId",
+      message: "Invalid request data",
+      success: false,
     });
-
-    expect(dbTrace.length).toBeGreaterThan(0);
-    expect(dbTrace[0]?.externalId).toBe(traceId);
-    expect(dbTrace[0]?.id).not.toBe(traceId);
-
-    const spanId = uuidv4();
-    const createEvent = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      traceIdType: "EXTERNAL",
-      traceId: traceId,
-      name: "event-name",
-      startTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      output: { output: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
-
-    expect(createEvent.status).toBe(200);
-    const dbEvent = await prisma.observation.findUnique({
-      where: {
-        id: spanId,
-      },
-    });
-
-    expect(dbEvent?.id).toBe(spanId);
-    expect(dbEvent?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbEvent?.name).toBe("event-name");
-    expect(dbEvent?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbEvent?.input).toEqual({ input: "value" });
-    expect(dbEvent?.output).toEqual({ output: "value" });
-    expect(dbEvent?.metadata).toEqual({ meta: "value" });
-    expect(dbEvent?.version).toBe("2.0.0");
   });
 
   it("should create trace when creating span without existing trace", async () => {
@@ -274,7 +242,7 @@ describe("/api/public/events API Endpoint", () => {
 
     const dbTrace = await prisma.trace.findMany({
       where: {
-        id: dbEvent.traceId,
+        id: dbEvent.traceId!,
       },
     });
 

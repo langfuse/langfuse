@@ -1,78 +1,18 @@
 import { prisma } from "@/src/server/db";
-import {
-  ObservationLevel,
-  ObservationType,
-  type PrismaClient,
-} from "@prisma/client";
+import { ObservationType, type PrismaClient } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
+import { type z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { v4 as uuidv4 } from "uuid";
 import { backOff } from "exponential-backoff";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
-import { jsonSchema } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-
-export const GenerationsCreateSchema = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
-  name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  endTime: z.string().datetime({ offset: true }).nullish(),
-  completionStartTime: z.string().datetime({ offset: true }).nullish(),
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  prompt: jsonSchema.nullish(),
-  completion: jsonSchema.nullish(),
-  usage: z
-    .object({
-      promptTokens: z.number().nullish(),
-      completionTokens: z.number().nullish(),
-      totalTokens: z.number().nullish(),
-    })
-    .nullish(),
-  metadata: jsonSchema.nullish(),
-  parentObservationId: z.string().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
-
-export const GenerationPatchSchema = z.object({
-  generationId: z.string(),
-  traceId: z.string().nullish(),
-  name: z.string().nullish(),
-  endTime: z.string().datetime({ offset: true }).nullish(),
-  completionStartTime: z.string().datetime({ offset: true }).nullish(),
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  prompt: jsonSchema.nullish(),
-  completion: jsonSchema.nullish(),
-  usage: z
-    .object({
-      promptTokens: z.number().nullish(),
-      completionTokens: z.number().nullish(),
-      totalTokens: z.number().nullish(),
-    })
-    .nullish(),
-  metadata: jsonSchema.nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
+import {
+  GenerationsCreateSchema,
+  GenerationPatchSchema,
+} from "./ingestion-api-schema";
 
 export default async function handler(
   req: NextApiRequest,
