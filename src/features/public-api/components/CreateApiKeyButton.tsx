@@ -63,7 +63,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
           Create new API keys
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>API Keys</DialogTitle>
         </DialogHeader>

@@ -6,7 +6,7 @@ groups:
         version: 0.0.28
         output:
           location: local-file-system
-          path: ../../generated/openapi-server
+          path: ../../../generated/openapi-server
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true
@@ -14,7 +14,7 @@ groups:
         version: 0.3.7
         output:
           location: local-file-system
-          path: ../../generated/python
+          path: ../../../generated/python
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true
@@ -22,7 +22,7 @@ groups:
         version: 0.7.1
         output:
           location: local-file-system
-          path: ../../generated/typescript-server
+          path: ../../../generated/typescript-server
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true
@@ -30,7 +30,7 @@ groups:
         version: 0.0.45
         output:
           location: local-file-system
-          path: ../../generated/postman
+          path: ../../../generated/postman
   # published:
   #   generators:
   #     - name: fernapi/fern-python-sdk

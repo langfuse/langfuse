@@ -9,10 +9,10 @@ export const FeatureFlagToggle = (props: {
   whenLoading?: React.ReactNode;
 }) => {
   const session = useSession();
-  const runtimeEnv = api.runtimeEnv.all.useQuery();
+  const enableExperimentalFeatures =
+    api.environment.enableExperimentalFeatures.useQuery().data;
 
-  if (runtimeEnv.data?.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true")
-    return props.whenEnabled ?? <></>;
+  if (enableExperimentalFeatures) return props.whenEnabled ?? <></>;
 
   const flags = session.data?.user?.featureFlags;
   const isEnabled = flags !== undefined && flags[props.featureFlag];

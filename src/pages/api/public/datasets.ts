@@ -44,14 +44,21 @@ export default async function handler(
         });
       // END CHECK ACCESS SCOPE
 
-      const newDataset = await prisma.dataset.create({
-        data: {
+      const dataset = await prisma.dataset.upsert({
+        where: {
+          projectId_name: {
+            projectId: authCheck.scope.projectId,
+            name,
+          },
+        },
+        create: {
           name,
           projectId: authCheck.scope.projectId,
         },
+        update: {},
       });
 
-      res.status(200).json({ ...newDataset, items: [], runs: [] });
+      res.status(200).json({ ...dataset, items: [], runs: [] });
     }
   } catch (error: unknown) {
     console.error(error);
