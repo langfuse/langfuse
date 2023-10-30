@@ -47,7 +47,7 @@
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toggle": "^1.0.3",
     "@radix-ui/react-tooltip": "^1.0.7",
-    "@sentry/nextjs": "^7.71.0",
+    "@sentry/nextjs": "^7.76.0",
     "@sentry/profiling-node": "^1.2.1",
     "@t3-oss/env-nextjs": "^0.7.1",
     "@tailwindcss/forms": "^0.5.6",
