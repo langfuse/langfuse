@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/src/components/ui/dialog"
+} from "@/src/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -14,7 +14,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input"
+import { Input } from "@/src/components/ui/input";
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
@@ -27,16 +27,23 @@ import { zodResolver } from "@hookform/resolvers/zod";
 export function DeleteProjectButton(props: { projectId: string }) {
   const utils = api.useContext();
   const router = useRouter();
-  const session = useSession()
+  const session = useSession();
   const posthog = usePostHog();
 
-  //code for dynamic confirmation message 
-  const userInfo = session?.data?.user
-  const currentProject = userInfo?.projects?.find((project) => project.id == props.projectId)
-  const confirmMessage = userInfo?.name?.replace(" ", "-") + "/" + currentProject?.name?.replace(" ", "-");
+  //code for dynamic confirmation message
+  const userInfo = session?.data?.user;
+  const currentProject = userInfo?.projects?.find(
+    (project) => project.id == props.projectId,
+  );
+  const confirmMessage =
+    userInfo?.name?.replace(" ", "-") +
+    "/" +
+    currentProject?.name?.replace(" ", "-");
 
   const formSchema = z.object({
-    name: z.string().includes(confirmMessage, { message: "please write the correct name inside double quotes", }),
+    name: z.string().includes(confirmMessage, {
+      message: `Please confirm with "${confirmMessage}"`,
+    }),
   });
 
   const hasAccess = useHasAccess({
@@ -46,9 +53,9 @@ export function DeleteProjectButton(props: { projectId: string }) {
 
   const deleteProject = api.projects.delete.useMutation({
     onSuccess: () => {
-      void utils.projects.invalidate()
-      void router.push("/")
-    }
+      void utils.projects.invalidate();
+      void router.push("/");
+    },
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -70,55 +77,63 @@ export function DeleteProjectButton(props: { projectId: string }) {
       .catch((error) => {
         console.error(error);
       });
-  }
+  };
 
   if (!hasAccess) return null;
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button>Delete Project</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold  ">Delete Project</DialogTitle>
-          <DialogDescription className=" ">
-            {`To confirm, type "${confirmMessage}" in the input box `}
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-8"
-            data-testid="new-project-form"
-          >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="my-llm-project"
-                      {...field}
-                      data-testid="new-project-name-input"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type="submit"
-              variant="destructive"
-              loading={deleteProject.isLoading} className="w-full"
+    <div>
+      <h2 className="mb-6 text-base font-semibold leading-6 text-gray-900">
+        Danger Zone
+      </h2>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="destructive">Delete Project</Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold  ">
+              Delete Project
+            </DialogTitle>
+            <DialogDescription className=" ">
+              {`To confirm, type "${confirmMessage}" in the input box `}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-8"
+              data-testid="new-project-form"
             >
-              Delete
-            </Button>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  )
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="my-llm-project"
+                        {...field}
+                        data-testid="new-project-name-input"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                variant="destructive"
+                loading={deleteProject.isLoading}
+                className="w-full"
+              >
+                Delete project
+              </Button>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
