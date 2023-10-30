@@ -12,6 +12,8 @@ const scopes = [
   "traces:publish",
 
   "scores:CUD",
+
+  "project:delete",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -27,6 +29,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:delete",
     "traces:publish",
     "scores:CUD",
+    "project:delete",
   ],
   ADMIN: [
     "members:read",
