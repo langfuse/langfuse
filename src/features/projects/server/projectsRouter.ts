@@ -1,5 +1,6 @@
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import * as z from "zod";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -43,5 +44,27 @@ export const projectsRouter = createTRPCRouter({
         name: project.name,
         role: "OWNER",
       };
+    }),
+
+  delete: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:delete",
+      });
+
+      await ctx.prisma.project.delete({
+        where: {
+          id: input.projectId,
+        },
+      });
+
+      return true;
     }),
 });
