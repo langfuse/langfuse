@@ -322,5 +322,6 @@ model Events {
     url       String?
     method    String?
 
+    @@index(projectId)
     @@map("events")
 }
