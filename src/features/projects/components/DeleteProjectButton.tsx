@@ -52,10 +52,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
   });
 
   const deleteProject = api.projects.delete.useMutation({
-    onSuccess: () => {
-      void utils.projects.invalidate();
-      void router.push("/");
-    },
+    onSuccess: () => utils.projects.invalidate(),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -73,6 +70,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
       })
       .then(() => {
         posthog.capture("project_settings:project_delete");
+        void router.push("/");
       })
       .catch((error) => {
         console.error(error);
@@ -113,7 +111,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder="my-llm-project"
+                        placeholder={confirmMessage}
                         {...field}
                         data-testid="new-project-name-input"
                       />
