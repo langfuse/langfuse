@@ -63,7 +63,7 @@ export const projectsRouter = createTRPCRouter({
         where: {
           id: input.projectId,
         },
-      })
+      });
 
       return true;
     }),
