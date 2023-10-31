@@ -7,7 +7,6 @@ import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { v4 } from "uuid";
 import {
-  ObservationType,
   type Trace,
   type Prisma,
   type Observation,
@@ -19,11 +18,7 @@ import {
   ingestionApiSchema,
   eventTypes,
   type createTraceEvent,
-  type createEventEvent,
-  type patchSpanEvent,
-  type createSpanEvent,
-  type updateGenerationEvent,
-  type createGenerationEvent,
+  type observationEvent,
   type eventSchema,
   type createScoreEvent,
 } from "./ingestion-api-schema";
@@ -124,28 +119,13 @@ const handleSingleEvent = async (
 
   let processor: EventProcessor;
   switch (type) {
-    case eventTypes.TRACE_CREATE:
+    case eventTypes.TRACE:
       processor = new TraceProcessor(event);
       break;
-    case eventTypes.GENERATION_CREATE:
-      processor = new CreateGenerationProcessor(event);
+    case eventTypes.OBSERVAION:
+      processor = new ObservationProcessor(event);
       break;
-    case eventTypes.GENERATION_PATCH:
-      processor = new UpdateGenerationProcessor(event);
-      break;
-    case eventTypes.SPAN_CREATE: {
-      processor = new CreateSpanProcessor(event);
-      break;
-    }
-    case eventTypes.SPAN_PATCH: {
-      processor = new UpdateSpanProcessor(event);
-      break;
-    }
-    case eventTypes.EVENT_CREATE: {
-      processor = new CreateEventProcessor(event);
-      break;
-    }
-    case eventTypes.SCORE_CREATE: {
+    case eventTypes.SCORE: {
       processor = new ScoreProcessor(event);
       break;
     }
@@ -270,383 +250,10 @@ interface EventProcessor {
   process(apiScope: ApiAccessScope): Promise<Trace | Observation | Score>;
 }
 
-abstract class ObservationProcessor implements EventProcessor {
-  abstract convertToObservation(apiScope: ApiAccessScope): Promise<{
-    id: string;
-    create: Prisma.ObservationCreateInput;
-    update: Prisma.ObservationUpdateInput;
-  }>;
+class ObservationProcessor implements EventProcessor {
+  event: z.infer<typeof observationEvent>;
 
-  async process(
-    apiScope: ApiAccessScope,
-  ): Promise<Trace | Observation | Score> {
-    if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError("Access denied for observation creation");
-
-    const obs = await this.convertToObservation(apiScope);
-    return await prisma.observation.upsert({
-      where: {
-        id: obs.id ?? v4(),
-        projectId: apiScope.projectId,
-      },
-      create: obs.create,
-      update: obs.update,
-    });
-  }
-}
-
-class CreateEventProcessor extends ObservationProcessor {
-  event: z.infer<typeof createEventEvent>;
-
-  constructor(event: z.infer<typeof createEventEvent>) {
-    super();
-    this.event = event;
-  }
-
-  async convertToObservation(apiScope: ApiAccessScope): Promise<{
-    id: string;
-    create: Prisma.ObservationCreateInput;
-    update: Prisma.ObservationUpdateInput;
-  }> {
-    const {
-      id,
-      traceIdType,
-      traceId,
-      name,
-      startTime,
-      metadata,
-      input,
-      output,
-      parentObservationId,
-      level,
-      statusMessage,
-      version,
-    } = this.event.body;
-
-    if (traceIdType)
-      throw new NonRetryError("API does not support traceIdType");
-
-    const finalTraceId = !traceId
-      ? // Create trace if no traceid
-        (
-          await prisma.trace.create({
-            data: {
-              projectId: apiScope.projectId,
-              name: name,
-            },
-          })
-        ).id
-      : traceId;
-
-    const observationId = id ?? v4();
-
-    return {
-      id: observationId,
-      create: {
-        id: observationId,
-        traceId: finalTraceId,
-        type: ObservationType.EVENT,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
-      },
-      update: {
-        type: ObservationType.EVENT,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-      },
-    };
-  }
-}
-
-class UpdateSpanProcessor extends ObservationProcessor {
-  event: z.infer<typeof patchSpanEvent>;
-
-  constructor(event: z.infer<typeof patchSpanEvent>) {
-    super();
-    this.event = event;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async convertToObservation(apiScope: ApiAccessScope): Promise<{
-    id: string;
-    create: Prisma.ObservationCreateInput;
-    update: Prisma.ObservationUpdateInput;
-  }> {
-    console.log("update span", this.event.body);
-    const {
-      spanId,
-      name,
-      traceId,
-      endTime,
-      metadata,
-      input,
-      output,
-      level,
-      statusMessage,
-      version,
-    } = this.event.body;
-
-    const existingObservation = await prisma.observation.findUnique({
-      where: {
-        id: spanId,
-        projectId: apiScope.projectId,
-      },
-    });
-
-    if (!existingObservation)
-      throw new RessourceNotFoundError(
-        "span",
-        "Could not find existing observation",
-      );
-
-    const observationId = spanId;
-    return {
-      id: observationId,
-      create: {
-        id: observationId,
-        traceId: traceId,
-        type: ObservationType.SPAN,
-        name,
-        endTime: endTime ? new Date(endTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        version: version ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
-      },
-      update: {
-        traceId: traceId,
-        type: ObservationType.SPAN,
-        name,
-        endTime: endTime ? new Date(endTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        version: version ?? undefined,
-      },
-    };
-  }
-}
-
-class CreateSpanProcessor extends ObservationProcessor {
-  event: z.infer<typeof createSpanEvent>;
-
-  constructor(event: z.infer<typeof createSpanEvent>) {
-    super();
-    this.event = event;
-  }
-
-  async convertToObservation(apiScope: ApiAccessScope): Promise<{
-    id: string;
-    create: Prisma.ObservationCreateInput;
-    update: Prisma.ObservationUpdateInput;
-  }> {
-    const {
-      id,
-      traceId,
-      traceIdType,
-      name,
-      startTime,
-      endTime,
-      metadata,
-      input,
-      output,
-      parentObservationId,
-      level,
-      statusMessage,
-      version,
-    } = this.event.body;
-
-    if (traceIdType)
-      throw new NonRetryError("API does not support traceIdType");
-
-    const observationId = id ?? v4();
-    const finalTraceId = !traceId
-      ? // Create trace if no traceid
-        (
-          await prisma.trace.create({
-            data: {
-              projectId: apiScope.projectId,
-              name: name,
-            },
-          })
-        ).id
-      : traceId;
-
-    return {
-      id: observationId,
-      create: {
-        id: observationId,
-        traceId: finalTraceId,
-        type: ObservationType.SPAN,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        endTime: endTime ? new Date(endTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
-      },
-      update: {
-        traceId: finalTraceId,
-        type: ObservationType.SPAN,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        endTime: endTime ? new Date(endTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-      },
-    };
-  }
-}
-
-class UpdateGenerationProcessor extends ObservationProcessor {
-  event: z.infer<typeof updateGenerationEvent>;
-
-  constructor(event: z.infer<typeof updateGenerationEvent>) {
-    super();
-    this.event = event;
-  }
-  async convertToObservation(apiScope: ApiAccessScope): Promise<{
-    id: string;
-    create: Prisma.ObservationCreateInput;
-    update: Prisma.ObservationUpdateInput;
-  }> {
-    const { body } = this.event;
-
-    const {
-      generationId,
-      name,
-      endTime,
-      completionStartTime,
-      model,
-      modelParameters,
-      prompt,
-      completion,
-      usage,
-      metadata,
-      level,
-      statusMessage,
-      version,
-    } = body;
-    const observationId = generationId;
-    const existingObservation = await prisma.observation.findUnique({
-      where: {
-        id: body.generationId,
-        projectId: apiScope.projectId,
-      },
-      select: {
-        promptTokens: true,
-        completionTokens: true,
-        model: true,
-      },
-    });
-
-    if (!existingObservation)
-      throw new RessourceNotFoundError(
-        "generation",
-        "Could not find existing observation",
-      );
-
-    const mergedModel = model ?? existingObservation?.model ?? null;
-
-    const newPromptTokens =
-      usage?.promptTokens ??
-      (mergedModel && prompt
-        ? tokenCount({
-            model: mergedModel,
-            text: prompt,
-          })
-        : undefined);
-
-    const newCompletionTokens =
-      usage?.completionTokens ??
-      (mergedModel && body.completion
-        ? tokenCount({
-            model: mergedModel,
-            text: body.completion,
-          })
-        : undefined);
-
-    const newTotalTokens =
-      usage?.totalTokens ??
-      (newPromptTokens ?? existingObservation?.promptTokens ?? 0) +
-        (newCompletionTokens ?? existingObservation?.completionTokens ?? 0);
-    return {
-      id: observationId,
-      create: {
-        id: observationId,
-        type: ObservationType.GENERATION,
-        name,
-        endTime: endTime ? new Date(endTime) : undefined,
-        completionStartTime: completionStartTime
-          ? new Date(completionStartTime)
-          : undefined,
-        metadata: metadata ?? undefined,
-        model: model ?? undefined,
-        modelParameters: modelParameters ?? undefined,
-        input: prompt ?? undefined,
-        output: completion ?? undefined,
-        promptTokens: newPromptTokens,
-        completionTokens: newCompletionTokens,
-        totalTokens:
-          usage?.totalTokens ??
-          (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        version: version ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
-      },
-      update: {
-        endTime: endTime ? new Date(endTime) : undefined,
-        type: ObservationType.GENERATION,
-        completionStartTime: completionStartTime
-          ? new Date(completionStartTime)
-          : undefined,
-        input: prompt ?? undefined,
-        output: completion ?? undefined,
-        promptTokens: newPromptTokens,
-        completionTokens: newCompletionTokens,
-        totalTokens: newTotalTokens,
-        model: model ?? undefined,
-      },
-    };
-  }
-}
-
-class CreateGenerationProcessor extends ObservationProcessor {
-  event: z.infer<typeof createGenerationEvent>;
-
-  constructor(event: z.infer<typeof createGenerationEvent>) {
-    super();
+  constructor(event: z.infer<typeof observationEvent>) {
     this.event = event;
   }
 
@@ -660,7 +267,7 @@ class CreateGenerationProcessor extends ObservationProcessor {
     const {
       id,
       traceId,
-      traceIdType,
+      type,
       name,
       startTime,
       endTime,
@@ -676,9 +283,6 @@ class CreateGenerationProcessor extends ObservationProcessor {
       statusMessage,
       version,
     } = body;
-
-    if (traceIdType)
-      throw new NonRetryError("API does not support traceIdType");
 
     const finalTraceId = !traceId
       ? // Create trace if no traceid
@@ -716,8 +320,8 @@ class CreateGenerationProcessor extends ObservationProcessor {
       create: {
         id: observationId,
         traceId: finalTraceId,
-        type: ObservationType.GENERATION,
-        name,
+        type: type,
+        name: name,
         startTime: startTime ? new Date(startTime) : undefined,
         endTime: endTime ? new Date(endTime) : undefined,
         completionStartTime: completionStartTime
@@ -740,7 +344,7 @@ class CreateGenerationProcessor extends ObservationProcessor {
         project: { connect: { id: apiScope.projectId } },
       },
       update: {
-        type: ObservationType.GENERATION,
+        type: type,
         name,
         startTime: startTime ? new Date(startTime) : undefined,
         endTime: endTime ? new Date(endTime) : undefined,
@@ -763,5 +367,22 @@ class CreateGenerationProcessor extends ObservationProcessor {
         version: version ?? undefined,
       },
     };
+  }
+
+  async process(
+    apiScope: ApiAccessScope,
+  ): Promise<Trace | Observation | Score> {
+    if (apiScope.accessLevel !== "all")
+      throw new AuthenticationError("Access denied for observation creation");
+
+    const obs = await this.convertToObservation(apiScope);
+    return await prisma.observation.upsert({
+      where: {
+        id: obs.id ?? v4(),
+        projectId: apiScope.projectId,
+      },
+      create: obs.create,
+      update: obs.update,
+    });
   }
 }

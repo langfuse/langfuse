@@ -3,12 +3,17 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 } from "uuid";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
-import { eventTypes, ingestionApiSchema } from "./ingestion-api-schema";
+import {
+  SpanPatchSchema,
+  eventTypes,
+  ingestionApiSchema,
+} from "./ingestion-api-schema";
 import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
 import {
   CreateSpanRequest,
   UpdateSpanRequest,
 } from "@/generated/typescript-server/serialization";
+import { type z } from "zod";
 
 export default async function handler(
   req: NextApiRequest,
@@ -36,9 +41,17 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
+      const convertToObservation = (span: z.infer<typeof SpanPatchSchema>) => {
+        return {
+          ...generation,
+          id: generation.spanId,
+          type: "SPAN",
+        };
+      };
+
       const event = {
         id: v4(),
-        type: eventTypes.SPAN_CREATE,
+        type: eventTypes.OBSERVAION,
         body: CreateSpanRequest.parse(req.body),
       };
 
@@ -66,10 +79,19 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
+
+      const convertToObservation = (span: z.infer<typeof SpanPatchSchema>) => {
+        return {
+          ...generation,
+          id: generation.spanId,
+          type: "SPAN",
+        };
+      };
+
       const event = {
         id: v4(),
-        type: eventTypes.SPAN_PATCH,
-        body: UpdateSpanRequest.parse(req.body),
+        type: eventTypes.OBSERVAION,
+        body: convertToObservation(SpanPatchSchema.parse(req.body)),
       };
 
       const response = await handleIngestionEvent(

@@ -3,12 +3,14 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
-import { eventTypes, ingestionApiSchema } from "./ingestion-api-schema";
-import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
 import {
-  CreateGenerationRequest,
-  UpdateGenerationRequest,
-} from "@/generated/typescript-server/serialization";
+  GenerationPatchSchema,
+  GenerationsCreateSchema,
+  eventTypes,
+  ingestionApiSchema,
+} from "./ingestion-api-schema";
+import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
+import { type z } from "zod";
 
 export default async function handler(
   req: NextApiRequest,
@@ -36,10 +38,19 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
+      const convertToObservation = (
+        generation: z.infer<typeof GenerationsCreateSchema>,
+      ) => {
+        return {
+          ...generation,
+          type: "GENERATION",
+        };
+      };
+
       const event = {
         id: uuidv4(),
-        type: eventTypes.GENERATION_CREATE,
-        body: CreateGenerationRequest.parse(req.body),
+        type: eventTypes.OBSERVAION,
+        body: convertToObservation(GenerationsCreateSchema.parse(req.body)),
       };
 
       const response = await handleIngestionEvent(
@@ -67,10 +78,20 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
+      const convertToObservation = (
+        generation: z.infer<typeof GenerationPatchSchema>,
+      ) => {
+        return {
+          ...generation,
+          id: generation.generationId,
+          type: "GENERATION",
+        };
+      };
+
       const event = {
         id: uuidv4(),
-        type: eventTypes.GENERATION_PATCH,
-        body: UpdateGenerationRequest.parse(req.body),
+        type: eventTypes.OBSERVAION,
+        body: convertToObservation(GenerationPatchSchema.parse(req.body)),
       };
 
       const response = await handleIngestionEvent(
