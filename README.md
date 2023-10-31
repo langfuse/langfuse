@@ -98,7 +98,7 @@ Links: [Create account](https://cloud.langfuse.com), [learn more](https://cloud.
 
 #### Localhost
 
-Requirements: Docker, Node.js >=18, npm
+Requirements: docker, docker compose (e.g. using Docker Desktop)
 
 ```bash
 # Clone repository
@@ -113,7 +113,21 @@ docker compose up -d
 
 [→ Instructions](https://langfuse.com/docs/deployment/self-host)
 
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/gmbqa_)
+
 ### Step 2: Data ingestion
+
+#### SDKs to instrument application
+
+Fully async, typed SDKs to instrument any LLM application. Currently available for Python & JS/TS.
+
+→ [Guide](https://langfuse.com/docs/guides/sdk-integration) with an example of how the SDK can be used
+
+| Package                                                                                                                                             | Description                      | Links                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [![PyPI Version](https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse)](https://pypi.python.org/pypi/langfuse)          | Python                           | [docs](https://langfuse.com/docs/integrations/sdk/python), [repo](https://github.com/langfuse/langfuse-python) |
+| [![npm Version](https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse)](https://www.npmjs.com/package/langfuse)                | JS/TS: Node >= 18, Edge runtimes | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
+| [![npm package](https://img.shields.io/npm/v/langfuse-node?style=flat-square&label=npm+langfuse-node)](https://www.npmjs.com/package/langfuse-node) | JS/TS: Node <18                  | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
 
 #### Langchain applications
 
@@ -145,19 +159,7 @@ chain.run(input="<user_input", callbacks=[handler])
 
 → [Langchain integration docs for JS/TS](https://langfuse.com/docs/integrations/langchain/typescript)
 
-#### SDKs to manually instrument application
-
-Fully async, typed SDKs to instrument any LLM application. Currently available for Python & JS/TS.
-
-→ [Guide](https://langfuse.com/docs/guides/sdk-integration) with an example of how the SDK can be used
-
-| Package                                                                                                                                             | Description                      | Links                                                                                                          |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| [![PyPI Version](https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse)](https://pypi.python.org/pypi/langfuse)          | Python                           | [docs](https://langfuse.com/docs/integrations/sdk/python), [repo](https://github.com/langfuse/langfuse-python) |
-| [![npm Version](https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse)](https://www.npmjs.com/package/langfuse)                | JS/TS: Node >= 18, Edge runtimes | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
-| [![npm package](https://img.shields.io/npm/v/langfuse-node?style=flat-square&label=npm+langfuse-node)](https://www.npmjs.com/package/langfuse-node) | JS/TS: Node <18                  | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
-
-### Add scores/evaluations to traces (optional)
+#### Add scores/evaluations to traces (optional)
 
 Quality/evaluation of traces is tracked via scores ([docs](https://langfuse.com/docs/scores)). Scores are related to traces and optionally to observations. Scores can be added via:
 
