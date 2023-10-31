@@ -107,9 +107,6 @@ cd langfuse
 
 # Run server and database
 docker compose up -d
-
-# Apply db migrations
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
 #### Self-host (Docker)
@@ -265,9 +262,6 @@ docker-compose pull
 
 # Run server and db
 docker compose up -d
-
-# Apply db migrations
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
 ### Run Langfuse in CI for integration tests
