@@ -58,6 +58,8 @@ ARG NEXTAUTH_SECRET
 ARG NEXTAUTH_URL
 ARG SALT
 
+RUN apk add --no-cache dumb-init
+
 WORKDIR /app
 
 ENV NODE_ENV production
@@ -68,6 +70,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 RUN npm install --no-package-lock --no-save cron
+RUN npm install -g --no-package-lock --no-save prisma
 
 COPY --from=builder /app/public ./public
 
@@ -79,6 +82,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 COPY --chown=nextjs:nodejs cron.js ./cron.js
 COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 USER nextjs
 
@@ -86,4 +90,4 @@ USER nextjs
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
-CMD ["/bin/sh", "entrypoint.sh"]
+CMD ["dumb-init", "--", "./entrypoint.sh"]
