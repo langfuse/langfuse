@@ -57,7 +57,7 @@
     "@tremor/react": "^3.10.0",
     "@trpc/client": "^10.38.5",
     "@trpc/next": "^10.42.0",
-    "@trpc/react-query": "^10.38.5",
+    "@trpc/react-query": "^10.43.0",
     "@trpc/server": "^10.38.5",
     "@vercel/edge-config": "^0.4.1",
     "axios": "^1.5.1",
