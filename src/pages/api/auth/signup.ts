@@ -23,6 +23,18 @@ export default async function handler(
 
   const body = validBody.data;
 
+  // check if email domain is blocked
+  const blockedDomains =
+    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
+  const domain = body.email.split("@")[1]?.toLowerCase();
+  if (domain && blockedDomains.includes(domain)) {
+    res.status(422).json({
+      message:
+        "Sign up with email and password is disabled for this domain. Please use SSO.",
+    });
+    return;
+  }
+
   // create the user
   let userId: string;
   try {

@@ -142,8 +142,9 @@ export default function SignIn(props: PageProps) {
                   </Button>
                   {credentialsFormError ? (
                     <div className="text-center text-sm font-medium text-destructive">
-                      {credentialsFormError}, contact support if this error is
-                      unexpected.
+                      {credentialsFormError}
+                      <br />
+                      Contact support if this error is unexpected.
                     </div>
                   ) : null}
                 </form>
