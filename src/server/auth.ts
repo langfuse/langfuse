@@ -55,7 +55,7 @@ const providers: Provider[] = [
 
       const blockedDomains =
         env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
-      const domain = credentials.email.split("@")[1];
+      const domain = credentials.email.split("@")[1]?.toLowerCase();
       if (domain && blockedDomains.includes(domain)) {
         throw new Error(
           "Sign in with email and password is disabled for this domain. Please use SSO.",

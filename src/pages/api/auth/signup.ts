@@ -26,7 +26,7 @@ export default async function handler(
   // check if email domain is blocked
   const blockedDomains =
     env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
-  const domain = body.email.split("@")[1];
+  const domain = body.email.split("@")[1]?.toLowerCase();
   if (domain && blockedDomains.includes(domain)) {
     res.status(422).json({
       message:
