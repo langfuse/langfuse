@@ -262,6 +262,7 @@ model Dataset {
     datasetRuns  DatasetRuns[]
 
     @@unique([projectId, name])
+    @@index([projectId], type: Hash)
     @@map("datasets")
 }
 
@@ -278,6 +279,8 @@ model DatasetItem {
     updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItems     DatasetRunItems[]
 
+    @@index([sourceObservationId], type: Hash)
+    @@index([datasetId], type: Hash)
     @@map("dataset_items")
 }
 
@@ -296,6 +299,7 @@ model DatasetRuns {
     datasetRunItems DatasetRunItems[]
 
     @@unique([datasetId, name])
+    @@index([datasetId], type: Hash)
     @@map("dataset_runs")
 }
 
@@ -310,6 +314,9 @@ model DatasetRunItems {
     createdAt     DateTime    @default(now()) @map("created_at")
     updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
 
+    @@index([datasetRunId], type: Hash)
+    @@index([datasetItemId], type: Hash)
+    @@index([observationId], type: Hash)
     @@map("dataset_run_items")
 }
 
