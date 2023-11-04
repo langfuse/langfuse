@@ -215,6 +215,8 @@ model Score {
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
     @@index([value])
+    @@index([traceId], type: Hash)
+    @@index([observationId], type: Hash)
     @@map("scores")
 }
 
