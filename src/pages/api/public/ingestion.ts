@@ -273,8 +273,8 @@ class ObservationProcessor implements EventProcessor {
       completionStartTime,
       model,
       modelParameters,
-      prompt,
-      completion,
+      input,
+      output,
       usage,
       metadata,
       parentObservationId,
@@ -297,19 +297,19 @@ class ObservationProcessor implements EventProcessor {
 
     const newPromptTokens =
       body.usage?.promptTokens ??
-      (body.model && prompt
+      (body.model && input
         ? tokenCount({
             model: body.model,
-            text: prompt,
+            text: input,
           })
         : undefined);
 
     const newCompletionTokens =
       body.usage?.completionTokens ??
-      (body.model && body.completion
+      (body.model && body.output
         ? tokenCount({
             model: body.model,
-            text: body.completion,
+            text: body.output,
           })
         : undefined);
 
@@ -329,8 +329,8 @@ class ObservationProcessor implements EventProcessor {
         metadata: metadata ?? undefined,
         model: model ?? undefined,
         modelParameters: modelParameters ?? undefined,
-        input: prompt ?? undefined,
-        output: completion ?? undefined,
+        input: input ?? undefined,
+        output: output ?? undefined,
         promptTokens: newPromptTokens,
         completionTokens: newCompletionTokens,
         totalTokens:
@@ -353,8 +353,8 @@ class ObservationProcessor implements EventProcessor {
         metadata: metadata ?? undefined,
         model: model ?? undefined,
         modelParameters: modelParameters ?? undefined,
-        input: prompt ?? undefined,
-        output: completion ?? undefined,
+        input: input ?? undefined,
+        output: output ?? undefined,
         promptTokens: newPromptTokens,
         completionTokens: newCompletionTokens,
         totalTokens:

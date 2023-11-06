@@ -116,7 +116,7 @@ export const EventSchema = z.object({
 export const ObservationSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
-  type: z.enum(["GENERATION", "SPAN"]),
+  type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
@@ -128,8 +128,8 @@ export const ObservationSchema = z.object({
       z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
-  prompt: jsonSchema.nullish(),
-  completion: jsonSchema.nullish(),
+  input: jsonSchema.nullish(),
+  output: jsonSchema.nullish(),
   usage: z
     .object({
       promptTokens: z.number().nullish(),
@@ -170,10 +170,6 @@ export const singleEventSchema = z.discriminatedUnion("type", [
   createScoreEvent,
 ]);
 
-const eventArraySchema = z.array(singleEventSchema);
-
-const eventOrEventArraySchema = z.union([singleEventSchema, eventArraySchema]);
-
 export const ingestionApiSchema = z.object({
-  batch: eventOrEventArraySchema,
+  batch: z.array(singleEventSchema),
 });
