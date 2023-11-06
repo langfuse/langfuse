@@ -3,7 +3,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 import { eventTypes, ingestionApiSchema } from "./ingestion-api-schema";
-import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
+import { handleBatch } from "@/src/pages/api/public/ingestion";
 import { CreateEventRequest } from "@/generated/typescript-server/serialization";
 
 export default async function handler(
@@ -40,7 +40,7 @@ export default async function handler(
       type: eventTypes.EVENT_CREATE,
       body: CreateEventRequest.parse(req.body),
     };
-    const response = await handleIngestionEvent(
+    const response = await handleBatch(
       ingestionApiSchema.parse(event),
       authCheck,
     );

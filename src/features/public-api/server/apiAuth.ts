@@ -101,7 +101,7 @@ export async function verifyAuthHeaderAndReturnScope(
           error: error instanceof Error ? error.message : "Authorization error",
         };
       }
-
+      console.log("Invalid authorization header", authHeader);
       return {
         validKey: false,
         error: "Invalid authorization header",

@@ -19,10 +19,9 @@ import {
   eventTypes,
   type createTraceEvent,
   type observationEvent,
-  type eventSchema,
+  type singleEventSchema,
   type createScoreEvent,
 } from "./ingestion-api-schema";
-import { RessourceNotFoundError } from "@/src/utils/exceptions";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 
@@ -54,8 +53,8 @@ export default async function handler(
       });
 
     const parsedSchema = ingestionApiSchema.parse(req.body);
-
-    await handleIngestionEvent(parsedSchema, authCheck);
+    console.log(parsedSchema);
+    await handleBatch(parsedSchema.batch, authCheck);
 
     res.status(201).send({ status: "ok" });
   } catch (error: unknown) {
@@ -70,8 +69,8 @@ export default async function handler(
   }
 }
 
-export const handleIngestionEvent = async (
-  event: z.infer<typeof ingestionApiSchema>,
+export const handleBatch = async (
+  event: z.infer<typeof ingestionApiSchema>["batch"],
   authCheck: AuthHeaderVerificationResult,
 ) => {
   console.log("handling ingestion event", JSON.stringify(event, null, 2));
@@ -101,7 +100,7 @@ export const handleIngestionEvent = async (
 // }
 
 const handleSingleEvent = async (
-  event: z.infer<typeof eventSchema>,
+  event: z.infer<typeof singleEventSchema>,
   apiScope: ApiAccessScope,
 ) => {
   console.log("handling single event", JSON.stringify(event, null, 2));

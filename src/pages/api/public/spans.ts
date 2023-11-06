@@ -8,7 +8,7 @@ import {
   eventTypes,
   ingestionApiSchema,
 } from "./ingestion-api-schema";
-import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
+import { handleBatch } from "@/src/pages/api/public/ingestion";
 import {
   CreateSpanRequest,
   UpdateSpanRequest,
@@ -55,7 +55,7 @@ export default async function handler(
         body: CreateSpanRequest.parse(req.body),
       };
 
-      const response = await handleIngestionEvent(
+      const response = await handleBatch(
         ingestionApiSchema.parse(event),
         authCheck,
       );
@@ -94,7 +94,7 @@ export default async function handler(
         body: convertToObservation(SpanPatchSchema.parse(req.body)),
       };
 
-      const response = await handleIngestionEvent(
+      const response = await handleBatch(
         ingestionApiSchema.parse(event),
         authCheck,
       );

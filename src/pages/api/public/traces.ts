@@ -5,7 +5,7 @@ import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
-import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
+import { handleBatch } from "@/src/pages/api/public/ingestion";
 import {
   CreateTraceSchema,
   eventTypes,
@@ -57,7 +57,7 @@ export default async function handler(
         body: body,
       };
 
-      const result = await handleIngestionEvent(event, authCheck);
+      const result = await handleBatch(event, authCheck);
       res.status(200).json(result);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {

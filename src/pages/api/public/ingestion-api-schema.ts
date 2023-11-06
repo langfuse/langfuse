@@ -164,10 +164,16 @@ export const createScoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE),
   body: ScoreCreateSchema,
 });
-export const eventSchema = z.discriminatedUnion("type", [
+export const singleEventSchema = z.discriminatedUnion("type", [
   createTraceEvent,
   observationEvent,
   createScoreEvent,
 ]);
 
-export const ingestionApiSchema = eventSchema.or(z.array(eventSchema));
+const eventArraySchema = z.array(singleEventSchema);
+
+const eventOrEventArraySchema = z.union([singleEventSchema, eventArraySchema]);
+
+export const ingestionApiSchema = z.object({
+  batch: eventOrEventArraySchema,
+});

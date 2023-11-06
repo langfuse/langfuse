@@ -9,7 +9,7 @@ import {
   eventTypes,
   ingestionApiSchema,
 } from "./ingestion-api-schema";
-import { handleIngestionEvent } from "@/src/pages/api/public/ingestion";
+import { handleBatch } from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
 
 export default async function handler(
@@ -53,7 +53,7 @@ export default async function handler(
         body: convertToObservation(GenerationsCreateSchema.parse(req.body)),
       };
 
-      const response = await handleIngestionEvent(
+      const response = await handleBatch(
         ingestionApiSchema.parse(event),
         authCheck,
       );
@@ -94,7 +94,7 @@ export default async function handler(
         body: convertToObservation(GenerationPatchSchema.parse(req.body)),
       };
 
-      const response = await handleIngestionEvent(
+      const response = await handleBatch(
         ingestionApiSchema.parse(event),
         authCheck,
       );
