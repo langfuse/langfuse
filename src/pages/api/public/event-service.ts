@@ -1,5 +1,4 @@
-import { jsonSchema } from "@/src/utils/zod";
-import { type PrismaClient } from "@prisma/client";
+import { type Prisma, type PrismaClient } from "@prisma/client";
 import { type NextApiRequest } from "next";
 
 // This function persists raw events to the database which came via API
@@ -12,9 +11,8 @@ export const persistEventMiddleware = async (
   prisma: PrismaClient,
   projectId: string,
   req: NextApiRequest,
+  data: Prisma.JsonObject,
 ) => {
-  const filteredEvent = jsonSchema.parse(req.body);
-
   const langfuseHeadersObject = Object.fromEntries(
     Object.entries(req.headers).filter(([key]) => key.startsWith("x-langfuse")),
   );
@@ -24,7 +22,7 @@ export const persistEventMiddleware = async (
       project: { connect: { id: projectId } },
       url: req.url,
       method: req.method,
-      data: filteredEvent,
+      data: data,
       headers: langfuseHeadersObject,
     },
   });

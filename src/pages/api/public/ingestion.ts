@@ -24,6 +24,7 @@ import {
 } from "./ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
+import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 
 export default async function handler(
   req: NextApiRequest,
@@ -54,7 +55,7 @@ export default async function handler(
 
     const parsedSchema = ingestionApiSchema.parse(req.body);
     console.log(parsedSchema);
-    await handleBatch(parsedSchema.batch, authCheck);
+    await handleBatch(parsedSchema.batch, req, authCheck);
 
     res.status(201).send({ status: "ok" });
   } catch (error: unknown) {
@@ -71,6 +72,7 @@ export default async function handler(
 
 export const handleBatch = async (
   event: z.infer<typeof ingestionApiSchema>["batch"],
+  req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
   console.log("handling ingestion event", JSON.stringify(event, null, 2));
@@ -79,10 +81,10 @@ export const handleBatch = async (
 
   if (event instanceof Array) {
     for (const singleEvent of event) {
-      await handleSingleEvent(singleEvent, authCheck.scope);
+      await handleSingleEvent(singleEvent, req, authCheck.scope);
     }
   } else {
-    return await handleSingleEvent(event, authCheck.scope);
+    return await handleSingleEvent(event, req, authCheck.scope);
   }
 };
 
@@ -101,6 +103,7 @@ export const handleBatch = async (
 
 const handleSingleEvent = async (
   event: z.infer<typeof singleEventSchema>,
+  req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
   console.log("handling single event", JSON.stringify(event, null, 2));
@@ -115,6 +118,8 @@ const handleSingleEvent = async (
     console.log(`Event for id ${id} already exists, skipping`);
     return;
   }
+
+  await persistEventMiddleware(prisma, apiScope.projectId, req, event);
 
   let processor: EventProcessor;
   switch (type) {

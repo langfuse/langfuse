@@ -9,10 +9,7 @@ import {
   ingestionApiSchema,
 } from "./ingestion-api-schema";
 import { handleBatch } from "@/src/pages/api/public/ingestion";
-import {
-  CreateSpanRequest,
-  UpdateSpanRequest,
-} from "@/generated/typescript-server/serialization";
+import { CreateSpanRequest } from "@/generated/typescript-server/serialization";
 import { type z } from "zod";
 
 export default async function handler(

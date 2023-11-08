@@ -53,11 +53,11 @@ export default async function handler(
       const body = CreateTraceSchema.parse(req.body);
       const event = {
         id: body.id ?? v4(),
-        type: eventTypes.TRACE_CREATE,
+        type: eventTypes.TRACE,
         body: body,
       };
 
-      const result = await handleBatch(event, authCheck);
+      const result = await handleBatch([event], authCheck);
       res.status(200).json(result);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
