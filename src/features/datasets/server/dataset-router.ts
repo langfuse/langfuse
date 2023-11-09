@@ -5,6 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { type DatasetRuns, Prisma, type Dataset } from "@prisma/client";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 
 export const datasetRouter = createTRPCRouter({
   allDatasets: protectedProjectProcedure
@@ -183,6 +184,11 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
       return ctx.prisma.datasetItem.update({
         where: {
           id: input.datasetItemId,
@@ -210,6 +216,11 @@ export const datasetRouter = createTRPCRouter({
   createDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), name: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
       return ctx.prisma.dataset.create({
         data: {
           name: input.name,
@@ -227,6 +238,11 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
       return ctx.prisma.dataset.update({
         where: {
           id: input.datasetId,
@@ -249,6 +265,11 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
       const dataset = await ctx.prisma.dataset.findUnique({
         where: {
           id: input.datasetId,
