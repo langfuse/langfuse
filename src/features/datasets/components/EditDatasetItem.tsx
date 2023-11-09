@@ -13,6 +13,7 @@ import {
 } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -51,6 +52,10 @@ export const EditDatasetItem = ({
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const hasAccess = useHasAccess({
+    projectId: projectId,
+    scope: "datasets:CUD",
+  });
   const utils = api.useContext();
   const item = api.datasets.itemById.useQuery({
     datasetId,
@@ -113,6 +118,7 @@ export const EditDatasetItem = ({
                     <Textarea
                       {...field}
                       className="min-h-[200px] font-mono text-xs"
+                      disabled={!hasAccess}
                     />
                   </FormControl>
                   <FormMessage />
@@ -129,6 +135,7 @@ export const EditDatasetItem = ({
                     <Textarea
                       {...field}
                       className="min-h-[200px] font-mono text-xs"
+                      disabled={!hasAccess}
                     />
                   </FormControl>
                   <FormMessage />
@@ -140,7 +147,7 @@ export const EditDatasetItem = ({
             <Button
               type="submit"
               loading={updateDatasetItemMutation.isLoading}
-              disabled={!hasChanges}
+              disabled={!hasChanges || !hasAccess}
               variant={hasChanges ? "default" : "ghost"}
             >
               {hasChanges ? "Save changes" : "Saved"}

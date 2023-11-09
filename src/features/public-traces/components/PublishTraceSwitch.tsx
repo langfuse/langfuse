@@ -1,7 +1,7 @@
 import { Switch } from "@/src/components/ui/switch";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { Link, Lock } from "lucide-react";
+import { Link, LockIcon } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
@@ -48,7 +48,7 @@ export const PublishTraceSwitch = (props: {
         ) : (
           <div className="flex items-center gap-1">
             Private
-            <Lock size={16} />
+            <LockIcon size={16} />
           </div>
         )}
       </div>
