@@ -46,7 +46,6 @@ export const ROUTES: Array<{
     name: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
-    featureFlag: "datasets",
   },
   {
     name: "Settings",

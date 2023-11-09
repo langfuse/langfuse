@@ -9,7 +9,8 @@ status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
 if [ $status -ne 0 ]; then
-    echo "Applying database migrations failed. Exiting..."
+    echo "Applying database migrations failed. This is mostly caused by the database being unavailable."
+    echo "Exiting..."
     exit $status
 fi
 
