@@ -170,6 +170,8 @@ export const singleEventSchema = z.discriminatedUnion("type", [
   createScoreEvent,
 ]);
 
+export const ingestionBatch = z.array(singleEventSchema);
+
 export const ingestionApiSchema = z.object({
-  batch: z.array(singleEventSchema),
+  batch: ingestionBatch,
 });

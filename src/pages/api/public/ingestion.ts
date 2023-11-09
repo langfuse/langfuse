@@ -41,6 +41,7 @@ export default async function handler(
     const authCheck = await verifyAuthHeaderAndReturnScope(
       req.headers.authorization,
     );
+
     if (!authCheck.validKey)
       return res.status(401).json({
         success: false,
@@ -54,7 +55,7 @@ export default async function handler(
       });
 
     const parsedSchema = ingestionApiSchema.parse(req.body);
-    console.log(parsedSchema);
+
     await handleBatch(parsedSchema.batch, req, authCheck);
 
     res.status(201).send({ status: "ok" });
@@ -76,7 +77,7 @@ export const handleBatch = async (
   authCheck: AuthHeaderVerificationResult,
 ) => {
   console.log("handling ingestion event", JSON.stringify(event, null, 2));
-
+  console.log("authCheck", authCheck);
   if (!authCheck.validKey) throw new AuthenticationError(authCheck.error);
 
   if (event instanceof Array) {

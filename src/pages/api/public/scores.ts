@@ -49,8 +49,8 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
       const obj = ScoreCreateSchema.parse(req.body);
+      await persistEventMiddleware(prisma, authCheck.scope.projectId, req, obj);
 
       // If externalTraceId is provided, find the traceId
       const traceId =

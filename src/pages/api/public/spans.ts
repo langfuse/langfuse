@@ -5,8 +5,10 @@ import { v4 } from "uuid";
 import { RessourceNotFoundError } from "../../../utils/exceptions";
 import {
   SpanPatchSchema,
+  SpanPostSchema,
   eventTypes,
   ingestionApiSchema,
+  ingestionBatch,
 } from "./ingestion-api-schema";
 import { handleBatch } from "@/src/pages/api/public/ingestion";
 import { CreateSpanRequest } from "@/generated/typescript-server/serialization";
@@ -38,10 +40,10 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      const convertToObservation = (span: z.infer<typeof SpanPatchSchema>) => {
+      const convertToObservation = (span: z.infer<typeof SpanPostSchema>) => {
         return {
-          ...generation,
-          id: generation.spanId,
+          ...span,
+          id: span.id,
           type: "SPAN",
         };
       };
@@ -49,14 +51,14 @@ export default async function handler(
       const event = {
         id: v4(),
         type: eventTypes.OBSERVAION,
-        body: CreateSpanRequest.parse(req.body),
+        body: convertToObservation(SpanPostSchema.parse(req.body)),
       };
 
       const response = await handleBatch(
-        ingestionApiSchema.parse(event),
+        ingestionBatch.parse([event]),
+        req,
         authCheck,
       );
-
       res.status(200).json(response);
     } catch (error: unknown) {
       const errorMessage =
@@ -79,8 +81,8 @@ export default async function handler(
 
       const convertToObservation = (span: z.infer<typeof SpanPatchSchema>) => {
         return {
-          ...generation,
-          id: generation.spanId,
+          ...span,
+          id: span.spanId,
           type: "SPAN",
         };
       };
@@ -92,7 +94,8 @@ export default async function handler(
       };
 
       const response = await handleBatch(
-        ingestionApiSchema.parse(event),
+        ingestionBatch.parse([event]),
+        req,
         authCheck,
       );
 

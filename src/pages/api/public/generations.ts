@@ -7,7 +7,7 @@ import {
   GenerationPatchSchema,
   GenerationsCreateSchema,
   eventTypes,
-  ingestionApiSchema,
+  ingestionBatch,
 } from "./ingestion-api-schema";
 import { handleBatch } from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
@@ -54,7 +54,8 @@ export default async function handler(
       };
 
       const response = await handleBatch(
-        ingestionApiSchema.parse(event),
+        ingestionBatch.parse([event]),
+        req,
         authCheck,
       );
 
@@ -95,7 +96,8 @@ export default async function handler(
       };
 
       const response = await handleBatch(
-        ingestionApiSchema.parse(event),
+        ingestionBatch.parse(event),
+        req,
         authCheck,
       );
       res.status(200).json(response);
