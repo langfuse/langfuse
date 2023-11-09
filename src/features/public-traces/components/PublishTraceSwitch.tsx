@@ -1,7 +1,7 @@
 import { Switch } from "@/src/components/ui/switch";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { Link, Lock, LockIcon } from "lucide-react";
+import { Link, LockIcon } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
