@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
+import { LockIcon, PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 export const NewDatasetItemButton = (props: {
   projectId: string;
@@ -16,11 +17,23 @@ export const NewDatasetItemButton = (props: {
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "datasets:CUD",
+  });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="secondary" className={props.className}>
-          <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+        <Button
+          variant="secondary"
+          className={props.className}
+          disabled={!hasAccess}
+        >
+          {hasAccess ? (
+            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+          ) : (
+            <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
+          )}
           New item
         </Button>
       </DialogTrigger>
