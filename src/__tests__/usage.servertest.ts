@@ -4,6 +4,8 @@ describe("Token Count Functions", () => {
   describe("token count for strings", () => {
     [
       { model: "gpt-3.5", tokens: 114 },
+      { model: "gpt-4-1106-preview", tokens: 114 },
+      { model: "gpt-4-vision-preview", tokens: 114 },
       { model: "claude", tokens: 118 },
       { model: "claude-instant-1.2", tokens: 118 },
     ].forEach(({ model, tokens }) => {
