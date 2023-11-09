@@ -10,9 +10,6 @@ import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
-import { Button } from "@/src/components/ui/button";
-import Link from "next/link";
-import { env } from "@/src/env.mjs";
 import {
   type AvailableDateRangeSelections,
   DEFAULT_DATE_RANGE_SELECTION,
@@ -94,18 +91,7 @@ export default function Start() {
 
   return (
     <div className="md:container">
-      <Header
-        title={project?.name ?? "Dashboard"}
-        actionButtons={
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ? (
-            <Button size="sm" variant="secondary" asChild>
-              <Link href={`/project/${projectId}/analytics`}>
-                Legacy Dashboards ↗
-              </Link>
-            </Button>
-          ) : null
-        }
-      />
+      <Header title={project?.name ?? "Dashboard"} />
       <DatePickerWithRange
         dateRange={dateRange}
         setAgg={setAgg}
