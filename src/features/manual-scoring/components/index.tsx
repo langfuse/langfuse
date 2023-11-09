@@ -25,7 +25,7 @@ import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import {  LockIcon } from "lucide-react";
+import { LockIcon } from "lucide-react";
 
 const SCORE_NAME = "manual-score";
 
