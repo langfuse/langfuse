@@ -111,19 +111,6 @@ export const getBadRequestError = (errors: Array<unknown>): BadRequestError[] =>
 export const hasBadRequestError = (errors: Array<unknown>) =>
   errors.some((error) => error instanceof BadRequestError);
 
-// async function retry<T>(request: () => Promise<T>): Promise<T> {
-//   return await backOff(request, {
-//     numOfAttempts: 3,
-//     retry: (e: Error, attemptNumber: number) => {
-//       if (e instanceof RessourceNotFoundError) {
-//         console.log(`retrying generation patch, attempt ${attemptNumber}`);
-//         return true;
-//       }
-//       return false;
-//     },
-//   });
-// }
-
 const handleSingleEvent = async (
   event: z.infer<typeof singleEventSchema>,
   req: NextApiRequest,
@@ -131,16 +118,7 @@ const handleSingleEvent = async (
 ) => {
   console.log("handling single event", JSON.stringify(event, null, 2));
 
-  const { id, type } = event;
-
-  const existingEvent = await prisma.events.findUnique({
-    where: { id },
-  });
-
-  if (existingEvent) {
-    console.log(`Event for id ${id} already exists, skipping`);
-    return;
-  }
+  const { type } = event;
 
   await persistEventMiddleware(prisma, apiScope.projectId, req, event);
 
@@ -333,23 +311,11 @@ class ObservationProcessor implements EventProcessor {
           ).id
         : traceId;
 
-    const newPromptTokens =
-      body.usage?.promptTokens ??
-      (body.model && input
-        ? tokenCount({
-            model: body.model,
-            text: input,
-          })
-        : undefined);
+    const mergedModel = body.model ?? existingObservation?.model;
 
-    const newCompletionTokens =
-      body.usage?.completionTokens ??
-      (body.model && body.output
-        ? tokenCount({
-            model: body.model,
-            text: body.output,
-          })
-        : undefined);
+    const [newPromptTokens, newCompletionTokens] = mergedModel
+      ? this.calculateTokenCounts(mergedModel, body, existingObservation)
+      : [undefined, undefined];
 
     const observationId = id ?? v4();
     return {
@@ -404,6 +370,31 @@ class ObservationProcessor implements EventProcessor {
         version: version ?? undefined,
       },
     };
+  }
+
+  calculateTokenCounts(
+    mergedModel: string,
+    body: z.infer<typeof observationEvent>["body"],
+    existingObservation: Observation | null,
+  ) {
+    const newPromptTokens =
+      body.usage?.promptTokens ??
+      (body.input || existingObservation?.input
+        ? tokenCount({
+            model: mergedModel,
+            text: body.input ?? existingObservation?.input,
+          })
+        : undefined);
+
+    const newCompletionTokens =
+      body.usage?.completionTokens ??
+      (body.output || existingObservation?.output
+        ? tokenCount({
+            model: mergedModel,
+            text: body.output ?? existingObservation?.output,
+          })
+        : undefined);
+    return [newPromptTokens, newCompletionTokens];
   }
 
   async process(
