@@ -12,6 +12,7 @@ type RowData = {
   };
   createdAt: string;
   countRunItems: string;
+  avgLatency: number;
   scores: RouterOutput["datasets"]["runsByDatasetId"][number]["scores"];
 };
 
@@ -48,6 +49,14 @@ export function DatasetRunsTable(props: {
       header: "Run Items",
     },
     {
+      accessorKey: "avgLatency",
+      header: "Latency (avg)",
+      cell: ({ row }) => {
+        const avgLatency: RowData["avgLatency"] = row.getValue("avgLatency");
+        return <>{avgLatency.toFixed(2)} sec</>;
+      },
+    },
+    {
       accessorKey: "scores",
       header: "Scores (avg)",
       cell: ({ row }) => {
@@ -72,6 +81,7 @@ export function DatasetRunsTable(props: {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toISOString(),
       countRunItems: item.countRunItems.toString(),
+      avgLatency: item.avgLatency,
       scores: item.scores,
     };
   };
