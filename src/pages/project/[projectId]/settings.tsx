@@ -7,6 +7,7 @@ import { useRouter } from "next/router";
 import { Code, Bird, GraduationCap } from "lucide-react";
 import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
+import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-10">
         <ProjectMembersTable projectId={projectId} />
         <ApiKeyList projectId={projectId} />
+        <ProjectUsageChart projectId={projectId} />
         <Instructions />
         <DeleteProjectButton projectId={projectId} />
       </div>
