@@ -20,7 +20,7 @@ export const usageMeteringRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
 
-          createdAt: {
+          startTime: {
             gte: startOfThisMonth,
           },
         },
