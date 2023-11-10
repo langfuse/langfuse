@@ -25,6 +25,7 @@ import {
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
+import { get } from "http";
 
 export default async function handler(
   req: NextApiRequest,
@@ -44,50 +45,72 @@ export default async function handler(
 
     if (!authCheck.validKey)
       return res.status(401).json({
-        success: false,
         message: authCheck.error,
       });
 
     if (authCheck.scope.accessLevel !== "all")
       return res.status(403).json({
-        success: false,
         message: "Access denied",
       });
 
-    const parsedSchema = ingestionApiSchema.parse(req.body);
+    const parsedSchema = ingestionApiSchema.safeParse(req.body);
 
-    await handleBatch(parsedSchema.batch, req, authCheck);
+    if (!parsedSchema.success) {
+      return res.status(400).json({
+        message: "Invalid request data",
+        errors: parsedSchema.error,
+      });
+    }
 
-    res.status(201).send({ status: "ok" });
+    const result = await handleBatch(parsedSchema.data.batch, req, authCheck);
+
+    handleBatchResult(result.errors, res);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
-      error: errorMessage,
+      errors: [errorMessage],
     });
   }
 }
 
 export const handleBatch = async (
-  event: z.infer<typeof ingestionApiSchema>["batch"],
+  events: z.infer<typeof ingestionApiSchema>["batch"],
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log("handling ingestion event", JSON.stringify(event, null, 2));
-  console.log("authCheck", authCheck);
+  console.log("handling ingestion event", JSON.stringify(events, null, 2));
+
   if (!authCheck.validKey) throw new AuthenticationError(authCheck.error);
 
-  if (event instanceof Array) {
-    for (const singleEvent of event) {
-      await handleSingleEvent(singleEvent, req, authCheck.scope);
+  const results = []; // Array to store the results
+  const errors = []; // Array to store the errors
+  for (const singleEvent of events) {
+    try {
+      const result = await handleSingleEvent(singleEvent, req, authCheck.scope);
+      results.push(result); // Push each result into the array
+    } catch (error) {
+      // Handle or log the error if `handleSingleEvent` fails
+      console.error("Error handling event:", error);
+      // Decide how to handle the error: rethrow, continue, or push an error object to results
+      // For example, push an error object:
+      errors.push(error);
+      results.push({ error: "Error processing event", details: error });
     }
-  } else {
-    return await handleSingleEvent(event, req, authCheck.scope);
   }
+
+  return { results, errors };
 };
+
+export const getBadRequestError = (errors: Array<unknown>): BadRequestError[] =>
+  errors.filter(
+    (error): error is BadRequestError => error instanceof BadRequestError,
+  );
+
+export const hasBadRequestError = (errors: Array<unknown>) =>
+  errors.some((error) => error instanceof BadRequestError);
 
 // async function retry<T>(request: () => Promise<T>): Promise<T> {
 //   return await backOff(request, {
@@ -196,7 +219,7 @@ class TraceProcessor implements EventProcessor {
       throw new AuthenticationError("Access denied for trace creation");
 
     if (body.externalId)
-      throw new NonRetryError("API does not support externalId");
+      throw new BadRequestError("API does not support externalId");
 
     const internalId = body.id ?? v4();
 
@@ -233,12 +256,12 @@ class TraceProcessor implements EventProcessor {
   }
 }
 
-class NonRetryError extends Error {
+class BadRequestError extends Error {
   constructor(msg: string) {
     super(msg);
 
     // Set the prototype explicitly.
-    Object.setPrototypeOf(this, NonRetryError.prototype);
+    Object.setPrototypeOf(this, BadRequestError.prototype);
   }
 }
 
@@ -288,6 +311,9 @@ class ObservationProcessor implements EventProcessor {
       statusMessage,
       version,
     } = body;
+
+    if (body.traceIdType)
+      throw new BadRequestError("API does not support traceIdType");
 
     const finalTraceId = !traceId
       ? // Create trace if no traceid
@@ -391,3 +417,25 @@ class ObservationProcessor implements EventProcessor {
     });
   }
 }
+
+export const handleBatchResult = (
+  errors: Array<unknown>,
+  res: NextApiResponse,
+) => {
+  const badRequestErrors = getBadRequestError(errors);
+  if (badRequestErrors.length > 0) {
+    return res.status(400).json({
+      message: "Invalid request data",
+      errors: badRequestErrors.map((error) => error.message),
+    });
+  }
+
+  if (errors.length > 0) {
+    return res.status(500).json({
+      message: "Error processing events",
+      errors: ["Internal Server Error"],
+    });
+  }
+
+  return res.status(201).send({ status: "ok" });
+};

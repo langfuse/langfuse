@@ -133,7 +133,6 @@ describe("/api/public/spans API Endpoint", () => {
     expect(response.body).toEqual({
       error: "API does not support externalId",
       message: "Invalid request data",
-      success: false,
     });
   });
 
@@ -198,7 +197,6 @@ describe("/api/public/spans API Endpoint", () => {
     expect(createSpan.body).toEqual({
       error: "API does not support traceIdType",
       message: "Invalid request data",
-      success: false,
     });
   });
 

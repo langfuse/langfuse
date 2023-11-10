@@ -32,7 +32,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -47,7 +46,6 @@ export default async function handler(
 
     if (authCheck.scope.accessLevel !== "all") {
       return res.status(401).json({
-        success: false,
         message:
           "Access denied - need to use basic auth with secret key to GET generations",
       });
@@ -75,7 +73,6 @@ export default async function handler(
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });

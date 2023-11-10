@@ -9,7 +9,10 @@ import {
   eventTypes,
   ingestionBatch,
 } from "./ingestion-api-schema";
-import { handleBatch } from "@/src/pages/api/public/ingestion";
+import {
+  handleBatch,
+  handleBatchResult,
+} from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
 
 export default async function handler(
@@ -24,7 +27,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -44,6 +46,8 @@ export default async function handler(
         return {
           ...generation,
           type: "GENERATION",
+          input: generation.prompt,
+          output: generation.completion,
         };
       };
 
@@ -53,19 +57,18 @@ export default async function handler(
         body: convertToObservation(GenerationsCreateSchema.parse(req.body)),
       };
 
-      const response = await handleBatch(
+      const result = await handleBatch(
         ingestionBatch.parse([event]),
         req,
         authCheck,
       );
 
-      res.status(200).json(response);
+      handleBatchResult(result.errors, res);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
-        success: false,
         message: "Invalid request data",
         error: errorMessage,
       });
@@ -86,6 +89,8 @@ export default async function handler(
           ...generation,
           id: generation.generationId,
           type: "GENERATION",
+          input: generation.prompt,
+          output: generation.completion,
         };
       };
 
@@ -95,18 +100,18 @@ export default async function handler(
         body: convertToObservation(GenerationPatchSchema.parse(req.body)),
       };
 
-      const response = await handleBatch(
-        ingestionBatch.parse(event),
+      const result = await handleBatch(
+        ingestionBatch.parse([event]),
         req,
         authCheck,
       );
-      res.status(200).json(response);
+
+      handleBatchResult(result.errors, res);
     } catch (error: unknown) {
       console.error(error);
 
       if (error instanceof RessourceNotFoundError) {
         return res.status(404).json({
-          success: false,
           message: "Observation not found",
         });
       }
@@ -114,7 +119,6 @@ export default async function handler(
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
-        success: false,
         message: "Invalid request data",
         error: errorMessage,
       });

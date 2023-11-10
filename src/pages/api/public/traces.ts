@@ -5,7 +5,10 @@ import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
-import { handleBatch } from "@/src/pages/api/public/ingestion";
+import {
+  handleBatch,
+  handleBatchResult,
+} from "@/src/pages/api/public/ingestion";
 import {
   CreateTraceSchema,
   eventTypes,
@@ -30,7 +33,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -46,7 +48,6 @@ export default async function handler(
 
       if (authCheck.scope.accessLevel !== "all")
         return res.status(403).json({
-          success: false,
           message: "Access denied",
         });
 
@@ -58,11 +59,10 @@ export default async function handler(
       };
 
       const result = await handleBatch([event], req, authCheck);
-      res.status(200).json(result);
+      handleBatchResult(result.errors, res);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          success: false,
           message:
             "Access denied - need to use basic auth with secret key to GET scores",
         });
@@ -128,7 +128,6 @@ export default async function handler(
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });

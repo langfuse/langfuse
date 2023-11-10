@@ -133,7 +133,6 @@ describe("/api/public/events API Endpoint", () => {
     expect(response.body).toEqual({
       error: "API does not support externalId",
       message: "Invalid request data",
-      success: false,
     });
   });
 
@@ -199,7 +198,6 @@ describe("/api/public/events API Endpoint", () => {
     expect(createEvent.body).toEqual({
       error: "API does not support traceIdType",
       message: "Invalid request data",
-      success: false,
     });
   });
 
@@ -231,7 +229,7 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(generationName);
 
-    expect(createSpan.status).toBe(200);
+    expect(createSpan.status).toBe(201);
 
     expect(dbEvent?.id).toBe(spanId);
     expect(dbEvent?.traceId).toBe(dbTrace[0]?.id);

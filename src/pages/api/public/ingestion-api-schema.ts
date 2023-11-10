@@ -116,6 +116,7 @@ export const EventSchema = z.object({
 export const ObservationSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
+  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),

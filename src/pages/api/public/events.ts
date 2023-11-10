@@ -2,9 +2,16 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
-import { eventTypes, ingestionApiSchema } from "./ingestion-api-schema";
-import { handleBatch } from "@/src/pages/api/public/ingestion";
-import { CreateEventRequest } from "@/generated/typescript-server/serialization";
+import {
+  EventSchema,
+  eventTypes,
+  ingestionBatch,
+} from "./ingestion-api-schema";
+import {
+  handleBatch,
+  handleBatchResult,
+} from "@/src/pages/api/public/ingestion";
+import { type z } from "zod";
 
 export default async function handler(
   req: NextApiRequest,
@@ -22,7 +29,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -35,22 +41,30 @@ export default async function handler(
   );
 
   try {
+    const convertToObservation = (generation: z.infer<typeof EventSchema>) => {
+      return {
+        ...generation,
+        type: "EVENT",
+      };
+    };
+
     const event = {
       id: uuidv4(),
-      type: eventTypes.EVENT_CREATE,
-      body: CreateEventRequest.parse(req.body),
+      type: eventTypes.OBSERVAION,
+      body: convertToObservation(EventSchema.parse(req.body)),
     };
-    const response = await handleBatch(
-      ingestionApiSchema.parse(event),
+
+    const result = await handleBatch(
+      ingestionBatch.parse([event]),
+      req,
       authCheck,
     );
-    res.status(200).json(response);
+    handleBatchResult(result.errors, res);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });
