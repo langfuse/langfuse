@@ -12,7 +12,6 @@ import {
 import {
   handleBatch,
   handleBatchResult,
-  hasBadRequestError,
 } from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
 
