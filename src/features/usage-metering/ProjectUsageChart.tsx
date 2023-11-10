@@ -40,7 +40,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
               <Text>Plan limit: {simplifyNumber(planLimit)}</Text>
             </Flex>
             <MarkerBar
-              value={(usage.data / planLimit) * 100}
+              value={Math.min((usage.data / planLimit) * 100, 100)}
               className="mt-3"
             />
           </>
