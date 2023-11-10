@@ -25,7 +25,6 @@ import {
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-import { get } from "http";
 
 export default async function handler(
   req: NextApiRequest,
@@ -315,17 +314,24 @@ class ObservationProcessor implements EventProcessor {
     if (body.traceIdType)
       throw new BadRequestError("API does not support traceIdType");
 
-    const finalTraceId = !traceId
-      ? // Create trace if no traceid
-        (
-          await prisma.trace.create({
-            data: {
-              projectId: apiScope.projectId,
-              name: name,
-            },
-          })
-        ).id
-      : traceId;
+    const existingObservation = id
+      ? await prisma.observation.findUnique({
+          where: { id },
+        })
+      : null;
+
+    const finalTraceId =
+      !traceId && !existingObservation
+        ? // Create trace if no traceid
+          (
+            await prisma.trace.create({
+              data: {
+                projectId: apiScope.projectId,
+                name: name,
+              },
+            })
+          ).id
+        : traceId;
 
     const newPromptTokens =
       body.usage?.promptTokens ??

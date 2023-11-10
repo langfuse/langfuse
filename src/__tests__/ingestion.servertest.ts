@@ -6,7 +6,6 @@ import { v4 } from "uuid";
 
 describe("/api/public/ingestion API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
-  // afterEach(async () => await pruneDatabase());
 
   it("should create trace and generation", async () => {
     const traceId = v4();
@@ -14,71 +13,77 @@ describe("/api/public/ingestion API Endpoint", () => {
     const spanId = v4();
     const scoreId = v4();
 
-    const request = await makeAPICall("POST", "/api/public/ingestion", [
-      {
-        id: v4(),
-        type: "trace:create",
-        body: {
-          id: traceId,
-          name: "trace-name",
-          userId: "user-1",
-          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          metadata: { key: "value" },
-          release: "1.0.0",
-          version: "2.0.0",
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace",
+          body: {
+            id: traceId,
+            name: "trace-name",
+            userId: "user-1",
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
         },
-      },
-      {
-        id: v4(),
-        type: "generation:create",
-        body: {
-          id: generationId,
-          traceId: traceId,
-          name: "generation-name",
-          startTime: "2021-01-01T00:00:00.000Z",
-          endTime: "2021-01-01T00:00:00.000Z",
-          model: "gpt-3.5",
-          modelParameters: { key: "value" },
-          prompt: { key: "value" },
-          metadata: { key: "value" },
-          version: "2.0.0",
+        {
+          id: v4(),
+          type: "observation",
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            startTime: "2021-01-01T00:00:00.000Z",
+            endTime: "2021-01-01T00:00:00.000Z",
+            model: "gpt-3.5",
+            modelParameters: { key: "value" },
+            input: { key: "value" },
+            metadata: { key: "value" },
+            version: "2.0.0",
+          },
         },
-      },
-      {
-        id: v4(),
-        type: "generation:patch",
-        body: {
-          generationId: generationId,
-          completion: { key: "this is a great gpt output" },
+        {
+          id: v4(),
+          type: "observation",
+          body: {
+            id: generationId,
+            type: "GENERATION",
+            output: { key: "this is a great gpt output" },
+          },
         },
-      },
-      {
-        id: v4(),
-        type: "span:create",
-        body: {
-          id: spanId,
-          traceId: traceId,
-          name: "span-name",
-          startTime: "2021-01-01T00:00:00.000Z",
-          endTime: "2021-01-01T00:00:00.000Z",
-          input: { input: "value" },
-          metadata: { meta: "value" },
-          version: "2.0.0",
+        {
+          id: v4(),
+          type: "observation",
+          body: {
+            id: spanId,
+            traceId: traceId,
+            type: "SPAN",
+            name: "span-name",
+            startTime: "2021-01-01T00:00:00.000Z",
+            endTime: "2021-01-01T00:00:00.000Z",
+            input: { input: "value" },
+            metadata: { meta: "value" },
+            version: "2.0.0",
+          },
         },
-      },
-      {
-        id: v4(),
-        type: "score:create",
-        body: {
-          id: scoreId,
-          name: "score-name",
-          value: 100.5,
-          traceId: traceId,
+        {
+          id: v4(),
+          type: "score",
+          body: {
+            id: scoreId,
+            name: "score-name",
+            value: 100.5,
+            traceId: traceId,
+          },
         },
-      },
-    ]);
+      ],
+    });
+    console.log(JSON.stringify(response.body));
 
-    expect(request.status).toBe(201);
+    expect(response.status).toBe(201);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -98,6 +103,8 @@ describe("/api/public/ingestion API Endpoint", () => {
         id: generationId,
       },
     });
+
+    console.log(dbGeneration);
 
     expect(dbGeneration?.id).toBe(generationId);
     expect(dbGeneration?.traceId).toBe(traceId);

@@ -44,7 +44,7 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createSpan.status).toBe(200);
+    expect(createSpan.status).toBe(201);
     const dbSpan = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -78,7 +78,7 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createSpan.status).toBe(200);
+    expect(createSpan.status).toBe(201);
     const dbSpan = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -131,7 +131,7 @@ describe("/api/public/spans API Endpoint", () => {
 
     expect(response.status).toEqual(400);
     expect(response.body).toEqual({
-      error: "API does not support externalId",
+      errors: ["API does not support externalId"],
       message: "Invalid request data",
     });
   });
@@ -159,7 +159,7 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(spanName);
 
-    expect(createSpan.status).toBe(200);
+    expect(createSpan.status).toBe(201);
     const dbSpan = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -195,7 +195,7 @@ describe("/api/public/spans API Endpoint", () => {
 
     expect(createSpan.status).toBe(400);
     expect(createSpan.body).toEqual({
-      error: "API does not support traceIdType",
+      errors: ["API does not support traceIdType"],
       message: "Invalid request data",
     });
   });
@@ -229,7 +229,7 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(generationName);
 
-    expect(createSpan.status).toBe(200);
+    expect(createSpan.status).toBe(201);
 
     expect(dbSpan?.id).toBe(spanId);
     expect(dbSpan?.traceId).toBe(dbTrace[0]?.id);
@@ -255,13 +255,13 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createSpan.status).toBe(200);
+    expect(createSpan.status).toBe(201);
 
     const updatedSpan = await makeAPICall("PATCH", "/api/public/spans", {
       spanId: spanId,
       output: { key: "this is a great gpt output" },
     });
-    expect(updatedSpan.status).toBe(200);
+    expect(updatedSpan.status).toBe(201);
 
     const dbSpan = await prisma.observation.findUnique({
       where: {
@@ -279,13 +279,22 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan?.version).toBe("2.0.0");
   });
 
-  it("should fail update span if span does not exist", async () => {
+  it("should upsert span if span does not exist", async () => {
     const spanId = uuidv4();
 
     const updatedSpan = await makeAPICall("PATCH", "/api/public/spans", {
       spanId: spanId,
       output: { key: "this is a great gpt output" },
     });
-    expect(updatedSpan.status).toBe(404);
+    expect(updatedSpan.status).toBe(201);
+
+    const dbSpan = await prisma.observation.findUnique({
+      where: {
+        id: spanId,
+      },
+    });
+
+    expect(dbSpan?.id).toBe(spanId);
+    expect(dbSpan?.output).toEqual({ key: "this is a great gpt output" });
   });
 });

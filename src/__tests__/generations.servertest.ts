@@ -150,7 +150,7 @@ describe("/api/public/generations API Endpoint", () => {
     });
 
     expect(response.status).toEqual(400);
-    console.log(response.body);
+
     expect(response.body).toEqual({
       message: "Invalid request data",
       errors: ["API does not support externalId"],

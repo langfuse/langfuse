@@ -44,7 +44,7 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createEvent.status).toBe(200);
+    expect(createEvent.status).toBe(201);
     const dbEvent = await prisma.observation.findUnique({
       where: {
         id: eventId,
@@ -78,7 +78,7 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createEvent.status).toBe(200);
+    expect(createEvent.status).toBe(201);
     const dbEvent = await prisma.observation.findUnique({
       where: {
         id: eventId,
@@ -131,7 +131,7 @@ describe("/api/public/events API Endpoint", () => {
 
     expect(response.status).toEqual(400);
     expect(response.body).toEqual({
-      error: "API does not support externalId",
+      errors: ["API does not support externalId"],
       message: "Invalid request data",
     });
   });
@@ -160,7 +160,7 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(eventName);
 
-    expect(createEvent.status).toBe(200);
+    expect(createEvent.status).toBe(201);
     const dbEvent = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -196,7 +196,7 @@ describe("/api/public/events API Endpoint", () => {
 
     expect(createEvent.status).toBe(400);
     expect(createEvent.body).toEqual({
-      error: "API does not support traceIdType",
+      errors: ["API does not support traceIdType"],
       message: "Invalid request data",
     });
   });
