@@ -167,6 +167,7 @@ model Observation {
     level               ObservationLevel @default(DEFAULT)
     statusMessage       String?          @map("status_message")
     version             String?
+    createdAt           DateTime         @default(now()) @map("created_at")
 
     // GENERATION ONLY
     model               String?
@@ -185,6 +186,7 @@ model Observation {
     @@index([traceId])
     @@index([type])
     @@index(startTime)
+    @@index(createdAt)
     @@index(projectId)
     @@index(parentObservationId)
     @@map("observations")
