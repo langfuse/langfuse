@@ -1,7 +1,4 @@
--- Overall goal
--- ALTER TABLE "observations" ADD COLUMN     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
-
--- Crete column
+-- Create column
 ALTER TABLE "observations" ADD COLUMN "created_at" TIMESTAMP(3);
 
 -- Backfill column, set to start_time
