@@ -2,6 +2,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { api } from "@/src/utils/api";
+import { intervalInSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type ColumnDef } from "@tanstack/react-table";
 
@@ -11,6 +12,7 @@ type RowData = {
   datasetItemId: string;
   observation: { id: string; traceId: string };
   scores: { name: string; value: number }[];
+  latency: number;
 };
 
 export function DatasetRunItemsTable(
@@ -62,6 +64,14 @@ export function DatasetRunItemsTable(
       },
     },
     {
+      accessorKey: "latency",
+      header: "Latency",
+      cell: ({ row }) => {
+        const latency: RowData["latency"] = row.getValue("latency");
+        return <>{latency.toFixed(2)} sec</>;
+      },
+    },
+    {
       accessorKey: "scores",
       header: "Scores",
       cell: ({ row }) => {
@@ -86,6 +96,10 @@ export function DatasetRunItemsTable(
         name: score.name,
         value: score.value,
       })),
+      latency: intervalInSeconds(
+        item.observation.startTime,
+        item.observation.endTime,
+      ),
     };
   };
 
