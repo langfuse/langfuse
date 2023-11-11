@@ -204,7 +204,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace[0]?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
-  it("should fail for wrong event fromats", async () => {
+  it("should fail for wrong event formats", async () => {
     const traceId = v4();
 
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
