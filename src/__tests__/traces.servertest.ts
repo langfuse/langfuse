@@ -62,8 +62,6 @@ describe("/api/public/traces API Endpoint", () => {
       },
     });
 
-    console.log(dbTrace);
-
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.name).toBe("trace-name");
     expect(dbTrace[0]?.release).toBe("1.0.0");
