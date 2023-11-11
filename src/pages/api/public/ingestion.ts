@@ -88,6 +88,7 @@ export const handleBatch = async (
   const errors = []; // Array to store the errors
   for (const singleEvent of events) {
     try {
+      console.log("singleevent", singleEvent);
       const result = await handleSingleEvent(singleEvent, req, authCheck.scope);
       results.push(result); // Push each result into the array
     } catch (error) {
@@ -311,11 +312,12 @@ class ObservationProcessor implements EventProcessor {
           ).id
         : traceId;
 
-    const mergedModel = body.model ?? existingObservation?.model;
+    const [newPromptTokens, newCompletionTokens] = this.calculateTokenCounts(
+      body,
+      existingObservation ?? undefined,
+    );
 
-    const [newPromptTokens, newCompletionTokens] = mergedModel
-      ? this.calculateTokenCounts(mergedModel, body, existingObservation)
-      : [undefined, undefined];
+    console.log("newtokens", newPromptTokens, newCompletionTokens);
 
     const observationId = id ?? v4();
     return {
@@ -373,13 +375,15 @@ class ObservationProcessor implements EventProcessor {
   }
 
   calculateTokenCounts(
-    mergedModel: string,
     body: z.infer<typeof observationEvent>["body"],
-    existingObservation: Observation | null,
+    existingObservation?: Observation,
   ) {
+    console.log("usage", body.usage);
+    const mergedModel = body.model ?? existingObservation?.model;
+
     const newPromptTokens =
       body.usage?.promptTokens ??
-      (body.input || existingObservation?.input
+      ((body.input || existingObservation?.input) && mergedModel
         ? tokenCount({
             model: mergedModel,
             text: body.input ?? existingObservation?.input,
@@ -388,7 +392,7 @@ class ObservationProcessor implements EventProcessor {
 
     const newCompletionTokens =
       body.usage?.completionTokens ??
-      (body.output || existingObservation?.output
+      ((body.output || existingObservation?.output) && mergedModel
         ? tokenCount({
             model: mergedModel,
             text: body.output ?? existingObservation?.output,

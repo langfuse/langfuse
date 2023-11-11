@@ -38,7 +38,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             name: "generation-name",
             startTime: "2021-01-01T00:00:00.000Z",
             endTime: "2021-01-01T00:00:00.000Z",
-            model: "gpt-3.5",
             modelParameters: { key: "value" },
             input: { key: "value" },
             metadata: { key: "value" },
@@ -52,6 +51,7 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: generationId,
             type: "GENERATION",
             output: { key: "this is a great gpt output" },
+            usage: { promptTokens: 400, completionTokens: 1000 },
           },
         },
         {
@@ -110,11 +110,13 @@ describe("/api/public/ingestion API Endpoint", () => {
       new Date("2021-01-01T00:00:00.000Z"),
     );
     expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbGeneration?.model).toBe("gpt-3.5");
+    expect(dbGeneration?.model).toBeNull();
     expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
     expect(dbGeneration?.input).toEqual({ key: "value" });
     expect(dbGeneration?.metadata).toEqual({ key: "value" });
     expect(dbGeneration?.version).toBe("2.0.0");
+    expect(dbGeneration?.promptTokens).toEqual(400);
+    expect(dbGeneration?.completionTokens).toEqual(1000);
     expect(dbGeneration?.output).toEqual({
       key: "this is a great gpt output",
     });
