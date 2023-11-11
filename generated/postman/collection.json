@@ -256,7 +256,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"traceIdType\": \"LANGFUSE\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
+              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -296,7 +296,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"traceIdType\": \"LANGFUSE\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
+              "raw": "{\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -469,7 +469,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"traceIdType\": \"LANGFUSE\",\n    \"name\": \"example\",\n    \"value\": 0,\n    \"observationId\": \"example\",\n    \"comment\": \"example\"\n}",
+              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"value\": 0,\n    \"observationId\": \"example\",\n    \"comment\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -555,7 +555,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"traceIdType\": \"LANGFUSE\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
+              "raw": "{\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -290,9 +290,6 @@ class ObservationProcessor implements EventProcessor {
       version,
     } = body;
 
-    if (body.traceIdType)
-      throw new BadRequestError("API does not support traceIdType");
-
     const existingObservation = id
       ? await prisma.observation.findUnique({
           where: { id },

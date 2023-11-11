@@ -7,16 +7,16 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { paginationZod } from "@/src/utils/zod";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-
-export const ScoreCreateSchema = z.object({
-  id: z.string().nullish(),
-  name: z.string(),
-  value: z.number(),
-  traceId: z.string(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
-  observationId: z.string().nullish(),
-  comment: z.string().nullish(),
-});
+import {
+  ScoreCreateSchema,
+  eventTypes,
+  ingestionBatch,
+} from "@/src/pages/api/public/ingestion-api-schema";
+import { v4 } from "uuid";
+import {
+  handleBatch,
+  handleBatchResult,
+} from "@/src/pages/api/public/ingestion";
 
 const ScoresGetSchema = z.object({
   ...paginationZod,
@@ -48,57 +48,20 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      const obj = ScoreCreateSchema.parse(req.body);
-      await persistEventMiddleware(prisma, authCheck.scope.projectId, req, obj);
 
-      // If externalTraceId is provided, find the traceId
-      const traceId =
-        obj.traceIdType === "EXTERNAL"
-          ? (
-              await prisma.trace.findUniqueOrThrow({
-                where: {
-                  projectId_externalId: {
-                    projectId: authCheck.scope.projectId,
-                    externalId: obj.traceId,
-                  },
-                },
-              })
-            ).id
-          : obj.traceId;
-
-      // CHECK ACCESS SCOPE
-      const accessCheck = await checkApiAccessScope(
-        authCheck.scope,
-        [
-          { type: "trace", id: traceId },
-          ...(obj.observationId
-            ? [{ type: "observation" as const, id: obj.observationId }]
-            : []),
-        ],
-        "score",
-      );
-      if (!accessCheck)
-        return res.status(403).json({
-          message: "Access denied",
-        });
-      // END CHECK ACCESS SCOPE
-
-      const data: Prisma.ScoreCreateInput = {
-        id: obj.id ?? undefined,
-        timestamp: new Date(),
-        value: obj.value,
-        name: obj.name,
-        comment: obj.comment,
-        trace: { connect: { id: traceId } },
-        ...(obj.observationId && {
-          observation: { connect: { id: obj.observationId } },
-        }),
+      const event = {
+        id: v4(),
+        type: eventTypes.SCORE,
+        body: ScoreCreateSchema.parse(req.body),
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const newScore = await prisma.score.create({ data });
+      const result = await handleBatch(
+        ingestionBatch.parse([event]),
+        req,
+        authCheck,
+      );
 
-      res.status(200).json(newScore);
+      handleBatchResult(result.errors, res);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =

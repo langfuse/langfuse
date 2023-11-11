@@ -177,30 +177,6 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbEvent?.version).toBe("2.0.0");
   });
 
-  it("should create trace when creating span without existing trace with externalId", async () => {
-    const eventName = uuidv4();
-
-    const spanId = uuidv4();
-    const externalTraceId = uuidv4();
-    const createEvent = await makeAPICall("POST", "/api/public/events", {
-      id: spanId,
-      traceIdType: "EXTERNAL",
-      traceId: externalTraceId,
-      name: eventName,
-      startTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      output: { output: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
-
-    expect(createEvent.status).toBe(400);
-    expect(createEvent.body).toEqual({
-      errors: ["API does not support traceIdType"],
-      message: "Invalid request data",
-    });
-  });
-
   it("should create event when creating generation without existing trace without traceId", async () => {
     const generationName = uuidv4();
 

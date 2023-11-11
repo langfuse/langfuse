@@ -954,9 +954,6 @@ components:
         traceId:
           type: string
           nullable: true
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeEnum'
-          nullable: true
         name:
           type: string
           nullable: true
@@ -1308,12 +1305,6 @@ components:
           nullable: true
         - type: boolean
           nullable: true
-    TraceIdTypeEnum:
-      title: TraceIdTypeEnum
-      type: string
-      enum:
-        - LANGFUSE
-        - EXTERNAL
     LLMUsage:
       title: LLMUsage
       type: object
@@ -1437,9 +1428,6 @@ components:
           nullable: true
         traceId:
           type: string
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeEnum'
-          nullable: true
         name:
           type: string
         value:

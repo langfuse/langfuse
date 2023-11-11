@@ -354,4 +354,50 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace[0]?.release).toBe("1.0.0");
     expect(dbTrace[0]?.version).toBe("2.0.0");
   });
+  it("additional fields do not fail the API to support users sending traceidtype Langfuse", async () => {
+    const traceId = v4();
+    const generationId = v4();
+
+    const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace",
+          body: {
+            id: traceId,
+            name: "trace-name",
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          },
+        },
+        {
+          id: v4(),
+          type: "observation",
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            traceIdType: "LANGFUSE",
+          },
+        },
+      ],
+    });
+    expect(responseOne.status).toBe(201);
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toEqual(1);
+
+    const dbGeneration = await prisma.observation.findUnique({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(dbGeneration).toBeTruthy();
+  });
 });

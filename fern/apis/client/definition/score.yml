@@ -16,7 +16,6 @@ types:
     properties:
       id: optional<string>
       traceId: string
-      traceIdType: optional<TraceIdType>
       name: string
       value: double
       observationId: optional<string>
@@ -30,7 +29,3 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-  TraceIdType:
-    enum:
-      - LANGFUSE
-      - EXTERNAL

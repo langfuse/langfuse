@@ -1,4 +1,3 @@
-import { ScoreCreateSchema } from "@/src/pages/api/public/scores";
 import { ObservationLevel } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { z } from "zod";
@@ -15,7 +14,6 @@ export const CreateTraceSchema = z.object({
 export const SpanPostSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
@@ -43,7 +41,6 @@ export const SpanPatchSchema = z.object({
 export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
   endTime: z.string().datetime({ offset: true }).nullish(),
@@ -101,7 +98,6 @@ export const GenerationPatchSchema = z.object({
 export const EventSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
   metadata: jsonSchema.nullish(),
@@ -116,7 +112,6 @@ export const EventSchema = z.object({
 export const ObservationSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
@@ -143,6 +138,16 @@ export const ObservationSchema = z.object({
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
+});
+
+export const ScoreCreateSchema = z.object({
+  id: z.string().nullish(),
+  name: z.string(),
+  value: z.number(),
+  traceId: z.string(),
+  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
+  observationId: z.string().nullish(),
+  comment: z.string().nullish(),
 });
 
 export const eventTypes = {
