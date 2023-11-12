@@ -129,15 +129,22 @@ export function DatasetItemsTable({
   const convertToTableRow = (
     item: RouterOutput["datasets"]["itemsByDatasetId"][number],
   ): RowData => {
+    let input = JSON.stringify(item.input);
+    input = input.length > 50 ? input.slice(0, 50) + "..." : input;
+    let expectedOutput = item.expectedOutput
+      ? JSON.stringify(item.expectedOutput)
+      : "";
+    expectedOutput =
+      expectedOutput.length > 50
+        ? expectedOutput.slice(0, 50) + "..."
+        : expectedOutput;
+
     return {
       id: item.id,
       status: item.status,
       createdAt: item.createdAt.toISOString(),
-      input: JSON.stringify(item.input).slice(0, 50) + "...",
-      expectedOutput:
-        item.expectedOutput !== null
-          ? JSON.stringify(item.expectedOutput).slice(0, 50) + "..."
-          : "",
+      input,
+      expectedOutput,
     };
   };
 
