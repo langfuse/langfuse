@@ -89,7 +89,6 @@ export const handleBatch = async (
   const errors = []; // Array to store the errors
   for (const singleEvent of events) {
     try {
-      console.log("singleevent", singleEvent);
       const result = await retry(async () => {
         return await handleSingleEvent(singleEvent, req, authCheck.scope);
       });
@@ -167,7 +166,7 @@ class ScoreProcessor implements EventProcessor {
     apiScope: ApiAccessScope,
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
-    console.log("score body", body);
+
     const accessCheck = await checkApiAccessScope(
       apiScope,
       [
@@ -211,9 +210,6 @@ class TraceProcessor implements EventProcessor {
 
     if (apiScope.accessLevel !== "all")
       throw new AuthenticationError("Access denied for trace creation");
-
-    if (body.externalId)
-      throw new BadRequestError("API does not support externalId");
 
     const internalId = body.id ?? v4();
 
@@ -419,7 +415,7 @@ class ObservationProcessor implements EventProcessor {
 
     const obs = await this.convertToObservation(apiScope);
 
-    const upsert = {
+    return await prisma.observation.upsert({
       where: {
         id_projectId: {
           id: obs.id,
@@ -428,9 +424,7 @@ class ObservationProcessor implements EventProcessor {
       },
       create: obs.create,
       update: obs.update,
-    };
-    console.log("upserting observation", upsert);
-    return await prisma.observation.upsert(upsert);
+    });
   }
 }
 
