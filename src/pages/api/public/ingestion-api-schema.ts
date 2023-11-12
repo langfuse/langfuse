@@ -2,7 +2,7 @@ import { ObservationLevel } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { z } from "zod";
 
-export const CreateTraceSchema = z.object({
+export const TraceSchema = z.object({
   id: z.string().nullish(),
   name: z.string().nullish(),
   externalId: z.string().nullish(),
@@ -140,12 +140,11 @@ export const ObservationSchema = z.object({
   version: z.string().nullish(),
 });
 
-export const ScoreCreateSchema = z.object({
+export const ScoreSchema = z.object({
   id: z.string().nullish(),
   name: z.string(),
   value: z.number(),
   traceId: z.string(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
 });
@@ -158,22 +157,22 @@ export const eventTypes = {
 const base = z.object({
   id: z.string(),
 });
-export const createTraceEvent = base.extend({
+export const traceEvent = base.extend({
   type: z.literal(eventTypes.TRACE),
-  body: CreateTraceSchema,
+  body: TraceSchema,
 });
 export const observationEvent = base.extend({
   type: z.literal(eventTypes.OBSERVAION),
   body: ObservationSchema,
 });
-export const createScoreEvent = base.extend({
+export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE),
-  body: ScoreCreateSchema,
+  body: ScoreSchema,
 });
 export const singleEventSchema = z.discriminatedUnion("type", [
-  createTraceEvent,
+  traceEvent,
   observationEvent,
-  createScoreEvent,
+  scoreEvent,
 ]);
 
 export const ingestionBatch = z.array(singleEventSchema);

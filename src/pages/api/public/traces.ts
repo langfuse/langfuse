@@ -10,7 +10,7 @@ import {
   handleBatchResult,
 } from "@/src/pages/api/public/ingestion";
 import {
-  CreateTraceSchema,
+  TraceSchema,
   eventTypes,
 } from "@/src/pages/api/public/ingestion-api-schema";
 import { v4 } from "uuid";
@@ -51,7 +51,7 @@ export default async function handler(
           message: "Access denied",
         });
 
-      const body = CreateTraceSchema.parse(req.body);
+      const body = TraceSchema.parse(req.body);
       const event = {
         id: body.id ?? v4(),
         type: eventTypes.TRACE,

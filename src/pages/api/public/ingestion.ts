@@ -17,10 +17,10 @@ import { type z } from "zod";
 import {
   ingestionApiSchema,
   eventTypes,
-  type createTraceEvent,
+  type traceEvent,
   type observationEvent,
   type singleEventSchema,
-  type createScoreEvent,
+  type scoreEvent,
 } from "./ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
@@ -157,9 +157,9 @@ const handleSingleEvent = async (
 };
 
 class ScoreProcessor implements EventProcessor {
-  event: z.infer<typeof createScoreEvent>;
+  event: z.infer<typeof scoreEvent>;
 
-  constructor(event: z.infer<typeof createScoreEvent>) {
+  constructor(event: z.infer<typeof scoreEvent>) {
     this.event = event;
   }
 
@@ -198,9 +198,9 @@ class ScoreProcessor implements EventProcessor {
 }
 
 class TraceProcessor implements EventProcessor {
-  event: z.infer<typeof createTraceEvent>;
+  event: z.infer<typeof traceEvent>;
 
-  constructor(event: z.infer<typeof createTraceEvent>) {
+  constructor(event: z.infer<typeof traceEvent>) {
     this.event = event;
   }
 

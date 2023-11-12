@@ -6,7 +6,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@/src/utils/zod";
 import {
-  ScoreCreateSchema,
+  ScoreSchema,
   eventTypes,
   ingestionBatch,
 } from "@/src/pages/api/public/ingestion-api-schema";
@@ -50,7 +50,7 @@ export default async function handler(
       const event = {
         id: v4(),
         type: eventTypes.SCORE,
-        body: ScoreCreateSchema.parse(req.body),
+        body: ScoreSchema.parse(req.body),
       };
 
       const result = await handleBatch(
