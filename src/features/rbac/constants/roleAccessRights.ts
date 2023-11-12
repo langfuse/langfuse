@@ -14,6 +14,7 @@ const scopes = [
   "scores:CUD",
 
   "project:delete",
+  "project:transfer",
 
   "datasets:CUD",
 ] as const;
@@ -33,6 +34,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "scores:CUD",
     "project:delete",
     "datasets:CUD",
+    "project:transfer",
   ],
   ADMIN: [
     "members:read",

@@ -67,4 +67,45 @@ export const projectsRouter = createTRPCRouter({
 
       return true;
     }),
+
+  transfer: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        email: z.string().email(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:transfer",
+      });
+
+      const user = await ctx.prisma.user.findUnique({
+        where: {
+          email: input.email.toLowerCase(),
+        },
+      });
+
+      if (!user) throw new Error("User not found");
+
+      if (user.id === ctx.session.user.id) throw new Error("You cannot transfer project to yourself");
+
+      await ctx.prisma.membership.create({
+        data: {
+          userId: user.id,
+          projectId: input.projectId,
+          role: 'OWNER',
+        },
+      });
+
+      return await ctx.prisma.membership.deleteMany({
+        where: {
+          userId: ctx.session.user.id,
+          projectId: input.projectId,
+          role: 'OWNER',
+        },
+      });
+    })
 });

@@ -8,6 +8,7 @@ import { Code, Bird, GraduationCap } from "lucide-react";
 import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
+import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function SettingsPage() {
         <ProjectUsageChart projectId={projectId} />
         <Instructions />
         <DeleteProjectButton projectId={projectId} />
+        <TransferOwnershipButton projectId={projectId} />
       </div>
     </div>
   );
