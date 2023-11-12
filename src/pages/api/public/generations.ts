@@ -63,7 +63,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResult(result.errors, res);
+      handleBatchResult(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
@@ -106,7 +106,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResult(result.errors, res);
+      handleBatchResult(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
 

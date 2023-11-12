@@ -25,6 +25,7 @@ import {
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
+import { backOff } from "exponential-backoff";
 
 export default async function handler(
   req: NextApiRequest,
@@ -63,7 +64,7 @@ export default async function handler(
 
     const result = await handleBatch(parsedSchema.data.batch, req, authCheck);
 
-    handleBatchResult(result.errors, res);
+    handleBatchResult(result.errors, result.results, res);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
@@ -89,7 +90,9 @@ export const handleBatch = async (
   for (const singleEvent of events) {
     try {
       console.log("singleevent", singleEvent);
-      const result = await handleSingleEvent(singleEvent, req, authCheck.scope);
+      const result = await retry(async () => {
+        return await handleSingleEvent(singleEvent, req, authCheck.scope);
+      });
       results.push(result); // Push each result into the array
     } catch (error) {
       // Handle or log the error if `handleSingleEvent` fails
@@ -104,6 +107,19 @@ export const handleBatch = async (
   return { results, errors };
 };
 
+async function retry<T>(request: () => Promise<T>): Promise<T> {
+  return await backOff(request, {
+    numOfAttempts: 2,
+    retry: (e: Error, attemptNumber: number) => {
+      if (e instanceof AuthenticationError) {
+        console.log("not retrying auth error");
+        return false;
+      }
+      console.log(`retrying processing events ${attemptNumber}`);
+      return true;
+    },
+  });
+}
 export const getBadRequestError = (errors: Array<unknown>): BadRequestError[] =>
   errors.filter(
     (error): error is BadRequestError => error instanceof BadRequestError,
@@ -314,8 +330,6 @@ class ObservationProcessor implements EventProcessor {
       existingObservation ?? undefined,
     );
 
-    console.log("newtokens", newPromptTokens, newCompletionTokens);
-
     const observationId = id ?? v4();
     return {
       id: observationId,
@@ -375,7 +389,6 @@ class ObservationProcessor implements EventProcessor {
     body: z.infer<typeof observationEvent>["body"],
     existingObservation?: Observation,
   ) {
-    console.log("usage", body.usage);
     const mergedModel = body.model ?? existingObservation?.model;
 
     const newPromptTokens =
@@ -405,19 +418,25 @@ class ObservationProcessor implements EventProcessor {
       throw new AuthenticationError("Access denied for observation creation");
 
     const obs = await this.convertToObservation(apiScope);
-    return await prisma.observation.upsert({
+
+    const upsert = {
       where: {
-        id: obs.id ?? v4(),
-        projectId: apiScope.projectId,
+        id_projectId: {
+          id: obs.id,
+          projectId: apiScope.projectId,
+        },
       },
       create: obs.create,
       update: obs.update,
-    });
+    };
+    console.log("upserting observation", upsert);
+    return await prisma.observation.upsert(upsert);
   }
 }
 
 export const handleBatchResult = (
   errors: Array<unknown>,
+  results: Array<unknown>,
   res: NextApiResponse,
 ) => {
   const badRequestErrors = getBadRequestError(errors);
@@ -429,11 +448,12 @@ export const handleBatchResult = (
   }
 
   if (errors.length > 0) {
+    console.log("Error processing events", errors);
     return res.status(500).json({
       message: "Error processing events",
       errors: ["Internal Server Error"],
     });
   }
 
-  return res.status(201).send({ status: "ok" });
+  return res.status(201).send(results.length > 0 ? results[0] : {});
 };

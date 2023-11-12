@@ -4,9 +4,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { paginationZod } from "@/src/utils/zod";
-import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 import {
   ScoreCreateSchema,
   eventTypes,
@@ -61,7 +59,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResult(result.errors, res);
+      handleBatchResult(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
