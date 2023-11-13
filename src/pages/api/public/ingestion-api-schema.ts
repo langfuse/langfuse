@@ -150,28 +150,34 @@ export const ScoreSchema = z.object({
 });
 
 export const eventTypes = {
-  TRACE: "trace",
-  OBSERVAION: "observation",
-  SCORE: "score",
+  TRACE_CREATE: "trace-create",
+  OBSERVAION_CREATE: "observation-create",
+  OBSERVAION_UPDATE: "observation-update",
+  SCORE_CREATE: "score-create",
 } as const;
 const base = z.object({
   id: z.string(),
 });
 export const traceEvent = base.extend({
-  type: z.literal(eventTypes.TRACE),
+  type: z.literal(eventTypes.TRACE_CREATE),
   body: TraceSchema,
 });
 export const observationEvent = base.extend({
-  type: z.literal(eventTypes.OBSERVAION),
+  type: z.literal(eventTypes.OBSERVAION_CREATE),
+  body: ObservationSchema,
+});
+export const observationUpdateEvent = base.extend({
+  type: z.literal(eventTypes.OBSERVAION_UPDATE),
   body: ObservationSchema,
 });
 export const scoreEvent = base.extend({
-  type: z.literal(eventTypes.SCORE),
+  type: z.literal(eventTypes.SCORE_CREATE),
   body: ScoreSchema,
 });
 export const singleEventSchema = z.discriminatedUnion("type", [
   traceEvent,
   observationEvent,
+  observationUpdateEvent,
   scoreEvent,
 ]);
 

@@ -496,7 +496,7 @@ describe("/api/public/generations API Endpoint", () => {
     ]);
   });
 
-  it("should succeed update if generation does not exist", async () => {
+  it("should not succeed update if generation does not exist", async () => {
     const generationId = uuidv4();
 
     const updateGeneration = await makeAPICall(
@@ -507,7 +507,7 @@ describe("/api/public/generations API Endpoint", () => {
         completion: "this is a great gpt response",
       },
     );
-    expect(updateGeneration.status).toBe(201);
+    expect(updateGeneration.status).toBe(404);
 
     const dbGeneration = await prisma.observation.findUnique({
       where: {
@@ -515,7 +515,6 @@ describe("/api/public/generations API Endpoint", () => {
       },
     });
 
-    expect(dbGeneration?.id).toBe(generationId);
-    expect(dbGeneration?.output).toEqual("this is a great gpt response");
+    expect(dbGeneration).toBeNull();
   });
 });

@@ -49,7 +49,7 @@ export default async function handler(
 
       const event = {
         id: v4(),
-        type: eventTypes.SCORE,
+        type: eventTypes.SCORE_CREATE,
         body: ScoreSchema.parse(req.body),
       };
 

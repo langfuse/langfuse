@@ -53,7 +53,7 @@ export default async function handler(
 
       const event = {
         id: uuidv4(),
-        type: eventTypes.OBSERVAION,
+        type: eventTypes.OBSERVAION_CREATE,
         body: convertToObservation(GenerationsCreateSchema.parse(req.body)),
       };
 
@@ -96,7 +96,7 @@ export default async function handler(
 
       const event = {
         id: uuidv4(),
-        type: eventTypes.OBSERVAION,
+        type: eventTypes.OBSERVAION_UPDATE,
         body: convertToObservation(GenerationPatchSchema.parse(req.body)),
       };
 

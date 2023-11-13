@@ -294,14 +294,14 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan?.version).toBe("2.0.0");
   });
 
-  it("should upsert span if span does not exist", async () => {
+  it("should not upsert span if span does not exist", async () => {
     const spanId = uuidv4();
 
     const updatedSpan = await makeAPICall("PATCH", "/api/public/spans", {
       spanId: spanId,
       output: { key: "this is a great gpt output" },
     });
-    expect(updatedSpan.status).toBe(201);
+    expect(updatedSpan.status).toBe(404);
 
     const dbSpan = await prisma.observation.findUnique({
       where: {
@@ -309,7 +309,6 @@ describe("/api/public/spans API Endpoint", () => {
       },
     });
 
-    expect(dbSpan?.id).toBe(spanId);
-    expect(dbSpan?.output).toEqual({ key: "this is a great gpt output" });
+    expect(dbSpan).toBeNull();
   });
 });

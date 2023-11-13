@@ -21,11 +21,13 @@ import {
   type observationEvent,
   type singleEventSchema,
   type scoreEvent,
+  type observationUpdateEvent,
 } from "./ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 import { backOff } from "exponential-backoff";
+import { RessourceNotFoundError } from "@/src/utils/exceptions";
 
 export default async function handler(
   req: NextApiRequest,
@@ -56,13 +58,15 @@ export default async function handler(
     const parsedSchema = ingestionApiSchema.safeParse(req.body);
 
     if (!parsedSchema.success) {
+      console.log("Invalid request data", parsedSchema.error, req.body);
       return res.status(400).json({
         message: "Invalid request data",
         errors: parsedSchema.error,
       });
     }
 
-    const result = await handleBatch(parsedSchema.data.batch, req, authCheck);
+    const sortedBatch = sortBatch(parsedSchema.data.batch);
+    const result = await handleBatch(sortedBatch, req, authCheck);
 
     handleBatchResult(result.errors, result.results, res);
   } catch (error: unknown) {
@@ -75,6 +79,19 @@ export default async function handler(
     });
   }
 }
+
+const sortBatch = (batch: Array<z.infer<typeof singleEventSchema>>) => {
+  // keep the order of events as they are. Order events in a way that types containing update come last
+  return batch.sort((a, b) => {
+    if (a.type === eventTypes.OBSERVAION_UPDATE) {
+      return 1;
+    }
+    if (b.type === eventTypes.OBSERVAION_UPDATE) {
+      return -1;
+    }
+    return 0;
+  });
+};
 
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
@@ -124,6 +141,14 @@ export const getBadRequestError = (errors: Array<unknown>): BadRequestError[] =>
     (error): error is BadRequestError => error instanceof BadRequestError,
   );
 
+export const getRessourceNotFoundError = (
+  errors: Array<unknown>,
+): RessourceNotFoundError[] =>
+  errors.filter(
+    (error): error is RessourceNotFoundError =>
+      error instanceof RessourceNotFoundError,
+  );
+
 export const hasBadRequestError = (errors: Array<unknown>) =>
   errors.some((error) => error instanceof BadRequestError);
 
@@ -140,13 +165,14 @@ const handleSingleEvent = async (
 
   let processor: EventProcessor;
   switch (type) {
-    case eventTypes.TRACE:
+    case eventTypes.TRACE_CREATE:
       processor = new TraceProcessor(event);
       break;
-    case eventTypes.OBSERVAION:
+    case eventTypes.OBSERVAION_CREATE:
+    case eventTypes.OBSERVAION_UPDATE:
       processor = new ObservationProcessor(event);
       break;
-    case eventTypes.SCORE: {
+    case eventTypes.SCORE_CREATE: {
       processor = new ScoreProcessor(event);
       break;
     }
@@ -269,9 +295,15 @@ interface EventProcessor {
 }
 
 class ObservationProcessor implements EventProcessor {
-  event: z.infer<typeof observationEvent>;
+  event:
+    | z.infer<typeof observationEvent>
+    | z.infer<typeof observationUpdateEvent>;
 
-  constructor(event: z.infer<typeof observationEvent>) {
+  constructor(
+    event:
+      | z.infer<typeof observationEvent>
+      | z.infer<typeof observationUpdateEvent>,
+  ) {
     this.event = event;
   }
 
@@ -307,6 +339,13 @@ class ObservationProcessor implements EventProcessor {
           where: { id },
         })
       : null;
+
+    if (
+      this.event.type === eventTypes.OBSERVAION_UPDATE &&
+      !existingObservation
+    ) {
+      throw new RessourceNotFoundError(this.event.id, "Observation not found");
+    }
 
     const finalTraceId =
       !traceId && !existingObservation
@@ -435,9 +474,18 @@ export const handleBatchResult = (
 ) => {
   const badRequestErrors = getBadRequestError(errors);
   if (badRequestErrors.length > 0) {
+    console.log("Bad request errors", badRequestErrors);
     return res.status(400).json({
       message: "Invalid request data",
       errors: badRequestErrors.map((error) => error.message),
+    });
+  }
+
+  const ressourceNotFoundError = getRessourceNotFoundError(errors);
+  if (ressourceNotFoundError.length > 0) {
+    return res.status(404).json({
+      message: "Ressource not found",
+      errors: ressourceNotFoundError.map((error) => error.message),
     });
   }
 
