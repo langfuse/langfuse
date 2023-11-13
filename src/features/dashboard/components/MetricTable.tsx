@@ -67,8 +67,8 @@ export const MetricTable = ({
       <DashboardTable
         headers={[
           "Model",
-          <RightAlignedCell key={0}>Total tokens</RightAlignedCell>,
-          <RightAlignedCell key={0}>Total cost</RightAlignedCell>,
+          <RightAlignedCell key={0}>Tokens</RightAlignedCell>,
+          <RightAlignedCell key={0}>USD</RightAlignedCell>,
         ]}
         rows={metricsData}
         collapse={{ collapsed: 5, expanded: 20 }}
