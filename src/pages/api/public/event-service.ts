@@ -2,7 +2,7 @@ import { type Prisma, type PrismaClient } from "@prisma/client";
 import { type NextApiRequest } from "next";
 
 // This function persists raw events to the database which came via API
-// It relates each event to a peroject
+// It relates each event to a project
 // It checks that the event is valid JSON to avoid DB errors
 // It persists over which URL and Method the event came in
 // It does not extract more data to avoid any early errors such as schema parsing errors
