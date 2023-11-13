@@ -2,7 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
-import { RessourceNotFoundError } from "../../../utils/exceptions";
+import { ResourceNotFoundError } from "../../../utils/exceptions";
 import {
   GenerationPatchSchema,
   GenerationsCreateSchema,
@@ -112,7 +112,7 @@ export default async function handler(
     } catch (error: unknown) {
       console.error(error);
 
-      if (error instanceof RessourceNotFoundError) {
+      if (error instanceof ResourceNotFoundError) {
         return res.status(404).json({
           message: "Observation not found",
         });

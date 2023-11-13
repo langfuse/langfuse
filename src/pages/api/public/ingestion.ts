@@ -14,7 +14,7 @@ import {
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
 import { backOff } from "exponential-backoff";
-import { RessourceNotFoundError } from "@/src/utils/exceptions";
+import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { type EventProcessor } from "./EventProcessor";
 import { ObservationProcessor } from "./EventProcessor";
 import { TraceProcessor } from "./EventProcessor";
@@ -132,12 +132,12 @@ export const getBadRequestError = (errors: Array<unknown>): BadRequestError[] =>
     (error): error is BadRequestError => error instanceof BadRequestError,
   );
 
-export const getRessourceNotFoundError = (
+export const getResourceNotFoundError = (
   errors: Array<unknown>,
-): RessourceNotFoundError[] =>
+): ResourceNotFoundError[] =>
   errors.filter(
-    (error): error is RessourceNotFoundError =>
-      error instanceof RessourceNotFoundError,
+    (error): error is ResourceNotFoundError =>
+      error instanceof ResourceNotFoundError,
   );
 
 export const hasBadRequestError = (errors: Array<unknown>) =>
@@ -204,11 +204,11 @@ export const handleBatchResult = (
     });
   }
 
-  const ressourceNotFoundError = getRessourceNotFoundError(errors);
-  if (ressourceNotFoundError.length > 0) {
+  const ResourceNotFoundError = getResourceNotFoundError(errors);
+  if (ResourceNotFoundError.length > 0) {
     return res.status(404).json({
-      message: "Ressource not found",
-      errors: ressourceNotFoundError.map((error) => error.message),
+      message: "Resource not found",
+      errors: ResourceNotFoundError.map((error) => error.message),
     });
   }
 

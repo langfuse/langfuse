@@ -10,7 +10,7 @@ import {
   type observationUpdateEvent,
 } from "@/src/pages/api/public/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
-import { RessourceNotFoundError } from "@/src/utils/exceptions";
+import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import {
   type Trace,
   type Observation,
@@ -73,7 +73,7 @@ export class ObservationProcessor implements EventProcessor {
       this.event.type === eventTypes.OBSERVAION_UPDATE &&
       !existingObservation
     ) {
-      throw new RessourceNotFoundError(this.event.id, "Observation not found");
+      throw new ResourceNotFoundError(this.event.id, "Observation not found");
     }
 
     const finalTraceId =
