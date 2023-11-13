@@ -121,6 +121,7 @@ describe("/api/public/spans API Endpoint", () => {
     const spanId = uuidv4();
 
     const response = await makeAPICall("POST", "/api/public/traces", {
+      externalId: uuidv4(),
       id: traceId,
       name: "trace-name",
       userId: "user-1",
@@ -213,6 +214,9 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan[0]?.name).toBe(spanName);
     expect(dbSpan[0]?.id).toBe(spanId);
     expect(dbSpan[0]?.traceId).toBe(traceId);
+
+    const dbTraces = await prisma.trace.findMany();
+    expect(dbTraces.length).toBe(0);
   });
 
   it("should create trace when creating span without existing trace without traceId", async () => {
