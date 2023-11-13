@@ -1,77 +1,24 @@
-import {
-  type Trace,
-  type Observation,
-  type Score,
-  type Observation,
-  type Prisma,
-  type Score,
-  type Trace,
-  type Observation,
-  type Score,
-  type Trace,
-  type Observation,
-  type Score,
-  type Trace,
-} from "@prisma/client";
-import {
-  type ApiAccessScope,
-  type ApiAccessScope,
-  type ApiAccessScope,
-  type ApiAccessScope,
-} from "@/src/features/public-api/server/types";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
+import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma, prisma, prisma } from "@/src/server/db";
-import { RessourceNotFoundError } from "@/src/utils/exceptions";
+import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import {
-  type Trace,
-  type Prisma,
-  type Observation,
-  type Score,
-} from "@prisma/client";
-import { v4, v4, v4 } from "uuid";
-import { type z } from "zod";
-import {
-  type EventProcessor,
-  type EventProcessor,
-  type EventProcessor,
-} from "./EventProcessor";
-import { AuthenticationError } from "./ingestion";
-import {
+  type observationEvent,
   eventTypes,
   type traceEvent,
-  type observationEvent,
-  type observationUpdateEvent,
   type scoreEvent,
-} from "./ingestion-api-schema";
-import { tokenCount } from "@/src/features/ingest/lib/usage";
-import { type EventProcessor } from "@/src/pages/api/public/EventProcessor";
-import {
-  type observationEvent,
   type observationUpdateEvent,
-  eventTypes,
 } from "@/src/pages/api/public/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
 import { RessourceNotFoundError } from "@/src/utils/exceptions";
-import { v4 } from "uuid";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma } from "@/src/server/db";
-import { type Trace, type Observation, type Score } from "@prisma/client";
-import { v4 } from "uuid";
-import { type z } from "zod";
-import { type EventProcessor } from "./EventProcessor";
-import { AuthenticationError } from "./ingestion";
-import { type traceEvent } from "./ingestion-api-schema";
-import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma } from "@/src/server/db";
-import { type Trace, type Observation, type Score } from "@prisma/client";
+import {
+  type Trace,
+  type Observation,
+  type Score,
+  type Prisma,
+} from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
-import { type EventProcessor } from "./EventProcessor";
-import { AuthenticationError } from "./ingestion";
-import { type scoreEvent } from "./ingestion-api-schema";
-import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 
 export interface EventProcessor {
   process(apiScope: ApiAccessScope): Promise<Trace | Observation | Score>;
