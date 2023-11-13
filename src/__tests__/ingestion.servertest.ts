@@ -428,6 +428,79 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace[0]?.version).toBe("2.0.0");
   });
 
+  [
+    {
+      inputs: [{ a: "a" }, { b: "b" }],
+      output: { a: "a", b: "b" },
+    },
+    {
+      inputs: [{ a: "a" }, undefined],
+      output: { a: "a" },
+    },
+    {
+      inputs: [undefined, { b: "b" }],
+      output: { b: "b" },
+    },
+  ].forEach(({ inputs, output }) => {
+    it(`merges metadata ${JSON.stringify(inputs)}, ${JSON.stringify(
+      output,
+    )}`, async () => {
+      const traceId = v4();
+      const generationId = v4();
+
+      const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
+        batch: [
+          {
+            id: v4(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: traceId,
+              name: "trace-name",
+              userId: "user-1",
+              projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              release: "1.0.0",
+              version: "2.0.0",
+            },
+          },
+          {
+            id: v4(),
+            type: "observation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              type: "GENERATION",
+              name: "generation-name",
+              metadata: inputs[0],
+            },
+          },
+          {
+            id: v4(),
+            type: "observation-update",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              type: "GENERATION",
+              metadata: inputs[1],
+            },
+          },
+        ],
+      });
+      expect(responseOne.status).toBe(201);
+
+      const dbGeneration = await prisma.observation.findMany({
+        where: {
+          name: "generation-name",
+        },
+      });
+
+      expect(dbGeneration.length).toEqual(1);
+      expect(dbGeneration[0]?.metadata).toEqual(output);
+    });
+  });
+
   it("additional fields do not fail the API to support users sending traceidtype Langfuse", async () => {
     const traceId = v4();
     const generationId = v4();

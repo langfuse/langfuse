@@ -94,6 +94,18 @@ export class ObservationProcessor implements EventProcessor {
       existingObservation ?? undefined,
     );
 
+    // merge metadata from existingObservation.metadata and metadata
+    const mergedMetadata =
+      existingObservation && existingObservation.metadata && metadata
+        ? {
+            ...(typeof existingObservation?.metadata === "object"
+              ? existingObservation.metadata
+              : {}),
+            ...(typeof metadata === "object" ? metadata : {}),
+          }
+        : undefined;
+    console.log("mergedMetadata", mergedMetadata, body);
+
     const observationId = id ?? v4();
     return {
       id: observationId,
@@ -107,7 +119,7 @@ export class ObservationProcessor implements EventProcessor {
         completionStartTime: completionStartTime
           ? new Date(completionStartTime)
           : undefined,
-        metadata: metadata ?? undefined,
+        metadata: mergedMetadata ?? metadata ?? undefined,
         model: model ?? undefined,
         modelParameters: modelParameters ?? undefined,
         input: input ?? undefined,
@@ -131,7 +143,7 @@ export class ObservationProcessor implements EventProcessor {
         completionStartTime: completionStartTime
           ? new Date(completionStartTime)
           : undefined,
-        metadata: metadata ?? undefined,
+        metadata: mergedMetadata ?? metadata ?? undefined,
         model: model ?? undefined,
         modelParameters: modelParameters ?? undefined,
         input: input ?? undefined,
