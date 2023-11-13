@@ -18,6 +18,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -31,6 +32,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             traceId: traceId,
@@ -47,6 +49,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-update",
+          timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             type: "GENERATION",
@@ -57,6 +60,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: spanId,
             traceId: traceId,
@@ -72,6 +76,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "score-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: scoreId,
             name: "score-name",
@@ -156,6 +161,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -175,6 +181,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -213,6 +220,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -245,6 +253,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -255,6 +264,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             traceId: traceId,
@@ -267,6 +277,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-update",
+          timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             type: "GENERATION",
@@ -310,6 +321,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -320,6 +332,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-update",
+          timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             type: "GENERATION",
@@ -329,6 +342,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             traceId: traceId,
@@ -374,6 +388,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -387,6 +402,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -421,6 +437,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: traceId,
             name: "trace-name",
@@ -430,6 +447,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         {
           id: v4(),
           type: "observation-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             traceId: traceId,

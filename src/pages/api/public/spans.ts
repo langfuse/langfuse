@@ -51,6 +51,7 @@ export default async function handler(
       const event = {
         id: v4(),
         type: eventTypes.OBSERVAION_CREATE,
+        timestamp: new Date().toISOString(),
         body: convertToObservation(SpanPostSchema.parse(req.body)),
       };
 
@@ -89,6 +90,7 @@ export default async function handler(
       const event = {
         id: v4(),
         type: eventTypes.OBSERVAION_UPDATE,
+        timestamp: new Date().toISOString(),
         body: convertToObservation(SpanPatchSchema.parse(req.body)),
       };
 

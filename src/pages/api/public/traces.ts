@@ -55,6 +55,7 @@ export default async function handler(
       const event = {
         id: body.id ?? v4(),
         type: eventTypes.TRACE_CREATE,
+        timestamp: new Date().toISOString(),
         body: body,
       };
 

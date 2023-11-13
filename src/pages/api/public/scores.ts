@@ -50,6 +50,7 @@ export default async function handler(
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
+        timestamp: new Date().toISOString(),
         body: ScoreSchema.parse(req.body),
       };
 

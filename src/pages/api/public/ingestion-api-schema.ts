@@ -157,6 +157,7 @@ export const eventTypes = {
 } as const;
 const base = z.object({
   id: z.string(),
+  timestamp: z.string().datetime({ offset: true }),
 });
 export const traceEvent = base.extend({
   type: z.literal(eventTypes.TRACE_CREATE),
