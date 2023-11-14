@@ -148,7 +148,10 @@ const handleSingleEvent = async (
   req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
-  console.log("handling single event", JSON.stringify(event, null, 2));
+  console.log(
+    `handling single event ${event.id}`,
+    JSON.stringify(event, null, 2),
+  );
 
   const { type } = event;
 
