@@ -233,27 +233,6 @@ export const traceRouter = createTRPCRouter({
         },
       }),
       ctx.prisma.observation.findMany({
-        // select: {
-        //   id: true,
-        //   traceId: true,
-        //   projectId: true,
-        //   type: true,
-        //   startTime: true,
-        //   endTime: true,
-        //   name: true,
-        //   metadata: true,
-        //   parentObservationId: true,
-        //   level: true,
-        //   statusMessage: true,
-        //   version: true,
-        //   createdAt: true,
-        //   model: true,
-        //   modelParameters: true,
-        //   promptTokens: true,
-        //   completionTokens: true,
-        //   totalTokens: true,
-        //   completionStartTime: true,
-        // },
         where: {
           traceId: {
             equals: input,
