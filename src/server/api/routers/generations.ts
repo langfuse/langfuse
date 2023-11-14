@@ -2,10 +2,9 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Generation } from "@/src/utils/types";
+
 import { type Observation, Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
@@ -307,35 +306,4 @@ export const generationsRouter = createTRPCRouter({
       };
       return res;
     }),
-
-  byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
-    // also works for other observations
-    const generation = (await ctx.prisma.observation.findFirstOrThrow({
-      where: {
-        id: input,
-        type: "GENERATION",
-        ...(ctx.session.user.admin === true
-          ? undefined
-          : {
-              project: {
-                members: {
-                  some: {
-                    userId: ctx.session.user.id,
-                  },
-                },
-              },
-            }),
-      },
-    })) as Generation;
-
-    const scores = generation.traceId
-      ? await ctx.prisma.score.findMany({
-          where: {
-            traceId: generation.traceId,
-          },
-        })
-      : [];
-
-    return { ...generation, scores };
-  }),
 });

@@ -5,8 +5,9 @@ import {
   type DateTimeAggregationOption,
   dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
-export type NestedObservation = Observation & {
+export type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];
 };
 
