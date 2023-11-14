@@ -7,12 +7,12 @@ import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import Decimal from "decimal.js";
-import { type RouterOutput } from "@/src/utils/types";
 import { StringParam, useQueryParam } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/features/public-traces/components/PublishTraceSwitch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { api } from "@/src/utils/api";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -51,6 +51,7 @@ export function Trace(props: {
             scores={props.scores}
             projectId={props.projectId}
             currentObservationId={currentObservationId}
+            traceId={props.trace.id}
           />
         )}
       </div>
@@ -67,13 +68,10 @@ export function Trace(props: {
   );
 }
 
-export function TracePage({
-  trace,
-}: {
-  trace: RouterOutput["traces"]["byId"];
-}) {
+export function TracePage({ traceId }: { traceId: string }) {
   const router = useRouter();
-  const totalCost = trace.observations.reduce(
+  const trace = api.traces.byId.useQuery({ traceId });
+  const totalCost = trace.data?.observations.reduce(
     (acc, o) => {
       if (!o.price) return acc;
 
@@ -84,6 +82,8 @@ export function TracePage({
     undefined as Decimal | undefined,
   );
 
+  if (!trace.data) return <div>loading...</div>;
+
   return (
     <div className="flex flex-col overflow-hidden xl:container lg:h-[calc(100vh-100px)] xl:h-[calc(100vh-50px)]">
       <Header
@@ -91,12 +91,12 @@ export function TracePage({
         actionButtons={
           <>
             <PublishTraceSwitch
-              traceId={trace.id}
-              projectId={trace.projectId}
-              isPublic={trace.public}
+              traceId={trace.data.id}
+              projectId={trace.data.projectId}
+              isPublic={trace.data.public}
             />
             <DetailPageNav
-              currentId={router.query.traceId as string}
+              currentId={traceId}
               path={(id) =>
                 `/project/${router.query.projectId as string}/traces/${id}`
               }
@@ -106,10 +106,10 @@ export function TracePage({
         }
       />
       <div className="flex gap-2">
-        {trace.userId ? (
-          <Badge variant="outline">User ID: {trace.userId}</Badge>
+        {trace.data.userId ? (
+          <Badge variant="outline">User ID: {trace.data.userId}</Badge>
         ) : null}
-        <TraceAggUsageBadge observations={trace.observations ?? []} />
+        <TraceAggUsageBadge observations={trace.data.observations ?? []} />
         {totalCost ? (
           <Badge variant="outline">
             Total cost: {totalCost.toString()} USD
@@ -118,11 +118,11 @@ export function TracePage({
       </div>
       <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
         <Trace
-          key={trace.id}
-          trace={trace}
-          scores={trace.scores}
-          projectId={trace.projectId}
-          observations={trace.observations ?? []}
+          key={trace.data.id}
+          trace={trace.data}
+          scores={trace.data.scores}
+          projectId={trace.data.projectId}
+          observations={trace.data.observations ?? []}
         />
       </div>
     </div>

@@ -26,10 +26,12 @@ export const ObservationPreview = (props: {
   projectId: string;
   scores: Score[];
   currentObservationId: string;
+  traceId: string;
 }) => {
-  const observationWithInputAndOutput = api.observations.byId.useQuery(
-    props.currentObservationId,
-  );
+  const observationWithInputAndOutput = api.observations.byId.useQuery({
+    observationId: props.currentObservationId,
+    traceId: props.traceId,
+  });
 
   const preloadedObservation = props.observations.find(
     (o) => o.id === props.currentObservationId,
