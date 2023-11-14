@@ -34,7 +34,6 @@ types:
         type: string
         docs: The unique identifier of a trace
       timestamp: datetime
-      externalId: optional<string>
       name: optional<string>
       release: optional<string>
       version: optional<string>
