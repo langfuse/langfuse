@@ -11,6 +11,7 @@ import {
 } from "@/src/pages/api/public/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
+import { mergeJson } from "@/src/utils/json";
 import {
   type Trace,
   type Observation,
@@ -19,6 +20,7 @@ import {
 } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
+import { jsonSchema } from "@/src/utils/zod";
 
 export interface EventProcessor {
   process(apiScope: ApiAccessScope): Promise<Trace | Observation | Score>;
@@ -65,7 +67,7 @@ export class ObservationProcessor implements EventProcessor {
 
     const existingObservation = id
       ? await prisma.observation.findUnique({
-          where: { id },
+          where: { id, projectId: apiScope.projectId },
         })
       : null;
 
@@ -95,16 +97,12 @@ export class ObservationProcessor implements EventProcessor {
     );
 
     // merge metadata from existingObservation.metadata and metadata
-    const mergedMetadata =
-      existingObservation && existingObservation.metadata && metadata
-        ? {
-            ...(typeof existingObservation?.metadata === "object"
-              ? existingObservation.metadata
-              : {}),
-            ...(typeof metadata === "object" ? metadata : {}),
-          }
-        : undefined;
-    console.log("mergedMetadata", mergedMetadata, body);
+    const mergedMetadata = mergeJson(
+      existingObservation?.metadata
+        ? jsonSchema.parse(existingObservation.metadata)
+        : undefined,
+      metadata ?? undefined,
+    );
 
     const observationId = id ?? v4();
     return {
@@ -231,6 +229,19 @@ export class TraceProcessor implements EventProcessor {
       body,
     );
 
+    const existingTrace = await prisma.trace.findUnique({
+      where: {
+        id: internalId,
+      },
+    });
+
+    const mergedMetadata = mergeJson(
+      existingTrace?.metadata
+        ? jsonSchema.parse(existingTrace.metadata)
+        : undefined,
+      body.metadata ?? undefined,
+    );
+
     const upsertedTrace = await prisma.trace.upsert({
       where: {
         id: internalId,
@@ -240,7 +251,7 @@ export class TraceProcessor implements EventProcessor {
         id: internalId,
         name: body.name ?? undefined,
         userId: body.userId ?? undefined,
-        metadata: body.metadata ?? undefined,
+        metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
         project: { connect: { id: apiScope.projectId } },
@@ -248,7 +259,7 @@ export class TraceProcessor implements EventProcessor {
       update: {
         name: body.name ?? undefined,
         userId: body.userId ?? undefined,
-        metadata: body.metadata ?? undefined,
+        metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
       },

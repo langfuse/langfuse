@@ -12,13 +12,13 @@ import {
   type singleEventSchema,
 } from "./ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
+import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
-import { type EventProcessor } from "./EventProcessor";
-import { ObservationProcessor } from "./EventProcessor";
-import { TraceProcessor } from "./EventProcessor";
-import { ScoreProcessor } from "./EventProcessor";
+import { type EventProcessor } from "../../../server/api/services/EventProcessor";
+import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
+import { TraceProcessor } from "../../../server/api/services/EventProcessor";
+import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 
 export default async function handler(
   req: NextApiRequest,
@@ -159,7 +159,7 @@ const handleSingleEvent = async (
     case eventTypes.TRACE_CREATE:
       processor = new TraceProcessor(event);
       break;
-    case eventTypes.OBSERVAION_CREATE:
+    case eventTypes.OBSERVATION_CREATE:
     case eventTypes.OBSERVAION_UPDATE:
       processor = new ObservationProcessor(event);
       break;

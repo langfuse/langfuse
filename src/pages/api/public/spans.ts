@@ -43,14 +43,13 @@ export default async function handler(
       const convertToObservation = (span: z.infer<typeof SpanPostSchema>) => {
         return {
           ...span,
-          id: span.id,
           type: "SPAN",
         };
       };
 
       const event = {
         id: v4(),
-        type: eventTypes.OBSERVAION_CREATE,
+        type: eventTypes.OBSERVATION_CREATE,
         timestamp: new Date().toISOString(),
         body: convertToObservation(SpanPostSchema.parse(req.body)),
       };

@@ -134,7 +134,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
   });
 
-  it("should create generation after trace based on externalId", async () => {
+  it("should create generation after trace ignoring externalId", async () => {
     const traceId = uuidv4();
 
     const response = await makeAPICall("POST", "/api/public/traces", {

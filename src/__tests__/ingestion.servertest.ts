@@ -23,7 +23,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-1",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
             metadata: { key: "value" },
             release: "1.0.0",
             version: "2.0.0",
@@ -166,7 +165,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-1",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
             metadata: { key: "value" },
             release: "1.0.0",
             version: "2.0.0",
@@ -186,7 +184,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-2",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
         },
       ],
@@ -225,7 +222,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-1",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
             metadata: { key: "value" },
             release: "1.0.0",
             version: "2.0.0",
@@ -258,7 +254,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-1",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
         },
         {
@@ -326,7 +321,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-1",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
         },
         {
@@ -393,7 +387,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-1",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
             metadata: { key: "value" },
             release: "1.0.0",
             version: "2.0.0",
@@ -407,7 +400,6 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-1",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
             metadata: { key: "value" },
             release: null,
             version: null,
@@ -434,6 +426,26 @@ describe("/api/public/ingestion API Endpoint", () => {
       output: { a: "a", b: "b" },
     },
     {
+      inputs: [[{ a: "a" }], [{ b: "b" }]],
+      output: [{ a: "a", b: "b" }],
+    },
+    {
+      inputs: [
+        {
+          a: {
+            "1": 1,
+          },
+        },
+        {
+          b: "b",
+          a: {
+            "2": 2,
+          },
+        },
+      ],
+      output: { a: { "1": 1, "2": 2 }, b: "b" },
+    },
+    {
       inputs: [{ a: "a" }, undefined],
       output: { a: "a" },
     },
@@ -458,9 +470,17 @@ describe("/api/public/ingestion API Endpoint", () => {
               id: traceId,
               name: "trace-name",
               userId: "user-1",
-              projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-              release: "1.0.0",
-              version: "2.0.0",
+              metadata: inputs[0],
+            },
+          },
+          {
+            id: v4(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: traceId,
+              name: "trace-name",
+              metadata: inputs[1],
             },
           },
           {
@@ -490,6 +510,15 @@ describe("/api/public/ingestion API Endpoint", () => {
       });
       expect(responseOne.status).toBe(201);
 
+      const dbTrace = await prisma.trace.findMany({
+        where: {
+          name: "trace-name",
+        },
+      });
+
+      expect(dbTrace.length).toEqual(1);
+      expect(dbTrace[0]?.metadata).toEqual(output);
+
       const dbGeneration = await prisma.observation.findMany({
         where: {
           name: "generation-name",
@@ -514,7 +543,6 @@ describe("/api/public/ingestion API Endpoint", () => {
           body: {
             id: traceId,
             name: "trace-name",
-            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
         },
         {

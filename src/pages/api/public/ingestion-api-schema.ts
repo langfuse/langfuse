@@ -151,7 +151,7 @@ export const ScoreSchema = z.object({
 
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
-  OBSERVAION_CREATE: "observation-create",
+  OBSERVATION_CREATE: "observation-create",
   OBSERVAION_UPDATE: "observation-update",
   SCORE_CREATE: "score-create",
 } as const;
@@ -164,7 +164,7 @@ export const traceEvent = base.extend({
   body: TraceSchema,
 });
 export const observationEvent = base.extend({
-  type: z.literal(eventTypes.OBSERVAION_CREATE),
+  type: z.literal(eventTypes.OBSERVATION_CREATE),
   body: ObservationSchema,
 });
 export const observationUpdateEvent = base.extend({

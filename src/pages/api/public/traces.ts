@@ -53,7 +53,7 @@ export default async function handler(
 
       const body = TraceSchema.parse(req.body);
       const event = {
-        id: body.id ?? v4(),
+        id: v4(),
         type: eventTypes.TRACE_CREATE,
         timestamp: new Date().toISOString(),
         body: body,

@@ -50,7 +50,7 @@ export default async function handler(
 
     const event = {
       id: uuidv4(),
-      type: eventTypes.OBSERVAION_CREATE,
+      type: eventTypes.OBSERVATION_CREATE,
       timestamp: new Date().toISOString(),
       body: convertToObservation(EventSchema.parse(req.body)),
     };

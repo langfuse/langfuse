@@ -114,9 +114,7 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
   });
 
-  it("should create span after trace based on externalId", async () => {
-    await pruneDatabase();
-
+  it("should create span after trace ignoring externalId", async () => {
     const traceId = uuidv4();
     const spanId = uuidv4();
 
