@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
-import { deepParseJson, parseJson } from "@/src/utils/json";
+import { deepParseJson } from "@/src/utils/json";
 
 export function JSONView(props: {
   json?: unknown;
@@ -11,25 +11,13 @@ export function JSONView(props: {
   className?: string;
   isLoading?: boolean;
 }) {
-  const isCompletion =
-    props.json &&
-    typeof props.json === "object" &&
-    Object.keys(props.json).length === 1 &&
-    "completion" in props.json &&
-    typeof props.json.completion === "string";
-
-  // some users ingest stringified json, parse it
-  const json = isCompletion
-    ? parseJson((props.json as { completion: string }).completion)
-    : props.json;
-
   // some users ingest stringified json nested in json, parse it
-  const parsedJson = deepParseJson(json);
+  const parsedJson = deepParseJson(props.json);
 
   return (
     <div className={cn("max-w-full rounded-md border ", props.className)}>
       {props.title ? (
-        <div className="border-b px-4 py-1 text-xs font-medium">
+        <div className="border-b px-3 py-1 text-xs font-medium">
           {props.title}
         </div>
       ) : undefined}
@@ -71,7 +59,7 @@ export function CodeView(props: {
   return (
     <div className={cn("max-w-full rounded-md border ", props.className)}>
       {props.title ? (
-        <div className="border-b px-4 py-1 text-xs font-medium">
+        <div className="border-b px-3 py-1 text-xs font-medium">
           {props.title}
         </div>
       ) : undefined}
