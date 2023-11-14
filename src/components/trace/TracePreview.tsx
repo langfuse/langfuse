@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/code";
-import { type Trace, type Observation, type Score } from "@prisma/client";
+import { type Trace, type Score } from "@prisma/client";
 import {
   Card,
   CardContent,
@@ -19,6 +19,7 @@ import {
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import { ManualScoreButton } from "@/src/features/manual-scoring/components";
 import { Badge } from "@/src/components/ui/badge";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
 export const TracePreview = ({
   trace,
@@ -26,7 +27,7 @@ export const TracePreview = ({
   scores,
 }: {
   trace: Trace;
-  observations: Observation[];
+  observations: ObservationReturnType[];
   scores: Score[];
 }) => {
   return (
