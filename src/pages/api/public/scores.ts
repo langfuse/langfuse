@@ -13,7 +13,7 @@ import {
 import { v4 } from "uuid";
 import {
   handleBatch,
-  handleBatchResult,
+  handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 
 const ScoresGetSchema = z.object({
@@ -60,7 +60,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResult(result.errors, result.results, res);
+      handleBatchResultLegacy(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =

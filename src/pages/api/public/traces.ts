@@ -7,7 +7,7 @@ import { Prisma, type Trace } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import {
   handleBatch,
-  handleBatchResult,
+  handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import {
   TraceSchema,
@@ -60,7 +60,7 @@ export default async function handler(
       };
 
       const result = await handleBatch([event], req, authCheck);
-      handleBatchResult(result.errors, result.results, res);
+      handleBatchResultLegacy(result.errors, result.results, res);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({

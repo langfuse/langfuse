@@ -11,7 +11,7 @@ import {
 } from "./ingestion-api-schema";
 import {
   handleBatch,
-  handleBatchResult,
+  handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
 
@@ -64,7 +64,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResult(result.errors, result.results, res);
+      handleBatchResultLegacy(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
@@ -108,7 +108,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResult(result.errors, result.results, res);
+      handleBatchResultLegacy(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
 

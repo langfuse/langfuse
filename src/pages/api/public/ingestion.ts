@@ -5,11 +5,11 @@ import {
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type z } from "zod";
+import { z } from "zod";
 import {
-  ingestionApiSchema,
+  type ingestionApiSchema,
   eventTypes,
-  type singleEventSchema,
+  singleEventSchema,
 } from "./ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -19,6 +19,7 @@ import { type EventProcessor } from "../../../server/api/services/EventProcessor
 import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
 import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
+import { isNotNullOrUndefined, isUndefinedOrNull } from "@/src/utils/types";
 
 export default async function handler(
   req: NextApiRequest,
@@ -46,20 +47,44 @@ export default async function handler(
         message: "Access denied",
       });
 
-    const parsedSchema = ingestionApiSchema.safeParse(req.body);
+    const batchType = z.object({ batch: z.array(z.unknown()) });
+    const parsedSchema = batchType.safeParse(req.body);
 
     if (!parsedSchema.success) {
-      console.log("Invalid request data", parsedSchema.error, req.body);
+      console.log("Invalid request data", parsedSchema.error);
       return res.status(400).json({
         message: "Invalid request data",
-        errors: parsedSchema.error,
+        errors: parsedSchema.error.issues.map((issue) => issue.message),
       });
     }
 
-    const sortedBatch = sortBatch(parsedSchema.data.batch);
+    const errors: { id: string; error: unknown }[] = [];
+
+    const batch: (z.infer<typeof singleEventSchema> | undefined)[] =
+      parsedSchema.data.batch.map((event) => {
+        const parsed = singleEventSchema.safeParse(event);
+        if (!parsed.success) {
+          errors.push({
+            id:
+              typeof event === "object" && event && "id" in event
+                ? typeof event.id === "string"
+                  ? event.id
+                  : "unknown"
+                : "unknown",
+            error: new BadRequestError(parsed.error.message),
+          });
+          return undefined;
+        } else {
+          return parsed.data;
+        }
+      });
+    const filteredBatch: z.infer<typeof singleEventSchema>[] =
+      batch.filter(isNotNullOrUndefined);
+
+    const sortedBatch = sortBatch(filteredBatch);
     const result = await handleBatch(sortedBatch, req, authCheck);
 
-    handleBatchResult(result.errors, result.results, res);
+    handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
@@ -100,14 +125,13 @@ export const handleBatch = async (
       const result = await retry(async () => {
         return await handleSingleEvent(singleEvent, req, authCheck.scope);
       });
-      results.push(result); // Push each result into the array
+      results.push({ result: result, id: singleEvent.id }); // Push each result into the array
     } catch (error) {
       // Handle or log the error if `handleSingleEvent` fails
       console.error("Error handling event:", error);
       // Decide how to handle the error: rethrow, continue, or push an error object to results
       // For example, push an error object:
-      errors.push(error);
-      results.push({ error: "Error processing event", details: error });
+      errors.push({ error: error, id: singleEvent.id });
     }
   }
 
@@ -194,6 +218,62 @@ export class AuthenticationError extends Error {
 }
 
 export const handleBatchResult = (
+  errors: Array<{ id: string; error: unknown }>,
+  results: Array<{ id: string; result: unknown }>,
+  res: NextApiResponse,
+) => {
+  const returnedErrors: {
+    id: string;
+    status: number;
+    message?: string;
+    error?: string;
+  }[] = [];
+
+  const successes: {
+    id: string;
+    status: number;
+  }[] = [];
+
+  errors.forEach((error) => {
+    if (error.error instanceof BadRequestError) {
+      returnedErrors.push({
+        id: error.id,
+        status: 400,
+        message: "Invalid request data",
+        error: error.error.message,
+      });
+    } else if (error.error instanceof ResourceNotFoundError) {
+      if (!errors.some((res) => res.id === error.id)) {
+        returnedErrors.push({
+          id: error.id,
+          status: 404,
+          message: "Resource not found",
+          error: error.error.message,
+        });
+      }
+    } else {
+      if (!errors.some((res) => res.id === error.id)) {
+        returnedErrors.push({
+          id: error.id,
+          status: 500,
+          message: "Error processing events",
+          error: "Internal Server Error",
+        });
+      }
+    }
+  });
+
+  results.forEach((result) => {
+    successes.push({
+      id: result.id,
+      status: 201,
+    });
+  });
+
+  return res.status(207).send({ errors: returnedErrors, successes });
+};
+
+export const handleBatchResultLegacy = (
   errors: Array<unknown>,
   results: Array<unknown>,
   res: NextApiResponse,

@@ -86,7 +86,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     });
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(207);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -172,7 +172,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       ],
     });
-    expect(responseOne.status).toBe(201);
+    expect(responseOne.status).toBe(207);
 
     const responseTwo = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
@@ -189,7 +189,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     });
 
-    expect(responseTwo.status).toBe(201);
+    expect(responseTwo.status).toBe(207);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -229,7 +229,14 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       ],
     });
-    expect(responseOne.status).toBe(400);
+    expect(responseOne.status).toBe(207);
+
+    expect("errors" in responseOne.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(responseOne.body?.errors.length).toBe(1);
+    expect("successes" in responseOne.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(responseOne.body?.successes.length).toBe(1);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -237,7 +244,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       },
     });
 
-    expect(dbTrace.length).toBe(0);
+    expect(dbTrace.length).toBe(1);
   });
 
   it("should update all token counts if update does not contain model name", async () => {
@@ -281,7 +288,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       ],
     });
-    expect(responseOne.status).toBe(201);
+    expect(responseOne.status).toBe(207);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -348,7 +355,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       ],
     });
-    expect(responseOne.status).toBe(201);
+    expect(responseOne.status).toBe(207);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -407,7 +414,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       ],
     });
-    expect(responseOne.status).toBe(201);
+    expect(responseOne.status).toBe(207);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -508,7 +515,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           },
         ],
       });
-      expect(responseOne.status).toBe(201);
+      expect(responseOne.status).toBe(207);
 
       const dbTrace = await prisma.trace.findMany({
         where: {
@@ -559,7 +566,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       ],
     });
-    expect(responseOne.status).toBe(201);
+    expect(responseOne.status).toBe(207);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
