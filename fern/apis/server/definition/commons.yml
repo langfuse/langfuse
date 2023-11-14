@@ -4,7 +4,6 @@ types:
     properties:
       id: optional<string>
       traceId: optional<string>
-      traceIdType: optional<TraceIdTypeEnum>
       name: optional<string>
       startTime: optional<datetime>
       metadata: optional<unknown>
@@ -35,7 +34,6 @@ types:
         type: string
         docs: The unique identifier of a trace
       timestamp: datetime
-      externalId: optional<string>
       name: optional<string>
       release: optional<string>
       version: optional<string>
@@ -135,10 +133,6 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
-  TraceIdTypeEnum:
-    enum:
-      - LANGFUSE
-      - EXTERNAL
   LLMUsage:
     properties:
       promptTokens: optional<integer>

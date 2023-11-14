@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    batch:
+      docs: Ingest multiple events to Langfuse
+      method: POST
+      path: /ingestion
+      request:
+        name: IngestionRequest
+        body:
+          properties:
+            batch: list<IngestionEvent>
+      response: commons.Score
+
+types:
+  IngestionEvent:
+    discriminant: "type"
+    union:
+      trace-create: TraceEvent
+      score-create: ScoreEvent
+      observation-create: ObservationCreateEvent
+      observation-update: ObservationUpdateEvent
+
+  TraceEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: commons.Trace
+  ObservationCreateEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: commons.Observation
+  ObservationUpdateEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: commons.Observation
+  ScoreEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: commons.Score
