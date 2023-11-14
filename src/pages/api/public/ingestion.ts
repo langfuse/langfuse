@@ -19,7 +19,7 @@ import { type EventProcessor } from "../../../server/api/services/EventProcessor
 import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
 import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
-import { isNotNullOrUndefined, isUndefinedOrNull } from "@/src/utils/types";
+import { isNotNullOrUndefined } from "@/src/utils/types";
 
 export default async function handler(
   req: NextApiRequest,
