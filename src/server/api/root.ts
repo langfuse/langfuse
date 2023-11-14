@@ -11,6 +11,7 @@ import { publishTracesRouter } from "@/src/features/public-traces/server/publish
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
 import { environmentRouter } from "@/src/server/api/routers/environment";
 import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
+import { observationsRouter } from "@/src/server/api/routers/observations";
 
 /**
  * This is the primary router for your server.
@@ -30,6 +31,7 @@ export const appRouter = createTRPCRouter({
   datasets: datasetRouter,
   environment: environmentRouter,
   usageMetering: usageMeteringRouter,
+  observations: observationsRouter,
 });
 
 // export type definition of API

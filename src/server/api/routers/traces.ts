@@ -6,7 +6,12 @@ import {
   protectedProjectProcedure,
   publicProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Score, type Trace } from "@prisma/client";
+import {
+  type Observation,
+  Prisma,
+  type Score,
+  type Trace,
+} from "@prisma/client";
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
@@ -26,6 +31,10 @@ const TraceFilterOptions = z.object({
   filter: z.array(singleFilter).nullable(),
   ...paginationZod,
 });
+
+export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
+  traceId: string;
+} & { price?: Decimal };
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -224,6 +233,27 @@ export const traceRouter = createTRPCRouter({
         },
       }),
       ctx.prisma.observation.findMany({
+        // select: {
+        //   id: true,
+        //   traceId: true,
+        //   projectId: true,
+        //   type: true,
+        //   startTime: true,
+        //   endTime: true,
+        //   name: true,
+        //   metadata: true,
+        //   parentObservationId: true,
+        //   level: true,
+        //   statusMessage: true,
+        //   version: true,
+        //   createdAt: true,
+        //   model: true,
+        //   modelParameters: true,
+        //   promptTokens: true,
+        //   completionTokens: true,
+        //   totalTokens: true,
+        //   completionStartTime: true,
+        // },
         where: {
           traceId: {
             equals: input,
@@ -263,28 +293,28 @@ export const traceRouter = createTRPCRouter({
           : undefined
         : undefined;
 
-    const enrichedObservations = observations.map((observation) => {
-      return {
-        ...observation,
-        price: observation.model
-          ? calculateTokenCost(pricings, {
-              model: observation.model,
-              totalTokens: new Decimal(observation.totalTokens),
-              promptTokens: new Decimal(observation.promptTokens),
-              completionTokens: new Decimal(observation.completionTokens),
-              input: observation.input,
-              output: observation.output,
-            })
-          : undefined,
-      };
-    });
+    const enrichedObservations = observations.map(
+      ({ input, output, ...rest }) => {
+        return {
+          ...rest,
+          price: rest.model
+            ? calculateTokenCost(pricings, {
+                model: rest.model,
+                totalTokens: new Decimal(rest.totalTokens),
+                promptTokens: new Decimal(rest.promptTokens),
+                completionTokens: new Decimal(rest.completionTokens),
+                input: input,
+                output: output,
+              })
+            : undefined,
+        };
+      },
+    );
 
     return {
       ...trace,
       latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-      observations: enrichedObservations as Array<
-        (typeof observations)[0] & { traceId: string } & { price?: Decimal }
-      >,
+      observations: enrichedObservations as ObservationReturnType[],
     };
   }),
 

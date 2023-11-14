@@ -1,4 +1,4 @@
-import { type Trace, type Observation, type Score } from "@prisma/client";
+import { type Trace, type Score } from "@prisma/client";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -12,9 +12,10 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/features/public-traces/components/PublishTraceSwitch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
 export function Trace(props: {
-  observations: Array<Observation & { traceId: string }>;
+  observations: Array<ObservationReturnType>;
   trace: Trace;
   scores: Score[];
   projectId: string;
@@ -36,7 +37,9 @@ export function Trace(props: {
         />
       </div>
       <div className="col-span-2 h-full overflow-y-auto">
-        {currentObservationId === undefined || currentObservationId === "" ? (
+        {currentObservationId === undefined ||
+        currentObservationId === "" ||
+        currentObservationId === null ? (
           <TracePreview
             trace={props.trace}
             observations={props.observations}
@@ -47,7 +50,7 @@ export function Trace(props: {
             observations={props.observations}
             scores={props.scores}
             projectId={props.projectId}
-            currentObservationId={currentObservationId ?? undefined}
+            currentObservationId={currentObservationId}
           />
         )}
       </div>
