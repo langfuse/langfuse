@@ -2,10 +2,9 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Generation } from "@/src/utils/types";
+
 import { type Observation, Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
