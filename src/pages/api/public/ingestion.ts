@@ -305,5 +305,5 @@ export const handleBatchResultLegacy = (
     });
   }
 
-  return res.status(201).send(results.length > 0 ? results[0] : {});
+  return res.status(201).send(results.length > 0 ? results[0]?.result : {});
 };
