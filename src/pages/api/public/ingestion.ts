@@ -274,11 +274,13 @@ export const handleBatchResult = (
 };
 
 export const handleBatchResultLegacy = (
-  errors: Array<unknown>,
-  results: Array<unknown>,
+  errors: Array<{ id: string; error: unknown }>,
+  results: Array<{ id: string; result: unknown }>,
   res: NextApiResponse,
 ) => {
-  const badRequestErrors = getBadRequestError(errors);
+  const unknownErrors = errors.map((error) => error.error);
+
+  const badRequestErrors = getBadRequestError(unknownErrors);
   if (badRequestErrors.length > 0) {
     console.log("Bad request errors", badRequestErrors);
     return res.status(400).json({
@@ -287,7 +289,7 @@ export const handleBatchResultLegacy = (
     });
   }
 
-  const ResourceNotFoundError = getResourceNotFoundError(errors);
+  const ResourceNotFoundError = getResourceNotFoundError(unknownErrors);
   if (ResourceNotFoundError.length > 0) {
     return res.status(404).json({
       message: "Resource not found",
@@ -296,7 +298,7 @@ export const handleBatchResultLegacy = (
   }
 
   if (errors.length > 0) {
-    console.log("Error processing events", errors);
+    console.log("Error processing events", unknownErrors);
     return res.status(500).json({
       message: "Error processing events",
       errors: ["Internal Server Error"],
