@@ -29,7 +29,6 @@ types:
     properties:
       id: optional<string>
       traceId: string
-      traceIdType: optional<commons.TraceIdTypeEnum>
       name: string
       value: double
       observationId: optional<string>

@@ -4,19 +4,16 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@prisma/client";
-import { v4 as uuidv4 } from "uuid";
-import { jsonSchema, paginationZod } from "@/src/utils/zod";
-import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-
-const CreateTraceSchema = z.object({
-  id: z.string().nullish(),
-  name: z.string().nullish(),
-  externalId: z.string().nullish(),
-  userId: z.string().nullish(),
-  metadata: jsonSchema.nullish(),
-  release: z.string().nullish(),
-  version: z.string().nullish(),
-});
+import { paginationZod } from "@/src/utils/zod";
+import {
+  handleBatch,
+  handleBatchResultLegacy,
+} from "@/src/pages/api/public/ingestion";
+import {
+  TraceSchema,
+  eventTypes,
+} from "@/src/pages/api/public/ingestion-api-schema";
+import { v4 } from "uuid";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
@@ -36,7 +33,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -49,84 +45,25 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
 
-      const { id, name, metadata, externalId, userId, release, version } =
-        CreateTraceSchema.parse(req.body);
-
-      // CHECK ACCESS SCOPE
       if (authCheck.scope.accessLevel !== "all")
         return res.status(403).json({
-          success: false,
           message: "Access denied",
         });
-      // END CHECK ACCESS SCOPE
 
-      if (id && externalId)
-        return res.status(400).json({
-          success: false,
-          message: "Cannot create trace with both id and externalId",
-        });
+      const body = TraceSchema.parse(req.body);
+      const event = {
+        id: v4(),
+        type: eventTypes.TRACE_CREATE,
+        timestamp: new Date().toISOString(),
+        body: body,
+      };
 
-      if (externalId) {
-        // For traces created with external ids, allow upserts
-        const newTrace = await prisma.trace.upsert({
-          where: {
-            projectId_externalId: {
-              externalId: externalId,
-              projectId: authCheck.scope.projectId,
-            },
-          },
-          create: {
-            timestamp: new Date(),
-            projectId: authCheck.scope.projectId,
-            externalId: externalId,
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-          update: {
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-        });
-        res.status(200).json(newTrace);
-      } else {
-        const internalId = id ?? uuidv4();
-
-        const newTrace = await prisma.trace.upsert({
-          where: {
-            id: internalId,
-            projectId: authCheck.scope.projectId,
-          },
-          create: {
-            id: internalId,
-            projectId: authCheck.scope.projectId,
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-          update: {
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-        });
-        res.status(200).json(newTrace);
-      }
+      const result = await handleBatch([event], req, authCheck);
+      handleBatchResultLegacy(result.errors, result.results, res);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          success: false,
           message:
             "Access denied - need to use basic auth with secret key to GET scores",
         });
@@ -192,7 +129,6 @@ export default async function handler(
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });
