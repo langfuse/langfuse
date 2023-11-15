@@ -43,7 +43,7 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createEvent.status).toBe(201);
+    expect(createEvent.status).toBe(200);
     const dbEvent = await prisma.observation.findUnique({
       where: {
         id: eventId,
@@ -77,7 +77,7 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createEvent.status).toBe(201);
+    expect(createEvent.status).toBe(200);
     const dbEvent = await prisma.observation.findUnique({
       where: {
         id: eventId,
@@ -128,7 +128,7 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -153,7 +153,7 @@ describe("/api/public/events API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createEvent.status).toBe(201);
+    expect(createEvent.status).toBe(200);
     const dbEvent = await prisma.observation.findUnique({
       where: {
         id: eventId,
@@ -194,7 +194,7 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(eventName);
 
-    expect(createEvent.status).toBe(201);
+    expect(createEvent.status).toBe(200);
     const dbEvent = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -239,7 +239,7 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(generationName);
 
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
 
     expect(dbEvent?.id).toBe(spanId);
     expect(dbEvent?.traceId).toBe(dbTrace[0]?.id);

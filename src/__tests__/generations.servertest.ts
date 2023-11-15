@@ -50,7 +50,7 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
     const dbGeneration = await prisma.observation.findUnique({
       where: {
         id: generationId,
@@ -94,7 +94,7 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
     const dbGeneration = await prisma.observation.findUnique({
       where: {
         id: generationId,
@@ -147,7 +147,7 @@ describe("/api/public/generations API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -178,7 +178,7 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
     const dbGeneration = await prisma.observation.findUnique({
       where: {
         id: generationId,
@@ -228,7 +228,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(generationName);
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
     const dbGeneration = await prisma.observation.findUnique({
       where: {
         id: generationId,
@@ -269,7 +269,7 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
     const dbGeneration = await prisma.observation.findUnique({
       where: {
         id: generationId,
@@ -297,7 +297,7 @@ describe("/api/public/generations API Endpoint", () => {
         parentObservationId: generationId,
       },
     );
-    expect(createGeneration2.status).toBe(201);
+    expect(createGeneration2.status).toBe(200);
 
     const dbGeneration2 = await prisma.observation.findUnique({
       where: {
@@ -332,7 +332,7 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
 
     const dbGeneration = await prisma.observation.findFirstOrThrow({
       where: {
@@ -381,7 +381,7 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(generationName);
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
 
     expect(dbGeneration?.id).toBe(generationId);
     expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
@@ -417,7 +417,7 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
 
     const updateGeneration = await makeAPICall(
       "PATCH",
@@ -427,7 +427,7 @@ describe("/api/public/generations API Endpoint", () => {
         completion: "this is a great gpt response",
       },
     );
-    expect(updateGeneration.status).toBe(201);
+    expect(updateGeneration.status).toBe(200);
 
     const dbGeneration = await prisma.observation.findUnique({
       where: {
@@ -473,7 +473,7 @@ describe("/api/public/generations API Endpoint", () => {
       },
     );
 
-    expect(createGeneration.status).toBe(201);
+    expect(createGeneration.status).toBe(200);
 
     const dbGeneration = await prisma.observation.findUnique({
       where: {

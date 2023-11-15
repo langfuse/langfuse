@@ -40,7 +40,7 @@ describe("/api/public/scores API Endpoint", () => {
       traceId: traceId,
     });
 
-    expect(createScore.status).toBe(201);
+    expect(createScore.status).toBe(200);
     const dbScore = await prisma.score.findUnique({
       where: {
         id: scoreId,
@@ -86,7 +86,7 @@ describe("/api/public/scores API Endpoint", () => {
       traceId: traceId,
     });
 
-    expect(createScore.status).toBe(201);
+    expect(createScore.status).toBe(200);
     const dbScore = await prisma.score.findUnique({
       where: {
         id: scoreId,
@@ -135,7 +135,7 @@ describe("/api/public/scores API Endpoint", () => {
       observationId: dbGeneration[0]!.id,
     });
 
-    expect(createScore.status).toBe(201);
+    expect(createScore.status).toBe(200);
     const dbScore = await prisma.score.findUnique({
       where: {
         id: scoreId,

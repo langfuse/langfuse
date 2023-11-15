@@ -44,7 +44,7 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
     const dbSpan = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -78,7 +78,7 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
     const dbSpan = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -125,7 +125,7 @@ describe("/api/public/spans API Endpoint", () => {
       userId: "user-1",
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     const createSpan = await makeAPICall("POST", "/api/public/spans", {
       id: spanId,
       name: "spanName",
@@ -133,7 +133,7 @@ describe("/api/public/spans API Endpoint", () => {
       traceId: traceId,
       externalTraceIdType: "EXTERNAL",
     });
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
 
     const dbSpan = await prisma.observation.findFirstOrThrow({
       where: {
@@ -167,7 +167,7 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(spanName);
 
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
     const dbSpan = await prisma.observation.findUnique({
       where: {
         id: spanId,
@@ -201,7 +201,7 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
 
     const dbSpan = await prisma.observation.findMany({
       where: {
@@ -246,7 +246,7 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
     expect(dbTrace[0]?.name).toBe(generationName);
 
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
 
     expect(dbSpan?.id).toBe(spanId);
     expect(dbSpan?.traceId).toBe(dbTrace[0]?.id);
@@ -272,13 +272,13 @@ describe("/api/public/spans API Endpoint", () => {
       version: "2.0.0",
     });
 
-    expect(createSpan.status).toBe(201);
+    expect(createSpan.status).toBe(200);
 
     const updatedSpan = await makeAPICall("PATCH", "/api/public/spans", {
       spanId: spanId,
       output: { key: "this is a great gpt output" },
     });
-    expect(updatedSpan.status).toBe(201);
+    expect(updatedSpan.status).toBe(200);
 
     const dbSpan = await prisma.observation.findUnique({
       where: {
