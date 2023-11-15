@@ -266,7 +266,7 @@ export const handleBatchResult = (
   results.forEach((result) => {
     successes.push({
       id: result.id,
-      status: 201,
+      status: 200,
     });
   });
 
@@ -304,5 +304,5 @@ export const handleBatchResultLegacy = (
       errors: ["Internal Server Error"],
     });
   }
-  return res.status(201).send(results.length > 0 ? results[0]?.result : {});
+  return res.status(200).send(results.length > 0 ? results[0]?.result : {});
 };
