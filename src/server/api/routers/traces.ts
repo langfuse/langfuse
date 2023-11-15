@@ -2,11 +2,15 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
+  protectedGetTraceProcedure,
   protectedProjectProcedure,
-  publicProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Score, type Trace } from "@prisma/client";
+import {
+  type Observation,
+  Prisma,
+  type Score,
+  type Trace,
+} from "@prisma/client";
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
@@ -26,6 +30,10 @@ const TraceFilterOptions = z.object({
   filter: z.array(singleFilter).nullable(),
   ...paginationZod,
 });
+
+export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
+  traceId: string;
+} & { price?: Decimal };
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -202,102 +210,13 @@ export const traceRouter = createTRPCRouter({
       };
       return res;
     }),
-  byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
-    const [trace, observations, pricings] = await Promise.all([
-      ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input,
-          ...(ctx.session.user.admin === true
-            ? undefined
-            : {
-                project: {
-                  members: {
-                    some: {
-                      userId: ctx.session.user.id,
-                    },
-                  },
-                },
-              }),
-        },
-        include: {
-          scores: true,
-        },
-      }),
-      ctx.prisma.observation.findMany({
-        where: {
-          traceId: {
-            equals: input,
-            not: null,
-          },
-          ...(ctx.session.user.admin === true
-            ? undefined
-            : {
-                project: {
-                  members: {
-                    some: {
-                      userId: ctx.session.user.id,
-                    },
-                  },
-                },
-              }),
-        },
-      }),
-      ctx.prisma.pricing.findMany(),
-    ]);
-
-    const obsStartTimes = observations
-      .map((o) => o.startTime)
-      .sort((a, b) => a.getTime() - b.getTime());
-    const obsEndTimes = observations
-      .map((o) => o.endTime)
-      .filter((t) => t)
-      .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
-    const latencyMs =
-      obsStartTimes.length > 0
-        ? obsEndTimes.length > 0
-          ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
-            obsStartTimes[0]!.getTime()
-          : obsStartTimes.length > 1
-          ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-            obsStartTimes[0]!.getTime()
-          : undefined
-        : undefined;
-
-    const enrichedObservations = observations.map((observation) => {
-      return {
-        ...observation,
-        price: observation.model
-          ? calculateTokenCost(pricings, {
-              model: observation.model,
-              totalTokens: new Decimal(observation.totalTokens),
-              promptTokens: new Decimal(observation.promptTokens),
-              completionTokens: new Decimal(observation.completionTokens),
-              input: observation.input,
-              output: observation.output,
-            })
-          : undefined,
-      };
-    });
-
-    return {
-      ...trace,
-      latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-      observations: enrichedObservations as Array<
-        (typeof observations)[0] & { traceId: string } & { price?: Decimal }
-      >,
-    };
-  }),
-
-  // exact copy of previoud byId, but without the project member check
-  // output must be the same as consumed by the same component
-  byIdPublic: publicProcedure
-    .input(z.string())
+  byId: protectedGetTraceProcedure
+    .input(z.object({ traceId: z.string() }))
     .query(async ({ input, ctx }) => {
       const [trace, observations, pricings] = await Promise.all([
-        ctx.prisma.trace.findFirst({
+        ctx.prisma.trace.findFirstOrThrow({
           where: {
-            id: input,
-            public: true,
+            id: input.traceId,
           },
           include: {
             scores: true,
@@ -306,33 +225,13 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.observation.findMany({
           where: {
             traceId: {
-              equals: input,
+              equals: input.traceId,
               not: null,
             },
           },
         }),
         ctx.prisma.pricing.findMany(),
       ]);
-
-      if (!trace) {
-        return null;
-      }
-
-      const enrichedObservations = observations.map((observation) => {
-        return {
-          ...observation,
-          price: observation.model
-            ? calculateTokenCost(pricings, {
-                model: observation.model,
-                totalTokens: new Decimal(observation.totalTokens),
-                promptTokens: new Decimal(observation.promptTokens),
-                completionTokens: new Decimal(observation.completionTokens),
-                input: observation.input,
-                output: observation.output,
-              })
-            : undefined,
-        };
-      });
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -352,12 +251,28 @@ export const traceRouter = createTRPCRouter({
             : undefined
           : undefined;
 
+      const enrichedObservations = observations.map(
+        ({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            price: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })
+              : undefined,
+          };
+        },
+      );
+
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        observations: enrichedObservations as Array<
-          (typeof observations)[0] & { traceId: string } & { price?: Decimal }
-        >,
+        observations: enrichedObservations as ObservationReturnType[],
       };
     }),
 });

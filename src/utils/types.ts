@@ -5,8 +5,9 @@ import {
   type DateTimeAggregationOption,
   dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
-export type NestedObservation = Observation & {
+export type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];
 };
 
@@ -36,9 +37,12 @@ export type Generation = Observation & {
 export type RouterInput = inferRouterInputs<AppRouter>;
 export type RouterOutput = inferRouterOutputs<AppRouter>;
 
-export const isNotUndefinedOrNull = <T>(
+export const isUndefinedOrNull = <T>(val?: T | null): val is undefined | null =>
+  val === undefined || val === null;
+
+export const isNotNullOrUndefined = <T>(
   val?: T | null,
-): val is undefined | null => val !== undefined || val !== null;
+): val is Exclude<T, null | undefined> => !isUndefinedOrNull(val);
 
 export function isValidOption(
   value: unknown,

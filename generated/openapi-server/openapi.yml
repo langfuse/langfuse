@@ -412,6 +412,64 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateGenerationRequest'
+  /api/public/ingestion:
+    post:
+      description: Ingest multiple events to Langfuse
+      operationId: ingestion_batch
+      tags:
+        - Ingestion
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Score'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batch:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/IngestionEvent'
+              required:
+                - batch
   /api/public/observations/{observationId}:
     get:
       description: Get a specific observation
@@ -954,9 +1012,6 @@ components:
         traceId:
           type: string
           nullable: true
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeEnum'
-          nullable: true
         name:
           type: string
           nullable: true
@@ -1027,9 +1082,6 @@ components:
         timestamp:
           type: string
           format: date-time
-        externalId:
-          type: string
-          nullable: true
         name:
           type: string
           nullable: true
@@ -1308,12 +1360,6 @@ components:
           nullable: true
         - type: boolean
           nullable: true
-    TraceIdTypeEnum:
-      title: TraceIdTypeEnum
-      type: string
-      enum:
-        - LANGFUSE
-        - EXTERNAL
     LLMUsage:
       title: LLMUsage
       type: object
@@ -1415,6 +1461,109 @@ components:
           nullable: true
       required:
         - generationId
+    IngestionEvent:
+      title: IngestionEvent
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - trace-create
+            - $ref: '#/components/schemas/TraceEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - score-create
+            - $ref: '#/components/schemas/ScoreEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - observation-create
+            - $ref: '#/components/schemas/ObservationCreateEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - observation-update
+            - $ref: '#/components/schemas/ObservationUpdateEvent'
+          required:
+            - type
+    TraceEvent:
+      title: TraceEvent
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        body:
+          $ref: '#/components/schemas/Trace'
+      required:
+        - id
+        - timestamp
+        - body
+    ObservationCreateEvent:
+      title: ObservationCreateEvent
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        body:
+          $ref: '#/components/schemas/Observation'
+      required:
+        - id
+        - timestamp
+        - body
+    ObservationUpdateEvent:
+      title: ObservationUpdateEvent
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        body:
+          $ref: '#/components/schemas/Observation'
+      required:
+        - id
+        - timestamp
+        - body
+    ScoreEvent:
+      title: ScoreEvent
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        body:
+          $ref: '#/components/schemas/Score'
+      required:
+        - id
+        - timestamp
+        - body
     Observations:
       title: Observations
       type: object
@@ -1437,9 +1586,6 @@ components:
           nullable: true
         traceId:
           type: string
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeEnum'
-          nullable: true
         name:
           type: string
         value:

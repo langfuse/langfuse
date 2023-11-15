@@ -31,6 +31,9 @@ export const DetailPageNav = (props: {
   // keyboard shortcuts for buttons k and j
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // don't trigger keyboard shortcuts if the user is typing in an input
+      if (document.activeElement instanceof HTMLInputElement) return;
+
       if (event.key === "k" && previousPageId) {
         void router.push(props.path(previousPageId));
       } else if (event.key === "j" && nextPageId) {
