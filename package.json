@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
-    "db:seed:examples": "npx prisma db seed -- --environment examples"
+    "db:seed:examples": "npx prisma db seed -- --environment examples",
+    "release": "release-it"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
@@ -121,6 +122,7 @@
     "prettier": "^3.0.3",
     "prettier-plugin-tailwindcss": "^0.5.7",
     "prisma": "^5.5.2",
+    "release-it": "^17.0.0",
     "swagger-jsdoc": "^6.2.8",
     "tailwindcss": "^3.3.5",
     "ts-node": "^10.9.1",
@@ -132,5 +134,12 @@
   },
   "optionalDependencies": {
     "crisp-sdk-web": "^1.0.21"
+  },
+  "release-it": {
+    "github": {
+      "release": true,
+      "web": true,
+      "autoGenerate": true
+    }
   }
 }
