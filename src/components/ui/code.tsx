@@ -4,6 +4,7 @@ import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import { deepParseJson } from "@/src/utils/json";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export function JSONView(props: {
   json?: unknown;
@@ -23,7 +24,7 @@ export function JSONView(props: {
       ) : undefined}
       <div className="flex gap-2 whitespace-pre-wrap p-3 text-xs">
         {props.isLoading ? (
-          <div>Loading ...</div>
+          <Skeleton className="h-3 w-3/4" />
         ) : (
           <React18JsonView
             src={parsedJson}

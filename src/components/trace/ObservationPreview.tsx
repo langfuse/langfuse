@@ -112,9 +112,7 @@ export const ObservationPreview = (props: {
               observationOutput={observationWithInputAndOutput.data.output}
               key={preloadedObservation.id}
             />
-          ) : (
-            <div>Loading ...</div>
-          )}
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
