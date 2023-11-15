@@ -251,12 +251,14 @@ const ObservationIO: React.FC<{
   );
 };
 
-const OpenAiMessageSchema = z.array(
-  z.object({
-    role: z.enum(["system", "user", "assistant"]),
-    content: z.string().nullable(),
-  }),
-);
+const OpenAiMessageSchema = z
+  .array(
+    z.object({
+      role: z.enum(["system", "user", "assistant"]),
+      content: z.string().nullable(),
+    }),
+  )
+  .min(1);
 
 const OpenAiMessageView: React.FC<{
   messages: z.infer<typeof OpenAiMessageSchema>;
