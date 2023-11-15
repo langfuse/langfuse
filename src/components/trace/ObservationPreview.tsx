@@ -202,19 +202,22 @@ const ObservationIO: React.FC<{
     : props.output ?? null;
 
   // OpenAI messages
-  let openAiMessage = OpenAiMessageSchema.safeParse(input);
-  if (!openAiMessage.success) {
+  let inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(input);
+  if (!inOpenAiMessageArray.success) {
     // check if input is an array of length 1 including an array of OpenAiMessageSchema
     // this is the case for some integrations
-    const inputArray = z.array(OpenAiMessageSchema).safeParse(input);
+    const inputArray = z.array(OpenAiMessageArraySchema).safeParse(input);
     console.log(inputArray);
     if (inputArray.success && inputArray.data.length === 1) {
-      openAiMessage = OpenAiMessageSchema.safeParse(inputArray.data[0]);
+      inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(
+        inputArray.data[0],
+      );
     }
   }
+  const outOpenAiMessage = OpenAiMessageSchema.safeParse(output);
 
   // Pretty view available
-  const isPrettyViewAvailable = openAiMessage.success;
+  const isPrettyViewAvailable = inOpenAiMessageArray.success;
 
   // default I/O
   return (
@@ -231,12 +234,19 @@ const ObservationIO: React.FC<{
         </Tabs>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
-        openAiMessage.success ? (
+        inOpenAiMessageArray.success ? (
           <OpenAiMessageView
-            messages={openAiMessage.data.concat({
-              role: "assistant",
-              content: JSON.stringify(outputClean) ?? null,
-            })}
+            messages={inOpenAiMessageArray.data.concat(
+              outOpenAiMessage.success
+                ? {
+                    ...outOpenAiMessage.data,
+                    role: outOpenAiMessage.data.role ?? "assistant",
+                  }
+                : {
+                    role: "assistant",
+                    content: JSON.stringify(outputClean) ?? null,
+                  },
+            )}
           />
         ) : null
       ) : null}
@@ -261,18 +271,16 @@ const ObservationIO: React.FC<{
 };
 
 const OpenAiMessageSchema = z
-  .array(
-    z
-      .object({
-        role: z.enum(["system", "user", "assistant"]).optional(),
-        content: z.string().nullable(),
-      })
-      .refine((value) => value.content !== null || value.role !== undefined),
-  )
-  .min(1);
+  .object({
+    role: z.enum(["system", "user", "assistant"]).optional(),
+    content: z.string().nullable(),
+  })
+  .refine((value) => value.content !== null || value.role !== undefined);
+
+const OpenAiMessageArraySchema = z.array(OpenAiMessageSchema).min(1);
 
 const OpenAiMessageView: React.FC<{
-  messages: z.infer<typeof OpenAiMessageSchema>;
+  messages: z.infer<typeof OpenAiMessageArraySchema>;
 }> = ({ messages }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
