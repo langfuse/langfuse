@@ -54,6 +54,10 @@ npm run db:migrate
 npm run dev
 ```
 
+## Commit messages
+
+On the ﻿main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged  to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
+
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
