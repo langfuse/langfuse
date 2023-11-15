@@ -202,7 +202,16 @@ const ObservationIO: React.FC<{
     : props.output ?? undefined;
 
   // OpenAI messages
-  const openAiMessage = OpenAiMessageSchema.safeParse(input);
+  let openAiMessage = OpenAiMessageSchema.safeParse(input);
+  if (!openAiMessage.success) {
+    // check if input is an array of length 1 including an array of OpenAiMessageSchema
+    // this is the case for some integrations
+    const inputArray = z.array(OpenAiMessageSchema).safeParse(input);
+    console.log(inputArray);
+    if (inputArray.success && inputArray.data.length === 1) {
+      openAiMessage = OpenAiMessageSchema.safeParse(inputArray.data[0]);
+    }
+  }
 
   // Pretty view available
   const isPrettyViewAvailable = openAiMessage.success;
@@ -226,7 +235,7 @@ const ObservationIO: React.FC<{
           <OpenAiMessageView
             messages={openAiMessage.data.concat({
               role: "assistant",
-              content: outputClean?.toString() ?? null,
+              content: JSON.stringify(outputClean) ?? null,
             })}
           />
         ) : null
@@ -253,10 +262,12 @@ const ObservationIO: React.FC<{
 
 const OpenAiMessageSchema = z
   .array(
-    z.object({
-      role: z.enum(["system", "user", "assistant"]),
-      content: z.string().nullable(),
-    }),
+    z
+      .object({
+        role: z.enum(["system", "user", "assistant"]).optional(),
+        content: z.string().nullable(),
+      })
+      .refine((value) => value.content !== null || value.role !== undefined),
   )
   .min(1);
 
