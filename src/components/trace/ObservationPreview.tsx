@@ -199,7 +199,7 @@ const ObservationIO: React.FC<{
     outLegacyCompletionSchema.safeParse(output);
   const outputClean = outLegacyCompletionSchemaParsed.success
     ? outLegacyCompletionSchemaParsed.data
-    : props.output ?? undefined;
+    : props.output ?? null;
 
   // OpenAI messages
   let openAiMessage = OpenAiMessageSchema.safeParse(input);
@@ -244,7 +244,7 @@ const ObservationIO: React.FC<{
         <>
           <JSONView
             title="Input"
-            json={input ?? undefined}
+            json={input ?? null}
             isLoading={isLoading}
             className="flex-1"
           />
