@@ -84,7 +84,7 @@
     "react-hook-form": "^7.47.0",
     "react-icons": "^4.11.0",
     "react-responsive": "^9.0.2",
-    "react18-json-view": "^0.2.6",
+    "react18-json-view": "^0.2.7-canary.1",
     "superagent": "^8.1.2",
     "superjson": "2.0.0",
     "tailwind-merge": "^1.14.0",
