@@ -31,6 +31,7 @@ export function JSONView(props: {
             collapseObjectsAfterLength={20}
             collapseStringsAfterLength={500}
             displaySize={"collapsed"}
+            matchesURL={true}
           />
         )}
       </div>
