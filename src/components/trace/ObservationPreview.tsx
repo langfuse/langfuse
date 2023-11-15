@@ -261,7 +261,7 @@ const OpenAiMessageSchema = z.array(
 const OpenAiMessageView: React.FC<{
   messages: z.infer<typeof OpenAiMessageSchema>;
 }> = ({ messages }) => {
-  const COLLAPSE_THRESHOLD = 2;
+  const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
