@@ -140,7 +140,7 @@ export const handleBatch = async (
 
 async function retry<T>(request: () => Promise<T>): Promise<T> {
   return await backOff(request, {
-    numOfAttempts: 2,
+    numOfAttempts: 3,
     retry: (e: Error, attemptNumber: number) => {
       if (e instanceof AuthenticationError) {
         console.log("not retrying auth error");
