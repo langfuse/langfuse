@@ -82,30 +82,34 @@ export const projectsRouter = createTRPCRouter({
         scope: "project:transfer",
       });
 
-      const user = await ctx.prisma.user.findUnique({
-        where: {
-          email: input.email.toLowerCase(),
-        },
-      });
+      try {
+        const user = await ctx.prisma.user.findUnique({
+          where: {
+            email: input.email.toLowerCase(),
+          },
+        });
 
-      if (!user) throw new Error("User not found");
+        if (!user) throw new Error("User not found");
 
-      if (user.id === ctx.session.user.id) throw new Error("You cannot transfer project to yourself");
+        if (user.id === ctx.session.user.id) throw new Error("You cannot transfer project to yourself");
 
-      await ctx.prisma.membership.create({
-        data: {
-          userId: user.id,
-          projectId: input.projectId,
-          role: 'OWNER',
-        },
-      });
+        await ctx.prisma.membership.create({
+          data: {
+            userId: user.id,
+            projectId: input.projectId,
+            role: 'OWNER',
+          },
+        });
 
-      return await ctx.prisma.membership.deleteMany({
-        where: {
-          userId: ctx.session.user.id,
-          projectId: input.projectId,
-          role: 'OWNER',
-        },
-      });
+        return await ctx.prisma.membership.deleteMany({
+          where: {
+            userId: ctx.session.user.id,
+            projectId: input.projectId,
+            role: 'OWNER',
+          },
+        });
+      } catch (error) {
+        throw new Error('Internal server error' + error);
+      }
     })
 });
