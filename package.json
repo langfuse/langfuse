@@ -136,10 +136,14 @@
     "crisp-sdk-web": "^1.0.21"
   },
   "release-it": {
+    "git": {
+      "commitMessage": "chore: release v${version}"
+    },
     "github": {
       "release": true,
       "web": true,
-      "autoGenerate": true
+      "autoGenerate": true,
+      "releaseName": "v${version}"
     }
   }
 }
