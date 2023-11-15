@@ -8,7 +8,7 @@ import {
   type traceEvent,
   type scoreEvent,
   type observationUpdateEvent,
-} from "@/src/pages/api/public/ingestion-api-schema";
+} from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
