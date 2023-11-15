@@ -5,9 +5,10 @@ import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 
 export function JSONView(props: {
-  json: unknown;
+  json?: unknown;
   title?: string;
   className?: string;
+  isLoading?: boolean;
 }) {
   const isCompletion =
     props.json &&
@@ -32,13 +33,17 @@ export function JSONView(props: {
         </div>
       ) : undefined}
       <div className="flex gap-2 whitespace-pre-wrap p-3 text-xs">
-        <React18JsonView
-          src={parsedJson}
-          theme="github"
-          collapseObjectsAfterLength={20}
-          collapseStringsAfterLength={500}
-          displaySize={"collapsed"}
-        />
+        {props.isLoading ? (
+          <div>Loading ...</div>
+        ) : (
+          <React18JsonView
+            src={parsedJson}
+            theme="github"
+            collapseObjectsAfterLength={20}
+            collapseStringsAfterLength={500}
+            displaySize={"collapsed"}
+          />
+        )}
       </div>
     </div>
   );

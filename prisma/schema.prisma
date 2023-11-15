@@ -183,6 +183,7 @@ model Observation {
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
 
+    @@unique([id, projectId])
     @@index([traceId])
     @@index([type])
     @@index(startTime)

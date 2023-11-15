@@ -22,6 +22,8 @@ const serverTestConfig = {
 /** @type {import('jest').Config} */
 const config = {
   // Add more setup options before each test is run
+  silent: false,
+  verbose: true,
   projects: [
     await createJestConfig(clientTestConfig)(),
     await createJestConfig(serverTestConfig)(),

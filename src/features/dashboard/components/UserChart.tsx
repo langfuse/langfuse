@@ -5,7 +5,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BarList } from "@tremor/react";
-import { isNotUndefinedOrNull } from "@/src/utils/types";
+import { isUndefinedOrNull } from "@/src/utils/types";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
@@ -84,7 +84,7 @@ export const UserChart = ({
             value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
           };
         })
-        .filter((i) => (isNotUndefinedOrNull(i.name) ? true : false))
+        .filter((i) => (isUndefinedOrNull(i.name) ? true : false))
     : [];
 
   const totalCost = user.data?.reduce(
