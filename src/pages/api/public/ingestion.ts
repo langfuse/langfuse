@@ -266,7 +266,7 @@ export const handleBatchResult = (
   results.forEach((result) => {
     successes.push({
       id: result.id,
-      status: 200,
+      status: 201,
     });
   });
 
