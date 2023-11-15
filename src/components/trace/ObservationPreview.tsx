@@ -207,7 +207,6 @@ const ObservationIO: React.FC<{
     // check if input is an array of length 1 including an array of OpenAiMessageSchema
     // this is the case for some integrations
     const inputArray = z.array(OpenAiMessageArraySchema).safeParse(input);
-    console.log(inputArray);
     if (inputArray.success && inputArray.data.length === 1) {
       inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(
         inputArray.data[0],
