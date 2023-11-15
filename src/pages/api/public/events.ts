@@ -6,7 +6,7 @@ import {
   EventSchema,
   eventTypes,
   ingestionBatch,
-} from "./ingestion-api-schema";
+} from "@/src/features/public-api/server/ingestion-api-schema";
 import {
   handleBatch,
   handleBatchResultLegacy,
