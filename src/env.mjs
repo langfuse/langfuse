@@ -33,12 +33,20 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
     }),
+
     // AUTH
+    // Google
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
+    // Github
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
+    // SSO
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
+    // Okta
+    AUTH_OKTA_CLIENT_ID: z.string().optional(),
+    AUTH_OKTA_CLIENT_SECRET: z.string().optional(),
+    AUTH_OKTA_ISSUER: z.string().optional(),
   },
 
   /**
@@ -81,5 +89,8 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
+    AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
+    AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
+    AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
   },
 });

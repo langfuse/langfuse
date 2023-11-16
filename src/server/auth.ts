@@ -16,6 +16,7 @@ import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import OktaProvider from "next-auth/providers/okta";
 import { type Adapter } from "next-auth/adapters";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
@@ -98,6 +99,19 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       clientId: env.AUTH_GOOGLE_CLIENT_ID,
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking: true,
+    }),
+  );
+
+if (
+  env.AUTH_OKTA_CLIENT_ID &&
+  env.AUTH_OKTA_CLIENT_SECRET &&
+  env.AUTH_OKTA_ISSUER
+)
+  providers.push(
+    OktaProvider({
+      clientId: env.AUTH_OKTA_CLIENT_ID,
+      clientSecret: env.AUTH_OKTA_CLIENT_SECRET,
+      issuer: env.AUTH_OKTA_ISSUER,
     }),
   );
 

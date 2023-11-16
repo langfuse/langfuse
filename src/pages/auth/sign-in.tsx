@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
+import { SiOkta } from "react-icons/si";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
@@ -34,11 +35,13 @@ type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    okta: boolean;
   };
 };
 
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
+  console.log("chase", env.AUTH_OKTA_CLIENT_ID);
   return {
     props: {
       authProviders: {
@@ -48,6 +51,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        okta:
+          env.AUTH_OKTA_CLIENT_ID !== undefined &&
+          env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
+          env.AUTH_OKTA_ISSUER !== undefined,
         credentials: true,
       },
     },
@@ -177,6 +184,18 @@ export default function SignIn(props: PageProps) {
                     >
                       <FaGithub className="mr-3" size={18} />
                       Sign in with Github
+                    </Button>
+                  ) : null}
+                  {props.authProviders.okta ? (
+                    <Button
+                      onClick={() => {
+                        posthog.capture("sign_in:okta_button_click");
+                        void signIn("okta");
+                      }}
+                      variant="secondary"
+                    >
+                      <SiOkta className="mr-3" size={18} />
+                      Sign in with Okta
                     </Button>
                   ) : null}
                 </div>
