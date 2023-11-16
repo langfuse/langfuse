@@ -67,7 +67,7 @@ export function filterToPrismaSql(
         ? [Prisma.raw("cast("), Prisma.raw(" as double precision)")]
         : [Prisma.empty, Prisma.empty];
     const [valuePrefix, valueSuffix] =
-      filter.type === "string"
+      filter.type === "string" || filter.type === "stringObject"
         ? [
             ["contains", "ends with"].includes(filter.operator)
               ? Prisma.raw("'%' || ")
