@@ -35,6 +35,7 @@
       <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
       <a href="https://discord.gg/7NXusRtqYU"><img src="https://img.shields.io/discord/1111061815649124414?style=flat-square&logo=Discord&logoColor=white&label=Discord&color=%23434EE4" alt="Discord"></a>
       <a href="https://github.com/langfuse/langfuse"><img src="https://img.shields.io/github/stars/langfuse/langfuse?style=flat-square&logo=GitHub&label=langfuse%2Flangfuse" alt="Github Repo Stars"></a>
+      <a href="https://github.com/langfuse/langfuse/releases"><img src="https://img.shields.io/github/v/release/langfuse/langfuse?include_prereleases&style=flat-square" alt="langfuse releases"></a>
       <a href="https://github.com/langfuse/langfuse/actions/workflows/pipeline.yml?query=branch:main"><img src="https://img.shields.io/github/actions/workflow/status/langfuse/langfuse/pipeline.yml?style=flat-square&label=All%20tests" alt="CI test status"></a>
       <a href="https://status.langfuse.com"><img src="https://uptime.betterstack.com/status-badges/v1/monitor/udlc.svg" alt="Uptime Status"/></a>
       <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
