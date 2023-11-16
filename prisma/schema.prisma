@@ -217,6 +217,7 @@ model Score {
     observationId String?      @map("observation_id")
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
+    @@unique([id, traceId]) // used for upsert
     @@index([value])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)

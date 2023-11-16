@@ -292,14 +292,32 @@ export class ScoreProcessor implements EventProcessor {
     if (!accessCheck)
       throw new AuthenticationError("Access denied for score creation");
 
-    return await prisma.score.create({
-      data: {
-        id: body.id ?? v4(),
+    const id = body.id ?? v4();
+
+    // access control via traceId
+    return await prisma.score.upsert({
+      where: {
+        id_traceId: {
+          id,
+          traceId: body.traceId,
+        },
+      },
+      create: {
+        id,
+        trace: { connect: { id: body.traceId } },
         timestamp: new Date(),
         value: body.value,
         name: body.name,
         comment: body.comment,
-        trace: { connect: { id: body.traceId } },
+        ...(body.observationId && {
+          observation: { connect: { id: body.observationId } },
+        }),
+      },
+      update: {
+        timestamp: new Date(),
+        value: body.value,
+        name: body.name,
+        comment: body.comment,
         ...(body.observationId && {
           observation: { connect: { id: body.observationId } },
         }),
