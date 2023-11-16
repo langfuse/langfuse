@@ -275,4 +275,37 @@ export const traceRouter = createTRPCRouter({
         observations: enrichedObservations as ObservationReturnType[],
       };
     }),
+  delete: protectedGetTraceProcedure
+    .input(z.object({ traceId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const trace = await ctx.prisma.trace.findFirstOrThrow({
+        where: {
+          id: input.traceId,
+        },
+        include: {
+          scores: true
+        }
+      })
+
+      await trace.scores.map(async (score) => {
+        await ctx.prisma.score.delete({
+          where: {
+            id: score.id,
+          },
+        });
+        if (score.observationId) {
+          await ctx.prisma.observation.delete({
+            where: {
+              id: score.observationId,
+            },
+          });
+        }
+      })
+      
+      return await ctx.prisma.trace.delete({
+        where: {
+          id: input.traceId,
+        },
+      });
+    }),
 });

@@ -1,5 +1,6 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
+import { DataTableAction } from "@/src/components/table/data-table-action";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -217,6 +218,16 @@ export default function TracesTable({
       accessorKey: "release",
       header: "Release",
     },
+    {
+      accessorKey: "action",
+      header: "Action",
+      cell: ({row}) => {
+        const value = row.getValue("id");
+        return value && typeof value === "string" ? (
+          <DataTableAction traceId={value} projectId={projectId} />
+        ) : undefined;
+      }
+    }
   ];
 
   return (
