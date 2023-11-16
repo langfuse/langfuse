@@ -48,7 +48,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
-        credentials: true,
+        credentials: env.NEXT_PUBLIC_INTERNAL_CREDENTIALS_DISABLED !== "true",
       },
     },
   };
@@ -100,7 +100,8 @@ export default function SignIn(props: PageProps) {
 
         <div className="mt-14 sm:mx-auto sm:w-full sm:max-w-[480px]">
           <div className="divide-y bg-white p-6 py-6 shadow sm:rounded-lg sm:px-12">
-            {props.authProviders.credentials ? (
+            {env.NEXT_PUBLIC_INTERNAL_CREDENTIALS_DISABLED !== "true" && props.authProviders.credentials
+             ? (
               <Form {...credentialsForm}>
                 <form
                   className="space-y-6 py-6"
