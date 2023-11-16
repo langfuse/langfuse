@@ -490,7 +490,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Add a score to the database",
+            "description": "Add a score to the database, upserts on id",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores",
               "host": [
