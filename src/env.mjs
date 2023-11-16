@@ -39,6 +39,7 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
+    AUTH_INTERNAL_CREDENTIALS_DISABLED: z.enum(["true", "false"]).optional(),
   },
 
   /**
@@ -51,7 +52,6 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.enum(["US", "EU"]).optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
-    NEXT_PUBLIC_INTERNAL_CREDENTIALS_DISABLED: z.enum(["true", "false"]).optional(),
   },
 
   /**
@@ -69,8 +69,6 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
-    NEXT_PUBLIC_INTERNAL_CREDENTIALS_DISABLED:
-      process.env.NEXT_PUBLIC_INTERNAL_CREDENTIALS_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
@@ -84,5 +82,7 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
+    AUTH_INTERNAL_CREDENTIALS_DISABLED:
+      process.env.AUTH_INTERNAL_CREDENTIALS_DISABLED,
   },
 });

@@ -53,7 +53,7 @@ const providers: Provider[] = [
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
 
-      const internalCredentialsDisabled = env.NEXT_PUBLIC_INTERNAL_CREDENTIALS_DISABLED;
+      const internalCredentialsDisabled = env.AUTH_INTERNAL_CREDENTIALS_DISABLED;
       const blockedDomains =
         env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
       const domain = credentials.email.split("@")[1]?.toLowerCase();
