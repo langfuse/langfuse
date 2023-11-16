@@ -6,6 +6,9 @@ import { Prisma } from "@prisma/client";
 const operatorReplacements = {
   "any of": "IN",
   "none of": "NOT IN",
+  contains: "ILIKE",
+  "starts with": "ILIKE",
+  "ends with": "ILIKE",
 };
 
 export function filterToPrismaSql(
@@ -63,8 +66,19 @@ export function filterToPrismaSql(
       filter.type === "numberObject"
         ? [Prisma.raw("cast("), Prisma.raw(" as double precision)")]
         : [Prisma.empty, Prisma.empty];
+    const [valuePrefix, valueSuffix] =
+      filter.type === "string" || filter.type === "stringObject"
+        ? [
+            ["contains", "ends with"].includes(filter.operator)
+              ? Prisma.raw("'%' || ")
+              : Prisma.empty,
+            ["contains", "starts with"].includes(filter.operator)
+              ? Prisma.raw(" || '%'")
+              : Prisma.empty,
+          ]
+        : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrisma}`;
+    return Prisma.sql`${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueSuffix}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
