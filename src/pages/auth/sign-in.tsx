@@ -41,7 +41,6 @@ type PageProps = {
 
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
-  console.log("chase", env.AUTH_OKTA_CLIENT_ID);
   return {
     props: {
       authProviders: {
