@@ -40,7 +40,7 @@ const availableRoles = [
 ] as const;
 
 const formSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
   role: z.enum(availableRoles),
 });
 
