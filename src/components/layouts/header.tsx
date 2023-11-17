@@ -1,8 +1,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useRouter } from "next/router";
-
-import { api } from "@/src/utils/api";
+import { useSession } from "next-auth/react";
 
 export default function Header(props: {
   title: string;
@@ -11,10 +10,13 @@ export default function Header(props: {
   actionButtons?: React.ReactNode;
 }) {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const projects = api.projects.all.useQuery();
-  const project = projects.data?.find((p) => p.id === projectId);
+  const session = useSession();
+
   const currentPath = router.pathname;
+  const projectId = router.query.projectId;
+
+  const projects = session.data?.user?.projects || [];
+  const project = projects.find((p) => p.id === projectId ?? "")
   const backHref =
     props.breadcrumb &&
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
@@ -71,8 +73,11 @@ export default function Header(props: {
         <div className="flex items-center gap-3 md:gap-5">
           <div className="min-w-0">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
-              {props.title} {currentPath !== "/project/[projectId]" && `(${project?.name})`}
+              {props.title}
             </h2>
+            {project && projectId && <h4 className="text-lg font-medium leading-5 text-gray-600 sm:truncate sm:text-xl sm:tracking-tighter">
+              {currentPath !== "/project/[projectId]" && `(${project?.name})`}
+            </h4>}
           </div>
           {props.live ? (
             <div className="flex items-center gap-2 rounded-sm bg-green-100 px-3  text-green-600">
