@@ -11,11 +11,9 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormDescription,
   FormControl,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Score } from "@prisma/client";
@@ -23,18 +21,20 @@ import { useState } from "react";
 import * as z from "zod";
 
 import { useFieldArray, useForm } from "react-hook-form";
-import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { LockIcon } from "lucide-react";
-
-const SCORE_NAME = "manual-score";
+import { LockIcon, Trash } from "lucide-react";
+import { Input } from "@/src/components/ui/input";
 
 const formSchema = z.object({
   scores: z.array(
     z.object({
       id: z.string(),
-      name: z.string(),
-      value: z.number(),
+      name: z.string().refine((value) => value !== "", {
+        message: "Name is required",
+      }),
+      value: z.string().refine((value) => isFinite(parseFloat(value)), {
+        message: "Invalid number string",
+      }),
       comment: z.string().optional(),
     }),
   ),
@@ -56,14 +56,14 @@ export function ManualScoreButton({
     scope: "scores:CUD",
   });
 
-  const expertScores = scores.filter(
+  const currentExpertScores = scores.filter(
     (s) =>
-      s.type === "EXPERT" ||
-      (s.name === SCORE_NAME &&
-        s.traceId === traceId &&
-        (observationId !== undefined
-          ? s.observationId === observationId
-          : s.observationId === null)),
+      (s.type === "EXPERT" ||
+        (s.name === "manual-score" && s.type === "DEFAULT")) && // legacy manual scores
+      s.traceId === traceId &&
+      (observationId !== undefined
+        ? s.observationId === observationId
+        : s.observationId === null),
   );
 
   const utils = api.useContext();
@@ -78,13 +78,6 @@ export function ManualScoreButton({
     projectId,
   });
 
-  // const handleDelete = async () => {
-  //   if (score) {
-  //     await mutDeleteScore.mutateAsync(score.id);
-  //     onOpenChange(false);
-  //   }
-  // };
-
   const [open, setOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -92,14 +85,7 @@ export function ManualScoreButton({
       raw: true,
     }),
     defaultValues: {
-      scores: [
-        {
-          id: "new",
-          name: SCORE_NAME,
-          value: 0,
-          comment: "",
-        },
-      ],
+      scores: [],
     },
   });
 
@@ -114,8 +100,14 @@ export function ManualScoreButton({
       form.reset();
       setOpen(false);
     } else {
-      // form.setValue("score", score?.value ?? 0);
-      // form.setValue("comment", score?.comment ?? "");
+      form.setValue(
+        "scores",
+        currentExpertScores.map((s) => ({
+          ...s,
+          value: s.value.toString(),
+          comment: s.comment ?? "",
+        })),
+      );
       setOpen(true);
     }
   };
@@ -124,9 +116,12 @@ export function ManualScoreButton({
     await mutUpsertManyScores.mutateAsync({
       traceId,
       observationId,
-      scores: values.map((v) => ({
+      scores: values.scores.map((v) => ({
         ...v,
+        id: v.id === "new" ? undefined : v.id,
+        value: parseFloat(v.value),
         traceId,
+        commment: v.comment ?? null,
         observationId: observationId ?? null,
       })),
     });
@@ -149,66 +144,81 @@ export function ManualScoreButton({
           <form
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-8"
+            className="space-y-4"
           >
-            <FormField
-              control={form.control}
-              name="score"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Score</FormLabel>
-                  <FormControl>
-                    <Slider
-                      {...field}
-                      min={-1}
-                      max={1}
-                      step={0.01}
-                      onValueChange={(value) => {
-                        if (value[0] !== undefined) field.onChange(value[0]);
-                      }}
-                      value={[field.value]}
-                      onChange={undefined}
-                    />
-                  </FormControl>
-                  <FormDescription className="flex justify-between">
-                    <span>-1 (bad)</span>
-                    <span>1 (good)</span>
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="comment"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Comment (optional)</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-6 gap-2">
+              <span className="col-span-2">
+                <FormLabel>Name</FormLabel>
+              </span>
+              <span className="col-span-1">
+                <FormLabel>Score</FormLabel>
+              </span>
+              <span className="col-span-2">
+                <FormLabel>Comment (optional)</FormLabel>
+              </span>
+            </div>
+            {fields.map((field, index) => {
+              // name and value, value as input field
+              return (
+                <div className="grid grid-cols-6 gap-2" key={field.id}>
+                  <FormField
+                    control={form.control}
+                    name={`scores.${index}.name`}
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormControl>
+                          <Input placeholder="Name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`scores.${index}.value`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input {...field} type="number" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`scores.${index}.comment`}
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormControl>
+                          <Input {...field} placeholder="Comment" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => remove(index)}
+                  >
+                    <Trash size={14} />
+                  </Button>
+                </div>
+              );
+            })}
+
             <div className="flex justify-end space-x-4">
-              <Button type="submit" loading={form.formState.isSubmitting}>
-                {form.formState.isSubmitting
-                  ? "Loading ..."
-                  : score
-                  ? "Update"
-                  : "Create"}
+              <Button
+                onClick={() =>
+                  append({ id: "new", name: "", value: "0", comment: "" })
+                }
+              >
+                Add new
               </Button>
-              {score && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => void handleDelete()}
-                  loading={mutDeleteScore.isLoading}
-                >
-                  Delete
-                </Button>
-              )}
+              <Button type="submit" loading={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Loading ..." : "Update"}
+              </Button>
             </div>
           </form>
         </Form>
