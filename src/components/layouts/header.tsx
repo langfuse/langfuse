@@ -1,5 +1,8 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
+import { useRouter } from "next/router";
+
+import { api } from "@/src/utils/api";
 
 export default function Header(props: {
   title: string;
@@ -7,6 +10,11 @@ export default function Header(props: {
   live?: boolean;
   actionButtons?: React.ReactNode;
 }) {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const projects = api.projects.all.useQuery();
+  const project = projects.data?.find((p) => p.id === projectId);
+  const currentPath = router.pathname;
   const backHref =
     props.breadcrumb &&
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
@@ -63,7 +71,7 @@ export default function Header(props: {
         <div className="flex items-center gap-3 md:gap-5">
           <div className="min-w-0">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
-              {props.title}
+              {props.title} {currentPath !== "/project/[projectId]" && `(${project?.name})`}
             </h2>
           </div>
           {props.live ? (
