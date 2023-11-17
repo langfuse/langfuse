@@ -22,7 +22,7 @@ import { type Score } from "@prisma/client";
 import { useState } from "react";
 import * as z from "zod";
 
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { LockIcon } from "lucide-react";
@@ -30,8 +30,14 @@ import { LockIcon } from "lucide-react";
 const SCORE_NAME = "manual-score";
 
 const formSchema = z.object({
-  score: z.number(),
-  comment: z.string().optional(),
+  scores: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      value: z.number(),
+      comment: z.string().optional(),
+    }),
+  ),
 });
 
 export function ManualScoreButton({
@@ -49,38 +55,57 @@ export function ManualScoreButton({
     projectId,
     scope: "scores:CUD",
   });
-  const score = scores.find(
+
+  const expertScores = scores.filter(
     (s) =>
-      s.name === SCORE_NAME &&
-      s.traceId === traceId &&
-      (observationId !== undefined
-        ? s.observationId === observationId
-        : s.observationId === null),
+      s.type === "EXPERT" ||
+      (s.name === SCORE_NAME &&
+        s.traceId === traceId &&
+        (observationId !== undefined
+          ? s.observationId === observationId
+          : s.observationId === null)),
   );
 
   const utils = api.useContext();
   const onSuccess = async () => {
     await Promise.all([utils.scores.invalidate(), utils.traces.invalidate()]);
   };
-  const mutCreateScore = api.scores.create.useMutation({ onSuccess });
-  const mutUpdateScore = api.scores.update.useMutation({ onSuccess });
+  const mutUpsertManyScores = api.scores.expertUpsertMany.useMutation({
+    onSuccess,
+  });
   const mutDeleteScore = api.scores.delete.useMutation({ onSuccess });
+  const usedNames = api.scores.usedNames.useQuery({
+    projectId,
+  });
 
-  const handleDelete = async () => {
-    if (score) {
-      await mutDeleteScore.mutateAsync(score.id);
-      onOpenChange(false);
-    }
-  };
+  // const handleDelete = async () => {
+  //   if (score) {
+  //     await mutDeleteScore.mutateAsync(score.id);
+  //     onOpenChange(false);
+  //   }
+  // };
 
   const [open, setOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema, undefined, {
+      raw: true,
+    }),
     defaultValues: {
-      score: 0,
-      comment: "",
+      scores: [
+        {
+          id: "new",
+          name: SCORE_NAME,
+          value: 0,
+          comment: "",
+        },
+      ],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    name: "scores",
+    control: form.control,
   });
 
   const onOpenChange = (value: boolean) => {
@@ -89,28 +114,22 @@ export function ManualScoreButton({
       form.reset();
       setOpen(false);
     } else {
-      form.setValue("score", score?.value ?? 0);
-      form.setValue("comment", score?.comment ?? "");
+      // form.setValue("score", score?.value ?? 0);
+      // form.setValue("comment", score?.comment ?? "");
       setOpen(true);
     }
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (score) {
-      await mutUpdateScore.mutateAsync({
-        id: score.id,
-        value: values.score,
-        comment: values.comment,
-      });
-    } else {
-      await mutCreateScore.mutateAsync({
-        name: SCORE_NAME,
-        value: values.score,
-        comment: values.comment,
+    await mutUpsertManyScores.mutateAsync({
+      traceId,
+      observationId,
+      scores: values.map((v) => ({
+        ...v,
         traceId,
-        observationId,
-      });
-    }
+        observationId: observationId ?? null,
+      })),
+    });
     onOpenChange(false);
   };
 
@@ -118,15 +137,13 @@ export function ManualScoreButton({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="secondary" disabled={!hasAccess}>
-          <span>{score ? `Update score: ${score.value}` : "Add score"}</span>
+          Expert score
           {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="mb-5">
-            {score ? "Update Score" : "Create Score"}
-          </DialogTitle>
+          <DialogTitle className="mb-5">Update Scores</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form

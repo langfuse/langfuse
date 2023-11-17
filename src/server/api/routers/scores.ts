@@ -14,6 +14,7 @@ import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
+import { v4 } from "uuid";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -104,14 +105,19 @@ export const scoresRouter = createTRPCRouter({
       },
     }),
   ),
-  create: protectedProcedure
+  expertUpsertMany: protectedProcedure
     .input(
       z.object({
         traceId: z.string(),
-        value: z.number(),
-        name: z.string(),
-        comment: z.string().optional(),
         observationId: z.string().optional(),
+        scores: z.array(
+          z.object({
+            id: z.string().optional(),
+            value: z.number(),
+            name: z.string(),
+            comment: z.string().optional(),
+          }),
+        ),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -133,75 +139,44 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      return ctx.prisma.score.create({
-        data: {
-          trace: {
-            connect: {
-              id: trace.id,
+      for (const score of input.scores) {
+        const scoreId = score.id ?? v4();
+        await ctx.prisma.score.upsert({
+          where: {
+            id_traceId: {
+              id: scoreId,
+              traceId: input.traceId,
             },
           },
-          ...(input.observationId
-            ? {
-                observation: {
-                  connect: {
-                    id: input.observationId,
-                  },
-                },
-              }
-            : undefined),
-          value: input.value,
-          name: input.name,
-          comment: input.comment,
-          type: "EXPERT",
-        },
-      });
-    }),
-  update: protectedProcedure
-    .input(
-      z.object({
-        id: z.string(),
-        value: z.number(),
-        comment: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const score = await ctx.prisma.score.findFirstOrThrow({
-        where: {
-          id: input.id,
-          trace: {
-            project: {
-              members: {
-                some: {
-                  userId: ctx.session.user.id,
-                },
+          create: {
+            id: scoreId,
+            trace: {
+              connect: {
+                id: input.traceId,
               },
             },
+            ...(input.observationId
+              ? {
+                  observation: {
+                    connect: {
+                      id: input.observationId,
+                    },
+                  },
+                }
+              : undefined),
+            value: score.value,
+            name: score.name,
+            comment: score.comment,
+            type: "EXPERT",
           },
-        },
-        include: {
-          trace: {
-            select: {
-              projectId: true,
-            },
+          update: {
+            name: score.name,
+            value: score.value,
+            comment: score.comment,
+            type: "EXPERT",
           },
-        },
-      });
-      throwIfNoAccess({
-        session: ctx.session,
-        projectId: score.trace.projectId,
-        scope: "scores:CUD",
-      });
-
-      return ctx.prisma.score.update({
-        where: {
-          id: score.id,
-        },
-        data: {
-          value: input.value,
-          comment: input.comment,
-          type: "EXPERT",
-        },
-      });
+        });
+      }
     }),
   delete: protectedProcedure
     .input(z.string())
@@ -238,5 +213,26 @@ export const scoresRouter = createTRPCRouter({
           id: score.id,
         },
       });
+    }),
+  usedNames: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const names = await ctx.prisma.score.findMany({
+        select: {
+          name: true,
+        },
+        where: {
+          trace: {
+            projectId: input.projectId,
+          },
+        },
+        distinct: ["name"],
+      });
+
+      return names.map((i) => i.name);
     }),
 });
