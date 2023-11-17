@@ -14,6 +14,7 @@ type RowData = {
   traceId: string;
   timestamp: string;
   name: string;
+  type: string;
   value: number;
   comment?: string;
   observationId?: string;
@@ -101,6 +102,10 @@ export default function ScoresTable({
       header: "Name",
     },
     {
+      accessorKey: "type",
+      header: "Type",
+    },
+    {
       accessorKey: "value",
       header: "Value",
     },
@@ -115,6 +120,7 @@ export default function ScoresTable({
       id: score.id,
       timestamp: score.timestamp.toLocaleString(),
       name: score.name,
+      type: score.type,
       value: score.value,
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,

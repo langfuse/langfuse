@@ -61,6 +61,8 @@ components:
           type: string
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/ScoreType'
         value:
           type: number
           format: double
@@ -82,6 +84,8 @@ components:
           type: string
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/ScoreType'
         value:
           type: number
           format: double
@@ -96,8 +100,17 @@ components:
         - id
         - traceId
         - name
+        - type
         - value
         - timestamp
+    ScoreType:
+      title: ScoreType
+      type: string
+      enum:
+        - USER
+        - EXPERT
+        - EVAL
+        - DEFAULT
   securitySchemes:
     BearerAuth:
       type: http

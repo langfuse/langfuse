@@ -152,6 +152,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           name: input.name,
           comment: input.comment,
+          type: "EXPERT",
         },
       });
     }),
@@ -198,6 +199,7 @@ export const scoresRouter = createTRPCRouter({
         data: {
           value: input.value,
           comment: input.comment,
+          type: "EXPERT",
         },
       });
     }),

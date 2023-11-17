@@ -150,6 +150,7 @@ export const ObservationPreview = (props: {
                 <TableRow>
                   <TableHead className="w-[100px]">Timestamp</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead className="text-right">Value</TableHead>
                   <TableHead>Comment</TableHead>
                 </TableRow>
@@ -163,6 +164,7 @@ export const ObservationPreview = (props: {
                         {s.timestamp.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-xs">{s.name}</TableCell>
+                      <TableCell className="text-xs">{s.type}</TableCell>
                       <TableCell className="text-right text-xs">
                         {s.value}
                       </TableCell>

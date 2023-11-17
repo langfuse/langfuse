@@ -79,6 +79,7 @@ types:
       id: string
       traceId: string
       name: string
+      type: ScoreType
       value: double
       observationId: optional<string>
       timestamp: datetime
@@ -142,6 +143,12 @@ types:
     enum:
       - ACTIVE
       - ARCHIVED
+  ScoreType:
+    enum:
+      - USER
+      - EXPERT
+      - EVAL
+      - DEFAULT
 
 errors:
   Error:

@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, ScoreType } from "@prisma/client";
 import {
   hashSecretKey,
   getDisplaySecretKey,
@@ -138,11 +138,25 @@ async function main() {
               data: [
                 {
                   name: "latency",
+                  type: "EVAL",
                   value: Math.floor(Math.random() * 20),
                   timestamp: traceTs,
                 },
                 {
                   name: "feedback",
+                  type: "USER",
+                  value: Math.floor(Math.random() * 3) - 1,
+                  timestamp: traceTs,
+                },
+                {
+                  name: "hallucination",
+                  type: "EXPERT",
+                  value: Math.floor(Math.random() * 3) - 1,
+                  timestamp: traceTs,
+                },
+                {
+                  name: "hallucination",
+                  type: "EVAL",
                   value: Math.floor(Math.random() * 3) - 1,
                   timestamp: traceTs,
                 },
@@ -150,6 +164,7 @@ async function main() {
                   ? [
                       {
                         name: "sentiment",
+                        type: ScoreType.EVAL,
                         value: Math.floor(Math.random() * 10) - 5,
                         timestamp: traceTs,
                       },
@@ -309,6 +324,7 @@ async function main() {
           await prisma.score.create({
             data: {
               name: "quality",
+              type: "EVAL",
               value: Math.random() * 2 - 1,
               observationId: generation.id,
               traceId: trace.id,
@@ -317,6 +333,7 @@ async function main() {
           await prisma.score.create({
             data: {
               name: "conciseness",
+              type: "EVAL",
               value: Math.random() * 2 - 1,
               observationId: generation.id,
               traceId: trace.id,

@@ -145,6 +145,7 @@ export const ScoreSchema = z.object({
   name: z.string(),
   value: z.number(),
   traceId: z.string(),
+  type: z.enum(["USER", "EXPERT", "EVAL", "DEFAULT"]).nullish(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
 });

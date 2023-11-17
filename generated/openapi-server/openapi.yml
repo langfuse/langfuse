@@ -1209,6 +1209,8 @@ components:
           type: string
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/ScoreType'
         value:
           type: number
           format: double
@@ -1225,6 +1227,7 @@ components:
         - id
         - traceId
         - name
+        - type
         - value
         - timestamp
     Dataset:
@@ -1379,6 +1382,14 @@ components:
       enum:
         - ACTIVE
         - ARCHIVED
+    ScoreType:
+      title: ScoreType
+      type: string
+      enum:
+        - USER
+        - EXPERT
+        - EVAL
+        - DEFAULT
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object
@@ -1588,6 +1599,9 @@ components:
           type: string
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/ScoreType'
+          nullable: true
         value:
           type: number
           format: double

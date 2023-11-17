@@ -509,7 +509,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"value\": 0,\n    \"observationId\": \"example\",\n    \"comment\": \"example\"\n}",
+              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"type\": \"USER\",\n    \"value\": 0,\n    \"observationId\": \"example\",\n    \"comment\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

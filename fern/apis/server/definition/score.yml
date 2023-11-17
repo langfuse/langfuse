@@ -30,6 +30,7 @@ types:
       id: optional<string>
       traceId: string
       name: string
+      type: optional<commons.ScoreType>
       value: double
       observationId: optional<string>
       comment: optional<string>
