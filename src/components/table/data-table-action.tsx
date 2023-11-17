@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { DeleteTrace } from '@/src/features/delete-trace/components/delete-trace';
+import { DeleteTrace } from '@/src/components/delete-trace';
 
 interface DataTableActionProps {
   traceId: string;

@@ -13,9 +13,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
-import { Button } from "@/src/components/ui/button";
-import { TrashIcon } from "lucide-react";
-import { DeleteTrace } from "@/src/features/delete-trace/components/delete-trace";
+import { DeleteTrace } from "@/src/components/delete-trace";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
