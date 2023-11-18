@@ -14,7 +14,7 @@ export function DataTableAction({
 
   return (
     <div className='text-center'>
-      <DeleteTrace traceId={traceId} icon={true} projectId={projectId} />
+      <DeleteTrace traceId={traceId} isTableAction={true} projectId={projectId} />
     </div>
   );
 }

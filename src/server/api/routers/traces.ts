@@ -23,6 +23,7 @@ import {
   datetimeFilterToPrismaSql,
   filterToPrismaSql,
 } from "@/src/features/filters/server/filterToPrisma";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -275,32 +276,26 @@ export const traceRouter = createTRPCRouter({
         observations: enrichedObservations as ObservationReturnType[],
       };
     }),
-  delete: protectedGetTraceProcedure
-    .input(z.object({ traceId: z.string() }))
+    delete: protectedProjectProcedure
+    .input(z.object({ traceId: z.string(), projectId: z.string(), }))
     .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
+
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input.traceId,
         },
-        include: {
-          scores: true
-        }
-      })
+      });
 
-      await trace.scores.map(async (score) => {
-        await ctx.prisma.score.delete({
-          where: {
-            id: score.id,
-          },
-        });
-        if (score.observationId) {
-          await ctx.prisma.observation.delete({
-            where: {
-              id: score.observationId,
-            },
-          });
-        }
-      })
+      const isTraceInProject = trace.projectId === input.projectId;
+
+      if (!isTraceInProject) {
+        throw new Error('Trace not found in Project');
+      };
       
       return await ctx.prisma.trace.delete({
         where: {
