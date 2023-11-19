@@ -12,6 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { TrashIcon } from "lucide-react";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
+import { useSession } from "next-auth/react";
 
 export function ProjectMembersTable({ projectId }: { projectId: string }) {
   const hasReadAccess = useHasAccess({
@@ -22,6 +23,8 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
     projectId: projectId,
     scope: "members:delete",
   });
+
+  const session = useSession();
 
   const utils = api.useContext();
   const memberships = api.projectMembers.get.useQuery(
@@ -59,7 +62,9 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                 <TableCell>{m.user.name}</TableCell>
                 <TableCell>{m.user.email}</TableCell>
                 <TableCell>{m.role}</TableCell>
-                {hasDeleteAccess && m.role !== "OWNER" ? (
+                {hasDeleteAccess &&
+                m.user.id !== session.data?.user?.id &&
+                m.role !== "OWNER" ? (
                   <TableCell>
                     <Button
                       variant="ghost"
