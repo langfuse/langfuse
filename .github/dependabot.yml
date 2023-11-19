@@ -17,11 +17,11 @@ updates:
     groups:
       trpc:
         patterns:
-          - ^@trpc/.*
+          - "@trpc/*"
       prisma:
         patterns:
-          - ^prisma
-          - ^@prisma/.*
+          - "prisma"
+          - "@prisma/*"
       next:
         patterns:
           - "eslint-config-next"
