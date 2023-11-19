@@ -19,6 +19,8 @@ export async function telemetry() {
   if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
   // Check if telemetry is not disabled
   if (process.env.TELEMETRY_ENABLED === "false") return;
+  // Do not run in CI
+  if (process.env.CI) return;
 
   // Check via db cron_jobs table if it is time to run job
   const job = await jobScheduler();
