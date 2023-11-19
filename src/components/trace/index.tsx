@@ -13,6 +13,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
+import { DeleteTrace } from "@/src/components/delete-trace";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -101,6 +102,10 @@ export function TracePage({ traceId }: { traceId: string }) {
                 `/project/${router.query.projectId as string}/traces/${id}`
               }
               listKey="traces"
+            />
+            <DeleteTrace
+              traceId={trace.data.id}
+              projectId={trace.data.projectId}
             />
           </>
         }
