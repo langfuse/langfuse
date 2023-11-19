@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: false
+  base-path: /api/public
+  endpoints:
+    health:
+      docs: Check health of API and database
+      method: GET
+      path: /health
+      errors:
+        - InternalServerError
+
+errors:
+  InternalServerError:
+    status-code: 500
