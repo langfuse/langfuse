@@ -14,6 +14,7 @@ import {
   eventTypes,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
+import { telemetry } from "@/src/features/telemetry";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
@@ -52,6 +53,9 @@ export default async function handler(
         });
 
       const body = TraceSchema.parse(req.body);
+
+      await telemetry();
+
       const event = {
         id: v4(),
         type: eventTypes.TRACE_CREATE,

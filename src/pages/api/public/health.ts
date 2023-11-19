@@ -1,4 +1,5 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { telemetry } from "@/src/features/telemetry";
 import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -7,6 +8,7 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   await runMiddleware(req, res, cors);
+  await telemetry();
   try {
     await prisma.$queryRaw`SELECT 1;`;
   } catch (e) {
