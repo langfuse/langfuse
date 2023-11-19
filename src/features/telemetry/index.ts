@@ -1,15 +1,19 @@
 import { prisma } from "@/src/server/db";
-import { type NextApiRequest, type NextApiResponse } from "next";
 import { PostHog } from "posthog-node";
 import { v4 as uuidv4 } from "uuid";
 
 // Safe as it is intended to be public
 const POSTHOG_API_KEY = "phc_zkMwFajk8ehObUlMth0D7DtPItFnxETi3lmSvyQDrwB";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
+// interval in milliseconds
+const INTERVAL = 60 * 60 * 1000; // 1 hour
+
+export async function telemetry() {
+  posthogTelemetry();
+  setTimeout(triggerTelemetry, INTERVAL);
+}
+
+async function posthogTelemetry() {
   try {
     const posthog = new PostHog(POSTHOG_API_KEY, {
       host: "https://eu.posthog.com",
@@ -128,10 +132,7 @@ export default async function handler(
       update: { lastRun: endTimeframe, state: clientId },
       create: { name: "telemetry", lastRun: endTimeframe, state: clientId },
     });
-
-    return res.status(200).json({ message: "OK" });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Internal server error" });
   }
 }
