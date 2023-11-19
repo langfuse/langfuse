@@ -1,5 +1,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
+import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 
 export default function Header(props: {
   title: string;
@@ -7,6 +9,13 @@ export default function Header(props: {
   live?: boolean;
   actionButtons?: React.ReactNode;
 }) {
+  const router = useRouter();
+  const session = useSession();
+
+  const currentPath = router.pathname;
+  const projectId = router.query.projectId;
+
+  const project = session.data?.user?.projects.find((p) => p.id === projectId);
   const backHref =
     props.breadcrumb &&
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
@@ -62,6 +71,11 @@ export default function Header(props: {
       <div className="mt-2 flex flex-wrap items-center justify-between gap-5">
         <div className="flex items-center gap-3 md:gap-5">
           <div className="min-w-0">
+            {project && projectId && currentPath !== "/project/[projectId]" ? (
+              <div className="text-sm font-medium text-gray-500">
+                {project.name}
+              </div>
+            ) : null}
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
               {props.title}
             </h2>
