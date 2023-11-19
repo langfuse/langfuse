@@ -8,8 +8,8 @@ service:
       method: GET
       path: /health
       errors:
-        - InternalServerError
+        - ServiceUnavailableError
 
 errors:
-  InternalServerError:
-    status-code: 500
+  ServiceUnavailableError:
+    status-code: 503

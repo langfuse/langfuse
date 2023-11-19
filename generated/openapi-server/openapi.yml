@@ -452,7 +452,7 @@ paths:
             application/json:
               schema:
                 type: string
-        '500':
+        '503':
           description: ''
   /api/public/ingestion:
     post:
