@@ -14,14 +14,16 @@ updates:
       prefix: chore
       prefix-development: chore
       include: scope
+    ignore:
+      - dependency-name: "@types/node"
     groups:
       trpc:
         patterns:
-          - ^@trpc/.*
+          - "@trpc/*"
       prisma:
         patterns:
-          - ^prisma
-          - ^@prisma/.*
+          - "prisma"
+          - "@prisma/*"
       next:
         patterns:
           - "eslint-config-next"
