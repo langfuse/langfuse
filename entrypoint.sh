@@ -14,8 +14,5 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-# Start background cron job
-node cron.js &
-
 # Start server
 node server.js
