@@ -20,6 +20,7 @@ import { ObservationProcessor } from "../../../server/api/services/EventProcesso
 import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
+import { telemetry } from "@/src/features/telemetry";
 
 export default async function handler(
   req: NextApiRequest,
@@ -80,6 +81,8 @@ export default async function handler(
       });
     const filteredBatch: z.infer<typeof singleEventSchema>[] =
       batch.filter(isNotNullOrUndefined);
+
+    await telemetry();
 
     const sortedBatch = sortBatch(filteredBatch);
     const result = await handleBatch(sortedBatch, req, authCheck);
