@@ -1,3 +1,4 @@
+import { DeleteTrace } from "@/src/components/delete-trace";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -217,6 +218,20 @@ export default function TracesTable({
       accessorKey: "release",
       header: "Release",
     },
+    {
+      accessorKey: "action",
+      header: "Action",
+      cell: ({ row }) => {
+        const traceId = row.getValue("id");
+        return traceId && typeof traceId === "string" ? (
+          <DeleteTrace
+            traceId={traceId}
+            isTableAction={true}
+            projectId={projectId}
+          />
+        ) : undefined;
+      },
+    },
   ];
 
   return (
@@ -239,16 +254,16 @@ export default function TracesTable({
           traces.isLoading
             ? { isLoading: true, isError: false }
             : traces.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: traces.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: traces.data?.map((t) => convertToTableRow(t)),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: traces.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: traces.data?.map((t) => convertToTableRow(t)),
+                }
         }
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
