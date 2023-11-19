@@ -49,7 +49,7 @@ export async function telemetry() {
  * - shouldRunJob: A boolean indicating whether the job should be run.
  * - job_started_at: The timestamp when the job was started.
  * - last_run: The timestamp of the last run of the job, or null if it has never run.
- * - clientId: A unique clienId that identfies the host.
+ * - clientId: A unique clienId that identifies the host.
  */
 async function jobScheduler(): Promise<
   | { shouldRunJob: false }
