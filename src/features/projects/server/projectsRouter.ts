@@ -72,44 +72,59 @@ export const projectsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        email: z.string().email(),
-      })
+        newOwnerEmail: z.string().email(),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "project:transfer",
-      });
-
-      try {
-        const user = await ctx.prisma.user.findUnique({
-          where: {
-            email: input.email.toLowerCase(),
-          },
-        });
-
-        if (!user) throw new Error("User not found");
-
-        if (user.id === ctx.session.user.id) throw new Error("You cannot transfer project to yourself");
-
-        await ctx.prisma.membership.create({
-          data: {
-            userId: user.id,
-            projectId: input.projectId,
-            role: 'OWNER',
-          },
-        });
-
-        return await ctx.prisma.membership.deleteMany({
-          where: {
-            userId: ctx.session.user.id,
-            projectId: input.projectId,
-            role: 'OWNER',
-          },
-        });
-      } catch (error) {
-        throw new Error('Internal server error' + error);
+      // Check if owner
+      if (
+        ctx.session.user.projects.find(
+          (project) => project.id === input.projectId,
+        )?.role !== "OWNER"
+      ) {
+        throw new Error("Only the owner can transfer the project");
       }
-    })
+
+      // Check if new owner exists
+      const newOwner = await ctx.prisma.user.findUnique({
+        where: {
+          email: input.newOwnerEmail.toLowerCase(),
+        },
+      });
+      if (!newOwner) throw new Error("User not found");
+      if (newOwner.id === ctx.session.user.id)
+        throw new Error("You cannot transfer project to yourself");
+
+      return ctx.prisma.$transaction([
+        // Add new owner, upsert to update role if already exists
+        ctx.prisma.membership.upsert({
+          where: {
+            projectId_userId: {
+              projectId: input.projectId,
+              userId: newOwner.id,
+            },
+          },
+          update: {
+            role: "OWNER",
+          },
+          create: {
+            userId: newOwner.id,
+            projectId: input.projectId,
+            role: "OWNER",
+          },
+        }),
+        // Update old owner to admin
+        ctx.prisma.membership.update({
+          where: {
+            projectId_userId: {
+              projectId: input.projectId,
+              userId: ctx.session.user.id,
+            },
+          },
+          data: {
+            role: "ADMIN",
+          },
+        }),
+      ]);
+    }),
 });
