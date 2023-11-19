@@ -5,7 +5,7 @@ info:
 paths:
   /api/public/scores:
     post:
-      description: Add a score to the database
+      description: Add a score to the database, upserts on id
       operationId: score_create
       tags:
         - Score

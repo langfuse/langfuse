@@ -9,7 +9,7 @@ import {
   ScoreSchema,
   eventTypes,
   ingestionBatch,
-} from "@/src/pages/api/public/ingestion-api-schema";
+} from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
 import {
   handleBatch,

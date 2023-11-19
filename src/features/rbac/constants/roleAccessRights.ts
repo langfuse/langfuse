@@ -10,6 +10,7 @@ const scopes = [
   "apiKeys:delete",
 
   "traces:publish",
+  "traces:delete",
 
   "scores:CUD",
 
@@ -31,6 +32,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:create",
     "apiKeys:delete",
     "traces:publish",
+    "traces:delete",
     "scores:CUD",
     "project:delete",
     "datasets:CUD",
@@ -44,6 +46,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:create",
     "apiKeys:delete",
     "traces:publish",
+    "traces:delete",
     "scores:CUD",
     "project:delete",
     "datasets:CUD",

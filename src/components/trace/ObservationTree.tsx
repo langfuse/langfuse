@@ -82,7 +82,7 @@ const ObservationTreeNode = (props: {
         <Fragment key={observation.id}>
           <div className="flex">
             {Array.from({ length: props.indentationLevel }, (_, i) => (
-              <div className="mx-2 border-r" key={i} />
+              <div className="mx-2 border-r lg:mr-4" key={i} />
             ))}
             <div
               className={cn(

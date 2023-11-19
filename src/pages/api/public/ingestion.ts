@@ -10,7 +10,7 @@ import {
   type ingestionApiSchema,
   eventTypes,
   singleEventSchema,
-} from "./ingestion-api-schema";
+} from "@/src/features/public-api/server/ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
@@ -304,5 +304,5 @@ export const handleBatchResultLegacy = (
       errors: ["Internal Server Error"],
     });
   }
-  return res.status(201).send(results.length > 0 ? results[0]?.result : {});
+  return res.status(200).send(results.length > 0 ? results[0]?.result : {});
 };
