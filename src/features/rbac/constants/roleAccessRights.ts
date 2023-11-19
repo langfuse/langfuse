@@ -36,7 +36,6 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "scores:CUD",
     "project:delete",
     "datasets:CUD",
-    "project:transfer",
   ],
   ADMIN: [
     "members:read",
