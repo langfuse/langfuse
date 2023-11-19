@@ -103,7 +103,10 @@ export function TracePage({ traceId }: { traceId: string }) {
               }
               listKey="traces"
             />
-            <DeleteTrace traceId={trace.data.id} projectId={trace.data.projectId} />
+            <DeleteTrace
+              traceId={trace.data.id}
+              projectId={trace.data.projectId}
+            />
           </>
         }
       />

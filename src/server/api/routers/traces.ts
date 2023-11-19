@@ -247,9 +247,9 @@ export const traceRouter = createTRPCRouter({
             ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
               obsStartTimes[0]!.getTime()
             : obsStartTimes.length > 1
-            ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-              obsStartTimes[0]!.getTime()
-            : undefined
+              ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                obsStartTimes[0]!.getTime()
+              : undefined
           : undefined;
 
       const enrichedObservations = observations.map(
@@ -276,8 +276,8 @@ export const traceRouter = createTRPCRouter({
         observations: enrichedObservations as ObservationReturnType[],
       };
     }),
-    delete: protectedProjectProcedure
-    .input(z.object({ traceId: z.string(), projectId: z.string(), }))
+  delete: protectedProjectProcedure
+    .input(z.object({ traceId: z.string(), projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -285,21 +285,10 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-        },
-      });
-
-      const isTraceInProject = trace.projectId === input.projectId;
-
-      if (!isTraceInProject) {
-        throw new Error('Trace not found in Project');
-      };
-      
       return await ctx.prisma.trace.delete({
         where: {
           id: input.traceId,
+          projectId: input.projectId,
         },
       });
     }),
