@@ -344,6 +344,38 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Health",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Health",
+          "request": {
+            "description": "Check health of API and database",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "health"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Ingestion",
       "item": [
         {

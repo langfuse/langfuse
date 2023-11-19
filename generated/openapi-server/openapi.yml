@@ -412,6 +412,48 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateGenerationRequest'
+  /api/public/health:
+    get:
+      description: Check health of API and database
+      operationId: health_health
+      tags:
+        - Health
+      parameters: []
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '500':
+          description: ''
   /api/public/ingestion:
     post:
       description: Ingest multiple events to Langfuse
