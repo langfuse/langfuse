@@ -285,11 +285,28 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
-      return await ctx.prisma.trace.delete({
+      const trace = await ctx.prisma.trace.findFirst({
         where: {
           id: input.traceId,
           projectId: input.projectId,
         },
       });
+
+      if (!trace) {
+        throw new Error("Trace not found in project");
+      }
+
+      return ctx.prisma.$transaction([
+        ctx.prisma.trace.delete({
+          where: {
+            id: input.traceId,
+          },
+        }),
+        ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: input.traceId,
+          },
+        }),
+      ]);
     }),
 });
