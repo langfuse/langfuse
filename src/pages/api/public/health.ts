@@ -10,7 +10,7 @@ export default async function handler(
   try {
     await prisma.$queryRaw`SELECT 1;`;
   } catch (e) {
-    return res.status(500).json({ status: "Database not available" });
+    return res.status(503).json({ status: "Database not available" });
   }
   return res.status(200).json({ status: "OK" });
 }
