@@ -76,14 +76,11 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      // Check if owner
-      if (
-        ctx.session.user.projects.find(
-          (project) => project.id === input.projectId,
-        )?.role !== "OWNER"
-      ) {
-        throw new Error("Only the owner can transfer the project");
-      }
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:transfer",
+      });
 
       // Check if new owner exists
       const newOwner = await ctx.prisma.user.findUnique({

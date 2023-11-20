@@ -77,8 +77,6 @@ export function DeleteProjectButton(props: { projectId: string }) {
       });
   };
 
-  if (!hasAccess) return null;
-
   return (
     <div>
       <h2 className="mb-6 text-base font-semibold leading-6 text-gray-900">
@@ -86,7 +84,9 @@ export function DeleteProjectButton(props: { projectId: string }) {
       </h2>
       <Dialog>
         <DialogTrigger asChild>
-          <Button variant="destructive">Delete Project</Button>
+          <Button variant="destructive" disabled={!hasAccess}>
+            Delete Project
+          </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

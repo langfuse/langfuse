@@ -12,25 +12,31 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
 import { useRouter } from "next/router";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSession } from "next-auth/react";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const formSchema = z.object({
-  email: z.string().email(),
+  newOwnerEmail: z.string().email(),
 });
 export function TransferOwnershipButton(props: { projectId: string }) {
   const utils = api.useContext();
   const router = useRouter();
   const posthog = usePostHog();
 
+  const session = useSession();
+  const project = session?.data?.user?.projects?.find(
+    (project) => project.id == props.projectId,
+  );
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "project:transfer",
@@ -39,47 +45,48 @@ export function TransferOwnershipButton(props: { projectId: string }) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      newOwnerEmail: "",
     },
   });
 
   const transferProject = api.projects.transfer.useMutation({
     onSuccess: () => utils.projects.invalidate(),
+    onError: (error) =>
+      form.setError("newOwnerEmail", { message: error.message }),
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    form.clearErrors();
     transferProject
       .mutateAsync({
         projectId: props.projectId,
-        email: values.email,
+        newOwnerEmail: values.newOwnerEmail,
       })
       .then(() => {
         posthog.capture("project_settings:project_transfer");
         void router.push("/");
       })
-      .catch(() => {
-        form.setError("email", {
-          type: "manual",
-          message: "User does not exist or already has access to this project",
-        });
+      .catch((error) => {
+        console.error(error);
       });
-  };
-
-  if (!hasAccess) return null;
+  }
 
   return (
     <div>
       <Dialog>
         <DialogTrigger asChild>
-          <Button variant="destructive">Transfer project</Button>
+          <Button variant="destructive" disabled={!hasAccess}>
+            Transfer Ownership
+          </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold  ">
-              Transfer project
+            <DialogTitle className="text-lg font-semibold">
+              Transfer project{project?.name ? ` (${project.name})` : ""}
             </DialogTitle>
             <DialogDescription>
-              Remember, you can lose ownership, and you will no longer have access to this project
+              You will lose ownership of this project and will become an admin.
+              You cannot undo this action.
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -91,12 +98,13 @@ export function TransferOwnershipButton(props: { projectId: string }) {
             >
               <FormField
                 control={form.control}
-                name="email"
+                name="newOwnerEmail"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel>New owner</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="email"
+                        placeholder="user@example.com"
                         {...field}
                         data-testid="new-project-name-input"
                       />
@@ -116,7 +124,7 @@ export function TransferOwnershipButton(props: { projectId: string }) {
             </form>
           </Form>
         </DialogContent>
-      </Dialog >
+      </Dialog>
     </div>
-  )
+  );
 }
