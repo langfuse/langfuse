@@ -34,13 +34,13 @@ function hasAccess(p: HasAccessParams): boolean {
       ? // MembershipRole
         p.role
       : "data" in p.session
-      ? // SessionContextValue
-        p.session.data?.user?.projects.find(
-          (project) => project.id === p.projectId,
-        )?.role
-      : // Session
-        p.session.user?.projects.find((project) => project.id === p.projectId)
-          ?.role;
+        ? // SessionContextValue
+          p.session.data?.user?.projects.find(
+            (project) => project.id === p.projectId,
+          )?.role
+        : // Session
+          p.session.user?.projects.find((project) => project.id === p.projectId)
+            ?.role;
   if (role === undefined) return false;
 
   return roleAccessRights[role].includes(p.scope);
