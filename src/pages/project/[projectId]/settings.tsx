@@ -21,8 +21,10 @@ export default function SettingsPage() {
         <ApiKeyList projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
         <Instructions />
-        <DeleteProjectButton projectId={projectId} />
-        <TransferOwnershipButton projectId={projectId} />
+        <div className="space-y-3">
+          <DeleteProjectButton projectId={projectId} />
+          <TransferOwnershipButton projectId={projectId} />
+        </div>
       </div>
     </div>
   );
