@@ -43,7 +43,7 @@ export async function telemetry() {
       });
     }
   } catch (error) {
-    // Catch all errors to be sure telemetry deos not break the application
+    // Catch all errors to be sure telemetry does not break the application
     console.error("Telemetry, unexpected error:", error);
   }
 }
