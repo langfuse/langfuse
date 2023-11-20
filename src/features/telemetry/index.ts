@@ -13,33 +13,38 @@ const JOB_INTERVAL_MINUTES = Prisma.raw("60");
 const JOB_TIMEOUT_MINUTES = Prisma.raw("10");
 
 export async function telemetry() {
-  // Only run in prod
-  if (process.env.NODE_ENV !== "production") return;
-  // Do not run in Lanfuse cloud, separate telemetry is used
-  if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
-  // Check if telemetry is not disabled
-  if (process.env.TELEMETRY_ENABLED === "false") return;
-  // Do not run in CI
-  if (process.env.CI) return;
+  try {
+    // Only run in prod
+    if (process.env.NODE_ENV !== "production") return;
+    // Do not run in Lanfuse cloud, separate telemetry is used
+    if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
+    // Check if telemetry is not disabled
+    if (process.env.TELEMETRY_ENABLED === "false") return;
+    // Do not run in CI
+    if (process.env.CI) return;
 
-  // Check via db cron_jobs table if it is time to run job
-  const job = await jobScheduler();
+    // Check via db cron_jobs table if it is time to run job
+    const job = await jobScheduler();
 
-  if (job.shouldRunJob) {
-    const { jobStartedAt, lastRun, clientId } = job;
+    if (job.shouldRunJob) {
+      const { jobStartedAt, lastRun, clientId } = job;
 
-    // Run telemetry job
-    await posthogTelemetry({
-      startTimeframe: lastRun,
-      endTimeframe: jobStartedAt,
-      clientId,
-    });
+      // Run telemetry job
+      await posthogTelemetry({
+        startTimeframe: lastRun,
+        endTimeframe: jobStartedAt,
+        clientId,
+      });
 
-    // Update cron_jobs table
-    await prisma.cronJobs.update({
-      where: { name: "telemetry" },
-      data: { lastRun: jobStartedAt, state: clientId, jobStartedAt: null },
-    });
+      // Update cron_jobs table
+      await prisma.cronJobs.update({
+        where: { name: "telemetry" },
+        data: { lastRun: jobStartedAt, state: clientId, jobStartedAt: null },
+      });
+    }
+  } catch (error) {
+    // Catch all errors to be sure telemetry deos not break the application
+    console.error("Telemetry, unexpected error:", error);
   }
 }
 
