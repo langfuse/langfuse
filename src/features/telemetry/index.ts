@@ -66,13 +66,28 @@ async function jobScheduler(): Promise<
     }
 > {
   // Check if job should run, without a lock to not impact performance
-  const checkNoLock = await prisma.$queryRaw<Array<{ name: string }>>`
-    SELECT name FROM cron_jobs
-    WHERE name = 'telemetry' 
-      AND (last_run IS NULL OR last_run <= (NOW() - INTERVAL '${JOB_INTERVAL_MINUTES} minutes'))
-      AND (job_started_at IS NULL OR job_started_at <= (NOW() - INTERVAL '${JOB_TIMEOUT_MINUTES} minutes'))`;
+  // "not exists" triggers when this is run for the very first time in a container
+  const checkNoLock = await prisma.$queryRaw<Array<{ status: boolean }>>`
+    SELECT (
+      EXISTS (
+        SELECT 1 
+        FROM cron_jobs 
+        WHERE name = 'telemetry' 
+        AND (last_run IS NULL OR last_run <= (NOW() - INTERVAL '${JOB_INTERVAL_MINUTES} minute')) 
+        AND (job_started_at IS NULL OR job_started_at <= (NOW() - INTERVAL '${JOB_TIMEOUT_MINUTES} minute'))
+      )
+      OR NOT EXISTS (
+        SELECT 1 
+        FROM cron_jobs 
+        WHERE name = 'telemetry'
+      ) 
+    ) AS status;`;
   // Return if job should not run
-  if (checkNoLock.length === 0) return { shouldRunJob: false };
+  if (checkNoLock.length !== 1) {
+    console.error("Telemetry failed to check if job should run");
+    return { shouldRunJob: false };
+  }
+  if (checkNoLock[0]!.status === false) return { shouldRunJob: false };
 
   // Lock table and update job_started_at if no other job was created in the meantime
   const res = await prisma.$transaction([
