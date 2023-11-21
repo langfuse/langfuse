@@ -51,7 +51,7 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
     scope: "members:create",
   });
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const mutCreateProjectMember = api.projectMembers.create.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
   });

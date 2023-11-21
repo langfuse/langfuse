@@ -26,7 +26,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
 
   const session = useSession();
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const memberships = api.projectMembers.get.useQuery(
     {
       projectId: projectId,

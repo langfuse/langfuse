@@ -29,7 +29,7 @@ const formSchema = z.object({
   newOwnerEmail: z.string().email(),
 });
 export function TransferOwnershipButton(props: { projectId: string }) {
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const router = useRouter();
   const posthog = usePostHog();
 
