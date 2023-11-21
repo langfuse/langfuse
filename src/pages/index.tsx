@@ -9,47 +9,34 @@ import {
 import Link from "next/link";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import Header from "@/src/components/layouts/header";
-import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import { useSession } from "next-auth/react";
+import { Spinner } from "@/src/components/layouts/spinner";
 
 export default function GetStartedPage() {
-  const projects = api.projects.all.useQuery();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-
-  // check url query for welcome = 1
   const getStarted = router.query.getStarted === "1";
 
-  useEffect(() => {
-    if (projects.data) {
-      if (
-        projects.data.filter((p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID)
-          .length > 0 &&
-        loading === true &&
-        !getStarted
-      )
-        void router.push(
-          `/project/${
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            projects.data.filter(
-              (p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID,
-            )[0]!.id
-          }`,
-        );
-      else setLoading(false);
-    }
-  }, [projects.data, router, loading, getStarted]);
+  const session = useSession();
+  const projects = session.data?.user?.projects;
+  const redirectProject = projects?.filter(
+    (p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+  )[0];
 
-  if (loading || projects.status === "loading") {
-    return <div>Loading...</div>;
+  if (session.status === "authenticated" && redirectProject && !getStarted) {
+    void router.push(`/project/${redirectProject.id}`);
+    return <Spinner message="Redirecting" />;
+  }
+
+  if (session.status === "loading") {
+    return <Spinner message="Loading" />;
   }
 
   const demoProject =
-    env.NEXT_PUBLIC_DEMO_PROJECT_ID !== undefined && projects.data?.length
-      ? projects.data.find(
+    env.NEXT_PUBLIC_DEMO_PROJECT_ID !== undefined
+      ? projects?.find(
           (project) => project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID,
         )
       : undefined;

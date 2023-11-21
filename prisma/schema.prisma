@@ -247,9 +247,10 @@ model Pricing {
 }
 
 model CronJobs {
-    name    String    @id
-    lastRun DateTime? @map("last_run")
-    state   String?
+    name         String    @id
+    lastRun      DateTime? @map("last_run")
+    jobStartedAt DateTime? @map("job_started_at")
+    state        String?
 
     @@map("cron_jobs")
 }
