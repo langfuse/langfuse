@@ -48,7 +48,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
-        credentials: true,
+        credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
       },
     },
   };
