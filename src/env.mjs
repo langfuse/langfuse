@@ -39,7 +39,7 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
-    AUTH_INTERNAL_CREDENTIALS_DISABLED: z.enum(["true", "false"]).optional(),
+    AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
   },
 
   /**
@@ -82,7 +82,7 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
-    AUTH_INTERNAL_CREDENTIALS_DISABLED:
-      process.env.AUTH_INTERNAL_CREDENTIALS_DISABLED,
+    AUTH_DISABLE_USERNAME_PASSWORD:
+      process.env.AUTH_DISABLE_USERNAME_PASSWORD,
   },
 });
