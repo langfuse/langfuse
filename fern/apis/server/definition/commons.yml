@@ -146,16 +146,16 @@ types:
 errors:
   Error:
     status-code: 400
-    type: string
+    type: unknown
   UnauthorizedError:
     status-code: 401
-    type: string
+    type: unknown
   AccessDeniedError:
     status-code: 403
-    type: string
+    type: unknown
   NotFoundError:
     status-code: 404
-    type: string
+    type: unknown
   MethodNotAllowedError:
     status-code: 405
-    type: string
+    type: unknown
