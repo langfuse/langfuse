@@ -29,7 +29,7 @@ type RowData = {
 };
 
 export function DatasetsTable(props: { projectId: string }) {
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
   });
@@ -146,16 +146,16 @@ export function DatasetsTable(props: { projectId: string }) {
           datasets.isLoading
             ? { isLoading: true, isError: false }
             : datasets.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: datasets.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: datasets.data?.map((t) => convertToTableRow(t)),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: datasets.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: datasets.data?.map((t) => convertToTableRow(t)),
+                }
         }
       />
       <NewDatasetButton projectId={props.projectId} className="mt-4" />

@@ -25,7 +25,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 export function DeleteProjectButton(props: { projectId: string }) {
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const router = useRouter();
   const session = useSession();
   const posthog = usePostHog();

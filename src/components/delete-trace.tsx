@@ -20,7 +20,7 @@ export function DeleteTrace({
   isTableAction?: boolean;
 }) {
   const router = useRouter();
-  const utils = api.useContext();
+  const utils = api.useUtils();
 
   const hasAccess = useHasAccess({ projectId, scope: "traces:delete" });
 
