@@ -3,6 +3,10 @@ import { createUserEmailPassword } from "@/src/features/auth/lib/emailPassword";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import type { NextApiRequest, NextApiResponse } from "next";
 
+/*
+ * Sign-up endpoint (email/password users), creates user in database.
+ * SSO users are created by the NextAuth adapters.
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
