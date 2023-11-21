@@ -42,7 +42,7 @@ export default function Layout(props: PropsWithChildren) {
   const router = useRouter();
   const session = useSession();
   const enableExperimentalFeatures =
-    api.environment.enableExperimentalFeatures.useQuery().data;
+    api.environment.enableExperimentalFeatures.useQuery().data ?? false;
 
   const projectId = router.query.projectId as string | undefined;
   const navigation = ROUTES.filter(
@@ -67,9 +67,7 @@ export default function Layout(props: PropsWithChildren) {
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
 
-  const projects = api.projects.all.useQuery(undefined, {
-    enabled: session.status === "authenticated",
-  });
+  const projects = session.data?.user?.projects ?? [];
 
   if (session.status === "loading") return <Spinner message="Loading" />;
 
@@ -105,7 +103,7 @@ export default function Layout(props: PropsWithChildren) {
 
   const hideNavigation =
     session.status === "unauthenticated" ||
-    projects.data?.length === 0 ||
+    projects.length === 0 ||
     pathsWithoutNavigation.includes(router.pathname) ||
     router.pathname.startsWith("/public/");
   if (hideNavigation)
@@ -242,7 +240,7 @@ export default function Layout(props: PropsWithChildren) {
                             <NewProjectButton size="xs" />
                           </div>
                           <ul role="list" className="-mx-2 mt-2 space-y-1">
-                            {projects.data?.map((project) => (
+                            {projects.map((project) => (
                               <li key={project.name}>
                                 <Link
                                   href={`/project/${project.id}`}
@@ -345,7 +343,7 @@ export default function Layout(props: PropsWithChildren) {
                     <NewProjectButton size="xs" />
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
-                    {projects.data?.map((project, index) => (
+                    {projects.map((project, index) => (
                       <li key={project.name}>
                         <Link
                           href={`/project/${project.id}`}
