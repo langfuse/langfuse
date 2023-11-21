@@ -3,6 +3,10 @@ import { createUserEmailPassword } from "@/src/features/auth/lib/emailPassword";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import type { NextApiRequest, NextApiResponse } from "next";
 
+/*
+ * Sign-up endpoint (email/password users), creates user in database.
+ * SSO users are created by the NextAuth adapters.
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -10,6 +14,13 @@ export default async function handler(
   if (req.method !== "POST") return;
   if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
     res.status(422).json({ message: "Sign up is disabled." });
+    return;
+  }
+  if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
+    res.status(422).json({
+      message:
+        "Sign up with email and password is disabled for this instance. Please use SSO.",
+    });
     return;
   }
 

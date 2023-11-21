@@ -12,89 +12,81 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
 import { useRouter } from "next/router";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSession } from "next-auth/react";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
-export function DeleteProjectButton(props: { projectId: string }) {
+const formSchema = z.object({
+  newOwnerEmail: z.string().email(),
+});
+export function TransferOwnershipButton(props: { projectId: string }) {
   const utils = api.useContext();
   const router = useRouter();
-  const session = useSession();
   const posthog = usePostHog();
 
-  //code for dynamic confirmation message
-  const userInfo = session?.data?.user;
-  const currentProject = userInfo?.projects?.find(
+  const session = useSession();
+  const project = session?.data?.user?.projects?.find(
     (project) => project.id == props.projectId,
   );
-  const confirmMessage =
-    userInfo?.name?.replace(" ", "-") +
-    "/" +
-    currentProject?.name?.replace(" ", "-");
-
-  const formSchema = z.object({
-    name: z.string().includes(confirmMessage, {
-      message: `Please confirm with "${confirmMessage}"`,
-    }),
-  });
-
   const hasAccess = useHasAccess({
     projectId: props.projectId,
-    scope: "project:delete",
-  });
-
-  const deleteProject = api.projects.delete.useMutation({
-    onSuccess: () => utils.projects.invalidate(),
+    scope: "project:transfer",
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
+      newOwnerEmail: "",
     },
   });
 
-  // delete project functionality
-  const onSubmit = () => {
-    deleteProject
+  const transferProject = api.projects.transfer.useMutation({
+    onSuccess: () => utils.projects.invalidate(),
+    onError: (error) =>
+      form.setError("newOwnerEmail", { message: error.message }),
+  });
+
+  function onSubmit(values: z.infer<typeof formSchema>) {
+    form.clearErrors();
+    transferProject
       .mutateAsync({
         projectId: props.projectId,
+        newOwnerEmail: values.newOwnerEmail,
       })
       .then(() => {
-        posthog.capture("project_settings:project_delete");
+        posthog.capture("project_settings:project_transfer");
         void router.push("/");
       })
       .catch((error) => {
         console.error(error);
       });
-  };
+  }
 
   return (
     <div>
-      <h2 className="mb-6 text-base font-semibold leading-6 text-gray-900">
-        Danger Zone
-      </h2>
       <Dialog>
         <DialogTrigger asChild>
           <Button variant="destructive" disabled={!hasAccess}>
-            Delete Project
+            Transfer Ownership
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold  ">
-              Delete Project
+            <DialogTitle className="text-lg font-semibold">
+              Transfer project{project?.name ? ` (${project.name})` : ""}
             </DialogTitle>
-            <DialogDescription className=" ">
-              {`To confirm, type "${confirmMessage}" in the input box `}
+            <DialogDescription>
+              You will lose ownership of this project and will become an admin.
+              You cannot undo this action.
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -106,12 +98,13 @@ export function DeleteProjectButton(props: { projectId: string }) {
             >
               <FormField
                 control={form.control}
-                name="name"
+                name="newOwnerEmail"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel>New owner</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={confirmMessage}
+                        placeholder="user@example.com"
                         {...field}
                         data-testid="new-project-name-input"
                       />
@@ -123,10 +116,10 @@ export function DeleteProjectButton(props: { projectId: string }) {
               <Button
                 type="submit"
                 variant="destructive"
-                loading={deleteProject.isLoading}
+                loading={transferProject.isLoading}
                 className="w-full"
               >
-                Delete project
+                Transfer project
               </Button>
             </form>
           </Form>
