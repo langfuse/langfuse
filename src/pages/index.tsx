@@ -11,37 +11,30 @@ import { NewProjectButton } from "@/src/features/projects/components/NewProjectB
 import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 
 export default function GetStartedPage() {
-  const projects = api.projects.all.useQuery();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-
-  // check url query for welcome = 1
   const getStarted = router.query.getStarted === "1";
 
-  useEffect(() => {
-    if (projects.data) {
+  const projects = api.projects.all.useQuery(undefined, {
+    onSuccess: (data) => {
       if (
-        projects.data.filter((p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID)
-          .length > 0 &&
-        loading === true &&
+        data.filter((p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID).length &&
         !getStarted
-      )
+      ) {
         void router.push(
           `/project/${
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            projects.data.filter(
-              (p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID,
-            )[0]!.id
+            data.filter((p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID)[0]!.id
           }`,
         );
-      else setLoading(false);
-    }
-  }, [projects.data, router, loading, getStarted]);
+        setLoading(false);
+      } else setLoading(false);
+    },
+  });
 
   if (loading || projects.status === "loading") {
     return <div>Loading...</div>;
