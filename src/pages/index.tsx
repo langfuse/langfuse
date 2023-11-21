@@ -9,40 +9,34 @@ import {
 import Link from "next/link";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import Header from "@/src/components/layouts/header";
-import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { useState } from "react";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import { useSession } from "next-auth/react";
+import { Spinner } from "@/src/components/layouts/spinner";
 
 export default function GetStartedPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
   const getStarted = router.query.getStarted === "1";
 
-  const projects = api.projects.all.useQuery(undefined, {
-    onSuccess: (data) => {
-      if (
-        data.filter((p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID).length &&
-        !getStarted
-      ) {
-        void router.push(
-          `/project/${
-            data.filter((p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID)[0]!.id
-          }`,
-        );
-        setLoading(false);
-      } else setLoading(false);
-    },
-  });
+  const session = useSession();
+  const projects = session.data?.user?.projects;
+  const redirectProject = projects?.filter(
+    (p) => p.id !== env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+  )[0];
 
-  if (loading || projects.status === "loading") {
-    return <div>Loading...</div>;
+  if (session.status === "authenticated" && redirectProject && !getStarted) {
+    void router.push(`/project/${redirectProject.id}`);
+    return <Spinner message="Redirecting" />;
+  }
+
+  if (session.status === "loading") {
+    return <Spinner message="Loading" />;
   }
 
   const demoProject =
-    env.NEXT_PUBLIC_DEMO_PROJECT_ID !== undefined && projects.data?.length
-      ? projects.data.find(
+    env.NEXT_PUBLIC_DEMO_PROJECT_ID !== undefined
+      ? projects?.find(
           (project) => project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID,
         )
       : undefined;
