@@ -52,20 +52,14 @@ const providers: Provider[] = [
     },
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
-
-      const internalCredentialsDisabled = env.AUTH_INTERNAL_CREDENTIALS_DISABLED;
-      const blockedDomains =
-        env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
-      const domain = credentials.email.split("@")[1]?.toLowerCase();
-
-      // Should never reach here under normal circumstances, but block attempts to sign in
-      // with internal credentials in the server
-      if (domain && internalCredentialsDisabled) {
+      if (env.AUTH_INTERNAL_CREDENTIALS_DISABLED === "true")
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
-      }
 
+      const blockedDomains =
+        env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
+      const domain = credentials.email.split("@")[1]?.toLowerCase();
       if (domain && blockedDomains.includes(domain)) {
         throw new Error(
           "Sign in with email and password is disabled for this domain. Please use SSO.",
