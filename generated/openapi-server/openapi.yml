@@ -21,32 +21,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: &ref_0
         - BasicAuth: []
       requestBody:
@@ -73,32 +68,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -129,32 +119,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/datasets:
     post:
@@ -174,32 +159,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -235,32 +215,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/events:
     post:
@@ -280,32 +255,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -330,32 +300,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -379,32 +344,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -426,32 +386,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '503':
           description: ''
   /api/public/ingestion:
@@ -472,32 +427,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -538,32 +488,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/observations:
     get:
@@ -625,32 +570,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/scores:
     post:
@@ -670,32 +610,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -744,32 +679,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/spans:
     post:
@@ -789,32 +719,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -839,32 +764,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -890,32 +810,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -964,32 +879,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/traces/{traceId}:
     get:
@@ -1015,32 +925,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
 components:
   schemas:
