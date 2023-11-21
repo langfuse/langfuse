@@ -56,7 +56,7 @@ export const EditDatasetItem = ({
     projectId: projectId,
     scope: "datasets:CUD",
   });
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const item = api.datasets.itemById.useQuery({
     datasetId,
     projectId,

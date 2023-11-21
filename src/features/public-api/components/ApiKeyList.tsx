@@ -104,7 +104,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
     scope: "apiKeys:delete",
   });
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const mutDeleteApiKey = api.apiKeys.delete.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
   });

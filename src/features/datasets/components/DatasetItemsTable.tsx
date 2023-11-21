@@ -31,7 +31,7 @@ export function DatasetItemsTable({
   projectId: string;
   datasetId: string;
 }) {
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
@@ -156,16 +156,16 @@ export function DatasetItemsTable({
           items.isLoading
             ? { isLoading: true, isError: false }
             : items.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: items.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: items.data?.map((t) => convertToTableRow(t)),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: items.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: items.data?.map((t) => convertToTableRow(t)),
+                }
         }
       />
       <NewDatasetItemButton

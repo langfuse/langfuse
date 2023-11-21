@@ -58,7 +58,7 @@ export function ManualScoreButton({
         : s.observationId === null),
   );
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const onSuccess = async () => {
     await Promise.all([utils.scores.invalidate(), utils.traces.invalidate()]);
   };
@@ -179,8 +179,8 @@ export function ManualScoreButton({
                 {form.formState.isSubmitting
                   ? "Loading ..."
                   : score
-                  ? "Update"
-                  : "Create"}
+                    ? "Update"
+                    : "Create"}
               </Button>
               {score && (
                 <Button

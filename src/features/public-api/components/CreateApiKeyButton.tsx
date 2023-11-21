@@ -14,7 +14,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const posthog = usePostHog();
   const hasAccess = useHasAccess({
     projectId: props.projectId,

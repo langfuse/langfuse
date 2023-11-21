@@ -15,7 +15,7 @@ export const PublishTraceSwitch = (props: {
     projectId: props.projectId,
     scope: "traces:publish",
   });
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const mut = api.publishTraces.update.useMutation({
     onSuccess: () => utils.traces.invalidate(),
   });
