@@ -52,7 +52,7 @@ const providers: Provider[] = [
     },
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
-      if (env.AUTH_INTERNAL_CREDENTIALS_DISABLED === "true")
+      if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true")
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );

@@ -12,7 +12,7 @@ export default async function handler(
     res.status(422).json({ message: "Sign up is disabled." });
     return;
   }
-  if (env.AUTH_INTERNAL_CREDENTIALS_DISABLED === "true") {
+  if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
     res.status(422).json({
       message:
         "Sign up with email and password is disabled for this instance. Please use SSO.",
