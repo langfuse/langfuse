@@ -21,6 +21,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
+import { CloudPrivacyNotice } from "@/src/pages/auth/sign-up";
+import { Divider } from "@tremor/react";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -98,12 +100,12 @@ export default function SignIn(props: PageProps) {
           </h2>
         </div>
 
-        <div className="mt-14 sm:mx-auto sm:w-full sm:max-w-[480px]">
-          <div className="divide-y bg-white p-6 py-6 shadow sm:rounded-lg sm:px-12">
+        <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+          <div className="mt-2 space-y-8">
             {props.authProviders.credentials ? (
               <Form {...credentialsForm}>
                 <form
-                  className="space-y-6 py-6"
+                  className="space-y-6"
                   // eslint-disable-next-line @typescript-eslint/no-misused-promises
                   onSubmit={credentialsForm.handleSubmit(onCredentialsSubmit)}
                 >
@@ -153,50 +155,58 @@ export default function SignIn(props: PageProps) {
 
             {
               // any authprovider from props is enanbles
-              Object.values(props.authProviders).some((enabled) => enabled) ? (
-                <div className="flex flex-row flex-wrap items-center justify-center gap-4 py-6">
-                  {props.authProviders.google ? (
-                    <Button
-                      onClick={() => {
-                        posthog.capture("sign_in:google_button_click");
-                        void signIn("google");
-                      }}
-                      variant="secondary"
-                    >
-                      <FcGoogle className="mr-3" size={18} />
-                      Sign in with Google
-                    </Button>
+              Object.entries(props.authProviders).some(
+                ([name, enabled]) => enabled && name !== "credentials",
+              ) ? (
+                <div>
+                  {props.authProviders.credentials ? (
+                    <Divider className="text-gray-400" />
                   ) : null}
-                  {props.authProviders.github ? (
-                    <Button
-                      onClick={() => {
-                        posthog.capture("sign_in:github_button_click");
-                        void signIn("github");
-                      }}
-                      variant="secondary"
-                    >
-                      <FaGithub className="mr-3" size={18} />
-                      Sign in with Github
-                    </Button>
-                  ) : null}
+                  <div className="flex flex-row flex-wrap items-center justify-center gap-4">
+                    {props.authProviders.google ? (
+                      <Button
+                        onClick={() => {
+                          posthog.capture("sign_in:google_button_click");
+                          void signIn("google");
+                        }}
+                        variant="secondary"
+                      >
+                        <FcGoogle className="mr-3" size={18} />
+                        Sign in with Google
+                      </Button>
+                    ) : null}
+                    {props.authProviders.github ? (
+                      <Button
+                        onClick={() => {
+                          posthog.capture("sign_in:github_button_click");
+                          void signIn("github");
+                        }}
+                        variant="secondary"
+                      >
+                        <FaGithub className="mr-3" size={18} />
+                        Sign in with Github
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ) : null
             }
           </div>
-
-          {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
-          props.authProviders.credentials ? (
-            <p className="mt-10 text-center text-sm text-gray-500">
-              No account yet?{" "}
-              <Link
-                href="/auth/sign-up"
-                className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
-              >
-                Sign up
-              </Link>
-            </p>
-          ) : null}
+          <CloudPrivacyNotice action="signing in" />
         </div>
+
+        {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+        props.authProviders.credentials ? (
+          <p className="mt-10 text-center text-sm text-gray-500">
+            No account yet?{" "}
+            <Link
+              href="/auth/sign-up"
+              className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+            >
+              Sign up
+            </Link>
+          </p>
+        ) : null}
       </div>
     </>
   );
