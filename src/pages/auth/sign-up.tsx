@@ -20,6 +20,7 @@ import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { usePostHog } from "posthog-js/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 
 export default function SignIn() {
   const posthog = usePostHog();
@@ -90,6 +91,7 @@ export default function SignIn() {
         ) : null}
 
         <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+          <CloudRegionSwitch />
           <Form {...form}>
             <form
               className="space-y-6"
