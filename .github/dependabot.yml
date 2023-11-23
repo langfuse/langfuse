@@ -16,10 +16,8 @@ updates:
       include: scope
     ignore:
       - dependency-name: "@types/node"
+      - dependency-name: "@trpc/*"
     groups:
-      trpc:
-        patterns:
-          - "@trpc/*"
       prisma:
         patterns:
           - "prisma"
