@@ -299,7 +299,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
   });
 
-  it("should fail for ressource not found", async () => {
+  it("should fail for resource not found", async () => {
     const traceId = v4();
 
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
