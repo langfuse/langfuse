@@ -21,8 +21,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
-import { CloudPrivacyNotice } from "@/src/pages/auth/sign-up";
 import { Divider } from "@tremor/react";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
