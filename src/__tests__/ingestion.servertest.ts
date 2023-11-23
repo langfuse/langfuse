@@ -247,6 +247,109 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
   });
 
+  it("should fail for auth errors", async () => {
+    const traceId = v4();
+    const scoreId = v4();
+
+    const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+            userId: "user-1",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
+        },
+        {
+          id: v4(),
+          type: "score-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: scoreId,
+            name: "score-name",
+            value: 100.5,
+            traceId: "some-random-id",
+          },
+        },
+      ],
+    });
+
+    console.log(responseOne.body);
+    expect(responseOne.status).toBe(207);
+
+    expect("errors" in responseOne.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(responseOne.body?.errors.length).toBe(1);
+    expect("successes" in responseOne.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(responseOne.body?.successes.length).toBe(1);
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        name: "trace-name",
+      },
+    });
+
+    expect(dbTrace.length).toBe(1);
+  });
+
+  it("should fail for ressource not found", async () => {
+    const traceId = v4();
+    const scoreId = v4();
+
+    const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+            userId: "user-1",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
+        },
+        {
+          id: v4(),
+          type: "observation-update",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: "some-random-id",
+            type: "GENERATION",
+            output: { key: "this is a great gpt output" },
+          },
+        },
+      ],
+    });
+
+    console.log(responseOne.body);
+    expect(responseOne.status).toBe(207);
+
+    expect("errors" in responseOne.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(responseOne.body?.errors.length).toBe(1);
+    expect("successes" in responseOne.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(responseOne.body?.successes.length).toBe(1);
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        name: "trace-name",
+      },
+    });
+
+    expect(dbTrace.length).toBe(1);
+  });
+
   it("should update all token counts if update does not contain model name", async () => {
     const traceId = v4();
     const generationId = v4();
