@@ -90,15 +90,12 @@ export default function SignIn({ authProviders }: PageProps) {
         </div>
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
-            No credit card required.{" "}
-            {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-              ? "All users have access to a demo project."
-              : null}
+            No credit card required.
           </div>
         ) : null}
 
         <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
-          <CloudRegionSwitch />
+          <CloudRegionSwitch isSignUpPage />
           <Form {...form}>
             <form
               className="space-y-6"

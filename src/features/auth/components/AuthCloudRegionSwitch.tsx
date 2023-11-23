@@ -16,22 +16,29 @@ const regions = [
   },
 ];
 
-export function CloudRegionSwitch() {
+export function CloudRegionSwitch({
+  isSignUpPage,
+}: {
+  isSignUpPage?: boolean;
+}) {
   const posthog = usePostHog();
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
     <div>
-      <div className="flex w-full items-center justify-between">
+      <div className="flex w-full flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
           <span className="text-sm font-medium leading-none">Data Region</span>
           <p className="text-xs text-gray-500">
             Regions are strictly separated.
           </p>
-          {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ? (
+          {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+          isSignUpPage ? (
             <p className="text-xs text-gray-500">
-              Demo only available in EU region.
+              {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+                ? "✅ Demo project available"
+                : "❌ Choose EU for demo project access"}
             </p>
           ) : null}
         </div>
