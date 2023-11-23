@@ -19,6 +19,8 @@ import { env } from "@/src/env.mjs";
 import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { usePostHog } from "posthog-js/react";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 
 export default function SignIn() {
   const posthog = usePostHog();
@@ -89,6 +91,7 @@ export default function SignIn() {
         ) : null}
 
         <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+          <CloudRegionSwitch />
           <Form {...form}>
             <form
               className="space-y-6"
@@ -182,34 +185,3 @@ export default function SignIn() {
     </>
   );
 }
-
-export const CloudPrivacyNotice = ({ action }: { action: string }) =>
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
-    <div className="mt-10 text-center text-xs text-gray-500">
-      By {action} you are agreeing to our{" "}
-      <a
-        href="https://langfuse.com/tos"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="italic"
-      >
-        Terms of Service
-      </a>
-      ,{" "}
-      <a
-        href="https://langfuse.com/privacy"
-        rel="noopener noreferrer"
-        className="italic"
-      >
-        Privacy Policy
-      </a>
-      , and{" "}
-      <a
-        href="https://langfuse.com/cookie-policy"
-        rel="noopener noreferrer"
-        className="italic"
-      >
-        Cookie Policy
-      </a>
-    </div>
-  ) : null;

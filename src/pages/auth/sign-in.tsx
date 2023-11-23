@@ -21,8 +21,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
-import { CloudPrivacyNotice } from "@/src/pages/auth/sign-up";
 import { Divider } from "@tremor/react";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -102,6 +103,7 @@ export default function SignIn(props: PageProps) {
 
         <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
           <div className="mt-2 space-y-8">
+            <CloudRegionSwitch />
             {props.authProviders.credentials ? (
               <Form {...credentialsForm}>
                 <form
