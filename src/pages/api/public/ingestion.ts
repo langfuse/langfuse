@@ -245,24 +245,27 @@ export const handleBatchResult = (
         message: "Invalid request data",
         error: error.error.message,
       });
+    } else if (error.error instanceof AuthenticationError) {
+      returnedErrors.push({
+        id: error.id,
+        status: 401,
+        message: "Authentication error",
+        error: error.error.message,
+      });
     } else if (error.error instanceof ResourceNotFoundError) {
-      if (!errors.some((res) => res.id === error.id)) {
-        returnedErrors.push({
-          id: error.id,
-          status: 404,
-          message: "Resource not found",
-          error: error.error.message,
-        });
-      }
+      returnedErrors.push({
+        id: error.id,
+        status: 404,
+        message: "Resource not found",
+        error: error.error.message,
+      });
     } else {
-      if (!errors.some((res) => res.id === error.id)) {
-        returnedErrors.push({
-          id: error.id,
-          status: 500,
-          message: "Error processing events",
-          error: "Internal Server Error",
-        });
-      }
+      returnedErrors.push({
+        id: error.id,
+        status: 500,
+        message: "Error processing events",
+        error: "Internal Server Error",
+      });
     }
   });
 
