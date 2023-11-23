@@ -21,8 +21,12 @@ import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { usePostHog } from "posthog-js/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
 
-export default function SignIn() {
+// Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
+export { getServerSideProps } from "@/src/pages/auth/sign-in";
+
+export default function SignIn({ authProviders }: PageProps) {
   const posthog = usePostHog();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({
@@ -172,11 +176,12 @@ export default function SignIn() {
               ) : null}
             </form>
           </Form>
+          <SSOButtons authProviders={authProviders} action="Sign up" />
           <CloudPrivacyNotice action="creating an account" />
         </div>
 
         <p className="mt-10 text-center text-sm text-gray-500">
-          Already have an account or want to use SSO?{" "}
+          Already have an account?{" "}
           <Link
             href="/auth/sign-in"
             className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"

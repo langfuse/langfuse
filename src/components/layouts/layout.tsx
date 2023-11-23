@@ -108,7 +108,7 @@ export default function Layout(props: PropsWithChildren) {
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
         {props.children}
       </main>
     );
