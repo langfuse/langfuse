@@ -301,7 +301,6 @@ describe("/api/public/ingestion API Endpoint", () => {
 
   it("should fail for ressource not found", async () => {
     const traceId = v4();
-    const scoreId = v4();
 
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
