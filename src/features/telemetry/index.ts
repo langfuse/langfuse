@@ -225,10 +225,23 @@ async function posthogTelemetry({
       },
     });
 
+    // Domains (no PII)
+    const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
+      SELECT
+        substring(email FROM position('@' in email) + 1) as domain,
+        count(id)::int as "userCount"
+      FROM users
+      WHERE email ILIKE '%@%'
+      GROUP BY 1
+      ORDER BY count(id) desc
+      LIMIT 30
+    `;
+
     posthog.identify({
       distinctId: "docker:" + clientId,
       properties: {
         environment: process.env.NODE_ENV,
+        userDomains: domains,
         docker: true,
       },
     });
