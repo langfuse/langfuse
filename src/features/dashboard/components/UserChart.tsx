@@ -84,7 +84,6 @@ export const UserChart = ({
             value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
           };
         })
-        .filter((i) => (isUndefinedOrNull(i.name) ? true : false))
     : [];
 
   const totalCost = user.data?.reduce(
