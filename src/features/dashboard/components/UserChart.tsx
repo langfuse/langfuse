@@ -5,7 +5,6 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BarList } from "@tremor/react";
-import { isUndefinedOrNull } from "@/src/utils/types";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
