@@ -86,7 +86,10 @@ export default function SignIn() {
         </div>
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
-            No credit card required. All users have access to a demo project.
+            No credit card required.{" "}
+            {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+              ? "All users have access to a demo project."
+              : null}
           </div>
         ) : null}
 
@@ -173,7 +176,7 @@ export default function SignIn() {
         </div>
 
         <p className="mt-10 text-center text-sm text-gray-500">
-          Already have an account?{" "}
+          Already have an account or want to use SSO?{" "}
           <Link
             href="/auth/sign-in"
             className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
