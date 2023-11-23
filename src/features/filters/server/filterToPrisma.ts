@@ -7,6 +7,7 @@ const operatorReplacements = {
   "any of": "IN",
   "none of": "NOT IN",
   contains: "ILIKE",
+  "does not contain": "NOT ILIKE",
   "starts with": "ILIKE",
   "ends with": "ILIKE",
 };
@@ -69,10 +70,14 @@ export function filterToPrismaSql(
     const [valuePrefix, valueSuffix] =
       filter.type === "string" || filter.type === "stringObject"
         ? [
-            ["contains", "ends with"].includes(filter.operator)
+            ["contains", "does not contain", "ends with"].includes(
+              filter.operator,
+            )
               ? Prisma.raw("'%' || ")
               : Prisma.empty,
-            ["contains", "starts with"].includes(filter.operator)
+            ["contains", "does not contain", "starts with"].includes(
+              filter.operator,
+            )
               ? Prisma.raw(" || '%'")
               : Prisma.empty,
           ]

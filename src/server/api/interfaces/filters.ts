@@ -2,10 +2,16 @@ import { z } from "zod";
 
 export const filterOperators = {
   datetime: [">", "<", ">=", "<="],
-  string: ["=", "contains", "starts with", "ends with"],
+  string: ["=", "contains", "does not contain", "starts with", "ends with"],
   stringOptions: ["any of", "none of"],
   number: ["=", ">", "<", ">=", "<="],
-  stringObject: ["=", "contains", "starts with", "ends with"],
+  stringObject: [
+    "=",
+    "contains",
+    "does not contain",
+    "starts with",
+    "ends with",
+  ],
   numberObject: ["=", ">", "<", ">=", "<="],
 } as const;
 
