@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createEnv } from "@t3-oss/env-nextjs";
+import { VERSION } from "@/src/VERSION";
 
 export const env = createEnv({
   /**
@@ -40,6 +41,7 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
+    VERSION: z.string(),
   },
 
   /**
@@ -84,5 +86,6 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD:
       process.env.AUTH_DISABLE_USERNAME_PASSWORD,
+    VERSION: VERSION,
   },
 });
