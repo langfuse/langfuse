@@ -145,6 +145,12 @@
       "web": true,
       "autoGenerate": true,
       "releaseName": "v${version}"
+    },
+    "@release-it/bumper": {
+      "out": {
+        "file": "./src/VERSION",
+        "content": "${version}"
+      }
     }
   }
 }
