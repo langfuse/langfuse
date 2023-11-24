@@ -150,9 +150,10 @@
     "plugins": {
       "@release-it/bumper": {
         "out": {
-          "file": "./src/VERSION",
-          "content": "v${version}",
-          "consumeWholeFile": true
+          "file": "./src/VERSION.ts",
+          "content": "\"const VERSION = \"v${version}\"",
+          "consumeWholeFile": true,
+          "type": "application/typescript"
         }
       }
     }
