@@ -150,7 +150,7 @@
     "plugins": {
       "@release-it/bumper": {
         "out": {
-          "file": "./src/VERSION.ts",
+          "file": "./src/constants/VERSION.ts",
           "type": "application/typescript"
         }
       }
