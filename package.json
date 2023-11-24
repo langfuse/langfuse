@@ -1,6 +1,6 @@
 {
   "name": "langfuse-core",
-  "version": "1.5.1",
+  "version": "1.5.2-0",
   "private": true,
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
@@ -147,10 +147,12 @@
       "autoGenerate": true,
       "releaseName": "v${version}"
     },
-    "@release-it/bumper": {
-      "out": {
-        "file": "./src/VERSION",
-        "content": "${version}"
+    "plugins": {
+      "@release-it/bumper": {
+        "out": {
+          "file": "./src/VERSION",
+          "content": "${version}"
+        }
       }
     }
   }
