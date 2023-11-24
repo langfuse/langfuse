@@ -98,6 +98,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "@release-it/bumper": "^6.0.1",
     "@testing-library/jest-dom": "^6.1.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
@@ -145,6 +146,14 @@
       "web": true,
       "autoGenerate": true,
       "releaseName": "v${version}"
+    },
+    "plugins": {
+      "@release-it/bumper": {
+        "out": {
+          "file": "./src/constants/VERSION.ts",
+          "type": "application/typescript"
+        }
+      }
     }
   }
 }
