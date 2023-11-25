@@ -28,5 +28,6 @@ export const CloudPrivacyNotice = ({ action }: { action: string }) =>
       >
         Cookie Policy
       </a>
+      . You also confirm that the entered data is accurate.
     </div>
   ) : null;
