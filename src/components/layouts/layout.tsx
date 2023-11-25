@@ -295,7 +295,7 @@ export default function Layout(props: PropsWithChildren) {
           {/* Sidebar component, swap this element with another sidebar if you like */}
           <div className="flex h-screen grow flex-col gap-y-5  border-r border-gray-200 bg-white pb-3 pl-6 pt-7">
             <LangfuseLogo size="xl" className="mb-4" />
-            <div className="custom-scrollbar flex flex-1 flex-col overflow-auto pr-6">
+            <div className="custom-scrollbar flex flex-1 flex-col overflow-y-auto pr-6">
               <ul role="list" className="flex flex-col gap-y-4">
                 <li>
                   <ul role="list" className="-mx-2 space-y-1">
