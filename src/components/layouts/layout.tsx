@@ -1,3 +1,4 @@
+"use client";
 import { ROUTES } from "@/src/components/layouts/routes";
 import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Menu, Transition } from "@headlessui/react";
@@ -23,6 +24,7 @@ import Head from "next/head";
 import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
+import { ScrollArea } from "@radix-ui/themes";
 
 const userNavigation = [
   {
@@ -293,10 +295,15 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-3 pt-7">
+          <div
+            style={{
+              height: "100vh",
+            }}
+            className="flex grow flex-col gap-y-5  border-r border-gray-200 bg-white pb-3 pl-6 pt-7"
+          >
             <LangfuseLogo size="xl" className="mb-4" />
-            <nav className="flex flex-1 flex-col">
-              <ul role="list" className="flex flex-1 flex-col gap-y-4">
+            <div className="custom-scrollbar flex flex-1 flex-col overflow-auto pr-6">
+              <ul role="list" className="flex flex-col gap-y-4">
                 <li>
                   <ul role="list" className="-mx-2 space-y-1">
                     {navigation.map((item) => (
@@ -444,7 +451,7 @@ export default function Layout(props: PropsWithChildren) {
                   </Menu>
                 </li>
               </ul>
-            </nav>
+            </div>
           </div>
         </div>
 
