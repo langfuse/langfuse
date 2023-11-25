@@ -1,4 +1,3 @@
-"use client";
 import { ROUTES } from "@/src/components/layouts/routes";
 import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Menu, Transition } from "@headlessui/react";
