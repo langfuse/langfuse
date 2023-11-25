@@ -218,7 +218,7 @@ To contribute, send us a PR, raise a GitHub issue, or email at contributing@lang
 
 ### Development setup
 
-Requirements: Node.js >=18, npm, Docker
+Requirements: Node.js 20, npm, Docker
 
 ```bash
 # Install dependencies
