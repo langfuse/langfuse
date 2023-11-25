@@ -85,6 +85,7 @@ jobs:
       - name: Run, migrate, seed DB
         run: |
           docker-compose -f docker-compose.dev.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
