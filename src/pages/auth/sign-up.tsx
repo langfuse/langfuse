@@ -19,8 +19,14 @@ import { env } from "@/src/env.mjs";
 import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { usePostHog } from "posthog-js/react";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
 
-export default function SignIn() {
+// Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
+export { getServerSideProps } from "@/src/pages/auth/sign-in";
+
+export default function SignIn({ authProviders }: PageProps) {
   const posthog = usePostHog();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({
@@ -84,11 +90,12 @@ export default function SignIn() {
         </div>
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
-            No credit card required. All users have access to a demo project.
+            No credit card required.
           </div>
         ) : null}
 
         <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+          <CloudRegionSwitch isSignUpPage />
           <Form {...form}>
             <form
               className="space-y-6"
@@ -166,6 +173,7 @@ export default function SignIn() {
               ) : null}
             </form>
           </Form>
+          <SSOButtons authProviders={authProviders} action="Sign up" />
           <CloudPrivacyNotice action="creating an account" />
         </div>
 
@@ -182,34 +190,3 @@ export default function SignIn() {
     </>
   );
 }
-
-export const CloudPrivacyNotice = ({ action }: { action: string }) =>
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
-    <div className="mt-10 text-center text-xs text-gray-500">
-      By {action} you are agreeing to our{" "}
-      <a
-        href="https://langfuse.com/tos"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="italic"
-      >
-        Terms of Service
-      </a>
-      ,{" "}
-      <a
-        href="https://langfuse.com/privacy"
-        rel="noopener noreferrer"
-        className="italic"
-      >
-        Privacy Policy
-      </a>
-      , and{" "}
-      <a
-        href="https://langfuse.com/cookie-policy"
-        rel="noopener noreferrer"
-        className="italic"
-      >
-        Cookie Policy
-      </a>
-    </div>
-  ) : null;
