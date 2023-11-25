@@ -1,7 +1,7 @@
 export const projectInvitationTemplate = (
   senderName: string,
   recieverEmail: string,
-  projectName: string
+  projectName: string,
 ) => {
   return `<!DOCTYPE html>
   <html lang="en">

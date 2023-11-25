@@ -1,15 +1,24 @@
-import { createTransport } from 'nodemailer';
-import { Resend } from 'resend';
+import { createTransport } from "nodemailer";
+import { Resend } from "resend";
 
-import { projectInvitationTemplate } from '@/src/features/email/templates/ProjectInvitation';
+import { projectInvitationTemplate } from "@/src/features/email/templates/ProjectInvitation";
 
-export const sendProjectInvitation = async (to: string, senderName: string, projectName: string) => {
+export const sendProjectInvitation = async (
+  to: string,
+  senderName: string,
+  projectName: string,
+) => {
   try {
-    const transportChannel = process.env.EMAIL_TRANSPORT_CHANNEL ?? "smtp"
-    const html_template = projectInvitationTemplate(senderName, to, projectName);
+    const transportChannel = process.env.EMAIL_TRANSPORT_CHANNEL ?? "smtp";
+    const html_template = projectInvitationTemplate(
+      senderName,
+      to,
+      projectName,
+    );
 
-    const fromName = process.env.EMAIL_FROM_NAME ?? 'Langfuse';
-    const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? 'team_langfuse@langfuse.com';
+    const fromName = process.env.EMAIL_FROM_NAME ?? "Langfuse";
+    const fromAddress =
+      process.env.EMAIL_FROM_ADDRESS ?? "team_langfuse@langfuse.com";
 
     if (transportChannel === "resend") {
       if (!process.env.RESEND_API_KEY) {
@@ -38,8 +47,8 @@ export const sendProjectInvitation = async (to: string, senderName: string, proj
         port: Number(process.env.SMTP_PORT) || 587,
         secure: process.env.SMTP_SECURE === "true",
         auth: {
-          user: process.env.SMTP_AUTH_USERNAME ?? '',
-          pass: process.env.SMTP_AUTH_PASSWORD ?? '',
+          user: process.env.SMTP_AUTH_USERNAME ?? "",
+          pass: process.env.SMTP_AUTH_PASSWORD ?? "",
         },
       });
 
@@ -56,9 +65,7 @@ export const sendProjectInvitation = async (to: string, senderName: string, proj
     }
 
     return;
-  } catch (error: any) {
+  } catch (error) {
     console.error(error);
-
-    throw new Error(error.message);
   }
 };

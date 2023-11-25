@@ -36,8 +36,8 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const memberships = data.data?.memberships ?? [];
-  const invitations = data.data?.invitations ?? [];
+  const memberships = data.data?.memberships ?? []; // Active Members
+  const invitations = data.data?.invitations ?? []; // Pending Members
 
   const mutDeleteMembership = api.projectMembers.delete.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
@@ -67,32 +67,33 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody className="text-gray-500">
-            {memberships && memberships.map((m) => (
-              <TableRow key={m.userId} className="hover:bg-transparent">
-                <TableCell>{m.user.name}</TableCell>
-                <TableCell>{m.user.email}</TableCell>
-                <TableCell>{m.role}</TableCell>
-                {hasDeleteAccess &&
-                m.user.id !== session.data?.user?.id &&
-                m.role !== "OWNER" ? (
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      loading={mutDeleteMembership.isLoading}
-                      onClick={() => {
-                        mutDeleteMembership.mutate({
-                          projectId: projectId,
-                          userId: m.user.id,
-                        });
-                      }}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                ) : null}
-              </TableRow>
-            ))}
+            {memberships &&
+              memberships.map((m) => (
+                <TableRow key={m.userId} className="hover:bg-transparent">
+                  <TableCell>{m.user.name}</TableCell>
+                  <TableCell>{m.user.email}</TableCell>
+                  <TableCell>{m.role}</TableCell>
+                  {hasDeleteAccess &&
+                  m.user.id !== session.data?.user?.id &&
+                  m.role !== "OWNER" ? (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        loading={mutDeleteMembership.isLoading}
+                        onClick={() => {
+                          mutDeleteMembership.mutate({
+                            projectId: projectId,
+                            userId: m.user.id,
+                          });
+                        }}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </Card>
@@ -110,29 +111,31 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody className="text-gray-500">
-            {invitations && invitations.map((invite) => (
-              <TableRow key={invite.id} className="hover:bg-transparent">
-                <TableCell>{invite.email}</TableCell>
-                <TableCell>{invite.role}</TableCell>
-                <TableCell>{invite.sender.name}</TableCell>
-                {hasDeleteAccess &&
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      loading={mutDeleteInvitation.isLoading}
-                      onClick={() => {
-                        mutDeleteInvitation.mutate({
-                          id: invite.id,
-                          projectId: projectId,
-                        });
-                      }}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
-                  </TableCell>}
-              </TableRow>
-            ))}
+            {invitations &&
+              invitations.map((invite) => (
+                <TableRow key={invite.id} className="hover:bg-transparent">
+                  <TableCell>{invite.email}</TableCell>
+                  <TableCell>{invite.role}</TableCell>
+                  <TableCell>{invite.sender.name}</TableCell>
+                  {hasDeleteAccess && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        loading={mutDeleteInvitation.isLoading}
+                        onClick={() => {
+                          mutDeleteInvitation.mutate({
+                            id: invite.id,
+                            projectId: projectId,
+                          });
+                        }}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </Card>

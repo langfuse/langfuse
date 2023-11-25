@@ -97,11 +97,11 @@ export function FilterBuilder({
                       {filter.type === "datetime"
                         ? new Date(filter.value).toLocaleDateString()
                         : filter.type === "stringOptions"
-                        ? filter.value.join(", ")
-                        : filter.type === "number" ||
-                          filter.type === "numberObject"
-                        ? filter.value
-                        : `"${filter.value}"`}
+                          ? filter.value.join(", ")
+                          : filter.type === "number" ||
+                              filter.type === "numberObject"
+                            ? filter.value
+                            : `"${filter.value}"`}
                     </span>
                   );
                 })

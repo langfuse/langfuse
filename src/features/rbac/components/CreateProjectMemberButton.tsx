@@ -76,10 +76,10 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
         role: values.role,
       })
       .then((result) => {
-        // @ts-ignore
+        // @ts-expect-error (Due to unexpected error of ts)
         if (result.senderId) {
           setInviteNotification(true);
-          setTimeout(()=> {
+          setTimeout(() => {
             setInviteNotification(false);
           }, 3000);
         }
@@ -98,7 +98,10 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
     <div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="secondary" loading={mutCreateProjectMember.isLoading}>
+          <Button
+            variant="secondary"
+            loading={mutCreateProjectMember.isLoading}
+          >
             <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
             Add new member
           </Button>
@@ -173,15 +176,15 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
           </Form>
         </DialogContent>
       </Dialog>
-      {inviteNotification &&
-        <Alert variant="default" className="fixed bottom-7 right-4 w-64 bg-gray-700 text-white">
-          <AlertTitle>
-            Invitation Sent
-          </AlertTitle>
-          <AlertDescription>
-            An email invitation is sent.
-          </AlertDescription>
-        </Alert>}
+      {inviteNotification && (
+        <Alert
+          variant="default"
+          className="fixed bottom-7 right-4 w-64 bg-gray-700 text-white"
+        >
+          <AlertTitle>Invitation Sent</AlertTitle>
+          <AlertDescription>An email invitation is sent.</AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }

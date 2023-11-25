@@ -80,11 +80,13 @@ export const projectMembersRouter = createTRPCRouter({
       });
     }),
   delete_invitation: protectedProcedure
-    .input(z.object({
-      id: z.string(),
-      projectId: z.string(),
-    }))
-    .mutation(async ({input, ctx}) => {
+    .input(
+      z.object({
+        id: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -143,13 +145,17 @@ export const projectMembersRouter = createTRPCRouter({
 
       const project = await ctx.prisma.project.findFirstOrThrow({
         where: {
-          id: input.projectId
-        }
+          id: input.projectId,
+        },
       });
 
       if (!project) throw new Error("Project not found");
 
-      await sendProjectInvitation(input.email, ctx.session.user.name ?? `${process.env.EMAIL_FROM_NAME}`, project.name)
+      await sendProjectInvitation(
+        input.email,
+        ctx.session.user.name ?? `${process.env.EMAIL_FROM_NAME}`,
+        project.name,
+      );
 
       return invitation;
     }),
