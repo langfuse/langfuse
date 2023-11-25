@@ -73,7 +73,21 @@ Requirements
 
 ## Commit messages
 
-On the ﻿main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
+On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
+
+## CI/CD
+
+We use GitHub Actions for CI/CD, the configuration is in [`.github/workflows/pipeline.yml`](.github/workflows/pipeline.yml)
+
+CI on `main` and `pull_request`
+
+- Check Linting
+- E2E test of API using Jest
+- E2E tests of UI using Playwright
+
+CD on `main`
+
+- Publish Docker image to GitHub Packages if CI passes
 
 ## License
 
