@@ -27,7 +27,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
   const session = useSession();
 
   const utils = api.useUtils();
-  const memberships = api.projectMembers.get.useQuery(
+  const data = api.projectMembers.get.useQuery(
     {
       projectId: projectId,
     },
@@ -35,7 +35,14 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
       enabled: hasReadAccess,
     },
   );
+
+  const memberships = data.data?.memberships ?? [];
+  const invitations = data.data?.invitations ?? [];
+
   const mutDeleteMembership = api.projectMembers.delete.useMutation({
+    onSuccess: () => utils.projectMembers.invalidate(),
+  });
+  const mutDeleteInvitation = api.projectMembers.delete_invitation.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
   });
 
@@ -46,6 +53,9 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
       <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
         Project Members
       </h2>
+      <h3 className="mb-3 text-sm font-semibold leading-4 text-gray-600">
+        &nbsp;Active:
+      </h3>
       <Card className="mb-4">
         <Table className="text-sm">
           <TableHeader>
@@ -57,7 +67,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody className="text-gray-500">
-            {memberships.data?.map((m) => (
+            {memberships && memberships.map((m) => (
               <TableRow key={m.userId} className="hover:bg-transparent">
                 <TableCell>{m.user.name}</TableCell>
                 <TableCell>{m.user.email}</TableCell>
@@ -81,6 +91,46 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                     </Button>
                   </TableCell>
                 ) : null}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+      <h3 className="mb-3 text-sm font-semibold leading-4 text-gray-600">
+        &nbsp;Pending:
+      </h3>
+      <Card className="mb-4">
+        <Table className="text-sm">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-gray-900">Email</TableHead>
+              <TableHead className="text-gray-900">Role</TableHead>
+              <TableHead className="text-gray-900">Sent by</TableHead>
+              {hasDeleteAccess ? <TableHead /> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody className="text-gray-500">
+            {invitations && invitations.map((invite) => (
+              <TableRow key={invite.id} className="hover:bg-transparent">
+                <TableCell>{invite.email}</TableCell>
+                <TableCell>{invite.role}</TableCell>
+                <TableCell>{invite.sender.name}</TableCell>
+                {hasDeleteAccess &&
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      loading={mutDeleteInvitation.isLoading}
+                      onClick={() => {
+                        mutDeleteInvitation.mutate({
+                          id: invite.id,
+                          projectId: projectId,
+                        });
+                      }}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </TableCell>}
               </TableRow>
             ))}
           </TableBody>

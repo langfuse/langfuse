@@ -59,6 +59,29 @@ export async function createUserEmailPassword(
         : undefined),
     },
   });
+
+  const invitationsForUser = await prisma.projectInvitation.findMany({
+    where: {
+      email: email.toLowerCase(),
+    }
+  });
+
+  if (invitationsForUser.length > 0) {
+    const membershipsData = invitationsForUser.map((invitation) => {
+      return {userId: newUser.id, projectId: invitation.projectId, role: invitation.role};
+    });
+
+    await prisma.membership.createMany({
+      data: membershipsData
+    });
+
+    await prisma.projectInvitation.deleteMany({
+      where: {
+        email: email.toLowerCase(),
+      }
+    });
+  }
+
   return newUser.id;
 }
 

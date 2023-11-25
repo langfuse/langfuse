@@ -11,7 +11,7 @@ export const projectInvitationTemplate = (
       <title>Project Invitation</title>
       <style>
           body {
-              font-family: 'Arial', sans-serif;
+              font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
               background-color: #ffffff;
               margin: 0;
               padding: 0;
@@ -34,12 +34,12 @@ export const projectInvitationTemplate = (
               height: 60px;
           }
   
-          h2 {
+          h4 {
               color: #66FCF1;
           }
   
           p {
-              color: #D55892;
+              color: #4B4B4B;
           }
   
           button {
@@ -64,7 +64,6 @@ export const projectInvitationTemplate = (
   
           footer {
               margin-top: 20px;
-              color: #636363;
           }
       </style>
   </head>
@@ -75,16 +74,16 @@ export const projectInvitationTemplate = (
           </header>
           
           <main>
-              <h2 style="color: #000000;">Hi,</h2>
+              <h4 style="color: #000000;">Hi,</h4>
   
-              <p style="color: #636363;">You've been invited by "${senderName}" to join the team on "${projectName}".</p>
+              <p>You've been invited by "${senderName}" to join the team on "${projectName}".Click Following to accept invitations</p>
               
               <a href="http://localhost:3000" style="display: inline-block; padding: 10px 20px; background-color: #D55892; color: #ffffff; text-decoration: none; border-radius: 5px;" target="_blank">Accept the Invite</a>
               
-              <p style="color: #636363;">Thanks,<br> ${process.env.EMAIL_FROM_NAME}</p>
+              <p>Thanks,<br> ${process.env.EMAIL_FROM_NAME}</p>
           </main>
           
-          <footer style="margin-top: 20px; color: #636363;">
+          <footer style="margin-top: 20px;">
               <p>This email was sent to ${recieverEmail}. If you'd rather not receive this kind of email, you can <a href="#" style="color: #45aaf2;">unsubscribe</a>.</p>
               <p>&copy; 2023 Langfuse. All Rights Reserved.</p>
           </footer>

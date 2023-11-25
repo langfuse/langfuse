@@ -1,3 +1,4 @@
+import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { MembershipRole } from "@prisma/client";
@@ -17,7 +18,7 @@ export const projectMembersRouter = createTRPCRouter({
         scope: "members:read",
       });
 
-      return await ctx.prisma.membership.findMany({
+      const memberships = await ctx.prisma.membership.findMany({
         where: {
           projectId: input.projectId,
           project: {
@@ -38,6 +39,17 @@ export const projectMembersRouter = createTRPCRouter({
           },
         },
       });
+
+      const invitations = await ctx.prisma.projectInvitation.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+        include: {
+          sender: true,
+        },
+      });
+
+      return { memberships: memberships, invitations: invitations };
     }),
   delete: protectedProcedure
     .input(
@@ -67,6 +79,25 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
     }),
+  delete_invitation: protectedProcedure
+    .input(z.object({
+      id: z.string(),
+      projectId: z.string(),
+    }))
+    .mutation(async ({input, ctx}) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "members:delete",
+      });
+
+      return await ctx.prisma.projectInvitation.deleteMany({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+    }),
   create: protectedProcedure
     .input(
       z.object({
@@ -91,14 +122,35 @@ export const projectMembersRouter = createTRPCRouter({
           email: input.email.toLowerCase(),
         },
       });
-      if (!user) throw new Error("User not found");
+      if (user) {
+        return await ctx.prisma.membership.create({
+          data: {
+            userId: user.id,
+            projectId: input.projectId,
+            role: input.role,
+          },
+        });
+      }
 
-      return await ctx.prisma.membership.create({
+      const invitation = await ctx.prisma.projectInvitation.create({
         data: {
-          userId: user.id,
           projectId: input.projectId,
+          email: input.email.toLowerCase(),
           role: input.role,
+          senderId: ctx.session.user.id,
         },
       });
+
+      const project = await ctx.prisma.project.findFirstOrThrow({
+        where: {
+          id: input.projectId
+        }
+      });
+
+      if (!project) throw new Error("Project not found");
+
+      await sendProjectInvitation(input.email, ctx.session.user.name ?? `${process.env.EMAIL_FROM_NAME}`, project.name)
+
+      return invitation;
     }),
 });
