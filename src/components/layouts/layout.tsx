@@ -294,12 +294,7 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div
-            style={{
-              height: "100vh",
-            }}
-            className="flex grow flex-col gap-y-5  border-r border-gray-200 bg-white pb-3 pl-6 pt-7"
-          >
+          <div className="flex h-screen grow flex-col gap-y-5  border-r border-gray-200 bg-white pb-3 pl-6 pt-7">
             <LangfuseLogo size="xl" className="mb-4" />
             <div className="custom-scrollbar flex flex-1 flex-col overflow-auto pr-6">
               <ul role="list" className="flex flex-col gap-y-4">
