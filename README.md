@@ -218,34 +218,7 @@ To contribute, send us a PR, raise a GitHub issue, or email at contributing@lang
 
 ### Development setup
 
-Requirements: Node.js >=18, npm, Docker
-
-```bash
-# Install dependencies
-npm install
-
-# Run the db
-docker-compose -f docker-compose.dev.yml up -d
-
-# create an env file
-cp .env.dev.example .env
-
-# Migration
-npm run db:migrate
-
-# Optional: seed the database
-# npm run db:seed
-# npm run db:seed:examples
-
-# Start the server
-npm run dev
-```
-
-Run tests
-
-```bash
-npm run test
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
 
 ## License
 
