@@ -42,7 +42,6 @@ jobs:
           totals: true
           verbose: 1
           github-token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
       - name: Comment PR
         uses: actions/github-script@v5
         if: failure() && github.event_name == 'pull_request'
