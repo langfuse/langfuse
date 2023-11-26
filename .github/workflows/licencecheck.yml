@@ -23,9 +23,6 @@ jobs:
       - name: Install license-checker
         run: npm install -g license-checker
 
-      - name: Install yui-lint
-        run: npm install yui-lint
-
       - name: Generate license-checker CSV file
         run: license-checker --production --csv > npm-license-checker.csv
 
