@@ -91,9 +91,9 @@ CD on `main`
 
 ## Staging environment
 
-We have a staging environment at [https://staging.langfuse.com](https://staging.langfuse.com) that is used for preview deployments of pull requests.
+We run a staging environment at [https://staging.langfuse.com](https://staging.langfuse.com) that is automatically deployed on every push to `main` branch.
 
-Limitations of preview deployments:
+The same environment is also used for preview deployments of pull requests. Limitations:
 
 - SSO is not available as dynamic domains are not supported by most SSO providers
 - When making changes to the database, migrations to the staging database need to be applied manually by a maintainer. If you want to interactively test database changes in the staging environment, please reach out.
