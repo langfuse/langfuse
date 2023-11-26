@@ -8,12 +8,13 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: "Release to production"
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main # Always checkout main even for tagged releases
           fetch-depth: 0
-          token: ${{ secrets.GH_ACCESS_TOKEN_RELEASE }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
       - name: Push to production
         run: git push origin +main:production
         if: github.ref == 'refs/heads/main'
