@@ -105,6 +105,7 @@ function UserTracking() {
         process.env.NEXT_PUBLIC_POSTHOG_HOST
       )
         posthog.identify(session.data.user?.id ?? undefined, {
+          environment: process.env.NODE_ENV,
           email: session.data.user?.email ?? undefined,
           name: session.data.user?.name ?? undefined,
           featureFlags: session.data.user?.featureFlags ?? undefined,
