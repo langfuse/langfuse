@@ -1,0 +1,43 @@
+name: License Compliance Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  license_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install license-checker
+        run: npm install -g license-checker
+
+      - name: Generate license-checker CSV file
+        run: license-checker --csv > npm-license-checker.csv
+
+      - name: Check license-checker CSV file without headers
+        id: license_check_report
+        uses: pilosus/action-pip-license-checker@v2
+        with:
+          external: "npm-license-checker.csv"
+          external-format: "csv"
+          external-options: "{:skip-header true}"
+          fail: "StrongCopyleft,NetworkCopyleft,WeakCopyleft"
+          fails-only: true
+          totals: true
+          verbose: 1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
