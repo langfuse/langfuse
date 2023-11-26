@@ -1,5 +1,8 @@
 name: License Compliance Check
 
+permissions:
+  pull-requests: write
+
 on:
   workflow_dispatch:
   push:
