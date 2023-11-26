@@ -1,8 +1,4 @@
 name: License Compliance Check
-
-permissions:
-  pull-requests: write
-
 on:
   workflow_dispatch:
   push:
@@ -45,13 +41,8 @@ jobs:
           totals: true
           verbose: 1
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Comment PR
-        uses: thollander/actions-comment-pull-request@v2
-        if: failure() && github.event_name == 'pull_request'
-        with:
-          comment_tag: "license-checker"
-          message: |
-            The following packages failed the license check:
-            ${{ steps.license_check_report.outputs.report }}
+      - name: Echo error
+        if: failure()
+        run: echo "::error::${{ steps.license_check_report.outputs.report }}"
       - name: Delete license-checker CSV file
         run: rm npm-license-checker.csv
