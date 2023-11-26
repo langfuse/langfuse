@@ -36,7 +36,7 @@ jobs:
           external: "npm-license-checker.csv"
           external-format: "csv"
           external-options: "{:skip-header true}"
-          fail: "StrongCopyleft,NetworkCopyleft,WeakCopyleft"
+          fail: "Copyleft"
           fails-only: true
           totals: true
           verbose: 1
