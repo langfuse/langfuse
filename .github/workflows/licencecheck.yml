@@ -42,3 +42,5 @@ jobs:
           totals: true
           verbose: 1
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Delete license-checker CSV file
+        run: rm npm-license-checker.csv
