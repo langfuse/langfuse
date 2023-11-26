@@ -73,7 +73,6 @@
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.292.0",
-    "netgear": "^4.4.3",
     "next": "^14.0.3",
     "next-auth": "^4.24.5",
     "next-query-params": "^4.3.0",
