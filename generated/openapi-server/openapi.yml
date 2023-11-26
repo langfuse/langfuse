@@ -592,6 +592,45 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/projects:
+    get:
+      operationId: projects_get
+      tags:
+        - Projects
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projects'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/scores:
     post:
       description: Add a score to the database, upserts on id
@@ -1524,6 +1563,27 @@ components:
       required:
         - data
         - meta
+    Projects:
+      title: Projects
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+      required:
+        - data
+    Project:
+      title: Project
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
