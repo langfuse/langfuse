@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 20
           cache: "npm"
       - name: install dependencies
         run: |
@@ -31,11 +31,15 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: ${{ matrix.node-version }}
           cache: "npm"
 
       - name: install dependencies
@@ -49,6 +53,7 @@ jobs:
       - name: Run, migrate, seed DB
         run: |
           docker-compose -f docker-compose.dev.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
@@ -66,7 +71,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 20
           cache: "npm"
 
       - name: install dependencies
@@ -80,6 +85,7 @@ jobs:
       - name: Run, migrate, seed DB
         run: |
           docker-compose -f docker-compose.dev.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
@@ -123,7 +129,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Checkout
         uses: actions/checkout@v3
