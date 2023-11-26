@@ -42,5 +42,19 @@ jobs:
           totals: true
           verbose: 1
           github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+      - name: Comment PR
+        uses: actions/github-script@v5
+        if: failure() && github.event_name == 'pull_request'
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const output = `The following packages failed the license check:\n${{ steps.license_check_report.outputs.report }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
       - name: Delete license-checker CSV file
         run: rm npm-license-checker.csv
