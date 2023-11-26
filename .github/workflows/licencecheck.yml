@@ -42,5 +42,12 @@ jobs:
           totals: true
           verbose: 1
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload license-checker report
+        if: failure()
+        uses: actions/upload-artifact@v2
+        with:
+          name: license-checker-report
+          path: npm-license-checker.csv
+
       - name: Delete license-checker CSV file
         run: rm npm-license-checker.csv
