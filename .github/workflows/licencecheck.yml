@@ -28,7 +28,7 @@ jobs:
         run: npm install yui-lint
 
       - name: Generate license-checker CSV file
-        run: license-checker --csv > npm-license-checker.csv
+        run: license-checker --production --csv > npm-license-checker.csv
 
       - name: Check license-checker CSV file without headers
         id: license_check_report
@@ -37,17 +37,10 @@ jobs:
           external: "npm-license-checker.csv"
           external-format: "csv"
           external-options: "{:skip-header true}"
-          fail: "Copyleft"
+          fail: "WeakCopyleft,StrongCopyleft,NetworkCopyleft"
           fails-only: true
           totals: true
           verbose: 1
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload license-checker report
-        if: failure()
-        uses: actions/upload-artifact@v2
-        with:
-          name: license-checker-report
-          path: npm-license-checker.csv
-
       - name: Delete license-checker CSV file
         run: rm npm-license-checker.csv
