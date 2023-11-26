@@ -113,6 +113,7 @@ jobs:
   push-docker-image:
     needs: all-ci-passed
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    environment: "protected branches"
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres

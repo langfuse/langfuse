@@ -8,7 +8,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    environment: "Release to production"
+    environment: "protected branches"
     steps:
       - uses: actions/checkout@v4
         with:
