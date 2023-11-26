@@ -16,6 +16,11 @@ export default async function handler(
       message: "Only runs on Langfuse Cloud, no LANGFUSE_CLOUD_REGION provided",
     });
 
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING")
+    return res.status(200).json({
+      message: "Does not run on staging, LANGFUSE_CLOUD_REGION is STAGING",
+    });
+
   const posthog_event_user_id =
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US"
       ? "langfuse-cloud-us"
