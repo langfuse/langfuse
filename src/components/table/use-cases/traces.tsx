@@ -4,6 +4,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -129,6 +130,30 @@ export default function TracesTable({
   };
 
   const columns: ColumnDef<TraceTableRow>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={
+            (value) => table.toggleAllPageRowsSelected(!!value)
+          }
+          aria-label="Select all"
+        />
+      ),
+      cell: ({row}) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
     {
       accessorKey: "id",
       header: "ID",

@@ -44,6 +44,7 @@ export function DataTable<TData, TValue>({
   pagination,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [rowSelection, setRowSelection] = useState({});
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -54,15 +55,23 @@ export function DataTable<TData, TValue>({
     manualPagination: pagination !== undefined,
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
+    onRowSelectionChange: setRowSelection,
     state: {
       columnFilters,
       pagination: pagination?.state,
+      rowSelection,
     },
     manualFiltering: true,
   });
 
+  const noOfSelectedRows = table.getFilteredSelectedRowModel().rows.length;
+
   return (
     <>
+      {noOfSelectedRows > 0 && <div className="flex-1 text-sm text-muted-foreground">
+        {noOfSelectedRows} of{" "}
+        {table.getFilteredRowModel().rows.length} row(s) selected.
+      </div>}
       <div className="space-y-4">
         <div className="rounded-md border">
           <Table>
