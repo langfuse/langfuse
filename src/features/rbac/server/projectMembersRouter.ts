@@ -1,10 +1,13 @@
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { MembershipRole } from "@prisma/client";
 import * as z from "zod";
 
 export const projectMembersRouter = createTRPCRouter({
-  get: protectedProcedure
+  get: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -39,7 +42,7 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
     }),
-  delete: protectedProcedure
+  delete: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -67,7 +70,7 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
     }),
-  create: protectedProcedure
+  create: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
