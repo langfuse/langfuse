@@ -154,6 +154,7 @@ export const traceRouter = createTRPCRouter({
         t.*,
         t."user_id" AS "userId",
         t."metadata" AS "metadata",
+        t."bookmarked" AS "bookmarked",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
         COALESCE(u."totalTokens", 0)::int AS "totalTokens",
@@ -309,4 +310,37 @@ export const traceRouter = createTRPCRouter({
         }),
       ]);
     }),
+    bookmark: protectedProjectProcedure
+        .input(z.object({ traceId: z.string(), projectId: z.string(), bookmarked: z.boolean() }))
+        .mutation(async ({ input, ctx }) => {
+            throwIfNoAccess({
+                session: ctx.session,
+                projectId: input.projectId,
+                scope: "traces:bookmark",
+            });
+            // searched for trace in database
+            const trace = await ctx.prisma.trace.findFirst({
+                where: {
+                    id: input.traceId,
+                    projectId: input.projectId,
+                },
+            });
+            // error if trace isn't found in database
+            if (!trace) {
+                throw new Error("Trace not found in project");
+            }
+
+            // Set the bookmark status based on the input parameter
+            const updatedTrace = await ctx.prisma.trace.update({
+                where: {
+                    id: input.traceId,
+                },
+                data: {
+                    bookmarked: input.bookmarked,
+                },
+            });
+
+            return updatedTrace;
+        }),
+
 });

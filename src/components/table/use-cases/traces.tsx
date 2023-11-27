@@ -21,8 +21,10 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import {BookmarkTrace} from "@/src/components/bookmark-trace";
 
 export type TraceTableRow = {
+  bookmark: boolean;
   id: string;
   timestamp: string;
   name: string;
@@ -111,6 +113,7 @@ export default function TracesTable({
     trace: RouterOutput["traces"]["all"][0],
   ): TraceTableRow => {
     return {
+      bookmark: trace.bookmarked, //fix error later, problem is that trace.bookmarked is not fixed to boolean
       id: trace.id,
       timestamp: trace.timestamp.toLocaleString(),
       name: trace.name ?? "",
@@ -129,6 +132,26 @@ export default function TracesTable({
   };
 
   const columns: ColumnDef<TraceTableRow>[] = [
+    {
+      accessorKey: "bookmark",
+      header: "Star",
+      cell: ({ row }) => {
+        // Retrieve the bookmark status for each row
+        const isBookmarked = row.getValue("bookmark");
+
+        // Assume you have a column or a way to get the traceId
+        const traceId = row.getValue("id");  // Adjust according to how the Trace ID is represented in your data
+
+        return typeof traceId === "string" && typeof isBookmarked === "boolean" ? (
+            <BookmarkTrace
+                traceId={traceId}
+                projectId={projectId}
+                isBookmarked={isBookmarked}
+            />
+        ) : undefined;
+
+      },
+    },
     {
       accessorKey: "id",
       header: "ID",
