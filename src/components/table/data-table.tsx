@@ -9,7 +9,7 @@ import {
   getFilteredRowModel,
   type OnChangeFn,
   type PaginationState,
-  Row,
+  type Row,
 } from "@tanstack/react-table";
 import {
   Table,
