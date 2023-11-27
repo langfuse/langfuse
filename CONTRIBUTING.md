@@ -15,8 +15,6 @@ The maintainers are available on [Discord](https://langfuse.com/discord) in case
 > - Refer to this project in your project's readme;
 > - Mention the project at local meetups and tell your friends/colleagues.
 
-# How to contribute to Langfuse
-
 ## Making a change
 
 _Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone.
@@ -87,7 +85,7 @@ CI on `main` and `pull_request`
 
 CD on `main`
 
-- Publish Docker image to GitHub Packages if CI passes
+- Publish Docker image to GitHub Packages if CI passes. Done on every push to `main` branch. Only released versions are tagged with `latest`.
 
 ## Staging environment
 
@@ -95,8 +93,15 @@ We run a staging environment at [https://staging.langfuse.com](https://staging.l
 
 The same environment is also used for preview deployments of pull requests. Limitations:
 
-- SSO is not available as dynamic domains are not supported by most SSO providers
+- SSO is not available as dynamic domains are not supported by most SSO providers.
 - When making changes to the database, migrations to the staging database need to be applied manually by a maintainer. If you want to interactively test database changes in the staging environment, please reach out.
+
+## Production environment
+
+When a new release is tagged on the `main` branch (excluding prereleases), it triggers a production deployment. The deployment process consists of two steps:
+
+1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
+2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
 
 ## License
 
