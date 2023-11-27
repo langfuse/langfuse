@@ -9,6 +9,7 @@ import {
   getFilteredRowModel,
   type OnChangeFn,
   type PaginationState,
+  Row,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -18,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 
 interface DataTableProps<TData, TValue> {
@@ -29,6 +30,7 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
+  onSelectionChange?: (selectedRows: Row<TData>[]) => void;
 }
 
 export interface AsyncTableData<T> {
@@ -42,6 +44,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   pagination,
+  onSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState({});
@@ -63,6 +66,22 @@ export function DataTable<TData, TValue>({
     },
     manualFiltering: true,
   });
+
+  useEffect(() => {
+    if (onSelectionChange) {
+      const selectedRowsIndexes = Object.keys(rowSelection).map(Number);
+      const rows = table.getRowModel().rows;
+      const selectedRows = rows.filter((_, i) => {
+        return selectedRowsIndexes.includes(i);
+      });
+
+      onSelectionChange(selectedRows);
+    }
+  }, [rowSelection]);
+
+  useEffect(() => {
+    setRowSelection({});
+  }, [table.getRowModel().rows.length]);
 
   const noOfSelectedRows = table.getFilteredSelectedRowModel().rows.length;
 

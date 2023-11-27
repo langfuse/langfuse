@@ -1,4 +1,5 @@
 import { DeleteTrace } from "@/src/components/delete-trace";
+import { TraceTableMultiSelectAction } from '@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action';
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -14,7 +15,8 @@ import { utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type ColumnDef } from "@tanstack/react-table";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import {
   NumberParam,
   StringParam,
@@ -53,6 +55,9 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
 }: TraceTableProps) {
+  const router = useRouter();
+
+  const [selectedRows, setSelectedRows] = useState<{}[]>([]);
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -67,6 +72,10 @@ export default function TracesTable({
       value: utcDateOffsetByDays(-14),
     },
   ]);
+
+  const onChangeInSelectedRows = (selectedRows: object[]) => {
+    setSelectedRows(selectedRows);
+  }
 
   const userIdFilter: FilterState = userId
     ? [
@@ -272,6 +281,12 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
+        actionButtons={
+        <TraceTableMultiSelectAction
+          selectedRows={selectedRows}
+          projectId={router.query.projectId as string}
+        />
+        }
       />
       <DataTable
         columns={columns}
@@ -295,6 +310,7 @@ export default function TracesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        onSelectionChange={onChangeInSelectedRows}
       />
     </div>
   );

@@ -309,4 +309,49 @@ export const traceRouter = createTRPCRouter({
         }),
       ]);
     }),
+  deleteMany: protectedProjectProcedure
+    .input(z.object({
+      traceIds: z.array(z.string()),
+      projectId: z.string(),
+    }))
+    .mutation(async ({input, ctx}) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
+
+      if (input.traceIds.length < 1) {
+        throw new Error("Minimum 1 trace_Id is required.");
+      }
+
+      const traces = await ctx.prisma.trace.findMany({
+        where: {
+          id: {
+            in: input.traceIds,
+          },
+        },
+      });
+
+      if (!traces) {
+        throw new Error("Traces not found in project");
+      }
+
+      return ctx.prisma.$transaction([
+        ctx.prisma.trace.deleteMany({
+          where: {
+            id: {
+              in: input.traceIds,
+            },
+          },
+        }),
+        ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
+            },
+          },
+        }),
+      ]);
+    }),
 });
