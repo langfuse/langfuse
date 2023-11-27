@@ -3,18 +3,27 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Divider } from "@tremor/react";
 import { usePostHog } from "posthog-js/react";
 
-const regions = [
-  {
-    name: "US",
-    hostname: "us.cloud.langfuse.com",
-    flag: "🇺🇸",
-  },
-  {
-    name: "EU",
-    hostname: "cloud.langfuse.com",
-    flag: "🇪🇺",
-  },
-];
+const regions =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
+    ? [
+        {
+          name: "EU (Staging)",
+          hostname: "staging.langfuse.com",
+          flag: "🇪🇺",
+        },
+      ]
+    : [
+        {
+          name: "US",
+          hostname: "us.cloud.langfuse.com",
+          flag: "🇺🇸",
+        },
+        {
+          name: "EU",
+          hostname: "cloud.langfuse.com",
+          flag: "🇪🇺",
+        },
+      ];
 
 export function CloudRegionSwitch({
   isSignUpPage,

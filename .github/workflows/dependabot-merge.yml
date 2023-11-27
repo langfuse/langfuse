@@ -11,6 +11,7 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
+    environment: "protected branches"
     if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
       - name: Dependabot metadata
