@@ -87,10 +87,12 @@ export function DataTable<TData, TValue>({
 
   return (
     <>
-      {noOfSelectedRows > 0 && <div className="flex-1 text-sm text-muted-foreground">
-        {noOfSelectedRows} of{" "}
-        {table.getFilteredRowModel().rows.length} row(s) selected.
-      </div>}
+      {noOfSelectedRows > 0 && (
+        <div className="flex-1 text-sm text-muted-foreground">
+          {noOfSelectedRows} of {table.getFilteredRowModel().rows.length} row(s)
+          selected.
+        </div>
+      )}
       <div className="space-y-4">
         <div className="rounded-md border">
           <Table>
