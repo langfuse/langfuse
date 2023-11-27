@@ -98,10 +98,10 @@ The same environment is also used for preview deployments of pull requests. Limi
 
 ## Production environment
 
-Whenver a new release is tagged on the `main` branch (except for prereleases), a production deployment is triggered. This includes:
+When a new release is tagged on the `main` branch (excluding prereleases), it triggers a production deployment. The deployment process consists of two steps:
 
-1. Publishing the Docker image to GitHub Packages with the version number and `latest` tag.
-2. Deploying to Langfuse Cloud. This is done from the `production` branch to which the `main` branch is force pushed on every release via a GitHub Action ([`release.yml`](.github/workflows/release.yml)).
+1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
+2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
 
 ## License
 
