@@ -1,9 +1,12 @@
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import * as z from "zod";
 
 export const publishTracesRouter = createTRPCRouter({
-  update: protectedProcedure
+  update: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
