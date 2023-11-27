@@ -1,5 +1,5 @@
 import { DeleteTrace } from "@/src/components/delete-trace";
-import { TraceTableMultiSelectAction } from '@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action';
+import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -57,7 +57,7 @@ export default function TracesTable({
 }: TraceTableProps) {
   const router = useRouter();
 
-  const [selectedRows, setSelectedRows] = useState<{}[]>([]);
+  const [selectedRows, setSelectedRows] = useState<object[]>([]);
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -75,7 +75,7 @@ export default function TracesTable({
 
   const onChangeInSelectedRows = (selectedRows: object[]) => {
     setSelectedRows(selectedRows);
-  }
+  };
 
   const userIdFilter: FilterState = userId
     ? [
@@ -147,13 +147,11 @@ export default function TracesTable({
             table.getIsAllPageRowsSelected() ||
             (table.getIsSomePageRowsSelected() && "indeterminate")
           }
-          onCheckedChange={
-            (value) => table.toggleAllPageRowsSelected(!!value)
-          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
         />
       ),
-      cell: ({row}) => (
+      cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -282,10 +280,10 @@ export default function TracesTable({
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         actionButtons={
-        <TraceTableMultiSelectAction
-          selectedRows={selectedRows}
-          projectId={router.query.projectId as string}
-        />
+          <TraceTableMultiSelectAction
+            selectedRows={selectedRows}
+            projectId={router.query.projectId as string}
+          />
         }
       />
       <DataTable

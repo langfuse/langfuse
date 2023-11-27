@@ -22,8 +22,8 @@ const CommaArrayParam = {
           f.type === "datetime"
             ? f.value.toISOString()
             : f.type === "stringOptions"
-            ? f.value.join("|")
-            : f.value
+              ? f.value.join("|")
+              : f.value
         }`;
         if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
         return stringified;
@@ -42,12 +42,12 @@ const CommaArrayParam = {
           value === undefined || type === undefined
             ? undefined
             : type === "datetime"
-            ? new Date(value)
-            : type === "number" || type === "numberObject"
-            ? Number(value)
-            : type === "stringOptions"
-            ? value.split("|")
-            : value;
+              ? new Date(value)
+              : type === "number" || type === "numberObject"
+                ? Number(value)
+                : type === "stringOptions"
+                  ? value.split("|")
+                  : value;
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,

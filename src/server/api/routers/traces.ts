@@ -310,11 +310,13 @@ export const traceRouter = createTRPCRouter({
       ]);
     }),
   deleteMany: protectedProjectProcedure
-    .input(z.object({
-      traceIds: z.array(z.string()),
-      projectId: z.string(),
-    }))
-    .mutation(async ({input, ctx}) => {
+    .input(
+      z.object({
+        traceIds: z.array(z.string()),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,

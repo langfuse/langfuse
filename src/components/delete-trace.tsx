@@ -96,38 +96,13 @@ export function DeleteTraceMultiSelectAction({
   }
 
   return (
-    <Button variant="default" className="w-full" type="button" onClick={() => void mutDeleteTraces.mutateAsync({traceIds, projectId})}>
+    <Button
+      variant="default"
+      className="w-full"
+      type="button"
+      onClick={() => void mutDeleteTraces.mutateAsync({ traceIds, projectId })}
+    >
       Delete
     </Button>
-  )
-
-  // return (
-  //   <Popover>
-  //     <PopoverTrigger>
-  //       <Button variant="outline" type="button">
-  //         <TrashIcon className="h-4 w-4" />
-  //         Delete
-  //       </Button>
-  //     </PopoverTrigger>
-  //     <PopoverContent className="fixed top-64 right-44">
-  //       <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-  //       <p className="mb-3 text-sm">
-  //         This action cannot be undone and removes all the data associated with
-  //         these traces
-  //       </p>
-  //       <div className="flex justify-end space-x-4">
-  //         <Button
-  //           type="button"
-  //           variant="destructive"
-  //           loading={mutDeleteTraces.isLoading}
-  //           onClick={() =>
-  //             void mutDeleteTraces.mutateAsync({traceIds, projectId})
-  //           }
-  //         >
-  //           Delete Traces
-  //         </Button>
-  //       </div>
-  //     </PopoverContent>
-  //   </Popover>
-  // );
+  );
 }
