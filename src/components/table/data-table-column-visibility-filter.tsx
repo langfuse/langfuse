@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import React, { useCallback, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -39,16 +38,21 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {columns.map((column, index) => (
-          <DropdownMenuCheckboxItem
-            key={index}
-            className="capitalize"
-            checked={columnVisibility[column.accessorKey]}
-            onCheckedChange={() => toggleColumn(column.accessorKey)}
-          >
-            {column.accessorKey}
-          </DropdownMenuCheckboxItem>
-        ))}
+        {columns.map(
+          (column, index) =>
+            "accessorKey" in column && (
+              <DropdownMenuCheckboxItem
+                key={index}
+                className="capitalize"
+                checked={columnVisibility[column.accessorKey]}
+                onCheckedChange={() =>
+                  toggleColumn(column.accessorKey.toString())
+                }
+              >
+                {column.accessorKey.toString()}
+              </DropdownMenuCheckboxItem>
+            ),
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
