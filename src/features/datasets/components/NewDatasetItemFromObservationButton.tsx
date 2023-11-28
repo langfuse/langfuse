@@ -91,7 +91,7 @@ export const NewDatasetItemFromObservationButton = (props: {
         </Button>
       )}
       <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-        <DialogContent className="sm:w-3xl lg:h-[calc(100vh-100px)] lg:w-[calc(100vw-100px)] lg:max-w-none">
+        <DialogContent className="sm:w-3xl lg:max-w-none">
           <DialogHeader>
             <DialogTitle className="mb-5">Add to dataset</DialogTitle>
           </DialogHeader>

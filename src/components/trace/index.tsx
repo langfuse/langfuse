@@ -87,7 +87,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   if (!trace.data) return <div>loading...</div>;
 
   return (
-    <div className="flex flex-col overflow-hidden xl:container lg:h-[calc(100vh-100px)] xl:h-[calc(100vh-50px)]">
+    <div className="flex flex-col overflow-hidden xl:container">
       <Header
         title="Trace Detail"
         actionButtons={
