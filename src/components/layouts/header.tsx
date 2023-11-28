@@ -2,11 +2,13 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export default function Header(props: {
   title: string;
   breadcrumb?: { name: string; href?: string }[];
   live?: boolean;
+  help?: { description: string; href: string };
   actionButtons?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -81,10 +83,17 @@ export default function Header(props: {
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-5">
         <div className="flex items-center gap-3 md:gap-5">
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-row">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
               {props.title}
             </h2>
+            {props.help ? (
+              <DocPopup
+                description={props.help.description}
+                link={props.help.href}
+                size="sm"
+              />
+            ) : null}
           </div>
           {props.live ? (
             <div className="flex items-center gap-2 rounded-sm bg-green-100 px-3  text-green-600">
