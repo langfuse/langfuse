@@ -1071,6 +1071,13 @@ components:
         name:
           type: string
           nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
         release:
           type: string
           nullable: true
