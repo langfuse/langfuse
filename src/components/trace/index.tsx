@@ -91,6 +91,13 @@ export function TracePage({ traceId }: { traceId: string }) {
     <div className="flex flex-col overflow-hidden xl:container">
       <Header
         title="Trace Detail"
+        breadcrumb={[
+          {
+            name: "Traces",
+            href: `/project/${router.query.projectId as string}/traces`,
+          },
+          { name: traceId },
+        ]}
         actionButtons={
           <>
             <BookmarkTrace
