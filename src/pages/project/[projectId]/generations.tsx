@@ -1,10 +1,10 @@
 import Header from "@/src/components/layouts/header";
 import { api, directApi } from "@/src/utils/api";
-import { type ColumnDef } from "@tanstack/react-table";
+import { type VisibilityState, type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
@@ -28,7 +28,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 
-type GenerationTableRow = {
+export type GenerationsTableRow = {
   id: string;
   traceId: string;
   startTime: string;
@@ -66,7 +66,16 @@ export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [isExporting, setIsExporting] = useState(false);
-
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => {
+      const savedVisibility = localStorage.getItem(
+        "generationsColumnVisibility",
+      );
+      return savedVisibility
+        ? (JSON.parse(savedVisibility) as VisibilityState)
+        : {};
+    },
+  );
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
@@ -137,7 +146,7 @@ export default function Generations() {
     setIsExporting(false);
   };
 
-  const columns: ColumnDef<GenerationTableRow>[] = [
+  const columns: ColumnDef<GenerationsTableRow>[] = [
     {
       accessorKey: "id",
       header: "ID",
@@ -152,6 +161,7 @@ export default function Generations() {
           />
         ) : null;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "name",
@@ -169,14 +179,17 @@ export default function Generations() {
           />
         ) : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "traceName",
       header: "Trace Name",
+      enableHiding: true,
     },
     {
       accessorKey: "startTime",
       header: "Start Time",
+      enableHiding: true,
     },
     {
       accessorKey: "latency",
@@ -187,10 +200,12 @@ export default function Generations() {
           <span>{value.toFixed(2)} sec</span>
         ) : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "model",
       header: "Model",
+      enableHiding: true,
     },
     {
       accessorKey: "usage",
@@ -210,14 +225,37 @@ export default function Generations() {
           />
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "version",
       header: "Version",
+      enableHiding: true,
     },
   ];
 
-  const rows: GenerationTableRow[] = generations.isSuccess
+  useEffect(() => {
+    const localStorageItem = localStorage.getItem(
+      "generationsColumnVisibility",
+    );
+
+    if (!localStorageItem || localStorageItem === "{}") {
+      const initialVisibility: VisibilityState = {};
+      columns.forEach((column) => {
+        initialVisibility[column.accessorKey] = true;
+      });
+      setColumnVisibility(initialVisibility);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "generationsColumnVisibility",
+      JSON.stringify(columnVisibility),
+    );
+  }, [columnVisibility]);
+
+  const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.map((generation) => ({
         id: generation.id,
         traceId: generation.traceId,
@@ -240,6 +278,7 @@ export default function Generations() {
     <div>
       <Header title="Generations" />
       <DataTableToolbar
+        columns={columns}
         filterColumnDefinition={observationsTableColsWithOptions(
           filterOptions.data,
         )}
@@ -250,6 +289,8 @@ export default function Generations() {
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -288,22 +329,24 @@ export default function Generations() {
           generations.isLoading
             ? { isLoading: true, isError: false }
             : generations.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: generations.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: rows,
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: generations.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: rows,
+                }
         }
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );
