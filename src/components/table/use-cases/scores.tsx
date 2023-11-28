@@ -132,10 +132,13 @@ export default function ScoresTable({
     if (!localStorageItem || localStorageItem === "{}") {
       const initialVisibility: VisibilityState = {};
       columns.forEach((column) => {
-        initialVisibility[column.accessorKey] = true;
+        if ("accessorKey" in column) {
+          initialVisibility[column.accessorKey] = true;
+        }
       });
       setColumnVisibility(initialVisibility);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
