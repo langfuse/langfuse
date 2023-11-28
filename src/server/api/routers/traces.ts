@@ -310,37 +310,37 @@ export const traceRouter = createTRPCRouter({
         }),
       ]);
     }),
-    bookmark: protectedProjectProcedure
-        .input(z.object({ traceId: z.string(), projectId: z.string(), bookmarked: z.boolean() }))
-        .mutation(async ({ input, ctx }) => {
-            throwIfNoAccess({
-                session: ctx.session,
-                projectId: input.projectId,
-                scope: "traces:bookmark",
-            });
-            // searched for trace in database
-            const trace = await ctx.prisma.trace.findFirst({
-                where: {
-                    id: input.traceId,
-                    projectId: input.projectId,
-                },
-            });
-            // error if trace isn't found in database
-            if (!trace) {
-                throw new Error("Trace not found in project");
-            }
+  bookmark: protectedProjectProcedure
+    .input(
+      z.object({
+        traceId: z.string(),
+        projectId: z.string(),
+        bookmarked: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:bookmark",
+      });
+      const trace = await ctx.prisma.trace.findFirst({
+        where: {
+          id: input.traceId,
+          projectId: input.projectId,
+        },
+      });
+      if (!trace) {
+        throw new Error("Trace not found in project");
+      }
 
-            // Set the bookmark status based on the input parameter
-            const updatedTrace = await ctx.prisma.trace.update({
-                where: {
-                    id: input.traceId,
-                },
-                data: {
-                    bookmarked: input.bookmarked,
-                },
-            });
-
-            return updatedTrace;
-        }),
-
+      return ctx.prisma.trace.update({
+        where: {
+          id: input.traceId,
+        },
+        data: {
+          bookmarked: input.bookmarked,
+        },
+      });
+    }),
 });

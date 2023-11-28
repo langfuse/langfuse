@@ -133,8 +133,8 @@ export default function TracesTable({
 
   const columns: ColumnDef<TraceTableRow>[] = [
     {
-      accessorKey: "bookmark",
-      header: "Star",
+      accessorKey: "bookmarked",
+      header: undefined,
       cell: ({ row }) => {
         const isBookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
@@ -145,6 +145,7 @@ export default function TracesTable({
             traceId={traceId}
             projectId={projectId}
             isBookmarked={isBookmarked}
+            size="xs"
           />
         ) : undefined;
       },
