@@ -12,8 +12,8 @@ import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type ColumnDef } from "@tanstack/react-table";
-import { useEffect } from "react";
+import { type VisibilityState, type ColumnDef } from "@tanstack/react-table";
+import { useEffect, useState } from "react";
 import {
   NumberParam,
   StringParam,
@@ -22,7 +22,7 @@ import {
   withDefault,
 } from "use-query-params";
 
-export type TraceTableRow = {
+export type TracesTableRow = {
   id: string;
   timestamp: string;
   name: string;
@@ -57,7 +57,14 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
-
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => {
+      const savedVisibility = localStorage.getItem("tracesColumnVisibility");
+      return savedVisibility
+        ? (JSON.parse(savedVisibility) as VisibilityState)
+        : {};
+    },
+  );
   const [userFilterState, setUserFilterState] = useQueryFilterState([
     {
       column: "timestamp",
@@ -79,7 +86,6 @@ export default function TracesTable({
     : [];
 
   const filterState = userFilterState.concat(userIdFilter);
-
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -109,7 +115,7 @@ export default function TracesTable({
 
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"][0],
-  ): TraceTableRow => {
+  ): TracesTableRow => {
     return {
       id: trace.id,
       timestamp: trace.timestamp.toLocaleString(),
@@ -128,7 +134,7 @@ export default function TracesTable({
     };
   };
 
-  const columns: ColumnDef<TraceTableRow>[] = [
+  const columns: ColumnDef<TracesTableRow>[] = [
     {
       accessorKey: "id",
       header: "ID",
@@ -141,14 +147,17 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "timestamp",
       header: "Timestamp",
+      enableHiding: true,
     },
     {
       accessorKey: "name",
       header: "Name",
+      enableHiding: true,
     },
     {
       accessorKey: "userId",
@@ -164,6 +173,7 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "latency",
@@ -173,6 +183,7 @@ export default function TracesTable({
         const value: number | undefined = row.getValue("latency");
         return value !== undefined ? `${value.toFixed(2)} sec` : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "usage",
@@ -192,6 +203,7 @@ export default function TracesTable({
           />
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "scores",
@@ -201,6 +213,7 @@ export default function TracesTable({
         const values: Score[] = row.getValue("scores");
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "metadata",
@@ -209,14 +222,17 @@ export default function TracesTable({
         const values: string = row.getValue("metadata");
         return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "version",
       header: "Version",
+      enableHiding: true,
     },
     {
       accessorKey: "release",
       header: "Release",
+      enableHiding: true,
     },
     {
       accessorKey: "action",
@@ -231,12 +247,33 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableHiding: true,
     },
   ];
+
+  useEffect(() => {
+    const localStorageItem = localStorage.getItem("tracesColumnVisibility");
+
+    if (!localStorageItem || localStorageItem === "{}") {
+      const initialVisibility: VisibilityState = {};
+      columns.forEach((column) => {
+        initialVisibility[column.accessorKey] = true;
+      });
+      setColumnVisibility(initialVisibility);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "tracesColumnVisibility",
+      JSON.stringify(columnVisibility),
+    );
+  }, [columnVisibility]);
 
   return (
     <div>
       <DataTableToolbar
+        columns={columns}
         filterColumnDefinition={tracesTableColsWithOptions(
           traceFilterOptions.data,
         )}
@@ -247,6 +284,8 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
       />
       <DataTable
         columns={columns}
@@ -270,6 +309,8 @@ export default function TracesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );
