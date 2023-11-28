@@ -128,7 +128,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         {trace.data.sessionId ? (
           <Link
             href={`/project/${router.query.projectId as string}/sessions/${
-              trace.data.userId
+              trace.data.sessionId
             }`}
           >
             <Badge variant="default">Session: {trace.data.sessionId}</Badge>

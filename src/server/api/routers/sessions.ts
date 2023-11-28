@@ -61,11 +61,19 @@ export const sessionRouter = createTRPCRouter({
   byId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), sessionId: z.string() }))
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.trace.findMany({
+      const traces = await ctx.prisma.trace.findMany({
         where: {
           sessionId: input.sessionId,
           projectId: input.projectId,
         },
+        orderBy: {
+          timestamp: "asc",
+        },
       });
+
+      return {
+        traces,
+        users: [...new Set(traces.map((t) => t.userId).filter(Boolean))],
+      };
     }),
 });

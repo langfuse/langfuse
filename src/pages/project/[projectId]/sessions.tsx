@@ -8,7 +8,14 @@ export default function Sessions() {
 
   return (
     <div>
-      <Header title="Sessions" />
+      <Header
+        title="Sessions"
+        help={{
+          description:
+            "A session is a collection of traces, for example a conversation/thread. Add a sessionId to the trace to get started.",
+          href: "https://langfuse.com/docs/session",
+        }}
+      />
 
       <SessionsTable projectId={projectId} />
     </div>
