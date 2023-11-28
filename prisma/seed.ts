@@ -133,6 +133,9 @@ async function main() {
             },
           },
           userId: `user-${i % 10}`,
+          sessionId: `session-${i % 20}`,
+          input: "I'm looking for a React component",
+          output: "What kind of component are you looking for?",
           scores: {
             createMany: {
               data: [
