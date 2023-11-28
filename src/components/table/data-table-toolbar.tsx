@@ -1,9 +1,11 @@
 import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
+import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { type FilterState } from "@/src/features/filters/types";
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import { type ColumnDef, type VisibilityState } from "@tanstack/react-table";
 
 interface SearchConfig {
   placeholder: string;
@@ -11,21 +13,27 @@ interface SearchConfig {
   currentQuery?: string;
 }
 
-interface DataTableToolbarProps {
+interface DataTableToolbarProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[];
   filterColumnDefinition: ColumnDefinition[];
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
   filterState: FilterState;
   setFilterState: Dispatch<SetStateAction<FilterState>>;
+  columnVisibility: VisibilityState;
+  setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
 }
 
-export function DataTableToolbar({
+export function DataTableToolbar<TData, TValue>({
+  columns,
   filterColumnDefinition,
   searchConfig,
   actionButtons,
   filterState,
   setFilterState,
-}: DataTableToolbarProps) {
+  columnVisibility,
+  setColumnVisibility,
+}: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
@@ -33,33 +41,35 @@ export function DataTableToolbar({
   return (
     <div className="my-2 flex max-w-full items-center justify-between overflow-x-auto">
       <div className="flex flex-1 items-center space-x-2">
-        {searchConfig ? (
+        {searchConfig && (
           <div className="flex max-w-md items-center space-x-2">
             <Input
               autoFocus
               placeholder={searchConfig.placeholder}
               value={searchString}
+              onChange={(event) => setSearchString(event.currentTarget.value)}
               className="h-10 w-[200px] lg:w-[350px]"
-              onChange={(event) => {
-                setSearchString(event.currentTarget.value);
-              }}
             />
             <Button
               variant="outline"
-              type="submit"
               onClick={() => searchConfig.updateQuery(searchString)}
             >
               Search
             </Button>
           </div>
-        ) : undefined}
+        )}
         <FilterBuilder
           columns={filterColumnDefinition}
           filterState={filterState}
           onChange={setFilterState}
         />
+        <DataTableColumnVisibilityFilter
+          columns={columns}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+        />
         <div className="flex-1" />
-        {actionButtons ? actionButtons : null}
+        {actionButtons}
       </div>
     </div>
   );
