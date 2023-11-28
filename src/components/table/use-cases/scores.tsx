@@ -6,10 +6,11 @@ import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresT
 import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type ColumnDef } from "@tanstack/react-table";
+import { type VisibilityState, type ColumnDef } from "@tanstack/react-table";
+import { useEffect, useState } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-type RowData = {
+export type ScoresTableRow = {
   id: string;
   traceId: string;
   timestamp: string;
@@ -36,6 +37,15 @@ export default function ScoresTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => {
+      const savedVisibility = localStorage.getItem("scoresColumnVisibility");
+      return savedVisibility
+        ? (JSON.parse(savedVisibility) as VisibilityState)
+        : {};
+    },
+  );
+
   const [userFilterState, setUserFilterState] = useQueryFilterState([]);
   const filterState = userId
     ? userFilterState.concat([
@@ -60,7 +70,7 @@ export default function ScoresTable({
     projectId,
   });
 
-  const columns: ColumnDef<RowData>[] = [
+  const columns: ColumnDef<ScoresTableRow>[] = [
     {
       accessorKey: "traceId",
       enableColumnFilter: true,
@@ -76,6 +86,7 @@ export default function ScoresTable({
           </>
         ) : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "observationId",
@@ -91,26 +102,50 @@ export default function ScoresTable({
           />
         ) : null;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "timestamp",
       header: "Timestamp",
+      enableHiding: true,
     },
     {
       accessorKey: "name",
       header: "Name",
+      enableHiding: true,
     },
     {
       accessorKey: "value",
       header: "Value",
+      enableHiding: true,
     },
     {
       accessorKey: "comment",
       header: "Comment",
+      enableHiding: true,
     },
   ];
 
-  const convertToTableRow = (score: Score): RowData => {
+  useEffect(() => {
+    const localStorageItem = localStorage.getItem("scoresColumnVisibility");
+
+    if (!localStorageItem || localStorageItem === "{}") {
+      const initialVisibility: VisibilityState = {};
+      columns.forEach((column) => {
+        initialVisibility[column.accessorKey] = true;
+      });
+      setColumnVisibility(initialVisibility);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "scoresColumnVisibility",
+      JSON.stringify(columnVisibility),
+    );
+  }, [columnVisibility]);
+
+  const convertToTableRow = (score: Score): ScoresTableRow => {
     return {
       id: score.id,
       timestamp: score.timestamp.toLocaleString(),
@@ -125,9 +160,12 @@ export default function ScoresTable({
   return (
     <div>
       <DataTableToolbar
+        columns={columns}
         filterColumnDefinition={scoresTableColsWithOptions(filterOptions.data)}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
       />
       <DataTable
         columns={columns}
@@ -135,22 +173,24 @@ export default function ScoresTable({
           scores.isLoading
             ? { isLoading: true, isError: false }
             : scores.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: scores.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: scores.data?.map((t) => convertToTableRow(t)),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: scores.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: scores.data?.map((t) => convertToTableRow(t)),
+                }
         }
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );
