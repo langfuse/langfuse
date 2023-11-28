@@ -78,7 +78,7 @@ export { Button, buttonVariants };
 
 function Spinner() {
   return (
-    <div className="flex h-3/4 items-center justify-center">
+    <div className="flex h-1/2 items-center justify-center">
       <Loader2 className="h-full w-full animate-spin" />
     </div>
   );

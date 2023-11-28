@@ -14,6 +14,7 @@ import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { DeleteTrace } from "@/src/components/delete-trace";
+import { BookmarkTrace } from "@/src/components/bookmark-trace";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -91,6 +92,11 @@ export function TracePage({ traceId }: { traceId: string }) {
         title="Trace Detail"
         actionButtons={
           <>
+            <BookmarkTrace
+              traceId={trace.data.id}
+              projectId={trace.data.projectId}
+              isBookmarked={trace.data.bookmarked}
+            />
             <PublishTraceSwitch
               traceId={trace.data.id}
               projectId={trace.data.projectId}
