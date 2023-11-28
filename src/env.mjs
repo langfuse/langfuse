@@ -41,15 +41,9 @@ export const env = createEnv({
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     // EMAIL
-    EMAIL_TRANSPORT_CHANNEL: z.string(),
     EMAIL_FROM_NAME: z.string(),
     EMAIL_FROM_ADDRESS: z.string(),
-    SMTP_HOST: z.string().optional(),
-    SMTP_PORT: z.string().optional(),
-    SMTP_SECURE: z.string().optional(),
-    SMTP_AUTH_USERNAME: z.string().optional(),
-    SMTP_AUTH_PASSWORD: z.string().optional(),
-    RESEND_API_KEY: z.string().optional(),
+    SMTP_CONNECTION_URL: z.string(),
   },
 
   /**
@@ -59,7 +53,9 @@ export const env = createEnv({
    */
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.enum(["US", "EU", "STAGING"]).optional(),
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
+      .enum(["US", "EU", "STAGING"])
+      .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
   },
@@ -94,14 +90,8 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     // Email
-    EMAIL_TRANSPORT_CHANNEL: process.env.EMAIL_TRANSPORT_CHANNEL,
     EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
-    SMTP_HOST: process.env.SMTP_HOST,
-    SMTP_PORT: process.env.SMTP_PORT,
-    SMTP_SECURE: process.env.SMTP_SECURE,
-    SMTP_AUTH_USERNAME: process.env.SMTP_AUTH_USERNAME,
-    SMTP_AUTH_PASSWORD: process.env.SMTP_AUTH_PASSWORD,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
   },
 });

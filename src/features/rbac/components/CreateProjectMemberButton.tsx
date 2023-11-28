@@ -56,6 +56,11 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
   const utils = api.useUtils();
   const mutCreateProjectMember = api.projectMembers.create.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
+    onError: () =>
+      form.setError("email", {
+        type: "manual",
+        message: "User already has access to this project",
+      }),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -76,8 +81,7 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
         role: values.role,
       })
       .then((result) => {
-        // @ts-expect-error (Due to unexpected error of ts)
-        if (result.senderId) {
+        if ("senderId" in result) {
           setInviteNotification(true);
           setTimeout(() => {
             setInviteNotification(false);
@@ -86,16 +90,13 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
         form.reset();
         setOpen(false);
       })
-      .catch(() => {
-        form.setError("email", {
-          type: "manual",
-          message: "User already has access to this project",
-        });
+      .catch((error) => {
+        console.error(error);
       });
   }
 
   return (
-    <div>
+    <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button
@@ -185,6 +186,6 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
           <AlertDescription>An email invitation is sent.</AlertDescription>
         </Alert>
       )}
-    </div>
+    </>
   );
 }

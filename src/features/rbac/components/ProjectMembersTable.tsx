@@ -42,7 +42,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
   const mutDeleteMembership = api.projectMembers.delete.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
   });
-  const mutDeleteInvitation = api.projectMembers.delete_invitation.useMutation({
+  const mutDeleteInvitation = api.projectMembers.deleteInvitation.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
   });
 
@@ -97,48 +97,54 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
           </TableBody>
         </Table>
       </Card>
-      <h3 className="mb-3 text-sm font-semibold leading-4 text-gray-600">
-        &nbsp;Pending:
-      </h3>
-      <Card className="mb-4">
-        <Table className="text-sm">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-gray-900">Email</TableHead>
-              <TableHead className="text-gray-900">Role</TableHead>
-              <TableHead className="text-gray-900">Sent by</TableHead>
-              {hasDeleteAccess ? <TableHead /> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody className="text-gray-500">
-            {invitations &&
-              invitations.map((invite) => (
-                <TableRow key={invite.id} className="hover:bg-transparent">
-                  <TableCell>{invite.email}</TableCell>
-                  <TableCell>{invite.role}</TableCell>
-                  <TableCell>{invite.sender.name}</TableCell>
-                  {hasDeleteAccess && (
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        loading={mutDeleteInvitation.isLoading}
-                        onClick={() => {
-                          mutDeleteInvitation.mutate({
-                            id: invite.id,
-                            projectId: projectId,
-                          });
-                        }}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  )}
+      {invitations.length > 0 && (
+        <>
+          <h3 className="mb-3 text-sm font-semibold leading-4 text-gray-600">
+            &nbsp;Pending Invites:
+          </h3>
+          <Card className="mb-4">
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-gray-900">Email</TableHead>
+                  <TableHead className="text-gray-900">Role</TableHead>
+                  <TableHead className="text-gray-900">Sent by</TableHead>
+                  {hasDeleteAccess ? <TableHead /> : null}
                 </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </Card>
+              </TableHeader>
+              <TableBody className="text-gray-500">
+                {invitations &&
+                  invitations.map((invite) => (
+                    <TableRow key={invite.id} className="hover:bg-transparent">
+                      <TableCell>{invite.email}</TableCell>
+                      <TableCell>{invite.role}</TableCell>
+                      <TableCell>
+                        {invite.sender && invite.sender.name}
+                      </TableCell>
+                      {hasDeleteAccess && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            loading={mutDeleteInvitation.isLoading}
+                            onClick={() => {
+                              mutDeleteInvitation.mutate({
+                                id: invite.id,
+                                projectId: projectId,
+                              });
+                            }}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </>
+      )}
       <CreateProjectMemberButton projectId={projectId} />
     </div>
   );

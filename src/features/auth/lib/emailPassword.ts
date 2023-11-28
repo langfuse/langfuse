@@ -1,4 +1,5 @@
 import { env } from "@/src/env.mjs";
+import { addMembershipsIfExists } from "@/src/features/auth/lib/addMembershipsIfExist";
 import { prisma } from "@/src/server/db";
 import { compare, hash } from "bcryptjs";
 
@@ -60,31 +61,7 @@ export async function createUserEmailPassword(
     },
   });
 
-  const invitationsForUser = await prisma.projectInvitation.findMany({
-    where: {
-      email: email.toLowerCase(),
-    },
-  });
-
-  if (invitationsForUser.length > 0) {
-    const membershipsData = invitationsForUser.map((invitation) => {
-      return {
-        userId: newUser.id,
-        projectId: invitation.projectId,
-        role: invitation.role,
-      };
-    });
-
-    await prisma.membership.createMany({
-      data: membershipsData,
-    });
-
-    await prisma.projectInvitation.deleteMany({
-      where: {
-        email: email.toLowerCase(),
-      },
-    });
-  }
+  await addMembershipsIfExists(email, newUser.id);
 
   return newUser.id;
 }

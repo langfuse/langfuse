@@ -1,6 +1,10 @@
 import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { MembershipRole } from "@prisma/client";
 import * as z from "zod";
 
@@ -40,12 +44,16 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
 
-      const invitations = await ctx.prisma.projectInvitation.findMany({
+      const invitations = await ctx.prisma.membershipInvitation.findMany({
         where: {
           projectId: input.projectId,
         },
         include: {
-          sender: true,
+          sender: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
 
@@ -79,7 +87,7 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
     }),
-  delete_invitation: protectedProcedure
+  deleteInvitation: protectedProjectProcedure
     .input(
       z.object({
         id: z.string(),
@@ -93,7 +101,7 @@ export const projectMembersRouter = createTRPCRouter({
         scope: "members:delete",
       });
 
-      return await ctx.prisma.projectInvitation.deleteMany({
+      return await ctx.prisma.membershipInvitation.deleteMany({
         where: {
           id: input.id,
           projectId: input.projectId,
@@ -134,7 +142,7 @@ export const projectMembersRouter = createTRPCRouter({
         });
       }
 
-      const invitation = await ctx.prisma.projectInvitation.create({
+      const invitation = await ctx.prisma.membershipInvitation.create({
         data: {
           projectId: input.projectId,
           email: input.email.toLowerCase(),
@@ -143,7 +151,7 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
 
-      const project = await ctx.prisma.project.findFirstOrThrow({
+      const project = await ctx.prisma.project.findFirst({
         where: {
           id: input.projectId,
         },
