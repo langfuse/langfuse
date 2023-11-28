@@ -20,6 +20,7 @@ import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import { ManualScoreButton } from "@/src/features/manual-scoring/components";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { IOPreview } from "@/src/components/trace/IOPreview";
 
 export const TracePreview = ({
   trace,
@@ -58,6 +59,11 @@ export const TracePreview = ({
         />
       </CardHeader>
       <CardContent>
+        <IOPreview
+          key={trace.id + "-io"}
+          input={trace.input ?? undefined}
+          output={trace.output ?? undefined}
+        />
         <JSONView
           key={trace.id + "-metadata"}
           title="Metadata"
