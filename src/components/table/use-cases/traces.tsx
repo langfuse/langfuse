@@ -41,7 +41,7 @@ export type TracesTableRow = {
   };
 };
 
-export type TraceTableProps = {
+export type TracesTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: string[];
@@ -53,7 +53,7 @@ export default function TracesTable({
   projectId,
   userId,
   omittedFilter = [],
-}: TraceTableProps) {
+}: TracesTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
