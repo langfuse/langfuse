@@ -9,6 +9,7 @@ import {
   getFilteredRowModel,
   type OnChangeFn,
   type PaginationState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -29,6 +30,8 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
+  columnVisibility: VisibilityState;
+  onColumnVisibilityChange: OnChangeFn<VisibilityState>;
 }
 
 export interface AsyncTableData<T> {
@@ -42,9 +45,10 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   pagination,
+  columnVisibility,
+  onColumnVisibilityChange,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -54,9 +58,11 @@ export function DataTable<TData, TValue>({
     manualPagination: pagination !== undefined,
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
+    onColumnVisibilityChange: onColumnVisibilityChange,
     state: {
       columnFilters,
       pagination: pagination?.state,
+      columnVisibility,
     },
     manualFiltering: true,
   });
@@ -70,7 +76,7 @@ export function DataTable<TData, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
-                    return (
+                    return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
                         className="whitespace-nowrap p-2"
@@ -82,7 +88,7 @@ export function DataTable<TData, TValue>({
                               header.getContext(),
                             )}
                       </TableHead>
-                    );
+                    ) : null;
                   })}
                 </TableRow>
               ))}
