@@ -90,7 +90,7 @@ export default function Header(props: {
             {props.help ? (
               <DocPopup
                 description={props.help.description}
-                link={props.help.href}
+                href={props.help.href}
                 size="sm"
               />
             ) : null}
