@@ -6,7 +6,7 @@ export type OptionsDefinition = {
 export type ColumnDefinition =
   | {
       name: string;
-      type: "number" | "string" | "datetime";
+      type: "number" | "string" | "datetime" | "boolean";
       internal: string;
     }
   | {
