@@ -1,9 +1,9 @@
 import { api, directApi } from "@/src/utils/api";
-import { type VisibilityState, type ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   DropdownMenu,
@@ -25,6 +25,7 @@ import {
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 
 export type GenerationsTableRow = {
   id: string;
@@ -66,16 +67,6 @@ export type GenerationsTableProps = {
 export default function GenerationsTable({ projectId }: GenerationsTableProps) {
   const posthog = usePostHog();
   const [isExporting, setIsExporting] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    () => {
-      const savedVisibility = localStorage.getItem(
-        "generationsColumnVisibility",
-      );
-      return savedVisibility
-        ? (JSON.parse(savedVisibility) as VisibilityState)
-        : {};
-    },
-  );
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
@@ -233,30 +224,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
   ];
-
-  useEffect(() => {
-    const localStorageItem = localStorage.getItem(
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<GenerationsTableRow>(
       "generationsColumnVisibility",
+      columns,
     );
-
-    if (!localStorageItem || localStorageItem === "{}") {
-      const initialVisibility: VisibilityState = {};
-      columns.forEach((column) => {
-        if ("accessorKey" in column) {
-          initialVisibility[column.accessorKey] = true;
-        }
-      });
-      setColumnVisibility(initialVisibility);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "generationsColumnVisibility",
-      JSON.stringify(columnVisibility),
-    );
-  }, [columnVisibility]);
 
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.map((generation) => ({

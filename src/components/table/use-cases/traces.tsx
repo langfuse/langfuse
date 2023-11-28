@@ -4,6 +4,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -12,8 +13,8 @@ import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type VisibilityState, type ColumnDef } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { type ColumnDef } from "@tanstack/react-table";
+import { useEffect } from "react";
 import {
   NumberParam,
   StringParam,
@@ -56,14 +57,6 @@ export default function TracesTable({
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
-  );
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    () => {
-      const savedVisibility = localStorage.getItem("tracesColumnVisibility");
-      return savedVisibility
-        ? (JSON.parse(savedVisibility) as VisibilityState)
-        : {};
-    },
   );
   const [userFilterState, setUserFilterState] = useQueryFilterState([
     {
@@ -251,27 +244,8 @@ export default function TracesTable({
     },
   ];
 
-  useEffect(() => {
-    const localStorageItem = localStorage.getItem("tracesColumnVisibility");
-
-    if (!localStorageItem || localStorageItem === "{}") {
-      const initialVisibility: VisibilityState = {};
-      columns.forEach((column) => {
-        if ("accessorKey" in column) {
-          initialVisibility[column.accessorKey] = true;
-        }
-      });
-      setColumnVisibility(initialVisibility);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "tracesColumnVisibility",
-      JSON.stringify(columnVisibility),
-    );
-  }, [columnVisibility]);
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
   return (
     <div>
