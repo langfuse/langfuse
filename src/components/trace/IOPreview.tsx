@@ -88,7 +88,7 @@ export const IOPreview: React.FC<{
             title="Output"
             json={outputClean}
             isLoading={isLoading}
-            className="flex-1"
+            className="flex-1 bg-green-50"
           />
         </>
       ) : null}
