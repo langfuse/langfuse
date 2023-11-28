@@ -1,13 +1,13 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type VisibilityState, type ColumnDef } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { type ColumnDef } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -36,15 +36,6 @@ export default function ScoresTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    () => {
-      const savedVisibility = localStorage.getItem("scoresColumnVisibility");
-      return savedVisibility
-        ? (JSON.parse(savedVisibility) as VisibilityState)
-        : {};
-    },
-  );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState([]);
   const filterState = userId
@@ -126,27 +117,8 @@ export default function ScoresTable({
     },
   ];
 
-  useEffect(() => {
-    const localStorageItem = localStorage.getItem("scoresColumnVisibility");
-
-    if (!localStorageItem || localStorageItem === "{}") {
-      const initialVisibility: VisibilityState = {};
-      columns.forEach((column) => {
-        if ("accessorKey" in column) {
-          initialVisibility[column.accessorKey] = true;
-        }
-      });
-      setColumnVisibility(initialVisibility);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "scoresColumnVisibility",
-      JSON.stringify(columnVisibility),
-    );
-  }, [columnVisibility]);
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<ScoresTableRow>("scoresColumnVisibility", columns);
 
   const convertToTableRow = (score: Score): ScoresTableRow => {
     return {
