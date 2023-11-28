@@ -15,6 +15,7 @@ import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { DeleteTrace } from "@/src/components/delete-trace";
 import { BookmarkTrace } from "@/src/components/bookmark-trace";
+import Link from "next/link";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -117,8 +118,23 @@ export function TracePage({ traceId }: { traceId: string }) {
         }
       />
       <div className="flex gap-2">
+        {trace.data.sessionId ? (
+          <Link
+            href={`/project/${router.query.projectId as string}/sessions/${
+              trace.data.userId
+            }`}
+          >
+            <Badge variant="default">Session: {trace.data.sessionId}</Badge>
+          </Link>
+        ) : null}
         {trace.data.userId ? (
-          <Badge variant="outline">User ID: {trace.data.userId}</Badge>
+          <Link
+            href={`/project/${router.query.projectId as string}/users/${
+              trace.data.userId
+            }`}
+          >
+            <Badge variant="default">User ID: {trace.data.userId}</Badge>
+          </Link>
         ) : null}
         <TraceAggUsageBadge observations={trace.data.observations ?? []} />
         {totalCost ? (

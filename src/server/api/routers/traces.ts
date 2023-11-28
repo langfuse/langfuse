@@ -154,6 +154,7 @@ export const traceRouter = createTRPCRouter({
         t.*,
         t."user_id" AS "userId",
         t."metadata" AS "metadata",
+        t.session_id AS "sessionId",
         t."bookmarked" AS "bookmarked",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",

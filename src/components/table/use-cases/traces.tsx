@@ -33,6 +33,7 @@ export type TraceTableRow = {
   latency?: number;
   release?: string;
   version?: string;
+  sessionId?: string;
   scores: Score[];
   usage: {
     promptTokens: number;
@@ -122,6 +123,7 @@ export default function TracesTable({
       version: trace.version ?? undefined,
       userId: trace.userId ?? "",
       scores: trace.scores,
+      sessionId: trace.sessionId ?? undefined,
       latency: trace.latency === null ? undefined : trace.latency,
       usage: {
         promptTokens: trace.promptTokens,
@@ -180,6 +182,21 @@ export default function TracesTable({
         return value && typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/users/${value}`}
+            value={value}
+            truncateAt={40}
+          />
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "sessionId",
+      enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      header: "Session ID",
+      cell: ({ row }) => {
+        const value = row.getValue("sessionId");
+        return value && typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/sessions/${value}`}
             value={value}
             truncateAt={40}
           />

@@ -9,6 +9,7 @@ import {
   Settings,
   TextSelect,
   UsersIcon,
+  Clapperboard,
 } from "lucide-react";
 
 export const ROUTES: Array<{
@@ -21,6 +22,11 @@ export const ROUTES: Array<{
     name: "Dashboard",
     pathname: `/project/[projectId]`,
     icon: LayoutDashboard,
+  },
+  {
+    name: "Sessions",
+    pathname: `/project/[projectId]/sessions`,
+    icon: Clapperboard,
   },
   {
     name: "Traces",

@@ -58,7 +58,7 @@ export const TracePreview = ({
           scores={scores}
         />
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
         <IOPreview
           key={trace.id + "-io"}
           input={trace.input ?? undefined}
