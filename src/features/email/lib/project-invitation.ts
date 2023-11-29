@@ -5,7 +5,7 @@ import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 const langfuseUrls = {
   US: "https://us.cloud.langfuse.com",
   EU: "https://cloud.langfuse.com",
-  STAGING: "https://staging.cloud.langfuse.com",
+  STAGING: "https://staging.langfuse.com",
 };
 
 const authUrl = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
