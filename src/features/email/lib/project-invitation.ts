@@ -2,6 +2,16 @@ import { env } from "@/src/env.mjs";
 import { createTransport } from "nodemailer";
 import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 
+const langfuseUrls = {
+  US: "https://us.cloud.langfuse.com",
+  EU: "https://cloud.langfuse.com",
+  STAGING: "https://staging.cloud.langfuse.com",
+};
+
+const authUrl = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
+  : env.NEXTAUTH_URL;
+
 export const sendProjectInvitation = async (
   to: string,
   inviterName: string,
@@ -26,7 +36,7 @@ export const sendProjectInvitation = async (
       subject: `${inviterName} invited you to join "${projectName}"`,
       html: `
       <p>${inviterName} invited you to join "${projectName}" on Langfuse.</p>
-      <p><a href="${env.NEXTAUTH_URL}">Accept Invitation</a> (you need to create an account)</p>
+      <p><a href="${authUrl}">Accept Invitation</a> (you need to create an account)</p>
       `,
     });
   } catch (error) {
