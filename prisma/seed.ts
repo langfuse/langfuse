@@ -133,7 +133,22 @@ async function main() {
             },
           },
           userId: `user-${i % 10}`,
-          sessionId: Math.random() > 0.3 ? `session-${i % 20}` : undefined,
+          session:
+            Math.random() > 0.3
+              ? {
+                  connectOrCreate: {
+                    where: {
+                      id: `session-${i % 10}`,
+                    },
+                    create: {
+                      id: `session-${i % 10}`,
+                      project: {
+                        connect: { id: [project1.id, project2.id][i % 2] },
+                      },
+                    },
+                  },
+                }
+              : undefined,
           input:
             Math.random() > 0.3
               ? "I'm looking for a React component"
