@@ -7,28 +7,28 @@ export const sendProjectInvitation = async (
   inviterName: string,
   projectName: string,
 ) => {
-  try {
-    const emailTitle = `${inviterName} invited you to ${projectName}`;
+  if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
+    console.error(
+      "Missing environment variables for sending project invitation email.",
+    );
+    return;
+  }
 
-    if (!env.SMTP_CONNECTION_URL) {
-      throw new Error("SMTP_CONNECTION_URL is required.");
-    }
+  try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
-    const info = await mailer.sendMail({
+    await mailer.sendMail({
       to: to,
       from: {
-        address: env.EMAIL_FROM_ADDRESS ?? "team_langfuse@langfuse.com",
-        name: env.EMAIL_FROM_NAME ?? "Langfuse",
+        address: env.EMAIL_FROM_ADDRESS,
+        name: "Langfuse",
       },
-      subject: emailTitle,
+      subject: `${inviterName} invited you to join "${projectName}"`,
       html: `
-      <p>${inviterName} invited you to ${projectName}. Click following to become part of project.</p>
-      <a href="${env.NEXTAUTH_URL}">Accept Invitation</a>
+      <p>${inviterName} invited you to join "${projectName}" on Langfuse.</p>
+      <p><a href="${env.NEXTAUTH_URL}">Accept Invitation</a> (you need to create an account)</p>
       `,
     });
-
-    return info;
   } catch (error) {
     console.error(error);
   }

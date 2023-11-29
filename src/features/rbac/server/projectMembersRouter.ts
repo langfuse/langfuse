@@ -160,7 +160,7 @@ export const projectMembersRouter = createTRPCRouter({
 
       await sendProjectInvitation(
         input.email,
-        ctx.session.user.name ?? `${process.env.EMAIL_FROM_NAME}`,
+        ctx.session.user.name ?? "Someone",
         project.name,
       );
 

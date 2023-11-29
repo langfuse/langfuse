@@ -41,9 +41,8 @@ export const env = createEnv({
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     // EMAIL
-    EMAIL_FROM_NAME: z.string(),
-    EMAIL_FROM_ADDRESS: z.string(),
-    SMTP_CONNECTION_URL: z.string(),
+    EMAIL_FROM_ADDRESS: z.string().optional(),
+    SMTP_CONNECTION_URL: z.string().optional(),
   },
 
   /**
@@ -90,7 +89,6 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     // Email
-    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
   },
