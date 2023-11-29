@@ -133,9 +133,15 @@ async function main() {
             },
           },
           userId: `user-${i % 10}`,
-          sessionId: `session-${i % 20}`,
-          input: "I'm looking for a React component",
-          output: "What kind of component are you looking for?",
+          sessionId: Math.random() > 0.7 ? `session-${i % 20}` : undefined,
+          input:
+            Math.random() > 0.7
+              ? "I'm looking for a React component"
+              : undefined,
+          output:
+            Math.random() > 0.7
+              ? "What kind of component are you looking for?"
+              : undefined,
           scores: {
             createMany: {
               data: [
