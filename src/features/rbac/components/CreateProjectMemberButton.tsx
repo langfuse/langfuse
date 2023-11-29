@@ -32,7 +32,6 @@ import { Input } from "@/src/components/ui/input";
 import { MembershipRole } from "@prisma/client";
 import { roleAccessRights } from "@/src/features/rbac/constants/roleAccessRights";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 const availableRoles = [
   MembershipRole.ADMIN,
@@ -47,7 +46,6 @@ const formSchema = z.object({
 
 export function CreateProjectMemberButton(props: { projectId: string }) {
   const [open, setOpen] = useState(false);
-  const [inviteNotification, setInviteNotification] = useState(false);
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "members:create",
@@ -80,13 +78,7 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
         email: values.email,
         role: values.role,
       })
-      .then((result) => {
-        if ("senderId" in result) {
-          setInviteNotification(true);
-          setTimeout(() => {
-            setInviteNotification(false);
-          }, 3000);
-        }
+      .then(() => {
         form.reset();
         setOpen(false);
       })
@@ -177,15 +169,6 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
           </Form>
         </DialogContent>
       </Dialog>
-      {inviteNotification && (
-        <Alert
-          variant="default"
-          className="fixed bottom-7 right-4 w-64 bg-gray-700 text-white"
-        >
-          <AlertTitle>Invitation Sent</AlertTitle>
-          <AlertDescription>An email invitation is sent.</AlertDescription>
-        </Alert>
-      )}
     </>
   );
 }
