@@ -323,25 +323,20 @@ export const traceRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "traces:bookmark",
+        scope: "objects:bookmark",
       });
-      const trace = await ctx.prisma.trace.findFirst({
+      const trace = await ctx.prisma.trace.update({
         where: {
           id: input.traceId,
           projectId: input.projectId,
-        },
-      });
-      if (!trace) {
-        throw new Error("Trace not found in project");
-      }
-
-      return ctx.prisma.trace.update({
-        where: {
-          id: input.traceId,
         },
         data: {
           bookmarked: input.bookmarked,
         },
       });
+      if (!trace) {
+        throw new Error("Trace not found in project");
+      }
+      return trace;
     }),
 });

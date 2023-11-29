@@ -18,7 +18,7 @@ export const publishTracesRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "traces:publish",
+        scope: "objects:publish",
       });
       return ctx.prisma.trace.update({
         where: {

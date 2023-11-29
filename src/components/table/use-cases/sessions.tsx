@@ -1,3 +1,4 @@
+import { StarSessionToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
@@ -14,9 +15,10 @@ import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 export type SessionTableRow = {
   id: string;
-  startedAt: string;
+  createdAt: string;
   userIds: string[];
   countTraces: number;
+  bookmarked: boolean;
 };
 
 export type SessionTableProps = {
@@ -34,7 +36,7 @@ export default function SessionsTable({
 
   const [userFilterState, setUserFilterState] = useQueryFilterState([
     {
-      column: "timestamp",
+      column: "createdAt",
       type: "datetime",
       operator: ">",
       value: utcDateOffsetByDays(-14),
@@ -82,13 +84,32 @@ export default function SessionsTable({
   ): SessionTableRow => {
     return {
       id: session.id,
-      startedAt: session.startedAt.toLocaleString(),
+      createdAt: session.createdAt.toLocaleString(),
       userIds: session.userIds ?? [],
       countTraces: session.countTraces,
+      bookmarked: session.bookmarked,
     };
   };
 
   const columns: ColumnDef<SessionTableRow>[] = [
+    {
+      accessorKey: "bookmarked",
+      header: undefined,
+      cell: ({ row }) => {
+        const bookmarked = row.getValue("bookmarked");
+        const sessionId = row.getValue("id");
+
+        return typeof sessionId === "string" &&
+          typeof bookmarked === "boolean" ? (
+          <StarSessionToggle
+            sessionId={sessionId}
+            projectId={projectId}
+            value={bookmarked}
+            size="xs"
+          />
+        ) : undefined;
+      },
+    },
     {
       accessorKey: "id",
       header: "ID",
@@ -103,8 +124,8 @@ export default function SessionsTable({
       },
     },
     {
-      accessorKey: "startedAt",
-      header: "Started At",
+      accessorKey: "createdAt",
+      header: "Created At",
     },
     {
       accessorKey: "userIds",

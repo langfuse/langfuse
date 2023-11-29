@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/src/components/ui/card";
@@ -26,6 +27,12 @@ export const SessionPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
           { name: sessionId },
         ]}
         actionButtons={[
+          <StarSessionToggle
+            key="star"
+            projectId={router.query.projectId as string}
+            sessionId={sessionId}
+            value={session.data?.bookmarked ?? false}
+          />,
           <DetailPageNav
             key="nav"
             currentId={sessionId}

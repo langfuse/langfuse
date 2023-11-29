@@ -10,6 +10,7 @@ import { type Observation, Prisma } from "@prisma/client";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import type Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -34,24 +35,29 @@ export const sessionRouter = createTRPCRouter({
       const sessions = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
-          startedAt: Date;
+          createdAt: Date;
+          bookmarked: boolean;
+          public: boolean;
           countTraces: number;
           userIds: string[];
           totalCount: number;
         }>
       >(Prisma.sql`
       SELECT
-        session_id "id",
-        min("timestamp") "startedAt",
-        count(id)::int "countTraces",
-        array_agg(distinct user_id) "userIds",
+        s.id,
+        s."created_at" "createdAt",
+        s.bookmarked,
+        s.public,
+        count(t.id)::int "countTraces",
+        array_agg(distinct t.user_id) "userIds",
         (count(*) OVER ())::int AS "totalCount"
-      FROM traces t
+      FROM trace_sessions s
+      LEFT JOIN traces t ON t.session_id = s.id
       WHERE
         t."project_id" = ${input.projectId}
         AND t."session_id" IS NOT NULL
         ${filterCondition}
-      GROUP BY 1
+      GROUP BY 1, 2
       ORDER BY 2 desc
       LIMIT ${input.limit}
       OFFSET ${input.page * input.limit}
@@ -64,21 +70,59 @@ export const sessionRouter = createTRPCRouter({
   byId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), sessionId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const traces = await ctx.prisma.trace.findMany({
+      const session = await ctx.prisma.traceSession.findFirst({
         where: {
-          sessionId: input.sessionId,
+          id: input.sessionId,
           projectId: input.projectId,
         },
-        orderBy: {
-          timestamp: "asc",
+        include: {
+          traces: {
+            orderBy: {
+              timestamp: "asc",
+            },
+          },
         },
       });
+      if (!session) {
+        throw new Error("Session not found in project");
+      }
 
       return {
-        traces,
+        ...session,
         users: [
-          ...new Set(traces.map((t) => t.userId).filter((t) => t !== null)),
+          ...new Set(
+            session.traces.map((t) => t.userId).filter((t) => t !== null),
+          ),
         ],
       };
+    }),
+  bookmark: protectedProjectProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        projectId: z.string(),
+        bookmarked: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:bookmark",
+      });
+
+      const session = await ctx.prisma.traceSession.update({
+        where: {
+          id: input.sessionId,
+          projectId: input.projectId,
+        },
+        data: {
+          bookmarked: input.bookmarked,
+        },
+      });
+      if (!session) {
+        throw new Error("Session not found in project");
+      }
+      return session;
     }),
 });

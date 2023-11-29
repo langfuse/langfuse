@@ -21,7 +21,7 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { BookmarkTrace } from "@/src/components/bookmark-trace";
+import { StarTraceToggle } from "@/src/components/star-toggle";
 
 export type TraceTableRow = {
   bookmarked: boolean;
@@ -138,15 +138,15 @@ export default function TracesTable({
       accessorKey: "bookmarked",
       header: undefined,
       cell: ({ row }) => {
-        const isBookmarked = row.getValue("bookmarked");
+        const bookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
 
         return typeof traceId === "string" &&
-          typeof isBookmarked === "boolean" ? (
-          <BookmarkTrace
+          typeof bookmarked === "boolean" ? (
+          <StarTraceToggle
             traceId={traceId}
             projectId={projectId}
-            isBookmarked={isBookmarked}
+            value={bookmarked}
             size="xs"
           />
         ) : undefined;

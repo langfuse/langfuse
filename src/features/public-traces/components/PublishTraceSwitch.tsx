@@ -13,7 +13,7 @@ export const PublishTraceSwitch = (props: {
   const posthog = usePostHog();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
-    scope: "traces:publish",
+    scope: "objects:publish",
   });
   const utils = api.useUtils();
   const mut = api.publishTraces.update.useMutation({
