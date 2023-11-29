@@ -36,7 +36,7 @@ export const sessionRouter = createTRPCRouter({
           id: string;
           startedAt: Date;
           countTraces: number;
-          userId: string[];
+          userIds: string[];
           totalCount: number;
         }>
       >(Prisma.sql`
@@ -44,10 +44,10 @@ export const sessionRouter = createTRPCRouter({
         session_id "id",
         min("timestamp") "startedAt",
         count(id)::int "countTraces",
-        array_agg(distinct user_id) "userId",
+        array_agg(distinct user_id) "userIds",
         (count(*) OVER ())::int AS "totalCount"
       FROM traces t
-      WHERE 
+      WHERE
         t."project_id" = ${input.projectId}
         AND t."session_id" IS NOT NULL
         ${filterCondition}
@@ -56,7 +56,10 @@ export const sessionRouter = createTRPCRouter({
       LIMIT ${input.limit}
       OFFSET ${input.page * input.limit}
     `);
-      return sessions;
+      return sessions.map((s) => ({
+        ...s,
+        userIds: s.userIds.filter((t) => t !== null),
+      }));
     }),
   byId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), sessionId: z.string() }))

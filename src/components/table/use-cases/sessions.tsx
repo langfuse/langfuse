@@ -15,7 +15,7 @@ import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 export type SessionTableRow = {
   id: string;
   startedAt: string;
-  userId: string[];
+  userIds: string[];
   countTraces: number;
 };
 
@@ -83,7 +83,7 @@ export default function SessionsTable({
     return {
       id: session.id,
       startedAt: session.startedAt.toLocaleString(),
-      userId: session.userId ?? [],
+      userIds: session.userIds ?? [],
       countTraces: session.countTraces,
     };
   };
@@ -107,13 +107,13 @@ export default function SessionsTable({
       header: "Started At",
     },
     {
-      accessorKey: "userId",
-      enableColumnFilter: !omittedFilter.find((f) => f === "userId"),
+      accessorKey: "userIds",
+      enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
       header: "User ID",
       cell: ({ row }) => {
-        const value = row.getValue("userId");
+        const value = row.getValue("userIds");
         return value && Array.isArray(value) ? (
-          <>
+          <div className="flex gap-1">
             {(value as string[]).map((user) => (
               <TableLink
                 key={user}
@@ -122,7 +122,7 @@ export default function SessionsTable({
                 truncateAt={40}
               />
             ))}
-          </>
+          </div>
         ) : undefined;
       },
     },
