@@ -1,6 +1,9 @@
 import { prisma } from "@/src/server/db";
 
-export async function addMembershipsIfExists(email: string, userId: string) {
+export async function processMembershipInvitations(
+  email: string,
+  userId: string,
+) {
   const invitationsForUser = await prisma.membershipInvitation.findMany({
     where: {
       email: email.toLowerCase(),

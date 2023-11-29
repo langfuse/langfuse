@@ -8,7 +8,7 @@ import {
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/src/server/db";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
-import { addMembershipsIfExists } from "@/src/features/auth/lib/addMembershipsIfExist";
+import { processMembershipInvitations } from "@/src/features/auth/lib/processMembershipInvitations";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 
@@ -148,7 +148,7 @@ const extendedPrismaAdapter: Adapter = {
       });
     }
 
-    await addMembershipsIfExists(user.email, user.id);
+    await processMembershipInvitations(user.email, user.id);
 
     return user;
   },

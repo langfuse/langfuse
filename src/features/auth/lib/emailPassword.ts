@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { addMembershipsIfExists } from "@/src/features/auth/lib/addMembershipsIfExist";
+import { processMembershipInvitations } from "@/src/features/auth/lib/processMembershipInvitations";
 import { prisma } from "@/src/server/db";
 import { compare, hash } from "bcryptjs";
 
@@ -61,7 +61,7 @@ export async function createUserEmailPassword(
     },
   });
 
-  await addMembershipsIfExists(email, newUser.id);
+  await processMembershipInvitations(email, newUser.id);
 
   return newUser.id;
 }
