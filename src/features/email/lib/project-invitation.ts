@@ -1,6 +1,9 @@
-import { env } from "@/src/env.mjs";
 import { createTransport } from "nodemailer";
 import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
+import { render } from "@react-email/render";
+
+import { env } from "@/src/env.mjs";
+import ProjectInvitationTemplate from "@/src/features/email/templates/ProjectInvitation";
 
 const langfuseUrls = {
   US: "https://us.cloud.langfuse.com",
@@ -27,6 +30,15 @@ export const sendProjectInvitation = async (
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
+    const htmlTemplate = render(
+      ProjectInvitationTemplate({
+        invitedByUsername: inviterName,
+        projectName: projectName,
+        recieverEmail: to,
+        inviteLink: authUrl,
+      }),
+    );
+
     await mailer.sendMail({
       to: to,
       from: {
@@ -34,10 +46,7 @@ export const sendProjectInvitation = async (
         name: "Langfuse",
       },
       subject: `${inviterName} invited you to join "${projectName}"`,
-      html: `
-      <p>${inviterName} invited you to join "${projectName}" on Langfuse.</p>
-      <p><a href="${authUrl}">Accept Invitation</a> (you need to create an account)</p>
-      `,
+      html: htmlTemplate,
     });
   } catch (error) {
     console.error(error);
