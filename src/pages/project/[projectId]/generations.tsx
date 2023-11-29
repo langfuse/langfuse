@@ -288,16 +288,16 @@ export default function Generations() {
           generations.isLoading
             ? { isLoading: true, isError: false }
             : generations.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: generations.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: rows,
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: generations.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: rows,
+                }
         }
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
