@@ -73,7 +73,9 @@ export const sessionRouter = createTRPCRouter({
 
       return {
         traces,
-        users: [...new Set(traces.map((t) => t.userId).filter(Boolean))],
+        users: [
+          ...new Set(traces.map((t) => t.userId).filter((t) => t !== null)),
+        ],
       };
     }),
 });
