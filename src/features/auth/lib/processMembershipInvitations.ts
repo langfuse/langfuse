@@ -25,6 +25,9 @@ export async function processMembershipInvitations(
       }),
       prisma.membershipInvitation.deleteMany({
         where: {
+          id: {
+            in: invitationsForUser.map((invitation) => invitation.id),
+          },
           email: email.toLowerCase(),
         },
       }),
