@@ -25,7 +25,7 @@ export default function DocPopup({
 
   return (
     <HoverCard openDelay={200}>
-      <HoverCardTrigger className="mx-2 cursor-pointer">
+      <HoverCardTrigger className="mx-2 cursor-pointer" asChild>
         <Link href={href} rel="noopener" target="_blank">
           <div className="whitespace-nowrap text-gray-500 sm:pl-0">
             <HelpCircle className={sizes[size]} />
