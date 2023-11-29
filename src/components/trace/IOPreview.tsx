@@ -10,7 +10,8 @@ export const IOPreview: React.FC<{
   input?: unknown;
   output?: unknown;
   isLoading?: boolean;
-}> = ({ isLoading = false, ...props }) => {
+  hideIfNull?: boolean;
+}> = ({ isLoading = false, hideIfNull = false, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
 
   const input = deepParseJson(props.input);
@@ -78,18 +79,22 @@ export const IOPreview: React.FC<{
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (
         <>
-          <JSONView
-            title="Input"
-            json={input ?? null}
-            isLoading={isLoading}
-            className="flex-1"
-          />
-          <JSONView
-            title="Output"
-            json={outputClean}
-            isLoading={isLoading}
-            className="flex-1 bg-green-50"
-          />
+          {!(hideIfNull && !input) ? (
+            <JSONView
+              title="Input"
+              json={input ?? null}
+              isLoading={isLoading}
+              className="flex-1"
+            />
+          ) : null}
+          {!(hideIfNull && !output) ? (
+            <JSONView
+              title="Output"
+              json={outputClean}
+              isLoading={isLoading}
+              className="flex-1 bg-green-50"
+            />
+          ) : null}
         </>
       ) : null}
     </>

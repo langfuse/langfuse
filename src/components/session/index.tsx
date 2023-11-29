@@ -58,25 +58,31 @@ export const SessionPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.map((trace) => (
-          <Card key={trace.id}>
-            <CardHeader className="p-2 pl-4 pt-3 text-xs">
+          <Card
+            className="border-border-gray-150 group shadow-none hover:border-gray-300"
+            key={trace.id}
+          >
+            <CardHeader className="p-3 text-xs">
               <Link
                 href={`/project/${router.query.projectId as string}/traces/${
                   trace.id
                 }`}
-                className="hover:underline"
+                className="text-primary/50 hover:underline group-hover:text-primary"
               >
                 Trace: {trace.name} ({trace.id}),{" "}
                 {trace.timestamp.toLocaleString()}
               </Link>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2 p-2 pt-0">
-              <IOPreview
-                key={trace.id}
-                input={trace.input}
-                output={trace.output}
-              />
-            </CardContent>
+            {trace.input || trace.output ? (
+              <CardContent className={"flex flex-col gap-2 p-2 pt-0"}>
+                <IOPreview
+                  key={trace.id}
+                  input={trace.input}
+                  output={trace.output}
+                  hideIfNull
+                />
+              </CardContent>
+            ) : null}
           </Card>
         ))}
       </div>
