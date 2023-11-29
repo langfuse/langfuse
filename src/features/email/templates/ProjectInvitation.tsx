@@ -49,8 +49,7 @@ export const ProjectInvitationTemplate = ({
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-              Join <strong>{projectName}</strong> on{" "}
-              <strong>Langfuse</strong>
+              Join <strong>{projectName}</strong> on <strong>Langfuse</strong>
             </Heading>
             <Text className="text-sm leading-6 text-black">Hello,</Text>
             <Text className="text-sm leading-6 text-black">
