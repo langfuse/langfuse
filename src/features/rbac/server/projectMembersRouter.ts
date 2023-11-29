@@ -100,7 +100,7 @@ export const projectMembersRouter = createTRPCRouter({
         scope: "members:delete",
       });
 
-      return await ctx.prisma.membershipInvitation.deleteMany({
+      return await ctx.prisma.membershipInvitation.delete({
         where: {
           id: input.id,
           projectId: input.projectId,
@@ -139,31 +139,31 @@ export const projectMembersRouter = createTRPCRouter({
             role: input.role,
           },
         });
+      } else {
+        const invitation = await ctx.prisma.membershipInvitation.create({
+          data: {
+            projectId: input.projectId,
+            email: input.email.toLowerCase(),
+            role: input.role,
+            senderId: ctx.session.user.id,
+          },
+        });
+
+        const project = await ctx.prisma.project.findFirst({
+          where: {
+            id: input.projectId,
+          },
+        });
+
+        if (!project) throw new Error("Project not found");
+
+        await sendProjectInvitation(
+          input.email,
+          ctx.session.user.name ?? "Someone",
+          project.name,
+        );
+
+        return invitation;
       }
-
-      const invitation = await ctx.prisma.membershipInvitation.create({
-        data: {
-          projectId: input.projectId,
-          email: input.email.toLowerCase(),
-          role: input.role,
-          senderId: ctx.session.user.id,
-        },
-      });
-
-      const project = await ctx.prisma.project.findFirst({
-        where: {
-          id: input.projectId,
-        },
-      });
-
-      if (!project) throw new Error("Project not found");
-
-      await sendProjectInvitation(
-        input.email,
-        ctx.session.user.name ?? "Someone",
-        project.name,
-      );
-
-      return invitation;
     }),
 });
