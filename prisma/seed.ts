@@ -133,13 +133,13 @@ async function main() {
             },
           },
           userId: `user-${i % 10}`,
-          sessionId: Math.random() > 0.7 ? `session-${i % 20}` : undefined,
+          sessionId: Math.random() > 0.3 ? `session-${i % 20}` : undefined,
           input:
-            Math.random() > 0.7
+            Math.random() > 0.3
               ? "I'm looking for a React component"
               : undefined,
           output:
-            Math.random() > 0.7
+            Math.random() > 0.3
               ? "What kind of component are you looking for?"
               : undefined,
           scores: {
