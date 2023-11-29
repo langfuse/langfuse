@@ -517,9 +517,13 @@ export default function Layout(props: PropsWithChildren) {
                 </div>
                 <div>Live data from the Langfuse Q&A Chatbot.</div>
               </div>
-              <Button size="sm" variant="ghost" asChild className="ml-2">
-                <Link href="https://langfuse.com/docs/demo" target="_blank">
-                  Learn more ↗
+
+              <Button size="sm" asChild className="ml-2">
+                <Link
+                  href="https://langfuse.com/docs/qa-chatbot"
+                  target="_blank"
+                >
+                  Q&A Chatbot ↗
                 </Link>
               </Button>
             </div>
