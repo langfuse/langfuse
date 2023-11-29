@@ -56,10 +56,10 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
   const utils = api.useUtils();
   const mutCreateProjectMember = api.projectMembers.create.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
-    onError: () =>
+    onError: (error) =>
       form.setError("email", {
         type: "manual",
-        message: "User already has access to this project",
+        message: error.message,
       }),
   });
 
