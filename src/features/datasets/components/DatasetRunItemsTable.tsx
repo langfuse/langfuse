@@ -110,16 +110,16 @@ export function DatasetRunItemsTable(
         runItems.isLoading
           ? { isLoading: true, isError: false }
           : runItems.isError
-          ? {
-              isLoading: false,
-              isError: true,
-              error: runItems.error.message,
-            }
-          : {
-              isLoading: false,
-              isError: false,
-              data: runItems.data?.map((t) => convertToTableRow(t)),
-            }
+            ? {
+                isLoading: false,
+                isError: true,
+                error: runItems.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: runItems.data?.map((t) => convertToTableRow(t)),
+              }
       }
     />
   );
