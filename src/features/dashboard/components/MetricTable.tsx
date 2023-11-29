@@ -79,7 +79,7 @@ export const MetricTable = ({
         >
           <DocPopup
             description="Calculated multiplying the number of tokens with cost per token for each model."
-            link="https://langfuse.com/docs/token-usage"
+            href="https://langfuse.com/docs/token-usage"
           />
         </TotalMetric>
       </DashboardTable>

@@ -69,7 +69,7 @@ export function ChartScores(props: {
         <NoData noDataText="No data">
           <DocPopup
             description="Scores evaluate LLM quality and can be created manually or using the SDK."
-            link="https://langfuse.com/docs/scores"
+            href="https://langfuse.com/docs/scores"
           />
         </NoData>
       )}

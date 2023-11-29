@@ -137,7 +137,7 @@ export const ScoresTable = ({
         noDataChildren={
           <DocPopup
             description="Scores evaluate LLM quality and can be created manually or using the SDK."
-            link="https://langfuse.com/docs/scores"
+            href="https://langfuse.com/docs/scores"
           />
         }
         noDataClassName="mt-0"

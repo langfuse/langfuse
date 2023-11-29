@@ -96,6 +96,8 @@ The same environment is also used for preview deployments of pull requests. Limi
 - SSO is not available as dynamic domains are not supported by most SSO providers.
 - When making changes to the database, migrations to the staging database need to be applied manually by a maintainer. If you want to interactively test database changes in the staging environment, please reach out.
 
+You can use the staging environment end-to-end with the Langfuse integrations or SDKs (host: `https://staging.langfuse.com`). However, please note that the staging environment is not intended for production use and may be reset at any time.
+
 ## Production environment
 
 When a new release is tagged on the `main` branch (excluding prereleases), it triggers a production deployment. The deployment process consists of two steps:

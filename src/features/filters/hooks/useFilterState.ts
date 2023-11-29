@@ -47,7 +47,9 @@ const CommaArrayParam = {
                 ? Number(value)
                 : type === "stringOptions"
                   ? value.split("|")
-                  : value;
+                  : type === "boolean"
+                    ? value === "true"
+                    : value;
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,

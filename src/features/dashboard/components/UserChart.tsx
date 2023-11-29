@@ -149,7 +149,7 @@ export const UserChart = ({
                   <NoData noDataText="No data">
                     <DocPopup
                       description="Consumption per user is tracked by passing their ids on traces."
-                      link="https://langfuse.com/docs/user-explorer"
+                      href="https://langfuse.com/docs/user-explorer"
                     />
                   </NoData>
                 )}

@@ -14,6 +14,7 @@ import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { DeleteTrace } from "@/src/components/delete-trace";
+import { BookmarkTrace } from "@/src/components/bookmark-trace";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -89,8 +90,20 @@ export function TracePage({ traceId }: { traceId: string }) {
     <div className="flex flex-col overflow-hidden xl:container lg:h-[calc(100vh-100px)] xl:h-[calc(100vh-50px)]">
       <Header
         title="Trace Detail"
+        breadcrumb={[
+          {
+            name: "Traces",
+            href: `/project/${router.query.projectId as string}/traces`,
+          },
+          { name: traceId },
+        ]}
         actionButtons={
           <>
+            <BookmarkTrace
+              traceId={trace.data.id}
+              projectId={trace.data.projectId}
+              isBookmarked={trace.data.bookmarked}
+            />
             <PublishTraceSwitch
               traceId={trace.data.id}
               projectId={trace.data.projectId}
