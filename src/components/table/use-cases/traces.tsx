@@ -21,8 +21,10 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import { BookmarkTrace } from "@/src/components/bookmark-trace";
 
 export type TraceTableRow = {
+  bookmarked: boolean;
   id: string;
   timestamp: string;
   name: string;
@@ -111,6 +113,7 @@ export default function TracesTable({
     trace: RouterOutput["traces"]["all"][0],
   ): TraceTableRow => {
     return {
+      bookmarked: trace.bookmarked,
       id: trace.id,
       timestamp: trace.timestamp.toLocaleString(),
       name: trace.name ?? "",
@@ -129,6 +132,24 @@ export default function TracesTable({
   };
 
   const columns: ColumnDef<TraceTableRow>[] = [
+    {
+      accessorKey: "bookmarked",
+      header: undefined,
+      cell: ({ row }) => {
+        const isBookmarked = row.getValue("bookmarked");
+        const traceId = row.getValue("id");
+
+        return typeof traceId === "string" &&
+          typeof isBookmarked === "boolean" ? (
+          <BookmarkTrace
+            traceId={traceId}
+            projectId={projectId}
+            isBookmarked={isBookmarked}
+            size="xs"
+          />
+        ) : undefined;
+      },
+    },
     {
       accessorKey: "id",
       header: "ID",

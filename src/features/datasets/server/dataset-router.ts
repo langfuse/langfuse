@@ -221,8 +221,8 @@ export const datasetRouter = createTRPCRouter({
             input.expectedOutput === ""
               ? Prisma.DbNull
               : input.expectedOutput !== undefined
-              ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
-              : undefined,
+                ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
+                : undefined,
           sourceObservationId: input.sourceObservationId,
           status: input.status,
         },
@@ -302,8 +302,8 @@ export const datasetRouter = createTRPCRouter({
             input.expectedOutput === ""
               ? Prisma.DbNull
               : input.expectedOutput !== undefined
-              ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
-              : undefined,
+                ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
+                : undefined,
           datasetId: input.datasetId,
           sourceObservationId: input.sourceObservationId,
         },

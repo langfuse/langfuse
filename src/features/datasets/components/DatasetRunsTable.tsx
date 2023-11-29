@@ -93,16 +93,16 @@ export function DatasetRunsTable(props: {
         runs.isLoading
           ? { isLoading: true, isError: false }
           : runs.isError
-          ? {
-              isLoading: false,
-              isError: true,
-              error: runs.error.message,
-            }
-          : {
-              isLoading: false,
-              isError: false,
-              data: runs.data?.map((t) => convertToTableRow(t)),
-            }
+            ? {
+                isLoading: false,
+                isError: true,
+                error: runs.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: runs.data?.map((t) => convertToTableRow(t)),
+              }
       }
     />
   );

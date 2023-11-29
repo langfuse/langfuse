@@ -123,30 +123,30 @@ export default function UsersPage() {
           users.isLoading
             ? { isLoading: true, isError: false }
             : users.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: users.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: users.data?.map((t) => {
-                  return {
-                    userId: t.userId,
-                    firstEvent:
-                      t.firstTrace?.toLocaleString() ?? "No event yet",
-                    lastEvent:
-                      t.lastObservation.toLocaleString() ?? "No event yet",
-                    totalEvents: compactNumberFormatter(
-                      (Number(t.totalTraces) || 0) +
-                        (Number(t.totalObservations) || 0),
-                    ),
-                    totalTokens: compactNumberFormatter(t.totalTokens),
-                    lastScore: t.lastScore,
-                  };
-                }),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: users.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: users.data?.map((t) => {
+                    return {
+                      userId: t.userId,
+                      firstEvent:
+                        t.firstTrace?.toLocaleString() ?? "No event yet",
+                      lastEvent:
+                        t.lastObservation.toLocaleString() ?? "No event yet",
+                      totalEvents: compactNumberFormatter(
+                        (Number(t.totalTraces) || 0) +
+                          (Number(t.totalObservations) || 0),
+                      ),
+                      totalTokens: compactNumberFormatter(t.totalTokens),
+                      lastScore: t.lastScore,
+                    };
+                  }),
+                }
         }
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),

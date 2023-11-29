@@ -506,6 +506,8 @@ export default function Layout(props: PropsWithChildren) {
         <div className="xl:pl-72">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
             <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 xl:sticky xl:top-0 xl:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
@@ -515,9 +517,13 @@ export default function Layout(props: PropsWithChildren) {
                 </div>
                 <div>Live data from the Langfuse Q&A Chatbot.</div>
               </div>
-              <Button size="sm" variant="ghost" asChild className="ml-2">
-                <Link href="https://langfuse.com/docs/demo" target="_blank">
-                  Learn more ↗
+
+              <Button size="sm" asChild className="ml-2">
+                <Link
+                  href="https://langfuse.com/docs/qa-chatbot"
+                  target="_blank"
+                >
+                  Q&A Chatbot ↗
                 </Link>
               </Button>
             </div>

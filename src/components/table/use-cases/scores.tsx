@@ -135,16 +135,16 @@ export default function ScoresTable({
           scores.isLoading
             ? { isLoading: true, isError: false }
             : scores.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: scores.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: scores.data?.map((t) => convertToTableRow(t)),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: scores.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: scores.data?.map((t) => convertToTableRow(t)),
+                }
         }
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),

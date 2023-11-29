@@ -58,6 +58,9 @@ export function filterToPrismaSql(
           filter.value.map((v) => Prisma.sql`${v}`),
         )})`;
         break;
+      case "boolean":
+        valuePrisma = Prisma.sql`${filter.value}`;
+        break;
     }
     const jsonKeyPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
