@@ -135,6 +135,8 @@ model MembershipInvitation {
     createdAt DateTime       @default(now()) @map("created_at")
     updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
 
+    @@index([projectId])
+    @@index([email])
     @@map("membership_invitations")
 }
 

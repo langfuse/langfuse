@@ -1,18 +1,3 @@
-/*
-  Warnings:
-
-  - You are about to drop the `project_invitations` table. If the table is not empty, all the data it contains will be lost.
-
-*/
--- DropForeignKey
-ALTER TABLE "project_invitations" DROP CONSTRAINT "project_invitations_project_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "project_invitations" DROP CONSTRAINT "project_invitations_sender_id_fkey";
-
--- DropTable
-DROP TABLE "project_invitations";
-
 -- CreateTable
 CREATE TABLE "membership_invitations" (
     "id" TEXT NOT NULL,
@@ -28,6 +13,12 @@ CREATE TABLE "membership_invitations" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "membership_invitations_id_key" ON "membership_invitations"("id");
+
+-- CreateIndex
+CREATE INDEX "membership_invitations_project_id_idx" ON "membership_invitations"("project_id");
+
+-- CreateIndex
+CREATE INDEX "membership_invitations_email_idx" ON "membership_invitations"("email");
 
 -- AddForeignKey
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
