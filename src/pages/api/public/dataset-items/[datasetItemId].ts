@@ -3,14 +3,9 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { jsonSchema } from "@/src/utils/zod";
-import { v4 as uuidv4 } from "uuid";
 
-const CreateDatasetItemSchema = z.object({
-  datasetName: z.string(),
-  input: jsonSchema,
-  expectedOutput: jsonSchema.nullish(),
-  id: z.string().nullish(),
+const GetDatasetItemQuerySchema = z.object({
+  datasetItemId: z.string(),
 });
 
 export default async function handler(
@@ -30,15 +25,17 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
-    if (req.method === "POST") {
+    if (req.method === "GET") {
       console.log(
-        "Trying to upsert dataset item, project ",
+        "Trying to get dataset item, project ",
         authCheck.scope.projectId,
         ", body:",
         JSON.stringify(req.body, null, 2),
+        ", query:",
+        JSON.stringify(req.query, null, 2),
       );
 
-      const itemBody = CreateDatasetItemSchema.parse(req.body);
+      const { datasetItemId } = GetDatasetItemQuerySchema.parse(req.query);
 
       // CHECK ACCESS SCOPE
       if (authCheck.scope.accessLevel !== "all")
@@ -48,37 +45,20 @@ export default async function handler(
       // END CHECK ACCESS SCOPE
 
       // Check access to dataset
-      const dataset = await prisma.dataset.findFirst({
+      const datasetItem = await prisma.datasetItem.findFirst({
         where: {
-          projectId: authCheck.scope.projectId,
-          name: itemBody.datasetName,
+          id: datasetItemId,
+          dataset: {
+            projectId: authCheck.scope.projectId,
+          },
         },
       });
-      if (!dataset) {
+      if (!datasetItem) {
         return res.status(404).json({
-          message: "Dataset not found",
+          message: "Dataset item not found (for this project)",
         });
       }
-      const id = itemBody.id ?? uuidv4();
-
-      const item = await prisma.datasetItem.upsert({
-        where: {
-          id,
-          datasetId: dataset.id,
-        },
-        create: {
-          id,
-          input: itemBody.input,
-          expectedOutput: itemBody.expectedOutput ?? undefined,
-          datasetId: dataset.id,
-        },
-        update: {
-          input: itemBody.input,
-          expectedOutput: itemBody.expectedOutput ?? undefined,
-        },
-      });
-
-      res.status(200).json(item);
+      res.status(200).json(datasetItem);
     } else {
       res.status(405).json({
         message: "Method not allowed",
