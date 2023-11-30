@@ -23,6 +23,7 @@ types:
     properties:
       spanId: string
       traceId: optional<string>
+      startTime: optional<datetime>
       endTime: optional<datetime>
       name: optional<string>
       metadata: optional<unknown>

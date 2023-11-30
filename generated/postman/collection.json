@@ -329,7 +329,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"generationId\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\"\n}",
+              "raw": "{\n    \"generationId\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -692,7 +692,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"spanId\": \"example\",\n    \"traceId\": \"example\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"name\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"version\": \"example\",\n    \"statusMessage\": \"example\"\n}",
+              "raw": "{\n    \"spanId\": \"example\",\n    \"traceId\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"name\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"version\": \"example\",\n    \"statusMessage\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
