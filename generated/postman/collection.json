@@ -46,7 +46,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Create a dataset item",
+            "description": "Create a dataset item, upserts on id",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items",
               "host": [
@@ -65,13 +65,45 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\",\n    \"id\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a specific dataset item",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-items/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
           },
           "response": []
         }
