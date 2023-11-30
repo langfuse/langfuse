@@ -158,6 +158,7 @@ model TraceSession {
     public     Boolean  @default(false)
     traces     Trace[]
 
+    @@unique([id, projectId])
     @@index([projectId])
     @@index([createdAt])
     @@map("trace_sessions")

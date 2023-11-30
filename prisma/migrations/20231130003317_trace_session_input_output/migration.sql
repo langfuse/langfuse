@@ -22,6 +22,9 @@ CREATE INDEX "trace_sessions_project_id_idx" ON "trace_sessions"("project_id");
 CREATE INDEX "trace_sessions_created_at_idx" ON "trace_sessions"("created_at");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "trace_sessions_id_project_id_key" ON "trace_sessions"("id", "project_id");
+
+-- CreateIndex
 CREATE INDEX "traces_session_id_idx" ON "traces"("session_id");
 
 -- AddForeignKey
