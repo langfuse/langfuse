@@ -1459,6 +1459,10 @@ components:
         name:
           type: string
           nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
         endTime:
           type: string
           format: date-time
@@ -1677,6 +1681,10 @@ components:
           type: string
         traceId:
           type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
           nullable: true
         endTime:
           type: string
