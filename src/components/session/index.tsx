@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader } from "@/src/components/ui/card";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
 import Link from "next/link";
-import { useRouter } from "next/router";
 
-export const SessionPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
-  const router = useRouter();
+export const SessionPage: React.FC<{
+  sessionId: string;
+  projectId: string;
+}> = ({ sessionId, projectId }) => {
   const session = api.sessions.byId.useQuery({
     sessionId,
-    projectId: router.query.projectId as string,
+    projectId: projectId,
   });
 
   return (
@@ -23,19 +24,19 @@ export const SessionPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
         breadcrumb={[
           {
             name: "Sessions",
-            href: `/project/${router.query.projectId as string}/sessions`,
+            href: `/project/${projectId}/sessions`,
           },
           { name: sessionId },
         ]}
         actionButtons={[
           <StarSessionToggle
             key="star"
-            projectId={router.query.projectId as string}
+            projectId={projectId}
             sessionId={sessionId}
             value={session.data?.bookmarked ?? false}
           />,
           <PublishSessionSwitch
-            projectId={router.query.projectId as string}
+            projectId={projectId}
             sessionId={sessionId}
             isPublic={session.data?.public ?? false}
             key="publish"
@@ -43,21 +44,14 @@ export const SessionPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
           <DetailPageNav
             key="nav"
             currentId={sessionId}
-            path={(id) =>
-              `/project/${router.query.projectId as string}/sessions/${id}`
-            }
+            path={(id) => `/project/${projectId}/sessions/${id}`}
             listKey="sessions"
           />,
         ]}
       />
       <div className="flex gap-2">
         {session.data?.users.map((userId) => (
-          <Link
-            key={userId}
-            href={`/project/${
-              router.query.projectId as string
-            }/users/${userId}`}
-          >
+          <Link key={userId} href={`/project/${projectId}/users/${userId}`}>
             <Badge variant="default">User ID: {userId}</Badge>
           </Link>
         ))}
@@ -71,9 +65,7 @@ export const SessionPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
           >
             <CardHeader className="p-3 text-xs">
               <Link
-                href={`/project/${router.query.projectId as string}/traces/${
-                  trace.id
-                }`}
+                href={`/project/${projectId}/traces/${trace.id}`}
                 className="text-primary/50 hover:underline group-hover:text-primary"
               >
                 Trace: {trace.name} ({trace.id}),{" "}

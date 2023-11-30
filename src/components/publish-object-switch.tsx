@@ -68,7 +68,7 @@ export const PublishSessionSwitch = (props: {
       }}
       isLoading={mut.isLoading}
       disabled={!hasAccess}
-      path="/public/sessions/"
+      path={`/public/sessions/${props.projectId}/`}
     />
   );
 };
