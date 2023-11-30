@@ -5,12 +5,14 @@ import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma"
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import { type Observation, Prisma } from "@prisma/client";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import type Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { TRPCError } from "@trpc/server";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -67,7 +69,7 @@ export const sessionRouter = createTRPCRouter({
         userIds: s.userIds.filter((t) => t !== null),
       }));
     }),
-  byId: protectedProjectProcedure
+  byId: protectedGetSessionProcedure
     .input(z.object({ projectId: z.string(), sessionId: z.string() }))
     .query(async ({ input, ctx }) => {
       const session = await ctx.prisma.traceSession.findFirst({
@@ -84,7 +86,10 @@ export const sessionRouter = createTRPCRouter({
         },
       });
       if (!session) {
-        throw new Error("Session not found in project");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Session not found in project",
+        });
       }
 
       return {

@@ -34,7 +34,6 @@ export const PublishTraceSwitch = (props: {
       }}
       isLoading={mut.isLoading}
       disabled={!hasAccess}
-      path="/public/traces/"
     />
   );
 };
@@ -68,7 +67,6 @@ export const PublishSessionSwitch = (props: {
       }}
       isLoading={mut.isLoading}
       disabled={!hasAccess}
-      path={`/public/sessions/${props.projectId}/`}
     />
   );
 };
@@ -78,14 +76,13 @@ const Base = (props: {
   onChange: (value: boolean) => void;
   isLoading: boolean;
   isPublic: boolean;
-  path: string;
   disabled?: boolean;
 }) => {
   const [isCopied, setIsCopied] = useState(false);
 
-  const handleCopy = (text: string) => {
+  const copyUrl = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(window.location.href);
     setTimeout(() => setIsCopied(false), 1500);
   };
 
@@ -97,9 +94,7 @@ const Base = (props: {
         ) : props.isPublic ? (
           <div
             className="flex cursor-pointer items-center gap-1 text-green-800"
-            onClick={() =>
-              handleCopy(window.location.origin + props.path + props.id)
-            }
+            onClick={() => copyUrl()}
           >
             {isCopied ? "Link copied ..." : "Public"}
             <Link size={16} />

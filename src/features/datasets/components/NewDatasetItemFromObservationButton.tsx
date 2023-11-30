@@ -20,6 +20,7 @@ import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { type Prisma } from "@prisma/client";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useSession } from "next-auth/react";
 
 export const NewDatasetItemFromObservationButton = (props: {
   projectId: string;
@@ -28,10 +29,16 @@ export const NewDatasetItemFromObservationButton = (props: {
   observationOutput: Prisma.JsonValue;
 }) => {
   const [open, setOpen] = useState(false);
-  const observationInDatasets = api.datasets.observationInDatasets.useQuery({
-    projectId: props.projectId,
-    observationId: props.observationId,
-  });
+  const session = useSession();
+  const observationInDatasets = api.datasets.observationInDatasets.useQuery(
+    {
+      projectId: props.projectId,
+      observationId: props.observationId,
+    },
+    {
+      enabled: session.status === "authenticated",
+    },
+  );
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",

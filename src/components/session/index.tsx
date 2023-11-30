@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { NoAccessError } from "@/src/components/no-access";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -12,10 +13,20 @@ export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
-  const session = api.sessions.byId.useQuery({
-    sessionId,
-    projectId: projectId,
-  });
+  const session = api.sessions.byId.useQuery(
+    {
+      sessionId,
+      projectId: projectId,
+    },
+    {
+      retry(failureCount, error) {
+        if (error.data?.code === "UNAUTHORIZED") return false;
+        return failureCount < 3;
+      },
+    },
+  );
+
+  if (session.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
 
   return (
     <div className="flex flex-col overflow-hidden xl:container">

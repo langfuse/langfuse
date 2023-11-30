@@ -5,6 +5,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Fragment } from "react";
 
 export const IOPreview: React.FC<{
   input?: unknown;
@@ -127,11 +128,10 @@ const OpenAiMessageView: React.FC<{
             !isCollapsed || i == 0 || i > messages.length - COLLAPSE_THRESHOLD,
         )
         .map((message, index) => (
-          <>
+          <Fragment key={index}>
             <JSONView
               title={message.role}
               json={message.content}
-              key={index}
               className={cn(
                 message.role === "system" && "bg-gray-100",
                 message.role === "assistant" && "bg-green-50",
@@ -148,7 +148,7 @@ const OpenAiMessageView: React.FC<{
                   : "Hide history"}
               </Button>
             ) : null}
-          </>
+          </Fragment>
         ))}
     </div>
   );

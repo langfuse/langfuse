@@ -1,12 +1,9 @@
-import { useRouter } from "next/router";
-import { TracePage } from "@/src/components/trace";
+// This url is deprecated, we keep this redirect page for backward compatibility
 
-export default function PublicTracePage() {
-  const router = useRouter();
-  const traceId = router.query.traceId as string;
-  return (
-    <div className="py-5">
-      <TracePage traceId={traceId} />
-    </div>
-  );
-}
+import TraceRedirectPage, {
+  getServerSideProps,
+} from "@/src/pages/trace/[traceId]";
+
+export { getServerSideProps };
+
+export default TraceRedirectPage;

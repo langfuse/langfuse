@@ -36,6 +36,10 @@ const userNavigation = [
 
 const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
+const publishablePaths = [
+  "/project/[projectId]/sessions/[sessionId]",
+  "/project/[projectId]/traces/[traceId]",
+];
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -76,6 +80,7 @@ export default function Layout(props: PropsWithChildren) {
     session.data &&
     session.data.user === null &&
     !unauthenticatedPaths.includes(router.pathname) &&
+    !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
     void signOut({
@@ -87,9 +92,10 @@ export default function Layout(props: PropsWithChildren) {
   if (
     session.status === "unauthenticated" &&
     !unauthenticatedPaths.includes(router.pathname) &&
+    !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void router.push("/auth/sign-in");
+    void router.replace("/auth/sign-in");
     return <Spinner message="Redirecting" />;
   }
 
@@ -97,7 +103,7 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    void router.push("/");
+    void router.replace("/");
     return <Spinner message="Redirecting" />;
   }
 

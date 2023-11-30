@@ -16,6 +16,7 @@ import { api } from "@/src/utils/api";
 import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
+import { NoAccessError } from "@/src/components/no-access";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -73,7 +74,15 @@ export function Trace(props: {
 
 export function TracePage({ traceId }: { traceId: string }) {
   const router = useRouter();
-  const trace = api.traces.byId.useQuery({ traceId });
+  const trace = api.traces.byId.useQuery(
+    { traceId },
+    {
+      retry(failureCount, error) {
+        if (error.data?.code === "UNAUTHORIZED") return false;
+        return failureCount < 3;
+      },
+    },
+  );
   const totalCost = trace.data?.observations.reduce(
     (acc, o) => {
       if (!o.price) return acc;
@@ -85,6 +94,7 @@ export function TracePage({ traceId }: { traceId: string }) {
     undefined as Decimal | undefined,
   );
 
+  if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
 
   return (
