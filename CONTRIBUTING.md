@@ -73,6 +73,24 @@ Requirements
 
 On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
 
+## Test the public API
+
+The API is tested using Jest. With the development server running, you can run the tests with:
+
+Run all
+
+```bash
+npm run test
+```
+
+Run interactively in watch mode
+
+```bash
+npm run test:watch
+```
+
+These tests are also run in CI.
+
 ## CI/CD
 
 We use GitHub Actions for CI/CD, the configuration is in [`.github/workflows/pipeline.yml`](.github/workflows/pipeline.yml)
@@ -108,3 +126,7 @@ When a new release is tagged on the `main` branch (excluding prereleases), it tr
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+
+```
+
+```
