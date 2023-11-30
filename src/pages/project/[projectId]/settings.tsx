@@ -9,6 +9,7 @@ import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembe
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
 import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
+import RenameProject from "@/src/features/projects/components/RenameProject";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function SettingsPage() {
       <Header title="Settings" />
       <div className="flex flex-col gap-10">
         <ProjectMembersTable projectId={projectId} />
+        <RenameProject projectId={projectId} />
         <ApiKeyList projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
         <Instructions />
