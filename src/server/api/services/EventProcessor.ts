@@ -253,10 +253,17 @@ export class TraceProcessor implements EventProcessor {
         userId: body.userId ?? undefined,
         input: body.input ?? undefined,
         output: body.output ?? undefined,
-        sessionId: body.sessionId ?? undefined,
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
+        session: body.sessionId
+          ? {
+              connectOrCreate: {
+                where: { id: body.sessionId, projectId: apiScope.projectId },
+                create: { id: body.sessionId, projectId: apiScope.projectId },
+              },
+            }
+          : undefined,
         project: { connect: { id: apiScope.projectId } },
       },
       update: {
@@ -264,10 +271,17 @@ export class TraceProcessor implements EventProcessor {
         userId: body.userId ?? undefined,
         input: body.input ?? undefined,
         output: body.output ?? undefined,
-        sessionId: body.sessionId ?? undefined,
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
+        session: body.sessionId
+          ? {
+              connectOrCreate: {
+                where: { id: body.sessionId, projectId: apiScope.projectId },
+                create: { id: body.sessionId, projectId: apiScope.projectId },
+              },
+            }
+          : undefined,
       },
     });
     return upsertedTrace;
