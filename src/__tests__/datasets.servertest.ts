@@ -175,6 +175,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbRun).not.toBeNull();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(dbRun?.datasetId).toBe(dataset.body.id);
     expect(runItem.status).toBe(200);
     expect(runItem.body).toMatchObject({
