@@ -126,7 +126,3 @@ When a new release is tagged on the `main` branch (excluding prereleases), it tr
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
-
-```
-
-```
