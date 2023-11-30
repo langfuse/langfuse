@@ -7,7 +7,7 @@ export default function Sessions() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div>
+    <div className="xl:container">
       <Header
         title="Sessions"
         help={{

@@ -125,4 +125,28 @@ export const sessionRouter = createTRPCRouter({
       }
       return session;
     }),
+  publish: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+        public: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:publish",
+      });
+      return ctx.prisma.traceSession.update({
+        where: {
+          id: input.sessionId,
+          projectId: input.projectId,
+        },
+        data: {
+          public: input.public,
+        },
+      });
+    }),
 });

@@ -8,7 +8,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import Decimal from "decimal.js";
 import { StringParam, useQueryParam } from "use-query-params";
-import { PublishTraceSwitch } from "@/src/features/public-traces/components/PublishTraceSwitch";
+import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";

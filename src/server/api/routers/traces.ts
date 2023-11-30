@@ -339,4 +339,28 @@ export const traceRouter = createTRPCRouter({
       }
       return trace;
     }),
+  publish: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        public: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:publish",
+      });
+      return ctx.prisma.trace.update({
+        where: {
+          id: input.traceId,
+          projectId: input.projectId,
+        },
+        data: {
+          public: input.public,
+        },
+      });
+    }),
 });

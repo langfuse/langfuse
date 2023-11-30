@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
@@ -32,6 +33,12 @@ export const SessionPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
             projectId={router.query.projectId as string}
             sessionId={sessionId}
             value={session.data?.bookmarked ?? false}
+          />,
+          <PublishSessionSwitch
+            projectId={router.query.projectId as string}
+            sessionId={sessionId}
+            isPublic={session.data?.public ?? false}
+            key="publish"
           />,
           <DetailPageNav
             key="nav"
