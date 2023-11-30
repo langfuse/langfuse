@@ -32,7 +32,14 @@ export const DetailPageNav = (props: {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // don't trigger keyboard shortcuts if the user is typing in an input
-      if (document.activeElement instanceof HTMLInputElement) return;
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        (event.target instanceof HTMLElement &&
+          event.target.getAttribute("role") === "textbox")
+      ) {
+        return;
+      }
 
       if (event.key === "k" && previousPageId) {
         void router.push(props.path(previousPageId));
