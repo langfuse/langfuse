@@ -10,7 +10,10 @@ import {
   type OnChangeFn,
   type PaginationState,
   type Row,
+  RowSelectionState,
 } from "@tanstack/react-table";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
+
 import {
   Table,
   TableBody,
@@ -19,7 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { useEffect, useState } from "react";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 
 interface DataTableProps<TData, TValue> {
@@ -31,6 +33,8 @@ interface DataTableProps<TData, TValue> {
     state: PaginationState;
   };
   onSelectionChange?: (selectedRows: Row<TData>[]) => void;
+  rowSelection?: {};
+  setRowSelection?: OnChangeFn<RowSelectionState> | undefined
 }
 
 export interface AsyncTableData<T> {
@@ -45,9 +49,10 @@ export function DataTable<TData, TValue>({
   data,
   pagination,
   onSelectionChange,
+  rowSelection,
+  setRowSelection,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [rowSelection, setRowSelection] = useState({});
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -68,7 +73,7 @@ export function DataTable<TData, TValue>({
   });
 
   useEffect(() => {
-    if (onSelectionChange) {
+    if (onSelectionChange && rowSelection) {
       const selectedRowsIndexes = Object.keys(rowSelection).map(Number);
       const rows = table.getRowModel().rows;
       const selectedRows = rows.filter((_, i) => {
@@ -80,19 +85,11 @@ export function DataTable<TData, TValue>({
   }, [rowSelection]);
 
   useEffect(() => {
-    setRowSelection({});
+    setRowSelection && setRowSelection({});
   }, [table.getRowModel().rows.length]);
-
-  const noOfSelectedRows = table.getFilteredSelectedRowModel().rows.length;
 
   return (
     <>
-      {noOfSelectedRows > 0 && (
-        <div className="flex-1 text-sm text-muted-foreground">
-          {noOfSelectedRows} of {table.getFilteredRowModel().rows.length} row(s)
-          selected.
-        </div>
-      )}
       <div className="space-y-4">
         <div className="rounded-md border">
           <Table>

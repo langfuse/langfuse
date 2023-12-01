@@ -59,6 +59,7 @@ export default function TracesTable({
 }: TraceTableProps) {
   const router = useRouter();
 
+  const [rowSelection, setRowSelection] = useState({});
   const [selectedRows, setSelectedRows] = useState<object[]>([]);
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -328,6 +329,8 @@ export default function TracesTable({
           state: paginationState,
         }}
         onSelectionChange={onChangeInSelectedRows}
+        rowSelection={rowSelection}
+        setRowSelection={setRowSelection}
       />
     </div>
   );

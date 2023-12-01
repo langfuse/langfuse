@@ -1,5 +1,6 @@
 import { TrashIcon } from "lucide-react";
 import { useRouter } from "next/router";
+import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
@@ -9,7 +10,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { useState } from "react";
 
 export function DeleteTrace({
   traceId,
@@ -26,7 +26,7 @@ export function DeleteTrace({
 
   const hasAccess = useHasAccess({ projectId, scope: "traces:delete" });
 
-  const mutDeleteTrace = api.traces.delete.useMutation({
+  const mutDeleteTrace = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       setIsDeleted(true);
       if (!isTableAction) {
@@ -68,7 +68,10 @@ export function DeleteTrace({
             variant="destructive"
             loading={mutDeleteTrace.isLoading || isDeleted}
             onClick={() =>
-              void mutDeleteTrace.mutateAsync({ traceId, projectId })
+              void mutDeleteTrace.mutateAsync({
+                traceIds: [traceId],
+                projectId: projectId,
+              })
             }
           >
             Delete trace
@@ -76,36 +79,5 @@ export function DeleteTrace({
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-export function DeleteTraceMultiSelectAction({
-  traceIds,
-  projectId,
-}: {
-  traceIds: string[];
-  projectId: string;
-}) {
-  const utils = api.useUtils();
-
-  const hasAccess = useHasAccess({ projectId, scope: "traces:delete" });
-
-  const mutDeleteTraces = api.traces.deleteMany.useMutation({
-    onSuccess: () => void utils.traces.invalidate(),
-  });
-
-  if (!hasAccess) {
-    return null;
-  }
-
-  return (
-    <Button
-      variant="default"
-      className="w-full"
-      type="button"
-      onClick={() => void mutDeleteTraces.mutateAsync({ traceIds, projectId })}
-    >
-      Delete
-    </Button>
   );
 }
