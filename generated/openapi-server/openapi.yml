@@ -5,7 +5,7 @@ info:
 paths:
   /api/public/dataset-items:
     post:
-      description: Create a dataset item
+      description: Create a dataset item, upserts on id
       operationId: datasetItems_create
       tags:
         - DatasetItems
@@ -50,6 +50,51 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetItemRequest'
+  /api/public/dataset-items/{id}:
+    get:
+      description: Get a specific dataset item
+      operationId: datasetItems_get
+      tags:
+        - DatasetItems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/dataset-run-items:
     post:
       description: Create a dataset run item
@@ -1381,6 +1426,9 @@ components:
         input: {}
         expectedOutput:
           nullable: true
+        id:
+          type: string
+          nullable: true
       required:
         - datasetName
         - input
@@ -1417,6 +1465,10 @@ components:
           nullable: true
         name:
           type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
           nullable: true
         endTime:
           type: string
@@ -1636,6 +1688,10 @@ components:
           type: string
         traceId:
           type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
           nullable: true
         endTime:
           type: string
