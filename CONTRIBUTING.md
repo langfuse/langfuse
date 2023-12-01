@@ -25,6 +25,16 @@ Once we've discussed your changes and you've got your code ready, make sure that
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
+### Technologies we use
+
+- NextJS, pages router
+- NextAuth.js / Auth.js
+- TRPC
+- Prisma ORM
+- Zod
+- Tailwind CSS
+- shadcn/ui tailwind components (using Radix and tanstack)
+
 ## Development Setup
 
 Requirements
@@ -72,6 +82,24 @@ Requirements
 ## Commit messages
 
 On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
+
+## Test the public API
+
+The API is tested using Jest. With the development server running, you can run the tests with:
+
+Run all
+
+```bash
+npm run test
+```
+
+Run interactively in watch mode
+
+```bash
+npm run test:watch
+```
+
+These tests are also run in CI.
 
 ## CI/CD
 
