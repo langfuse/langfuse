@@ -24,6 +24,7 @@ import {
   filterToPrismaSql,
 } from "@/src/features/filters/server/filterToPrisma";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { TRPCError } from "@trpc/server";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -295,7 +296,10 @@ export const traceRouter = createTRPCRouter({
         });
 
         if (!trace) {
-          throw new Error("Trace not found in project");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
         }
 
         return ctx.prisma.$transaction([
@@ -337,7 +341,10 @@ export const traceRouter = createTRPCRouter({
           },
         });
         if (!trace) {
-          throw new Error("Trace not found in project");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
         }
 
         return ctx.prisma.trace.update({
