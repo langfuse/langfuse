@@ -18,6 +18,7 @@ const authUrl = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 export const sendProjectInvitation = async (
   to: string,
   inviterName: string,
+  inviterEmail: string,
   projectName: string,
 ) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
@@ -33,6 +34,7 @@ export const sendProjectInvitation = async (
     const htmlTemplate = render(
       ProjectInvitationTemplate({
         invitedByUsername: inviterName,
+        invitedByUserEmail: inviterEmail,
         projectName: projectName,
         recieverEmail: to,
         inviteLink: authUrl,

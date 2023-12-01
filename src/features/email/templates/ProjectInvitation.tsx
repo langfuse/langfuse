@@ -19,6 +19,7 @@ import { env } from "@/src/env.mjs";
 
 interface ProjectInvitationTemplateProps {
   invitedByUsername: string;
+  invitedByUserEmail: string;
   projectName: string;
   recieverEmail: string;
   inviteLink: string;
@@ -26,6 +27,7 @@ interface ProjectInvitationTemplateProps {
 
 export const ProjectInvitationTemplate = ({
   invitedByUsername,
+  invitedByUserEmail,
   projectName,
   recieverEmail,
   inviteLink,
@@ -41,9 +43,9 @@ export const ProjectInvitationTemplate = ({
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
             <Section className="mt-8">
               <Img
-                src="/icon256.png"
+                src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
                 width="40"
-                height="37"
+                height="40"
                 alt="Langfuse"
                 className="mx-auto my-0"
               />
@@ -55,13 +57,13 @@ export const ProjectInvitationTemplate = ({
             <Text className="text-sm leading-6 text-black">
               <strong>{invitedByUsername}</strong> (
               <Link
-                href={`mailto:${env.EMAIL_FROM_ADDRESS}`}
+                href={`mailto:${invitedByUserEmail}`}
                 className="text-blue-600 no-underline"
               >
-                {env.EMAIL_FROM_ADDRESS}
+                {invitedByUserEmail}
               </Link>
-              ) has invited you to the <strong>{projectName}</strong> project on{" "}
-              <strong>Langfuse</strong>.
+              ) has invited you to the <strong>{projectName}</strong> project on
+              Langfuse.
             </Text>
             <Section className="mb-4 mt-8 text-center">
               <Button
@@ -83,12 +85,10 @@ export const ProjectInvitationTemplate = ({
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-xs leading-6 text-[#666666]">
               This invitation was intended for{" "}
-              <span className="text-black">{recieverEmail} </span>.This invite
+              <span className="text-black">{recieverEmail}</span>. This invite
               was sent from{" "}
               <span className="text-black">{env.EMAIL_FROM_ADDRESS}</span>. If
               you were not expecting this invitation, you can ignore this email.
-              If you are concerned about your account&apos;s safety, please
-              reply to this email to get in touch with us.
             </Text>
           </Container>
         </Body>
