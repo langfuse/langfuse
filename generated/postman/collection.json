@@ -764,7 +764,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"name\": \"example\",\n    \"userId\": \"example\",\n    \"externalId\": \"example\",\n    \"release\": \"example\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"id\": \"example\",\n    \"name\": \"example\",\n    \"userId\": \"example\",\n    \"externalId\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"sessionId\": \"example\",\n    \"release\": \"example\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
