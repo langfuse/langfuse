@@ -293,9 +293,9 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col gap-y-5  border-r border-gray-200 bg-white pb-3 pl-6 pt-7">
-            <LangfuseLogo size="xl" className="mb-4" />
-            <div className="custom-scrollbar flex flex-1 flex-col overflow-y-auto pr-6">
+          <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7">
+            <LangfuseLogo size="xl" className="mb-2 px-6" />
+            <nav className="flex flex-1 flex-col overflow-y-auto px-6 pb-3">
               <ul role="list" className="flex flex-col gap-y-4">
                 <li>
                   <ul role="list" className="-mx-2 space-y-1">
@@ -444,7 +444,7 @@ export default function Layout(props: PropsWithChildren) {
                   </Menu>
                 </li>
               </ul>
-            </div>
+            </nav>
           </div>
         </div>
 
