@@ -35,7 +35,9 @@ export const env = createEnv({
     }),
     // Add newly signed up users to default project with role
     LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
-    LANGFUSE_DEFAULT_PROJECT_ROLE: z.enum(["ADMIN", "MEMBER", "VIEWER"]).optional(),
+    LANGFUSE_DEFAULT_PROJECT_ROLE: z
+      .enum(["ADMIN", "MEMBER", "VIEWER"])
+      .optional(),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
