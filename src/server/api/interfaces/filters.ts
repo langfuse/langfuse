@@ -13,6 +13,7 @@ export const filterOperators = {
     "ends with",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
+  boolean: ["=", "<>"],
 } as const;
 
 export const timeFilter = z.object({
@@ -54,6 +55,12 @@ export const numberObjectFilter = z.object({
   operator: z.enum(filterOperators.number),
   value: z.number(),
 });
+export const booleanFilter = z.object({
+  type: z.literal("boolean"),
+  column: z.string(),
+  operator: z.enum(filterOperators.boolean),
+  value: z.boolean(),
+});
 export const singleFilter = z.discriminatedUnion("type", [
   timeFilter,
   stringFilter,
@@ -61,4 +68,5 @@ export const singleFilter = z.discriminatedUnion("type", [
   stringOptionsFilter,
   stringObjectFilter,
   numberObjectFilter,
+  booleanFilter,
 ]);

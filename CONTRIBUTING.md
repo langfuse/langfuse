@@ -73,6 +73,24 @@ Requirements
 
 On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
 
+## Test the public API
+
+The API is tested using Jest. With the development server running, you can run the tests with:
+
+Run all
+
+```bash
+npm run test
+```
+
+Run interactively in watch mode
+
+```bash
+npm run test:watch
+```
+
+These tests are also run in CI.
+
 ## CI/CD
 
 We use GitHub Actions for CI/CD, the configuration is in [`.github/workflows/pipeline.yml`](.github/workflows/pipeline.yml)
@@ -95,6 +113,8 @@ The same environment is also used for preview deployments of pull requests. Limi
 
 - SSO is not available as dynamic domains are not supported by most SSO providers.
 - When making changes to the database, migrations to the staging database need to be applied manually by a maintainer. If you want to interactively test database changes in the staging environment, please reach out.
+
+You can use the staging environment end-to-end with the Langfuse integrations or SDKs (host: `https://staging.langfuse.com`). However, please note that the staging environment is not intended for production use and may be reset at any time.
 
 ## Production environment
 

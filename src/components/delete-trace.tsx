@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useState } from "react";
 
 export function DeleteTrace({
   traceId,
@@ -19,6 +20,7 @@ export function DeleteTrace({
   projectId: string;
   isTableAction?: boolean;
 }) {
+  const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
   const utils = api.useUtils();
 
@@ -26,6 +28,7 @@ export function DeleteTrace({
 
   const mutDeleteTrace = api.traces.delete.useMutation({
     onSuccess: () => {
+      setIsDeleted(true);
       if (!isTableAction) {
         void router
           .push(`/project/${projectId}/traces`)
@@ -41,7 +44,7 @@ export function DeleteTrace({
   }
 
   return (
-    <Popover>
+    <Popover key={traceId}>
       <PopoverTrigger asChild>
         {isTableAction ? (
           <Button variant="ghost" size="xs">
@@ -63,7 +66,7 @@ export function DeleteTrace({
           <Button
             type="button"
             variant="destructive"
-            loading={mutDeleteTrace.isLoading}
+            loading={mutDeleteTrace.isLoading || isDeleted}
             onClick={() =>
               void mutDeleteTrace.mutateAsync({ traceId, projectId })
             }

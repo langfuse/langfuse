@@ -125,6 +125,9 @@ async function findDbKeyOrThrow(publicKey: string) {
   const dbKey = await prisma.apiKey.findUnique({
     where: { publicKey },
   });
-  if (!dbKey) throw new Error("Invalid public key");
+  if (!dbKey) {
+    console.log("No api key found for public key:", publicKey);
+    throw new Error("Invalid public key");
+  }
   return dbKey;
 }

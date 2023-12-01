@@ -58,11 +58,10 @@ export function FilterBuilder({
   ) => {
     _setWipFilterState((prev) => {
       const newState = state instanceof Function ? state(prev) : state;
-      onChange(
-        newState.filter(
-          (f) => singleFilter.safeParse(f).success,
-        ) as FilterState,
-      );
+      const validFilters = newState.filter(
+        (f) => singleFilter.safeParse(f).success,
+      ) as FilterState;
+      onChange(validFilters);
       return newState;
     });
   };
@@ -101,7 +100,9 @@ export function FilterBuilder({
                           : filter.type === "number" ||
                               filter.type === "numberObject"
                             ? filter.value
-                            : `"${filter.value}"`}
+                            : filter.type === "boolean"
+                              ? `${filter.value}`
+                              : `"${filter.value}"`}
                     </span>
                   );
                 })
@@ -332,6 +333,33 @@ function FilterBuilderForm({
                       }
                       values={Array.isArray(filter.value) ? filter.value : []}
                     />
+                  ) : filter.type === "boolean" ? (
+                    <Select
+                      onValueChange={(value) => {
+                        handleFilterChange(
+                          {
+                            ...filter,
+                            value:
+                              value !== undefined && value !== ""
+                                ? value === "true"
+                                : undefined,
+                          },
+                          i,
+                        );
+                      }}
+                      value={filter.value?.toString() ?? ""}
+                    >
+                      <SelectTrigger className="min-w-[60px]">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["true", "false"].map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <Input disabled />
                   )}

@@ -85,7 +85,7 @@ export const TracesTimeSeriesChart = ({
         <NoData noDataText="No data available">
           <DocPopup
             description="Traces contain details about LLM applications and can be created using the SDK."
-            link="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
+            href="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
           />
         </NoData>
       )}

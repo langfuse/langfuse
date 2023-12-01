@@ -46,7 +46,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Create a dataset item",
+            "description": "Create a dataset item, upserts on id",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items",
               "host": [
@@ -65,13 +65,45 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\",\n    \"id\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a specific dataset item",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-items/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
           },
           "response": []
         }
@@ -329,7 +361,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"generationId\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\"\n}",
+              "raw": "{\n    \"generationId\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -692,7 +724,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"spanId\": \"example\",\n    \"traceId\": \"example\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"name\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"version\": \"example\",\n    \"statusMessage\": \"example\"\n}",
+              "raw": "{\n    \"spanId\": \"example\",\n    \"traceId\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"name\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"version\": \"example\",\n    \"statusMessage\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
