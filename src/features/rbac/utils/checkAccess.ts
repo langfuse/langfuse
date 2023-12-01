@@ -3,6 +3,7 @@ import {
   type Scope,
 } from "@/src/features/rbac/constants/roleAccessRights";
 import { type MembershipRole } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession, type SessionContextValue } from "next-auth/react";
 
@@ -19,7 +20,12 @@ type HasAccessParams =
 
 // For use in TRPC routes
 export const throwIfNoAccess = (p: HasAccessParams) => {
-  if (!hasAccess(p)) throw new Error("No access");
+  if (!hasAccess(p))
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message:
+        "Unauthorized, user does not have access to this resource or action",
+    });
 };
 
 // For use in UI components as react hook
