@@ -301,8 +301,8 @@ export default function Layout(props: PropsWithChildren) {
           {/* Sidebar component, swap this element with another sidebar if you like */}
           <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7">
             <LangfuseLogo size="xl" className="mb-2 px-6" />
-            <nav className="flex flex-1 flex-col overflow-y-auto px-6 pb-3">
-              <ul role="list" className="flex flex-col gap-y-4">
+            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
+              <ul role="list" className="flex h-full flex-col gap-y-4">
                 <li>
                   <ul role="list" className="-mx-2 space-y-1">
                     {navigation.map((item) => (
@@ -394,7 +394,7 @@ export default function Layout(props: PropsWithChildren) {
                   </ul>
                 </li>
 
-                <li className="-mx-6 ">
+                <li className="-mx-6">
                   <Menu as="div" className="relative">
                     <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                       <span className="sr-only">Open user menu</span>
