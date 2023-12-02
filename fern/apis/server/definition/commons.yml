@@ -56,6 +56,15 @@ types:
     properties:
       observations: list<Observation>
       scores: list<Score>
+  Session:
+    properties:
+      id: string
+      createdAt: datetime
+      projectId: string
+  SessionWithTraces:
+    extends: Session
+    properties:
+      traces: list<Trace>
   Observation:
     properties:
       id: string

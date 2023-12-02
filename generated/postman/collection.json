@@ -666,6 +666,45 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Sessions",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a session",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/sessions/:sessionId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "sessions",
+                ":sessionId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "sessionId",
+                  "value": "",
+                  "description": "The unique id of a session"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Span",
       "item": [
         {
