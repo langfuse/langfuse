@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
   useEffect,
-  type SyntheticEvent,
 } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
