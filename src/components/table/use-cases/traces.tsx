@@ -60,7 +60,7 @@ export default function TracesTable({
   const router = useRouter();
 
   const [rowSelection, setRowSelection] = useState({});
-  const [selectedRows, setSelectedRows] = useState<object[]>([]);
+  const [selectedRows, setSelectedRows] = useState<TraceTableRow[]>([]);
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -76,7 +76,7 @@ export default function TracesTable({
     },
   ]);
 
-  const onChangeInSelectedRows = (selectedRows: object[]) => {
+  const onChangeInSelectedRows = (selectedRows: TraceTableRow[]) => {
     setSelectedRows(selectedRows);
   };
 

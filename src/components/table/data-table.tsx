@@ -9,10 +9,9 @@ import {
   getFilteredRowModel,
   type OnChangeFn,
   type PaginationState,
-  type Row,
-  RowSelectionState,
+  type RowSelectionState,
 } from "@tanstack/react-table";
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Table,
@@ -32,9 +31,9 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
-  onSelectionChange?: (selectedRows: Row<TData>[]) => void;
-  rowSelection?: {};
-  setRowSelection?: OnChangeFn<RowSelectionState> | undefined
+  onSelectionChange?: (selectedRows: TData[]) => void;
+  rowSelection?: RowSelectionState;
+  setRowSelection?: OnChangeFn<RowSelectionState> | undefined;
 }
 
 export interface AsyncTableData<T> {
@@ -76,11 +75,13 @@ export function DataTable<TData, TValue>({
     if (onSelectionChange && rowSelection) {
       const selectedRowsIndexes = Object.keys(rowSelection).map(Number);
       const rows = table.getRowModel().rows;
-      const selectedRows = rows.filter((_, i) => {
-        return selectedRowsIndexes.includes(i);
-      });
+      const selectedRowsData = rows
+        .filter((_, i) => {
+          return selectedRowsIndexes.includes(i);
+        })
+        .map((row) => row.original);
 
-      onSelectionChange(selectedRows);
+      onSelectionChange(selectedRowsData);
     }
   }, [rowSelection]);
 
@@ -128,7 +129,9 @@ export function DataTable<TData, TValue>({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    data-state={setRowSelection && row.getIsSelected() && "selected"}
+                    data-state={
+                      setRowSelection && row.getIsSelected() && "selected"
+                    }
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell

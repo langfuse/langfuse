@@ -9,12 +9,13 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
+import { type TraceTableRow } from "@/src/components/table/use-cases/traces";
 
 export function TraceTableMultiSelectAction({
   selectedRows,
   projectId,
 }: {
-  selectedRows: any[];
+  selectedRows: TraceTableRow[];
   projectId: string;
 }) {
   const utils = api.useUtils();
@@ -25,9 +26,7 @@ export function TraceTableMultiSelectAction({
     onSuccess: () => void utils.traces.invalidate(),
   });
 
-  const traceIds = selectedRows.map((row) => {
-    return row.original.id;
-  });
+  const traceIds = selectedRows.map((row) => row.id);
 
   return (
     <DropdownMenu>
@@ -44,7 +43,9 @@ export function TraceTableMultiSelectAction({
       <DropdownMenuContent>
         <DropdownMenuItem
           disabled={!hasAccess}
-          onClick={() => void mutDeleteTraces.mutateAsync({ traceIds, projectId })}
+          onClick={() =>
+            void mutDeleteTraces.mutateAsync({ traceIds, projectId })
+          }
         >
           Delete
         </DropdownMenuItem>
