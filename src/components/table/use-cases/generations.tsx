@@ -152,7 +152,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           />
         ) : null;
       },
-      enableHiding: true,
     },
     {
       accessorKey: "name",
@@ -170,7 +169,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           />
         ) : undefined;
       },
-      enableHiding: true,
     },
     {
       accessorKey: "traceName",

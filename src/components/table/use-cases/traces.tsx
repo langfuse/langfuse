@@ -161,7 +161,6 @@ export default function TracesTable({
           />
         ) : undefined;
       },
-      enableHiding: true,
     },
     {
       accessorKey: "timestamp",
@@ -261,7 +260,6 @@ export default function TracesTable({
           />
         ) : undefined;
       },
-      enableHiding: true,
     },
   ];
 

@@ -1,4 +1,12 @@
-import React, { useCallback, type Dispatch, type SetStateAction } from "react";
+import React, {
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+  useRef,
+  useState,
+  useEffect,
+  type SyntheticEvent,
+} from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -15,11 +23,47 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
 }
 
+const useOutsideClick = (
+  callback: () => void,
+  toggleRef: React.RefObject<HTMLElement>,
+) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (
+        ref.current &&
+        !ref.current.contains(event.target as Node) &&
+        toggleRef.current &&
+        !toggleRef.current.contains(event.target as Node)
+      ) {
+        console.log(event.target);
+        callback();
+      }
+    };
+
+    document.addEventListener("click", handleClick);
+
+    return () => {
+      document.removeEventListener("click", handleClick);
+    };
+  }, [callback, toggleRef]);
+
+  return ref;
+};
 export function DataTableColumnVisibilityFilter<TData, TValue>({
   columns,
   columnVisibility,
   setColumnVisibility,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
+  const [isOpen, setIsOpen] = useState(false);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const handleClickOutside = () => {
+    setIsOpen(false);
+  };
+
+  const ref = useOutsideClick(handleClickOutside, toggleButtonRef);
+
   const toggleColumn = useCallback(
     (columnId: string) => {
       setColumnVisibility((old) => ({
@@ -29,18 +73,20 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     },
     [setColumnVisibility],
   );
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="ml-auto">
-          Columns
+    <DropdownMenu open={isOpen}>
+      <DropdownMenuTrigger onClick={() => setIsOpen(!isOpen)} asChild>
+        <Button variant="outline" className="ml-auto" ref={toggleButtonRef}>
+          Select Columns
           <ChevronDownIcon className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" ref={ref}>
         {columns.map(
           (column, index) =>
-            "accessorKey" in column && (
+            "accessorKey" in column &&
+            column.enableHiding && (
               <DropdownMenuCheckboxItem
                 key={index}
                 className="capitalize"

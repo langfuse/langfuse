@@ -77,7 +77,6 @@ export default function ScoresTable({
           </>
         ) : undefined;
       },
-      enableHiding: true,
     },
     {
       accessorKey: "observationId",
@@ -93,7 +92,6 @@ export default function ScoresTable({
           />
         ) : null;
       },
-      enableHiding: true,
     },
     {
       accessorKey: "timestamp",
