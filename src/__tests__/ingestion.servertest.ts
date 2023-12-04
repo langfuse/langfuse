@@ -1,6 +1,7 @@
 /** @jest-environment node */
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { cleanEvent } from "@/src/pages/api/public/ingestion";
 import { prisma } from "@/src/server/db";
 import { v4 } from "uuid";
 
@@ -747,5 +748,19 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
     });
 
     expect(dbGeneration).toBeTruthy();
+  });
+
+  [
+    { input: "A\u0000hallo", expected: "Ahallo" },
+    { input: ["A\u0000hallo"], expected: ["Ahallo"] },
+    { input: { obj: ["A\u0000hallo"] }, expected: { obj: ["Ahallo"] } },
+  ].forEach(({ input, expected }) => {
+    it(`cleans events with null values ${JSON.stringify(
+      input,
+    )} ${JSON.stringify(expected)}`, () => {
+      const cleanedEvent = cleanEvent(input);
+      console.log(cleanedEvent);
+      expect(cleanedEvent).toStrictEqual(expected);
+    });
   });
 });

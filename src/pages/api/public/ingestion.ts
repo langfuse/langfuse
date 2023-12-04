@@ -181,7 +181,7 @@ const handleSingleEvent = async (
     JSON.stringify(event, null, 2),
   );
 
-  const cleanedEvent = singleEventSchema.parse(cleanUnicode(event));
+  const cleanedEvent = singleEventSchema.parse(cleanEvent(event));
 
   const { type } = cleanedEvent;
 
@@ -317,19 +317,18 @@ export const handleBatchResultLegacy = (
 };
 
 // cleans NULL characters from the event
-function cleanUnicode(obj: unknown): unknown {
+export function cleanEvent(obj: unknown): unknown {
   if (typeof obj === "string") {
-    console.log("cleaning unicode", obj);
     return obj.replace(/\u0000/g, "");
   } else if (typeof obj === "object" && obj !== null) {
     if (Array.isArray(obj)) {
-      return obj.map(cleanUnicode);
+      return obj.map(cleanEvent);
     } else {
       // Here we assert that obj is a Record<string, unknown>
       const objAsRecord = obj as Record<string, unknown>;
       const newObj: Record<string, unknown> = {};
       for (const key in objAsRecord) {
-        newObj[key] = cleanUnicode(objAsRecord[key]);
+        newObj[key] = cleanEvent(objAsRecord[key]);
       }
       return newObj;
     }
