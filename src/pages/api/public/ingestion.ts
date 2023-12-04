@@ -180,21 +180,23 @@ const handleSingleEvent = async (
     JSON.stringify(event, null, 2),
   );
 
-  const { type } = event;
+  const cleanedEvent = singleEventSchema.parse(cleanEvent(event));
 
-  await persistEventMiddleware(prisma, apiScope.projectId, req, event);
+  const { type } = cleanedEvent;
+
+  await persistEventMiddleware(prisma, apiScope.projectId, req, cleanedEvent);
 
   let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(event);
+      processor = new TraceProcessor(cleanedEvent);
       break;
     case eventTypes.OBSERVATION_CREATE:
     case eventTypes.OBSERVAION_UPDATE:
-      processor = new ObservationProcessor(event);
+      processor = new ObservationProcessor(cleanedEvent);
       break;
     case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(event);
+      processor = new ScoreProcessor(cleanedEvent);
       break;
     }
   }
@@ -312,3 +314,24 @@ export const handleBatchResultLegacy = (
   }
   return res.status(200).send(results.length > 0 ? results[0]?.result : {});
 };
+
+// cleans NULL characters from the event
+export function cleanEvent(obj: unknown): unknown {
+  if (typeof obj === "string") {
+    return obj.replace(/\u0000/g, "");
+  } else if (typeof obj === "object" && obj !== null) {
+    if (Array.isArray(obj)) {
+      return obj.map(cleanEvent);
+    } else {
+      // Here we assert that obj is a Record<string, unknown>
+      const objAsRecord = obj as Record<string, unknown>;
+      const newObj: Record<string, unknown> = {};
+      for (const key in objAsRecord) {
+        newObj[key] = cleanEvent(objAsRecord[key]);
+      }
+      return newObj;
+    }
+  } else {
+    return obj;
+  }
+}
