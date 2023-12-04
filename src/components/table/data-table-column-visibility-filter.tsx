@@ -2,9 +2,7 @@ import React, {
   useCallback,
   type Dispatch,
   type SetStateAction,
-  useRef,
   useState,
-  useEffect,
 } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -22,46 +20,12 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
 }
 
-const useOutsideClick = (
-  callback: () => void,
-  toggleRef: React.RefObject<HTMLElement>,
-) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
-      if (
-        ref.current &&
-        !ref.current.contains(event.target as Node) &&
-        toggleRef.current &&
-        !toggleRef.current.contains(event.target as Node)
-      ) {
-        console.log(event.target);
-        callback();
-      }
-    };
-
-    document.addEventListener("click", handleClick);
-
-    return () => {
-      document.removeEventListener("click", handleClick);
-    };
-  }, [callback, toggleRef]);
-
-  return ref;
-};
 export function DataTableColumnVisibilityFilter<TData, TValue>({
   columns,
   columnVisibility,
   setColumnVisibility,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const [isOpen, setIsOpen] = useState(false);
-  const toggleButtonRef = useRef<HTMLButtonElement>(null);
-  const handleClickOutside = () => {
-    setIsOpen(false);
-  };
-
-  const ref = useOutsideClick(handleClickOutside, toggleButtonRef);
 
   const toggleColumn = useCallback(
     (columnId: string) => {
@@ -82,12 +46,15 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         className="select-none"
         asChild
       >
-        <Button variant="outline" className="ml-auto" ref={toggleButtonRef}>
+        <Button variant="outline" className="ml-auto">
           Columns
           <ChevronDownIcon className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" ref={ref}>
+      <DropdownMenuContent
+        align="end"
+        onPointerDownOutside={() => setIsOpen(false)}
+      >
         {columns.map(
           (column, index) =>
             "accessorKey" in column &&
