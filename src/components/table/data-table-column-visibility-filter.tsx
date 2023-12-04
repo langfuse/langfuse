@@ -75,7 +75,13 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
 
   return (
     <DropdownMenu open={isOpen}>
-      <DropdownMenuTrigger onClick={() => setIsOpen(!isOpen)} asChild>
+      <DropdownMenuTrigger
+        onClick={() => {
+          setIsOpen(!isOpen);
+        }}
+        className="select-none"
+        asChild
+      >
         <Button variant="outline" className="ml-auto" ref={toggleButtonRef}>
           Select Columns
           <ChevronDownIcon className="ml-2 h-4 w-4" />
