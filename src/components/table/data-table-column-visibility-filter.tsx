@@ -83,7 +83,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         asChild
       >
         <Button variant="outline" className="ml-auto" ref={toggleButtonRef}>
-          Select Columns
+          Columns
           <ChevronDownIcon className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

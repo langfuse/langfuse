@@ -30,8 +30,8 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
-  columnVisibility: VisibilityState;
-  onColumnVisibilityChange: OnChangeFn<VisibilityState>;
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
 }
 
 export interface AsyncTableData<T> {
