@@ -112,6 +112,19 @@ export const EventSchema = z.object({
   version: z.string().nullish(),
 });
 
+export const Usage = z.object({
+  input: z.number().nullish(),
+  output: z.number().nullish(),
+  total: z.number().nullish(),
+  unit: z.enum(["TOKENS", "CHARACTERS"]),
+});
+
+export const OldUsage = z.object({
+  promptTokens: z.number().nullish(),
+  completionTokens: z.number().nullish(),
+  totalTokens: z.number().nullish(),
+});
+
 export const ObservationSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
@@ -129,13 +142,7 @@ export const ObservationSchema = z.object({
     .nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
-  usage: z
-    .object({
-      promptTokens: z.number().nullish(),
-      completionTokens: z.number().nullish(),
-      totalTokens: z.number().nullish(),
-    })
-    .nullish(),
+  usage: OldUsage.or(Usage).nullish(),
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),

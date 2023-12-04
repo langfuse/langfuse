@@ -8,6 +8,7 @@ import {
   type traceEvent,
   type scoreEvent,
   type observationUpdateEvent,
+  type Usage,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -91,8 +92,28 @@ export class ObservationProcessor implements EventProcessor {
           ).id
         : traceId;
 
-    const [newPromptTokens, newCompletionTokens] = this.calculateTokenCounts(
+    const internalUsage: z.infer<typeof Usage> | undefined =
+      // if usage is not null
+      usage &&
+      // if usage is the old object
+      typeof usage === "object" &&
+      ("totalTokens" in usage ||
+        "completionTokens" in usage ||
+        "promptTokens" in usage)
+        ? // convert to new object
+          {
+            total: usage.totalTokens,
+            input: usage.promptTokens,
+            output: usage.completionTokens,
+            unit: "TOKENS",
+          }
+        : usage && "unit" in usage // if usage is the new take it or default to undefined
+          ? usage
+          : undefined;
+
+    const [newInputCount, newOutputCount] = this.calculateTokenCounts(
       body,
+      internalUsage ?? undefined,
       existingObservation ?? undefined,
     );
 
@@ -122,11 +143,11 @@ export class ObservationProcessor implements EventProcessor {
         modelParameters: modelParameters ?? undefined,
         input: input ?? undefined,
         output: output ?? undefined,
-        promptTokens: newPromptTokens,
-        completionTokens: newCompletionTokens,
+        promptTokens: newInputCount,
+        completionTokens: newOutputCount,
         totalTokens:
-          usage?.totalTokens ??
-          (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
+          internalUsage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
+        unit: internalUsage?.unit ?? undefined,
         level: level ?? undefined,
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,
@@ -146,11 +167,11 @@ export class ObservationProcessor implements EventProcessor {
         modelParameters: modelParameters ?? undefined,
         input: input ?? undefined,
         output: output ?? undefined,
-        promptTokens: newPromptTokens,
-        completionTokens: newCompletionTokens,
+        promptTokens: newInputCount,
+        completionTokens: newOutputCount,
         totalTokens:
-          usage?.totalTokens ??
-          (newPromptTokens ?? 0) + (newCompletionTokens ?? 0),
+          internalUsage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
+        unit: internalUsage?.unit ?? undefined,
         level: level ?? undefined,
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,
@@ -161,12 +182,13 @@ export class ObservationProcessor implements EventProcessor {
 
   calculateTokenCounts(
     body: z.infer<typeof observationEvent>["body"],
+    usage: z.infer<typeof Usage> | undefined,
     existingObservation?: Observation,
   ) {
     const mergedModel = body.model ?? existingObservation?.model;
 
     const newPromptTokens =
-      body.usage?.promptTokens ??
+      usage?.input ??
       ((body.input || existingObservation?.input) && mergedModel
         ? tokenCount({
             model: mergedModel,
@@ -175,7 +197,7 @@ export class ObservationProcessor implements EventProcessor {
         : undefined);
 
     const newCompletionTokens =
-      body.usage?.completionTokens ??
+      usage?.output ??
       ((body.output || existingObservation?.output) && mergedModel
         ? tokenCount({
             model: mergedModel,

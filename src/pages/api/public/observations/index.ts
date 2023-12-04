@@ -124,7 +124,7 @@ const getObservation = async (
         o."completion_tokens" AS "completionTokens",
         o."prompt_tokens" AS "promptTokens",
         o."total_tokens" AS "totalTokens",
-        o."unit", AS "unit",
+        o."unit" AS "unit",
         o."version",
         o."project_id" AS "projectId",
         o."trace_id" AS "traceId",
