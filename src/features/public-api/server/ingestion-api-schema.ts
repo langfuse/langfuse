@@ -10,6 +10,7 @@ export const TraceSchema = z.object({
   metadata: jsonSchema.nullish(),
   release: z.string().nullish(),
   version: z.string().nullish(),
+  public: z.boolean().nullish(),
 });
 export const SpanPostSchema = z.object({
   id: z.string().nullish(),

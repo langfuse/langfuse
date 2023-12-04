@@ -39,6 +39,9 @@ types:
       version: optional<string>
       userId: optional<string>
       metadata: optional<unknown>
+      public:
+        type: optional<boolean>
+        docs: Public traces are accessible via url without login
   TraceWithDetails:
     extends: Trace
     properties:

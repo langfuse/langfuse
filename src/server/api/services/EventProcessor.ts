@@ -254,6 +254,7 @@ export class TraceProcessor implements EventProcessor {
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
+        public: body.public ?? undefined,
         project: { connect: { id: apiScope.projectId } },
       },
       update: {
@@ -262,6 +263,7 @@ export class TraceProcessor implements EventProcessor {
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
+        public: body.public ?? undefined,
       },
     });
     return upsertedTrace;
