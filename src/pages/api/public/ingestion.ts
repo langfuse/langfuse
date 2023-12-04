@@ -21,7 +21,6 @@ import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
-import { type jsonSchema } from "@/src/utils/zod";
 
 export default async function handler(
   req: NextApiRequest,
