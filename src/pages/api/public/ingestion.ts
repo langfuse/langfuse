@@ -21,6 +21,7 @@ import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
+import { type jsonSchema } from "@/src/utils/zod";
 
 export default async function handler(
   req: NextApiRequest,
@@ -180,21 +181,25 @@ const handleSingleEvent = async (
     JSON.stringify(event, null, 2),
   );
 
-  const { type } = event;
+  const cleanedEvent = singleEventSchema.parse(cleanUnicode(event));
 
-  await persistEventMiddleware(prisma, apiScope.projectId, req, event);
+  const { type } = cleanedEvent;
+
+  console.log("cleaned event", JSON.stringify(cleanedEvent, null, 2));
+
+  await persistEventMiddleware(prisma, apiScope.projectId, req, cleanedEvent);
 
   let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(event);
+      processor = new TraceProcessor(cleanedEvent);
       break;
     case eventTypes.OBSERVATION_CREATE:
     case eventTypes.OBSERVAION_UPDATE:
-      processor = new ObservationProcessor(event);
+      processor = new ObservationProcessor(cleanedEvent);
       break;
     case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(event);
+      processor = new ScoreProcessor(cleanedEvent);
       break;
     }
   }
@@ -312,3 +317,25 @@ export const handleBatchResultLegacy = (
   }
   return res.status(200).send(results.length > 0 ? results[0]?.result : {});
 };
+
+// cleans NULL characters from the event
+function cleanUnicode(obj: unknown): unknown {
+  if (typeof obj === "string") {
+    console.log("cleaning unicode", obj);
+    return obj.replace(/\u0000/g, "");
+  } else if (typeof obj === "object" && obj !== null) {
+    if (Array.isArray(obj)) {
+      return obj.map(cleanUnicode);
+    } else {
+      // Here we assert that obj is a Record<string, unknown>
+      const objAsRecord = obj as Record<string, unknown>;
+      const newObj: Record<string, unknown> = {};
+      for (const key in objAsRecord) {
+        newObj[key] = cleanUnicode(objAsRecord[key]);
+      }
+      return newObj;
+    }
+  } else {
+    return obj;
+  }
+}
