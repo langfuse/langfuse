@@ -687,7 +687,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbGeneration).toBeTruthy();
   });
 
-  it("filters out non ascii characters", async () => {
+  it("filters out NULL characters", async () => {
     const traceId = v4();
     const generationId = v4();
 
