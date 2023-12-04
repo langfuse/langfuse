@@ -185,8 +185,6 @@ const handleSingleEvent = async (
 
   const { type } = cleanedEvent;
 
-  console.log("cleaned event", JSON.stringify(cleanedEvent, null, 2));
-
   await persistEventMiddleware(prisma, apiScope.projectId, req, cleanedEvent);
 
   let processor: EventProcessor;
