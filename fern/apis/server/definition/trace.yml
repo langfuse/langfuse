@@ -44,6 +44,9 @@ types:
       release: optional<string>
       version: optional<string>
       metadata: optional<unknown>
+      public:
+        type: optional<boolean>
+        docs: Make trace publicly accessible via url
   Traces:
     properties:
       data: list<commons.TraceWithDetails>
