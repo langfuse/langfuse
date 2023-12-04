@@ -1,6 +1,7 @@
 /** @jest-environment node */
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { cleanEvent } from "@/src/pages/api/public/ingestion";
 import { prisma } from "@/src/server/db";
 import { v4 } from "uuid";
 
@@ -685,5 +686,81 @@ describe("/api/public/ingestion API Endpoint", () => {
     });
 
     expect(dbGeneration).toBeTruthy();
+  });
+
+  it("filters out NULL characters", async () => {
+    const traceId = v4();
+    const generationId = v4();
+
+    const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+          },
+        },
+        {
+          id: v4(),
+          type: "observation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            traceIdType: "LANGFUSE",
+            input: {
+              key: "IB\nibo.org Change site\nIB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an opportunity for schools  IB Home   /   News   /   News about the IB   /   Why ChatGPT is an opportunity for schools  Why ChatGPT is an opportunity for  schools  Published:   06 March 2023   Last updated:   06 June 2023  Date published:   28 February 2023  Dr Matthew Glanville, Head of Assessment Principles and Practice  Source:   Why ChatGPT is an opportunity for schools | The Times  Those of us who work in the schools or exam sector should not be terri \u0000 ed by ChatGPT and  the rise of AI software – we should be excited. We should embrace it as an extraordinary  opportunity.  Contrary to some stark warnings, it is not the end of exams, nor even a huge threat to  coursework, but it does bring into very sharp focus the impact that arti \u0000 ",
+            },
+            output: {
+              key: "제점이 있었죠. 그중 하나는 일제가 한국의 신용체계를 망가뜨린 채 한국을 떠났다는 겁니다. 해방전 일제는 조선의 신용체계를 거의 독점적으로 소유한 상황이었습니다. 1945년 6월 기준 일제는 조선의 본점을 둔 전체은행 5개의 불입자본 총액의 89.7%를",
+            },
+          },
+        },
+      ],
+    });
+    expect(responseOne.status).toBe(207);
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toEqual(1);
+
+    const dbGeneration = await prisma.observation.findUnique({
+      where: {
+        id: generationId,
+      },
+    });
+    expect(dbGeneration?.input).toStrictEqual({
+      key: `IB
+ibo.org Change site
+IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an opportunity for schools  IB Home   /   News   /   News about the IB   /   Why ChatGPT is an opportunity for schools  Why ChatGPT is an opportunity for  schools  Published:   06 March 2023   Last updated:   06 June 2023  Date published:   28 February 2023  Dr Matthew Glanville, Head of Assessment Principles and Practice  Source:   Why ChatGPT is an opportunity for schools | The Times  Those of us who work in the schools or exam sector should not be terri  ed by ChatGPT and  the rise of AI software – we should be excited. We should embrace it as an extraordinary  opportunity.  Contrary to some stark warnings, it is not the end of exams, nor even a huge threat to  coursework, but it does bring into very sharp focus the impact that arti  `,
+    });
+    expect(dbGeneration?.output).toStrictEqual({
+      key: "제점이 있었죠. 그중 하나는 일제가 한국의 신용체계를 망가뜨린 채 한국을 떠났다는 겁니다. 해방전 일제는 조선의 신용체계를 거의 독점적으로 소유한 상황이었습니다. 1945년 6월 기준 일제는 조선의 본점을 둔 전체은행 5개의 불입자본 총액의 89.7%를",
+    });
+
+    expect(dbGeneration).toBeTruthy();
+  });
+
+  [
+    { input: "A\u0000hallo", expected: "Ahallo" },
+    { input: ["A\u0000hallo"], expected: ["Ahallo"] },
+    { input: { obj: ["A\u0000hallo"] }, expected: { obj: ["Ahallo"] } },
+  ].forEach(({ input, expected }) => {
+    it(`cleans events with null values ${JSON.stringify(
+      input,
+    )} ${JSON.stringify(expected)}`, () => {
+      const cleanedEvent = cleanEvent(input);
+      console.log(cleanedEvent);
+      expect(cleanedEvent).toStrictEqual(expected);
+    });
   });
 });
