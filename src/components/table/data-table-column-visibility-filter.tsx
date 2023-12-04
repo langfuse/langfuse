@@ -2,7 +2,6 @@ import React, {
   useCallback,
   type Dispatch,
   type SetStateAction,
-  useRef,
   useState,
 } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -27,7 +26,6 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnVisibility,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const [isOpen, setIsOpen] = useState(false);
-  const toggleButtonRef = useRef<HTMLButtonElement>(null);
 
   const toggleColumn = useCallback(
     (columnId: string) => {
@@ -48,7 +46,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         className="select-none"
         asChild
       >
-        <Button variant="outline" className="ml-auto" ref={toggleButtonRef}>
+        <Button variant="outline" className="ml-auto">
           Columns
           <ChevronDownIcon className="ml-2 h-4 w-4" />
         </Button>
