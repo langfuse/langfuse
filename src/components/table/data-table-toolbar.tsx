@@ -63,12 +63,12 @@ export function DataTableToolbar<TData, TValue>({
           filterState={filterState}
           onChange={setFilterState}
         />
+        <div className="flex-1" />
         <DataTableColumnVisibilityFilter
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
         />
-        <div className="flex-1" />
         {actionButtons}
       </div>
     </div>
