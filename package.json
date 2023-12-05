@@ -90,7 +90,7 @@
     "react18-json-view": "^0.2.7-canary.2",
     "superagent": "^8.1.2",
     "superjson": "2.2.1",
-    "tailwind-merge": "^2.0.0",
+    "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
     "tiktoken": "^1.0.11",
     "ts-pattern": "^5.0.5",
