@@ -8,7 +8,7 @@ if [ -z "$DATABASE_URL" ]; then
         DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}/${DATABASE_NAME}"
         export DATABASE_URL
     else
-        echo "Error: Required DATABASE_* variables are not set."
+        echo "Error: Required database environment variables are not set. Provide a postgres url for DATABASE_URL."
         exit 1
     fi
 fi
