@@ -30,28 +30,37 @@ export const ModelUsageChart = ({
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
-  const tokens = api.dashboard.chart.useQuery({
-    projectId,
-    from: "observations",
-    select: [
-      { column: "totalTokens", agg: "SUM" },
-      { column: "totalTokenCost" },
-      { column: "model" },
-    ],
-    filter: globalFilterState ?? [],
-    groupBy: [
-      {
-        type: "datetime",
-        column: "startTime",
-        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+  const tokens = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "observations",
+      select: [
+        { column: "totalTokens", agg: "SUM" },
+        { column: "totalTokenCost" },
+        { column: "model" },
+      ],
+      filter: globalFilterState ?? [],
+      groupBy: [
+        {
+          type: "datetime",
+          column: "startTime",
+          temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+        },
+        {
+          type: "string",
+          column: "model",
+        },
+      ],
+      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-      {
-        type: "string",
-        column: "model",
-      },
-    ],
-    orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
-  });
+    },
+  );
 
   const allModels = getAllModels(projectId, globalFilterState);
 
