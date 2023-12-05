@@ -255,23 +255,22 @@ export const generationsRouter = createTRPCRouter({
         type: "GENERATION",
       } as const;
 
-      const [model, name, traceName] = await Promise.all([
-        ctx.prisma.observation.groupBy({
-          by: ["model"],
-          where: queryFilter,
-          _count: { _all: true },
-        }),
-        ctx.prisma.observation.groupBy({
-          by: ["name"],
-          where: queryFilter,
-          _count: { _all: true },
-        }),
-        ctx.prisma.$queryRaw<
-          Array<{
-            traceName: string | null;
-            count: number;
-          }>
-        >(Prisma.sql`
+      const model = await ctx.prisma.observation.groupBy({
+        by: ["model"],
+        where: queryFilter,
+        _count: { _all: true },
+      });
+      const name = await ctx.prisma.observation.groupBy({
+        by: ["name"],
+        where: queryFilter,
+        _count: { _all: true },
+      });
+      const traceName = await ctx.prisma.$queryRaw<
+        Array<{
+          traceName: string | null;
+          count: number;
+        }>
+      >(Prisma.sql`
         SELECT
           t.name "traceName",
           count(*)::int AS count
@@ -281,8 +280,8 @@ export const generationsRouter = createTRPCRouter({
           AND o.project_id = ${input.projectId}
           AND t.project_id = ${input.projectId}
         GROUP BY 1
-      `),
-      ]);
+      `);
+
       // typecheck filter options, needs to include all columns with options
       const res: ObservationOptions = {
         model: model
