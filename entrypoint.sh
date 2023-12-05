@@ -1,5 +1,18 @@
 #!/bin/sh
 
+# Check if DATABASE_URL is not set
+if [ -z "$DATABASE_URL" ]; then
+    # Check if all required variables are provided
+    if [ -n "$DATABASE_HOST" ] && [ -n "$DATABASE_USERNAME" ] && [ -n "$DATABASE_PASSWORD" ]  && [ -n "$DATABASE_NAME" ]; then
+        # Construct DATABASE_URL from the provided variables
+        DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}/${DATABASE_NAME}"
+        export DATABASE_URL
+    else
+        echo "Error: Required DATABASE_* variables are not set."
+        exit 1
+    fi
+fi
+
 # Set DIRECT_URL to the value of DATABASE_URL, required for migrations
 export DIRECT_URL=$DATABASE_URL
 
