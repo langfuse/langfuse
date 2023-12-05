@@ -104,8 +104,7 @@ const getObservation = async (
     ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
     : Prisma.empty;
 
-  const [observations, count] = await Promise.all([
-    prisma.$queryRaw<Observation[]>`
+  const observations = await prisma.$queryRaw<Observation[]>`
       SELECT 
         o."id",
         o."name",
@@ -137,8 +136,8 @@ const getObservation = async (
       ORDER by o."start_time" DESC
       OFFSET ${(query.page - 1) * query.limit}
       LIMIT ${query.limit}
-    `,
-    prisma.$queryRaw<{ count: bigint }[]>`
+    `;
+  const count = await prisma.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*) FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${observationTypeCondition}
@@ -146,8 +145,7 @@ const getObservation = async (
       ${userIdCondition}
       ${traceIdCondition}
       ${parentObservationIdCondition}
-  `,
-  ]);
+  `;
 
   if (!count || count.length !== 1) {
     throw new Error(
