@@ -15,6 +15,11 @@ export const OldUsage = z.object({
   totalTokens: z.number().nullish(),
 });
 
+// usage has to come first, so that it is matched.
+// otherwise, zod will try to match the new schema to the old one and return
+// an empty object.
+export const usage = Usage.or(OldUsage).nullish();
+
 export const TraceSchema = z.object({
   id: z.string().nullish(),
   name: z.string().nullish(),
@@ -71,7 +76,7 @@ export const GenerationsCreateSchema = z.object({
     .nullish(),
   prompt: jsonSchema.nullish(),
   completion: jsonSchema.nullish(),
-  usage: z.union([Usage, OldUsage]).nullish(),
+  usage: usage,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
@@ -95,7 +100,7 @@ export const GenerationPatchSchema = z.object({
     .nullish(),
   prompt: jsonSchema.nullish(),
   completion: jsonSchema.nullish(),
-  usage: OldUsage.or(Usage).nullish(),
+  usage: usage,
   metadata: jsonSchema.nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
@@ -133,7 +138,7 @@ export const ObservationSchema = z.object({
     .nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
-  usage: OldUsage.or(Usage).nullish(),
+  usage: usage,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
