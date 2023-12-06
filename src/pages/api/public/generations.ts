@@ -58,12 +58,6 @@ export default async function handler(
         body: convertToObservation(GenerationsCreateSchema.parse(req.body)),
       };
 
-      console.log(
-        "event",
-        event,
-        GenerationsCreateSchema.parse(req.body).usage,
-      );
-
       const result = await handleBatch(
         ingestionBatch.parse([event]),
         req,
