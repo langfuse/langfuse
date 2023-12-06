@@ -292,7 +292,8 @@ function FilterBuilderForm({
                     filter.type === "numberObject" ? (
                     <Input
                       value={filter.value?.toString() ?? ""}
-                      placeholder="number"
+                      type="number"
+                      step="0.01"
                       onChange={(e) =>
                         handleFilterChange(
                           {

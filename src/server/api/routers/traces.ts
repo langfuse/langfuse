@@ -99,7 +99,7 @@ export const traceRouter = createTRPCRouter({
       trace_latency AS (
         SELECT
           trace_id,
-          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) * 1000 - EXTRACT(EPOCH FROM MIN("start_time")) * 1000 AS "latency"
+          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
         FROM
           "observations"
         WHERE
@@ -160,7 +160,7 @@ export const traceRouter = createTRPCRouter({
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
         COALESCE(u."totalTokens", 0)::int AS "totalTokens",
         COALESCE(s_json.scores, '[]'::json) AS "scores",
-        tl.latency/1000::double precision AS "latency",
+        tl.latency AS "latency",
         (count(*) OVER ())::int AS "totalCount"
       FROM
         "traces" AS t
