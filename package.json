@@ -105,7 +105,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/eslint": "^8.44.8",
-    "@types/jest": "^29.5.10",
+    "@types/jest": "^29.5.11",
     "@types/js-yaml": "^4.0.9",
     "@types/lodash": "^4.14.202",
     "@types/node": "20.10.0",
@@ -124,14 +124,14 @@
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.32",
     "prettier": "^3.1.0",
-    "prettier-plugin-tailwindcss": "^0.5.8",
+    "prettier-plugin-tailwindcss": "^0.5.9",
     "prisma": "^5.7.0",
     "release-it": "^17.0.0",
     "swagger-jsdoc": "^6.2.8",
     "tailwindcss": "^3.3.6",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.3"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
