@@ -110,6 +110,7 @@ export class ObservationProcessor implements EventProcessor {
         : usage && "unit" in usage // if usage is the new take it or default to undefined
           ? usage
           : undefined;
+    console.log("internalUsage", usage, internalUsage);
 
     const [newInputCount, newOutputCount] = this.calculateTokenCounts(
       body,

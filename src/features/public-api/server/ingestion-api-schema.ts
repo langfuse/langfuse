@@ -71,7 +71,7 @@ export const GenerationsCreateSchema = z.object({
     .nullish(),
   prompt: jsonSchema.nullish(),
   completion: jsonSchema.nullish(),
-  usage: OldUsage.or(Usage).nullish(),
+  usage: z.union([Usage, OldUsage]).nullish(),
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),

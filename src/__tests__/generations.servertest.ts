@@ -8,7 +8,7 @@ describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
   afterEach(async () => await pruneDatabase());
 
-  it("should create generation after trace", async () => {
+  it("should create generation after trace 1", async () => {
     await pruneDatabase();
 
     const traceId = uuidv4();
@@ -47,6 +47,12 @@ describe("/api/public/generations API Endpoint", () => {
         prompt: { key: "value" },
         metadata: { key: "value" },
         version: "2.0.0",
+        usage: {
+          input: 100,
+          output: 200,
+          total: 100,
+          unit: "CHARACTERS",
+        },
       },
     );
 
@@ -69,6 +75,9 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbGeneration?.input).toEqual({ key: "value" });
     expect(dbGeneration?.metadata).toEqual({ key: "value" });
     expect(dbGeneration?.version).toBe("2.0.0");
+    expect(dbGeneration?.unit).toBe("characters");
+    expect(dbGeneration?.promptTokens).toBe(100);
+    expect(dbGeneration?.completionTokens).toBe(200);
   });
 
   it("should create generation before trace", async () => {
