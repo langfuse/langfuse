@@ -5,7 +5,7 @@ import { type Observation } from "@prisma/client";
 // New APIs expect to return usage: { input, output, total, unit }
 // We decided to return both formats to not break anything. In the future, this function
 // will take a variable passed from a query param to determine which API version to return.
-export const createUsageOutput = (observation: Observation) => {
+export const mapUsageOutput = (observation: Observation) => {
   const { promptTokens, completionTokens, totalTokens, unit } = observation;
   return {
     ...observation,

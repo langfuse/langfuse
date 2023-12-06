@@ -1,6 +1,6 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { createUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
+import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@/src/server/db";
 import { paginationZod } from "@/src/utils/zod";
 import { Prisma, type PrismaClient, type Observation } from "@prisma/client";
@@ -61,7 +61,7 @@ export default async function handler(
     );
 
     return res.status(200).json({
-      data: observations.map(createUsageOutput),
+      data: observations.map(mapUsageOutput),
       meta: {
         page: searchParams.page,
         limit: searchParams.limit,
