@@ -45,8 +45,20 @@ export const api = createTRPCNext<AppRouter>({
             process.env.NODE_ENV === "development" ||
             (opts.direction === "down" && opts.result instanceof Error),
         }),
-        httpBatchLink({
-          url: `${getBaseUrl()}/api/trpc`,
+        splitLink({
+          condition(op) {
+            console.log("op", op);
+            // check for context property `skipBatch`
+            return op.context.skipBatch === true;
+          },
+          // when condition is true, use normal request
+          true: httpLink({
+            url: `${getBaseUrl()}/api/trpc`,
+          }),
+          // when condition is false, use batching
+          false: httpBatchLink({
+            url: `${getBaseUrl()}/api/trpc`,
+          }),
         }),
       ],
     };
@@ -71,19 +83,8 @@ export const directApi = createTRPCProxyClient<AppRouter>({
         process.env.NODE_ENV === "development" ||
         (opts.direction === "down" && opts.result instanceof Error),
     }),
-    splitLink({
-      condition(op) {
-        // check for context property `skipBatch`
-        return op.context.skipBatch === true;
-      },
-      // when condition is true, use normal request
-      true: httpLink({
-        url: `${getBaseUrl()}/api/trpc`,
-      }),
-      // when condition is false, use batching
-      false: httpBatchLink({
-        url: `${getBaseUrl()}/api/trpc`,
-      }),
+    httpBatchLink({
+      url: `${getBaseUrl()}/api/trpc`,
     }),
   ],
 });
