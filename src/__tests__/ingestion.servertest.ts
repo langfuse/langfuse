@@ -27,7 +27,9 @@ describe("/api/public/ingestion API Endpoint", () => {
       expectedUnit: "TOKENS",
     },
   ].forEach((testConfig) => {
-    it(`should create trace and generation ${testConfig}`, async () => {
+    it(`should create trace and generation ${JSON.stringify(
+      testConfig,
+    )}`, async () => {
       const traceId = v4();
       const generationId = v4();
       const spanId = v4();
