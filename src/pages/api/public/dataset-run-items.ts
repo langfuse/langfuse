@@ -44,26 +44,25 @@ export default async function handler(
       const { datasetItemId, observationId, runName } =
         DatasetRunItemPostSchema.parse(req.body);
 
-      const [item, observation] = await Promise.all([
-        prisma.datasetItem.findUnique({
-          where: {
-            id: datasetItemId,
-            status: "ACTIVE",
-            dataset: {
-              projectId: authCheck.scope.projectId,
-            },
-          },
-          include: {
-            dataset: true,
-          },
-        }),
-        prisma.observation.findUnique({
-          where: {
-            id: observationId,
+      const item = await prisma.datasetItem.findUnique({
+        where: {
+          id: datasetItemId,
+          status: "ACTIVE",
+          dataset: {
             projectId: authCheck.scope.projectId,
           },
-        }),
-      ]);
+        },
+        include: {
+          dataset: true,
+        },
+      });
+      const observation = await prisma.observation.findUnique({
+        where: {
+          id: observationId,
+          projectId: authCheck.scope.projectId,
+        },
+      });
+
       // Validity of id and access checks
       if (!item) {
         console.error("item not found");
