@@ -16,6 +16,15 @@ services:
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
       - NEXT_PUBLIC_SIGN_UP_DISABLED=${NEXT_PUBLIC_SIGN_UP_DISABLED:-false}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:3000/api/public/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   db:
     image: postgres
@@ -28,6 +37,11 @@ services:
       - 5432:5432
     volumes:
       - database_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   database_data:
