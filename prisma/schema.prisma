@@ -160,6 +160,7 @@ model Trace {
     project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
     public     Boolean  @default(false)
     bookmarked Boolean  @default(false)
+    tags       String[] @default([])
 
     scores Score[]
 
