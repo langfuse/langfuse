@@ -27,30 +27,44 @@ export const LatencyChart = ({
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
-  const latencies = api.dashboard.chart.useQuery({
-    projectId,
-    from: "observations",
-    select: [
-      { column: "duration", agg: "50thPercentile" },
-      { column: "duration", agg: "90thPercentile" },
-      { column: "duration", agg: "95thPercentile" },
-      { column: "duration", agg: "99thPercentile" },
-      { column: "model" },
-    ],
-    filter:
-      [
-        ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
-      ] ?? [],
-    groupBy: [
-      {
-        type: "datetime",
-        column: "startTime",
-        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+  const latencies = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "observations",
+      select: [
+        { column: "duration", agg: "50thPercentile" },
+        { column: "duration", agg: "90thPercentile" },
+        { column: "duration", agg: "95thPercentile" },
+        { column: "duration", agg: "99thPercentile" },
+        { column: "model" },
+      ],
+      filter:
+        [
+          ...globalFilterState,
+          {
+            type: "string",
+            column: "type",
+            operator: "=",
+            value: "GENERATION",
+          },
+        ] ?? [],
+      groupBy: [
+        {
+          type: "datetime",
+          column: "startTime",
+          temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+        },
+        { type: "string", column: "model" },
+      ],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-      { type: "string", column: "model" },
-    ],
-  });
+    },
+  );
 
   const allModels = getAllModels(projectId, globalFilterState);
 
