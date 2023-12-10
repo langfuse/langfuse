@@ -11,13 +11,12 @@ groups:
           namespaceExport: Langfuse
           allowCustomFetcher: true
       - name: fernapi/fern-python-sdk
-        version: 0.7.2
+        version: 0.7.3
         output:
           location: local-file-system
           path: ../../../generated/python
         config:
-          namespaceExport: Langfuse
-          allowCustomFetcher: true
+          client_class_name: Langfuse
           pydantic_config:
             require_optional_fields: false
       - name: fernapi/fern-typescript-node-sdk

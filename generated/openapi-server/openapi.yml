@@ -1099,7 +1099,7 @@ components:
         completion:
           nullable: true
         usage:
-          $ref: '#/components/schemas/LLMUsage'
+          $ref: '#/components/schemas/Usage'
           nullable: true
       allOf:
         - $ref: '#/components/schemas/CreateSpanRequest'
@@ -1233,13 +1233,13 @@ components:
       type: object
       properties:
         input:
-          type: string
+          type: integer
           nullable: true
         output:
-          type: string
+          type: integer
           nullable: true
         total:
-          type: string
+          type: integer
           nullable: true
         unit:
           $ref: '#/components/schemas/ModelUsageType'
