@@ -16,7 +16,7 @@ groups:
           location: local-file-system
           path: ../../../generated/python
         config:
-          client_class_name: Langfuse
+          client_class_name: FernLangfuse
           pydantic_config:
             require_optional_fields: false
       - name: fernapi/fern-typescript-node-sdk
