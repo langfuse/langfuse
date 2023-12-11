@@ -2,6 +2,7 @@ import { StarSessionToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -126,11 +127,13 @@ export default function SessionsTable({
     {
       accessorKey: "createdAt",
       header: "Created At",
+      enableHiding: true,
     },
     {
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
       header: "User ID",
+      enableHiding: true,
       cell: ({ row }) => {
         const value = row.getValue("userIds");
         return value && Array.isArray(value) ? (
@@ -150,8 +153,12 @@ export default function SessionsTable({
     {
       accessorKey: "countTraces",
       header: "Traces",
+      enableHiding: true,
     },
   ];
+
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
   return (
     <div>
@@ -159,6 +166,9 @@ export default function SessionsTable({
         filterColumnDefinition={sessionsViewCols}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
       />
       <DataTable
         columns={columns}
@@ -182,6 +192,8 @@ export default function SessionsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );
