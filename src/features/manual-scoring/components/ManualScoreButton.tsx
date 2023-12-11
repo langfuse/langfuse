@@ -121,6 +121,8 @@ export function ManualScoreButton({
     onOpenChange(false);
   };
 
+  if (!hasAccess && variant === "badge") return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
