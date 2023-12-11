@@ -17,6 +17,7 @@ export const ROUTES: Array<{
   pathname: string;
   icon: LucideIcon;
   featureFlag?: Flag;
+  label?: string;
 }> = [
   {
     name: "Dashboard",
@@ -27,6 +28,7 @@ export const ROUTES: Array<{
     name: "Sessions",
     pathname: `/project/[projectId]/sessions`,
     icon: Clapperboard,
+    label: "beta",
   },
   {
     name: "Traces",
