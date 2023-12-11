@@ -1,32 +1,4 @@
 types:
-  # Create Bodies
-  CreateEventRequest:
-    properties:
-      id: optional<string>
-      traceId: optional<string>
-      name: optional<string>
-      startTime: optional<datetime>
-      metadata: optional<unknown>
-      input: optional<unknown>
-      output: optional<unknown>
-      level: optional<ObservationLevel>
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-      version: optional<string>
-  CreateSpanRequest:
-    extends: CreateEventRequest
-    properties:
-      endTime: optional<datetime>
-  CreateGenerationRequest:
-    extends: CreateSpanRequest
-    properties:
-      completionStartTime: optional<datetime>
-      model: optional<string>
-      modelParameters: optional<map<string, MapValue>>
-      prompt: optional<unknown>
-      completion: optional<unknown>
-      usage: optional<Usage>
-
   # Objects
   Trace:
     properties:
@@ -144,11 +116,6 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
-  LLMUsage:
-    properties:
-      promptTokens: optional<integer>
-      completionTokens: optional<integer>
-      totalTokens: optional<integer>
   DatasetStatus:
     enum:
       - ACTIVE
