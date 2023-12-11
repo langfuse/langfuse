@@ -62,7 +62,7 @@ export const SessionPage: React.FC<{
           />,
         ]}
       />
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {session.data?.users.map((userId) => (
           <Link key={userId} href={`/project/${projectId}/users/${userId}`}>
             <Badge>User ID: {userId}</Badge>
@@ -72,7 +72,7 @@ export const SessionPage: React.FC<{
       </div>
       <div className="mt-5 flex flex-col gap-8 border-t pt-5">
         {session.data?.traces.map((trace) => (
-          <div className="grid grid-cols-3 items-start gap-4" key={trace.id}>
+          <div className="grid items-start gap-4 md:grid-cols-3" key={trace.id}>
             <Card
               className="border-border-gray-150 group col-span-2 shadow-none hover:border-gray-300"
               key={trace.id}
@@ -95,7 +95,7 @@ export const SessionPage: React.FC<{
                 />
               </CardContent>
             </Card>
-            <div className="flex flex-col flex-wrap content-start items-start gap-2">
+            <div className="hidden flex-wrap content-start items-start gap-2 md:flex md:flex-col">
               <ManualScoreButton
                 projectId={projectId}
                 traceId={trace.id}
