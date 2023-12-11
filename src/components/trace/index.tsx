@@ -141,7 +141,7 @@ export function TracePage({ traceId }: { traceId: string }) {
               trace.data.sessionId
             }`}
           >
-            <Badge variant="default">Session: {trace.data.sessionId}</Badge>
+            <Badge>Session: {trace.data.sessionId}</Badge>
           </Link>
         ) : null}
         {trace.data.userId ? (
@@ -150,7 +150,7 @@ export function TracePage({ traceId }: { traceId: string }) {
               trace.data.userId
             }`}
           >
-            <Badge variant="default">User ID: {trace.data.userId}</Badge>
+            <Badge>User ID: {trace.data.userId}</Badge>
           </Link>
         ) : null}
         <TraceAggUsageBadge observations={trace.data.observations ?? []} />

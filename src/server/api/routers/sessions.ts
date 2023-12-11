@@ -82,6 +82,9 @@ export const sessionRouter = createTRPCRouter({
             orderBy: {
               timestamp: "asc",
             },
+            include: {
+              scores: true,
+            },
           },
         },
       });

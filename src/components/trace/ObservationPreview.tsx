@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components";
+import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
