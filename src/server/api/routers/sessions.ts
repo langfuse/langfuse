@@ -57,7 +57,6 @@ export const sessionRouter = createTRPCRouter({
       LEFT JOIN traces t ON t.session_id = s.id
       WHERE
         t."project_id" = ${input.projectId}
-        AND t."session_id" IS NOT NULL
         ${filterCondition}
       GROUP BY 1, 2
       ORDER BY 2 desc
