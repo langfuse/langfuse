@@ -2,6 +2,7 @@ import { StarSessionToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
@@ -10,7 +11,6 @@ import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
 import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type ColumnDef } from "@tanstack/react-table";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
@@ -92,7 +92,7 @@ export default function SessionsTable({
     };
   };
 
-  const columns: ColumnDef<SessionTableRow>[] = [
+  const columns: LangfuseColumnDef<SessionTableRow>[] = [
     {
       accessorKey: "bookmarked",
       header: undefined,

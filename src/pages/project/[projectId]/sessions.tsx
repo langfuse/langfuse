@@ -12,7 +12,7 @@ export default function Sessions() {
         title="Sessions"
         help={{
           description:
-            "A session is a collection of traces, for example a conversation/thread. Add a sessionId to the trace to get started.",
+            "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
           href: "https://langfuse.com/docs/session",
         }}
       />

@@ -1,16 +1,35 @@
 import { useState, useEffect } from "react";
-import { type ColumnDef, type VisibilityState } from "@tanstack/react-table";
+import { type VisibilityState } from "@tanstack/react-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 function useColumnVisibility<TData>(
   localStorageKey: string,
-  columns: ColumnDef<TData>[],
+  columns: LangfuseColumnDef<TData>[],
 ) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
     () => {
-      const savedVisibility = localStorage.getItem(localStorageKey);
-      return savedVisibility
-        ? (JSON.parse(savedVisibility) as VisibilityState)
-        : {};
+      try {
+        const savedVisibility = localStorage.getItem(localStorageKey);
+        const visibilityState: VisibilityState = savedVisibility
+          ? (JSON.parse(savedVisibility) as VisibilityState)
+          : {};
+        // set default visibility for columns that are not in the saved state
+        columns.forEach((column) => {
+          if (
+            "accessorKey" in column &&
+            typeof column.accessorKey === "string"
+          ) {
+            if (!(column.accessorKey in visibilityState)) {
+              visibilityState[column.accessorKey] =
+                column.defaultHidden === true ? false : true;
+            }
+          }
+        });
+        return visibilityState;
+      } catch (e) {
+        console.error("Error while loading saved column visibility", e);
+        return {};
+      }
     },
   );
 
@@ -21,10 +40,22 @@ function useColumnVisibility<TData>(
       const initialVisibility: VisibilityState = {};
       columns.forEach((column) => {
         if ("accessorKey" in column && typeof column.accessorKey === "string") {
-          initialVisibility[column.accessorKey] = true;
+          initialVisibility[column.accessorKey] =
+            column.defaultHidden === true ? false : true;
         }
       });
       setColumnVisibility(initialVisibility);
+    } else {
+      // make sure all columns are in the visibility state
+      const visibilityState = JSON.parse(localStorageItem) as VisibilityState;
+      columns.forEach((column) => {
+        if ("accessorKey" in column && typeof column.accessorKey === "string") {
+          if (!(column.accessorKey in visibilityState)) {
+            visibilityState[column.accessorKey] =
+              column.defaultHidden === true ? false : true;
+          }
+        }
+      });
     }
   }, [columns, localStorageKey]);
 

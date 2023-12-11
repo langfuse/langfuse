@@ -3,7 +3,6 @@ import TableLink from "@/src/components/table/table-link";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { type ColumnDef } from "@tanstack/react-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +14,7 @@ import { Archive, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { DatasetStatus, type DatasetItem } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 type RowData = {
   id: string;
@@ -41,7 +41,7 @@ export function DatasetItemsTable({
     onSuccess: () => utils.datasets.invalidate(),
   });
 
-  const columns: ColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "id",
       header: "Item id",

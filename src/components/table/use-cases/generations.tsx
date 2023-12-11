@@ -1,5 +1,4 @@
 import { api, directApi } from "@/src/utils/api";
-import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -26,6 +25,8 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { JSONView } from "@/src/components/ui/code";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 export type GenerationsTableRow = {
   id: string;
@@ -35,6 +36,8 @@ export type GenerationsTableRow = {
   latency?: number;
   name?: string;
   model?: string;
+  input?: unknown;
+  output?: unknown;
   traceName?: string;
   usage: {
     promptTokens: number;
@@ -137,7 +140,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     setIsExporting(false);
   };
 
-  const columns: ColumnDef<GenerationsTableRow>[] = [
+  const columns: LangfuseColumnDef<GenerationsTableRow>[] = [
     {
       accessorKey: "id",
       header: "ID",
@@ -217,6 +220,26 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
     {
+      accessorKey: "input",
+      header: "Input",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("input");
+        return <JSONView json={value} className="w-[500px]" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "output",
+      header: "Output",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("output");
+        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "version",
       header: "Version",
       enableHiding: true,
@@ -239,6 +262,8 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         name: generation.name ?? undefined,
         version: generation.version ?? "",
         model: generation.model ?? "",
+        input: generation.input,
+        output: generation.output,
         usage: {
           promptTokens: generation.promptTokens,
           completionTokens: generation.completionTokens,
