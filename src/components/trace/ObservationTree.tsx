@@ -4,6 +4,7 @@ import { type Trace, type Score } from "@prisma/client";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { LevelColors } from "@/src/components/level-colors";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -127,9 +128,9 @@ const ObservationTreeNode = (props: {
                 <div className="flex">
                   <span
                     className={cn(
-                      "rounded-sm text-xs",
-                      LevelColor[observation.level].bg,
-                      LevelColor[observation.level].text,
+                      "rounded-sm p-0.5 text-xs",
+                      LevelColors[observation.level].bg,
+                      LevelColors[observation.level].text,
                     )}
                   >
                     {observation.level}
@@ -158,13 +159,6 @@ const ObservationTreeNode = (props: {
       ))}
   </>
 );
-
-const LevelColor = {
-  DEFAULT: { text: "", bg: "" },
-  DEBUG: { text: "text-gray-500", bg: "bg-gray-50" },
-  WARNING: { text: "text-yellow-800", bg: "bg-yellow-50" },
-  ERROR: { text: "text-red-800", bg: "bg-red-50" },
-};
 
 export function nestObservations(
   list: ObservationReturnType[],

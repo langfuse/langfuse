@@ -102,6 +102,8 @@ export const generationsRouter = createTRPCRouter({
             o.prompt_tokens as "promptTokens",
             o.completion_tokens as "completionTokens",
             o.total_tokens as "totalTokens",
+            o.level,
+            o.status_message as "statusMessage",
             o.version,
             (count(*) OVER())::int AS "totalCount"
           FROM observations_with_latency o
