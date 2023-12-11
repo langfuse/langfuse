@@ -1099,7 +1099,7 @@ components:
         completion:
           nullable: true
         usage:
-          $ref: '#/components/schemas/LLMUsage'
+          $ref: '#/components/schemas/Usage'
           nullable: true
       allOf:
         - $ref: '#/components/schemas/CreateSpanRequest'
@@ -1212,12 +1212,9 @@ components:
           nullable: true
         output:
           nullable: true
-        promptTokens:
-          type: integer
-        completionTokens:
-          type: integer
-        totalTokens:
-          type: integer
+        usage:
+          $ref: '#/components/schemas/Usage'
+          nullable: true
         level:
           $ref: '#/components/schemas/ObservationLevel'
         statusMessage:
@@ -1230,10 +1227,24 @@ components:
         - id
         - type
         - startTime
-        - promptTokens
-        - completionTokens
-        - totalTokens
         - level
+    Usage:
+      title: Usage
+      type: object
+      properties:
+        input:
+          type: integer
+          nullable: true
+        output:
+          type: integer
+          nullable: true
+        total:
+          type: integer
+          nullable: true
+        unit:
+          $ref: '#/components/schemas/ModelUsageType'
+      required:
+        - unit
     Score:
       title: Score
       type: object
@@ -1378,6 +1389,12 @@ components:
         - createdAt
         - updatedAt
         - datasetRunItems
+    ModelUsageType:
+      title: ModelUsageType
+      type: string
+      enum:
+        - CHARACTERS
+        - TOKENS
     ObservationLevel:
       title: ObservationLevel
       type: string

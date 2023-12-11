@@ -2,6 +2,24 @@ import { ObservationLevel } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { z } from "zod";
 
+export const Usage = z.object({
+  input: z.number().nullish(),
+  output: z.number().nullish(),
+  total: z.number().nullish(),
+  unit: z.enum(["TOKENS", "CHARACTERS"]),
+});
+
+export const OldUsage = z.object({
+  promptTokens: z.number().nullish(),
+  completionTokens: z.number().nullish(),
+  totalTokens: z.number().nullish(),
+});
+
+// usage has to come first, so that it is matched.
+// otherwise, zod will try to match the new schema to the old one and return
+// an empty object.
+export const usage = Usage.or(OldUsage).nullish();
+
 export const TraceSchema = z.object({
   id: z.string().nullish(),
   name: z.string().nullish(),
@@ -12,6 +30,7 @@ export const TraceSchema = z.object({
   version: z.string().nullish(),
   public: z.boolean().nullish(),
 });
+
 export const SpanPostSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
@@ -40,6 +59,7 @@ export const SpanPatchSchema = z.object({
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
+
 export const GenerationsCreateSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
@@ -56,13 +76,7 @@ export const GenerationsCreateSchema = z.object({
     .nullish(),
   prompt: jsonSchema.nullish(),
   completion: jsonSchema.nullish(),
-  usage: z
-    .object({
-      promptTokens: z.number().nullish(),
-      completionTokens: z.number().nullish(),
-      totalTokens: z.number().nullish(),
-    })
-    .nullish(),
+  usage: usage,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
@@ -86,18 +100,13 @@ export const GenerationPatchSchema = z.object({
     .nullish(),
   prompt: jsonSchema.nullish(),
   completion: jsonSchema.nullish(),
-  usage: z
-    .object({
-      promptTokens: z.number().nullish(),
-      completionTokens: z.number().nullish(),
-      totalTokens: z.number().nullish(),
-    })
-    .nullish(),
+  usage: usage,
   metadata: jsonSchema.nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
+
 export const EventSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
@@ -129,13 +138,7 @@ export const ObservationSchema = z.object({
     .nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
-  usage: z
-    .object({
-      promptTokens: z.number().nullish(),
-      completionTokens: z.number().nullish(),
-      totalTokens: z.number().nullish(),
-    })
-    .nullish(),
+  usage: usage,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
