@@ -67,7 +67,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                   toggleColumn(column.accessorKey.toString())
                 }
               >
-                {column.accessorKey.toString()}
+                {column.header?.toString() ?? column.accessorKey.toString()}
               </DropdownMenuCheckboxItem>
             ),
         )}
