@@ -5,6 +5,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
+import { formatInterval } from "@/src/utils/dates";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -56,7 +57,7 @@ const ObservationTreeTraceNode = (props: {
     {props.trace.latency ? (
       <div className="flex gap-2">
         <span className="text-xs text-gray-500">
-          {props.trace.latency.toFixed(2)} sec
+          {formatInterval(props.trace.latency)}
         </span>
       </div>
     ) : null}
@@ -107,12 +108,11 @@ const ObservationTreeNode = (props: {
               <div className="flex gap-2">
                 {observation.endTime ? (
                   <span className="text-xs text-gray-500">
-                    {(
+                    {formatInterval(
                       (observation.endTime.getTime() -
                         observation.startTime.getTime()) /
-                      1000
-                    ).toFixed(2)}{" "}
-                    sec
+                        1000,
+                    )}
                   </span>
                 ) : null}
                 {observation.promptTokens ||

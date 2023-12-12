@@ -36,7 +36,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."end_time"',
   },
   {
-    name: "latency",
+    name: "latency (s)",
     type: "number",
     internal: '"latency"',
   },

@@ -155,6 +155,7 @@ export const traceRouter = createTRPCRouter({
         t.*,
         t."user_id" AS "userId",
         t."metadata" AS "metadata",
+        t.session_id AS "sessionId",
         t."bookmarked" AS "bookmarked",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
@@ -324,36 +325,57 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoAccess({
-          session: ctx.session,
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:bookmark",
+      });
+      const trace = await ctx.prisma.trace.update({
+        where: {
+          id: input.traceId,
           projectId: input.projectId,
-          scope: "traces:bookmark",
+        },
+        data: {
+          bookmarked: input.bookmarked,
+        },
+      });
+      if (!trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found in project",
         });
-        const trace = await ctx.prisma.trace.findFirst({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-        });
-        if (!trace) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found in project",
-          });
-        }
-
-        return ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
-          },
-          data: {
-            bookmarked: input.bookmarked,
-          },
-        });
-      } catch (e) {
-        console.error("Failed to bookmark trace", e);
-        throw e;
       }
+      return trace;
+    }),
+  publish: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        public: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:publish",
+      });
+      const trace = await ctx.prisma.trace.update({
+        where: {
+          id: input.traceId,
+          projectId: input.projectId,
+        },
+        data: {
+          public: input.public,
+        },
+      });
+      if (!trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found in project",
+        });
+      }
+      return trace;
     }),
 });

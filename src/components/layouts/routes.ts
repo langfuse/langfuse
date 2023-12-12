@@ -9,6 +9,7 @@ import {
   Settings,
   TextSelect,
   UsersIcon,
+  Route,
 } from "lucide-react";
 
 export const ROUTES: Array<{
@@ -16,11 +17,18 @@ export const ROUTES: Array<{
   pathname: string;
   icon: LucideIcon;
   featureFlag?: Flag;
+  label?: string;
 }> = [
   {
     name: "Dashboard",
     pathname: `/project/[projectId]`,
     icon: LayoutDashboard,
+  },
+  {
+    name: "Sessions",
+    pathname: `/project/[projectId]/sessions`,
+    icon: Route,
+    label: "beta",
   },
   {
     name: "Traces",

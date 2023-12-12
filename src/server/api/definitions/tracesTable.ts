@@ -29,7 +29,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: "scores_avg",
   },
   {
-    name: "latency",
+    name: "Latency (s)",
     type: "number",
     internal: "tl.latency",
   },

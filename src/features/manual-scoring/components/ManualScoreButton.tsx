@@ -26,6 +26,7 @@ import { useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { LockIcon } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
 
 const SCORE_NAME = "manual-score";
 
@@ -39,11 +40,13 @@ export function ManualScoreButton({
   scores,
   observationId,
   projectId,
+  variant = "button",
 }: {
   traceId: string;
   scores: Score[];
   observationId?: string;
   projectId: string;
+  variant?: "button" | "badge";
 }) {
   const hasAccess = useHasAccess({
     projectId,
@@ -60,7 +63,11 @@ export function ManualScoreButton({
 
   const utils = api.useUtils();
   const onSuccess = async () => {
-    await Promise.all([utils.scores.invalidate(), utils.traces.invalidate()]);
+    await Promise.all([
+      utils.scores.invalidate(),
+      utils.traces.invalidate(),
+      utils.sessions.invalidate(),
+    ]);
   };
   const mutCreateScore = api.scores.create.useMutation({ onSuccess });
   const mutUpdateScore = api.scores.update.useMutation({ onSuccess });
@@ -114,13 +121,21 @@ export function ManualScoreButton({
     onOpenChange(false);
   };
 
+  if (!hasAccess && variant === "badge") return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="secondary" disabled={!hasAccess}>
-          <span>{score ? `Update score: ${score.value}` : "Add score"}</span>
-          {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
-        </Button>
+        {variant === "button" ? (
+          <Button variant="secondary" disabled={!hasAccess}>
+            <span>{score ? `Update score: ${score.value}` : "Add score"}</span>
+            {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
+          </Button>
+        ) : (
+          <Badge className="cursor-pointer">
+            {score ? "Update score" : "Add score"}
+          </Badge>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
