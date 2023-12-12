@@ -21,6 +21,7 @@ import {
 import { useState } from "react";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -32,6 +33,7 @@ interface DataTableProps<TData, TValue> {
   };
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  help?: { description: string; href: string };
 }
 
 export interface AsyncTableData<T> {
@@ -47,6 +49,7 @@ export function DataTable<TData, TValue>({
   pagination,
   columnVisibility,
   onColumnVisibilityChange,
+  help,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const table = useReactTable({
@@ -128,7 +131,16 @@ export function DataTable<TData, TValue>({
                     colSpan={columns.length}
                     className="h-24 text-center"
                   >
-                    No results.
+                    <div>
+                      No results.{" "}
+                      {help && (
+                        <DocPopup
+                          description={help.description}
+                          href={help.href}
+                          size="sm"
+                        />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
