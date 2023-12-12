@@ -1,5 +1,4 @@
 import { Card } from "@tremor/react";
-import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
@@ -52,17 +51,12 @@ export default function RenameProject(props: { projectId: string }) {
   }
 
   return (
-    <Card className="p-4">
-      <label className="mb-2 text-lg font-semibold">Project Name</label>
-      <p className="mb-4 text-sm text-gray-700">
-        Used to identify your Project on the Dashboard, Vercel CLI, and in the
-        URL of your Deployments.
-      </p>
-      <div className="mb-4">
+    <div>
+      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
+        Project Name
+      </h2>
+      <Card className="mb-4">
         <div className="flex">
-          <span className="inline-block h-10 rounded-l-md border border-r-0 border-gray-300 border-input bg-muted px-3 py-2 text-sm text-gray-500">
-            vercel.com/langfuse/
-          </span>
           <Form {...form}>
             <form
               // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -96,7 +90,7 @@ export default function RenameProject(props: { projectId: string }) {
                   </p>
                 )}
                 {form.getValues().newName == "" && (
-                  <p className="mb-6 text-sm text-gray-700">
+                  <p className=" text-sm text-gray-700">
                     Your Project is currently named &quot;<b>{projectName}</b>
                     &quot;.
                   </p>
@@ -105,24 +99,16 @@ export default function RenameProject(props: { projectId: string }) {
             </form>
           </Form>
         </div>
-        <div className="mt-4 flex justify-between">
-          {/*TODO Where to link to?*/}
-          <p>
-            Learn more about{" "}
-            <Link href="#TODO" className="text-blue-600">
-              Project Name
-            </Link>
-            .
-          </p>
-          <Button
-            type="submit"
-            form="rename-project-form"
-            loading={renameProject.isLoading}
-          >
-            Save
-          </Button>
-        </div>
+      </Card>
+      <div className="mt-4 flex justify-between">
+        <Button
+          variant="secondary"
+          form="rename-project-form"
+          loading={renameProject.isLoading}
+        >
+          Save
+        </Button>
       </div>
-    </Card>
+    </div>
   );
 }
