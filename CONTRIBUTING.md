@@ -35,6 +35,23 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 - Tailwind CSS
 - shadcn/ui tailwind components (using Radix and tanstack)
 
+### Architecture overview
+
+```mermaid
+flowchart TD
+
+    A[Python SDK - Backend] -->|REST| C[Vercel Backend]
+    B[JS/TS SDK - Frontend + Backend] -->|REST| C[Vercel Backend]
+    C <--> D[Postgres Database]
+    E[Langfuse UI] -->|tRPC| C[Vercel Backend]
+```
+
+| Component          | Technology           | Description                                                                                                              |
+| ------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Python SDK         | Python               | Fully async SDK. Events are sent to server in batches from a background thread.                                          |
+| JS/TS SDK          | TypeScript           | Fully async SDK. As of SDK version 2.0.0, events will be sent in batches to the server.                                  |
+| NextJs Server (JS) | TypeScript, T3 Stack | We use Vercel Cloud functions to serve our backend and Frontend. The Frontend uses tRPC to communicate with the backend. |
+
 ## Development Setup
 
 Requirements
