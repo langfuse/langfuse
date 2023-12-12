@@ -1,5 +1,4 @@
 import { Card } from "@tremor/react";
-import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
