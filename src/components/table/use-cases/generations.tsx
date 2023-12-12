@@ -23,7 +23,7 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -195,7 +195,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latency");
         return value !== undefined ? (
-          <span>{value.toFixed(2)} sec</span>
+          <span>{formatInterval(value)}</span>
         ) : undefined;
       },
       enableHiding: true,

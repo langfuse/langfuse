@@ -9,7 +9,7 @@ import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
 import { api } from "@/src/utils/api";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -20,6 +20,7 @@ export type SessionTableRow = {
   userIds: string[];
   countTraces: number;
   bookmarked: boolean;
+  sessionDuration: number | null;
 };
 
 export type SessionTableProps = {
@@ -89,6 +90,7 @@ export default function SessionsTable({
       userIds: session.userIds ?? [],
       countTraces: session.countTraces,
       bookmarked: session.bookmarked,
+      sessionDuration: session.sessionDuration,
     };
   };
 
@@ -128,6 +130,17 @@ export default function SessionsTable({
       accessorKey: "createdAt",
       header: "Created At",
       enableHiding: true,
+    },
+    {
+      accessorKey: "sessionDuration",
+      header: "Duration",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value = row.getValue("sessionDuration");
+        return value && typeof value === "number"
+          ? formatInterval(value)
+          : undefined;
+      },
     },
     {
       accessorKey: "userIds",

@@ -9,4 +9,9 @@ export const sessionsViewCols: ColumnDefinition[] = [
     internal: 's."created_at"',
   },
   { name: "Trace Name", type: "string", internal: 't."name"' },
+  {
+    name: "Session duration (s)",
+    type: "number",
+    internal: 'o."sessionDuration"/1000',
+  },
 ];

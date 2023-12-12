@@ -43,28 +43,55 @@ export const sessionRouter = createTRPCRouter({
           countTraces: number;
           userIds: string[];
           totalCount: number;
+          sessionDuration: number | null;
         }>
       >(Prisma.sql`
+      WITH observation_metrics AS (
+        SELECT
+          t.session_id,
+          EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"), MAX(t.timestamp))) - EXTRACT(EPOCH FROM COALESCE(MIN(o."start_time"), MIN(t.timestamp)))::double precision AS "sessionDuration"
+        FROM traces t
+        LEFT JOIN observations o ON o.trace_id = t.id
+        WHERE
+          t."project_id" = ${input.projectId}
+          AND session_id IS NOT NULL
+        GROUP BY 1
+      ),
+      trace_metrics AS (
+        SELECT
+          session_id,
+          array_agg(distinct t.user_id) "userIds",
+          count(t.id)::int "countTraces"
+        FROM traces t
+        WHERE
+          t."project_id" = ${input.projectId}
+          AND session_id IS NOT NULL
+        GROUP BY 1
+      )
+
       SELECT
         s.id,
         s."created_at" "createdAt",
         s.bookmarked,
         s.public,
-        count(t.id)::int "countTraces",
-        array_agg(distinct t.user_id) "userIds",
+        t."userIds",
+        t."countTraces",
+        o."sessionDuration",
         (count(*) OVER ())::int AS "totalCount"
       FROM trace_sessions s
-      LEFT JOIN traces t ON t.session_id = s.id
+      LEFT JOIN trace_metrics t ON t.session_id = s.id
+      LEFT JOIN observation_metrics o ON o.session_id = s.id
       WHERE
-        t."project_id" = ${input.projectId}
+        s."project_id" = ${input.projectId}
         ${filterCondition}
-      GROUP BY 1, 2
       ORDER BY 2 desc
       LIMIT ${input.limit}
       OFFSET ${input.page * input.limit}
     `);
       return sessions.map((s) => ({
         ...s,
+        sessionDuration:
+          s.sessionDuration !== null ? s.sessionDuration / 1000 : null,
         userIds: s.userIds.filter((t) => t !== null),
       }));
     }),
