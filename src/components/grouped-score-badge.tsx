@@ -10,7 +10,7 @@ import { MessageCircle } from "lucide-react";
 type ScoreSimplified = {
   name: string;
   value: number;
-  comment?: string;
+  comment: string | null | undefined;
 };
 
 export const GroupedScoreBadges = ({
