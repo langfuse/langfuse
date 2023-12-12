@@ -63,11 +63,13 @@ export const ObservationPreview = (props: {
                 )}
               </Badge>
             ) : null}
-            <Badge variant="outline">
-              {preloadedObservation.promptTokens} prompt →{" "}
-              {preloadedObservation.completionTokens} completion (∑{" "}
-              {preloadedObservation.totalTokens})
-            </Badge>
+            {preloadedObservation.type === "GENERATION" && (
+              <Badge variant="outline">
+                {preloadedObservation.promptTokens} prompt →{" "}
+                {preloadedObservation.completionTokens} completion (∑{" "}
+                {preloadedObservation.totalTokens})
+              </Badge>
+            )}
             {preloadedObservation.version ? (
               <Badge variant="outline">
                 Version: {preloadedObservation.version}
