@@ -15,7 +15,7 @@ service:
         body:
           properties:
             batch: list<IngestionEvent>
-      response: commons.Score
+      response: IngestionResponse
 
 types:
   IngestionEvent:
@@ -46,3 +46,17 @@ types:
       id: string
       timestamp: string
       body: commons.Score
+  IngestionSuccess:
+    properties:
+      id: string
+      status: integer
+  IngestionError:
+    properties:
+      id: string
+      status: integer
+      message: optional<string>
+      error: optional<unknown>
+  IngestionResponse:
+    properties:
+      successes: list<IngestionSuccess>
+      errors: list<IngestionError>
