@@ -5,7 +5,7 @@ import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/src/components/ui/card";
+import { Card } from "@/src/components/ui/card";
 import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
@@ -70,41 +70,48 @@ export const SessionPage: React.FC<{
         ))}
         <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
       </div>
-      <div className="mt-5 flex flex-col gap-8 border-t pt-5">
+      <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.map((trace) => (
-          <div className="grid items-start gap-4 md:grid-cols-3" key={trace.id}>
-            <Card
-              className="border-border-gray-150 group col-span-2 shadow-none hover:border-gray-300"
-              key={trace.id}
-            >
-              <CardHeader className="p-3 text-xs">
-                <Link
-                  href={`/project/${projectId}/traces/${trace.id}`}
-                  className="text-primary/50 hover:underline group-hover:text-primary"
-                >
-                  Trace: {trace.name} ({trace.id}),{" "}
-                  {trace.timestamp.toLocaleString()}
-                </Link>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2 p-2 pt-0">
+          <Card
+            className="border-border-gray-150 group grid gap-3 p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
+            key={trace.id}
+          >
+            <div className="col-span-2 flex flex-col gap-2 p-0">
+              {trace.input || trace.output ? (
                 <IOPreview
                   key={trace.id}
                   input={trace.input}
                   output={trace.output}
                   hideIfNull
                 />
-              </CardContent>
-            </Card>
-            <div className="hidden flex-wrap content-start items-start gap-2 md:flex md:flex-col">
-              <ManualScoreButton
-                projectId={projectId}
-                traceId={trace.id}
-                scores={trace.scores}
-                variant="badge"
-              />
-              <GroupedScoreBadges scores={trace.scores} />
+              ) : (
+                <div className="p-2 text-xs text-gray-500">
+                  This trace has no input or output.
+                </div>
+              )}
             </div>
-          </div>
+            <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
+              <Link
+                href={`/project/${projectId}/traces/${trace.id}`}
+                className="text-xs hover:underline"
+              >
+                Trace: {trace.name} ({trace.id})&nbsp;↗
+              </Link>
+              <div className="text-xs text-gray-500">
+                {trace.timestamp.toLocaleString()}
+              </div>
+              <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
+              <div className="flex flex-wrap content-start items-start gap-1">
+                <GroupedScoreBadges scores={trace.scores} />
+                <ManualScoreButton
+                  projectId={projectId}
+                  traceId={trace.id}
+                  scores={trace.scores}
+                  variant="badge"
+                />
+              </div>
+            </div>
+          </Card>
         ))}
       </div>
     </div>
