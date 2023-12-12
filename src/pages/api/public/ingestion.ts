@@ -271,6 +271,9 @@ export const handleBatchResult = (
     }
   });
 
+  if (returnedErrors.length > 0)
+    console.log("Ingestion errors", returnedErrors);
+
   results.forEach((result) => {
     successes.push({
       id: result.id,
