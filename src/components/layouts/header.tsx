@@ -81,7 +81,7 @@ export default function Header(props: {
           </nav>
         ) : null}
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-5">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3 md:gap-5">
           <div className="flex min-w-0 flex-row">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
@@ -105,8 +105,9 @@ export default function Header(props: {
             </div>
           ) : null}
         </div>
-        <div className="md:flex-1" />
-        {props.actionButtons ?? null}
+        <div className="flex items-center gap-3">
+          {props.actionButtons ?? null}
+        </div>
       </div>
     </div>
   );
