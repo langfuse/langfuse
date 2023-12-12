@@ -13,6 +13,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const formSchema = z.object({
   newName: z.string().min(3, "Must have at least 3 characters"),
@@ -20,6 +21,10 @@ const formSchema = z.object({
 
 export default function RenameProject(props: { projectId: string }) {
   const utils = api.useUtils();
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "project:update",
+  });
   const { data: getSessionData, update: updateSession } = useSession();
   const projectName = getSessionData?.user?.projects.find(
     (p) => p.id === props.projectId,
@@ -50,65 +55,62 @@ export default function RenameProject(props: { projectId: string }) {
       });
   }
 
+  if (!hasAccess) return null;
+
   return (
     <div>
       <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
         Project Name
       </h2>
-      <Card className="mb-4">
-        <div className="flex">
-          <Form {...form}>
-            <form
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="flex-1"
-              data-testid="rename-project-form"
-              id="rename-project-form"
+      <Card className="mb-4 p-4">
+        {form.getValues().newName !== "" ? (
+          <p className="mb-4 text-sm text-gray-700">
+            Your Project will be renamed to &quot;
+            <b>{form.watch().newName}</b>&quot;.
+          </p>
+        ) : (
+          <p className="mb-4 text-sm text-gray-700">
+            Your Project is currently named &quot;<b>{projectName}</b>
+            &quot;.
+          </p>
+        )}
+        <Form {...form}>
+          <form
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex-1"
+            data-testid="rename-project-form"
+            id="rename-project-form"
+          >
+            <FormField
+              control={form.control}
+              name="newName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      placeholder={projectName}
+                      {...field}
+                      className="flex-1"
+                      data-testid="new-project-name-input"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              variant="secondary"
+              type="submit"
+              loading={renameProject.isLoading}
+              disabled={form.getValues().newName === ""}
+              className="mt-4"
             >
-              <FormField
-                control={form.control}
-                name="newName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input
-                        placeholder={projectName}
-                        {...field}
-                        className="flex-1"
-                        data-testid="new-project-name-input"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="mt-4">
-                {form.getValues().newName !== "" && (
-                  <p className="mb-6 text-sm text-gray-700">
-                    Your Project will be renamed to &quot;
-                    <b>{form.watch().newName}</b>&quot;.
-                  </p>
-                )}
-                {form.getValues().newName == "" && (
-                  <p className=" text-sm text-gray-700">
-                    Your Project is currently named &quot;<b>{projectName}</b>
-                    &quot;.
-                  </p>
-                )}
-              </div>
-            </form>
-          </Form>
-        </div>
+              Save
+            </Button>
+          </form>
+        </Form>
       </Card>
-      <div className="mt-4 flex justify-between">
-        <Button
-          variant="secondary"
-          form="rename-project-form"
-          loading={renameProject.isLoading}
-        >
-          Save
-        </Button>
-      </div>
     </div>
   );
 }
