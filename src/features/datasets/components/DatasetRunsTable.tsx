@@ -3,6 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { formatInterval } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 
 type RowData = {
@@ -53,7 +54,7 @@ export function DatasetRunsTable(props: {
       header: "Latency (avg)",
       cell: ({ row }) => {
         const avgLatency: RowData["avgLatency"] = row.getValue("avgLatency");
-        return <>{avgLatency.toFixed(2)} sec</>;
+        return <>{formatInterval(avgLatency)}</>;
       },
     },
     {

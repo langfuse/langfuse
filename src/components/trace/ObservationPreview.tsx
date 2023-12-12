@@ -21,6 +21,7 @@ import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/com
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
+import { formatInterval } from "@/src/utils/dates";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -55,11 +56,11 @@ export const ObservationPreview = (props: {
           <div className="flex flex-wrap gap-2">
             {preloadedObservation.endTime ? (
               <Badge variant="outline">
-                {`${(
+                {formatInterval(
                   (preloadedObservation.endTime.getTime() -
                     preloadedObservation.startTime.getTime()) /
-                  1000
-                ).toFixed(2)} sec`}
+                    1000,
+                )}
               </Badge>
             ) : null}
             <Badge variant="outline">

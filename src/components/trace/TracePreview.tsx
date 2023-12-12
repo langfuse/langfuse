@@ -21,13 +21,14 @@ import { ManualScoreButton } from "@/src/features/manual-scoring/components/Manu
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
+import { formatInterval } from "@/src/utils/dates";
 
 export const TracePreview = ({
   trace,
   observations,
   scores,
 }: {
-  trace: Trace;
+  trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: Score[];
 }) => {
@@ -43,13 +44,16 @@ export const TracePreview = ({
           </CardTitle>
           <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>
           <div className="flex flex-wrap gap-2">
+            {!!trace.latency && (
+              <Badge variant="outline">{formatInterval(trace.latency)}</Badge>
+            )}
             <TraceAggUsageBadge observations={observations} />
-            {trace.release ? (
+            {!!trace.release && (
               <Badge variant="outline">Release: {trace.release}</Badge>
-            ) : undefined}
-            {trace.version ? (
+            )}
+            {!!trace.version && (
               <Badge variant="outline">Version: {trace.version}</Badge>
-            ) : undefined}
+            )}
           </div>
         </div>
         <ManualScoreButton
