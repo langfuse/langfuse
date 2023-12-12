@@ -251,18 +251,38 @@ export class TraceProcessor implements EventProcessor {
         id: internalId,
         name: body.name ?? undefined,
         userId: body.userId ?? undefined,
+        input: body.input ?? undefined,
+        output: body.output ?? undefined,
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
+        session: body.sessionId
+          ? {
+              connectOrCreate: {
+                where: { id: body.sessionId, projectId: apiScope.projectId },
+                create: { id: body.sessionId, projectId: apiScope.projectId },
+              },
+            }
+          : undefined,
         public: body.public ?? undefined,
         project: { connect: { id: apiScope.projectId } },
       },
       update: {
         name: body.name ?? undefined,
         userId: body.userId ?? undefined,
+        input: body.input ?? undefined,
+        output: body.output ?? undefined,
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
+        session: body.sessionId
+          ? {
+              connectOrCreate: {
+                where: { id: body.sessionId, projectId: apiScope.projectId },
+                create: { id: body.sessionId, projectId: apiScope.projectId },
+              },
+            }
+          : undefined,
         public: body.public ?? undefined,
       },
     });

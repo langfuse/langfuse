@@ -41,6 +41,9 @@ types:
       name: optional<string>
       userId: optional<string>
       externalId: optional<string>
+      input: optional<unknown>
+      output: optional<unknown>
+      sessionId: optional<string>
       release: optional<string>
       version: optional<string>
       metadata: optional<unknown>

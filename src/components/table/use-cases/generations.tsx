@@ -1,5 +1,4 @@
 import { api, directApi } from "@/src/utils/api";
-import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -24,8 +23,10 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { JSONView } from "@/src/components/ui/code";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -40,6 +41,8 @@ export type GenerationsTableRow = {
   latency?: number;
   name?: string;
   model?: string;
+  input?: unknown;
+  output?: unknown;
   traceName?: string;
   metadata?: string;
   usage: {
@@ -143,7 +146,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     setIsExporting(false);
   };
 
-  const columns: ColumnDef<GenerationsTableRow>[] = [
+  const columns: LangfuseColumnDef<GenerationsTableRow>[] = [
     {
       accessorKey: "id",
       header: "ID",
@@ -192,7 +195,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latency");
         return value !== undefined ? (
-          <span>{value.toFixed(2)} sec</span>
+          <span>{formatInterval(value)}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -220,8 +223,8 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "statusMessage",
       header: "Status Message",
       enableHiding: true,
+      defaultHidden: true,
     },
-
     {
       accessorKey: "model",
       header: "Model",
@@ -248,6 +251,26 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
     {
+      accessorKey: "input",
+      header: "Input",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("input");
+        return <JSONView json={value} className="w-[500px]" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "output",
+      header: "Output",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("output");
+        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
@@ -255,6 +278,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
       },
       enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "version",
@@ -279,6 +303,8 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         name: generation.name ?? undefined,
         version: generation.version ?? "",
         model: generation.model ?? "",
+        input: generation.input,
+        output: generation.output,
         level: generation.level,
         metadata: generation.metadata
           ? JSON.stringify(generation.metadata)

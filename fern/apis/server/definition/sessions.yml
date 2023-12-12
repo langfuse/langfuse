@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get a session
+      method: GET
+      path: /sessions/{sessionId}
+      path-parameters:
+        sessionId:
+          type: string
+          docs: The unique id of a session
+      response: commons.SessionWithTraces

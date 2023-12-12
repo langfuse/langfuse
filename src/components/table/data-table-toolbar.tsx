@@ -5,7 +5,8 @@ import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-tab
 import { type FilterState } from "@/src/features/filters/types";
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import { type ColumnDef, type VisibilityState } from "@tanstack/react-table";
+import { type VisibilityState } from "@tanstack/react-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 interface SearchConfig {
   placeholder: string;
@@ -14,7 +15,7 @@ interface SearchConfig {
 }
 
 interface DataTableToolbarProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+  columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition: ColumnDefinition[];
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;

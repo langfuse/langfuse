@@ -785,6 +785,52 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/sessions/{sessionId}:
+    get:
+      description: Get a session
+      operationId: sessions_get
+      tags:
+        - Sessions
+      parameters:
+        - name: sessionId
+          in: path
+          description: The unique id of a session
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionWithTraces'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/spans:
     post:
       description: Add a span to the database
@@ -1116,6 +1162,13 @@ components:
         name:
           type: string
           nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
         release:
           type: string
           nullable: true
@@ -1170,6 +1223,33 @@ components:
         - scores
       allOf:
         - $ref: '#/components/schemas/Trace'
+    Session:
+      title: Session
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        projectId:
+          type: string
+      required:
+        - id
+        - createdAt
+        - projectId
+    SessionWithTraces:
+      title: SessionWithTraces
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trace'
+      required:
+        - traces
+      allOf:
+        - $ref: '#/components/schemas/Session'
     Observation:
       title: Observation
       type: object
@@ -1728,6 +1808,13 @@ components:
           type: string
           nullable: true
         externalId:
+          type: string
+          nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        sessionId:
           type: string
           nullable: true
         release:

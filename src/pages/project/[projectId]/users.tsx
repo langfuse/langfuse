@@ -1,7 +1,6 @@
 import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
-import { type ColumnDef } from "@tanstack/react-table";
 import { type RouterInput } from "@/src/utils/types";
 import { useEffect, useState } from "react";
 import TableLink from "@/src/components/table/table-link";
@@ -12,6 +11,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 type RowData = {
   userId: string;
@@ -53,7 +53,7 @@ export default function UsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users.isSuccess, users.data]);
 
-  const columns: ColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "userId",
       enableColumnFilter: true,

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -21,9 +20,10 @@ import {
 } from "@/src/components/ui/table";
 import { useState } from "react";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+  columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
     pageCount: number;
