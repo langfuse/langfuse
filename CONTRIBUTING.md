@@ -29,11 +29,28 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 - NextJS, pages router
 - NextAuth.js / Auth.js
-- TRPC
+- tRPC
 - Prisma ORM
 - Zod
 - Tailwind CSS
 - shadcn/ui tailwind components (using Radix and tanstack)
+
+### Architecture overview
+
+```mermaid
+flowchart TD
+
+    A[Python SDK - Backend] -->|REST| C[NextJs Server]
+    B[JS/TS SDK - Frontend + Backend] -->|REST| C
+    C <-->|Prisma| D[Postgres Database]
+    E[Langfuse UI] -->|tRPC| C
+```
+
+| Component                                                 | Technology                                    | Description                                                                                                                                                                                     |
+| --------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Python SDK](https://github.com/langfuse/langfuse-python) | Python                                        | Fully async SDK. Events are sent to server in batches from a background thread.                                                                                                                 |
+| [JS/TS SDK](https://github.com/langfuse/langfuse-js)      | TypeScript                                    | Fully async SDK. As of SDK version 2.0.0, events will be sent in batches to the server.                                                                                                         |
+| NextJs Server (JS)                                        | TypeScript, [T3 Stack](https://create.t3.gg/) | We use Vercel Cloud Functions to serve our back-end and front-end. The front-end uses tRPC to communicate with the back-end. For self-hosting, this component is available as Docker container. |
 
 ## Development Setup
 
