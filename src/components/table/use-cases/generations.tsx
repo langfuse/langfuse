@@ -27,11 +27,16 @@ import { utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type ObservationLevel } from "@prisma/client";
+import { cn } from "@/src/utils/tailwind";
+import { LevelColors } from "@/src/components/level-colors";
 
 export type GenerationsTableRow = {
   id: string;
   traceId: string;
   startTime: string;
+  level?: ObservationLevel;
+  statusMessage?: string;
   endTime?: string;
   latency?: number;
   name?: string;
@@ -39,6 +44,7 @@ export type GenerationsTableRow = {
   input?: unknown;
   output?: unknown;
   traceName?: string;
+  metadata?: string;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -195,6 +201,31 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
     {
+      accessorKey: "level",
+      header: "Level",
+      enableHiding: true,
+      cell({ row }) {
+        const value: ObservationLevel | undefined = row.getValue("level");
+        return value ? (
+          <span
+            className={cn(
+              "rounded-sm p-0.5 text-xs",
+              LevelColors[value].bg,
+              LevelColors[value].text,
+            )}
+          >
+            {value}
+          </span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "statusMessage",
+      header: "Status Message",
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "model",
       header: "Model",
       enableHiding: true,
@@ -240,6 +271,16 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       defaultHidden: true,
     },
     {
+      accessorKey: "metadata",
+      header: "Metadata",
+      cell: ({ row }) => {
+        const values: string | undefined = row.getValue("metadata");
+        return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "version",
       header: "Version",
       enableHiding: true,
@@ -264,6 +305,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         model: generation.model ?? "",
         input: generation.input,
         output: generation.output,
+        level: generation.level,
+        metadata: generation.metadata
+          ? JSON.stringify(generation.metadata)
+          : undefined,
+        statusMessage: generation.statusMessage ?? undefined,
         usage: {
           promptTokens: generation.promptTokens,
           completionTokens: generation.completionTokens,
