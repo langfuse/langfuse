@@ -29,7 +29,7 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 - NextJS, pages router
 - NextAuth.js / Auth.js
-- TRPC
+- tRPC
 - Prisma ORM
 - Zod
 - Tailwind CSS
