@@ -46,6 +46,31 @@ export const projectsRouter = createTRPCRouter({
       };
     }),
 
+  update: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        newName: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:update",
+      });
+
+      await ctx.prisma.project.update({
+        where: {
+          id: input.projectId,
+        },
+        data: {
+          name: input.newName,
+        },
+      });
+      return true;
+    }),
+
   delete: protectedProcedure
     .input(
       z.object({
