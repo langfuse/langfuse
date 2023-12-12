@@ -20,8 +20,8 @@ interface DataTableToolbarProps<TData, TValue> {
   actionButtons?: React.ReactNode;
   filterState: FilterState;
   setFilterState: Dispatch<SetStateAction<FilterState>>;
-  columnVisibility: VisibilityState;
-  setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
+  columnVisibility?: VisibilityState;
+  setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -63,12 +63,14 @@ export function DataTableToolbar<TData, TValue>({
           filterState={filterState}
           onChange={setFilterState}
         />
-        <DataTableColumnVisibilityFilter
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-        />
         <div className="flex-1" />
+        {!!columnVisibility && !!setColumnVisibility && (
+          <DataTableColumnVisibilityFilter
+            columns={columns}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibility}
+          />
+        )}
         {actionButtons}
       </div>
     </div>
