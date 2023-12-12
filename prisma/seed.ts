@@ -160,16 +160,15 @@ async function main() {
           scores: {
             createMany: {
               data: [
-                {
-                  name: "latency",
-                  value: Math.floor(Math.random() * 20),
-                  timestamp: traceTs,
-                },
-                {
-                  name: "feedback",
-                  value: Math.floor(Math.random() * 3) - 1,
-                  timestamp: traceTs,
-                },
+                ...(Math.random() > 0.5
+                  ? [
+                      {
+                        name: "feedback",
+                        value: Math.floor(Math.random() * 3) - 1,
+                        timestamp: traceTs,
+                      },
+                    ]
+                  : []),
                 ...(Math.random() > 0.7
                   ? [
                       {
@@ -329,23 +328,24 @@ async function main() {
               traceId: trace.id,
             },
           });
-
-          await prisma.score.create({
-            data: {
-              name: "quality",
-              value: Math.random() * 2 - 1,
-              observationId: generation.id,
-              traceId: trace.id,
-            },
-          });
-          await prisma.score.create({
-            data: {
-              name: "conciseness",
-              value: Math.random() * 2 - 1,
-              observationId: generation.id,
-              traceId: trace.id,
-            },
-          });
+          if (Math.random() > 0.6)
+            await prisma.score.create({
+              data: {
+                name: "quality",
+                value: Math.random() * 2 - 1,
+                observationId: generation.id,
+                traceId: trace.id,
+              },
+            });
+          if (Math.random() > 0.6)
+            await prisma.score.create({
+              data: {
+                name: "conciseness",
+                value: Math.random() * 2 - 1,
+                observationId: generation.id,
+                traceId: trace.id,
+              },
+            });
 
           generationIds.push(generation.id);
 
