@@ -103,13 +103,13 @@ export const SessionPage: React.FC<{
               <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
               <div className="flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
-                <ManualScoreButton
-                  projectId={projectId}
-                  traceId={trace.id}
-                  scores={trace.scores}
-                  variant="badge"
-                />
               </div>
+              <ManualScoreButton
+                projectId={projectId}
+                traceId={trace.id}
+                scores={trace.scores}
+                variant="badge"
+              />
             </div>
           </Card>
         ))}
