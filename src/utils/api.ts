@@ -47,7 +47,6 @@ export const api = createTRPCNext<AppRouter>({
         }),
         splitLink({
           condition(op) {
-            console.log("op", op);
             // check for context property `skipBatch`
             return op.context.skipBatch === true;
           },
