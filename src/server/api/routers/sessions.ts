@@ -90,8 +90,6 @@ export const sessionRouter = createTRPCRouter({
     `);
       return sessions.map((s) => ({
         ...s,
-        sessionDuration:
-          s.sessionDuration !== null ? s.sessionDuration / 1000 : null,
         userIds: s.userIds.filter((t) => t !== null),
       }));
     }),

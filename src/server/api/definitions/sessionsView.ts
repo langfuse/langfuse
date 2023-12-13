@@ -12,6 +12,6 @@ export const sessionsViewCols: ColumnDefinition[] = [
   {
     name: "Session duration (s)",
     type: "number",
-    internal: 'o."sessionDuration"/1000',
+    internal: 'o."sessionDuration"',
   },
 ];
