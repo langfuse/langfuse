@@ -1299,6 +1299,38 @@ components:
       required:
         - id
         - type
+    CreateTraceRequest:
+      title: CreateTraceRequest
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        userId:
+          type: string
+          nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        release:
+          type: string
+          nullable: true
+        version:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+        public:
+          type: boolean
+          nullable: true
+          description: Make trace publicly accessible via url
     TraceEvent:
       title: TraceEvent
       type: object
@@ -1308,7 +1340,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/Trace'
+          $ref: '#/components/schemas/CreateTraceRequest'
       required:
         - id
         - timestamp
@@ -1468,41 +1500,6 @@ components:
       required:
         - data
         - meta
-    CreateTraceRequest:
-      title: CreateTraceRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        userId:
-          type: string
-          nullable: true
-        externalId:
-          type: string
-          nullable: true
-        input:
-          nullable: true
-        output:
-          nullable: true
-        sessionId:
-          type: string
-          nullable: true
-        release:
-          type: string
-          nullable: true
-        version:
-          type: string
-          nullable: true
-        metadata:
-          nullable: true
-        public:
-          type: boolean
-          nullable: true
-          description: Make trace publicly accessible via url
     Traces:
       title: Traces
       type: object

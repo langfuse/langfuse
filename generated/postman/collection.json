@@ -320,7 +320,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"body\": {\n                \"id\": \"example\",\n                \"timestamp\": \"1994-11-05T13:15:30Z\",\n                \"name\": \"example\",\n                \"input\": \"UNKNOWN\",\n                \"output\": \"UNKNOWN\",\n                \"sessionId\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"userId\": \"example\",\n                \"metadata\": \"UNKNOWN\",\n                \"public\": true\n            }\n        }\n    ]\n}",
+              "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"body\": {\n                \"id\": \"example\",\n                \"name\": \"example\",\n                \"userId\": \"example\",\n                \"input\": \"UNKNOWN\",\n                \"output\": \"UNKNOWN\",\n                \"sessionId\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"metadata\": \"UNKNOWN\",\n                \"public\": true\n            }\n        }\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
