@@ -49,8 +49,14 @@
             "description": "Create a dataset item, upserts on id",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-items"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items"
+              ],
               "query": [],
               "variable": []
             },
@@ -76,8 +82,15 @@
             "description": "Get a specific dataset item",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-items", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items",
+                ":id"
+              ],
               "query": [],
               "variable": [
                 {
@@ -108,8 +121,14 @@
             "description": "Create a dataset run item",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-run-items",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-run-items"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-run-items"
+              ],
               "query": [],
               "variable": []
             },
@@ -142,8 +161,15 @@
             "description": "Get a dataset and its items",
             "url": {
               "raw": "{{baseUrl}}/api/public/datasets/:datasetName",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "datasets", ":datasetName"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets",
+                ":datasetName"
+              ],
               "query": [],
               "variable": [
                 {
@@ -167,8 +193,14 @@
             "description": "Create a dataset",
             "url": {
               "raw": "{{baseUrl}}/api/public/datasets",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "datasets"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets"
+              ],
               "query": [],
               "variable": []
             },
@@ -194,7 +226,9 @@
             "description": "Get a dataset run and its items",
             "url": {
               "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs/:runName",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -238,8 +272,14 @@
             "description": "Check health of API and database",
             "url": {
               "raw": "{{baseUrl}}/api/public/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "health"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "health"
+              ],
               "query": [],
               "variable": []
             },
@@ -264,8 +304,14 @@
             "description": "Ingest multiple events to Langfuse",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "ingestion"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "ingestion"
+              ],
               "query": [],
               "variable": []
             },
@@ -298,8 +344,15 @@
             "description": "Get a specific observation",
             "url": {
               "raw": "{{baseUrl}}/api/public/observations/:observationId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "observations", ":observationId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "observations",
+                ":observationId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -323,8 +376,14 @@
             "description": "Get a list of observations",
             "url": {
               "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "observations"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "observations"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -385,8 +444,14 @@
             "description": null,
             "url": {
               "raw": "{{baseUrl}}/api/public/projects",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "projects"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects"
+              ],
               "query": [],
               "variable": []
             },
@@ -411,8 +476,14 @@
             "description": "Add a score to the database, upserts on id",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scores"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores"
+              ],
               "query": [],
               "variable": []
             },
@@ -438,8 +509,14 @@
             "description": "Get scores",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scores"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -485,8 +562,15 @@
             "description": "Get a session",
             "url": {
               "raw": "{{baseUrl}}/api/public/sessions/:sessionId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "sessions", ":sessionId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "sessions",
+                ":sessionId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -508,96 +592,8 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Span",
-      "item": [
-        {
-          "_type": "endpoint",
-          "name": "Create",
-          "request": {
-            "description": "Add a span to the database",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/spans",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "spans"],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "POST",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update",
-          "request": {
-            "description": "Update a span to the database",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/spans",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "spans"],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "PATCH",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"spanId\": \"example\",\n    \"traceId\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"name\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"version\": \"example\",\n    \"statusMessage\": \"example\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "_type": "container",
-      "description": null,
       "name": "Trace",
       "item": [
-        {
-          "_type": "endpoint",
-          "name": "Create",
-          "request": {
-            "description": "Add a trace to the database",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/traces",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "traces"],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "POST",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"name\": \"example\",\n    \"userId\": \"example\",\n    \"externalId\": \"example\",\n    \"release\": \"example\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"public\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
         {
           "_type": "endpoint",
           "name": "Get",
@@ -605,8 +601,15 @@
             "description": "Get a specific trace",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces/:traceId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "traces", ":traceId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -630,8 +633,14 @@
             "description": "Get list of traces",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "traces"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces"
+              ],
               "query": [
                 {
                   "key": "page",

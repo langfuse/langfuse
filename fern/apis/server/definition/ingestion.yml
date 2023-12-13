@@ -45,12 +45,26 @@ types:
       level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
       parentObservationId: optional<string>
+  CreateTraceRequest:
+    properties:
+      id: optional<string>
+      name: optional<string>
+      userId: optional<string>
+      input: optional<unknown>
+      output: optional<unknown>
+      sessionId: optional<string>
+      release: optional<string>
+      version: optional<string>
+      metadata: optional<unknown>
+      public:
+        type: optional<boolean>
+        docs: Make trace publicly accessible via url
 
   TraceEvent:
     properties:
       id: string
       timestamp: string
-      body: commons.Trace
+      body: CreateTraceRequest
   ObservationCreateEvent:
     properties:
       id: string
