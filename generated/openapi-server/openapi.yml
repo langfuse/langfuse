@@ -1161,6 +1161,64 @@ components:
             - $ref: '#/components/schemas/ObservationUpdateEvent'
           required:
             - type
+    ObservationEvent:
+      title: ObservationEvent
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+          nullable: true
+        type:
+          type: string
+        name:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        modelParameters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MapValue'
+          nullable: true
+        input:
+          nullable: true
+        version:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+        output:
+          nullable: true
+        usage:
+          $ref: '#/components/schemas/Usage'
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+        statusMessage:
+          type: string
+          nullable: true
+        parentObservationId:
+          type: string
+          nullable: true
+      required:
+        - id
+        - type
+        - level
     TraceEvent:
       title: TraceEvent
       type: object
@@ -1184,7 +1242,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/Observation'
+          $ref: '#/components/schemas/ObservationEvent'
       required:
         - id
         - timestamp
@@ -1198,7 +1256,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/Observation'
+          $ref: '#/components/schemas/ObservationEvent'
       required:
         - id
         - timestamp
