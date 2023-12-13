@@ -17,6 +17,19 @@ describe("/api/public/ingestion API Endpoint", () => {
         unit: "CHARACTERS",
       },
       expectedUnit: "CHARACTERS",
+      expectedPromptTokens: 100,
+      expectedCompletionTokens: 200,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        total: 100,
+        unit: "CHARACTERS",
+      },
+      expectedUnit: "CHARACTERS",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
     },
     {
       usage: {
@@ -24,6 +37,18 @@ describe("/api/public/ingestion API Endpoint", () => {
         completionTokens: 200,
         totalTokens: 100,
       },
+      expectedPromptTokens: 100,
+      expectedCompletionTokens: 200,
+      expectedTotalTokens: 100,
+      expectedUnit: "TOKENS",
+    },
+    {
+      usage: {
+        totalTokens: 100,
+      },
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
       expectedUnit: "TOKENS",
     },
   ].forEach((testConfig) => {
@@ -145,9 +170,13 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbGeneration?.input).toEqual({ key: "value" });
       expect(dbGeneration?.metadata).toEqual({ key: "value" });
       expect(dbGeneration?.version).toBe("2.0.0");
-      expect(dbGeneration?.promptTokens).toEqual(100);
-      expect(dbGeneration?.completionTokens).toEqual(200);
-      expect(dbGeneration?.totalTokens).toEqual(100);
+      expect(dbGeneration?.promptTokens).toEqual(
+        testConfig.expectedPromptTokens,
+      );
+      expect(dbGeneration?.completionTokens).toEqual(
+        testConfig.expectedCompletionTokens,
+      );
+      expect(dbGeneration?.totalTokens).toEqual(testConfig.expectedTotalTokens);
       expect(dbGeneration?.unit).toEqual(testConfig.expectedUnit);
       expect(dbGeneration?.output).toEqual({
         key: "this is a great gpt output",

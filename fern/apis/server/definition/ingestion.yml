@@ -15,7 +15,7 @@ service:
         body:
           properties:
             batch: list<IngestionEvent>
-      response: IngestionResponse
+      response: IngestionResponse # will be reportet as 200 response, but endpoint returns 207
 
 types:
   IngestionEvent:
