@@ -7,9 +7,8 @@ import {
   protectedProjectProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
-import { type Observation, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
-import type Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
@@ -20,10 +19,6 @@ const SessionFilterOptions = z.object({
   filter: z.array(singleFilter).nullable(),
   ...paginationZod,
 });
-
-export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
-  traceId: string;
-} & { price?: Decimal };
 
 export const sessionRouter = createTRPCRouter({
   all: protectedProjectProcedure
