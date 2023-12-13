@@ -2,16 +2,19 @@ import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefiniti
 
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", type: "boolean", internal: "s.bookmarked" },
-  { name: "userId", type: "string", internal: 't."user_id"' },
   {
-    name: "createdAt",
-    type: "datetime",
-    internal: 's."created_at"',
+    name: "userId",
+    type: "string",
+    internal: "array_to_string(t.\"userIds\", ', ')",
   },
-  { name: "Trace Name", type: "string", internal: 't."name"' },
   {
     name: "Session duration (s)",
     type: "number",
     internal: 'o."sessionDuration"',
+  },
+  {
+    name: "createdAt",
+    type: "datetime",
+    internal: 's."created_at"',
   },
 ];
