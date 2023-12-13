@@ -15,7 +15,6 @@ import { TRPCError } from "@trpc/server";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   ...paginationZod,
 });

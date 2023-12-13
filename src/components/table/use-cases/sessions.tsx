@@ -68,7 +68,6 @@ export default function SessionsTable({
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
-    searchQuery: null,
   });
   const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
