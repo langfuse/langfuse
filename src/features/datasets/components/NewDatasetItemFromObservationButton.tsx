@@ -20,6 +20,7 @@ import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { type Prisma } from "@prisma/client";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useSession } from "next-auth/react";
 
 export const NewDatasetItemFromObservationButton = (props: {
   projectId: string;
@@ -28,10 +29,16 @@ export const NewDatasetItemFromObservationButton = (props: {
   observationOutput: Prisma.JsonValue;
 }) => {
   const [open, setOpen] = useState(false);
-  const observationInDatasets = api.datasets.observationInDatasets.useQuery({
-    projectId: props.projectId,
-    observationId: props.observationId,
-  });
+  const session = useSession();
+  const observationInDatasets = api.datasets.observationInDatasets.useQuery(
+    {
+      projectId: props.projectId,
+      observationId: props.observationId,
+    },
+    {
+      enabled: session.status === "authenticated",
+    },
+  );
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
@@ -91,7 +98,7 @@ export const NewDatasetItemFromObservationButton = (props: {
         </Button>
       )}
       <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-        <DialogContent className="sm:w-3xl lg:h-[calc(100vh-100px)] lg:w-[calc(100vw-100px)] lg:max-w-none">
+        <DialogContent className="sm:w-3xl lg:max-w-none">
           <DialogHeader>
             <DialogTitle className="mb-5">Add to dataset</DialogTitle>
           </DialogHeader>

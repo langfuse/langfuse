@@ -10,10 +10,9 @@ import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type ColumnDef } from "@tanstack/react-table";
 import { useEffect } from "react";
 import {
   NumberParam,
@@ -22,7 +21,9 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { BookmarkTrace } from "@/src/components/bookmark-trace";
+import { StarTraceToggle } from "@/src/components/star-toggle";
+import { JSONView } from "@/src/components/ui/code";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -34,6 +35,9 @@ export type TracesTableRow = {
   latency?: number;
   release?: string;
   version?: string;
+  input?: unknown;
+  output?: unknown;
+  sessionId?: string;
   scores: Score[];
   usage: {
     promptTokens: number;
@@ -121,6 +125,9 @@ export default function TracesTable({
       version: trace.version ?? undefined,
       userId: trace.userId ?? "",
       scores: trace.scores,
+      sessionId: trace.sessionId ?? undefined,
+      input: trace.input,
+      output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
       usage: {
         promptTokens: trace.promptTokens,
@@ -130,20 +137,20 @@ export default function TracesTable({
     };
   };
 
-  const columns: ColumnDef<TracesTableRow>[] = [
+  const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
       accessorKey: "bookmarked",
       header: undefined,
       cell: ({ row }) => {
-        const isBookmarked = row.getValue("bookmarked");
+        const bookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
 
         return typeof traceId === "string" &&
-          typeof isBookmarked === "boolean" ? (
-          <BookmarkTrace
+          typeof bookmarked === "boolean" ? (
+          <StarTraceToggle
             traceId={traceId}
             projectId={projectId}
-            isBookmarked={isBookmarked}
+            value={bookmarked}
             size="xs"
           />
         ) : undefined;
@@ -189,12 +196,28 @@ export default function TracesTable({
       enableHiding: true,
     },
     {
+      accessorKey: "sessionId",
+      enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      header: "Session ID",
+      cell: ({ row }) => {
+        const value = row.getValue("sessionId");
+        return value && typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/sessions/${value}`}
+            value={value}
+            truncateAt={40}
+          />
+        ) : undefined;
+      },
+      enableHiding: true,
+    },
+    {
       accessorKey: "latency",
       header: "Latency",
       // add seconds to the end of the latency
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latency");
-        return value !== undefined ? `${value.toFixed(2)} sec` : undefined;
+        return value !== undefined ? formatInterval(value) : undefined;
       },
       enableHiding: true,
     },
@@ -227,6 +250,26 @@ export default function TracesTable({
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
       enableHiding: true,
+    },
+    {
+      accessorKey: "input",
+      header: "Input",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("input");
+        return <JSONView json={value} className="w-[500px]" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "output",
+      header: "Output",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("output");
+        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "metadata",

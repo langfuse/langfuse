@@ -36,6 +36,10 @@ const userNavigation = [
 
 const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
+const publishablePaths = [
+  "/project/[projectId]/sessions/[sessionId]",
+  "/project/[projectId]/traces/[traceId]",
+];
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -76,6 +80,7 @@ export default function Layout(props: PropsWithChildren) {
     session.data &&
     session.data.user === null &&
     !unauthenticatedPaths.includes(router.pathname) &&
+    !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
     void signOut({
@@ -87,9 +92,10 @@ export default function Layout(props: PropsWithChildren) {
   if (
     session.status === "unauthenticated" &&
     !unauthenticatedPaths.includes(router.pathname) &&
+    !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void router.push("/auth/sign-in");
+    void router.replace("/auth/sign-in");
     return <Spinner message="Redirecting" />;
   }
 
@@ -97,7 +103,7 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    void router.push("/");
+    void router.replace("/");
     return <Spinner message="Redirecting" />;
   }
 
@@ -218,6 +224,18 @@ export default function Layout(props: PropsWithChildren) {
                                     aria-hidden="true"
                                   />
                                   {item.name}
+                                  {item.label && (
+                                    <span
+                                      className={cn(
+                                        "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                                        item.current
+                                          ? "border-indigo-600 text-indigo-600"
+                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                                      )}
+                                    >
+                                      {item.label}
+                                    </span>
+                                  )}
                                 </Link>
                               </li>
                             ))}
@@ -267,7 +285,7 @@ export default function Layout(props: PropsWithChildren) {
                                   {project.role === "VIEWER" ? (
                                     <span
                                       className={cn(
-                                        "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                        "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                                         projectId === project.id
                                           ? "border-indigo-600 text-indigo-600"
                                           : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -320,6 +338,18 @@ export default function Layout(props: PropsWithChildren) {
                             aria-hidden="true"
                           />
                           {item.name}
+                          {item.label && (
+                            <span
+                              className={cn(
+                                "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                                item.current
+                                  ? "border-indigo-600 text-indigo-600"
+                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                              )}
+                            >
+                              {item.label}
+                            </span>
+                          )}
                         </Link>
                       </li>
                     ))}
@@ -373,7 +403,7 @@ export default function Layout(props: PropsWithChildren) {
                           {project.role === "VIEWER" ? (
                             <span
                               className={cn(
-                                "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                                 projectId === project.id
                                   ? "border-indigo-600 text-indigo-600"
                                   : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -506,8 +536,8 @@ export default function Layout(props: PropsWithChildren) {
         <div className="xl:pl-72">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
+          (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
             <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 xl:sticky xl:top-0 xl:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
@@ -520,10 +550,16 @@ export default function Layout(props: PropsWithChildren) {
 
               <Button size="sm" asChild className="ml-2">
                 <Link
-                  href="https://langfuse.com/docs/qa-chatbot"
+                  href={
+                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+                      ? "https://langfuse.com/docs/qa-chatbot"
+                      : "https://docs-staging.langfuse.com/docs/qa-chatbot"
+                  }
                   target="_blank"
                 >
-                  Q&A Chatbot ↗
+                  {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+                    ? "Q&A Chatbot ↗"
+                    : "Q&A Chatbot (staging) ↗"}
                 </Link>
               </Button>
             </div>

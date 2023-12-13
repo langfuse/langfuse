@@ -5,6 +5,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { HelpCircle } from "lucide-react";
 import Link from "next/link";
+import { usePostHog } from "posthog-js/react";
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -22,14 +23,25 @@ export default function DocPopup({
     md: "w-6 h-6",
     lg: "w-8 h-8",
   };
+  const posthog = usePostHog();
 
   return (
-    <HoverCard openDelay={200}>
-      <HoverCardTrigger className="mx-2 cursor-pointer" asChild>
-        <Link href={href} rel="noopener" target="_blank">
-          <div className="whitespace-nowrap text-gray-500 sm:pl-0">
-            <HelpCircle className={sizes[size]} />
-          </div>
+    <HoverCard
+      openDelay={200}
+      onOpenChange={(open) => {
+        if (open) {
+          posthog.capture("help-popup:opened", { href, description });
+        }
+      }}
+    >
+      <HoverCardTrigger className="mx-1 cursor-pointer" asChild>
+        <Link
+          href={href}
+          rel="noopener"
+          target="_blank"
+          className="inline-block whitespace-nowrap text-gray-500 sm:pl-0"
+        >
+          <HelpCircle className={sizes[size]} />
         </Link>
       </HoverCardTrigger>
       <HoverCardContent>

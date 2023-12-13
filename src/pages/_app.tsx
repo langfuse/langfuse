@@ -3,6 +3,7 @@ import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 import { api } from "@/src/utils/api";
 
@@ -77,17 +78,19 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   return (
     <QueryParamProvider adapter={NextAdapterPages}>
-      <PostHogProvider client={posthog}>
-        <SessionProvider session={session} refetchOnWindowFocus={true}>
-          <DetailPageListsProvider>
-            <Layout>
-              <Component {...pageProps} />
-              <UserTracking />
-            </Layout>
-            <CrispWidget />
-          </DetailPageListsProvider>
-        </SessionProvider>
-      </PostHogProvider>
+      <TooltipProvider>
+        <PostHogProvider client={posthog}>
+          <SessionProvider session={session} refetchOnWindowFocus={true}>
+            <DetailPageListsProvider>
+              <Layout>
+                <Component {...pageProps} />
+                <UserTracking />
+              </Layout>
+              <CrispWidget />
+            </DetailPageListsProvider>
+          </SessionProvider>
+        </PostHogProvider>
+      </TooltipProvider>
     </QueryParamProvider>
   );
 };
