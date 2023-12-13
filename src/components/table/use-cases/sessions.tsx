@@ -86,7 +86,7 @@ export default function SessionsTable({
     return {
       id: session.id,
       createdAt: session.createdAt.toLocaleString(),
-      userIds: session.userIds ?? [],
+      userIds: session.userIds,
       countTraces: session.countTraces,
       bookmarked: session.bookmarked,
       sessionDuration: session.sessionDuration,

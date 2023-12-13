@@ -36,7 +36,7 @@ export const sessionRouter = createTRPCRouter({
             bookmarked: boolean;
             public: boolean;
             countTraces: number;
-            userIds: string[];
+            userIds: string[] | null;
             totalCount: number;
             sessionDuration: number | null;
           }>
@@ -85,7 +85,7 @@ export const sessionRouter = createTRPCRouter({
     `);
         return sessions.map((s) => ({
           ...s,
-          userIds: s.userIds.filter((t) => t !== null),
+          userIds: s.userIds?.filter((t) => t !== null) ?? [],
         }));
       } catch (e) {
         console.error(e);
