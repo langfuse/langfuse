@@ -92,28 +92,28 @@ export class ObservationProcessor implements EventProcessor {
           ).id
         : traceId;
 
-    const internalUsage: z.infer<typeof Usage> | undefined =
-      // if usage is not null
-      usage &&
-      // if usage is the old object
-      typeof usage === "object" &&
-      ("totalTokens" in usage ||
-        "completionTokens" in usage ||
-        "promptTokens" in usage)
-        ? // convert to new object
-          {
-            total: usage.totalTokens,
-            input: usage.promptTokens,
-            output: usage.completionTokens,
-            unit: "TOKENS",
-          }
-        : usage && "unit" in usage // if usage is the new take it or default to undefined
-          ? usage
-          : undefined;
+    // const internalUsage: z.infer<typeof Usage> | undefined =
+    //   // if usage is not null
+    //   usage &&
+    //   // if usage is the old object
+    //   typeof usage === "object" &&
+    //   ("totalTokens" in usage ||
+    //     "completionTokens" in usage ||
+    //     "promptTokens" in usage)
+    //     ? // convert to new object
+    //       {
+    //         total: usage.totalTokens,
+    //         input: usage.promptTokens,
+    //         output: usage.completionTokens,
+    //         unit: "TOKENS",
+    //       }
+    //     : usage && "unit" in usage // if usage is the new take it or default to undefined
+    //       ? usage
+    //       : undefined;
 
     const [newInputCount, newOutputCount] = this.calculateTokenCounts(
       body,
-      internalUsage ?? undefined,
+      usage ?? undefined,
       existingObservation ?? undefined,
     );
 
@@ -146,8 +146,8 @@ export class ObservationProcessor implements EventProcessor {
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
         totalTokens:
-          internalUsage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
-        unit: internalUsage?.unit ?? undefined,
+          usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
+        unit: usage?.unit ?? undefined,
         level: level ?? undefined,
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,
@@ -170,8 +170,8 @@ export class ObservationProcessor implements EventProcessor {
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
         totalTokens:
-          internalUsage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
-        unit: internalUsage?.unit ?? undefined,
+          usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
+        unit: usage?.unit ?? undefined,
         level: level ?? undefined,
         statusMessage: statusMessage ?? undefined,
         parentObservationId: parentObservationId ?? undefined,

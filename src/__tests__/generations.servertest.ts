@@ -17,6 +17,28 @@ describe("/api/public/generations API Endpoint", () => {
         unit: "CHARACTERS",
       },
       expectedUnit: "CHARACTERS",
+      expectedPromptTokens: 100,
+      expectedCompletionTokens: 200,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        total: 100,
+        unit: "CHARACTERS",
+      },
+      expectedUnit: "CHARACTERS",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        total: 100,
+      },
+      expectedUnit: "TOKENS",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
     },
     {
       usage: {
@@ -24,6 +46,18 @@ describe("/api/public/generations API Endpoint", () => {
         completionTokens: 200,
         totalTokens: 100,
       },
+      expectedPromptTokens: 100,
+      expectedCompletionTokens: 200,
+      expectedTotalTokens: 100,
+      expectedUnit: "TOKENS",
+    },
+    {
+      usage: {
+        totalTokens: 100,
+      },
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
       expectedUnit: "TOKENS",
     },
   ].forEach((testConfig) => {
@@ -94,8 +128,11 @@ describe("/api/public/generations API Endpoint", () => {
       expect(dbGeneration?.metadata).toEqual({ key: "value" });
       expect(dbGeneration?.version).toBe("2.0.0");
       expect(dbGeneration?.unit).toBe(testConfig.expectedUnit);
-      expect(dbGeneration?.promptTokens).toBe(100);
-      expect(dbGeneration?.completionTokens).toBe(200);
+      expect(dbGeneration?.promptTokens).toBe(testConfig.expectedPromptTokens);
+      expect(dbGeneration?.completionTokens).toBe(
+        testConfig.expectedCompletionTokens,
+      );
+      expect(dbGeneration?.totalTokens).toBe(testConfig.expectedTotalTokens);
     });
   });
 

@@ -33,6 +33,15 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
     {
       usage: {
+        total: 100,
+      },
+      expectedUnit: "TOKENS",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
         promptTokens: 100,
         completionTokens: 200,
         totalTokens: 100,
@@ -132,6 +141,8 @@ describe("/api/public/ingestion API Endpoint", () => {
           },
         ],
       });
+
+      // expect(response.body).toBeNaN();
 
       expect(response.status).toBe(207);
 

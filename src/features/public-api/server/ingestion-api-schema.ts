@@ -3,22 +3,47 @@ import { jsonSchema } from "@/src/utils/zod";
 import { z } from "zod";
 
 export const Usage = z.object({
-  input: z.number().nullish(),
-  output: z.number().nullish(),
-  total: z.number().nullish(),
-  unit: z.enum(["TOKENS", "CHARACTERS"]),
+  input: z.number().int().nullish(),
+  output: z.number().int().nullish(),
+  total: z.number().int().nullish(),
+  unit: z.enum(["TOKENS", "CHARACTERS"]).nullable(),
 });
 
-export const OldUsage = z.object({
-  promptTokens: z.number().nullish(),
-  completionTokens: z.number().nullish(),
-  totalTokens: z.number().nullish(),
+const MixedUsage = z.object({
+  input: z.number().int().nullish(),
+  output: z.number().int().nullish(),
+  total: z.number().int().nullish(),
+  unit: z.enum(["TOKENS", "CHARACTERS"]).nullish(),
+  promptTokens: z.number().int().nullish(),
+  completionTokens: z.number().int().nullish(),
+  totalTokens: z.number().int().nullish(),
 });
 
 // usage has to come first, so that it is matched.
 // otherwise, zod will try to match the new schema to the old one and return
 // an empty object.
-export const usage = Usage.or(OldUsage).nullish();
+export const usage = MixedUsage.nullish()
+  // transform mixed usage model input to new one
+  .transform((v) => {
+    if (!v) {
+      return null;
+    }
+    if ("promptTokens" in v || "completionTokens" in v || "totalTokens" in v) {
+      console.log("old usage");
+      return {
+        input: v.promptTokens,
+        output: v.completionTokens,
+        total: v.totalTokens,
+        unit: "TOKENS",
+      };
+    }
+    if ("input" in v || "output" in v || "total" in v || "unit" in v) {
+      const unit = v.unit === "CHARACTERS" ? "CHARACTERS" : "TOKENS";
+      return { ...v, unit };
+    }
+  })
+  // ensure output is always of new usage model
+  .pipe(Usage.nullable());
 
 export const TraceSchema = z.object({
   id: z.string().nullish(),
