@@ -982,8 +982,7 @@ components:
           nullable: true
         unit:
           $ref: '#/components/schemas/ModelUsageType'
-      required:
-        - unit
+          nullable: true
     Score:
       title: Score
       type: object

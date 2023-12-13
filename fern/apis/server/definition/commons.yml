@@ -64,7 +64,7 @@ types:
       input: optional<integer>
       output: optional<integer>
       total: optional<integer>
-      unit: ModelUsageType
+      unit: optional<ModelUsageType>
   Score:
     properties:
       id: string
