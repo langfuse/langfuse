@@ -80,7 +80,7 @@
     "next-auth": "^4.24.5",
     "next-query-params": "^5.0.0",
     "nodemailer": "^6.9.7",
-    "posthog-js": "^1.94.2",
+    "posthog-js": "^1.95.1",
     "posthog-node": "^3.2.0",
     "react": "18.2.0",
     "react-day-picker": "^8.9.1",
