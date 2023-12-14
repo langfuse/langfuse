@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   EventSchema,
   eventTypes,
-  ingestionBatch,
+  ingestionBatchEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import {
   handleBatch,
@@ -56,7 +56,7 @@ export default async function handler(
     };
 
     const result = await handleBatch(
-      ingestionBatch.parse([event]),
+      ingestionBatchEvent.parse([event]),
       req,
       authCheck,
     );

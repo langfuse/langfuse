@@ -8,7 +8,7 @@ import { paginationZod } from "@/src/utils/zod";
 import {
   ScoreSchema,
   eventTypes,
-  ingestionBatch,
+  ingestionBatchEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
 import {
@@ -55,7 +55,7 @@ export default async function handler(
       };
 
       const result = await handleBatch(
-        ingestionBatch.parse([event]),
+        ingestionBatchEvent.parse([event]),
         req,
         authCheck,
       );

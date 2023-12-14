@@ -142,9 +142,9 @@ describe("/api/public/ingestion API Endpoint", () => {
         ],
       });
 
-      // expect(response.body).toBeNaN();
-
       expect(response.status).toBe(207);
+
+      console.log("response body", response.body);
 
       const dbTrace = await prisma.trace.findMany({
         where: {
@@ -219,6 +219,144 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbScore?.value).toBe(100.5);
       expect(dbScore?.observationId).toBeNull();
     });
+  });
+
+  it("should create and update all events", async () => {
+    const traceId = v4();
+    const generationId = v4();
+    const spanId = v4();
+    const eventId = v4();
+    const scoreId = v4();
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+          },
+        },
+        {
+          id: v4(),
+          type: "span-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: spanId,
+            traceId: traceId,
+          },
+        },
+        {
+          id: v4(),
+          type: "span-update",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: spanId,
+            traceId: traceId,
+            name: "span-name",
+          },
+        },
+        {
+          id: v4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            parentObservationId: spanId,
+          },
+        },
+        {
+          id: v4(),
+          type: "generation-update",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            name: "generation-name",
+          },
+        },
+        {
+          id: v4(),
+          type: "event-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: eventId,
+            traceId: traceId,
+            name: "event-name",
+            parentObservationId: generationId,
+          },
+        },
+        {
+          id: v4(),
+          type: "score-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: scoreId,
+            name: "score-name",
+            traceId: traceId,
+            value: 100.5,
+            observationId: generationId,
+          },
+        },
+      ],
+    });
+
+    // expect(response.body).toBeNaN();
+
+    expect(response.status).toBe(207);
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+
+    const dbSpan = await prisma.observation.findUnique({
+      where: {
+        id: spanId,
+      },
+    });
+
+    expect(dbSpan?.id).toBe(spanId);
+    expect(dbSpan?.name).toBe("span-name");
+    expect(dbSpan?.traceId).toBe(traceId);
+
+    const dbGeneration = await prisma.observation.findUnique({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(dbGeneration?.id).toBe(generationId);
+    expect(dbGeneration?.traceId).toBe(traceId);
+    expect(dbGeneration?.name).toBe("generation-name");
+    expect(dbGeneration?.parentObservationId).toBe(spanId);
+
+    const dbEvent = await prisma.observation.findUnique({
+      where: {
+        id: eventId,
+      },
+    });
+
+    expect(dbEvent?.id).toBe(eventId);
+    expect(dbEvent?.traceId).toBe(traceId);
+    expect(dbEvent?.name).toBe("event-name");
+    expect(dbEvent?.parentObservationId).toBe(generationId);
+
+    const dbScore = await prisma.score.findUnique({
+      where: {
+        id: scoreId,
+      },
+    });
+
+    expect(dbScore?.id).toBe(scoreId);
+    expect(dbScore?.traceId).toBe(traceId);
+    expect(dbScore?.observationId).toBe(generationId);
+    expect(dbScore?.value).toBe(100.5);
   });
 
   it("should upsert threats", async () => {

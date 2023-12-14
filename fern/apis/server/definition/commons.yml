@@ -64,7 +64,7 @@ types:
       input: optional<integer>
       output: optional<integer>
       total: optional<integer>
-      unit: optional<ModelUsageType>
+      unit: optional<ModelUsageUnit>
   Score:
     properties:
       id: string
@@ -112,7 +112,7 @@ types:
       datasetRunItems: list<DatasetRunItem>
 
   # Utilities
-  ModelUsageType:
+  ModelUsageUnit:
     enum:
       - CHARACTERS
       - TOKENS

@@ -981,7 +981,7 @@ components:
           type: integer
           nullable: true
         unit:
-          $ref: '#/components/schemas/ModelUsageType'
+          $ref: '#/components/schemas/ModelUsageUnit'
           nullable: true
     Score:
       title: Score
@@ -1127,8 +1127,8 @@ components:
         - createdAt
         - updatedAt
         - datasetRunItems
-    ModelUsageType:
-      title: ModelUsageType
+    ModelUsageUnit:
+      title: ModelUsageUnit
       type: string
       enum:
         - CHARACTERS
@@ -1240,8 +1240,8 @@ components:
             - $ref: '#/components/schemas/ObservationUpdateEvent'
           required:
             - type
-    ObservationEvent:
-      title: ObservationEvent
+    ObservationBody:
+      title: ObservationBody
       type: object
       properties:
         id:
@@ -1298,8 +1298,8 @@ components:
       required:
         - id
         - type
-    CreateTraceRequest:
-      title: CreateTraceRequest
+    TraceBody:
+      title: TraceBody
       type: object
       properties:
         id:
@@ -1339,7 +1339,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/CreateTraceRequest'
+          $ref: '#/components/schemas/TraceBody'
       required:
         - id
         - timestamp
@@ -1353,7 +1353,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/ObservationEvent'
+          $ref: '#/components/schemas/ObservationBody'
       required:
         - id
         - timestamp
@@ -1367,7 +1367,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/ObservationEvent'
+          $ref: '#/components/schemas/ObservationBody'
       required:
         - id
         - timestamp

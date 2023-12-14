@@ -3,12 +3,17 @@ import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import {
-  type observationEvent,
+  type legacyObservationCreateEvent,
   eventTypes,
   type traceEvent,
   type scoreEvent,
-  type observationUpdateEvent,
   type Usage,
+  type eventEvent,
+  type spanCreateEvent,
+  type generationCreateEvent,
+  type spanUpdateEvent,
+  type generationUpdateEvent,
+  type legacyObservationUpdateEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -28,13 +33,23 @@ export interface EventProcessor {
 }
 export class ObservationProcessor implements EventProcessor {
   event:
-    | z.infer<typeof observationEvent>
-    | z.infer<typeof observationUpdateEvent>;
+    | z.infer<typeof legacyObservationCreateEvent>
+    | z.infer<typeof legacyObservationUpdateEvent>
+    | z.infer<typeof eventEvent>
+    | z.infer<typeof spanCreateEvent>
+    | z.infer<typeof spanUpdateEvent>
+    | z.infer<typeof generationCreateEvent>
+    | z.infer<typeof generationUpdateEvent>;
 
   constructor(
     event:
-      | z.infer<typeof observationEvent>
-      | z.infer<typeof observationUpdateEvent>,
+      | z.infer<typeof legacyObservationCreateEvent>
+      | z.infer<typeof legacyObservationUpdateEvent>
+      | z.infer<typeof eventEvent>
+      | z.infer<typeof spanCreateEvent>
+      | z.infer<typeof spanUpdateEvent>
+      | z.infer<typeof generationCreateEvent>
+      | z.infer<typeof generationUpdateEvent>,
   ) {
     this.event = event;
   }
@@ -46,25 +61,26 @@ export class ObservationProcessor implements EventProcessor {
   }> {
     const { body } = this.event;
 
-    const {
-      id,
-      traceId,
-      type,
-      name,
-      startTime,
-      endTime,
-      completionStartTime,
-      model,
-      modelParameters,
-      input,
-      output,
-      usage,
-      metadata,
-      parentObservationId,
-      level,
-      statusMessage,
-      version,
-    } = body;
+    let type;
+    switch (this.event.type) {
+      case eventTypes.OBSERVATION_CREATE:
+      case eventTypes.OBSERVATION_UPDATE:
+        type = this.event.body.type;
+        break;
+      case eventTypes.EVENT_CREATE:
+        type = "EVENT" as const;
+        break;
+      case eventTypes.SPAN_CREATE:
+      case eventTypes.SPAN_UPDATE:
+        type = "SPAN" as const;
+        break;
+      case eventTypes.GENERATION_CREATE:
+      case eventTypes.GENERATION_UPDATE:
+        type = "GENERATION" as const;
+        break;
+    }
+
+    const { id, traceId, name, startTime, metadata } = body;
 
     const existingObservation = id
       ? await prisma.observation.findUnique({
@@ -73,7 +89,7 @@ export class ObservationProcessor implements EventProcessor {
       : null;
 
     if (
-      this.event.type === eventTypes.OBSERVAION_UPDATE &&
+      this.event.type === eventTypes.OBSERVATION_UPDATE &&
       !existingObservation
     ) {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
@@ -92,30 +108,14 @@ export class ObservationProcessor implements EventProcessor {
           ).id
         : traceId;
 
-    // const internalUsage: z.infer<typeof Usage> | undefined =
-    //   // if usage is not null
-    //   usage &&
-    //   // if usage is the old object
-    //   typeof usage === "object" &&
-    //   ("totalTokens" in usage ||
-    //     "completionTokens" in usage ||
-    //     "promptTokens" in usage)
-    //     ? // convert to new object
-    //       {
-    //         total: usage.totalTokens,
-    //         input: usage.promptTokens,
-    //         output: usage.completionTokens,
-    //         unit: "TOKENS",
-    //       }
-    //     : usage && "unit" in usage // if usage is the new take it or default to undefined
-    //       ? usage
-    //       : undefined;
-
-    const [newInputCount, newOutputCount] = this.calculateTokenCounts(
-      body,
-      usage ?? undefined,
-      existingObservation ?? undefined,
-    );
+    const [newInputCount, newOutputCount] =
+      "usage" in body
+        ? this.calculateTokenCounts(
+            body,
+            body.usage ?? undefined,
+            existingObservation ?? undefined,
+          )
+        : [undefined, undefined];
 
     // merge metadata from existingObservation.metadata and metadata
     const mergedMetadata = mergeJson(
@@ -134,54 +134,73 @@ export class ObservationProcessor implements EventProcessor {
         type: type,
         name: name,
         startTime: startTime ? new Date(startTime) : undefined,
-        endTime: endTime ? new Date(endTime) : undefined,
-        completionStartTime: completionStartTime
-          ? new Date(completionStartTime)
-          : undefined,
+        endTime:
+          "endTime" in body && body.endTime
+            ? new Date(body.endTime)
+            : undefined,
+        completionStartTime:
+          "completionStartTime" in body && body.completionStartTime
+            ? new Date(body.completionStartTime)
+            : undefined,
         metadata: mergedMetadata ?? metadata ?? undefined,
-        model: model ?? undefined,
-        modelParameters: modelParameters ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
+        model: "model" in body ? body.model : undefined,
+        modelParameters:
+          "modelParameters" in body
+            ? body.modelParameters ?? undefined
+            : undefined,
+        input: body.input ?? undefined,
+        output: body.output ?? undefined,
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
         totalTokens:
-          usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
-        unit: usage?.unit ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
+          "usage" in body
+            ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
+            : undefined,
+        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        level: body.level ?? undefined,
+        statusMessage: body.statusMessage ?? undefined,
+        parentObservationId: body.parentObservationId ?? undefined,
+        version: body.version ?? undefined,
         project: { connect: { id: apiScope.projectId } },
       },
       update: {
-        type: type,
         name,
         startTime: startTime ? new Date(startTime) : undefined,
-        endTime: endTime ? new Date(endTime) : undefined,
-        completionStartTime: completionStartTime
-          ? new Date(completionStartTime)
-          : undefined,
+        endTime:
+          "endTime" in body && body.endTime
+            ? new Date(body.endTime)
+            : undefined,
+        completionStartTime:
+          "completionStartTime" in body && body.completionStartTime
+            ? new Date(body.completionStartTime)
+            : undefined,
         metadata: mergedMetadata ?? metadata ?? undefined,
-        model: model ?? undefined,
-        modelParameters: modelParameters ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
+        model: "model" in body ? body.model : undefined,
+        modelParameters:
+          "modelParameters" in body
+            ? body.modelParameters ?? undefined
+            : undefined,
+        input: body.input ?? undefined,
+        output: body.output ?? undefined,
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
         totalTokens:
-          usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0),
-        unit: usage?.unit ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
+          "usage" in body
+            ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
+            : undefined,
+        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        level: body.level ?? undefined,
+        statusMessage: body.statusMessage ?? undefined,
+        parentObservationId: body.parentObservationId ?? undefined,
+        version: body.version ?? undefined,
       },
     };
   }
 
   calculateTokenCounts(
-    body: z.infer<typeof observationEvent>["body"],
+    body:
+      | z.infer<typeof legacyObservationCreateEvent>["body"]
+      | z.infer<typeof generationCreateEvent>["body"],
     usage: z.infer<typeof Usage> | undefined,
     existingObservation?: Observation,
   ) {

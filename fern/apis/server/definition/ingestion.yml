@@ -26,9 +26,9 @@ types:
       observation-create: ObservationCreateEvent
       observation-update: ObservationUpdateEvent
 
-  ObservationEvent:
+  ObservationBody:
     properties:
-      id: string
+      id: optional<string>
       traceId: optional<string>
       type: string
       name: optional<string>
@@ -45,7 +45,7 @@ types:
       level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
       parentObservationId: optional<string>
-  CreateTraceRequest:
+  TraceBody:
     properties:
       id: optional<string>
       name: optional<string>
@@ -64,17 +64,17 @@ types:
     properties:
       id: string
       timestamp: string
-      body: CreateTraceRequest
+      body: TraceBody
   ObservationCreateEvent:
     properties:
       id: string
       timestamp: string
-      body: ObservationEvent
+      body: ObservationBody
   ObservationUpdateEvent:
     properties:
       id: string
       timestamp: string
-      body: ObservationEvent
+      body: ObservationBody
   ScoreEvent:
     properties:
       id: string
