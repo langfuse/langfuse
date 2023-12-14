@@ -2,35 +2,6 @@ import { ObservationLevel } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { z } from "zod";
 
-// span post vs. patch
-// post has id, parentObservationId while patch has spanId and no parentObservationId
-
-// generation post vs. patch
-// post has id, parentObservationId while patch has generationId and no parentObservationId
-
-// event has only post
-
-// trace has only post
-
-// new ingestion observation. patch and post are the same
-// we have patch + post events as we need to know which ones are patch to sort the events
-// in the correct order on ingestion (patch after post)
-
-// observation schema vs. db schema
-// observation schema has:
-// non nullable fields in db: id, start_time, type, level, token fields, unit, project_id, created_at, updated_at
-
-// strategy: generate extension based ingestion objects in both fern + zod, import into TS + Python, use them as validation there.
-// User ingested + stateful data in SDKs need to add up to the correct ingestion format.
-// Downside:
-// -- need to import the openapi docs + zod schema in the SDKs.
-// -- we need to adjust the fern generated types to match our needs (e.g. any on input/output) in JS/TS
-// Upside:
-// -- We need to maintain the schema in Fern + Zod anyways for docs + validation in the API.
-// -- We can use the same schema in the SDKs as for for validation + docs
-
-// strategy: define the objects which users can ingest in the SDKs, have one generic observation event for all observation event types
-
 export const Usage = z.object({
   input: z.number().int().nullish(),
   output: z.number().int().nullish(),
@@ -48,9 +19,6 @@ const MixedUsage = z.object({
   totalTokens: z.number().int().nullish(),
 });
 
-// usage has to come first, so that it is matched.
-// otherwise, zod will try to match the new schema to the old one and return
-// an empty object.
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
   .transform((v) => {
@@ -87,8 +55,7 @@ export const TraceBody = z.object({
   public: z.boolean().nullish(),
 });
 
-export const EventBody = z.object({
-  id: z.string().nullish(),
+export const OptionalObservationBody = z.object({
   traceId: z.string().nullish(),
   name: z.string().nullish(),
   startTime: z.string().datetime({ offset: true }).nullish(),
@@ -101,11 +68,35 @@ export const EventBody = z.object({
   version: z.string().nullish(),
 });
 
-export const SpanBody = EventBody.extend({
+export const CreateEventEvent = OptionalObservationBody.extend({
+  id: z.string().nullish(),
+});
+
+export const UpdateEventEvent = OptionalObservationBody.extend({
+  id: z.string(),
+});
+
+export const CreateSpanBody = CreateEventEvent.extend({
   endTime: z.string().datetime({ offset: true }).nullish(),
 });
 
-export const GenerationBody = SpanBody.extend({
+export const UpdateSpanBody = UpdateEventEvent.extend({
+  endTime: z.string().datetime({ offset: true }).nullish(),
+});
+
+export const CreateGenerationBody = CreateSpanBody.extend({
+  completionStartTime: z.string().datetime({ offset: true }).nullish(),
+  model: z.string().nullish(),
+  modelParameters: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+    )
+    .nullish(),
+  usage: usage,
+});
+
+export const UpdateGenerationBody = UpdateSpanBody.extend({
   completionStartTime: z.string().datetime({ offset: true }).nullish(),
   model: z.string().nullish(),
   modelParameters: z
@@ -255,23 +246,23 @@ export const traceEvent = base.extend({
 
 export const eventCreateEvent = base.extend({
   type: z.literal(eventTypes.EVENT_CREATE),
-  body: EventBody,
+  body: CreateEventEvent,
 });
 export const spanCreateEvent = base.extend({
   type: z.literal(eventTypes.SPAN_CREATE),
-  body: SpanBody,
+  body: CreateSpanBody,
 });
 export const spanUpdateEvent = base.extend({
   type: z.literal(eventTypes.SPAN_UPDATE),
-  body: SpanBody,
+  body: UpdateSpanBody,
 });
 export const generationCreateEvent = base.extend({
   type: z.literal(eventTypes.GENERATION_CREATE),
-  body: GenerationBody,
+  body: CreateGenerationBody,
 });
 export const generationUpdateEvent = base.extend({
   type: z.literal(eventTypes.GENERATION_UPDATE),
-  body: GenerationBody,
+  body: UpdateGenerationBody,
 });
 export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),

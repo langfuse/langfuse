@@ -1226,7 +1226,7 @@ components:
                   type: string
                   enum:
                     - event-create
-            - $ref: '#/components/schemas/EventCreateEvent'
+            - $ref: '#/components/schemas/CreateEventEvent'
           required:
             - type
         - type: object
@@ -1237,7 +1237,7 @@ components:
                   type: string
                   enum:
                     - generation-create
-            - $ref: '#/components/schemas/GenerationCreateEvent'
+            - $ref: '#/components/schemas/CreateGenerationEvent'
           required:
             - type
         - type: object
@@ -1248,7 +1248,7 @@ components:
                   type: string
                   enum:
                     - generation-update
-            - $ref: '#/components/schemas/GenerationUpdateEvent'
+            - $ref: '#/components/schemas/UpdateGenerationEvent'
           required:
             - type
         - type: object
@@ -1259,7 +1259,7 @@ components:
                   type: string
                   enum:
                     - span-create
-            - $ref: '#/components/schemas/SpanCreateEvent'
+            - $ref: '#/components/schemas/CreateSpanEvent'
           required:
             - type
         - type: object
@@ -1270,7 +1270,7 @@ components:
                   type: string
                   enum:
                     - span-update
-            - $ref: '#/components/schemas/SpanUpdateEvent'
+            - $ref: '#/components/schemas/UpdateSpanEvent'
           required:
             - type
         - type: object
@@ -1281,7 +1281,7 @@ components:
                   type: string
                   enum:
                     - observation-create
-            - $ref: '#/components/schemas/ObservationCreateEvent'
+            - $ref: '#/components/schemas/CreateObservationEvent'
           required:
             - type
         - type: object
@@ -1292,7 +1292,7 @@ components:
                   type: string
                   enum:
                     - observation-update
-            - $ref: '#/components/schemas/ObservationUpdateEvent'
+            - $ref: '#/components/schemas/UpdateObservationEvent'
           required:
             - type
     IngestionUsage:
@@ -1554,8 +1554,8 @@ components:
         - id
         - timestamp
         - body
-    ObservationCreateEvent:
-      title: ObservationCreateEvent
+    CreateObservationEvent:
+      title: CreateObservationEvent
       type: object
       properties:
         id:
@@ -1568,8 +1568,8 @@ components:
         - id
         - timestamp
         - body
-    ObservationUpdateEvent:
-      title: ObservationUpdateEvent
+    UpdateObservationEvent:
+      title: UpdateObservationEvent
       type: object
       properties:
         id:
@@ -1596,8 +1596,8 @@ components:
         - id
         - timestamp
         - body
-    GenerationCreateEvent:
-      title: GenerationCreateEvent
+    CreateGenerationEvent:
+      title: CreateGenerationEvent
       type: object
       properties:
         id:
@@ -1610,8 +1610,8 @@ components:
         - id
         - timestamp
         - body
-    GenerationUpdateEvent:
-      title: GenerationUpdateEvent
+    UpdateGenerationEvent:
+      title: UpdateGenerationEvent
       type: object
       properties:
         id:
@@ -1624,8 +1624,8 @@ components:
         - id
         - timestamp
         - body
-    SpanCreateEvent:
-      title: SpanCreateEvent
+    CreateSpanEvent:
+      title: CreateSpanEvent
       type: object
       properties:
         id:
@@ -1638,8 +1638,8 @@ components:
         - id
         - timestamp
         - body
-    SpanUpdateEvent:
-      title: SpanUpdateEvent
+    UpdateSpanEvent:
+      title: UpdateSpanEvent
       type: object
       properties:
         id:
@@ -1652,8 +1652,8 @@ components:
         - id
         - timestamp
         - body
-    EventCreateEvent:
-      title: EventCreateEvent
+    CreateEventEvent:
+      title: CreateEventEvent
       type: object
       properties:
         id:

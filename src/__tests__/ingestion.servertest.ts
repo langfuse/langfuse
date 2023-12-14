@@ -302,8 +302,6 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     });
 
-    // expect(response.body).toBeNaN();
-
     expect(response.status).toBe(207);
 
     const dbTrace = await prisma.trace.findMany({

@@ -23,15 +23,15 @@ types:
     union:
       trace-create: TraceEvent
       score-create: ScoreEvent
-      event-create: EventCreateEvent
-      generation-create: GenerationCreateEvent
-      generation-update: GenerationUpdateEvent
-      span-create: SpanCreateEvent
-      span-update: SpanUpdateEvent
+      event-create: CreateEventEvent
+      generation-create: CreateGenerationEvent
+      generation-update: UpdateGenerationEvent
+      span-create: CreateSpanEvent
+      span-update: UpdateSpanEvent
 
       # both are legacy
-      observation-create: ObservationCreateEvent
-      observation-update: ObservationUpdateEvent
+      observation-create: CreateObservationEvent
+      observation-update: UpdateObservationEvent
 
   IngestionUsage:
     discriminated: false
@@ -143,13 +143,13 @@ types:
       timestamp: string
       body: TraceBody
 
-  ObservationCreateEvent:
+  CreateObservationEvent:
     properties:
       id: string
       timestamp: string
       body: ObservationBody
 
-  ObservationUpdateEvent:
+  UpdateObservationEvent:
     properties:
       id: string
       timestamp: string
@@ -161,31 +161,31 @@ types:
       timestamp: string
       body: ScoreBody
 
-  GenerationCreateEvent:
+  CreateGenerationEvent:
     properties:
       id: string
       timestamp: string
       body: CreateGenerationBody
 
-  GenerationUpdateEvent:
+  UpdateGenerationEvent:
     properties:
       id: string
       timestamp: string
       body: UpdateGenerationBody
 
-  SpanCreateEvent:
+  CreateSpanEvent:
     properties:
       id: string
       timestamp: string
       body: CreateSpanBody
 
-  SpanUpdateEvent:
+  UpdateSpanEvent:
     properties:
       id: string
       timestamp: string
       body: UpdateSpanBody
 
-  EventCreateEvent:
+  CreateEventEvent:
     properties:
       id: string
       timestamp: string
