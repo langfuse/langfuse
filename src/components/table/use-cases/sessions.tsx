@@ -68,7 +68,6 @@ export default function SessionsTable({
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
-    searchQuery: null,
   });
   const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
@@ -87,7 +86,7 @@ export default function SessionsTable({
     return {
       id: session.id,
       createdAt: session.createdAt.toLocaleString(),
-      userIds: session.userIds ?? [],
+      userIds: session.userIds,
       countTraces: session.countTraces,
       bookmarked: session.bookmarked,
       sessionDuration: session.sessionDuration,
@@ -207,6 +206,11 @@ export default function SessionsTable({
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        help={{
+          description:
+            "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
+          href: "https://langfuse.com/docs/sessions",
+        }}
       />
     </div>
   );
