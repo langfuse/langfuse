@@ -8,7 +8,7 @@ import {
   type traceEvent,
   type scoreEvent,
   type Usage,
-  type eventEvent,
+  type eventCreateEvent,
   type spanCreateEvent,
   type generationCreateEvent,
   type spanUpdateEvent,
@@ -35,7 +35,7 @@ export class ObservationProcessor implements EventProcessor {
   event:
     | z.infer<typeof legacyObservationCreateEvent>
     | z.infer<typeof legacyObservationUpdateEvent>
-    | z.infer<typeof eventEvent>
+    | z.infer<typeof eventCreateEvent>
     | z.infer<typeof spanCreateEvent>
     | z.infer<typeof spanUpdateEvent>
     | z.infer<typeof generationCreateEvent>
@@ -45,7 +45,7 @@ export class ObservationProcessor implements EventProcessor {
     event:
       | z.infer<typeof legacyObservationCreateEvent>
       | z.infer<typeof legacyObservationUpdateEvent>
-      | z.infer<typeof eventEvent>
+      | z.infer<typeof eventCreateEvent>
       | z.infer<typeof spanCreateEvent>
       | z.infer<typeof spanUpdateEvent>
       | z.infer<typeof generationCreateEvent>

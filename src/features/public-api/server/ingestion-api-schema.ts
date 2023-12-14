@@ -73,7 +73,7 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullable());
 
-export const TraceSchema = z.object({
+export const TraceBody = z.object({
   id: z.string().nullish(),
   name: z.string().nullish(),
   externalId: z.string().nullish(),
@@ -87,7 +87,7 @@ export const TraceSchema = z.object({
   public: z.boolean().nullish(),
 });
 
-export const EventSchema = z.object({
+export const EventBody = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
   name: z.string().nullish(),
@@ -101,11 +101,11 @@ export const EventSchema = z.object({
   version: z.string().nullish(),
 });
 
-export const SpanSchema = EventSchema.extend({
+export const SpanBody = EventBody.extend({
   endTime: z.string().datetime({ offset: true }).nullish(),
 });
 
-export const GenerationSchema = SpanSchema.extend({
+export const GenerationBody = SpanBody.extend({
   completionStartTime: z.string().datetime({ offset: true }).nullish(),
   model: z.string().nullish(),
   modelParameters: z
@@ -117,7 +117,7 @@ export const GenerationSchema = SpanSchema.extend({
   usage: usage,
 });
 
-export const ScoreSchema = z.object({
+export const ScoreBody = z.object({
   id: z.string().nullish(),
   name: z.string(),
   value: z.number(),
@@ -203,7 +203,7 @@ export const LegacyGenerationPatchSchema = z.object({
   version: z.string().nullish(),
 });
 
-export const LegacyObservationSchema = z.object({
+export const LegacyObservationBody = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
   type: z.enum(["GENERATION", "SPAN", "EVENT"]),
@@ -250,46 +250,46 @@ const base = z.object({
 });
 export const traceEvent = base.extend({
   type: z.literal(eventTypes.TRACE_CREATE),
-  body: TraceSchema,
+  body: TraceBody,
 });
 
-export const eventEvent = base.extend({
+export const eventCreateEvent = base.extend({
   type: z.literal(eventTypes.EVENT_CREATE),
-  body: EventSchema,
+  body: EventBody,
 });
 export const spanCreateEvent = base.extend({
   type: z.literal(eventTypes.SPAN_CREATE),
-  body: SpanSchema,
+  body: SpanBody,
 });
 export const spanUpdateEvent = base.extend({
   type: z.literal(eventTypes.SPAN_UPDATE),
-  body: SpanSchema,
+  body: SpanBody,
 });
 export const generationCreateEvent = base.extend({
   type: z.literal(eventTypes.GENERATION_CREATE),
-  body: GenerationSchema,
+  body: GenerationBody,
 });
 export const generationUpdateEvent = base.extend({
   type: z.literal(eventTypes.GENERATION_UPDATE),
-  body: GenerationSchema,
+  body: GenerationBody,
 });
 export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
-  body: ScoreSchema,
+  body: ScoreBody,
 });
 export const legacyObservationCreateEvent = base.extend({
   type: z.literal(eventTypes.OBSERVATION_CREATE),
-  body: LegacyObservationSchema,
+  body: LegacyObservationBody,
 });
 export const legacyObservationUpdateEvent = base.extend({
   type: z.literal(eventTypes.OBSERVATION_UPDATE),
-  body: LegacyObservationSchema,
+  body: LegacyObservationBody,
 });
 
 export const ingestionEvent = z.discriminatedUnion("type", [
   traceEvent,
   scoreEvent,
-  eventEvent,
+  eventCreateEvent,
   spanCreateEvent,
   spanUpdateEvent,
   generationCreateEvent,

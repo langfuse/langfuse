@@ -23,8 +23,55 @@ types:
     union:
       trace-create: TraceEvent
       score-create: ScoreEvent
+      event-create: EventCreateEvent
+      generation-create: GenerationCreateEvent
+      generation-update: GenerationUpdateEvent
+      span-create: SpanCreateEvent
+      span-update: SpanUpdateEvent
+
+      # both are legacy
       observation-create: ObservationCreateEvent
       observation-update: ObservationUpdateEvent
+
+  IngestionUsage:
+    discriminated: false
+    union:
+      - commons.Usage
+      - OpenAIUsage
+  OpenAIUsage:
+    properties:
+      promptTokens: optional<integer>
+      completionTokens: optional<integer>
+      totalTokens: optional<integer>
+
+  EventBody:
+    properties:
+      id: optional<string>
+      traceId: optional<string>
+      name: optional<string>
+      startTime: optional<datetime>
+      metadata: optional<unknown>
+      input: optional<unknown>
+      output: optional<unknown>
+      level: optional<commons.ObservationLevel>
+      statusMessage: optional<string>
+      parentObservationId: optional<string>
+      version: optional<string>
+
+  SpanBody:
+    extends: EventBody
+    properties:
+      endTime: optional<datetime>
+
+  GenerationBody:
+    extends: SpanBody
+    properties:
+      completionStartTime: optional<datetime>
+      model: optional<string>
+      modelParameters: optional<map<string, commons.MapValue>>
+      prompt: optional<unknown>
+      completion: optional<unknown>
+      usage: optional<IngestionUsage>
 
   ObservationBody:
     properties:
@@ -59,7 +106,14 @@ types:
       public:
         type: optional<boolean>
         docs: Make trace publicly accessible via url
-
+  ScoreBody:
+    properties:
+      id: string
+      traceId: string
+      name: string
+      value: double
+      observationId: optional<string>
+      comment: optional<string>
   TraceEvent:
     properties:
       id: string
@@ -79,7 +133,32 @@ types:
     properties:
       id: string
       timestamp: string
-      body: commons.Score
+      body: ScoreBody
+  GenerationCreateEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: GenerationBody
+  GenerationUpdateEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: GenerationBody
+  SpanCreateEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: SpanBody
+  SpanUpdateEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: SpanBody
+  EventCreateEvent:
+    properties:
+      id: string
+      timestamp: string
+      body: EventBody
   IngestionSuccess:
     properties:
       id: string
