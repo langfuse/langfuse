@@ -107,6 +107,7 @@ const OpenAiMessageSchema = z
     role: z.enum(["system", "user", "assistant"]).optional(),
     content: z.string().nullable(),
   })
+  .strict() // no additional properties
   .refine((value) => value.content !== null || value.role !== undefined);
 
 const OpenAiMessageArraySchema = z.array(OpenAiMessageSchema).min(1);
