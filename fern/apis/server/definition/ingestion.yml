@@ -83,8 +83,6 @@ types:
       completionStartTime: optional<datetime>
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
-      prompt: optional<unknown>
-      completion: optional<unknown>
       usage: optional<IngestionUsage>
 
   UpdateGenerationBody:
@@ -93,8 +91,6 @@ types:
       completionStartTime: optional<datetime>
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
-      prompt: optional<unknown>
-      completion: optional<unknown>
       usage: optional<IngestionUsage>
 
   ObservationBody:

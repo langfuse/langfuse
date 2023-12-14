@@ -1400,10 +1400,6 @@ components:
           additionalProperties:
             $ref: '#/components/schemas/MapValue'
           nullable: true
-        prompt:
-          nullable: true
-        completion:
-          nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
@@ -1424,10 +1420,6 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/MapValue'
-          nullable: true
-        prompt:
-          nullable: true
-        completion:
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
