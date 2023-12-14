@@ -7,7 +7,6 @@ import {
   eventTypes,
   type traceEvent,
   type scoreEvent,
-  type Usage,
   type eventCreateEvent,
   type spanCreateEvent,
   type generationCreateEvent,
