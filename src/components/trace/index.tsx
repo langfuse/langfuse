@@ -31,16 +31,7 @@ export function Trace(props: {
 
   return (
     <div className="grid h-full gap-4 md:grid-cols-3">
-      <div className="col-span-1 lg:hidden">
-        <ObservationTree
-          observations={props.observations}
-          trace={props.trace}
-          scores={props.scores}
-          currentObservationId={currentObservationId ?? undefined}
-          setCurrentObservationId={setCurrentObservationId}
-        />
-      </div>
-      <div className="col-span-2 h-full overflow-y-auto">
+      <div className="md:col-span-2 md:h-full md:overflow-y-auto">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -59,7 +50,7 @@ export function Trace(props: {
           />
         )}
       </div>
-      <div className="col-span-1 hidden h-full overflow-y-auto lg:block">
+      <div className="md:h-full md:overflow-y-auto">
         <ObservationTree
           observations={props.observations}
           trace={props.trace}
@@ -98,7 +89,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   if (!trace.data) return <div>loading...</div>;
 
   return (
-    <div className="flex flex-col overflow-hidden xl:container">
+    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
       <Header
         title="Trace Detail"
         breadcrumb={[
