@@ -44,9 +44,8 @@ types:
       completionTokens: optional<integer>
       totalTokens: optional<integer>
 
-  EventBody:
+  OpetionalObservationBody:
     properties:
-      id: optional<string>
       traceId: optional<string>
       name: optional<string>
       startTime: optional<datetime>
@@ -58,13 +57,38 @@ types:
       parentObservationId: optional<string>
       version: optional<string>
 
-  SpanBody:
-    extends: EventBody
+  CreateEventBody:
+    extends: OpetionalObservationBody
+    properties:
+      id: optional<string>
+
+  UpdateEventBody:
+    extends: OpetionalObservationBody
+    properties:
+      id: string
+
+  CreateSpanBody:
+    extends: CreateEventBody
     properties:
       endTime: optional<datetime>
 
-  GenerationBody:
-    extends: SpanBody
+  UpdateSpanBody:
+    extends: UpdateEventBody
+    properties:
+      endTime: optional<datetime>
+
+  CreateGenerationBody:
+    extends: CreateSpanBody
+    properties:
+      completionStartTime: optional<datetime>
+      model: optional<string>
+      modelParameters: optional<map<string, commons.MapValue>>
+      prompt: optional<unknown>
+      completion: optional<unknown>
+      usage: optional<IngestionUsage>
+
+  UpdateGenerationBody:
+    extends: UpdateSpanBody
     properties:
       completionStartTime: optional<datetime>
       model: optional<string>
@@ -92,6 +116,7 @@ types:
       level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
       parentObservationId: optional<string>
+
   TraceBody:
     properties:
       id: optional<string>
@@ -106,69 +131,82 @@ types:
       public:
         type: optional<boolean>
         docs: Make trace publicly accessible via url
+
   ScoreBody:
     properties:
-      id: string
+      id: optional<string>
       traceId: string
       name: string
       value: double
       observationId: optional<string>
       comment: optional<string>
+
   TraceEvent:
     properties:
       id: string
       timestamp: string
       body: TraceBody
+
   ObservationCreateEvent:
     properties:
       id: string
       timestamp: string
       body: ObservationBody
+
   ObservationUpdateEvent:
     properties:
       id: string
       timestamp: string
       body: ObservationBody
+
   ScoreEvent:
     properties:
       id: string
       timestamp: string
       body: ScoreBody
+
   GenerationCreateEvent:
     properties:
       id: string
       timestamp: string
-      body: GenerationBody
+      body: CreateGenerationBody
+
   GenerationUpdateEvent:
     properties:
       id: string
       timestamp: string
-      body: GenerationBody
+      body: UpdateGenerationBody
+
   SpanCreateEvent:
     properties:
       id: string
       timestamp: string
-      body: SpanBody
+      body: CreateSpanBody
+
   SpanUpdateEvent:
     properties:
       id: string
       timestamp: string
-      body: SpanBody
+      body: UpdateSpanBody
+
   EventCreateEvent:
     properties:
       id: string
       timestamp: string
-      body: EventBody
+      body: CreateEventBody
+
   IngestionSuccess:
     properties:
       id: string
       status: integer
+
   IngestionError:
     properties:
       id: string
       status: integer
       message: optional<string>
       error: optional<unknown>
+
   IngestionResponse:
     properties:
       successes: list<IngestionSuccess>

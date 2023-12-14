@@ -1313,13 +1313,10 @@ components:
         totalTokens:
           type: integer
           nullable: true
-    EventBody:
-      title: EventBody
+    OpetionalObservationBody:
+      title: OpetionalObservationBody
       type: object
       properties:
-        id:
-          type: string
-          nullable: true
         traceId:
           type: string
           nullable: true
@@ -1348,8 +1345,27 @@ components:
         version:
           type: string
           nullable: true
-    SpanBody:
-      title: SpanBody
+    CreateEventBody:
+      title: CreateEventBody
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/OpetionalObservationBody'
+    UpdateEventBody:
+      title: UpdateEventBody
+      type: object
+      properties:
+        id:
+          type: string
+      required:
+        - id
+      allOf:
+        - $ref: '#/components/schemas/OpetionalObservationBody'
+    CreateSpanBody:
+      title: CreateSpanBody
       type: object
       properties:
         endTime:
@@ -1357,9 +1373,19 @@ components:
           format: date-time
           nullable: true
       allOf:
-        - $ref: '#/components/schemas/EventBody'
-    GenerationBody:
-      title: GenerationBody
+        - $ref: '#/components/schemas/CreateEventBody'
+    UpdateSpanBody:
+      title: UpdateSpanBody
+      type: object
+      properties:
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/UpdateEventBody'
+    CreateGenerationBody:
+      title: CreateGenerationBody
       type: object
       properties:
         completionStartTime:
@@ -1382,7 +1408,32 @@ components:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
       allOf:
-        - $ref: '#/components/schemas/SpanBody'
+        - $ref: '#/components/schemas/CreateSpanBody'
+    UpdateGenerationBody:
+      title: UpdateGenerationBody
+      type: object
+      properties:
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        modelParameters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MapValue'
+          nullable: true
+        prompt:
+          nullable: true
+        completion:
+          nullable: true
+        usage:
+          $ref: '#/components/schemas/IngestionUsage'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/UpdateSpanBody'
     ObservationBody:
       title: ObservationBody
       type: object
@@ -1479,6 +1530,7 @@ components:
       properties:
         id:
           type: string
+          nullable: true
         traceId:
           type: string
         name:
@@ -1493,7 +1545,6 @@ components:
           type: string
           nullable: true
       required:
-        - id
         - traceId
         - name
         - value
@@ -1562,7 +1613,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/GenerationBody'
+          $ref: '#/components/schemas/CreateGenerationBody'
       required:
         - id
         - timestamp
@@ -1576,7 +1627,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/GenerationBody'
+          $ref: '#/components/schemas/UpdateGenerationBody'
       required:
         - id
         - timestamp
@@ -1590,7 +1641,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/SpanBody'
+          $ref: '#/components/schemas/CreateSpanBody'
       required:
         - id
         - timestamp
@@ -1604,7 +1655,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/SpanBody'
+          $ref: '#/components/schemas/UpdateSpanBody'
       required:
         - id
         - timestamp
@@ -1618,7 +1669,7 @@ components:
         timestamp:
           type: string
         body:
-          $ref: '#/components/schemas/EventBody'
+          $ref: '#/components/schemas/CreateEventBody'
       required:
         - id
         - timestamp
