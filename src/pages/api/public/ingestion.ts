@@ -85,7 +85,6 @@ export default async function handler(
     await telemetry();
 
     const sortedBatch = sortBatch(filteredBatch);
-    console.log("sorted batch", sortedBatch);
     const result = await handleBatch(sortedBatch, req, authCheck);
 
     handleBatchResult([...errors, ...result.errors], result.results, res);

@@ -110,11 +110,7 @@ export class ObservationProcessor implements EventProcessor {
 
     const [newInputCount, newOutputCount] =
       "usage" in body
-        ? this.calculateTokenCounts(
-            body,
-            body.usage ?? undefined,
-            existingObservation ?? undefined,
-          )
+        ? this.calculateTokenCounts(body, existingObservation ?? undefined)
         : [undefined, undefined];
 
     // merge metadata from existingObservation.metadata and metadata
@@ -201,13 +197,12 @@ export class ObservationProcessor implements EventProcessor {
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
-    usage: z.infer<typeof Usage> | undefined,
     existingObservation?: Observation,
   ) {
     const mergedModel = body.model ?? existingObservation?.model;
 
     const newPromptTokens =
-      usage?.input ??
+      body?.usage?.input ??
       ((body.input || existingObservation?.input) && mergedModel
         ? tokenCount({
             model: mergedModel,
@@ -216,7 +211,7 @@ export class ObservationProcessor implements EventProcessor {
         : undefined);
 
     const newCompletionTokens =
-      usage?.output ??
+      body?.usage?.output ??
       ((body.output || existingObservation?.output) && mergedModel
         ? tokenCount({
             model: mergedModel,
