@@ -1,7 +1,6 @@
 import { ObservationLevel } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { z } from "zod";
-import { loadStaticPaths } from "next/dist/server/dev/static-paths-worker";
 import lodash from "lodash";
 
 export const Usage = z.object({
