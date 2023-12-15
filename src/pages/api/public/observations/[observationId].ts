@@ -3,6 +3,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 
 const GetObservationSchema = z.object({
   observationId: z.string(),
@@ -54,7 +55,7 @@ export default async function handler(
         message: "Observation not found within authorized project",
       });
     }
-    return res.status(200).json(observation);
+    return res.status(200).json(mapUsageOutput(observation));
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
