@@ -10,7 +10,7 @@ import {
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import {
-  TraceSchema,
+  TraceBody,
   eventTypes,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
@@ -52,7 +52,7 @@ export default async function handler(
           message: "Access denied",
         });
 
-      const body = TraceSchema.parse(req.body);
+      const body = TraceBody.parse(req.body);
 
       await telemetry();
 

@@ -9,7 +9,7 @@ import { z } from "zod";
 import {
   type ingestionApiSchema,
   eventTypes,
-  singleEventSchema,
+  ingestionEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -61,9 +61,9 @@ export default async function handler(
 
     const errors: { id: string; error: unknown }[] = [];
 
-    const batch: (z.infer<typeof singleEventSchema> | undefined)[] =
+    const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
       parsedSchema.data.batch.map((event) => {
-        const parsed = singleEventSchema.safeParse(event);
+        const parsed = ingestionEvent.safeParse(event);
         if (!parsed.success) {
           errors.push({
             id:
@@ -79,7 +79,7 @@ export default async function handler(
           return parsed.data;
         }
       });
-    const filteredBatch: z.infer<typeof singleEventSchema>[] =
+    const filteredBatch: z.infer<typeof ingestionEvent>[] =
       batch.filter(isNotNullOrUndefined);
 
     await telemetry();
@@ -99,17 +99,20 @@ export default async function handler(
   }
 }
 
-const sortBatch = (batch: Array<z.infer<typeof singleEventSchema>>) => {
-  // keep the order of events as they are. Order events in a way that types containing update come last
-  return batch.sort((a, b) => {
-    if (a.type === eventTypes.OBSERVAION_UPDATE) {
-      return 1;
-    }
-    if (b.type === eventTypes.OBSERVAION_UPDATE) {
-      return -1;
-    }
-    return 0;
-  });
+const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
+  // keep the order of events as they are. Order events in a way that types containing updates come last
+  // Filter out OBSERVATION_UPDATE events
+  const updates = batch.filter(
+    (event) => event.type === eventTypes.OBSERVATION_UPDATE,
+  );
+
+  // Keep all other events in their original order
+  const others = batch.filter(
+    (event) => event.type !== eventTypes.OBSERVATION_UPDATE,
+  );
+
+  // Return the array with non-update events first, followed by update events
+  return [...others, ...updates];
 };
 
 export const handleBatch = async (
@@ -171,7 +174,7 @@ export const hasBadRequestError = (errors: Array<unknown>) =>
   errors.some((error) => error instanceof BadRequestError);
 
 const handleSingleEvent = async (
-  event: z.infer<typeof singleEventSchema>,
+  event: z.infer<typeof ingestionEvent>,
   req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
@@ -180,7 +183,7 @@ const handleSingleEvent = async (
     JSON.stringify(event, null, 2),
   );
 
-  const cleanedEvent = singleEventSchema.parse(cleanEvent(event));
+  const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
 
   const { type } = cleanedEvent;
 
@@ -192,7 +195,12 @@ const handleSingleEvent = async (
       processor = new TraceProcessor(cleanedEvent);
       break;
     case eventTypes.OBSERVATION_CREATE:
-    case eventTypes.OBSERVAION_UPDATE:
+    case eventTypes.OBSERVATION_UPDATE:
+    case eventTypes.EVENT_CREATE:
+    case eventTypes.SPAN_CREATE:
+    case eventTypes.SPAN_UPDATE:
+    case eventTypes.GENERATION_CREATE:
+    case eventTypes.GENERATION_UPDATE:
       processor = new ObservationProcessor(cleanedEvent);
       break;
     case eventTypes.SCORE_CREATE: {
@@ -270,6 +278,10 @@ export const handleBatchResult = (
       });
     }
   });
+
+  if (returnedErrors.length > 0) {
+    console.log("Error processing events", returnedErrors);
+  }
 
   results.forEach((result) => {
     successes.push({
