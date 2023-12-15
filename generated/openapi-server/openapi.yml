@@ -1295,6 +1295,13 @@ components:
             - $ref: '#/components/schemas/UpdateObservationEvent'
           required:
             - type
+    ObservationType:
+      title: ObservationType
+      type: string
+      enum:
+        - SPAN
+        - GENERATION
+        - EVENT
     IngestionUsage:
       title: IngestionUsage
       oneOf:
@@ -1313,8 +1320,8 @@ components:
         totalTokens:
           type: integer
           nullable: true
-    OpetionalObservationBody:
-      title: OpetionalObservationBody
+    OptionalObservationBody:
+      title: OptionalObservationBody
       type: object
       properties:
         traceId:
@@ -1353,7 +1360,7 @@ components:
           type: string
           nullable: true
       allOf:
-        - $ref: '#/components/schemas/OpetionalObservationBody'
+        - $ref: '#/components/schemas/OptionalObservationBody'
     UpdateEventBody:
       title: UpdateEventBody
       type: object
@@ -1363,7 +1370,7 @@ components:
       required:
         - id
       allOf:
-        - $ref: '#/components/schemas/OpetionalObservationBody'
+        - $ref: '#/components/schemas/OptionalObservationBody'
     CreateSpanBody:
       title: CreateSpanBody
       type: object
@@ -1437,7 +1444,7 @@ components:
           type: string
           nullable: true
         type:
-          type: string
+          $ref: '#/components/schemas/ObservationType'
         name:
           type: string
           nullable: true

@@ -33,18 +33,25 @@ types:
       observation-create: CreateObservationEvent
       observation-update: UpdateObservationEvent
 
+  ObservationType:
+    enum:
+      - SPAN
+      - GENERATION
+      - EVENT
+
   IngestionUsage:
     discriminated: false
     union:
       - commons.Usage
       - OpenAIUsage
+
   OpenAIUsage:
     properties:
       promptTokens: optional<integer>
       completionTokens: optional<integer>
       totalTokens: optional<integer>
 
-  OpetionalObservationBody:
+  OptionalObservationBody:
     properties:
       traceId: optional<string>
       name: optional<string>
@@ -58,12 +65,12 @@ types:
       version: optional<string>
 
   CreateEventBody:
-    extends: OpetionalObservationBody
+    extends: OptionalObservationBody
     properties:
       id: optional<string>
 
   UpdateEventBody:
-    extends: OpetionalObservationBody
+    extends: OptionalObservationBody
     properties:
       id: string
 
@@ -97,7 +104,7 @@ types:
     properties:
       id: optional<string>
       traceId: optional<string>
-      type: string
+      type: ObservationType
       name: optional<string>
       startTime: optional<datetime>
       endTime: optional<datetime>
