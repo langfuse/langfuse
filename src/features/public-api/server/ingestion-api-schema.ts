@@ -1,6 +1,8 @@
 import { ObservationLevel } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { z } from "zod";
+import { loadStaticPaths } from "next/dist/server/dev/static-paths-worker";
+import lodash from "lodash";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -36,6 +38,10 @@ export const usage = MixedUsage.nullish()
     if ("input" in v || "output" in v || "total" in v || "unit" in v) {
       const unit = v.unit ?? "TOKENS";
       return { ...v, unit };
+    }
+
+    if (lodash.isEmpty(v)) {
+      return { unit: "TOKENS" };
     }
   })
   // ensure output is always of new usage model
