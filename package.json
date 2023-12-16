@@ -112,7 +112,7 @@
     "@types/node": "20.10.0",
     "@types/nodemailer": "^6.4.14",
     "@types/react": "^18.2.45",
-    "@types/react-dom": "^18.2.17",
+    "@types/react-dom": "^18.2.18",
     "@types/swagger-ui-react": "^4.18.3",
     "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
