@@ -8,6 +8,7 @@ import {
   getFilteredRowModel,
   type OnChangeFn,
   type PaginationState,
+  type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
 import {
@@ -31,6 +32,8 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
+  rowSelection?: RowSelectionState;
+  setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   help?: { description: string; href: string };
@@ -43,10 +46,12 @@ export interface AsyncTableData<T> {
   error?: string;
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends object, TValue>({
   columns,
   data,
   pagination,
+  rowSelection,
+  setRowSelection,
   columnVisibility,
   onColumnVisibilityChange,
   help,
@@ -61,11 +66,20 @@ export function DataTable<TData, TValue>({
     manualPagination: pagination !== undefined,
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
+    onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: onColumnVisibilityChange,
+    getRowId: (row, index) => {
+      if ("id" in row && typeof row.id === "string") {
+        return row.id;
+      } else {
+        return index.toString();
+      }
+    },
     state: {
       columnFilters,
       pagination: pagination?.state,
       columnVisibility,
+      rowSelection,
     },
     manualFiltering: true,
   });
@@ -108,10 +122,7 @@ export function DataTable<TData, TValue>({
                 </TableRow>
               ) : table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                  >
+                  <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
