@@ -124,7 +124,7 @@ export function ExpertScoreButton({
         id: v.id === "new" ? undefined : v.id,
         value: parseFloat(v.value),
         traceId,
-        commment: v.comment ?? null,
+        comment: v.comment,
         observationId: observationId ?? null,
       })),
     });
