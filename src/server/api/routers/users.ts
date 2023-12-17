@@ -22,14 +22,14 @@ export const userRouter = createTRPCRouter({
       const users = await ctx.prisma.$queryRaw<
         {
           userId: string;
-          firstTrace: Date;
-          lastTrace: Date;
+          firstTrace: Date | null;
+          lastTrace: Date | null;
           totalTraces: number;
           totalPromptTokens: number;
           totalCompletionTokens: number;
           totalTokens: number;
-          firstObservation: Date;
-          lastObservation: Date;
+          firstObservation: Date | null;
+          lastObservation: Date | null;
           totalObservations: number;
           totalCount: number;
         }[]

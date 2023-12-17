@@ -154,7 +154,7 @@ export function DatasetsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: datasets.data?.map((t) => convertToTableRow(t)),
+                  data: datasets.data.map((t) => convertToTableRow(t)),
                 }
         }
       />

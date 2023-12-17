@@ -38,16 +38,15 @@ export const LatencyChart = ({
         { column: "duration", agg: "99thPercentile" },
         { column: "model" },
       ],
-      filter:
-        [
-          ...globalFilterState,
-          {
-            type: "string",
-            column: "type",
-            operator: "=",
-            value: "GENERATION",
-          },
-        ] ?? [],
+      filter: [
+        ...globalFilterState,
+        {
+          type: "string",
+          column: "type",
+          operator: "=",
+          value: "GENERATION",
+        },
+      ],
       groupBy: [
         {
           type: "datetime",
@@ -69,7 +68,7 @@ export const LatencyChart = ({
   const allModels = getAllModels(projectId, globalFilterState);
 
   const getData = (valueColumn: string) => {
-    return latencies.data && allModels
+    return latencies.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(latencies.data, "startTime", [
             { labelColumn: "model", valueColumn: valueColumn },

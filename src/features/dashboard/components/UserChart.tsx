@@ -36,7 +36,7 @@ export const UserChart = ({
         { column: "user" },
         { column: "traceId", agg: "COUNT" },
       ],
-      filter: globalFilterState ?? [],
+      filter: globalFilterState,
       groupBy: [
         {
           type: "string",
@@ -59,11 +59,10 @@ export const UserChart = ({
       projectId,
       from: "traces",
       select: [{ column: "user" }, { column: "traceId", agg: "COUNT" }],
-      filter:
-        globalFilterState.map((f) => ({
-          ...f,
-          column: "timestamp",
-        })) ?? [],
+      filter: globalFilterState.map((f) => ({
+        ...f,
+        column: "timestamp",
+      })),
       groupBy: [
         {
           type: "string",
@@ -97,7 +96,7 @@ export const UserChart = ({
         .filter((item) => item.user !== undefined)
         .map((item) => {
           return {
-            name: (item.user as string) ?? "Unknown",
+            name: (item.user as string | null | undefined) ?? "Unknown",
             value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
           };
         })

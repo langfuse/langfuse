@@ -49,12 +49,12 @@ export const generationsRouter = createTRPCRouter({
         : Prisma.empty;
 
       const filterCondition = filterToPrismaSql(
-        input.filter ?? [],
+        input.filter,
         observationsTableCols,
       );
 
       // to improve query performance, add timeseries filter to observation queries as well
-      const startTimeFilter = input.filter?.find(
+      const startTimeFilter = input.filter.find(
         (f) => f.column === "start_time" && f.type === "datetime",
       );
       const datetimeFilter =
@@ -134,7 +134,7 @@ export const generationsRouter = createTRPCRouter({
         : Prisma.empty;
 
       const filterCondition = filterToPrismaSql(
-        input.filter ?? [],
+        input.filter,
         observationsTableCols,
       );
       console.log("filters: ", filterCondition);

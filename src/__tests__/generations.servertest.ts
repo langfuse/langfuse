@@ -425,8 +425,8 @@ describe("/api/public/generations API Endpoint", () => {
         name: generationName,
       },
     });
-    expect(dbGeneration?.id).toBe(generationId);
-    expect(dbGeneration?.traceId).toBe(externalTraceId);
+    expect(dbGeneration.id).toBe(generationId);
+    expect(dbGeneration.traceId).toBe(externalTraceId);
 
     const dbTraces = await prisma.trace.findMany();
     expect(dbTraces.length).toBe(0);
@@ -469,18 +469,18 @@ describe("/api/public/generations API Endpoint", () => {
 
     expect(createGeneration.status).toBe(200);
 
-    expect(dbGeneration?.id).toBe(generationId);
-    expect(dbGeneration?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbGeneration?.name).toBe(generationName);
-    expect(dbGeneration?.startTime).toEqual(
+    expect(dbGeneration.id).toBe(generationId);
+    expect(dbGeneration.traceId).toBe(dbTrace[0]?.id);
+    expect(dbGeneration.name).toBe(generationName);
+    expect(dbGeneration.startTime).toEqual(
       new Date("2021-01-01T00:00:00.000Z"),
     );
-    expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbGeneration?.model).toBe("model-name");
-    expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
-    expect(dbGeneration?.input).toEqual({ key: "value" });
-    expect(dbGeneration?.metadata).toEqual({ key: "value" });
-    expect(dbGeneration?.version).toBe("2.0.0");
+    expect(dbGeneration.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbGeneration.model).toBe("model-name");
+    expect(dbGeneration.modelParameters).toEqual({ key: "value" });
+    expect(dbGeneration.input).toEqual({ key: "value" });
+    expect(dbGeneration.metadata).toEqual({ key: "value" });
+    expect(dbGeneration.version).toBe("2.0.0");
   });
 
   it("should update generation", async () => {

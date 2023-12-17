@@ -42,8 +42,7 @@ export function CloudRegionSwitch({
           <p className="text-xs text-gray-500">
             Regions are strictly separated.
           </p>
-          {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
-          isSignUpPage ? (
+          {isSignUpPage ? (
             <p className="text-xs text-gray-500">
               {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
                 ? "✅ Demo project available"

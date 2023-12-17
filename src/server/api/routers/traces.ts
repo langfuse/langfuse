@@ -330,22 +330,33 @@ export const traceRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:bookmark",
       });
-      const trace = await ctx.prisma.trace.update({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-        data: {
-          bookmarked: input.bookmarked,
-        },
-      });
-      if (!trace) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Trace not found in project",
+      try {
+        const trace = await ctx.prisma.trace.update({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+          data: {
+            bookmarked: input.bookmarked,
+          },
         });
+        return trace;
+      } catch (error) {
+        console.error(error);
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025" // Record to update not found
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
+        } else {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
       }
-      return trace;
     }),
   publish: protectedProjectProcedure
     .input(
@@ -361,21 +372,32 @@ export const traceRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
-      const trace = await ctx.prisma.trace.update({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-        data: {
-          public: input.public,
-        },
-      });
-      if (!trace) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Trace not found in project",
+      try {
+        const trace = await ctx.prisma.trace.update({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+          data: {
+            public: input.public,
+          },
         });
+        return trace;
+      } catch (error) {
+        console.error(error);
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025" // Record to update not found
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
+        } else {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
       }
-      return trace;
     }),
 });

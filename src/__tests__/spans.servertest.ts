@@ -140,8 +140,8 @@ describe("/api/public/spans API Endpoint", () => {
         name: "spanName",
       },
     });
-    expect(dbSpan?.id).toBe(spanId);
-    expect(dbSpan?.traceId).toBe(traceId);
+    expect(dbSpan.id).toBe(spanId);
+    expect(dbSpan.traceId).toBe(traceId);
   });
 
   it("should create trace when creating span without existing trace", async () => {
@@ -248,14 +248,14 @@ describe("/api/public/spans API Endpoint", () => {
 
     expect(createSpan.status).toBe(200);
 
-    expect(dbSpan?.id).toBe(spanId);
-    expect(dbSpan?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbSpan?.name).toBe(generationName);
-    expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbSpan?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbSpan?.input).toEqual({ key: "value" });
-    expect(dbSpan?.metadata).toEqual({ key: "value" });
-    expect(dbSpan?.version).toBe("2.0.0");
+    expect(dbSpan.id).toBe(spanId);
+    expect(dbSpan.traceId).toBe(dbTrace[0]?.id);
+    expect(dbSpan.name).toBe(generationName);
+    expect(dbSpan.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbSpan.input).toEqual({ key: "value" });
+    expect(dbSpan.metadata).toEqual({ key: "value" });
+    expect(dbSpan.version).toBe("2.0.0");
   });
 
   it("should update span", async () => {
