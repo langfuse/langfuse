@@ -49,6 +49,11 @@ export function DataTableToolbar<TData, TValue>({
               placeholder={searchConfig.placeholder}
               value={searchString}
               onChange={(event) => setSearchString(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  searchConfig.updateQuery(searchString);
+                }
+              }}
               className="h-10 w-[200px] lg:w-[350px]"
             />
             <Button
