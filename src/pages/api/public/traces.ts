@@ -10,7 +10,7 @@ import {
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import {
-  TraceSchema,
+  TraceBody,
   eventTypes,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
@@ -52,7 +52,7 @@ export default async function handler(
           message: "Access denied",
         });
 
-      const body = TraceSchema.parse(req.body);
+      const body = TraceBody.parse(req.body);
 
       await telemetry();
 
@@ -63,7 +63,7 @@ export default async function handler(
         body: body,
       };
 
-      const result = await handleBatch([event], req, authCheck);
+      const result = await handleBatch([event], {}, req, authCheck);
       handleBatchResultLegacy(result.errors, result.results, res);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
@@ -79,10 +79,9 @@ export default async function handler(
       const userCondition = Prisma.sql`AND t."user_id" = ${obj.userId}`;
       const nameCondition = Prisma.sql`AND t."name" = ${obj.name}`;
 
-      const [traces, totalItems] = await Promise.all([
-        prisma.$queryRaw<
-          Array<Trace & { observations: string[]; scores: string[] }>
-        >(Prisma.sql`
+      const traces = await prisma.$queryRaw<
+        Array<Trace & { observations: string[]; scores: string[] }>
+      >(Prisma.sql`
           SELECT
             t.id,
             t.timestamp,
@@ -105,15 +104,14 @@ export default async function handler(
           GROUP BY t.id
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
-          `),
-        prisma.trace.count({
-          where: {
-            projectId: authCheck.scope.projectId,
-            name: obj.name ?? undefined,
-            userId: obj.userId ?? undefined,
-          },
-        }),
-      ]);
+          `);
+      const totalItems = await prisma.trace.count({
+        where: {
+          projectId: authCheck.scope.projectId,
+          name: obj.name ?? undefined,
+          userId: obj.userId ?? undefined,
+        },
+      });
 
       return res.status(200).json({
         data: traces,

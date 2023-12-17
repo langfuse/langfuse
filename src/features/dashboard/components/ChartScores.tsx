@@ -20,26 +20,35 @@ export function ChartScores(props: {
   globalFilterState: FilterState;
   projectId: string;
 }) {
-  const scores = api.dashboard.chart.useQuery({
-    projectId: props.projectId,
-    from: "traces_scores",
-    select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
-    filter:
-      props.globalFilterState.map((f) =>
-        f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-      ) ?? [],
-    groupBy: [
-      {
-        type: "datetime",
-        column: "timestamp",
-        temporalUnit: dateTimeAggregationSettings[props.agg].date_trunc,
+  const scores = api.dashboard.chart.useQuery(
+    {
+      projectId: props.projectId,
+      from: "traces_scores",
+      select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
+      filter:
+        props.globalFilterState.map((f) =>
+          f.type === "datetime" ? { ...f, column: "timestamp" } : f,
+        ) ?? [],
+      groupBy: [
+        {
+          type: "datetime",
+          column: "timestamp",
+          temporalUnit: dateTimeAggregationSettings[props.agg].date_trunc,
+        },
+        {
+          type: "string",
+          column: "scoreName",
+        },
+      ],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-      {
-        type: "string",
-        column: "scoreName",
-      },
-    ],
-  });
+    },
+  );
 
   const extractedScores = scores.data
     ? fillMissingValuesAndTransform(
@@ -69,7 +78,7 @@ export function ChartScores(props: {
         <NoData noDataText="No data">
           <DocPopup
             description="Scores evaluate LLM quality and can be created manually or using the SDK."
-            link="https://langfuse.com/docs/scores"
+            href="https://langfuse.com/docs/scores"
           />
         </NoData>
       )}

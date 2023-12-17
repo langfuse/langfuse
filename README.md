@@ -218,34 +218,7 @@ To contribute, send us a PR, raise a GitHub issue, or email at contributing@lang
 
 ### Development setup
 
-Requirements: Node.js >=18, npm, Docker
-
-```bash
-# Install dependencies
-npm install
-
-# Run the db
-docker-compose -f docker-compose.dev.yml up -d
-
-# create an env file
-cp .env.dev.example .env
-
-# Migration
-npm run db:migrate
-
-# Optional: seed the database
-# npm run db:seed
-# npm run db:seed:examples
-
-# Start the server
-npm run dev
-```
-
-Run tests
-
-```bash
-npm run test
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
 
 ## License
 
@@ -280,6 +253,6 @@ This helps us to:
 1. Understand how Langfuse is used and improve the most relevant features.
 2. Track overall usage for internal and external (e.g. fundraising) reporting.
 
-None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/pages/api/cron/telemetry.ts).
+None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/features/telemetry/index.ts).
 
 You can opt-out by setting `TELEMETRY_ENABLED=false`.

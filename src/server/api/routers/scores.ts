@@ -65,19 +65,17 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const [names] = await Promise.all([
-        ctx.prisma.score.groupBy({
-          where: {
-            trace: {
-              projectId: input.projectId,
-            },
+      const names = await ctx.prisma.score.groupBy({
+        where: {
+          trace: {
+            projectId: input.projectId,
           },
-          by: ["name"],
-          _count: {
-            _all: true,
-          },
-        }),
-      ]);
+        },
+        by: ["name"],
+        _count: {
+          _all: true,
+        },
+      });
 
       const res: ScoreOptions = {
         name: names.map((i) => ({ value: i.name, count: i._count._all })),

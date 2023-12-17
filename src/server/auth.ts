@@ -10,13 +10,14 @@ import { prisma } from "@/src/server/db";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
+import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { type Adapter } from "next-auth/adapters";
 
 // Providers
 import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
-import { type Adapter } from "next-auth/adapters";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -127,25 +128,7 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    // Demo project access
-    const demoProjectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID
-      ? (
-          await prisma.project.findUnique({
-            where: {
-              id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
-            },
-          })
-        )?.id
-      : undefined;
-    if (demoProjectId !== undefined) {
-      await prisma.membership.create({
-        data: {
-          projectId: demoProjectId,
-          userId: user.id,
-          role: "VIEWER",
-        },
-      });
-    }
+    await createProjectMembershipsOnSignup(user);
 
     return user;
   },
@@ -239,7 +222,8 @@ export const authOptions: NextAuthOptions = {
     createUser: async ({ user }) => {
       if (
         env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
-        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING"
       ) {
         await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
           method: "POST",

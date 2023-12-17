@@ -4,6 +4,7 @@ import {
 } from "@/src/server/api/interfaces/tableDefinition";
 
 export const tracesTableCols: ColumnDefinition[] = [
+  { name: "⭐️", type: "boolean", internal: "t.bookmarked" },
   { name: "id", type: "string", internal: "t.id" },
   {
     name: "name",
@@ -26,6 +27,11 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "scores_avg",
     type: "numberObject",
     internal: "scores_avg",
+  },
+  {
+    name: "Latency (s)",
+    type: "number",
+    internal: "tl.latency",
   },
   {
     name: "version",

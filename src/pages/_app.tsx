@@ -3,6 +3,7 @@ import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 import { api } from "@/src/utils/api";
 
@@ -77,17 +78,19 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   return (
     <QueryParamProvider adapter={NextAdapterPages}>
-      <PostHogProvider client={posthog}>
-        <SessionProvider session={session} refetchOnWindowFocus={true}>
-          <DetailPageListsProvider>
-            <Layout>
-              <Component {...pageProps} />
-              <UserTracking />
-            </Layout>
-            <CrispWidget />
-          </DetailPageListsProvider>
-        </SessionProvider>
-      </PostHogProvider>
+      <TooltipProvider>
+        <PostHogProvider client={posthog}>
+          <SessionProvider session={session} refetchOnWindowFocus={true}>
+            <DetailPageListsProvider>
+              <Layout>
+                <Component {...pageProps} />
+                <UserTracking />
+              </Layout>
+              <CrispWidget />
+            </DetailPageListsProvider>
+          </SessionProvider>
+        </PostHogProvider>
+      </TooltipProvider>
     </QueryParamProvider>
   );
 };
@@ -105,6 +108,7 @@ function UserTracking() {
         process.env.NEXT_PUBLIC_POSTHOG_HOST
       )
         posthog.identify(session.data.user?.id ?? undefined, {
+          environment: process.env.NODE_ENV,
           email: session.data.user?.email ?? undefined,
           name: session.data.user?.name ?? undefined,
           featureFlags: session.data.user?.featureFlags ?? undefined,

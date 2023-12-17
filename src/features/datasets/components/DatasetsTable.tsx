@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +14,6 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import { DatasetStatus } from "@prisma/client";
-import { type ColumnDef } from "@tanstack/react-table";
 import { Archive, MoreVertical } from "lucide-react";
 
 type RowData = {
@@ -29,7 +29,7 @@ type RowData = {
 };
 
 export function DatasetsTable(props: { projectId: string }) {
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
   });
@@ -37,7 +37,7 @@ export function DatasetsTable(props: { projectId: string }) {
     onSuccess: () => utils.datasets.invalidate(),
   });
 
-  const columns: ColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "key",
       header: "Name",
@@ -146,16 +146,16 @@ export function DatasetsTable(props: { projectId: string }) {
           datasets.isLoading
             ? { isLoading: true, isError: false }
             : datasets.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: datasets.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: datasets.data?.map((t) => convertToTableRow(t)),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: datasets.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: datasets.data?.map((t) => convertToTableRow(t)),
+                }
         }
       />
       <NewDatasetButton projectId={props.projectId} className="mt-4" />

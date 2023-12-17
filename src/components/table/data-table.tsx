@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -9,6 +8,7 @@ import {
   getFilteredRowModel,
   type OnChangeFn,
   type PaginationState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -20,15 +20,20 @@ import {
 } from "@/src/components/ui/table";
 import { useState } from "react";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+  columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
     pageCount: number;
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  help?: { description: string; href: string };
 }
 
 export interface AsyncTableData<T> {
@@ -42,9 +47,11 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   pagination,
+  columnVisibility,
+  onColumnVisibilityChange,
+  help,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -54,9 +61,11 @@ export function DataTable<TData, TValue>({
     manualPagination: pagination !== undefined,
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
+    onColumnVisibilityChange: onColumnVisibilityChange,
     state: {
       columnFilters,
       pagination: pagination?.state,
+      columnVisibility,
     },
     manualFiltering: true,
   });
@@ -70,7 +79,7 @@ export function DataTable<TData, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
-                    return (
+                    return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
                         className="whitespace-nowrap p-2"
@@ -82,7 +91,7 @@ export function DataTable<TData, TValue>({
                               header.getContext(),
                             )}
                       </TableHead>
-                    );
+                    ) : null;
                   })}
                 </TableRow>
               ))}
@@ -122,7 +131,16 @@ export function DataTable<TData, TValue>({
                     colSpan={columns.length}
                     className="h-24 text-center"
                   >
-                    No results.
+                    <div>
+                      No results.{" "}
+                      {help && (
+                        <DocPopup
+                          description={help.description}
+                          href={help.href}
+                          size="sm"
+                        />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

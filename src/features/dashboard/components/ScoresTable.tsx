@@ -22,37 +22,55 @@ export const ScoresTable = ({
     column: "timestamp",
   }));
 
-  const metrics = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces_scores",
-    select: [
-      { column: "scoreName" },
-      { column: "scoreId", agg: "COUNT" },
-      { column: "value", agg: "AVG" },
-    ],
-    filter: localFilters ?? [],
-    groupBy: [{ type: "string", column: "scoreName" }],
-    orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-  });
-
-  const [zeroValueScores, oneValueScores] = [0, 1].map((i) =>
-    api.dashboard.chart.useQuery({
+  const metrics = api.dashboard.chart.useQuery(
+    {
       projectId,
       from: "traces_scores",
-      select: [{ column: "scoreName" }, { column: "scoreId", agg: "COUNT" }],
-      filter:
-        [
-          ...localFilters,
-          {
-            column: "value",
-            operator: "=",
-            value: i,
-            type: "number",
-          },
-        ] ?? [],
+      select: [
+        { column: "scoreName" },
+        { column: "scoreId", agg: "COUNT" },
+        { column: "value", agg: "AVG" },
+      ],
+      filter: localFilters ?? [],
       groupBy: [{ type: "string", column: "scoreName" }],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-    }),
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const [zeroValueScores, oneValueScores] = [0, 1].map((i) =>
+    api.dashboard.chart.useQuery(
+      {
+        projectId,
+        from: "traces_scores",
+        select: [{ column: "scoreName" }, { column: "scoreId", agg: "COUNT" }],
+        filter:
+          [
+            ...localFilters,
+            {
+              column: "value",
+              operator: "=",
+              value: i,
+              type: "number",
+            },
+          ] ?? [],
+        groupBy: [{ type: "string", column: "scoreName" }],
+        orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
+      },
+      {
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+      },
+    ),
   );
 
   if (!zeroValueScores || !oneValueScores) {
@@ -137,7 +155,7 @@ export const ScoresTable = ({
         noDataChildren={
           <DocPopup
             description="Scores evaluate LLM quality and can be created manually or using the SDK."
-            link="https://langfuse.com/docs/scores"
+            href="https://langfuse.com/docs/scores"
           />
         }
         noDataClassName="mt-0"

@@ -47,19 +47,20 @@ model Session {
 }
 
 model User {
-    id            String       @id @default(cuid())
+    id            String                 @id @default(cuid())
     name          String?
-    email         String?      @unique
-    emailVerified DateTime?    @map("email_verified")
+    email         String?                @unique
+    emailVerified DateTime?              @map("email_verified")
     password      String?
     image         String?
-    admin         Boolean      @default(false)
+    admin         Boolean                @default(false)
     accounts      Account[]
     sessions      Session[]
     memberships   Membership[]
-    createdAt     DateTime     @default(now()) @map("created_at")
-    updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
-    featureFlags  String[]     @default([]) @map("feature_flags")
+    invitations   MembershipInvitation[]
+    createdAt     DateTime               @default(now()) @map("created_at")
+    updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
+    featureFlags  String[]               @default([]) @map("feature_flags")
 
     @@map("users")
 }
@@ -74,9 +75,9 @@ model VerificationToken {
 }
 
 model Project {
-    id           String        @id @default(cuid())
-    createdAt    DateTime      @default(now()) @map("created_at")
-    updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
+    id           String                 @id @default(cuid())
+    createdAt    DateTime               @default(now()) @map("created_at")
+    updatedAt    DateTime               @default(now()) @updatedAt @map("updated_at")
     name         String
     members      Membership[]
     traces       Trace[]
@@ -84,6 +85,8 @@ model Project {
     apiKeys      ApiKey[]
     dataset      Dataset[]
     RawEvents    Events[]
+    invitations  MembershipInvitation[]
+    sessions     TraceSession[]
 
     @@map("projects")
 }
@@ -122,6 +125,22 @@ model Membership {
     @@map("memberships")
 }
 
+model MembershipInvitation {
+    id        String         @id @unique @default(cuid())
+    email     String
+    role      MembershipRole
+    projectId String         @map("project_id")
+    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    senderId  String?        @map("sender_id")
+    sender    User?          @relation(fields: [senderId], references: [id], onDelete: SetNull)
+    createdAt DateTime       @default(now()) @map("created_at")
+    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+
+    @@index([projectId])
+    @@index([email])
+    @@map("membership_invitations")
+}
+
 enum MembershipRole {
     OWNER
     ADMIN
@@ -129,23 +148,45 @@ enum MembershipRole {
     VIEWER
 }
 
-model Trace {
+model TraceSession {
     id         String   @id @default(cuid())
-    externalId String?  @map("external_id")
-    timestamp  DateTime @default(now())
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+    projectId  String   @map("project_id")
+    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    bookmarked Boolean  @default(false)
+    public     Boolean  @default(false)
+    traces     Trace[]
+
+    @@unique([id, projectId])
+    @@index([projectId])
+    @@index([createdAt])
+    @@map("trace_sessions")
+}
+
+model Trace {
+    id         String        @id @default(cuid())
+    externalId String?       @map("external_id")
+    timestamp  DateTime      @default(now())
     name       String?
-    userId     String?  @map("user_id")
+    userId     String?       @map("user_id")
     metadata   Json?
     release    String?
     version    String?
-    projectId  String   @map("project_id")
-    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    public     Boolean  @default(false)
+    input      Json?
+    output     Json?
+    sessionId  String?       @map("session_id")
+    session    TraceSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+    projectId  String        @map("project_id")
+    project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    public     Boolean       @default(false)
+    bookmarked Boolean       @default(false)
 
     scores Score[]
 
     @@unique([projectId, externalId])
     @@index([projectId])
+    @@index([sessionId])
     @@index([name])
     @@index([userId])
     @@index([externalId])
@@ -177,6 +218,7 @@ model Observation {
     promptTokens        Int               @default(0) @map("prompt_tokens")
     completionTokens    Int               @default(0) @map("completion_tokens")
     totalTokens         Int               @default(0) @map("total_tokens")
+    unit                String            @default("TOKENS")
     completionStartTime DateTime?         @map("completion_start_time")
     scores              Score[]
     project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)

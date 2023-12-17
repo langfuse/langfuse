@@ -83,7 +83,7 @@ export const NewDatasetItemForm = (props: {
     projectId: props.projectId,
   });
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const createDatasetItemMutation = api.datasets.createDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
     onError: (error) => setFormError(error.message),

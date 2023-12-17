@@ -5,7 +5,6 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BarList } from "@tremor/react";
-import { isUndefinedOrNull } from "@/src/utils/types";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
@@ -28,41 +27,59 @@ export const UserChart = ({
   agg: DateTimeAggregationOption;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const user = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces_observations",
-    select: [
-      { column: "totalTokenCost" },
-      { column: "user" },
-      { column: "traceId", agg: "COUNT" },
-    ],
-    filter: globalFilterState ?? [],
-    groupBy: [
-      {
-        type: "string",
-        column: "user",
+  const user = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces_observations",
+      select: [
+        { column: "totalTokenCost" },
+        { column: "user" },
+        { column: "traceId", agg: "COUNT" },
+      ],
+      filter: globalFilterState ?? [],
+      groupBy: [
+        {
+          type: "string",
+          column: "user",
+        },
+      ],
+      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-    ],
-    orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
-  });
+    },
+  );
 
-  const traces = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces",
-    select: [{ column: "user" }, { column: "traceId", agg: "COUNT" }],
-    filter:
-      globalFilterState.map((f) => ({
-        ...f,
-        column: "timestamp",
-      })) ?? [],
-    groupBy: [
-      {
-        type: "string",
-        column: "user",
+  const traces = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces",
+      select: [{ column: "user" }, { column: "traceId", agg: "COUNT" }],
+      filter:
+        globalFilterState.map((f) => ({
+          ...f,
+          column: "timestamp",
+        })) ?? [],
+      groupBy: [
+        {
+          type: "string",
+          column: "user",
+        },
+      ],
+      orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-    ],
-    orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
-  });
+    },
+  );
 
   const transformedNumberOfTraces: BarChartDataPoint[] = traces.data
     ? traces.data
@@ -84,7 +101,6 @@ export const UserChart = ({
             value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
           };
         })
-        .filter((i) => (isUndefinedOrNull(i.name) ? true : false))
     : [];
 
   const totalCost = user.data?.reduce(
@@ -151,7 +167,7 @@ export const UserChart = ({
                   <NoData noDataText="No data">
                     <DocPopup
                       description="Consumption per user is tracked by passing their ids on traces."
-                      link="https://langfuse.com/docs/user-explorer"
+                      href="https://langfuse.com/docs/user-explorer"
                     />
                   </NoData>
                 )}

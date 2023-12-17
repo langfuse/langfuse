@@ -8,8 +8,9 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import TableLink from "@/src/components/table/table-link";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import SessionsTable from "@/src/components/table/use-cases/sessions";
 
-const tabs = ["Details", "Traces", "Scores"] as const;
+const tabs = ["Details", "Sessions", "Traces", "Scores"] as const;
 
 export default function TracePage() {
   const router = useRouter();
@@ -29,6 +30,8 @@ export default function TracePage() {
     switch (currentTab as (typeof tabs)[number]) {
       case "Details":
         return <DetailsTab userId={userId} projectId={projectId} />;
+      case "Sessions":
+        return <SessionsTab userId={userId} projectId={projectId} />;
       case "Traces":
         return <TracesTab userId={userId} projectId={projectId} />;
       case "Scores":
@@ -195,6 +198,18 @@ function TracesTab({ userId, projectId }: TabProps) {
   return (
     <div className="mt-5 pt-5">
       <TracesTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["userId"]}
+      />
+    </div>
+  );
+}
+
+function SessionsTab({ userId, projectId }: TabProps) {
+  return (
+    <div className="mt-5 pt-5">
+      <SessionsTable
         projectId={projectId}
         userId={userId}
         omittedFilter={["userId"]}

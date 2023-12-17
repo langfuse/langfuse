@@ -37,11 +37,11 @@ export function tokenCount(p: {
           messages: p.text,
         })
       : isString(p.text)
-      ? openAiStringTokenCount({ model: p.model, text: p.text })
-      : openAiStringTokenCount({
-          model: p.model,
-          text: JSON.stringify(p.text),
-        });
+        ? openAiStringTokenCount({ model: p.model, text: p.text })
+        : openAiStringTokenCount({
+            model: p.model,
+            text: JSON.stringify(p.text),
+          });
   } else if (isClaudeModel(p.model)) {
     return isString(p.text)
       ? claudeStringTokenCount({ model: p.model, text: p.text })

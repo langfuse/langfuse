@@ -23,21 +23,39 @@ export const TracesBarListChart = ({
       f.type === "datetime" ? { ...f, column: "timestamp" } : f,
     ) ?? [];
 
-  const totalTraces = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces",
-    select: [{ column: "traceId", agg: "COUNT" }],
-    filter: timeFilter,
-  });
+  const totalTraces = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces",
+      select: [{ column: "traceId", agg: "COUNT" }],
+      filter: timeFilter,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
-  const traces = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces",
-    select: [{ column: "traceId", agg: "COUNT" }, { column: "traceName" }],
-    filter: timeFilter,
-    groupBy: [{ column: "traceName", type: "string" }],
-    orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
-  });
+  const traces = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces",
+      select: [{ column: "traceId", agg: "COUNT" }, { column: "traceName" }],
+      filter: timeFilter,
+      groupBy: [{ column: "traceName", type: "string" }],
+      orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const transformedTraces = traces.data
     ? traces.data.map((item) => {
@@ -82,7 +100,7 @@ export const TracesBarListChart = ({
           <NoData noDataText="No data">
             <DocPopup
               description="Traces contain details about LLM applications and can be created using the SDK."
-              link="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
+              href="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
             />
           </NoData>
         )}

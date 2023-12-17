@@ -32,7 +32,7 @@ export const NewDatasetForm = (props: {
     },
   });
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const createDatasetMutation = api.datasets.createDataset.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
     onError: (error) => setFormError(error.message),

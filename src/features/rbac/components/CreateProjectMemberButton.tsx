@@ -51,9 +51,14 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
     scope: "members:create",
   });
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const mutCreateProjectMember = api.projectMembers.create.useMutation({
     onSuccess: () => utils.projectMembers.invalidate(),
+    onError: (error) =>
+      form.setError("email", {
+        type: "manual",
+        message: error.message,
+      }),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -77,94 +82,93 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
         form.reset();
         setOpen(false);
       })
-      .catch(() => {
-        form.setError("email", {
-          type: "manual",
-          message: "User does not exist or already has access to this project",
-        });
+      .catch((error) => {
+        console.error(error);
       });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary" loading={mutCreateProjectMember.isLoading}>
-          <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-          Add new member
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add new member to project</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            className="space-y-6"
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button
+            variant="secondary"
+            loading={mutCreateProjectMember.isLoading}
           >
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="jsdoe@example.com" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    User must already have an account
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select
-                    defaultValue={field.value}
-                    onValueChange={(value) =>
-                      field.onChange(value as (typeof availableRoles)[number])
-                    }
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a verified email to display" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availableRoles.map((role) => (
-                        <SelectItem value={role} key={role}>
-                          {role}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Rights of role:{" "}
-                    {roleAccessRights[field.value].length
-                      ? roleAccessRights[field.value].join(", ")
-                      : "none"}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type="submit"
-              className="w-full"
-              loading={form.formState.isSubmitting}
+            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
+            Add new member
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add new member to project</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              className="space-y-6"
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit)}
             >
-              Grant access
-            </Button>
-            <FormMessage />
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="jsdoe@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select
+                      defaultValue={field.value}
+                      onValueChange={(value) =>
+                        field.onChange(value as (typeof availableRoles)[number])
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a verified email to display" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem value={role} key={role}>
+                            {role}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Rights of role:{" "}
+                      {roleAccessRights[field.value].length
+                        ? roleAccessRights[field.value].join(", ")
+                        : "none"}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                loading={form.formState.isSubmitting}
+              >
+                Grant access
+              </Button>
+              <FormMessage />
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

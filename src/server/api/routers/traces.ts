@@ -24,6 +24,7 @@ import {
   filterToPrismaSql,
 } from "@/src/features/filters/server/filterToPrisma";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { TRPCError } from "@trpc/server";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -98,7 +99,7 @@ export const traceRouter = createTRPCRouter({
       trace_latency AS (
         SELECT
           trace_id,
-          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) * 1000 - EXTRACT(EPOCH FROM MIN("start_time")) * 1000 AS "latency"
+          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
         FROM
           "observations"
         WHERE
@@ -154,11 +155,13 @@ export const traceRouter = createTRPCRouter({
         t.*,
         t."user_id" AS "userId",
         t."metadata" AS "metadata",
+        t.session_id AS "sessionId",
+        t."bookmarked" AS "bookmarked",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
         COALESCE(u."totalTokens", 0)::int AS "totalTokens",
         COALESCE(s_json.scores, '[]'::json) AS "scores",
-        tl.latency/1000::double precision AS "latency",
+        tl.latency AS "latency",
         (count(*) OVER ())::int AS "totalCount"
       FROM
         "traces" AS t
@@ -181,25 +184,23 @@ export const traceRouter = createTRPCRouter({
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const [scores, names] = await Promise.all([
-        ctx.prisma.score.groupBy({
-          where: {
-            trace: {
-              projectId: input.projectId,
-            },
-          },
-          by: ["name"],
-        }),
-        ctx.prisma.trace.groupBy({
-          where: {
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          trace: {
             projectId: input.projectId,
           },
-          by: ["name"],
-          _count: {
-            _all: true,
-          },
-        }),
-      ]);
+        },
+        by: ["name"],
+      });
+      const names = await ctx.prisma.trace.groupBy({
+        where: {
+          projectId: input.projectId,
+        },
+        by: ["name"],
+        _count: {
+          _all: true,
+        },
+      });
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
         name: names
@@ -214,25 +215,23 @@ export const traceRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
     .input(z.object({ traceId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const [trace, observations, pricings] = await Promise.all([
-        ctx.prisma.trace.findFirstOrThrow({
-          where: {
-            id: input.traceId,
+      const trace = await ctx.prisma.trace.findFirstOrThrow({
+        where: {
+          id: input.traceId,
+        },
+        include: {
+          scores: true,
+        },
+      });
+      const observations = await ctx.prisma.observation.findMany({
+        where: {
+          traceId: {
+            equals: input.traceId,
+            not: null,
           },
-          include: {
-            scores: true,
-          },
-        }),
-        ctx.prisma.observation.findMany({
-          where: {
-            traceId: {
-              equals: input.traceId,
-              not: null,
-            },
-          },
-        }),
-        ctx.prisma.pricing.findMany(),
-      ]);
+        },
+      });
+      const pricings = await ctx.prisma.pricing.findMany();
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -279,34 +278,104 @@ export const traceRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(z.object({ traceId: z.string(), projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "traces:delete",
+        });
+
+        const trace = await ctx.prisma.trace.findFirst({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+        });
+
+        if (!trace) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
+        }
+
+        return ctx.prisma.$transaction([
+          ctx.prisma.trace.delete({
+            where: {
+              id: input.traceId,
+            },
+          }),
+          ctx.prisma.observation.deleteMany({
+            where: {
+              traceId: input.traceId,
+            },
+          }),
+        ]);
+      } catch (e) {
+        console.error("Failed to delete trace", e);
+        throw e;
+      }
+    }),
+  bookmark: protectedProjectProcedure
+    .input(
+      z.object({
+        traceId: z.string(),
+        projectId: z.string(),
+        bookmarked: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "traces:delete",
+        scope: "objects:bookmark",
       });
-
-      const trace = await ctx.prisma.trace.findFirst({
+      const trace = await ctx.prisma.trace.update({
         where: {
           id: input.traceId,
           projectId: input.projectId,
         },
+        data: {
+          bookmarked: input.bookmarked,
+        },
       });
-
       if (!trace) {
-        throw new Error("Trace not found in project");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found in project",
+        });
       }
-
-      return ctx.prisma.$transaction([
-        ctx.prisma.trace.delete({
-          where: {
-            id: input.traceId,
-          },
-        }),
-        ctx.prisma.observation.deleteMany({
-          where: {
-            traceId: input.traceId,
-          },
-        }),
-      ]);
+      return trace;
+    }),
+  publish: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        public: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:publish",
+      });
+      const trace = await ctx.prisma.trace.update({
+        where: {
+          id: input.traceId,
+          projectId: input.projectId,
+        },
+        data: {
+          public: input.public,
+        },
+      });
+      if (!trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found in project",
+        });
+      }
+      return trace;
     }),
 });

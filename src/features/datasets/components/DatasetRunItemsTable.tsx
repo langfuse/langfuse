@@ -1,17 +1,18 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
-import { intervalInSeconds } from "@/src/utils/dates";
+import { formatInterval, intervalInSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type ColumnDef } from "@tanstack/react-table";
+import { type Score } from "@prisma/client";
 
 type RowData = {
   id: string;
   runAt: string;
   datasetItemId: string;
   observation: { id: string; traceId: string };
-  scores: { name: string; value: number }[];
+  scores: Score[];
   latency: number;
 };
 
@@ -30,7 +31,7 @@ export function DatasetRunItemsTable(
 ) {
   const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery(props);
 
-  const columns: ColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "runAt",
       header: "Run At",
@@ -68,7 +69,7 @@ export function DatasetRunItemsTable(
       header: "Latency",
       cell: ({ row }) => {
         const latency: RowData["latency"] = row.getValue("latency");
-        return <>{latency.toFixed(2)} sec</>;
+        return <>{formatInterval(latency)}</>;
       },
     },
     {
@@ -92,10 +93,7 @@ export function DatasetRunItemsTable(
         id: item.observation.id,
         traceId: item.observation.traceId ?? "", // never actually null, just not enforced by db
       },
-      scores: item.observation.scores.map((score) => ({
-        name: score.name,
-        value: score.value,
-      })),
+      scores: item.observation.scores,
       latency: intervalInSeconds(
         item.observation.startTime,
         item.observation.endTime,
@@ -110,16 +108,16 @@ export function DatasetRunItemsTable(
         runItems.isLoading
           ? { isLoading: true, isError: false }
           : runItems.isError
-          ? {
-              isLoading: false,
-              isError: true,
-              error: runItems.error.message,
-            }
-          : {
-              isLoading: false,
-              isError: false,
-              data: runItems.data?.map((t) => convertToTableRow(t)),
-            }
+            ? {
+                isLoading: false,
+                isError: true,
+                error: runItems.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: runItems.data?.map((t) => convertToTableRow(t)),
+              }
       }
     />
   );

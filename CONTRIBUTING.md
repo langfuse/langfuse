@@ -5,17 +5,15 @@ First off, thanks for taking the time to contribute! ❤️
 Langfuse is an open-source observability and analytics solution for LLM-based applications. We welcome contributions through GitHub pull requests. This document outlines our conventions regarding development workflow, commit message formatting, contact points, and other resources. Our goal is to simplify the process and ensure that your contributions are easily accepted.
 
 We gratefully welcome improvements to documentation as well as to code.
-<!-- The community looks forward to your contributions. 🎉 -->
+
+The maintainers are available on [Discord](https://langfuse.com/discord) in case you have any questions.
 
 > And if you like the project, but just don't have time to contribute, that's fine. There are other easy ways to support the project and show your appreciation, which we would also be very happy about:
+>
 > - Star the project;
 > - Tweet about it;
 > - Refer to this project in your project's readme;
 > - Mention the project at local meetups and tell your friends/colleagues.
-
-The maintainers are available on [Discord](https://langfuse.com/discord) in case you have any questions.
-
-# How to contribute to Langfuse
 
 ## Making a change
 
@@ -27,45 +25,131 @@ Once we've discussed your changes and you've got your code ready, make sure that
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
-## Setup
+### Technologies we use
 
-First, the preferred version for development is Node.js >=18. Additionally, you should have npm and Docker installed
+- NextJS, pages router
+- NextAuth.js / Auth.js
+- tRPC
+- Prisma ORM
+- Zod
+- Tailwind CSS
+- shadcn/ui tailwind components (using Radix and tanstack)
 
-Then, to begin development fork repository and go to root folder by run `cd ./langfuse` .
+### Architecture overview
 
-```bash
-# Install dependencies
-npm install
+```mermaid
+flowchart TD
 
-# Run the db
-docker-compose -f docker-compose.dev.yml up -d
-
-# create an env file
-cp .env.dev.example .env
-
-# Migration
-npm run db:migrate
-
-# Optional: seed the database
-# npm run db:seed
-# npm run db:seed:examples
-
-# Start the server
-npm run dev
+    A[Python SDK - Backend] -->|REST| C[NextJs Server]
+    B[JS/TS SDK - Frontend + Backend] -->|REST| C
+    C <-->|Prisma| D[Postgres Database]
+    E[Langfuse UI] -->|tRPC| C
 ```
+
+| Component                                                 | Technology                                    | Description                                                                                                                                                                                     |
+| --------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Python SDK](https://github.com/langfuse/langfuse-python) | Python                                        | Fully async SDK. Events are sent to server in batches from a background thread.                                                                                                                 |
+| [JS/TS SDK](https://github.com/langfuse/langfuse-js)      | TypeScript                                    | Fully async SDK. As of SDK version 2.0.0, events will be sent in batches to the server.                                                                                                         |
+| NextJs Server (JS)                                        | TypeScript, [T3 Stack](https://create.t3.gg/) | We use Vercel Cloud Functions to serve our back-end and front-end. The front-end uses tRPC to communicate with the back-end. For self-hosting, this component is available as Docker container. |
+
+## Development Setup
+
+Requirements
+
+- Node.js 20 as specified in the [.nvmrc](.nvmrc)
+- Docker to run the database locally
+
+**Steps**
+
+1. Fork the the repository and clone it locally
+2. Install dependencies
+
+   ```bash
+   npm install
+   ```
+
+3. Run the development database
+
+   ```bash
+   docker-compose -f docker-compose.dev.yml up -d
+   ```
+
+4. Create an env file
+
+   ```bash
+    cp .env.dev.example .env
+   ```
+
+5. Run the migrations
+
+   ```bash
+   npm run db:migrate
+
+   # Optional: seed the database
+   # npm run db:seed
+   # npm run db:seed:examples
+   ```
+
+6. Start the development server
+
+   ```bash
+    npm run dev
+   ```
 
 ## Commit messages
 
-On the ﻿main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged  to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
+On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.
+
+## Test the public API
+
+The API is tested using Jest. With the development server running, you can run the tests with:
+
+Run all
+
+```bash
+npm run test
+```
+
+Run interactively in watch mode
+
+```bash
+npm run test:watch
+```
+
+These tests are also run in CI.
+
+## CI/CD
+
+We use GitHub Actions for CI/CD, the configuration is in [`.github/workflows/pipeline.yml`](.github/workflows/pipeline.yml)
+
+CI on `main` and `pull_request`
+
+- Check Linting
+- E2E test of API using Jest
+- E2E tests of UI using Playwright
+
+CD on `main`
+
+- Publish Docker image to GitHub Packages if CI passes. Done on every push to `main` branch. Only released versions are tagged with `latest`.
+
+## Staging environment
+
+We run a staging environment at [https://staging.langfuse.com](https://staging.langfuse.com) that is automatically deployed on every push to `main` branch.
+
+The same environment is also used for preview deployments of pull requests. Limitations:
+
+- SSO is not available as dynamic domains are not supported by most SSO providers.
+- When making changes to the database, migrations to the staging database need to be applied manually by a maintainer. If you want to interactively test database changes in the staging environment, please reach out.
+
+You can use the staging environment end-to-end with the Langfuse integrations or SDKs (host: `https://staging.langfuse.com`). However, please note that the staging environment is not intended for production use and may be reset at any time.
+
+## Production environment
+
+When a new release is tagged on the `main` branch (excluding prereleases), it triggers a production deployment. The deployment process consists of two steps:
+
+1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
+2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
 
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
-
-
-
-
-
-
-
-

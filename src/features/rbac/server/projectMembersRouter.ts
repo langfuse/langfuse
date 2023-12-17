@@ -1,10 +1,14 @@
+import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { MembershipRole } from "@prisma/client";
 import * as z from "zod";
 
 export const projectMembersRouter = createTRPCRouter({
-  get: protectedProcedure
+  get: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -17,7 +21,7 @@ export const projectMembersRouter = createTRPCRouter({
         scope: "members:read",
       });
 
-      return await ctx.prisma.membership.findMany({
+      const memberships = await ctx.prisma.membership.findMany({
         where: {
           projectId: input.projectId,
           project: {
@@ -38,8 +42,23 @@ export const projectMembersRouter = createTRPCRouter({
           },
         },
       });
+
+      const invitations = await ctx.prisma.membershipInvitation.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+        include: {
+          sender: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      return { memberships: memberships, invitations: invitations };
     }),
-  delete: protectedProcedure
+  delete: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -67,7 +86,28 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
     }),
-  create: protectedProcedure
+  deleteInvitation: protectedProjectProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "members:delete",
+      });
+
+      return await ctx.prisma.membershipInvitation.delete({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+    }),
+  create: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -91,14 +131,40 @@ export const projectMembersRouter = createTRPCRouter({
           email: input.email.toLowerCase(),
         },
       });
-      if (!user) throw new Error("User not found");
+      if (user) {
+        return await ctx.prisma.membership.create({
+          data: {
+            userId: user.id,
+            projectId: input.projectId,
+            role: input.role,
+          },
+        });
+      } else {
+        const invitation = await ctx.prisma.membershipInvitation.create({
+          data: {
+            projectId: input.projectId,
+            email: input.email.toLowerCase(),
+            role: input.role,
+            senderId: ctx.session.user.id,
+          },
+        });
 
-      return await ctx.prisma.membership.create({
-        data: {
-          userId: user.id,
-          projectId: input.projectId,
-          role: input.role,
-        },
-      });
+        const project = await ctx.prisma.project.findFirst({
+          where: {
+            id: input.projectId,
+          },
+        });
+
+        if (!project) throw new Error("Project not found");
+
+        await sendProjectInvitation(
+          input.email,
+          ctx.session.user.name!,
+          ctx.session.user.email!,
+          project.name,
+        );
+
+        return invitation;
+      }
     }),
 });

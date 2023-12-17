@@ -3,7 +3,6 @@ import { CommandShortcut } from "@/src/components/ui/command";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -32,7 +31,14 @@ export const DetailPageNav = (props: {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // don't trigger keyboard shortcuts if the user is typing in an input
-      if (document.activeElement instanceof HTMLInputElement) return;
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        (event.target instanceof HTMLElement &&
+          event.target.getAttribute("role") === "textbox")
+      ) {
+        return;
+      }
 
       if (event.key === "k" && previousPageId) {
         void router.push(props.path(previousPageId));
@@ -47,61 +53,58 @@ export const DetailPageNav = (props: {
   if (ids.length > 0)
     return (
       <div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={!previousPageId}
-                onClick={() => {
-                  if (previousPageId) {
-                    posthog.capture(
-                      "navigate_detail_pages:button_click_prev_or_next",
-                    );
-                    void router.push(props.path(previousPageId));
-                  }
-                }}
-                className="mr-2"
-              >
-                <ChevronUp className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <span>Navigate up</span>
-              <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
-                k
-              </CommandShortcut>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={!nextPageId}
-                onClick={() => {
-                  if (nextPageId) {
-                    posthog.capture(
-                      "navigate_detail_pages:button_click_prev_or_next",
-                    );
-                    void router.push(props.path(nextPageId));
-                  }
-                }}
-              >
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <span>Navigate down</span>
-              <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
-                j
-              </CommandShortcut>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={!previousPageId}
+              onClick={() => {
+                if (previousPageId) {
+                  posthog.capture(
+                    "navigate_detail_pages:button_click_prev_or_next",
+                  );
+                  void router.push(props.path(previousPageId));
+                }
+              }}
+              className="mr-2"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Navigate up</span>
+            <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
+              k
+            </CommandShortcut>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={!nextPageId}
+              onClick={() => {
+                if (nextPageId) {
+                  posthog.capture(
+                    "navigate_detail_pages:button_click_prev_or_next",
+                  );
+                  void router.push(props.path(nextPageId));
+                }
+              }}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Navigate down</span>
+            <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
+              j
+            </CommandShortcut>
+          </TooltipContent>
+        </Tooltip>
       </div>
     );
   else return null;

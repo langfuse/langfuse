@@ -21,18 +21,27 @@ export const MetricTable = ({
     column: "timestamp",
   }));
 
-  const metrics = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces_observations",
-    select: [
-      { column: "totalTokenCost" },
-      { column: "totalTokens", agg: "SUM" },
-      { column: "model" },
-    ],
-    filter: localFilters ?? [],
-    groupBy: [{ type: "string", column: "model" }],
-    orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
-  });
+  const metrics = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces_observations",
+      select: [
+        { column: "totalTokenCost" },
+        { column: "totalTokens", agg: "SUM" },
+        { column: "model" },
+      ],
+      filter: localFilters ?? [],
+      groupBy: [{ type: "string", column: "model" }],
+      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const totalTokens = metrics.data?.reduce(
     (acc, curr) =>
@@ -79,7 +88,7 @@ export const MetricTable = ({
         >
           <DocPopup
             description="Calculated multiplying the number of tokens with cost per token for each model."
-            link="https://langfuse.com/docs/token-usage"
+            href="https://langfuse.com/docs/token-usage"
           />
         </TotalMetric>
       </DashboardTable>
