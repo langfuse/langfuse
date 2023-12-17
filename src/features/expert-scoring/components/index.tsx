@@ -71,7 +71,11 @@ export function ExpertScoreButton({
 
   const utils = api.useUtils();
   const onSuccess = async () => {
-    await Promise.all([utils.scores.invalidate(), utils.traces.invalidate()]);
+    await Promise.all([
+      utils.scores.invalidate(),
+      utils.traces.invalidate(),
+      utils.sessions.invalidate(),
+    ]);
   };
   const mutUpsertManyScores = api.scores.expertUpsertMany.useMutation({
     onSuccess,
@@ -177,7 +181,11 @@ export function ExpertScoreButton({
                     render={({ field }) => (
                       <FormItem className="col-span-2">
                         <FormControl>
-                          <Input placeholder="Name" {...field} />
+                          <Input
+                            placeholder="Name"
+                            {...field}
+                            autoComplete="off"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
