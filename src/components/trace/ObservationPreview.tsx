@@ -16,12 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
+import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -96,7 +96,7 @@ export const ObservationPreview = (props: {
           </div>
         </div>
         <div className="flex gap-2">
-          <ManualScoreButton
+          <ExpertScoreButton
             projectId={props.projectId}
             traceId={preloadedObservation.traceId}
             observationId={preloadedObservation.id}

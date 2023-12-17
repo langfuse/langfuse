@@ -5,7 +5,6 @@ import {
 } from "@/src/features/public-api/lib/apiKeys";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
-import { Scope } from "@sentry/nextjs";
 
 const options = {
   environment: { type: "string" },

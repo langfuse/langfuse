@@ -24,6 +24,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { LockIcon, Trash } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
+import { Badge } from "@/src/components/ui/badge";
 
 const formSchema = z.object({
   scores: z.array(
@@ -40,16 +41,18 @@ const formSchema = z.object({
   ),
 });
 
-export function ManualScoreButton({
+export function ExpertScoreButton({
   traceId,
   scores,
   observationId,
   projectId,
+  variant = "button",
 }: {
   traceId: string;
   scores: Score[];
   observationId?: string;
   projectId: string;
+  variant?: "button" | "badge";
 }) {
   const hasAccess = useHasAccess({
     projectId,
@@ -66,17 +69,17 @@ export function ManualScoreButton({
         : s.observationId === null),
   );
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const onSuccess = async () => {
     await Promise.all([utils.scores.invalidate(), utils.traces.invalidate()]);
   };
   const mutUpsertManyScores = api.scores.expertUpsertMany.useMutation({
     onSuccess,
   });
-  const mutDeleteScore = api.scores.delete.useMutation({ onSuccess });
-  const usedNames = api.scores.usedNames.useQuery({
-    projectId,
-  });
+  // const mutDeleteScore = api.scores.delete.useMutation({ onSuccess });
+  // const usedNames = api.scores.usedNames.useQuery({
+  //   projectId,
+  // });
 
   const [open, setOpen] = useState(false);
 
@@ -128,13 +131,20 @@ export function ManualScoreButton({
     onOpenChange(false);
   };
 
+  if (!hasAccess && variant === "badge") return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="secondary" disabled={!hasAccess}>
-          Expert score
-          {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
-        </Button>
+        {variant === "button" ? (
+          <Button variant="secondary" disabled={!hasAccess}>
+            Expert score
+            {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
+          </Button>
+        ) : (
+          <Badge className="cursor-pointer">
+            {currentExpertScores.length > 0 ? "Update score" : "Add score"}
+          </Badge>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

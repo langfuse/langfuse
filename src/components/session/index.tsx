@@ -6,7 +6,7 @@ import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
+import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
 import Link from "next/link";
@@ -104,7 +104,7 @@ export const SessionPage: React.FC<{
               <div className="flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
-              <ManualScoreButton
+              <ExpertScoreButton
                 projectId={projectId}
                 traceId={trace.id}
                 scores={trace.scores}

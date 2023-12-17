@@ -17,11 +17,11 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
+import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
 
 export const TracePreview = ({
   trace,
@@ -56,7 +56,7 @@ export const TracePreview = ({
             )}
           </div>
         </div>
-        <ManualScoreButton
+        <ExpertScoreButton
           projectId={trace.projectId}
           traceId={trace.id}
           scores={scores}
