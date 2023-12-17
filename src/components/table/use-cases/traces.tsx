@@ -1,9 +1,11 @@
 import { DeleteTrace } from "@/src/components/delete-trace";
+import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
@@ -13,7 +15,7 @@ import { api } from "@/src/utils/api";
 import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   NumberParam,
   StringParam,
@@ -24,6 +26,7 @@ import {
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type RowSelectionState } from "@tanstack/react-table";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -59,6 +62,7 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
 }: TracesTableProps) {
+  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -138,6 +142,34 @@ export default function TracesTable({
   };
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected()
+              ? true
+              : table.getIsSomePageRowsSelected()
+                ? "indeterminate"
+                : false
+          }
+          onCheckedChange={(value) => {
+            table.toggleAllPageRowsSelected(!!value);
+            if (!value) {
+              setSelectedRows({});
+            }
+          }}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+    },
     {
       accessorKey: "bookmarked",
       header: undefined,
@@ -323,6 +355,18 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
+        actionButtons={
+          <TraceTableMultiSelectAction
+            // Exclude traces that are not in the current page
+            selectedTraceIds={Object.keys(selectedRows).filter(
+              (traceId) => traces.data?.map((t) => t.id).includes(traceId),
+            )}
+            projectId={projectId}
+            onDeleteSuccess={() => {
+              setSelectedRows({});
+            }}
+          />
+        }
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
       />
@@ -348,6 +392,8 @@ export default function TracesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />
