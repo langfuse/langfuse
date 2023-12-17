@@ -36,7 +36,7 @@ export const sessionRouter = createTRPCRouter({
             bookmarked: boolean;
             public: boolean;
             countTraces: number;
-            userIds: string[] | null;
+            userIds: (string | null)[] | null;
             totalCount: number;
             sessionDuration: number | null;
           }>
@@ -85,7 +85,7 @@ export const sessionRouter = createTRPCRouter({
     `);
         return sessions.map((s) => ({
           ...s,
-          userIds: s.userIds?.filter((t) => t !== null) ?? [],
+          userIds: (s.userIds?.filter((t) => t !== null) ?? []) as string[],
         }));
       } catch (e) {
         console.error(e);
@@ -163,16 +163,22 @@ export const sessionRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
-        if (!session) {
-          throw new Error("Session not found in project");
-        }
         return session;
-      } catch (e) {
-        console.error(e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "unable to set bookmark on session",
-        });
+      } catch (error) {
+        console.error(error);
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025" // Record to update not found
+        )
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Session not found in project",
+          });
+        else {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
       }
     }),
   publish: protectedProjectProcedure

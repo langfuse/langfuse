@@ -140,48 +140,46 @@ function DetailsTab({ userId, projectId }: TabProps) {
 
   return (
     <div className="mt-5 pt-5">
-      {userData ? (
-        <div className="mt-6 border-t border-gray-100">
-          <dl className="divide-y divide-gray-100">
-            {userData.map((item) => (
-              <div
-                key={item.label}
-                className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
-              >
-                <dt className="text-sm font-medium leading-6 text-gray-900">
-                  {item.label}
-                </dt>
-                <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                  {item.value ?? "-"}
-                </dd>
-              </div>
-            ))}
-            {user.data?.lastScore ? (
-              <div
-                key="score"
-                className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
-              >
-                <dt className="text-sm font-medium leading-6 text-gray-900">
-                  Last Score
-                </dt>
-                <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                  <div className="flex items-center gap-4">
-                    <TableLink
-                      path={
-                        user.data?.lastScore.observationId
-                          ? `/project/${projectId}/traces/${user.data?.lastScore.traceId}?observation=${user.data?.lastScore.observationId}`
-                          : `/project/${projectId}/traces/${user.data?.lastScore.traceId}`
-                      }
-                      value={user.data?.lastScore.traceId}
-                    />
-                    <GroupedScoreBadges scores={[user.data?.lastScore]} />
-                  </div>
-                </dd>
-              </div>
-            ) : undefined}
-          </dl>
-        </div>
-      ) : undefined}
+      <div className="mt-6 border-t border-gray-100">
+        <dl className="divide-y divide-gray-100">
+          {userData.map((item) => (
+            <div
+              key={item.label}
+              className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
+            >
+              <dt className="text-sm font-medium leading-6 text-gray-900">
+                {item.label}
+              </dt>
+              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+                {item.value ?? "-"}
+              </dd>
+            </div>
+          ))}
+          {user.data?.lastScore ? (
+            <div
+              key="score"
+              className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
+            >
+              <dt className="text-sm font-medium leading-6 text-gray-900">
+                Last Score
+              </dt>
+              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+                <div className="flex items-center gap-4">
+                  <TableLink
+                    path={
+                      user.data.lastScore.observationId
+                        ? `/project/${projectId}/traces/${user.data.lastScore.traceId}?observation=${user.data.lastScore.observationId}`
+                        : `/project/${projectId}/traces/${user.data.lastScore.traceId}`
+                    }
+                    value={user.data.lastScore.traceId}
+                  />
+                  <GroupedScoreBadges scores={[user.data.lastScore]} />
+                </div>
+              </dd>
+            </div>
+          ) : undefined}
+        </dl>
+      </div>
     </div>
   );
 }

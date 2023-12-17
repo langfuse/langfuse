@@ -25,10 +25,9 @@ export function ChartScores(props: {
       projectId: props.projectId,
       from: "traces_scores",
       select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
-      filter:
-        props.globalFilterState.map((f) =>
-          f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-        ) ?? [],
+      filter: props.globalFilterState.map((f) =>
+        f.type === "datetime" ? { ...f, column: "timestamp" } : f,
+      ),
       groupBy: [
         {
           type: "datetime",
@@ -71,7 +70,7 @@ export function ChartScores(props: {
       {!isEmptyTimeSeries(extractedScores) ? (
         <BaseTimeSeriesChart
           agg={props.agg}
-          data={extractedScores ?? []}
+          data={extractedScores}
           connectNulls
         />
       ) : (

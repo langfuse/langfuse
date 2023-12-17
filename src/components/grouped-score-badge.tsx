@@ -20,7 +20,7 @@ export const GroupedScoreBadges = ({
   scores: ScoreSimplified[];
   variant?: "badge" | "headings";
 }) => {
-  const groupedScores = scores.reduce(
+  const groupedScores = scores.reduce<Record<string, ScoreSimplified[]>>(
     (acc, score) => {
       if (!acc[score.name] || !Array.isArray(acc[score.name])) {
         acc[score.name] = [score];
@@ -29,7 +29,7 @@ export const GroupedScoreBadges = ({
       }
       return acc;
     },
-    {} as Record<string, ScoreSimplified[]>,
+    {},
   );
 
   const ScoresOfGroup = (props: {

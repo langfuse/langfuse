@@ -78,9 +78,7 @@ export function TracePage({ traceId }: { traceId: string }) {
     (acc, o) => {
       if (!o.price) return acc;
 
-      return acc
-        ? acc.plus(o.price ? o.price : new Decimal(0))
-        : new Decimal(0).plus(o.price ? o.price : new Decimal(0));
+      return acc ? acc.plus(o.price) : new Decimal(0).plus(o.price);
     },
     undefined as Decimal | undefined,
   );
@@ -144,7 +142,7 @@ export function TracePage({ traceId }: { traceId: string }) {
             <Badge>User ID: {trace.data.userId}</Badge>
           </Link>
         ) : null}
-        <TraceAggUsageBadge observations={trace.data.observations ?? []} />
+        <TraceAggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
           <Badge variant="outline">
             Total cost: {totalCost.toString()} USD
@@ -157,7 +155,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           trace={trace.data}
           scores={trace.data.scores}
           projectId={trace.data.projectId}
-          observations={trace.data.observations ?? []}
+          observations={trace.data.observations}
         />
       </div>
     </div>

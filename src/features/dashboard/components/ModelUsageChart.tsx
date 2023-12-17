@@ -39,7 +39,7 @@ export const ModelUsageChart = ({
         { column: "totalTokenCost" },
         { column: "model" },
       ],
-      filter: globalFilterState ?? [],
+      filter: globalFilterState,
       groupBy: [
         {
           type: "datetime",
@@ -65,7 +65,7 @@ export const ModelUsageChart = ({
   const allModels = getAllModels(projectId, globalFilterState);
 
   const transformedTotalTokens =
-    tokens.data && allModels
+    tokens.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
             { labelColumn: "model", valueColumn: "sumTotalTokens" },
@@ -75,7 +75,7 @@ export const ModelUsageChart = ({
       : [];
 
   const transformedModelCost =
-    tokens.data && allModels
+    tokens.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
             { labelColumn: "model", valueColumn: "totalTokenCost" },

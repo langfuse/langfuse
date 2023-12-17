@@ -30,7 +30,7 @@ export const MetricTable = ({
         { column: "totalTokens", agg: "SUM" },
         { column: "model" },
       ],
-      filter: localFilters ?? [],
+      filter: localFilters,
       groupBy: [{ type: "string", column: "model" }],
       orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
     },

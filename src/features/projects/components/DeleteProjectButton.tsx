@@ -31,14 +31,14 @@ export function DeleteProjectButton(props: { projectId: string }) {
   const posthog = usePostHog();
 
   //code for dynamic confirmation message
-  const userInfo = session?.data?.user;
-  const currentProject = userInfo?.projects?.find(
+  const userInfo = session.data?.user;
+  const currentProject = userInfo?.projects.find(
     (project) => project.id == props.projectId,
   );
   const confirmMessage =
     userInfo?.name?.replace(" ", "-") +
     "/" +
-    currentProject?.name?.replace(" ", "-");
+    currentProject?.name.replace(" ", "-");
 
   const formSchema = z.object({
     name: z.string().includes(confirmMessage, {
