@@ -238,7 +238,7 @@ const prepareFilterString = (
     if (filter.type === "datetime") {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
-      )} ${filter.value}`;
+      )} ${filter.value.toUTCString()}`;
     } else {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
