@@ -238,7 +238,7 @@ const prepareFilterString = (
     if (filter.type === "datetime") {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
-      )} ${filter.value}`;
+      )} ${filter.value}::timestamp with time zone at time zone 'UTC'`;
     } else {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,

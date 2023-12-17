@@ -38,12 +38,7 @@ export function filterToPrismaSql(
     let valuePrisma: Prisma.Sql;
     switch (filter.type) {
       case "datetime":
-        valuePrisma = Prisma.sql`${
-          filter.value
-            .toISOString()
-            .split(".")[0]! // remove milliseconds
-            .replace("T", " ") // to Postgres datetime
-        }::TIMESTAMP`;
+        valuePrisma = Prisma.sql`${filter.value}::timestamp with time zone at time zone 'UTC'`;
         break;
       case "number":
       case "numberObject":
@@ -112,10 +107,7 @@ export const datetimeFilterToPrismaSql = (
     throw new Error("Invalid date: " + value.toString());
   }
 
-  return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(operator)} ${
-    value
-      .toISOString()
-      .split(".")[0]! // remove milliseconds
-      .replace("T", " ") // to Postgres datetime
-  }::TIMESTAMP`;
+  return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(
+    operator,
+  )} ${value}::timestamp with time zone at time zone 'UTC'`;
 };
