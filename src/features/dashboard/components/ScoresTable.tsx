@@ -31,7 +31,7 @@ export const ScoresTable = ({
         { column: "scoreId", agg: "COUNT" },
         { column: "value", agg: "AVG" },
       ],
-      filter: localFilters ?? [],
+      filter: localFilters,
       groupBy: [{ type: "string", column: "scoreName" }],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
     },
@@ -50,16 +50,15 @@ export const ScoresTable = ({
         projectId,
         from: "traces_scores",
         select: [{ column: "scoreName" }, { column: "scoreId", agg: "COUNT" }],
-        filter:
-          [
-            ...localFilters,
-            {
-              column: "value",
-              operator: "=",
-              value: i,
-              type: "number",
-            },
-          ] ?? [],
+        filter: [
+          ...localFilters,
+          {
+            column: "value",
+            operator: "=",
+            value: i,
+            type: "number",
+          },
+        ],
         groupBy: [{ type: "string", column: "scoreName" }],
         orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
       },
@@ -134,23 +133,21 @@ export const ScoresTable = ({
           <RightAlignedCell key={0}>0</RightAlignedCell>,
           <RightAlignedCell key={0}>1</RightAlignedCell>,
         ]}
-        rows={
-          data.map((item, i) => [
-            item.scoreName,
-            <RightAlignedCell key={i}>
-              {compactNumberFormatter(item.countScoreId as number)}
-            </RightAlignedCell>,
-            <RightAlignedCell key={i}>
-              {compactNumberFormatter(item.avgValue)}
-            </RightAlignedCell>,
-            <RightAlignedCell key={i}>
-              {compactNumberFormatter(item.zeroValueScore as number)}
-            </RightAlignedCell>,
-            <RightAlignedCell key={i}>
-              {compactNumberFormatter(item.oneValueScore)}
-            </RightAlignedCell>,
-          ]) ?? []
-        }
+        rows={data.map((item, i) => [
+          item.scoreName,
+          <RightAlignedCell key={i}>
+            {compactNumberFormatter(item.countScoreId as number)}
+          </RightAlignedCell>,
+          <RightAlignedCell key={i}>
+            {compactNumberFormatter(item.avgValue)}
+          </RightAlignedCell>,
+          <RightAlignedCell key={i}>
+            {compactNumberFormatter(item.zeroValueScore as number)}
+          </RightAlignedCell>,
+          <RightAlignedCell key={i}>
+            {compactNumberFormatter(item.oneValueScore)}
+          </RightAlignedCell>,
+        ])}
         collapse={{ collapsed: 5, expanded: 20 }}
         noDataChildren={
           <DocPopup

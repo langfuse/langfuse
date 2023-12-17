@@ -29,10 +29,7 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
-      const filterCondition = filterToPrismaSql(
-        input.filter ?? [],
-        scoresTableCols,
-      );
+      const filterCondition = filterToPrismaSql(input.filter, scoresTableCols);
       console.log("filters: ", filterCondition);
 
       const scores = await ctx.prisma.$queryRaw<

@@ -15,9 +15,7 @@ const CommaArrayParam = {
     encodeDelimitedArray(
       state.map((f) => {
         const stringified = `${f.column};${f.type};${
-          f.type === "numberObject" || f.type === "stringObject"
-            ? f.key ?? ""
-            : ""
+          f.type === "numberObject" || f.type === "stringObject" ? f.key : ""
         };${f.operator};${
           f.type === "datetime"
             ? f.value.toISOString()
@@ -25,6 +23,7 @@ const CommaArrayParam = {
               ? f.value.join("|")
               : f.value
         }`;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
         return stringified;
       }),
@@ -36,6 +35,7 @@ const CommaArrayParam = {
       ?.map((f) => {
         if (!f) return null;
         const [column, type, key, operator, value] = f.split(";");
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
         const parsedValue =
@@ -50,6 +50,7 @@ const CommaArrayParam = {
                   : type === "boolean"
                     ? value === "true"
                     : value;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,
@@ -61,7 +62,7 @@ const CommaArrayParam = {
         if (!parsed.success) return null;
         return parsed.data;
       })
-      .filter((v) => v !== null) as FilterState) ?? undefined,
+      .filter((v) => v !== null) as FilterState | undefined) ?? [],
 };
 
 // manage state with hook

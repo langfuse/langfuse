@@ -154,7 +154,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
 
     // check that the user is a member of this project
     const projectId = result.data.projectId;
-    const sessionProject = ctx.session?.user.projects?.find(
+    const sessionProject = ctx.session.user.projects.find(
       ({ id }) => id === projectId,
     );
 
@@ -218,7 +218,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       message: "Trace not found",
     });
 
-  const sessionProject = ctx.session?.user?.projects?.find(
+  const sessionProject = ctx.session?.user?.projects.find(
     ({ id }) => id === trace.projectId,
   );
 
@@ -279,7 +279,7 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       message: "Session not found",
     });
 
-  const userSessionProject = ctx.session?.user?.projects?.find(
+  const userSessionProject = ctx.session?.user?.projects.find(
     ({ id }) => id === projectId,
   );
 

@@ -67,8 +67,8 @@ export default function Start() {
     posthog.capture("dashboard:date_range_changed");
     setUrlParams({
       select: option ? option.toString() : urlParams.select,
-      from: dateRange ? dateRange.from?.getTime() : urlParams.from,
-      to: dateRange ? dateRange.to?.getTime() : urlParams.to,
+      from: dateRange ? dateRange.from.getTime() : urlParams.from,
+      to: dateRange ? dateRange.to.getTime() : urlParams.to,
     });
   };
 

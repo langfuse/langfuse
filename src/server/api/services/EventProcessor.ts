@@ -201,7 +201,7 @@ export class ObservationProcessor implements EventProcessor {
     const mergedModel = body.model ?? existingObservation?.model;
 
     const newPromptTokens =
-      body?.usage?.input ??
+      body.usage?.input ??
       ((body.input || existingObservation?.input) && mergedModel
         ? tokenCount({
             model: mergedModel,
@@ -210,7 +210,7 @@ export class ObservationProcessor implements EventProcessor {
         : undefined);
 
     const newCompletionTokens =
-      body?.usage?.output ??
+      body.usage?.output ??
       ((body.output || existingObservation?.output) && mergedModel
         ? tokenCount({
             model: mergedModel,

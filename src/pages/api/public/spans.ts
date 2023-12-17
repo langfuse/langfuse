@@ -58,7 +58,7 @@ export default async function handler(
 
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
-        {},
+        { legacyEndpoint: "/api/public/spans" },
         req,
         authCheck,
       );
@@ -100,7 +100,7 @@ export default async function handler(
 
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
-        {},
+        { legacyEndpoint: "/api/public/spans" },
         req,
         authCheck,
       );

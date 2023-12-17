@@ -111,7 +111,7 @@ const Base = (props: {
         checked={props.isPublic}
         onCheckedChange={() => {
           if (props.isLoading) return;
-          void props.onChange(!props.isPublic);
+          props.onChange(!props.isPublic);
         }}
         disabled={props.disabled}
       />

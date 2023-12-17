@@ -12,16 +12,15 @@ export const getAllModels = (
       projectId,
       from: "observations",
       select: [{ column: "model" }],
-      filter:
-        [
-          ...globalFilterState,
-          {
-            type: "string",
-            column: "type",
-            operator: "=",
-            value: "GENERATION",
-          },
-        ] ?? [],
+      filter: [
+        ...globalFilterState,
+        {
+          type: "string",
+          column: "type",
+          operator: "=",
+          value: "GENERATION",
+        },
+      ],
       groupBy: [{ type: "string", column: "model" }],
     },
     {
