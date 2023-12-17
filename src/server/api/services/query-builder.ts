@@ -243,7 +243,7 @@ const prepareFilterString = (
           .toISOString()
           .split(".")[0]! // remove milliseconds
           .replace("T", " ") // to Postgres datetime
-      }`;
+      }::TIMESTAMP`;
     } else {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
