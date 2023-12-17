@@ -238,7 +238,12 @@ const prepareFilterString = (
     if (filter.type === "datetime") {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
-      )} ${filter.value.toUTCString()}`;
+      )} ${
+        filter.value
+          .toISOString()
+          .split(".")[0]! // remove milliseconds
+          .replace("T", " ") // to Postgres datetime
+      }`;
     } else {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
