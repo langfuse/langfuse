@@ -275,46 +275,38 @@ export const traceRouter = createTRPCRouter({
         observations: enrichedObservations as ObservationReturnType[],
       };
     }),
-  delete: protectedProjectProcedure
-    .input(z.object({ traceId: z.string(), projectId: z.string() }))
+  deleteMany: protectedProjectProcedure
+    .input(
+      z.object({
+        traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
+        projectId: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "traces:delete",
-        });
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
 
-        const trace = await ctx.prisma.trace.findFirst({
+      return ctx.prisma.$transaction([
+        ctx.prisma.trace.deleteMany({
           where: {
-            id: input.traceId,
+            id: {
+              in: input.traceIds,
+            },
             projectId: input.projectId,
           },
-        });
-
-        if (!trace) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found in project",
-          });
-        }
-
-        return ctx.prisma.$transaction([
-          ctx.prisma.trace.delete({
-            where: {
-              id: input.traceId,
+        }),
+        ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
             },
-          }),
-          ctx.prisma.observation.deleteMany({
-            where: {
-              traceId: input.traceId,
-            },
-          }),
-        ]);
-      } catch (e) {
-        console.error("Failed to delete trace", e);
-        throw e;
-      }
+            projectId: input.projectId,
+          },
+        }),
+      ]);
     }),
   bookmark: protectedProjectProcedure
     .input(
