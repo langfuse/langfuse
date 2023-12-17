@@ -275,6 +275,39 @@ export const traceRouter = createTRPCRouter({
         observations: enrichedObservations as ObservationReturnType[],
       };
     }),
+  deleteMany: protectedProjectProcedure
+    .input(
+      z.object({
+        traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
+
+      return ctx.prisma.$transaction([
+        ctx.prisma.trace.deleteMany({
+          where: {
+            id: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
+        ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
+      ]);
+    }),
   bookmark: protectedProjectProcedure
     .input(
       z.object({
@@ -358,41 +391,5 @@ export const traceRouter = createTRPCRouter({
           });
         }
       }
-    }),
-  deleteMany: protectedProjectProcedure
-    .input(
-      z.object({
-        traceIds: z.array(z.string()),
-        projectId: z.string(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "traces:delete",
-      });
-
-      if (input.traceIds.length < 1) {
-        throw new Error("Minimum 1 trace_Id is required.");
-      }
-
-      return ctx.prisma.$transaction([
-        ctx.prisma.trace.deleteMany({
-          where: {
-            id: {
-              in: input.traceIds,
-            },
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.observation.deleteMany({
-          where: {
-            traceId: {
-              in: input.traceIds,
-            },
-          },
-        }),
-      ]);
     }),
 });

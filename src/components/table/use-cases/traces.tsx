@@ -16,7 +16,6 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import {
   NumberParam,
   StringParam,
@@ -27,8 +26,9 @@ import {
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type RowSelectionState } from "@tanstack/react-table";
 
-export type TraceTableRow = {
+export type TracesTableRow = {
   bookmarked: boolean;
   id: string;
   timestamp: string;
@@ -49,7 +49,7 @@ export type TraceTableRow = {
   };
 };
 
-export type TraceTableProps = {
+export type TracesTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: string[];
@@ -61,11 +61,8 @@ export default function TracesTable({
   projectId,
   userId,
   omittedFilter = [],
-}: TraceTableProps) {
-  const router = useRouter();
-
-  const [rowSelection, setRowSelection] = useState({});
-  const [selectedRows, setSelectedRows] = useState<TraceTableRow[]>([]);
+}: TracesTableProps) {
+  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -79,10 +76,6 @@ export default function TracesTable({
       value: utcDateOffsetByDays(-14),
     },
   ]);
-
-  const onChangeInSelectedRows = (selectedRows: TraceTableRow[]) => {
-    setSelectedRows(selectedRows);
-  };
 
   const userIdFilter: FilterState = userId
     ? [
@@ -125,7 +118,7 @@ export default function TracesTable({
 
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"][0],
-  ): TraceTableRow => {
+  ): TracesTableRow => {
     return {
       bookmarked: trace.bookmarked,
       id: trace.id,
@@ -148,16 +141,24 @@ export default function TracesTable({
     };
   };
 
-  const columns: LangfuseColumnDef<TraceTableRow>[] = [
+  const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
       id: "select",
       header: ({ table }) => (
         <Checkbox
           checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
+            table.getIsAllPageRowsSelected()
+              ? true
+              : table.getIsSomePageRowsSelected()
+                ? "indeterminate"
+                : false
           }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          onCheckedChange={(value) => {
+            table.toggleAllPageRowsSelected(!!value);
+            if (!value) {
+              setSelectedRows({});
+            }
+          }}
           aria-label="Select all"
         />
       ),
@@ -338,7 +339,7 @@ export default function TracesTable({
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<TraceTableRow>("tracesColumnVisibility", columns);
+    useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
   return (
     <div>
@@ -356,8 +357,14 @@ export default function TracesTable({
         setFilterState={setUserFilterState}
         actionButtons={
           <TraceTableMultiSelectAction
-            selectedRows={selectedRows}
-            projectId={router.query.projectId as string}
+            // Exclude traces that are not in the current page
+            selectedTraceIds={Object.keys(selectedRows).filter(
+              (traceId) => traces.data?.map((t) => t.id).includes(traceId),
+            )}
+            projectId={projectId}
+            onDeleteSuccess={() => {
+              setSelectedRows({});
+            }}
           />
         }
         columnVisibility={columnVisibility}
@@ -385,9 +392,8 @@ export default function TracesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        onSelectionChange={onChangeInSelectedRows}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />

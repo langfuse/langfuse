@@ -11,8 +11,6 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
-
 import {
   Table,
   TableBody,
@@ -21,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { useState } from "react";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -33,9 +32,8 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
-  onSelectionChange?: (selectedRows: TData[]) => void;
   rowSelection?: RowSelectionState;
-  setRowSelection?: OnChangeFn<RowSelectionState> | undefined;
+  setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   help?: { description: string; href: string };
@@ -48,11 +46,10 @@ export interface AsyncTableData<T> {
   error?: string;
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends object, TValue>({
   columns,
   data,
   pagination,
-  onSelectionChange,
   rowSelection,
   setRowSelection,
   columnVisibility,
@@ -71,6 +68,13 @@ export function DataTable<TData, TValue>({
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: onColumnVisibilityChange,
+    getRowId: (row, index) => {
+      if ("id" in row && typeof row.id === "string") {
+        return row.id;
+      } else {
+        return index.toString();
+      }
+    },
     state: {
       columnFilters,
       pagination: pagination?.state,
@@ -79,24 +83,6 @@ export function DataTable<TData, TValue>({
     },
     manualFiltering: true,
   });
-
-  useEffect(() => {
-    if (onSelectionChange && rowSelection) {
-      const selectedRowsIndexes = Object.keys(rowSelection).map(Number);
-      const rows = table.getRowModel().rows;
-      const selectedRowsData = rows
-        .filter((_, i) => {
-          return selectedRowsIndexes.includes(i);
-        })
-        .map((row) => row.original);
-
-      onSelectionChange(selectedRowsData);
-    }
-  }, [rowSelection]);
-
-  useEffect(() => {
-    setRowSelection && setRowSelection({});
-  }, [table.getRowModel().rows.length]);
 
   return (
     <>
@@ -136,12 +122,7 @@ export function DataTable<TData, TValue>({
                 </TableRow>
               ) : table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={
-                      setRowSelection && row.getIsSelected() && "selected"
-                    }
-                  >
+                  <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}

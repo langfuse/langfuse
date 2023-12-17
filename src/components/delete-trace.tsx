@@ -70,7 +70,7 @@ export function DeleteTrace({
             onClick={() =>
               void mutDeleteTrace.mutateAsync({
                 traceIds: [traceId],
-                projectId: projectId,
+                projectId,
               })
             }
           >

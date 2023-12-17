@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Trash } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -9,47 +9,100 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { type TraceTableRow } from "@/src/components/table/use-cases/traces";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { useState } from "react";
 
 export function TraceTableMultiSelectAction({
-  selectedRows,
+  selectedTraceIds,
   projectId,
+  onDeleteSuccess,
 }: {
-  selectedRows: TraceTableRow[];
+  selectedTraceIds: string[];
   projectId: string;
+  onDeleteSuccess: () => void;
 }) {
   const utils = api.useUtils();
+  const [open, setOpen] = useState(false);
 
-  const hasAccess = useHasAccess({ projectId, scope: "traces:delete" });
-
+  const hasDeleteAccess = useHasAccess({ projectId, scope: "traces:delete" });
   const mutDeleteTraces = api.traces.deleteMany.useMutation({
-    onSuccess: () => void utils.traces.invalidate(),
+    onSuccess: () => {
+      onDeleteSuccess();
+      void utils.traces.invalidate();
+    },
   });
 
-  const traceIds = selectedRows.map((row) => row.id);
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          className="bg-white p-2 font-medium text-black"
-          disabled={selectedRows.length < 1}
-        >
-          Actions ({selectedRows.length} selected)
-          <ChevronDown className="h-5 w-5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuItem
-          disabled={!hasAccess}
-          onClick={() =>
-            void mutDeleteTraces.mutateAsync({ traceIds, projectId })
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className="bg-white p-2 font-medium text-black"
+            disabled={selectedTraceIds.length < 1}
+          >
+            Actions ({selectedTraceIds.length} selected)
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem
+            disabled={!hasDeleteAccess}
+            onClick={() => {
+              setOpen(true);
+            }}
+          >
+            <Trash className="mr-2 h-4 w-4" />
+            <span>Delete</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog
+        open={open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setOpen(false);
           }
-        >
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete traces</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone and removes all the data associated
+              with these traces.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-start">
+            <Button
+              type="button"
+              variant="destructive"
+              loading={mutDeleteTraces.isLoading}
+              disabled={mutDeleteTraces.isLoading}
+              onClick={() => {
+                void mutDeleteTraces
+                  .mutateAsync({
+                    traceIds: selectedTraceIds,
+                    projectId,
+                  })
+                  .then(() => {
+                    setOpen(false);
+                  });
+              }}
+            >
+              Delete {selectedTraceIds.length} trace(s)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
