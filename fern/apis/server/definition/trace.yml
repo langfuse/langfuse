@@ -6,12 +6,6 @@ service:
   auth: true
   base-path: /api/public
   endpoints:
-    create:
-      docs: Add a trace to the database
-      method: POST
-      path: /traces
-      request: CreateTraceRequest
-      response: commons.Trace
     get:
       docs: Get a specific trace
       method: GET
@@ -35,15 +29,6 @@ service:
       response: Traces
 
 types:
-  CreateTraceRequest:
-    properties:
-      id: optional<string>
-      name: optional<string>
-      userId: optional<string>
-      externalId: optional<string>
-      release: optional<string>
-      version: optional<string>
-      metadata: optional<unknown>
   Traces:
     properties:
       data: list<commons.TraceWithDetails>

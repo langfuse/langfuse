@@ -18,6 +18,9 @@ updates:
       - dependency-name: "@types/node"
       - dependency-name: "@trpc/*"
     groups:
+      sentry:
+        patterns:
+          - "@sentry/*"
       prisma:
         patterns:
           - "prisma"

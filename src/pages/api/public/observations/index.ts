@@ -1,5 +1,6 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@/src/server/db";
 import { paginationZod } from "@/src/utils/zod";
 import { Prisma, type PrismaClient, type Observation } from "@prisma/client";
@@ -60,7 +61,7 @@ export default async function handler(
     );
 
     return res.status(200).json({
-      data: observations,
+      data: observations.map(mapUsageOutput),
       meta: {
         page: searchParams.page,
         limit: searchParams.limit,
@@ -104,8 +105,7 @@ const getObservation = async (
     ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
     : Prisma.empty;
 
-  const [observations, count] = await Promise.all([
-    prisma.$queryRaw<Observation[]>`
+  const observations = await prisma.$queryRaw<Observation[]>`
       SELECT 
         o."id",
         o."name",
@@ -123,6 +123,7 @@ const getObservation = async (
         o."completion_tokens" AS "completionTokens",
         o."prompt_tokens" AS "promptTokens",
         o."total_tokens" AS "totalTokens",
+        o."unit" AS "unit",
         o."version",
         o."project_id" AS "projectId",
         o."trace_id" AS "traceId",
@@ -137,8 +138,8 @@ const getObservation = async (
       ORDER by o."start_time" DESC
       OFFSET ${(query.page - 1) * query.limit}
       LIMIT ${query.limit}
-    `,
-    prisma.$queryRaw<{ count: bigint }[]>`
+    `;
+  const count = await prisma.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*) FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${observationTypeCondition}
@@ -146,10 +147,9 @@ const getObservation = async (
       ${userIdCondition}
       ${traceIdCondition}
       ${parentObservationIdCondition}
-  `,
-  ]);
+  `;
 
-  if (!count || count.length !== 1) {
+  if (count.length !== 1) {
     throw new Error(
       `Unexpected number of results for count query: ${JSON.stringify(count)}`,
     );

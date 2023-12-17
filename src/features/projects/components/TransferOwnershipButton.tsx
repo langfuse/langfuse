@@ -34,7 +34,7 @@ export function TransferOwnershipButton(props: { projectId: string }) {
   const posthog = usePostHog();
 
   const session = useSession();
-  const project = session?.data?.user?.projects?.find(
+  const project = session.data?.user?.projects.find(
     (project) => project.id == props.projectId,
   );
   const hasAccess = useHasAccess({

@@ -263,119 +263,6 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Event",
-      "item": [
-        {
-          "_type": "endpoint",
-          "name": "Create",
-          "request": {
-            "description": "Add an event to the database",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/events",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "events"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "POST",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "_type": "container",
-      "description": null,
-      "name": "Generations",
-      "item": [
-        {
-          "_type": "endpoint",
-          "name": "Log",
-          "request": {
-            "description": null,
-            "url": {
-              "raw": "{{baseUrl}}/api/public/generations",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "generations"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "POST",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update",
-          "request": {
-            "description": null,
-            "url": {
-              "raw": "{{baseUrl}}/api/public/generations",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "generations"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "PATCH",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"generationId\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"completionStartTime\": \"1994-11-05T13:15:30Z\",\n    \"model\": \"example\",\n    \"modelParameters\": {\n        \"example\": \"example\"\n    },\n    \"prompt\": \"UNKNOWN\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"completion\": \"UNKNOWN\",\n    \"usage\": {\n        \"promptTokens\": 0,\n        \"completionTokens\": 0,\n        \"totalTokens\": 0\n    },\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "_type": "container",
-      "description": null,
       "name": "Health",
       "item": [
         {
@@ -433,7 +320,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"body\": {\n                \"id\": \"example\",\n                \"timestamp\": \"1994-11-05T13:15:30Z\",\n                \"name\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"userId\": \"example\",\n                \"metadata\": \"UNKNOWN\"\n            }\n        }\n    ]\n}",
+              "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"example\",\n                \"name\": \"example\",\n                \"userId\": \"example\",\n                \"input\": \"UNKNOWN\",\n                \"output\": \"UNKNOWN\",\n                \"sessionId\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"metadata\": \"UNKNOWN\",\n                \"public\": true\n            },\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"metadata\": \"UNKNOWN\"\n        }\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -666,71 +553,37 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Span",
+      "name": "Sessions",
       "item": [
         {
           "_type": "endpoint",
-          "name": "Create",
+          "name": "Get",
           "request": {
-            "description": "Add a span to the database",
+            "description": "Get a session",
             "url": {
-              "raw": "{{baseUrl}}/api/public/spans",
+              "raw": "{{baseUrl}}/api/public/sessions/:sessionId",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
-                "spans"
+                "sessions",
+                ":sessionId"
               ],
               "query": [],
-              "variable": []
+              "variable": [
+                {
+                  "key": "sessionId",
+                  "value": "",
+                  "description": "The unique id of a session"
+                }
+              ]
             },
             "header": [],
-            "method": "POST",
+            "method": "GET",
             "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"statusMessage\": \"example\",\n    \"parentObservationId\": \"example\",\n    \"version\": \"example\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update",
-          "request": {
-            "description": "Update a span to the database",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/spans",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "spans"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "PATCH",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"spanId\": \"example\",\n    \"traceId\": \"example\",\n    \"startTime\": \"1994-11-05T13:15:30Z\",\n    \"endTime\": \"1994-11-05T13:15:30Z\",\n    \"name\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"input\": \"UNKNOWN\",\n    \"output\": \"UNKNOWN\",\n    \"level\": \"DEBUG\",\n    \"version\": \"example\",\n    \"statusMessage\": \"example\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "body": null
           },
           "response": []
         }
@@ -741,39 +594,6 @@
       "description": null,
       "name": "Trace",
       "item": [
-        {
-          "_type": "endpoint",
-          "name": "Create",
-          "request": {
-            "description": "Add a trace to the database",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/traces",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "traces"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "POST",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"name\": \"example\",\n    \"userId\": \"example\",\n    \"externalId\": \"example\",\n    \"release\": \"example\",\n    \"version\": \"example\",\n    \"metadata\": \"UNKNOWN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
         {
           "_type": "endpoint",
           "name": "Get",

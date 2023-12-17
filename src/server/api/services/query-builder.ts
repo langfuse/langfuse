@@ -20,7 +20,7 @@ export type InternalDatabaseRow = {
 };
 
 export type DatabaseRow = {
-  [key: string]: string | number | Date;
+  [key: string]: string | number | Date | null;
 };
 
 export const executeQuery = async (
@@ -227,7 +227,7 @@ const prepareFilterString = (
   filter: z.infer<typeof filterInterface>,
   columnDefinitions: ColumnDefinition[],
 ): Prisma.Sql => {
-  const filters = (filter ?? []).map((filter) => {
+  const filters = filter.map((filter) => {
     const column = columnDefinitions.find((x) => x.name === filter.column);
     if (!column) {
       console.error(`Column ${filter.column} not found`);
@@ -238,7 +238,7 @@ const prepareFilterString = (
     if (filter.type === "datetime") {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
-      )} ${filter.value}`;
+      )} ${filter.value}::timestamp with time zone at time zone 'UTC'`;
     } else {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
@@ -308,8 +308,8 @@ const createDateRangeCte = (
     maxDateColumn
   ) {
     if (
-      minDateColumn?.column !== groupByColumn?.column ||
-      maxDateColumn?.column !== groupByColumn?.column
+      minDateColumn.column !== groupByColumn.column ||
+      maxDateColumn.column !== groupByColumn.column
     ) {
       throw new Error(
         "Min date column, max date column must match group by column",
@@ -385,6 +385,7 @@ const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
         newRow[key] = val;
       } else if (val instanceof Date) {
         newRow[key] = val;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       } else if (val === null) {
         newRow[key] = val;
       } else {

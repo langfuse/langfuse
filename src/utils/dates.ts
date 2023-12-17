@@ -17,3 +17,14 @@ export const setEndOfDay = (date: Date) => {
 
 export const intervalInSeconds = (start: Date, end: Date | null) =>
   end ? (end.getTime() - start.getTime()) / 1000 : 0;
+
+export const formatInterval = (seconds: number) => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const pad = (num: number) => `00${num}`.slice(2);
+
+  if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
+  if (mins > 0) return `${mins}m ${pad(secs)}s`;
+  return `${seconds.toFixed(2)}s`;
+};

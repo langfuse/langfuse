@@ -88,7 +88,7 @@ async function jobScheduler(): Promise<
     console.error("Telemetry failed to check if job should run");
     return { shouldRunJob: false };
   }
-  if (checkNoLock[0]!.status === false) return { shouldRunJob: false };
+  if (!checkNoLock[0]!.status) return { shouldRunJob: false };
 
   // Lock table and update job_started_at if no other job was created in the meantime
   const res = await prisma.$transaction([

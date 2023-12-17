@@ -27,41 +27,58 @@ export const UserChart = ({
   agg: DateTimeAggregationOption;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const user = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces_observations",
-    select: [
-      { column: "totalTokenCost" },
-      { column: "user" },
-      { column: "traceId", agg: "COUNT" },
-    ],
-    filter: globalFilterState ?? [],
-    groupBy: [
-      {
-        type: "string",
-        column: "user",
+  const user = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces_observations",
+      select: [
+        { column: "totalTokenCost" },
+        { column: "user" },
+        { column: "traceId", agg: "COUNT" },
+      ],
+      filter: globalFilterState,
+      groupBy: [
+        {
+          type: "string",
+          column: "user",
+        },
+      ],
+      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-    ],
-    orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
-  });
+    },
+  );
 
-  const traces = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces",
-    select: [{ column: "user" }, { column: "traceId", agg: "COUNT" }],
-    filter:
-      globalFilterState.map((f) => ({
+  const traces = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces",
+      select: [{ column: "user" }, { column: "traceId", agg: "COUNT" }],
+      filter: globalFilterState.map((f) => ({
         ...f,
         column: "timestamp",
-      })) ?? [],
-    groupBy: [
-      {
-        type: "string",
-        column: "user",
+      })),
+      groupBy: [
+        {
+          type: "string",
+          column: "user",
+        },
+      ],
+      orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-    ],
-    orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
-  });
+    },
+  );
 
   const transformedNumberOfTraces: BarChartDataPoint[] = traces.data
     ? traces.data
@@ -79,7 +96,7 @@ export const UserChart = ({
         .filter((item) => item.user !== undefined)
         .map((item) => {
           return {
-            name: (item.user as string) ?? "Unknown",
+            name: (item.user as string | null | undefined) ?? "Unknown",
             value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
           };
         })

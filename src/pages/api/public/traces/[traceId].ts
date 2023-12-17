@@ -3,6 +3,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -43,30 +44,30 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const [trace, observations] = await Promise.all([
-      prisma.trace.findFirst({
-        where: {
-          id: traceId,
-          projectId: authCheck.scope.projectId,
-        },
-        include: {
-          scores: true,
-        },
-      }),
-      prisma.observation.findMany({
-        where: {
-          traceId: traceId,
-          projectId: authCheck.scope.projectId,
-        },
-      }),
-    ]);
+    const trace = await prisma.trace.findFirst({
+      where: {
+        id: traceId,
+        projectId: authCheck.scope.projectId,
+      },
+      include: {
+        scores: true,
+      },
+    });
+    const observations = await prisma.observation.findMany({
+      where: {
+        traceId: traceId,
+        projectId: authCheck.scope.projectId,
+      },
+    });
 
     if (!trace) {
       return res.status(404).json({
         message: "Trace not found within authorized project",
       });
     }
-    return res.status(200).json({ ...trace, observations: observations });
+    return res
+      .status(200)
+      .json({ ...trace, observations: observations.map(mapUsageOutput) });
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =

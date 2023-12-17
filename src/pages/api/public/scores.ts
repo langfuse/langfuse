@@ -6,9 +6,9 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@/src/utils/zod";
 import {
-  ScoreSchema,
+  ScoreBody,
   eventTypes,
-  ingestionBatch,
+  ingestionBatchEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
 import {
@@ -51,11 +51,12 @@ export default async function handler(
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
-        body: ScoreSchema.parse(req.body),
+        body: ScoreBody.parse(req.body),
       };
 
       const result = await handleBatch(
-        ingestionBatch.parse([event]),
+        ingestionBatchEvent.parse([event]),
+        {},
         req,
         authCheck,
       );
@@ -85,10 +86,9 @@ export default async function handler(
       const userCondition = Prisma.sql`AND t."user_id" = ${obj.userId}`;
       const nameCondition = Prisma.sql`AND s."name" = ${obj.name}`;
 
-      const [scores, totalItems] = await Promise.all([
-        prisma.$queryRaw<
-          Array<Score & { trace: { userId: string } }>
-        >(Prisma.sql`
+      const scores = await prisma.$queryRaw<
+        Array<Score & { trace: { userId: string } }>
+      >(Prisma.sql`
           SELECT
             s.id,
             s.timestamp,
@@ -105,17 +105,16 @@ export default async function handler(
           ${obj.name ? nameCondition : Prisma.empty}
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
-          `),
-        prisma.score.count({
-          where: {
-            name: obj.name ?? undefined, // optional filter
-            trace: {
-              projectId: authCheck.scope.projectId,
-              userId: obj.userId ?? undefined, // optional filter
-            },
+          `);
+      const totalItems = await prisma.score.count({
+        where: {
+          name: obj.name ?? undefined, // optional filter
+          trace: {
+            projectId: authCheck.scope.projectId,
+            userId: obj.userId ?? undefined, // optional filter
           },
-        }),
-      ]);
+        },
+      });
 
       return res.status(200).json({
         data: scores,

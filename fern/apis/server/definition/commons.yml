@@ -1,32 +1,4 @@
 types:
-  # Create Bodies
-  CreateEventRequest:
-    properties:
-      id: optional<string>
-      traceId: optional<string>
-      name: optional<string>
-      startTime: optional<datetime>
-      metadata: optional<unknown>
-      input: optional<unknown>
-      output: optional<unknown>
-      level: optional<ObservationLevel>
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-      version: optional<string>
-  CreateSpanRequest:
-    extends: CreateEventRequest
-    properties:
-      endTime: optional<datetime>
-  CreateGenerationRequest:
-    extends: CreateSpanRequest
-    properties:
-      completionStartTime: optional<datetime>
-      model: optional<string>
-      modelParameters: optional<map<string, MapValue>>
-      prompt: optional<unknown>
-      completion: optional<unknown>
-      usage: optional<LLMUsage>
-
   # Objects
   Trace:
     properties:
@@ -35,10 +7,16 @@ types:
         docs: The unique identifier of a trace
       timestamp: datetime
       name: optional<string>
+      input: optional<unknown>
+      output: optional<unknown>
+      sessionId: optional<string>
       release: optional<string>
       version: optional<string>
       userId: optional<string>
       metadata: optional<unknown>
+      public:
+        type: optional<boolean>
+        docs: Public traces are accessible via url without login
   TraceWithDetails:
     extends: Trace
     properties:
@@ -53,6 +31,15 @@ types:
     properties:
       observations: list<Observation>
       scores: list<Score>
+  Session:
+    properties:
+      id: string
+      createdAt: datetime
+      projectId: string
+  SessionWithTraces:
+    extends: Session
+    properties:
+      traces: list<Trace>
   Observation:
     properties:
       id: string
@@ -68,12 +55,16 @@ types:
       version: optional<string>
       metadata: optional<unknown>
       output: optional<unknown>
-      promptTokens: integer
-      completionTokens: integer
-      totalTokens: integer
+      usage: optional<Usage>
       level: ObservationLevel
       statusMessage: optional<string>
       parentObservationId: optional<string>
+  Usage:
+    properties:
+      input: optional<integer>
+      output: optional<integer>
+      total: optional<integer>
+      unit: optional<ModelUsageUnit>
   Score:
     properties:
       id: string
@@ -121,6 +112,10 @@ types:
       datasetRunItems: list<DatasetRunItem>
 
   # Utilities
+  ModelUsageUnit:
+    enum:
+      - CHARACTERS
+      - TOKENS
   ObservationLevel:
     enum:
       - DEBUG
@@ -133,11 +128,6 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
-  LLMUsage:
-    properties:
-      promptTokens: optional<integer>
-      completionTokens: optional<integer>
-      totalTokens: optional<integer>
   DatasetStatus:
     enum:
       - ACTIVE

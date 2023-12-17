@@ -2,6 +2,7 @@ import {
   type OptionsDefinition,
   type ColumnDefinition,
 } from "@/src/server/api/interfaces/tableDefinition";
+import { ObservationLevel } from "@prisma/client";
 
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [
@@ -35,15 +36,31 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."end_time"',
   },
   {
-    name: "latency",
+    name: "latency (s)",
     type: "number",
     internal: '"latency"',
+  },
+  {
+    name: "level",
+    type: "stringOptions",
+    internal: 'o."level"::text',
+    options: Object.values(ObservationLevel).map((value) => ({ value })),
+  },
+  {
+    name: "Status Message",
+    type: "string",
+    internal: 'o."status_message"',
   },
   {
     name: "model",
     type: "stringOptions",
     internal: 'o."model"',
     options: [], // to be added at runtime
+  },
+  {
+    name: "metadata",
+    type: "stringObject",
+    internal: 't."metadata"',
   },
   {
     name: "version",

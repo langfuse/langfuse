@@ -9,7 +9,7 @@ import { z } from "zod";
 import {
   type ingestionApiSchema,
   eventTypes,
-  singleEventSchema,
+  ingestionEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -21,6 +21,7 @@ import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
+import { jsonSchema } from "@/src/utils/zod";
 
 export default async function handler(
   req: NextApiRequest,
@@ -48,7 +49,11 @@ export default async function handler(
         message: "Access denied",
       });
 
-    const batchType = z.object({ batch: z.array(z.unknown()) });
+    const batchType = z.object({
+      batch: z.array(z.unknown()),
+      metadata: jsonSchema.nullish(),
+    });
+
     const parsedSchema = batchType.safeParse(req.body);
 
     if (!parsedSchema.success) {
@@ -61,9 +66,9 @@ export default async function handler(
 
     const errors: { id: string; error: unknown }[] = [];
 
-    const batch: (z.infer<typeof singleEventSchema> | undefined)[] =
+    const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
       parsedSchema.data.batch.map((event) => {
-        const parsed = singleEventSchema.safeParse(event);
+        const parsed = ingestionEvent.safeParse(event);
         if (!parsed.success) {
           errors.push({
             id:
@@ -79,13 +84,18 @@ export default async function handler(
           return parsed.data;
         }
       });
-    const filteredBatch: z.infer<typeof singleEventSchema>[] =
+    const filteredBatch: z.infer<typeof ingestionEvent>[] =
       batch.filter(isNotNullOrUndefined);
 
     await telemetry();
 
     const sortedBatch = sortBatch(filteredBatch);
-    const result = await handleBatch(sortedBatch, req, authCheck);
+    const result = await handleBatch(
+      sortedBatch,
+      parsedSchema.data.metadata,
+      req,
+      authCheck,
+    );
 
     handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
@@ -99,21 +109,25 @@ export default async function handler(
   }
 }
 
-const sortBatch = (batch: Array<z.infer<typeof singleEventSchema>>) => {
-  // keep the order of events as they are. Order events in a way that types containing update come last
-  return batch.sort((a, b) => {
-    if (a.type === eventTypes.OBSERVAION_UPDATE) {
-      return 1;
-    }
-    if (b.type === eventTypes.OBSERVAION_UPDATE) {
-      return -1;
-    }
-    return 0;
-  });
+const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
+  // keep the order of events as they are. Order events in a way that types containing updates come last
+  // Filter out OBSERVATION_UPDATE events
+  const updates = batch.filter(
+    (event) => event.type === eventTypes.OBSERVATION_UPDATE,
+  );
+
+  // Keep all other events in their original order
+  const others = batch.filter(
+    (event) => event.type !== eventTypes.OBSERVATION_UPDATE,
+  );
+
+  // Return the array with non-update events first, followed by update events
+  return [...others, ...updates];
 };
 
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
+  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
@@ -126,7 +140,12 @@ export const handleBatch = async (
   for (const singleEvent of events) {
     try {
       const result = await retry(async () => {
-        return await handleSingleEvent(singleEvent, req, authCheck.scope);
+        return await handleSingleEvent(
+          singleEvent,
+          metadata,
+          req,
+          authCheck.scope,
+        );
       });
       results.push({ result: result, id: singleEvent.id }); // Push each result into the array
     } catch (error) {
@@ -171,7 +190,8 @@ export const hasBadRequestError = (errors: Array<unknown>) =>
   errors.some((error) => error instanceof BadRequestError);
 
 const handleSingleEvent = async (
-  event: z.infer<typeof singleEventSchema>,
+  event: z.infer<typeof ingestionEvent>,
+  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
   req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
@@ -180,21 +200,35 @@ const handleSingleEvent = async (
     JSON.stringify(event, null, 2),
   );
 
-  const { type } = event;
+  const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
 
-  await persistEventMiddleware(prisma, apiScope.projectId, req, event);
+  const { type } = cleanedEvent;
+
+  await persistEventMiddleware(
+    prisma,
+
+    apiScope.projectId,
+    req,
+    cleanedEvent,
+    metadata,
+  );
 
   let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(event);
+      processor = new TraceProcessor(cleanedEvent);
       break;
     case eventTypes.OBSERVATION_CREATE:
-    case eventTypes.OBSERVAION_UPDATE:
-      processor = new ObservationProcessor(event);
+    case eventTypes.OBSERVATION_UPDATE:
+    case eventTypes.EVENT_CREATE:
+    case eventTypes.SPAN_CREATE:
+    case eventTypes.SPAN_UPDATE:
+    case eventTypes.GENERATION_CREATE:
+    case eventTypes.GENERATION_UPDATE:
+      processor = new ObservationProcessor(cleanedEvent);
       break;
     case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(event);
+      processor = new ScoreProcessor(cleanedEvent);
       break;
     }
   }
@@ -269,6 +303,10 @@ export const handleBatchResult = (
     }
   });
 
+  if (returnedErrors.length > 0) {
+    console.log("Error processing events", returnedErrors);
+  }
+
   results.forEach((result) => {
     successes.push({
       id: result.id,
@@ -312,3 +350,24 @@ export const handleBatchResultLegacy = (
   }
   return res.status(200).send(results.length > 0 ? results[0]?.result : {});
 };
+
+// cleans NULL characters from the event
+export function cleanEvent(obj: unknown): unknown {
+  if (typeof obj === "string") {
+    return obj.replace(/\u0000/g, "");
+  } else if (typeof obj === "object" && obj !== null) {
+    if (Array.isArray(obj)) {
+      return obj.map(cleanEvent);
+    } else {
+      // Here we assert that obj is a Record<string, unknown>
+      const objAsRecord = obj as Record<string, unknown>;
+      const newObj: Record<string, unknown> = {};
+      for (const key in objAsRecord) {
+        newObj[key] = cleanEvent(objAsRecord[key]);
+      }
+      return newObj;
+    }
+  } else {
+    return obj;
+  }
+}

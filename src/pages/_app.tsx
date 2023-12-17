@@ -3,6 +3,7 @@ import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 import { api } from "@/src/utils/api";
 
@@ -28,9 +29,9 @@ const setProjectInPosthog = () => {
   const regex = /\/project\/([^\/]+)/;
   const match = url.match(regex);
   if (match && match[1]) {
-    posthog?.group("project", match[1]);
+    posthog.group("project", match[1]);
   } else {
-    posthog?.resetGroups();
+    posthog.resetGroups();
   }
 };
 
@@ -64,7 +65,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
     ) {
       const handleRouteChange = () => {
         setProjectInPosthog();
-        posthog?.capture("$pageview");
+        posthog.capture("$pageview");
       };
       router.events.on("routeChangeComplete", handleRouteChange);
 
@@ -77,17 +78,19 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   return (
     <QueryParamProvider adapter={NextAdapterPages}>
-      <PostHogProvider client={posthog}>
-        <SessionProvider session={session} refetchOnWindowFocus={true}>
-          <DetailPageListsProvider>
-            <Layout>
-              <Component {...pageProps} />
-              <UserTracking />
-            </Layout>
-            <CrispWidget />
-          </DetailPageListsProvider>
-        </SessionProvider>
-      </PostHogProvider>
+      <TooltipProvider>
+        <PostHogProvider client={posthog}>
+          <SessionProvider session={session} refetchOnWindowFocus={true}>
+            <DetailPageListsProvider>
+              <Layout>
+                <Component {...pageProps} />
+                <UserTracking />
+              </Layout>
+              <CrispWidget />
+            </DetailPageListsProvider>
+          </SessionProvider>
+        </PostHogProvider>
+      </TooltipProvider>
     </QueryParamProvider>
   );
 };
@@ -98,7 +101,7 @@ function UserTracking() {
   const session = useSession();
 
   useEffect(() => {
-    if (session.status === "authenticated" && session.data) {
+    if (session.status === "authenticated") {
       // PostHog
       if (
         process.env.NEXT_PUBLIC_POSTHOG_KEY &&
@@ -129,9 +132,12 @@ function UserTracking() {
         email: session.data.user?.email ?? "undefined",
         data: {
           userId: session.data.user?.id ?? "undefined",
-          projects: JSON.stringify(session.data.user?.projects) ?? "undefined",
-          featureFlags:
-            JSON.stringify(session.data.user?.featureFlags) ?? "undefined",
+          projects: session.data.user?.projects
+            ? JSON.stringify(session.data.user.projects)
+            : "undefined",
+          featureFlags: session.data.user?.featureFlags
+            ? JSON.stringify(session.data.user.featureFlags)
+            : "undefined",
         },
       });
     } else {

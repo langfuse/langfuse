@@ -133,19 +133,42 @@ async function main() {
             },
           },
           userId: `user-${i % 10}`,
+          session:
+            Math.random() > 0.3
+              ? {
+                  connectOrCreate: {
+                    where: {
+                      id: `session-${i % 10}`,
+                    },
+                    create: {
+                      id: `session-${i % 10}`,
+                      project: {
+                        connect: { id: [project1.id, project2.id][i % 2] },
+                      },
+                    },
+                  },
+                }
+              : undefined,
+          input:
+            Math.random() > 0.3
+              ? "I'm looking for a React component"
+              : undefined,
+          output:
+            Math.random() > 0.3
+              ? "What kind of component are you looking for?"
+              : undefined,
           scores: {
             createMany: {
               data: [
-                {
-                  name: "latency",
-                  value: Math.floor(Math.random() * 20),
-                  timestamp: traceTs,
-                },
-                {
-                  name: "feedback",
-                  value: Math.floor(Math.random() * 3) - 1,
-                  timestamp: traceTs,
-                },
+                ...(Math.random() > 0.5
+                  ? [
+                      {
+                        name: "feedback",
+                        value: Math.floor(Math.random() * 3) - 1,
+                        timestamp: traceTs,
+                      },
+                    ]
+                  : []),
                 ...(Math.random() > 0.7
                   ? [
                       {
@@ -305,23 +328,24 @@ async function main() {
               traceId: trace.id,
             },
           });
-
-          await prisma.score.create({
-            data: {
-              name: "quality",
-              value: Math.random() * 2 - 1,
-              observationId: generation.id,
-              traceId: trace.id,
-            },
-          });
-          await prisma.score.create({
-            data: {
-              name: "conciseness",
-              value: Math.random() * 2 - 1,
-              observationId: generation.id,
-              traceId: trace.id,
-            },
-          });
+          if (Math.random() > 0.6)
+            await prisma.score.create({
+              data: {
+                name: "quality",
+                value: Math.random() * 2 - 1,
+                observationId: generation.id,
+                traceId: trace.id,
+              },
+            });
+          if (Math.random() > 0.6)
+            await prisma.score.create({
+              data: {
+                name: "conciseness",
+                value: Math.random() * 2 - 1,
+                observationId: generation.id,
+                traceId: trace.id,
+              },
+            });
 
           generationIds.push(generation.id);
 

@@ -3,9 +3,9 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
 import {
-  EventSchema,
+  CreateEventEvent,
   eventTypes,
-  ingestionBatch,
+  ingestionBatchEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import {
   handleBatch,
@@ -41,7 +41,9 @@ export default async function handler(
   );
 
   try {
-    const convertToObservation = (generation: z.infer<typeof EventSchema>) => {
+    const convertToObservation = (
+      generation: z.infer<typeof CreateEventEvent>,
+    ) => {
       return {
         ...generation,
         type: "EVENT",
@@ -52,11 +54,12 @@ export default async function handler(
       id: uuidv4(),
       type: eventTypes.OBSERVATION_CREATE,
       timestamp: new Date().toISOString(),
-      body: convertToObservation(EventSchema.parse(req.body)),
+      body: convertToObservation(CreateEventEvent.parse(req.body)),
     };
 
     const result = await handleBatch(
-      ingestionBatch.parse([event]),
+      ingestionBatchEvent.parse([event]),
+      {},
       req,
       authCheck,
     );

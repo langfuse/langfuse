@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -10,6 +9,7 @@ import {
   type OnChangeFn,
   type PaginationState,
   type RowSelectionState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 
@@ -22,9 +22,11 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+  columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
     pageCount: number;
@@ -34,6 +36,9 @@ interface DataTableProps<TData, TValue> {
   onSelectionChange?: (selectedRows: TData[]) => void;
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState> | undefined;
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  help?: { description: string; href: string };
 }
 
 export interface AsyncTableData<T> {
@@ -50,9 +55,11 @@ export function DataTable<TData, TValue>({
   onSelectionChange,
   rowSelection,
   setRowSelection,
+  columnVisibility,
+  onColumnVisibilityChange,
+  help,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -63,9 +70,11 @@ export function DataTable<TData, TValue>({
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
+    onColumnVisibilityChange: onColumnVisibilityChange,
     state: {
       columnFilters,
       pagination: pagination?.state,
+      columnVisibility,
       rowSelection,
     },
     manualFiltering: true,
@@ -98,7 +107,7 @@ export function DataTable<TData, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
-                    return (
+                    return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
                         className="whitespace-nowrap p-2"
@@ -110,7 +119,7 @@ export function DataTable<TData, TValue>({
                               header.getContext(),
                             )}
                       </TableHead>
-                    );
+                    ) : null;
                   })}
                 </TableRow>
               ))}
@@ -125,7 +134,7 @@ export function DataTable<TData, TValue>({
                     Loading...
                   </TableCell>
                 </TableRow>
-              ) : table.getRowModel().rows?.length ? (
+              ) : table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
@@ -152,7 +161,16 @@ export function DataTable<TData, TValue>({
                     colSpan={columns.length}
                     className="h-24 text-center"
                   >
-                    No results.
+                    <div>
+                      No results.{" "}
+                      {help && (
+                        <DocPopup
+                          description={help.description}
+                          href={help.href}
+                          size="sm"
+                        />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

@@ -23,22 +23,30 @@ export const TracesTimeSeriesChart = ({
   globalFilterState: FilterState;
   agg: DateTimeAggregationOption;
 }) => {
-  const traces = api.dashboard.chart.useQuery({
-    projectId,
-    from: "traces",
-    select: [{ column: "traceId", agg: "COUNT" }],
-    filter:
-      globalFilterState.map((f) =>
+  const traces = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces",
+      select: [{ column: "traceId", agg: "COUNT" }],
+      filter: globalFilterState.map((f) =>
         f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-      ) ?? [],
-    groupBy: [
-      {
-        type: "datetime",
-        column: "timestamp",
-        temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+      ),
+      groupBy: [
+        {
+          type: "datetime",
+          column: "timestamp",
+          temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+        },
+      ],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
       },
-    ],
-  });
+    },
+  );
 
   const transformedTraces = traces.data
     ? traces.data.map((item) => {
@@ -78,7 +86,7 @@ export const TracesTimeSeriesChart = ({
         <BaseTimeSeriesChart
           className="min-h-80 h-full self-stretch"
           agg={agg}
-          data={transformedTraces ?? []}
+          data={transformedTraces}
           connectNulls={true}
         />
       ) : (
