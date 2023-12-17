@@ -340,10 +340,7 @@ function FilterBuilderForm({
                         handleFilterChange(
                           {
                             ...filter,
-                            value:
-                              value !== undefined && value !== ""
-                                ? value === "true"
-                                : undefined,
+                            value: value !== "" ? value === "true" : undefined,
                           },
                           i,
                         );

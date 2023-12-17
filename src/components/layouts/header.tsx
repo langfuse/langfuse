@@ -50,7 +50,7 @@ export default function Header(props: {
             </Link>
           </nav>
         ) : null}
-        {breadcrumb ? (
+        {breadcrumb.length ? (
           <nav className="hidden sm:flex" aria-label="Breadcrumb">
             <ol role="list" className="flex items-center space-x-4">
               {breadcrumb.map(({ name, href }, index) => (

@@ -8,6 +8,7 @@
     "dev": "next dev",
     "postinstall": "prisma generate",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "next start",

@@ -20,7 +20,7 @@ export const datasetRouter = createTRPCRouter({
           Dataset & {
             countDatasetItems: number;
             countDatasetRuns: number;
-            lastRunAt: Date;
+            lastRunAt: Date | null;
           }
         >
       >(Prisma.sql`
@@ -275,7 +275,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         datasetId: z.string(),
         input: z.string(),
-        expectedOutput: z.string(),
+        expectedOutput: z.string().nullish(),
         sourceObservationId: z.string().optional(),
       }),
     )
@@ -301,7 +301,7 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput:
             input.expectedOutput === ""
               ? Prisma.DbNull
-              : input.expectedOutput !== undefined
+              : !!input.expectedOutput
                 ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
                 : undefined,
           datasetId: input.datasetId,

@@ -62,21 +62,19 @@ export const IOPreview: React.FC<{
         </Tabs>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
-        inOpenAiMessageArray.success ? (
-          <OpenAiMessageView
-            messages={inOpenAiMessageArray.data.concat(
-              outOpenAiMessage.success
-                ? {
-                    ...outOpenAiMessage.data,
-                    role: outOpenAiMessage.data.role ?? "assistant",
-                  }
-                : {
-                    role: "assistant",
-                    content: JSON.stringify(outputClean) ?? null,
-                  },
-            )}
-          />
-        ) : null
+        <OpenAiMessageView
+          messages={inOpenAiMessageArray.data.concat(
+            outOpenAiMessage.success
+              ? {
+                  ...outOpenAiMessage.data,
+                  role: outOpenAiMessage.data.role ?? "assistant",
+                }
+              : {
+                  role: "assistant",
+                  content: outputClean ? JSON.stringify(outputClean) : null,
+                },
+          )}
+        />
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (
         <>
