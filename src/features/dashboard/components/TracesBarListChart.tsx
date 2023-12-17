@@ -18,10 +18,9 @@ export const TracesBarListChart = ({
   globalFilterState: FilterState;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const timeFilter =
-    globalFilterState.map((f) =>
-      f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-    ) ?? [];
+  const timeFilter = globalFilterState.map((f) =>
+    f.type === "datetime" ? { ...f, column: "timestamp" } : f,
+  );
 
   const totalTraces = api.dashboard.chart.useQuery(
     {
@@ -81,7 +80,7 @@ export const TracesBarListChart = ({
     >
       <>
         <TotalMetric
-          metric={(totalTraces.data?.[0]?.countTraceId as number) ?? 0}
+          metric={totalTraces.data?.[0]?.countTraceId as number}
           description={"Total traces tracked"}
         />
         {adjustedData.length > 0 ? (

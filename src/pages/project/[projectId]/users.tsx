@@ -43,7 +43,7 @@ export default function UsersPage() {
   const totalCount = users.data?.slice(1)[0]?.totalCount ?? 0;
 
   useEffect(() => {
-    if (users.isSuccess && users.data) {
+    if (users.isSuccess) {
       console.log("setting detail page list");
       setDetailPageList(
         "users",
@@ -98,7 +98,7 @@ export default function UsersPage() {
               <div className="flex items-center gap-4">
                 <TableLink
                   path={
-                    value?.observationId
+                    value.observationId
                       ? `/project/${projectId}/traces/${value.traceId}?observation=${value.observationId}`
                       : `/project/${projectId}/traces/${value.traceId}`
                   }
@@ -131,13 +131,13 @@ export default function UsersPage() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: users.data?.map((t) => {
+                  data: users.data.map((t) => {
                     return {
                       userId: t.userId,
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
-                        t.lastObservation.toLocaleString() ?? "No event yet",
+                        t.lastObservation?.toLocaleString() ?? "No event yet",
                       totalEvents: compactNumberFormatter(
                         (Number(t.totalTraces) || 0) +
                           (Number(t.totalObservations) || 0),

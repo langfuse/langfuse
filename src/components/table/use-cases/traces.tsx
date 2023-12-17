@@ -99,7 +99,7 @@ export default function TracesTable({
   });
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
-    if (traces.isSuccess && traces.data) {
+    if (traces.isSuccess) {
       setDetailPageList(
         "traces",
         traces.data.map((t) => t.id),
@@ -340,7 +340,7 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: traces.data?.map((t) => convertToTableRow(t)),
+                  data: traces.data.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{

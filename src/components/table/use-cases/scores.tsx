@@ -154,7 +154,7 @@ export default function ScoresTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: scores.data?.map((t) => convertToTableRow(t)),
+                  data: scores.data.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{

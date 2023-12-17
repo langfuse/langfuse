@@ -241,12 +241,12 @@ describe("/api/public/events API Endpoint", () => {
 
     expect(createSpan.status).toBe(200);
 
-    expect(dbEvent?.id).toBe(spanId);
-    expect(dbEvent?.traceId).toBe(dbTrace[0]?.id);
-    expect(dbEvent?.name).toBe(generationName);
-    expect(dbEvent?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbEvent?.input).toEqual({ key: "value" });
-    expect(dbEvent?.metadata).toEqual({ key: "value" });
-    expect(dbEvent?.version).toBe("2.0.0");
+    expect(dbEvent.id).toBe(spanId);
+    expect(dbEvent.traceId).toBe(dbTrace[0]?.id);
+    expect(dbEvent.name).toBe(generationName);
+    expect(dbEvent.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+    expect(dbEvent.input).toEqual({ key: "value" });
+    expect(dbEvent.metadata).toEqual({ key: "value" });
+    expect(dbEvent.version).toBe("2.0.0");
   });
 });

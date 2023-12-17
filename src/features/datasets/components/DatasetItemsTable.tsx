@@ -164,7 +164,7 @@ export function DatasetItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data?.map((t) => convertToTableRow(t)),
+                  data: items.data.map((t) => convertToTableRow(t)),
                 }
         }
       />

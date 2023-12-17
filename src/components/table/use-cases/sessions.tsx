@@ -71,7 +71,7 @@ export default function SessionsTable({
   });
   const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
-    if (sessions.isSuccess && sessions.data) {
+    if (sessions.isSuccess) {
       setDetailPageList(
         "sessions",
         sessions.data.map((t) => t.id),
@@ -196,7 +196,7 @@ export default function SessionsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: sessions.data?.map((t) => convertToTableRow(t)),
+                  data: sessions.data.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{

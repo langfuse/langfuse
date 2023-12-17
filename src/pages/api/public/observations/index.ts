@@ -149,7 +149,7 @@ const getObservation = async (
       ${parentObservationIdCondition}
   `;
 
-  if (!count || count.length !== 1) {
+  if (count.length !== 1) {
     throw new Error(
       `Unexpected number of results for count query: ${JSON.stringify(count)}`,
     );

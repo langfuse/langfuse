@@ -34,7 +34,7 @@ export function MultiSelect({
   options: FilterOption[] | readonly FilterOption[];
   className?: string;
 }) {
-  const selectedValues = new Set(values ?? []);
+  const selectedValues = new Set(values);
 
   return (
     <Popover>
@@ -48,7 +48,7 @@ export function MultiSelect({
         >
           Select
           <ChevronDown className="h-4 w-4 opacity-50" />
-          {selectedValues?.size > 0 && (
+          {selectedValues.size > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
               <Badge
