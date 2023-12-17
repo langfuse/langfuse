@@ -144,58 +144,55 @@ types:
       observationId: optional<string>
       comment: optional<string>
 
-  TraceEvent:
+  BaseEvent:
     properties:
       id: string
       timestamp: string
+      metadata: unknown
+
+  TraceEvent:
+    extends: BaseEvent
+    properties:
       body: TraceBody
 
   CreateObservationEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: ObservationBody
 
   UpdateObservationEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: ObservationBody
 
   ScoreEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: ScoreBody
 
   CreateGenerationEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: CreateGenerationBody
 
   UpdateGenerationEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: UpdateGenerationBody
 
   CreateSpanEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: CreateSpanBody
 
   UpdateSpanEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: UpdateSpanBody
 
   CreateEventEvent:
+    extends: BaseEvent
     properties:
-      id: string
-      timestamp: string
       body: CreateEventBody
 
   IngestionSuccess:

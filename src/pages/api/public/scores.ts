@@ -56,6 +56,7 @@ export default async function handler(
 
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
+        {},
         req,
         authCheck,
       );

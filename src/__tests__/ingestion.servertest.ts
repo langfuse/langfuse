@@ -91,6 +91,10 @@ describe("/api/public/ingestion API Endpoint", () => {
       const scoreId = v4();
 
       const response = await makeAPICall("POST", "/api/public/ingestion", {
+        metadata: {
+          sdk_verion: "1.0.0",
+          sdk_name: "python",
+        },
         batch: [
           {
             id: v4(),

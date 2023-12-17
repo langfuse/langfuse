@@ -243,6 +243,7 @@ export const eventTypes = {
 const base = z.object({
   id: z.string(),
   timestamp: z.string().datetime({ offset: true }),
+  metadata: jsonSchema.nullish(),
 });
 export const traceEvent = base.extend({
   type: z.literal(eventTypes.TRACE_CREATE),
@@ -299,4 +300,5 @@ export const ingestionBatchEvent = z.array(ingestionEvent);
 
 export const ingestionApiSchema = z.object({
   batch: ingestionBatchEvent,
+  metadata: jsonSchema.nullish(),
 });

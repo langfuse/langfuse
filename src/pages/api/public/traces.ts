@@ -63,7 +63,7 @@ export default async function handler(
         body: body,
       };
 
-      const result = await handleBatch([event], req, authCheck);
+      const result = await handleBatch([event], {}, req, authCheck);
       handleBatchResultLegacy(result.errors, result.results, res);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
