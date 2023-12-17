@@ -21,6 +21,7 @@ import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
+import { jsonSchema } from "@/src/utils/zod";
 
 export default async function handler(
   req: NextApiRequest,
@@ -48,7 +49,11 @@ export default async function handler(
         message: "Access denied",
       });
 
-    const batchType = z.object({ batch: z.array(z.unknown()) });
+    const batchType = z.object({
+      batch: z.array(z.unknown()),
+      metadata: jsonSchema.nullish(),
+    });
+
     const parsedSchema = batchType.safeParse(req.body);
 
     if (!parsedSchema.success) {
@@ -85,7 +90,12 @@ export default async function handler(
     await telemetry();
 
     const sortedBatch = sortBatch(filteredBatch);
-    const result = await handleBatch(sortedBatch, req, authCheck);
+    const result = await handleBatch(
+      sortedBatch,
+      parsedSchema.data.metadata,
+      req,
+      authCheck,
+    );
 
     handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
@@ -117,6 +127,7 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
 
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
+  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
@@ -129,7 +140,12 @@ export const handleBatch = async (
   for (const singleEvent of events) {
     try {
       const result = await retry(async () => {
-        return await handleSingleEvent(singleEvent, req, authCheck.scope);
+        return await handleSingleEvent(
+          singleEvent,
+          metadata,
+          req,
+          authCheck.scope,
+        );
       });
       results.push({ result: result, id: singleEvent.id }); // Push each result into the array
     } catch (error) {
@@ -175,6 +191,7 @@ export const hasBadRequestError = (errors: Array<unknown>) =>
 
 const handleSingleEvent = async (
   event: z.infer<typeof ingestionEvent>,
+  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
   req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
@@ -187,7 +204,14 @@ const handleSingleEvent = async (
 
   const { type } = cleanedEvent;
 
-  await persistEventMiddleware(prisma, apiScope.projectId, req, cleanedEvent);
+  await persistEventMiddleware(
+    prisma,
+
+    apiScope.projectId,
+    req,
+    cleanedEvent,
+    metadata,
+  );
 
   let processor: EventProcessor;
   switch (type) {

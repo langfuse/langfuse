@@ -1547,132 +1547,109 @@ components:
         - traceId
         - name
         - value
+    BaseEvent:
+      title: BaseEvent
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        metadata: {}
+      required:
+        - id
+        - timestamp
+        - metadata
     TraceEvent:
       title: TraceEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/TraceBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     CreateObservationEvent:
       title: CreateObservationEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/ObservationBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     UpdateObservationEvent:
       title: UpdateObservationEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/ObservationBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     ScoreEvent:
       title: ScoreEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/ScoreBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     CreateGenerationEvent:
       title: CreateGenerationEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     UpdateGenerationEvent:
       title: UpdateGenerationEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/UpdateGenerationBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     CreateSpanEvent:
       title: CreateSpanEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/CreateSpanBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     UpdateSpanEvent:
       title: UpdateSpanEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/UpdateSpanBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     CreateEventEvent:
       title: CreateEventEvent
       type: object
       properties:
-        id:
-          type: string
-        timestamp:
-          type: string
         body:
           $ref: '#/components/schemas/CreateEventBody'
       required:
-        - id
-        - timestamp
         - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
     IngestionSuccess:
       title: IngestionSuccess
       type: object
