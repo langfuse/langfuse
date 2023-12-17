@@ -218,6 +218,7 @@ model Observation {
     promptTokens        Int               @default(0) @map("prompt_tokens")
     completionTokens    Int               @default(0) @map("completion_tokens")
     totalTokens         Int               @default(0) @map("total_tokens")
+    unit                String            @default("TOKENS")
     completionStartTime DateTime?         @map("completion_start_time")
     scores              Score[]
     project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)

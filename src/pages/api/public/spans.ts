@@ -4,10 +4,10 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { v4 } from "uuid";
 import { ResourceNotFoundError } from "../../../utils/exceptions";
 import {
-  SpanPatchSchema,
-  SpanPostSchema,
+  LegacySpanPatchSchema,
+  LegacySpanPostSchema,
   eventTypes,
-  ingestionBatch,
+  ingestionBatchEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import {
   handleBatch,
@@ -40,7 +40,9 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      const convertToObservation = (span: z.infer<typeof SpanPostSchema>) => {
+      const convertToObservation = (
+        span: z.infer<typeof LegacySpanPostSchema>,
+      ) => {
         return {
           ...span,
           type: "SPAN",
@@ -51,11 +53,12 @@ export default async function handler(
         id: v4(),
         type: eventTypes.OBSERVATION_CREATE,
         timestamp: new Date().toISOString(),
-        body: convertToObservation(SpanPostSchema.parse(req.body)),
+        body: convertToObservation(LegacySpanPostSchema.parse(req.body)),
       };
 
       const result = await handleBatch(
-        ingestionBatch.parse([event]),
+        ingestionBatchEvent.parse([event]),
+        {},
         req,
         authCheck,
       );
@@ -78,7 +81,9 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      const convertToObservation = (span: z.infer<typeof SpanPatchSchema>) => {
+      const convertToObservation = (
+        span: z.infer<typeof LegacySpanPatchSchema>,
+      ) => {
         return {
           ...span,
           id: span.spanId,
@@ -88,13 +93,14 @@ export default async function handler(
 
       const event = {
         id: v4(),
-        type: eventTypes.OBSERVAION_UPDATE,
+        type: eventTypes.OBSERVATION_UPDATE,
         timestamp: new Date().toISOString(),
-        body: convertToObservation(SpanPatchSchema.parse(req.body)),
+        body: convertToObservation(LegacySpanPatchSchema.parse(req.body)),
       };
 
       const result = await handleBatch(
-        ingestionBatch.parse([event]),
+        ingestionBatchEvent.parse([event]),
+        {},
         req,
         authCheck,
       );

@@ -6,9 +6,9 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@/src/utils/zod";
 import {
-  ScoreSchema,
+  ScoreBody,
   eventTypes,
-  ingestionBatch,
+  ingestionBatchEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
 import {
@@ -51,11 +51,12 @@ export default async function handler(
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
-        body: ScoreSchema.parse(req.body),
+        body: ScoreBody.parse(req.body),
       };
 
       const result = await handleBatch(
-        ingestionBatch.parse([event]),
+        ingestionBatchEvent.parse([event]),
+        {},
         req,
         authCheck,
       );
