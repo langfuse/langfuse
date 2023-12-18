@@ -83,7 +83,7 @@
     "next-query-params": "^5.0.0",
     "nodemailer": "^6.9.7",
     "posthog-js": "^1.96.1",
-    "posthog-node": "^3.2.0",
+    "posthog-node": "^3.2.1",
     "react": "18.2.0",
     "react-day-picker": "^8.9.1",
     "react-dom": "18.2.0",
@@ -131,7 +131,7 @@
     "prisma": "^5.7.0",
     "release-it": "^17.0.1",
     "swagger-jsdoc": "^6.2.8",
-    "tailwindcss": "^3.3.6",
+    "tailwindcss": "^3.3.7",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3"
