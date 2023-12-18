@@ -20,11 +20,9 @@ export const persistEventMiddleware = async (
     Object.entries(req.headers).filter(([key]) => key.startsWith("x-langfuse")),
   );
 
-  console.log("langfuseHeadersObject", langfuseHeadersObject);
-  console.log("metadata", metadata);
   // combine metadata from the request and langfuseHeadersObject
   const combinedMetadata = lodash.merge(metadata, langfuseHeadersObject);
-  console.log("combinedMetadata", combinedMetadata);
+
   await prisma.events.create({
     data: {
       project: { connect: { id: projectId } },
