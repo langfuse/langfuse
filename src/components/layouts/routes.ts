@@ -28,7 +28,6 @@ export const ROUTES: Array<{
     name: "Sessions",
     pathname: `/project/[projectId]/sessions`,
     icon: Route,
-    label: "beta",
   },
   {
     name: "Traces",
