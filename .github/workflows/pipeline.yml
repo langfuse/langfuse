@@ -93,7 +93,7 @@ jobs:
         run: npm run build
 
       - name: Install playwright
-        run: npx playwright install
+        run: npx playwright install --with-deps chromium chrome msedge firefox
 
       - name: Run e2e tests
         run: npm run test:e2e
