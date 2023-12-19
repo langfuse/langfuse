@@ -16,6 +16,8 @@ import {
   type ObservationOptions,
   observationsTableCols,
 } from "@/src/server/api/definitions/observationsTable";
+import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
+import Decimal from "decimal.js";
 
 const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
 export type ExportFileFormats = (typeof exportFileFormats)[number];
@@ -118,7 +120,25 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      return generations;
+      const pricings = await ctx.prisma.pricing.findMany();
+
+      return generations.map(({ input, output, ...rest }) => {
+        return {
+          ...rest,
+          input,
+          output,
+          cost: rest.model
+            ? calculateTokenCost(pricings, {
+                model: rest.model,
+                totalTokens: new Decimal(rest.totalTokens),
+                promptTokens: new Decimal(rest.promptTokens),
+                completionTokens: new Decimal(rest.completionTokens),
+                input: input,
+                output: output,
+              })
+            : undefined,
+        };
+      });
     }),
 
   export: protectedProjectProcedure
