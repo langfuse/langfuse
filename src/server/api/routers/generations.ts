@@ -16,6 +16,9 @@ import {
   type ObservationOptions,
   observationsTableCols,
 } from "@/src/server/api/definitions/observationsTable";
+import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
+import Decimal from "decimal.js";
+import { usdFormatter } from "@/src/utils/numbers";
 
 const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
 export type ExportFileFormats = (typeof exportFileFormats)[number];
@@ -118,7 +121,25 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      return generations;
+      const pricings = await ctx.prisma.pricing.findMany();
+
+      return generations.map(({ input, output, ...rest }) => {
+        return {
+          ...rest,
+          input,
+          output,
+          cost: rest.model
+            ? calculateTokenCost(pricings, {
+                model: rest.model,
+                totalTokens: new Decimal(rest.totalTokens),
+                promptTokens: new Decimal(rest.promptTokens),
+                completionTokens: new Decimal(rest.completionTokens),
+                input: input,
+                output: output,
+              })
+            : undefined,
+        };
+      });
     }),
 
   export: protectedProjectProcedure
@@ -175,6 +196,28 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
+      const pricings = await ctx.prisma.pricing.findMany();
+
+      const enrichedGenerations = generations.map(
+        ({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            input,
+            output,
+            cost: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })
+              : undefined,
+          };
+        },
+      );
+
       // create csv
       switch (input.fileFormat) {
         case "CSV":
@@ -185,19 +228,23 @@ export const generationsRouter = createTRPCRouter({
               "model",
               "startTime",
               "endTime",
+              "cost",
               "prompt",
               "completion",
               "metadata",
             ],
           ]
             .concat(
-              generations.map((generation) =>
+              enrichedGenerations.map((generation) =>
                 [
                   generation.traceId,
                   generation.name ?? "",
                   generation.model ?? "",
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
+                  generation.cost
+                    ? usdFormatter(generation.cost.toNumber())
+                    : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
                   JSON.stringify(generation.metadata),
@@ -210,7 +257,7 @@ export const generationsRouter = createTRPCRouter({
             .map((row) => row.join(","))
             .join("\n");
         case "JSON":
-          return JSON.stringify(generations);
+          return JSON.stringify(enrichedGenerations);
         case "OPENAI-JSONL":
           const inputSchemaOpenAI = z.array(
             z.object({
@@ -223,7 +270,7 @@ export const generationsRouter = createTRPCRouter({
           });
 
           return (
-            generations
+            enrichedGenerations
               .map((generation) => ({
                 parsedInput: inputSchemaOpenAI.safeParse(generation.input),
                 parsedOutput: outputSchema.safeParse(generation.output),
