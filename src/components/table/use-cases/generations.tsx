@@ -206,7 +206,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Cost",
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("cost");
-        console.log(value);
+
         return value !== undefined ? (
           <span>{usdFormatter(value)}</span>
         ) : undefined;
