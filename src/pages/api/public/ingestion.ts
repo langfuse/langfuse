@@ -206,7 +206,6 @@ const handleSingleEvent = async (
 
   await persistEventMiddleware(
     prisma,
-
     apiScope.projectId,
     req,
     cleanedEvent,

@@ -30,6 +30,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type GenerationsTableRow = {
   id: string;
@@ -201,6 +202,18 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
     {
+      accessorKey: "cost",
+      header: "Cost",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("cost");
+        console.log(value);
+        return value !== undefined ? (
+          <span>{usdFormatter(value)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+    },
+    {
       accessorKey: "level",
       header: "Level",
       enableHiding: true,
@@ -293,29 +306,32 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     );
 
   const rows: GenerationsTableRow[] = generations.isSuccess
-    ? generations.data.map((generation) => ({
-        id: generation.id,
-        traceId: generation.traceId,
-        traceName: generation.traceName,
-        startTime: generation.startTime.toLocaleString(),
-        endTime: generation.endTime?.toLocaleString() ?? undefined,
-        latency: generation.latency === null ? undefined : generation.latency,
-        name: generation.name ?? undefined,
-        version: generation.version ?? "",
-        model: generation.model ?? "",
-        input: generation.input,
-        output: generation.output,
-        level: generation.level,
-        metadata: generation.metadata
-          ? JSON.stringify(generation.metadata)
-          : undefined,
-        statusMessage: generation.statusMessage ?? undefined,
-        usage: {
-          promptTokens: generation.promptTokens,
-          completionTokens: generation.completionTokens,
-          totalTokens: generation.totalTokens,
-        },
-      }))
+    ? generations.data.map((generation) => {
+        return {
+          id: generation.id,
+          traceId: generation.traceId,
+          traceName: generation.traceName,
+          startTime: generation.startTime.toLocaleString(),
+          endTime: generation.endTime?.toLocaleString() ?? undefined,
+          latency: generation.latency === null ? undefined : generation.latency,
+          cost: generation.cost,
+          name: generation.name ?? undefined,
+          version: generation.version ?? "",
+          model: generation.model ?? "",
+          input: generation.input,
+          output: generation.output,
+          level: generation.level,
+          metadata: generation.metadata
+            ? JSON.stringify(generation.metadata)
+            : undefined,
+          statusMessage: generation.statusMessage ?? undefined,
+          usage: {
+            promptTokens: generation.promptTokens,
+            completionTokens: generation.completionTokens,
+            totalTokens: generation.totalTokens,
+          },
+        };
+      })
     : [];
 
   return (
