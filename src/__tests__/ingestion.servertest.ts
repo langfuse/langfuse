@@ -169,8 +169,6 @@ describe("/api/public/ingestion API Endpoint", () => {
 
       expect(response.status).toBe(207);
 
-      console.log("response body", response.body);
-
       const dbTrace = await prisma.trace.findMany({
         where: {
           name: "trace-name",
