@@ -8,7 +8,7 @@ import {
   withDefault,
 } from "use-query-params";
 
-const DEBUG_QUERY_STATE = true;
+const DEBUG_QUERY_STATE = false;
 
 // encode/decode filter state
 // The decode has to return null or undefined so that withDefault will use the default value.
@@ -26,7 +26,6 @@ const CommaArrayParam = {
               ? f.value.join("|")
               : f.value
         }`;
-        console.log("stringified", stringified);
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
         return stringified;
@@ -56,7 +55,6 @@ const CommaArrayParam = {
                     : value;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
-        console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,
           key: key !== "" ? key : undefined,
