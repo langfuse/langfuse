@@ -8,12 +8,12 @@ import {
   withDefault,
 } from "use-query-params";
 
-const DEBUG_QUERY_STATE = false;
+const DEBUG_QUERY_STATE = true;
 
 const CommaArrayParam = {
-  encode: (state: FilterState) =>
+  encode: (value: FilterState) =>
     encodeDelimitedArray(
-      state.map((f) => {
+      value.map((f) => {
         const stringified = `${f.column};${f.type};${
           f.type === "numberObject" || f.type === "stringObject" ? f.key : ""
         };${f.operator};${
@@ -23,6 +23,7 @@ const CommaArrayParam = {
               ? f.value.join("|")
               : f.value
         }`;
+        console.log("stringified", stringified);
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
         return stringified;
@@ -52,6 +53,7 @@ const CommaArrayParam = {
                     : value;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
+        console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column,
           key: key !== "" ? key : undefined,
@@ -62,7 +64,7 @@ const CommaArrayParam = {
         if (!parsed.success) return null;
         return parsed.data;
       })
-      .filter((v) => v !== null) as FilterState | undefined) ?? [],
+      .filter((v) => v !== null) as FilterState | undefined) ?? undefined,
 };
 
 // manage state with hook
