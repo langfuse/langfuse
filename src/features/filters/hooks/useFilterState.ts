@@ -10,6 +10,9 @@ import {
 
 const DEBUG_QUERY_STATE = true;
 
+// encode/decode filter state
+// The decode has to return null or undefined so that withDefault will use the default value.
+// An empty array will be interpreted as existing state and hence the default value will not be used.
 const CommaArrayParam = {
   encode: (value: FilterState) =>
     encodeDelimitedArray(
