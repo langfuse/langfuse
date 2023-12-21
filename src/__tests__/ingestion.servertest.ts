@@ -406,9 +406,6 @@ describe("/api/public/ingestion API Endpoint", () => {
       },
     });
 
-    const logEvents = await prisma.events.findMany();
-    console.log(logEvent);
-
     expect(logEvent).toBeDefined();
     expect(logEvent).not.toBeFalsy();
     expect(JSON.stringify(logEvent?.data)).toContain("KeyError: 'model_name'");
