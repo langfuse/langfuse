@@ -92,7 +92,7 @@ jobs:
       - name: Build
         run: |
           npm run build
-          npm run start
+          (npm start&)
 
       - name: Install playwright
         run: npx playwright install
