@@ -28,6 +28,7 @@ types:
       generation-update: UpdateGenerationEvent
       span-create: CreateSpanEvent
       span-update: UpdateSpanEvent
+      sdk-log: SDKLogEvent
 
       # both are legacy
       observation-create: CreateObservationEvent
