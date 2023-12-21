@@ -10,7 +10,6 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
-  SdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";

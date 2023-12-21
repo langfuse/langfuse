@@ -31,7 +31,7 @@ import { jsonSchema } from "@/src/utils/zod";
 export interface EventProcessor {
   process(
     apiScope: ApiAccessScope,
-  ): Promise<Trace | Observation | Score> | void;
+  ): Promise<Trace | Observation | Score> | undefined;
 }
 
 export class ObservationProcessor implements EventProcessor {
@@ -394,7 +394,7 @@ export class SdkLogProcessor implements EventProcessor {
     this.event = event;
   }
 
-  process(apiScope: ApiAccessScope): void {
-    return;
+  process() {
+    return undefined;
   }
 }
