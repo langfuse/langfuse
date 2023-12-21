@@ -1280,6 +1280,17 @@ components:
                 type:
                   type: string
                   enum:
+                    - sdk-log
+            - $ref: '#/components/schemas/SDKLogEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
                     - observation-create
             - $ref: '#/components/schemas/CreateObservationEvent'
           required:
@@ -1523,6 +1534,13 @@ components:
           type: boolean
           nullable: true
           description: Make trace publicly accessible via url
+    SDKLogBody:
+      title: SDKLogBody
+      type: object
+      properties:
+        log: {}
+      required:
+        - log
     ScoreBody:
       title: ScoreBody
       type: object
@@ -1596,6 +1614,16 @@ components:
       properties:
         body:
           $ref: '#/components/schemas/ScoreBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    SDKLogEvent:
+      title: SDKLogEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/SDKLogBody'
       required:
         - body
       allOf:
