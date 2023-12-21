@@ -253,6 +253,14 @@ describe("/api/public/ingestion API Endpoint", () => {
     const eventId = v4();
     const scoreId = v4();
 
+    const exception = `
+    ERROR    langfuse:callback.py:677 'model_name'
+    Traceback (most recent call last):
+      File "/Users/maximiliandeichmann/development/github.com/langfuse/langfuse-python/langfuse/callback.py", line 674, in __on_llm_action
+        model_name = kwargs["invocation_params"]["model_name"]
+    KeyError: 'model_name'
+    `;
+
     const response = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
         {
@@ -324,6 +332,14 @@ describe("/api/public/ingestion API Endpoint", () => {
             observationId: generationId,
           },
         },
+        {
+          id: v4(),
+          type: "sdk-log",
+          timestamp: new Date().toISOString(),
+          body: {
+            log: exception,
+          },
+        },
       ],
     });
 
@@ -380,6 +396,19 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbScore?.traceId).toBe(traceId);
     expect(dbScore?.observationId).toBe(generationId);
     expect(dbScore?.value).toBe(100.5);
+
+    const logEvent = await prisma.events.findFirst({
+      where: {
+        data: {
+          path: ["body", "log"],
+          string_contains: "ERROR",
+        },
+      },
+    });
+
+    expect(logEvent).toBeDefined();
+    expect(logEvent).not.toBeFalsy();
+    expect(JSON.stringify(logEvent?.data)).toContain("KeyError: 'model_name'");
   });
 
   it("should upsert threats", async () => {

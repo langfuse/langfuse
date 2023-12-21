@@ -13,6 +13,7 @@ import {
   type spanUpdateEvent,
   type generationUpdateEvent,
   type legacyObservationUpdateEvent,
+  type sdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -28,8 +29,11 @@ import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 
 export interface EventProcessor {
-  process(apiScope: ApiAccessScope): Promise<Trace | Observation | Score>;
+  process(
+    apiScope: ApiAccessScope,
+  ): Promise<Trace | Observation | Score> | undefined;
 }
+
 export class ObservationProcessor implements EventProcessor {
   event:
     | z.infer<typeof legacyObservationCreateEvent>
@@ -380,5 +384,17 @@ export class ScoreProcessor implements EventProcessor {
         }),
       },
     });
+  }
+}
+
+export class SdkLogProcessor implements EventProcessor {
+  event: z.infer<typeof sdkLogEvent>;
+
+  constructor(event: z.infer<typeof sdkLogEvent>) {
+    this.event = event;
+  }
+
+  process() {
+    return undefined;
   }
 }
