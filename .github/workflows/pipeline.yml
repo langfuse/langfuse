@@ -85,13 +85,14 @@ jobs:
 
       - name: Run, migrate, seed DB
         run: |
-          docker-compose -f docker-compose.dev.yml up -d db
+          docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           npx --yes prisma migrate reset --force --skip-generate
-          docker-compose -f docker-compose.dev.yml up -d langfuse-server
 
       - name: Build
-        run: npm run build
+        run: |
+          npm run build
+          npm run start
 
       - name: Install playwright
         run: npx playwright install
