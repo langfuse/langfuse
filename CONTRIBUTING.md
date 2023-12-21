@@ -38,12 +38,39 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 ### Architecture overview
 
 ```mermaid
-flowchart TD
+flowchart TB
+   subgraph s4["Clients"]
+      subgraph s2["langfuse/langfuse-python"]
+         Python["Python SDK"]
+         OAI["OpenAI drop-in replacement"] -->|extends| Python
+         LCPYTHON["Langchain Python Integration"] -->|extends| Python
+         Langflow -->|uses| LCPYTHON
+         LiteLLM -->|uses| Python
+      end
+      subgraph s3["langfuse/langfuse-js"]
+         JS["JS SDK"]
+         LCJS["Langchain JS Integration"]  -->|extends| JS
+         Flowise -->|uses| LCJS
+      end
+   end
 
-    A[Python SDK - Backend] -->|REST| C[NextJs Server]
-    B[JS/TS SDK - Frontend + Backend] -->|REST| C
-    C <-->|Prisma| D[Postgres Database]
-    E[Langfuse UI] -->|tRPC| C
+   DB[Postgres Database]
+	subgraph s1["Application (langfuse/langfuse)"]
+      API[Public API]
+      G[TRPC API]
+      I[NextAuth]
+      H[React Frontend]
+      Prisma[Prisma ORM]
+      H --> G
+      H --> I
+      G --> I
+      G --- Prisma
+      API --- Prisma
+      I --- Prisma
+	end
+   Prisma --- DB
+   JS --- API
+   Python --- API
 ```
 
 | Component                                                 | Technology                                    | Description                                                                                                                                                                                     |
