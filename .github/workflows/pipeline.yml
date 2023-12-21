@@ -90,9 +90,7 @@ jobs:
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
-        run: |
-          npm run build
-          (npm start&)
+        run: npm run build
 
       - name: Install playwright
         run: npx playwright install
