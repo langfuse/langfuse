@@ -131,7 +131,7 @@
     "prisma": "^5.7.1",
     "release-it": "^17.0.1",
     "swagger-jsdoc": "^6.2.8",
-    "tailwindcss": "^3.3.6",
+    "tailwindcss": "^3.4.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3"
