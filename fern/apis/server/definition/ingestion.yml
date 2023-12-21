@@ -135,6 +135,10 @@ types:
         type: optional<boolean>
         docs: Make trace publicly accessible via url
 
+  SDKLogBody:
+    properties:
+      log: unknown
+
   ScoreBody:
     properties:
       id: optional<string>
@@ -169,6 +173,11 @@ types:
     extends: BaseEvent
     properties:
       body: ScoreBody
+
+  SDKLogEvent:
+    extends: BaseEvent
+    properties:
+      body: SDKLogBody
 
   CreateGenerationEvent:
     extends: BaseEvent

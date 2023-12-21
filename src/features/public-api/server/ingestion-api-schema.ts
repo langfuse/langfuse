@@ -224,6 +224,10 @@ export const LegacyObservationBody = z.object({
   version: z.string().nullish(),
 });
 
+export const SdkLogEvent = z.object({
+  log: jsonSchema,
+});
+
 // definitions for the ingestion API
 
 export const eventTypes = {
@@ -234,6 +238,7 @@ export const eventTypes = {
   SPAN_UPDATE: "span-update",
   GENERATION_CREATE: "generation-create",
   GENERATION_UPDATE: "generation-update",
+  SDK_LOG: "sdk-log",
 
   // LEGACY, only required for backwards compatibility
   OBSERVATION_CREATE: "observation-create",
@@ -274,6 +279,10 @@ export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
   body: ScoreBody,
 });
+export const sdkLogEvent = base.extend({
+  type: z.literal(eventTypes.SDK_LOG),
+  body: SdkLogEvent,
+});
 export const legacyObservationCreateEvent = base.extend({
   type: z.literal(eventTypes.OBSERVATION_CREATE),
   body: LegacyObservationBody,
@@ -291,6 +300,7 @@ export const ingestionEvent = z.discriminatedUnion("type", [
   spanUpdateEvent,
   generationCreateEvent,
   generationUpdateEvent,
+  sdkLogEvent,
   // LEGACY, only required for backwards compatibility
   legacyObservationCreateEvent,
   legacyObservationUpdateEvent,

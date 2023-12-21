@@ -10,12 +10,16 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
+  SdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
-import { type EventProcessor } from "../../../server/api/services/EventProcessor";
+import {
+  SdkLogProcessor,
+  type EventProcessor,
+} from "../../../server/api/services/EventProcessor";
 import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
 import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
@@ -230,6 +234,8 @@ const handleSingleEvent = async (
       processor = new ScoreProcessor(cleanedEvent);
       break;
     }
+    case eventTypes.SDK_LOG:
+      processor = new SdkLogProcessor(cleanedEvent);
   }
 
   return await processor.process(apiScope);
