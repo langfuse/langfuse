@@ -25,6 +25,8 @@
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@aws-sdk/client-s3": "^3.478.0",
+    "@aws-sdk/s3-request-presigner": "^3.478.0",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@formkit/auto-animate": "^0.8.1",
