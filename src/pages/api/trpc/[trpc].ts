@@ -6,7 +6,6 @@ import { appRouter } from "@/src/server/api/root";
 
 export const config = {
   maxDuration: 120,
-  responseLimit: false,
 };
 
 // export API handler
