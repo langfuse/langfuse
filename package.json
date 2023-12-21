@@ -107,7 +107,7 @@
     "@testing-library/jest-dom": "^6.1.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
-    "@types/eslint": "^8.44.9",
+    "@types/eslint": "^8.56.0",
     "@types/jest": "^29.5.11",
     "@types/js-yaml": "^4.0.9",
     "@types/lodash": "^4.14.202",
