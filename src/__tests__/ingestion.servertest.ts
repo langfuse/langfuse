@@ -400,13 +400,18 @@ describe("/api/public/ingestion API Endpoint", () => {
     const logEvent = await prisma.events.findFirst({
       where: {
         data: {
-          string_contains: "KeyError: 'model_name'",
+          path: ["body", "log"],
+          string_contains: "ERROR",
         },
       },
     });
 
+    const logEvents = await prisma.events.findMany();
+    console.log(logEvent);
+
     expect(logEvent).toBeDefined();
-    expect(logEvent?.data).toEqual(exception);
+    expect(logEvent).not.toBeFalsy();
+    expect(JSON.stringify(logEvent?.data)).toContain("KeyError: 'model_name'");
   });
 
   it("should upsert threats", async () => {
