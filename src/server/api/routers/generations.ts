@@ -19,9 +19,17 @@ import {
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
 import { usdFormatter } from "@/src/utils/numbers";
-
-const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
-export type ExportFileFormats = (typeof exportFileFormats)[number];
+import { env } from "@/src/env.mjs";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  exportFileFormats,
+  exportOptions,
+} from "@/src/server/api/interfaces/exportTypes";
 
 const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -218,10 +226,12 @@ export const generationsRouter = createTRPCRouter({
         },
       );
 
-      // create csv
+      let output: string = "";
+
+      // create file
       switch (input.fileFormat) {
         case "CSV":
-          return [
+          output = [
             [
               "traceId",
               "name",
@@ -256,8 +266,10 @@ export const generationsRouter = createTRPCRouter({
             )
             .map((row) => row.join(","))
             .join("\n");
+          break;
         case "JSON":
-          return JSON.stringify(enrichedGenerations);
+          output = JSON.stringify(enrichedGenerations);
+          break;
         case "OPENAI-JSONL":
           const inputSchemaOpenAI = z.array(
             z.object({
@@ -268,32 +280,86 @@ export const generationsRouter = createTRPCRouter({
           const outputSchema = z.object({
             completion: z.string(),
           });
+          output = enrichedGenerations
+            .map((generation) => ({
+              parsedInput: inputSchemaOpenAI.safeParse(generation.input),
+              parsedOutput: outputSchema.safeParse(generation.output),
+            }))
+            .filter((generation) => generation.parsedInput.success)
+            .map((generation) =>
+              generation.parsedInput.success // check for typescript validation, is always true due to previous filter
+                ? generation.parsedInput.data.concat(
+                    generation.parsedOutput.success
+                      ? [
+                          {
+                            role: "assistant",
+                            content: generation.parsedOutput.data.completion,
+                          },
+                        ]
+                      : [],
+                  )
+                : [],
+            )
+            // to jsonl
+            .map((row) => JSON.stringify(row))
+            .join("\n");
+          break;
+        default:
+          throw new Error("Invalid export file format");
+      }
 
-          return (
-            enrichedGenerations
-              .map((generation) => ({
-                parsedInput: inputSchemaOpenAI.safeParse(generation.input),
-                parsedOutput: outputSchema.safeParse(generation.output),
-              }))
-              .filter((generation) => generation.parsedInput.success)
-              .map((generation) =>
-                generation.parsedInput.success // check for typescript validation, is always true due to previous filter
-                  ? generation.parsedInput.data.concat(
-                      generation.parsedOutput.success
-                        ? [
-                            {
-                              role: "assistant",
-                              content: generation.parsedOutput.data.completion,
-                            },
-                          ]
-                        : [],
-                    )
-                  : [],
-              )
-              // to jsonl
-              .map((row) => JSON.stringify(row))
-              .join("\n")
-          );
+      const fileName = `lf-export-${
+        input.projectId
+      }-${new Date().toISOString()}.${
+        exportOptions[input.fileFormat].extension
+      }`;
+
+      if (
+        env.S3_BUCKET_NAME &&
+        env.S3_ACCESS_KEY_ID &&
+        env.S3_SECRET_ACCESS_KEY &&
+        env.S3_ENDPOINT &&
+        env.S3_REGION
+      ) {
+        const client = new S3Client({
+          credentials: {
+            accessKeyId: env.S3_ACCESS_KEY_ID,
+            secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+          },
+          endpoint: env.S3_ENDPOINT,
+          region: env.S3_REGION,
+        });
+        await client.send(
+          new PutObjectCommand({
+            Bucket: env.S3_BUCKET_NAME,
+            Key: fileName,
+            Body: output,
+            ContentType: exportOptions[input.fileFormat].fileType,
+            Expires: new Date(Date.now() + 60 * 60 * 1000), // in 1 hour
+          }),
+        );
+        const signedUrl = await getSignedUrl(
+          client,
+          new GetObjectCommand({
+            Bucket: env.S3_BUCKET_NAME,
+            Key: fileName,
+            ResponseContentDisposition: `attachment; filename="${fileName}"`,
+          }),
+          {
+            expiresIn: 60 * 60, // in 1 hour
+          },
+        );
+        return {
+          type: "s3",
+          url: signedUrl,
+          fileName,
+        } as const;
+      } else {
+        return {
+          type: "data",
+          data: output,
+          fileName,
+        } as const;
       }
     }),
   filterOptions: protectedProjectProcedure
