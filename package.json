@@ -117,7 +117,7 @@
     "@types/react-dom": "^18.2.18",
     "@types/swagger-ui-react": "^4.18.3",
     "@types/uuid": "^9.0.7",
-    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
     "autoprefixer": "^10.4.16",
     "dotenv-cli": "^7.3.0",

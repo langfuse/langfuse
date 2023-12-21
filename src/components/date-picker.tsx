@@ -191,7 +191,7 @@ export function DatePickerWithRange({
             {DEFAULT_DATE_RANGE_SELECTION}
           </SelectItem>
           {dateTimeAggregationOptions.toReversed().map((item) => (
-            <SelectItem key={item} value={`${item}`}>
+            <SelectItem key={item} value={item}>
               {item}
             </SelectItem>
           ))}
