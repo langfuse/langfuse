@@ -1,20 +1,25 @@
 import { DeleteTrace } from "@/src/components/delete-trace";
-import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
+import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import { JSONView } from "@/src/components/ui/code";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
+import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
   NumberParam,
@@ -23,10 +28,6 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { StarTraceToggle } from "@/src/components/star-toggle";
-import { JSONView } from "@/src/components/ui/code";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type RowSelectionState } from "@tanstack/react-table";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -76,6 +77,13 @@ export default function TracesTable({
       value: utcDateOffsetByDays(-14),
     },
   ]);
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "timestamp",
+    order: "DESC",
+  });
+  useEffect(() => {
+    console.log(orderByState);
+  }, [orderByState]);
 
   const userIdFilter: FilterState = userId
     ? [
@@ -100,6 +108,7 @@ export default function TracesTable({
     projectId,
     filter: filterState,
     searchQuery,
+    orderBy: orderByState,
   });
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
@@ -173,6 +182,7 @@ export default function TracesTable({
     {
       accessorKey: "bookmarked",
       header: undefined,
+      id: "bookmarked",
       cell: ({ row }) => {
         const bookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
@@ -191,6 +201,7 @@ export default function TracesTable({
     {
       accessorKey: "id",
       header: "ID",
+      id: "id",
       cell: ({ row }) => {
         const value = row.getValue("id");
         return value && typeof value === "string" ? (
@@ -204,17 +215,20 @@ export default function TracesTable({
     {
       accessorKey: "timestamp",
       header: "Timestamp",
+      id: "timestamp",
       enableHiding: true,
     },
     {
       accessorKey: "name",
       header: "Name",
+      id: "name",
       enableHiding: true,
     },
     {
       accessorKey: "userId",
       enableColumnFilter: !omittedFilter.find((f) => f === "userId"),
       header: "User ID",
+      id: "userId",
       cell: ({ row }) => {
         const value = row.getValue("userId");
         return value && typeof value === "string" ? (
@@ -231,6 +245,7 @@ export default function TracesTable({
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
       header: "Session ID",
+      id: "sessionId",
       cell: ({ row }) => {
         const value = row.getValue("sessionId");
         return value && typeof value === "string" ? (
@@ -245,6 +260,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "latency",
+      id: "latency",
       header: "Latency",
       // add seconds to the end of the latency
       cell: ({ row }) => {
@@ -392,6 +408,8 @@ export default function TracesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        setOrderBy={setOrderByState}
+        orderBy={orderByState}
         rowSelection={selectedRows}
         setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
