@@ -79,7 +79,7 @@
     "exponential-backoff": "^3.1.1",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.298.0",
+    "lucide-react": "^0.299.0",
     "next": "^14.0.4",
     "next-auth": "^4.24.5",
     "next-query-params": "^5.0.0",
