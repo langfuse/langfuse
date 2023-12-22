@@ -190,6 +190,7 @@ function isOpenAiModel(model: string): model is TiktokenModel {
       "gpt-3.5-turbo-0613",
       "gpt-3.5-turbo-16k",
       "gpt-3.5-turbo-16k-0613",
+      "gpt-3.5-turbo-1106",
     ].find((m) => m === model) !== undefined
   );
 }
