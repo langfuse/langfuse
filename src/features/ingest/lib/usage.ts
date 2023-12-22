@@ -85,7 +85,6 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     params.model.includes("gpt-3.5-turbo") ||
     params.model.startsWith("gpt-3.5")
   ) {
-    console.log("Warning: using gpt-3.5-turbo-0613 encoding.");
     return openAiChatTokenCount({ ...params, model: "gpt-3.5-turbo-0613" });
   } else if (params.model.includes("gpt-4")) {
     return openAiChatTokenCount({ ...params, model: "gpt-4-0613" });

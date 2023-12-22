@@ -171,7 +171,7 @@ describe("/api/public/generations API Endpoint", () => {
         name: "generation-name",
         startTime: "2021-01-01T00:00:00.000Z",
         endTime: "2021-01-01T00:00:00.000Z",
-        model: "gpt-3.5-turbo-1106",
+        model: "model-name",
         modelParameters: { key: "value" },
         prompt: { key: "value" },
         metadata: { key: "value" },
