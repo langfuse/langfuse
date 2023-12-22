@@ -153,7 +153,12 @@
       "release": true,
       "web": true,
       "autoGenerate": true,
-      "releaseName": "v${version}"
+      "releaseName": "v${version}",
+      "comments": {
+        "submit": true,
+        "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
+        "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
+      }
     },
     "plugins": {
       "@release-it/bumper": {
