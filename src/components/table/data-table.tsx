@@ -1,16 +1,8 @@
 "use client";
 
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnFiltersState,
-  getFilteredRowModel,
-  type OnChangeFn,
-  type PaginationState,
-  type RowSelectionState,
-  type VisibilityState,
-} from "@tanstack/react-table";
+import DocPopup from "@/src/components/layouts/doc-popup";
+import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   Table,
   TableBody,
@@ -19,10 +11,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { type OrderByState } from "@/src/features/orderBy/types";
+import { cn } from "@/src/utils/tailwind";
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  useReactTable,
+  type ColumnFiltersState,
+  type OnChangeFn,
+  type PaginationState,
+  type RowSelectionState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { useState } from "react";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import DocPopup from "@/src/components/layouts/doc-popup";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -36,6 +38,8 @@ interface DataTableProps<TData, TValue> {
   setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  orderBy?: OrderByState;
+  setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
 }
 
@@ -55,8 +59,11 @@ export function DataTable<TData extends object, TValue>({
   columnVisibility,
   onColumnVisibilityChange,
   help,
+  orderBy,
+  setOrderBy,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -96,7 +103,33 @@ export function DataTable<TData extends object, TValue>({
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
-                        className="whitespace-nowrap p-2"
+                        className={cn(
+                          header.column.columnDef.enableSorting
+                            ? "cursor-pointer"
+                            : null,
+                          "whitespace-nowrap p-2",
+                        )}
+                        onClick={() => {
+                          if (
+                            !setOrderBy ||
+                            !header.column.columnDef.id ||
+                            !header.column.columnDef.enableSorting
+                          ) {
+                            return;
+                          }
+
+                          if (orderBy?.column === header.column.columnDef.id) {
+                            setOrderBy({
+                              column: header.column.columnDef.id,
+                              order: orderBy.order === "ASC" ? "DESC" : "ASC",
+                            });
+                          } else {
+                            setOrderBy({
+                              column: header.column.columnDef.id,
+                              order: "DESC",
+                            });
+                          }
+                        }}
                       >
                         {header.isPlaceholder
                           ? null
