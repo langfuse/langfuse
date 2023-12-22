@@ -6,7 +6,6 @@ import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
-  afterEach(async () => await pruneDatabase());
 
   [
     {
