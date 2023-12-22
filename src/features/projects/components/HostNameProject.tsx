@@ -3,8 +3,7 @@ import { CodeView } from "@/src/components/ui/code";
 import { env } from "@/src/env.mjs";
 
 export function HostNameProject() {
-  const hostname =
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "EU" ? window.origin : undefined;
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") return null;
 
   return (
     <div>
@@ -12,16 +11,12 @@ export function HostNameProject() {
         Host Name
       </h2>
       <Card className="mb-4 p-4">
-        {hostname ? (
-          <>
-            <div className="mb-6">
-              <div className="my-2">
-                When connecting to Langfuse, use this hostname / baseurl.
-              </div>
-              <CodeView content={hostname} />
-            </div>
-          </>
-        ) : null}
+        <div className="mb-6">
+          <div className="my-2">
+            When connecting to Langfuse, use this hostname / baseurl.
+          </div>
+          <CodeView content={window.origin} />
+        </div>
       </Card>
     </div>
   );
