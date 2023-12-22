@@ -6,7 +6,6 @@ import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
-  afterEach(async () => await pruneDatabase());
 
   [
     {
@@ -172,7 +171,7 @@ describe("/api/public/generations API Endpoint", () => {
         name: "generation-name",
         startTime: "2021-01-01T00:00:00.000Z",
         endTime: "2021-01-01T00:00:00.000Z",
-        model: "model-name",
+        model: "gpt-3.5-turbo-1106",
         modelParameters: { key: "value" },
         prompt: { key: "value" },
         metadata: { key: "value" },

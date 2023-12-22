@@ -85,6 +85,7 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     params.model.includes("gpt-3.5-turbo") ||
     params.model.startsWith("gpt-3.5")
   ) {
+    console.log("Warning: using gpt-3.5-turbo-0613 encoding.");
     return openAiChatTokenCount({ ...params, model: "gpt-3.5-turbo-0613" });
   } else if (params.model.includes("gpt-4")) {
     return openAiChatTokenCount({ ...params, model: "gpt-4-0613" });
@@ -190,6 +191,7 @@ function isOpenAiModel(model: string): model is TiktokenModel {
       "gpt-3.5-turbo-0613",
       "gpt-3.5-turbo-16k",
       "gpt-3.5-turbo-16k-0613",
+      "gpt-3.5-turbo-1106",
     ].find((m) => m === model) !== undefined
   );
 }
