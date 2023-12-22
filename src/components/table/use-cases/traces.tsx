@@ -211,12 +211,14 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "timestamp",
       header: "Timestamp",
       id: "timestamp",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "name",
@@ -240,12 +242,12 @@ export default function TracesTable({
         ) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
       header: "Session ID",
-      id: "sessionId",
       cell: ({ row }) => {
         const value = row.getValue("sessionId");
         return value && typeof value === "string" ? (
@@ -268,8 +270,10 @@ export default function TracesTable({
         return value !== undefined ? formatInterval(value) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
+      // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
       cell: ({ row }) => {
@@ -291,6 +295,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "scores",
+      id: "scores",
       header: "Scores",
       enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
       cell: ({ row }) => {
@@ -298,6 +303,7 @@ export default function TracesTable({
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "input",
@@ -330,13 +336,17 @@ export default function TracesTable({
     },
     {
       accessorKey: "version",
+      id: "version",
       header: "Version",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "release",
+      id: "release",
       header: "Release",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "action",

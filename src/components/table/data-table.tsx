@@ -100,20 +100,21 @@ export function DataTable<TData extends object, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
+                    const sortingEnabled =
+                      header.column.columnDef.enableSorting;
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
                         className={cn(
-                          header.column.columnDef.enableSorting
-                            ? "cursor-pointer"
-                            : null,
+                          sortingEnabled ? "cursor-pointer" : null,
                           "whitespace-nowrap p-2",
                         )}
+                        title={sortingEnabled ? "Sort by this column" : ""}
                         onClick={() => {
                           if (
                             !setOrderBy ||
                             !header.column.columnDef.id ||
-                            !header.column.columnDef.enableSorting
+                            !sortingEnabled
                           ) {
                             return;
                           }
@@ -131,12 +132,17 @@ export function DataTable<TData extends object, TValue>({
                           }
                         }}
                       >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
+                        {header.isPlaceholder ? null : (
+                          <>
+                            {flexRender(
                               header.column.columnDef.header,
                               header.getContext(),
                             )}
+                            {orderBy?.column === header.column.columnDef.id
+                              ? renderOrderingIndicator(orderBy)
+                              : null}
+                          </>
+                        )}
                       </TableHead>
                     ) : null;
                   })}
@@ -195,4 +201,10 @@ export function DataTable<TData extends object, TValue>({
       {pagination !== undefined ? <DataTablePagination table={table} /> : null}
     </>
   );
+}
+
+function renderOrderingIndicator(orderBy?: OrderByState) {
+  if (!orderBy) return;
+  if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
+  else return <span className="ml-1">▼</span>;
 }
