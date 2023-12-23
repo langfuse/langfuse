@@ -7,7 +7,7 @@ export function orderByToPrismaSql(
   tableColumns: ColumnDefinition[],
 ): Prisma.Sql {
   if (!orderBy) {
-    return Prisma.sql([`ORDER BY t."timestamp" DESC`]);
+    return Prisma.sql([`ORDER BY t.timestamp DESC`]);
   }
   // Get column definition to map column to internal name, e.g. "t.id"
   const col = tableColumns.find(
