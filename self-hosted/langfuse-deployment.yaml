@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse-deployment
+spec:
+  selector:
+    matchLabels:
+      app: langfuse-app
+  template:
+    metadata:
+      labels:
+        app: langfuse-app
+    spec:
+      containers:
+        - name: langfuse
+          image: ghcr.io/langfuse/langfuse:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-secret
+                  key: langfuse-db-url
+            - name: NEXTAUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-secret
+                  key: langfuse-nextauth-url
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-secret
+                  key: langfuse-nextauth-secret
+            - name: SALT
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-secret
+                  key: langfuse-salt
+          ports:
+            - containerPort: 3000
