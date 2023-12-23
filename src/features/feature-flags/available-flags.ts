@@ -1,1 +1,1 @@
-export const availableFlags = ["templateFlag", "cost-alerts"] as const;
+export const availableFlags = ["templateFlag", "costAlerts"] as const;

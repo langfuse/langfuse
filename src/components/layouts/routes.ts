@@ -59,7 +59,7 @@ export const ROUTES: Array<{
     name: "Alerts",
     pathname: "/project/[projectId]/alerts",
     icon: AlertCircle,
-    featureFlag: "cost-alerts",
+    featureFlag: "costAlerts",
   },
   {
     name: "Settings",
