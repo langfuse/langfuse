@@ -80,7 +80,7 @@ model Project {
     createdAt    DateTime               @default(now()) @map("created_at")
     updatedAt    DateTime               @default(now()) @updatedAt @map("updated_at")
     name         String
-    cloudConfig  Json?                  @map("cloud_config")
+    cloudConfig  Json?                  @map("cloud_config") // for zod schema see projectsRouter.ts
     members      Membership[]
     traces       Trace[]
     observations Observation[]
