@@ -5,7 +5,12 @@ type OrderByQueryParamState =
   | OrderByState
   | { [key: string]: string | undefined };
 
-// manage state with hook
+/**
+ * useOrderByState is a custom hook to manage the ordering settings (for a table).
+ * It does so via query params.
+ * @param initialState default ordering
+ * @returns [orderByState, setOrderByState]
+ */
 export const useOrderByState = (initialState: OrderByState = null) => {
   const [orderByState, setOrderByState] = useQueryParam<OrderByQueryParamState>(
     "orderBy",

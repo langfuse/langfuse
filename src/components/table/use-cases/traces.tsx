@@ -81,9 +81,6 @@ export default function TracesTable({
     column: "timestamp",
     order: "DESC",
   });
-  useEffect(() => {
-    console.log(orderByState);
-  }, [orderByState]);
 
   const userIdFilter: FilterState = userId
     ? [

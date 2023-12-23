@@ -23,12 +23,9 @@ describe("useOrderByState hook", () => {
   let locationMock: LocationMock;
 
   beforeAll(() => {
-    // @ts-expect-error - This complains because we can only delete optional operands
+    // @ts-expect-error - TS only allows to delete optional params; but here we want to delete it
+    // as it will be set in beforeEach
     delete window.location;
-  });
-
-  afterAll(() => {
-    window.location = savedLocation;
   });
 
   beforeEach(() => {
@@ -38,6 +35,10 @@ describe("useOrderByState hook", () => {
     window.location = locationMock;
 
     (useRouter as jest.Mock).mockReturnValue(testRouter);
+  });
+
+  afterAll(() => {
+    window.location = savedLocation;
   });
 
   test("orderBy takes the default value if no url param is given", () => {

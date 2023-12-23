@@ -48,7 +48,10 @@ export const traceRouter = createTRPCRouter({
         input.filter ?? [],
         tracesTableCols,
       );
-      const orderByCondition = orderByToPrismaSql(input.orderBy, tracesTableCols)
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        tracesTableCols,
+      );
 
       // to improve query performance, add timeseries filter to observation queries as well
       const timeseriesFilter = input.filter?.find(
