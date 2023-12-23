@@ -12,6 +12,7 @@ import { environmentRouter } from "@/src/server/api/routers/environment";
 import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
+import { alertsRouter } from "@/src/server/api/routers/alerts";
 
 /**
  * This is the primary router for your server.
@@ -20,6 +21,7 @@ import { sessionRouter } from "@/src/server/api/routers/sessions";
  */
 export const appRouter = createTRPCRouter({
   traces: traceRouter,
+  alerts: alertsRouter,
   sessions: sessionRouter,
   generations: generationsRouter,
   scores: scoresRouter,

@@ -10,6 +10,7 @@ import {
   TextSelect,
   UsersIcon,
   Route,
+  AlertCircle,
 } from "lucide-react";
 
 export const ROUTES: Array<{
@@ -53,6 +54,12 @@ export const ROUTES: Array<{
     name: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
+  },
+  {
+    name: "Alerts",
+    pathname: "/project/[projectId]/alerts",
+    icon: AlertCircle,
+    featureFlag: "costAlerts",
   },
   {
     name: "Settings",
