@@ -1,6 +1,7 @@
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import * as z from "zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { TRPCError } from "@trpc/server";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -20,6 +21,32 @@ export const projectsRouter = createTRPCRouter({
 
     return projects;
   }),
+  byId: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const project = await ctx.prisma.project.findUnique({
+        where: {
+          id: input.projectId,
+        },
+      });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const cloudConfigSchema = z.object({
+        plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(), // team, pro, enterprise
+        monthlyObservationLimit: z.number().int().positive().optional(),
+      });
+      const cloudConfig = cloudConfigSchema.safeParse(project.cloudConfig);
+
+      return {
+        ...project,
+        cloudConfig: cloudConfig.success ? cloudConfig.data : null,
+      };
+    }),
+
   create: protectedProcedure
     .input(
       z.object({
