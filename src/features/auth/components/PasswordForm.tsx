@@ -11,8 +11,6 @@ import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { usePostHog } from "posthog-js/react";
-import { signIn } from "next-auth/react";
 import { useState } from "react";
 
 export function PasswordForm() {
@@ -31,8 +29,6 @@ export function PasswordForm() {
     string | null
   >(null);
 
-  const posthog = usePostHog();
-
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
     resolver: zodResolver(credentialAuthForm),
@@ -46,22 +42,26 @@ export function PasswordForm() {
     values: z.infer<typeof credentialAuthForm>,
   ) {
     setCredentialsFormError(null);
-    posthog.capture("sign_in:credentials_form_submit");
-    const result = await signIn("credentials", {
-      old_password: values.old_password,
-      new_password: values.new_password,
-      reenter_new_password: values.reenter_new_password,
-      callbackUrl: "/",
-      redirect: false,
-    });
-    if (result?.error) {
-      setCredentialsFormError(result.error);
+    try {
+      const res = await fetch("/api/auth/changepassword", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const payload = (await res.json()) as { message: string };
+        setCredentialsFormError(payload.message);
+        return;
+      }
+    } catch (err) {
+      setCredentialsFormError("An error occurred. Please try again.");
     }
   }
   return (
     <Form {...credentialsForm}>
       <form
         className="space-y-6"
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={credentialsForm.handleSubmit(onCredentialsSubmit)}
       >
         <FormField
