@@ -36,6 +36,16 @@ export const chatRunTrigger = (trigger: Trigger) => {
   if (chatAvailable) Crisp.trigger.run(trigger);
 };
 
+export const sendUserChatMessage = (message: string) => {
+  openChat();
+  if (chatAvailable) Crisp.message.send("text", message);
+};
+
+export const showAgentChatMessage = (message: string) => {
+  openChat();
+  if (chatAvailable) Crisp.message.show("text", message);
+};
+
 export const openChat = () => {
   if (chatAvailable) Crisp.chat.open();
 };
