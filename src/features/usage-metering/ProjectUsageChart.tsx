@@ -73,7 +73,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
           >
             Change plan
           </Button>
-          <span className="ml-2 text-gray-500">Currently: {plan}</span>
+          <span className="ml-2 text-sm text-gray-500">Currently: {plan}</span>
         </>
       )}
     </div>
