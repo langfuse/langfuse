@@ -2,6 +2,16 @@ openapi: 3.0.1
 info:
   title: langfuse
   version: ''
+  description: >
+    ## Authentication
+
+    Authenticate with the API using Basic Auth, get API keys in the project
+    settings:
+
+
+    - username: Langfuse Public Key
+
+    - password: Langfuse Secret Key
 paths:
   /api/public/dataset-items:
     post:
