@@ -140,6 +140,12 @@ const extendedPrismaAdapter: Adapter = {
     if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
       throw new Error("Sign up is disabled.");
     }
+    if (!profile.email) {
+      throw new Error(
+        "Cannot create db user as login profile does not contain an email: " +
+          JSON.stringify(profile),
+      );
+    }
 
     const user = await prismaAdapter.createUser(profile);
 
