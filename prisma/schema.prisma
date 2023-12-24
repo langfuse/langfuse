@@ -29,6 +29,8 @@ model Account {
     refresh_token     String? // @db.Text
     access_token      String? // @db.Text
     expires_at        Int?
+    expires_in        Int?
+    ext_expires_in    Int?
     token_type        String?
     scope             String?
     id_token          String? // @db.Text
@@ -80,6 +82,7 @@ model Project {
     createdAt    DateTime               @default(now()) @map("created_at")
     updatedAt    DateTime               @default(now()) @updatedAt @map("updated_at")
     name         String
+    cloudConfig  Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
     members      Membership[]
     traces       Trace[]
     observations Observation[]
