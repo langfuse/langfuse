@@ -1,7 +1,10 @@
 import { Badge } from "@/src/components/ui/badge";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { type Observation } from "@prisma/client";
 
-export const TraceAggUsageBadge = (props: { observations: Observation[] }) => {
+export const TraceAggUsageBadge = (props: {
+  observations: ObservationReturnType[];
+}) => {
   const usage = {
     promptTokens: props.observations
       .map((o) => o.promptTokens)

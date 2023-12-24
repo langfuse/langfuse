@@ -5,7 +5,7 @@ info:
 paths:
   /api/public/scores:
     post:
-      description: Add a score to the database
+      description: Add a score to the database, upserts on id
       operationId: score_create
       tags:
         - Score
@@ -59,8 +59,6 @@ components:
           type: string
         traceId:
           type: string
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdType'
         name:
           type: string
         value:
@@ -100,12 +98,6 @@ components:
         - name
         - value
         - timestamp
-    TraceIdType:
-      title: TraceIdType
-      type: string
-      enum:
-        - LANGFUSE
-        - EXTERNAL
   securitySchemes:
     BearerAuth:
       type: http

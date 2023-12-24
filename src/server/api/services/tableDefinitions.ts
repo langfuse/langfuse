@@ -99,6 +99,8 @@ export const totalTokenCost = {
       WHEN (o."model" LIKE '%curie:%') THEN 0.012 * o."prompt_tokens" + 0.012 * o."completion_tokens"
       WHEN (o."model" LIKE '%davinci:%') THEN 0.12 * o."prompt_tokens" + 0.12 * o."completion_tokens"
       -- Non-finetuned
+      WHEN (o."model" LIKE '%gpt-4-1106-preview%') THEN 0.01 * o."prompt_tokens" + 0.03 * o."completion_tokens"
+      WHEN (o."model" LIKE '%gpt-4-1106-vision-preview%') THEN 0.01 * o."prompt_tokens" + 0.03 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-4-32k%') THEN 0.06 * o."prompt_tokens" + 0.12 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-3.5-turbo-0613%') THEN 0.0015 * o."prompt_tokens" + 0.002 * o."completion_tokens"
       WHEN (o."model" LIKE '%gpt-3.5-turbo-16k-0613%') THEN 0.003 * o."prompt_tokens" + 0.004 * o."completion_tokens"

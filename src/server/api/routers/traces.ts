@@ -2,11 +2,15 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
+  protectedGetTraceProcedure,
   protectedProjectProcedure,
-  publicProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Score, type Trace } from "@prisma/client";
+import {
+  type Observation,
+  Prisma,
+  type Score,
+  type Trace,
+} from "@prisma/client";
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
@@ -19,6 +23,8 @@ import {
   datetimeFilterToPrismaSql,
   filterToPrismaSql,
 } from "@/src/features/filters/server/filterToPrisma";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { TRPCError } from "@trpc/server";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -26,6 +32,10 @@ const TraceFilterOptions = z.object({
   filter: z.array(singleFilter).nullable(),
   ...paginationZod,
 });
+
+export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
+  traceId: string;
+} & { price?: Decimal };
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -89,7 +99,7 @@ export const traceRouter = createTRPCRouter({
       trace_latency AS (
         SELECT
           trace_id,
-          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) * 1000 - EXTRACT(EPOCH FROM MIN("start_time")) * 1000 AS "latency"
+          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
         FROM
           "observations"
         WHERE
@@ -143,14 +153,15 @@ export const traceRouter = createTRPCRouter({
       )
       SELECT
         t.*,
-        t."external_id" AS "externalId",
         t."user_id" AS "userId",
         t."metadata" AS "metadata",
+        t.session_id AS "sessionId",
+        t."bookmarked" AS "bookmarked",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
         COALESCE(u."totalTokens", 0)::int AS "totalTokens",
         COALESCE(s_json.scores, '[]'::json) AS "scores",
-        tl.latency/1000::double precision AS "latency",
+        tl.latency AS "latency",
         (count(*) OVER ())::int AS "totalCount"
       FROM
         "traces" AS t
@@ -173,25 +184,23 @@ export const traceRouter = createTRPCRouter({
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const [scores, names] = await Promise.all([
-        ctx.prisma.score.groupBy({
-          where: {
-            trace: {
-              projectId: input.projectId,
-            },
-          },
-          by: ["name"],
-        }),
-        ctx.prisma.trace.groupBy({
-          where: {
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          trace: {
             projectId: input.projectId,
           },
-          by: ["name"],
-          _count: {
-            _all: true,
-          },
-        }),
-      ]);
+        },
+        by: ["name"],
+      });
+      const names = await ctx.prisma.trace.groupBy({
+        where: {
+          projectId: input.projectId,
+        },
+        by: ["name"],
+        _count: {
+          _all: true,
+        },
+      });
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
         name: names
@@ -203,137 +212,26 @@ export const traceRouter = createTRPCRouter({
       };
       return res;
     }),
-  byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
-    const [trace, observations, pricings] = await Promise.all([
-      ctx.prisma.trace.findFirstOrThrow({
+  byId: protectedGetTraceProcedure
+    .input(z.object({ traceId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
-          id: input,
-          ...(ctx.session.user.admin === true
-            ? undefined
-            : {
-                project: {
-                  members: {
-                    some: {
-                      userId: ctx.session.user.id,
-                    },
-                  },
-                },
-              }),
+          id: input.traceId,
         },
         include: {
           scores: true,
         },
-      }),
-      ctx.prisma.observation.findMany({
+      });
+      const observations = await ctx.prisma.observation.findMany({
         where: {
           traceId: {
-            equals: input,
+            equals: input.traceId,
             not: null,
           },
-          ...(ctx.session.user.admin === true
-            ? undefined
-            : {
-                project: {
-                  members: {
-                    some: {
-                      userId: ctx.session.user.id,
-                    },
-                  },
-                },
-              }),
         },
-      }),
-      ctx.prisma.pricing.findMany(),
-    ]);
-
-    const obsStartTimes = observations
-      .map((o) => o.startTime)
-      .sort((a, b) => a.getTime() - b.getTime());
-    const obsEndTimes = observations
-      .map((o) => o.endTime)
-      .filter((t) => t)
-      .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
-    const latencyMs =
-      obsStartTimes.length > 0
-        ? obsEndTimes.length > 0
-          ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
-            obsStartTimes[0]!.getTime()
-          : obsStartTimes.length > 1
-          ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-            obsStartTimes[0]!.getTime()
-          : undefined
-        : undefined;
-
-    const enrichedObservations = observations.map((observation) => {
-      return {
-        ...observation,
-        price: observation.model
-          ? calculateTokenCost(pricings, {
-              model: observation.model,
-              totalTokens: new Decimal(observation.totalTokens),
-              promptTokens: new Decimal(observation.promptTokens),
-              completionTokens: new Decimal(observation.completionTokens),
-              input: observation.input,
-              output: observation.output,
-            })
-          : undefined,
-      };
-    });
-
-    return {
-      ...trace,
-      latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-      observations: enrichedObservations as Array<
-        (typeof observations)[0] & { traceId: string } & { price?: Decimal }
-      >,
-    };
-  }),
-
-  // exact copy of previoud byId, but without the project member check
-  // output must be the same as consumed by the same component
-  byIdPublic: publicProcedure
-    .input(z.string())
-    .query(async ({ input, ctx }) => {
-      const [trace, observations, pricings] = await Promise.all([
-        ctx.prisma.trace.findFirst({
-          where: {
-            id: input,
-            public: true,
-          },
-          include: {
-            scores: true,
-          },
-        }),
-        ctx.prisma.observation.findMany({
-          where: {
-            traceId: {
-              equals: input,
-              not: null,
-            },
-          },
-        }),
-        ctx.prisma.pricing.findMany(),
-      ]);
-
-      if (!trace) {
-        return null;
-      }
-
-      const enrichedObservations = observations.map((observation) => {
-        return {
-          ...observation,
-          price: observation.model
-            ? calculateTokenCost(pricings, {
-                model: observation.model,
-                totalTokens: new Decimal(observation.totalTokens),
-                promptTokens: new Decimal(observation.promptTokens),
-                completionTokens: new Decimal(observation.completionTokens),
-                input: observation.input,
-                output: observation.output,
-              })
-            : undefined,
-        };
       });
+      const pricings = await ctx.prisma.pricing.findMany();
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -348,17 +246,150 @@ export const traceRouter = createTRPCRouter({
             ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
               obsStartTimes[0]!.getTime()
             : obsStartTimes.length > 1
-            ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-              obsStartTimes[0]!.getTime()
-            : undefined
+              ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                obsStartTimes[0]!.getTime()
+              : undefined
           : undefined;
+
+      const enrichedObservations = observations.map(
+        ({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            price: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })
+              : undefined,
+          };
+        },
+      );
 
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        observations: enrichedObservations as Array<
-          (typeof observations)[0] & { traceId: string } & { price?: Decimal }
-        >,
+        observations: enrichedObservations as ObservationReturnType[],
       };
+    }),
+  deleteMany: protectedProjectProcedure
+    .input(
+      z.object({
+        traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
+
+      return ctx.prisma.$transaction([
+        ctx.prisma.trace.deleteMany({
+          where: {
+            id: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
+        ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
+      ]);
+    }),
+  bookmark: protectedProjectProcedure
+    .input(
+      z.object({
+        traceId: z.string(),
+        projectId: z.string(),
+        bookmarked: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:bookmark",
+      });
+      try {
+        const trace = await ctx.prisma.trace.update({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+          data: {
+            bookmarked: input.bookmarked,
+          },
+        });
+        return trace;
+      } catch (error) {
+        console.error(error);
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025" // Record to update not found
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
+        } else {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
+      }
+    }),
+  publish: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        public: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:publish",
+      });
+      try {
+        const trace = await ctx.prisma.trace.update({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+          data: {
+            public: input.public,
+          },
+        });
+        return trace;
+      } catch (error) {
+        console.error(error);
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025" // Record to update not found
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
+        } else {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
+      }
     }),
 });

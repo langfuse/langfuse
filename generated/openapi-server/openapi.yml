@@ -5,7 +5,7 @@ info:
 paths:
   /api/public/dataset-items:
     post:
-      description: Create a dataset item
+      description: Create a dataset item, upserts on id
       operationId: datasetItems_create
       tags:
         - DatasetItems
@@ -21,32 +21,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: &ref_0
         - BasicAuth: []
       requestBody:
@@ -55,6 +50,51 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetItemRequest'
+  /api/public/dataset-items/{id}:
+    get:
+      description: Get a specific dataset item
+      operationId: datasetItems_get
+      tags:
+        - DatasetItems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/dataset-run-items:
     post:
       description: Create a dataset run item
@@ -73,32 +113,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -129,32 +164,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/datasets:
     post:
@@ -174,32 +204,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -235,39 +260,71 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
-  /api/public/events:
+  /api/public/health:
+    get:
+      description: Check health of API and database
+      operationId: health_health
+      tags:
+        - Health
+      parameters: []
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '503':
+          description: ''
+  /api/public/ingestion:
     post:
-      description: Add an event to the database
-      operationId: event_create
+      description: Ingest multiple events to Langfuse
+      operationId: ingestion_batch
       tags:
-        - Event
+        - Ingestion
       parameters: []
       responses:
         '200':
@@ -275,143 +332,46 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Observation'
+                $ref: '#/components/schemas/IngestionResponse'
         '400':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateEventRequest'
-  /api/public/generations:
-    post:
-      operationId: generations_log
-      tags:
-        - Generations
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Observation'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateGenerationRequest'
-    patch:
-      operationId: generations_update
-      tags:
-        - Generations
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Observation'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateGenerationRequest'
+              type: object
+              properties:
+                batch:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/IngestionEvent'
+              required:
+                - batch
   /api/public/observations/{observationId}:
     get:
       description: Get a specific observation
@@ -438,32 +398,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
   /api/public/observations:
     get:
@@ -525,36 +480,70 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/projects:
+    get:
+      operationId: projects_get
+      tags:
+        - Projects
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
               schema:
-                type: string
+                $ref: '#/components/schemas/Projects'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
       security: *ref_0
   /api/public/scores:
     post:
-      description: Add a score to the database
+      description: Add a score to the database, upserts on id
       operationId: score_create
       tags:
         - Score
@@ -570,32 +559,27 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
       requestBody:
         required: true
@@ -644,185 +628,121 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
-  /api/public/spans:
-    post:
-      description: Add a span to the database
-      operationId: span_create
+  /api/public/sessions/{sessionId}:
+    get:
+      description: Get a session
+      operationId: sessions_get
       tags:
-        - Span
-      parameters: []
+        - Sessions
+      parameters:
+        - name: sessionId
+          in: path
+          description: The unique id of a session
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Observation'
+                $ref: '#/components/schemas/SessionWithTraces'
         '400':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateSpanRequest'
-    patch:
-      description: Update a span to the database
-      operationId: span_update
-      tags:
-        - Span
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Observation'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateSpanRequest'
-  /api/public/traces:
-    post:
-      description: Add a trace to the database
-      operationId: trace_create
+  /api/public/traces/{traceId}:
+    get:
+      description: Get a specific trace
+      operationId: trace_get
       tags:
         - Trace
-      parameters: []
+      parameters:
+        - name: traceId
+          in: path
+          description: The unique langfuse identifier of a trace
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Trace'
+                $ref: '#/components/schemas/TraceWithFullDetails'
         '400':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTraceRequest'
+  /api/public/traces:
     get:
       description: Get list of traces
       operationId: trace_list
@@ -864,159 +784,30 @@ paths:
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '401':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '403':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '404':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
+              schema: {}
         '405':
           description: ''
           content:
             application/json:
-              schema:
-                type: string
-      security: *ref_0
-  /api/public/traces/{traceId}:
-    get:
-      description: Get a specific trace
-      operationId: trace_get
-      tags:
-        - Trace
-      parameters:
-        - name: traceId
-          in: path
-          description: The unique langfuse identifier of a trace
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TraceWithFullDetails'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
+              schema: {}
       security: *ref_0
 components:
   schemas:
-    CreateEventRequest:
-      title: CreateEventRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        traceId:
-          type: string
-          nullable: true
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeEnum'
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        startTime:
-          type: string
-          format: date-time
-          nullable: true
-        metadata:
-          nullable: true
-        input:
-          nullable: true
-        output:
-          nullable: true
-        level:
-          $ref: '#/components/schemas/ObservationLevel'
-          nullable: true
-        statusMessage:
-          type: string
-          nullable: true
-        parentObservationId:
-          type: string
-          nullable: true
-        version:
-          type: string
-          nullable: true
-    CreateSpanRequest:
-      title: CreateSpanRequest
-      type: object
-      properties:
-        endTime:
-          type: string
-          format: date-time
-          nullable: true
-      allOf:
-        - $ref: '#/components/schemas/CreateEventRequest'
-    CreateGenerationRequest:
-      title: CreateGenerationRequest
-      type: object
-      properties:
-        completionStartTime:
-          type: string
-          format: date-time
-          nullable: true
-        model:
-          type: string
-          nullable: true
-        modelParameters:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
-          nullable: true
-        prompt:
-          nullable: true
-        completion:
-          nullable: true
-        usage:
-          $ref: '#/components/schemas/LLMUsage'
-          nullable: true
-      allOf:
-        - $ref: '#/components/schemas/CreateSpanRequest'
     Trace:
       title: Trace
       type: object
@@ -1027,10 +818,14 @@ components:
         timestamp:
           type: string
           format: date-time
-        externalId:
+        name:
           type: string
           nullable: true
-        name:
+        input:
+          nullable: true
+        output:
+          nullable: true
+        sessionId:
           type: string
           nullable: true
         release:
@@ -1044,6 +839,10 @@ components:
           nullable: true
         metadata:
           nullable: true
+        public:
+          type: boolean
+          nullable: true
+          description: Public traces are accessible via url without login
       required:
         - id
         - timestamp
@@ -1083,6 +882,33 @@ components:
         - scores
       allOf:
         - $ref: '#/components/schemas/Trace'
+    Session:
+      title: Session
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        projectId:
+          type: string
+      required:
+        - id
+        - createdAt
+        - projectId
+    SessionWithTraces:
+      title: SessionWithTraces
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trace'
+      required:
+        - traces
+      allOf:
+        - $ref: '#/components/schemas/Session'
     Observation:
       title: Observation
       type: object
@@ -1125,12 +951,9 @@ components:
           nullable: true
         output:
           nullable: true
-        promptTokens:
-          type: integer
-        completionTokens:
-          type: integer
-        totalTokens:
-          type: integer
+        usage:
+          $ref: '#/components/schemas/Usage'
+          nullable: true
         level:
           $ref: '#/components/schemas/ObservationLevel'
         statusMessage:
@@ -1143,10 +966,23 @@ components:
         - id
         - type
         - startTime
-        - promptTokens
-        - completionTokens
-        - totalTokens
         - level
+    Usage:
+      title: Usage
+      type: object
+      properties:
+        input:
+          type: integer
+          nullable: true
+        output:
+          type: integer
+          nullable: true
+        total:
+          type: integer
+          nullable: true
+        unit:
+          $ref: '#/components/schemas/ModelUsageUnit'
+          nullable: true
     Score:
       title: Score
       type: object
@@ -1291,6 +1127,12 @@ components:
         - createdAt
         - updatedAt
         - datasetRunItems
+    ModelUsageUnit:
+      title: ModelUsageUnit
+      type: string
+      enum:
+        - CHARACTERS
+        - TOKENS
     ObservationLevel:
       title: ObservationLevel
       type: string
@@ -1308,25 +1150,6 @@ components:
           nullable: true
         - type: boolean
           nullable: true
-    TraceIdTypeEnum:
-      title: TraceIdTypeEnum
-      type: string
-      enum:
-        - LANGFUSE
-        - EXTERNAL
-    LLMUsage:
-      title: LLMUsage
-      type: object
-      properties:
-        promptTokens:
-          type: integer
-          nullable: true
-        completionTokens:
-          type: integer
-          nullable: true
-        totalTokens:
-          type: integer
-          nullable: true
     DatasetStatus:
       title: DatasetStatus
       type: string
@@ -1341,6 +1164,9 @@ components:
           type: string
         input: {}
         expectedOutput:
+          nullable: true
+        id:
+          type: string
           nullable: true
       required:
         - datasetName
@@ -1367,17 +1193,275 @@ components:
           type: string
       required:
         - name
-    UpdateGenerationRequest:
-      title: UpdateGenerationRequest
+    IngestionEvent:
+      title: IngestionEvent
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - trace-create
+            - $ref: '#/components/schemas/TraceEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - score-create
+            - $ref: '#/components/schemas/ScoreEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - event-create
+            - $ref: '#/components/schemas/CreateEventEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - generation-create
+            - $ref: '#/components/schemas/CreateGenerationEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - generation-update
+            - $ref: '#/components/schemas/UpdateGenerationEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - span-create
+            - $ref: '#/components/schemas/CreateSpanEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - span-update
+            - $ref: '#/components/schemas/UpdateSpanEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - sdk-log
+            - $ref: '#/components/schemas/SDKLogEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - observation-create
+            - $ref: '#/components/schemas/CreateObservationEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - observation-update
+            - $ref: '#/components/schemas/UpdateObservationEvent'
+          required:
+            - type
+    ObservationType:
+      title: ObservationType
+      type: string
+      enum:
+        - SPAN
+        - GENERATION
+        - EVENT
+    IngestionUsage:
+      title: IngestionUsage
+      oneOf:
+        - $ref: '#/components/schemas/Usage'
+        - $ref: '#/components/schemas/OpenAIUsage'
+    OpenAIUsage:
+      title: OpenAIUsage
       type: object
       properties:
-        generationId:
-          type: string
+        promptTokens:
+          type: integer
+          nullable: true
+        completionTokens:
+          type: integer
+          nullable: true
+        totalTokens:
+          type: integer
+          nullable: true
+    OptionalObservationBody:
+      title: OptionalObservationBody
+      type: object
+      properties:
         traceId:
           type: string
           nullable: true
         name:
           type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+          nullable: true
+        statusMessage:
+          type: string
+          nullable: true
+        parentObservationId:
+          type: string
+          nullable: true
+        version:
+          type: string
+          nullable: true
+    CreateEventBody:
+      title: CreateEventBody
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/OptionalObservationBody'
+    UpdateEventBody:
+      title: UpdateEventBody
+      type: object
+      properties:
+        id:
+          type: string
+      required:
+        - id
+      allOf:
+        - $ref: '#/components/schemas/OptionalObservationBody'
+    CreateSpanBody:
+      title: CreateSpanBody
+      type: object
+      properties:
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/CreateEventBody'
+    UpdateSpanBody:
+      title: UpdateSpanBody
+      type: object
+      properties:
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/UpdateEventBody'
+    CreateGenerationBody:
+      title: CreateGenerationBody
+      type: object
+      properties:
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        modelParameters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MapValue'
+          nullable: true
+        usage:
+          $ref: '#/components/schemas/IngestionUsage'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/CreateSpanBody'
+    UpdateGenerationBody:
+      title: UpdateGenerationBody
+      type: object
+      properties:
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        modelParameters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/MapValue'
+          nullable: true
+        usage:
+          $ref: '#/components/schemas/IngestionUsage'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/UpdateSpanBody'
+    ObservationBody:
+      title: ObservationBody
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        type:
+          $ref: '#/components/schemas/ObservationType'
+        name:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
           nullable: true
         endTime:
           type: string
@@ -1395,17 +1479,17 @@ components:
           additionalProperties:
             $ref: '#/components/schemas/MapValue'
           nullable: true
-        prompt:
+        input:
           nullable: true
         version:
           type: string
           nullable: true
         metadata:
           nullable: true
-        completion:
+        output:
           nullable: true
         usage:
-          $ref: '#/components/schemas/LLMUsage'
+          $ref: '#/components/schemas/Usage'
           nullable: true
         level:
           $ref: '#/components/schemas/ObservationLevel'
@@ -1413,8 +1497,229 @@ components:
         statusMessage:
           type: string
           nullable: true
+        parentObservationId:
+          type: string
+          nullable: true
       required:
-        - generationId
+        - type
+    TraceBody:
+      title: TraceBody
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        userId:
+          type: string
+          nullable: true
+        input:
+          nullable: true
+        output:
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        release:
+          type: string
+          nullable: true
+        version:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+        public:
+          type: boolean
+          nullable: true
+          description: Make trace publicly accessible via url
+    SDKLogBody:
+      title: SDKLogBody
+      type: object
+      properties:
+        log: {}
+      required:
+        - log
+    ScoreBody:
+      title: ScoreBody
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+        observationId:
+          type: string
+          nullable: true
+        comment:
+          type: string
+          nullable: true
+      required:
+        - traceId
+        - name
+        - value
+    BaseEvent:
+      title: BaseEvent
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        metadata: {}
+      required:
+        - id
+        - timestamp
+        - metadata
+    TraceEvent:
+      title: TraceEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/TraceBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    CreateObservationEvent:
+      title: CreateObservationEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/ObservationBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    UpdateObservationEvent:
+      title: UpdateObservationEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/ObservationBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    ScoreEvent:
+      title: ScoreEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/ScoreBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    SDKLogEvent:
+      title: SDKLogEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/SDKLogBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    CreateGenerationEvent:
+      title: CreateGenerationEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/CreateGenerationBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    UpdateGenerationEvent:
+      title: UpdateGenerationEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/UpdateGenerationBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    CreateSpanEvent:
+      title: CreateSpanEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/CreateSpanBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    UpdateSpanEvent:
+      title: UpdateSpanEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/UpdateSpanBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    CreateEventEvent:
+      title: CreateEventEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/CreateEventBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    IngestionSuccess:
+      title: IngestionSuccess
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: integer
+      required:
+        - id
+        - status
+    IngestionError:
+      title: IngestionError
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: integer
+        message:
+          type: string
+          nullable: true
+        error:
+          nullable: true
+      required:
+        - id
+        - status
+    IngestionResponse:
+      title: IngestionResponse
+      type: object
+      properties:
+        successes:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestionSuccess'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestionError'
+      required:
+        - successes
+        - errors
     Observations:
       title: Observations
       type: object
@@ -1428,6 +1733,27 @@ components:
       required:
         - data
         - meta
+    Projects:
+      title: Projects
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+      required:
+        - data
+    Project:
+      title: Project
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -1437,9 +1763,6 @@ components:
           nullable: true
         traceId:
           type: string
-        traceIdType:
-          $ref: '#/components/schemas/TraceIdTypeEnum'
-          nullable: true
         name:
           type: string
         value:
@@ -1468,63 +1791,6 @@ components:
       required:
         - data
         - meta
-    UpdateSpanRequest:
-      title: UpdateSpanRequest
-      type: object
-      properties:
-        spanId:
-          type: string
-        traceId:
-          type: string
-          nullable: true
-        endTime:
-          type: string
-          format: date-time
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        metadata:
-          nullable: true
-        input:
-          nullable: true
-        output:
-          nullable: true
-        level:
-          $ref: '#/components/schemas/ObservationLevel'
-          nullable: true
-        version:
-          type: string
-          nullable: true
-        statusMessage:
-          type: string
-          nullable: true
-      required:
-        - spanId
-    CreateTraceRequest:
-      title: CreateTraceRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        userId:
-          type: string
-          nullable: true
-        externalId:
-          type: string
-          nullable: true
-        release:
-          type: string
-          nullable: true
-        version:
-          type: string
-          nullable: true
-        metadata:
-          nullable: true
     Traces:
       title: Traces
       type: object

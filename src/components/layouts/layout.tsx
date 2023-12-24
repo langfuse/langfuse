@@ -21,7 +21,8 @@ import { FeedbackButtonWrapper } from "@/src/features/feedback/component/Feedbac
 import { Button } from "@/src/components/ui/button";
 import Head from "next/head";
 import { env } from "@/src/env.mjs";
-import { LangfuseIcon, LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { Spinner } from "@/src/components/layouts/spinner";
 
 const userNavigation = [
   {
@@ -35,13 +36,17 @@ const userNavigation = [
 
 const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
+const publishablePaths = [
+  "/project/[projectId]/sessions/[sessionId]",
+  "/project/[projectId]/traces/[traceId]",
+];
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const session = useSession();
   const enableExperimentalFeatures =
-    api.environment.enableExperimentalFeatures.useQuery().data;
+    api.environment.enableExperimentalFeatures.useQuery().data ?? false;
 
   const projectId = router.query.projectId as string | undefined;
   const navigation = ROUTES.filter(
@@ -66,9 +71,7 @@ export default function Layout(props: PropsWithChildren) {
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
 
-  const projects = api.projects.all.useQuery(undefined, {
-    enabled: session.status === "authenticated",
-  });
+  const projects = session.data?.user?.projects ?? [];
 
   if (session.status === "loading") return <Spinner message="Loading" />;
 
@@ -77,6 +80,7 @@ export default function Layout(props: PropsWithChildren) {
     session.data &&
     session.data.user === null &&
     !unauthenticatedPaths.includes(router.pathname) &&
+    !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
     void signOut({
@@ -88,9 +92,10 @@ export default function Layout(props: PropsWithChildren) {
   if (
     session.status === "unauthenticated" &&
     !unauthenticatedPaths.includes(router.pathname) &&
+    !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void router.push("/auth/sign-in");
+    void router.replace("/auth/sign-in");
     return <Spinner message="Redirecting" />;
   }
 
@@ -98,18 +103,18 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    void router.push("/");
+    void router.replace("/");
     return <Spinner message="Redirecting" />;
   }
 
   const hideNavigation =
     session.status === "unauthenticated" ||
-    projects.data?.length === 0 ||
+    projects.length === 0 ||
     pathsWithoutNavigation.includes(router.pathname) ||
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <main className="h-full bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
         {props.children}
       </main>
     );
@@ -193,7 +198,7 @@ export default function Layout(props: PropsWithChildren) {
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
                   <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4">
-                    <LangfuseLogo size="xl" />
+                    <LangfuseLogo version size="xl" />
                     <nav className="flex flex-1 flex-col">
                       <ul role="list" className="flex flex-1 flex-col gap-y-7">
                         <li>
@@ -219,6 +224,18 @@ export default function Layout(props: PropsWithChildren) {
                                     aria-hidden="true"
                                   />
                                   {item.name}
+                                  {item.label && (
+                                    <span
+                                      className={cn(
+                                        "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                                        item.current
+                                          ? "border-indigo-600 text-indigo-600"
+                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                                      )}
+                                    >
+                                      {item.label}
+                                    </span>
+                                  )}
                                 </Link>
                               </li>
                             ))}
@@ -241,7 +258,7 @@ export default function Layout(props: PropsWithChildren) {
                             <NewProjectButton size="xs" />
                           </div>
                           <ul role="list" className="-mx-2 mt-2 space-y-1">
-                            {projects.data?.map((project) => (
+                            {projects.map((project) => (
                               <li key={project.name}>
                                 <Link
                                   href={`/project/${project.id}`}
@@ -268,7 +285,7 @@ export default function Layout(props: PropsWithChildren) {
                                   {project.role === "VIEWER" ? (
                                     <span
                                       className={cn(
-                                        "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                        "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                                         projectId === project.id
                                           ? "border-indigo-600 text-indigo-600"
                                           : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -294,10 +311,10 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-3 pt-7">
-            <LangfuseLogo size="xl" className="mb-4" />
-            <nav className="flex flex-1 flex-col">
-              <ul role="list" className="flex flex-1 flex-col gap-y-4">
+          <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7">
+            <LangfuseLogo version size="xl" className="mb-2 px-6" />
+            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
+              <ul role="list" className="flex h-full flex-col gap-y-4">
                 <li>
                   <ul role="list" className="-mx-2 space-y-1">
                     {navigation.map((item) => (
@@ -321,6 +338,18 @@ export default function Layout(props: PropsWithChildren) {
                             aria-hidden="true"
                           />
                           {item.name}
+                          {item.label && (
+                            <span
+                              className={cn(
+                                "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                                item.current
+                                  ? "border-indigo-600 text-indigo-600"
+                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                              )}
+                            >
+                              {item.label}
+                            </span>
+                          )}
                         </Link>
                       </li>
                     ))}
@@ -344,7 +373,7 @@ export default function Layout(props: PropsWithChildren) {
                     <NewProjectButton size="xs" />
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
-                    {projects.data?.map((project, index) => (
+                    {projects.map((project, index) => (
                       <li key={project.name}>
                         <Link
                           href={`/project/${project.id}`}
@@ -374,7 +403,7 @@ export default function Layout(props: PropsWithChildren) {
                           {project.role === "VIEWER" ? (
                             <span
                               className={cn(
-                                "whitespace-nowrap break-keep rounded-sm border p-1 text-xs",
+                                "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                                 projectId === project.id
                                   ? "border-indigo-600 text-indigo-600"
                                   : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -389,7 +418,7 @@ export default function Layout(props: PropsWithChildren) {
                   </ul>
                 </li>
 
-                <li className="-mx-6 ">
+                <li className="-mx-6">
                   <Menu as="div" className="relative">
                     <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                       <span className="sr-only">Open user menu</span>
@@ -458,7 +487,7 @@ export default function Layout(props: PropsWithChildren) {
             <span className="sr-only">Open sidebar</span>
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
-          <LangfuseLogo className="flex-1" />
+          <LangfuseLogo version className="flex-1" />
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>
@@ -507,6 +536,8 @@ export default function Layout(props: PropsWithChildren) {
         <div className="xl:pl-72">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
             <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 xl:sticky xl:top-0 xl:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
@@ -516,9 +547,19 @@ export default function Layout(props: PropsWithChildren) {
                 </div>
                 <div>Live data from the Langfuse Q&A Chatbot.</div>
               </div>
-              <Button size="sm" variant="ghost" asChild className="ml-2">
-                <Link href="https://langfuse.com/docs/demo" target="_blank">
-                  Learn more ↗
+
+              <Button size="sm" asChild className="ml-2">
+                <Link
+                  href={
+                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+                      ? "https://langfuse.com/docs/qa-chatbot"
+                      : "https://docs-staging.langfuse.com/docs/qa-chatbot"
+                  }
+                  target="_blank"
+                >
+                  {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+                    ? "Q&A Chatbot ↗"
+                    : "Q&A Chatbot (staging) ↗"}
                 </Link>
               </Button>
             </div>
@@ -529,18 +570,5 @@ export default function Layout(props: PropsWithChildren) {
         </div>
       </div>
     </>
-  );
-}
-
-function Spinner(props: { message: string }) {
-  return (
-    <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <LangfuseIcon className="mx-auto motion-safe:animate-spin" size={42} />
-        <h2 className="mt-5 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
-          {props.message} ...
-        </h2>
-      </div>
-    </div>
   );
 }

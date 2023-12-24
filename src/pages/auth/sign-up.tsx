@@ -19,8 +19,14 @@ import { env } from "@/src/env.mjs";
 import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { usePostHog } from "posthog-js/react";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
 
-export default function SignIn() {
+// Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
+export { getServerSideProps } from "@/src/pages/auth/sign-in";
+
+export default function SignIn({ authProviders }: PageProps) {
   const posthog = usePostHog();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({
@@ -84,130 +90,102 @@ export default function SignIn() {
         </div>
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
-            No credit card required. All users have access to a demo project.
+            No credit card required.
           </div>
         ) : null}
 
-        <div className="mt-14 sm:mx-auto sm:w-full sm:max-w-[480px]">
-          <div className="bg-white px-6 py-12 shadow sm:rounded-lg sm:px-12">
-            <Form {...form}>
-              <form
-                className="space-y-6"
-                // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                onSubmit={form.handleSubmit(onSubmit)}
-              >
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Jane Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="jsdoe@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
-                  <FormField
-                    control={form.control}
-                    name="referralSource"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Where did you hear about us?{" "}
-                          <span className="font-normal">(optional)</span>
-                        </FormLabel>
-                        <FormControl>
-                          <Input type="referralSource" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : null}
-                <Button
-                  type="submit"
-                  className="w-full"
-                  loading={form.formState.isSubmitting}
-                >
-                  Sign up
-                </Button>
-                {formError ? (
-                  <div className="text-center text-sm font-medium text-destructive">
-                    {formError}
-                  </div>
-                ) : null}
-              </form>
-            </Form>
-            {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
-              <div className="-mb-4 mt-8 text-center text-xs text-gray-500">
-                By creating an account you are agreeing to our{" "}
-                <a
-                  href="https://app.termly.io/document/terms-of-service/baf80a2e-dc67-46de-9ca8-2f7457179c32"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="italic"
-                >
-                  Terms of Service
-                </a>
-                ,{" "}
-                <a
-                  href="https://app.termly.io/document/privacy-policy/47905712-56e1-4ad0-9bb7-8958f3263f90"
-                  rel="noopener noreferrer"
-                  className="italic"
-                >
-                  Privacy Policy
-                </a>
-                , and{" "}
-                <a
-                  href="https://app.termly.io/document/cookie-policy/f97945a3-cb02-4db7-9370-c57023d92838"
-                  rel="noopener noreferrer"
-                  className="italic"
-                >
-                  Cookie Policy
-                </a>
-              </div>
-            ) : null}
-          </div>
-
-          <p className="mt-10 text-center text-sm text-gray-500">
-            Already have an account?{" "}
-            <Link
-              href="/auth/sign-in"
-              className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+        <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+          <CloudRegionSwitch isSignUpPage />
+          <Form {...form}>
+            <form
+              className="space-y-6"
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit)}
             >
-              Sign in
-            </Link>
-          </p>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Jane Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="jsdoe@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+                <FormField
+                  control={form.control}
+                  name="referralSource"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Where did you hear about us?{" "}
+                        <span className="font-normal">(optional)</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input type="referralSource" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : null}
+              <Button
+                type="submit"
+                className="w-full"
+                loading={form.formState.isSubmitting}
+              >
+                Sign up
+              </Button>
+              {formError ? (
+                <div className="text-center text-sm font-medium text-destructive">
+                  {formError}
+                </div>
+              ) : null}
+            </form>
+          </Form>
+          <SSOButtons authProviders={authProviders} action="Sign up" />
+          <CloudPrivacyNotice action="creating an account" />
         </div>
+
+        <p className="mt-10 text-center text-sm text-gray-500">
+          Already have an account?{" "}
+          <Link
+            href="/auth/sign-in"
+            className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+          >
+            Sign in
+          </Link>
+        </p>
       </div>
     </>
   );

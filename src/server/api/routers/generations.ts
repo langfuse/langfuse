@@ -2,10 +2,9 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Generation } from "@/src/utils/types";
+
 import { type Observation, Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
@@ -17,9 +16,20 @@ import {
   type ObservationOptions,
   observationsTableCols,
 } from "@/src/server/api/definitions/observationsTable";
-
-const exportFileFormats = ["CSV", "JSON", "OPENAI-JSONL"] as const;
-export type ExportFileFormats = (typeof exportFileFormats)[number];
+import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
+import Decimal from "decimal.js";
+import { usdFormatter } from "@/src/utils/numbers";
+import { env } from "@/src/env.mjs";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  exportFileFormats,
+  exportOptions,
+} from "@/src/server/api/interfaces/exportTypes";
 
 const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -50,12 +60,12 @@ export const generationsRouter = createTRPCRouter({
         : Prisma.empty;
 
       const filterCondition = filterToPrismaSql(
-        input.filter ?? [],
+        input.filter,
         observationsTableCols,
       );
 
       // to improve query performance, add timeseries filter to observation queries as well
-      const startTimeFilter = input.filter?.find(
+      const startTimeFilter = input.filter.find(
         (f) => f.column === "start_time" && f.type === "datetime",
       );
       const datetimeFilter =
@@ -103,6 +113,8 @@ export const generationsRouter = createTRPCRouter({
             o.prompt_tokens as "promptTokens",
             o.completion_tokens as "completionTokens",
             o.total_tokens as "totalTokens",
+            o.level,
+            o.status_message as "statusMessage",
             o.version,
             (count(*) OVER())::int AS "totalCount"
           FROM observations_with_latency o
@@ -117,7 +129,25 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      return generations;
+      const pricings = await ctx.prisma.pricing.findMany();
+
+      return generations.map(({ input, output, ...rest }) => {
+        return {
+          ...rest,
+          input,
+          output,
+          cost: rest.model
+            ? calculateTokenCost(pricings, {
+                model: rest.model,
+                totalTokens: new Decimal(rest.totalTokens),
+                promptTokens: new Decimal(rest.promptTokens),
+                completionTokens: new Decimal(rest.completionTokens),
+                input: input,
+                output: output,
+              })
+            : undefined,
+        };
+      });
     }),
 
   export: protectedProjectProcedure
@@ -133,7 +163,7 @@ export const generationsRouter = createTRPCRouter({
         : Prisma.empty;
 
       const filterCondition = filterToPrismaSql(
-        input.filter ?? [],
+        input.filter,
         observationsTableCols,
       );
       console.log("filters: ", filterCondition);
@@ -174,29 +204,57 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      // create csv
+      const pricings = await ctx.prisma.pricing.findMany();
+
+      const enrichedGenerations = generations.map(
+        ({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            input,
+            output,
+            cost: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })
+              : undefined,
+          };
+        },
+      );
+
+      let output: string = "";
+
+      // create file
       switch (input.fileFormat) {
         case "CSV":
-          return [
+          output = [
             [
               "traceId",
               "name",
               "model",
               "startTime",
               "endTime",
+              "cost",
               "prompt",
               "completion",
               "metadata",
             ],
           ]
             .concat(
-              generations.map((generation) =>
+              enrichedGenerations.map((generation) =>
                 [
                   generation.traceId,
                   generation.name ?? "",
                   generation.model ?? "",
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
+                  generation.cost
+                    ? usdFormatter(generation.cost.toNumber())
+                    : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
                   JSON.stringify(generation.metadata),
@@ -208,8 +266,10 @@ export const generationsRouter = createTRPCRouter({
             )
             .map((row) => row.join(","))
             .join("\n");
+          break;
         case "JSON":
-          return JSON.stringify(generations);
+          output = JSON.stringify(enrichedGenerations);
+          break;
         case "OPENAI-JSONL":
           const inputSchemaOpenAI = z.array(
             z.object({
@@ -220,32 +280,86 @@ export const generationsRouter = createTRPCRouter({
           const outputSchema = z.object({
             completion: z.string(),
           });
+          output = enrichedGenerations
+            .map((generation) => ({
+              parsedInput: inputSchemaOpenAI.safeParse(generation.input),
+              parsedOutput: outputSchema.safeParse(generation.output),
+            }))
+            .filter((generation) => generation.parsedInput.success)
+            .map((generation) =>
+              generation.parsedInput.success // check for typescript validation, is always true due to previous filter
+                ? generation.parsedInput.data.concat(
+                    generation.parsedOutput.success
+                      ? [
+                          {
+                            role: "assistant",
+                            content: generation.parsedOutput.data.completion,
+                          },
+                        ]
+                      : [],
+                  )
+                : [],
+            )
+            // to jsonl
+            .map((row) => JSON.stringify(row))
+            .join("\n");
+          break;
+        default:
+          throw new Error("Invalid export file format");
+      }
 
-          return (
-            generations
-              .map((generation) => ({
-                parsedInput: inputSchemaOpenAI.safeParse(generation.input),
-                parsedOutput: outputSchema.safeParse(generation.output),
-              }))
-              .filter((generation) => generation.parsedInput.success)
-              .map((generation) =>
-                generation.parsedInput.success // check for typescript validation, is always true due to previous filter
-                  ? generation.parsedInput.data.concat(
-                      generation.parsedOutput.success
-                        ? [
-                            {
-                              role: "assistant",
-                              content: generation.parsedOutput.data.completion,
-                            },
-                          ]
-                        : [],
-                    )
-                  : [],
-              )
-              // to jsonl
-              .map((row) => JSON.stringify(row))
-              .join("\n")
-          );
+      const fileName = `lf-export-${
+        input.projectId
+      }-${new Date().toISOString()}.${
+        exportOptions[input.fileFormat].extension
+      }`;
+
+      if (
+        env.S3_BUCKET_NAME &&
+        env.S3_ACCESS_KEY_ID &&
+        env.S3_SECRET_ACCESS_KEY &&
+        env.S3_ENDPOINT &&
+        env.S3_REGION
+      ) {
+        const client = new S3Client({
+          credentials: {
+            accessKeyId: env.S3_ACCESS_KEY_ID,
+            secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+          },
+          endpoint: env.S3_ENDPOINT,
+          region: env.S3_REGION,
+        });
+        await client.send(
+          new PutObjectCommand({
+            Bucket: env.S3_BUCKET_NAME,
+            Key: fileName,
+            Body: output,
+            ContentType: exportOptions[input.fileFormat].fileType,
+            Expires: new Date(Date.now() + 60 * 60 * 1000), // in 1 hour, file will be deleted
+          }),
+        );
+        const signedUrl = await getSignedUrl(
+          client,
+          new GetObjectCommand({
+            Bucket: env.S3_BUCKET_NAME,
+            Key: fileName,
+            ResponseContentDisposition: `attachment; filename="${fileName}"`,
+          }),
+          {
+            expiresIn: 60 * 60, // in 1 hour, signed url will expire
+          },
+        );
+        return {
+          type: "s3",
+          url: signedUrl,
+          fileName,
+        } as const;
+      } else {
+        return {
+          type: "data",
+          data: output,
+          fileName,
+        } as const;
       }
     }),
   filterOptions: protectedProjectProcedure
@@ -256,23 +370,22 @@ export const generationsRouter = createTRPCRouter({
         type: "GENERATION",
       } as const;
 
-      const [model, name, traceName] = await Promise.all([
-        ctx.prisma.observation.groupBy({
-          by: ["model"],
-          where: queryFilter,
-          _count: { _all: true },
-        }),
-        ctx.prisma.observation.groupBy({
-          by: ["name"],
-          where: queryFilter,
-          _count: { _all: true },
-        }),
-        ctx.prisma.$queryRaw<
-          Array<{
-            traceName: string | null;
-            count: number;
-          }>
-        >(Prisma.sql`
+      const model = await ctx.prisma.observation.groupBy({
+        by: ["model"],
+        where: queryFilter,
+        _count: { _all: true },
+      });
+      const name = await ctx.prisma.observation.groupBy({
+        by: ["name"],
+        where: queryFilter,
+        _count: { _all: true },
+      });
+      const traceName = await ctx.prisma.$queryRaw<
+        Array<{
+          traceName: string | null;
+          count: number;
+        }>
+      >(Prisma.sql`
         SELECT
           t.name "traceName",
           count(*)::int AS count
@@ -282,8 +395,8 @@ export const generationsRouter = createTRPCRouter({
           AND o.project_id = ${input.projectId}
           AND t.project_id = ${input.projectId}
         GROUP BY 1
-      `),
-      ]);
+      `);
+
       // typecheck filter options, needs to include all columns with options
       const res: ObservationOptions = {
         model: model
@@ -307,35 +420,4 @@ export const generationsRouter = createTRPCRouter({
       };
       return res;
     }),
-
-  byId: protectedProcedure.input(z.string()).query(async ({ input, ctx }) => {
-    // also works for other observations
-    const generation = (await ctx.prisma.observation.findFirstOrThrow({
-      where: {
-        id: input,
-        type: "GENERATION",
-        ...(ctx.session.user.admin === true
-          ? undefined
-          : {
-              project: {
-                members: {
-                  some: {
-                    userId: ctx.session.user.id,
-                  },
-                },
-              },
-            }),
-      },
-    })) as Generation;
-
-    const scores = generation.traceId
-      ? await ctx.prisma.score.findMany({
-          where: {
-            traceId: generation.traceId,
-          },
-        })
-      : [];
-
-    return { ...generation, scores };
-  }),
 });

@@ -7,17 +7,30 @@ export const getAllModels = (
   projectId: string,
   globalFilterState: FilterState,
 ) => {
-  const allModels = api.dashboard.chart.useQuery({
-    projectId,
-    from: "observations",
-    select: [{ column: "model" }],
-    filter:
-      [
+  const allModels = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "observations",
+      select: [{ column: "model" }],
+      filter: [
         ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
-      ] ?? [],
-    groupBy: [{ type: "string", column: "model" }],
-  });
+        {
+          type: "string",
+          column: "type",
+          operator: "=",
+          value: "GENERATION",
+        },
+      ],
+      groupBy: [{ type: "string", column: "model" }],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   return allModels.data ? extractAllModels(allModels.data) : [];
 };

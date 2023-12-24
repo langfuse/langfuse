@@ -33,15 +33,30 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
     }),
+    // Add newly signed up users to default project with role
+    LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
+    LANGFUSE_DEFAULT_PROJECT_ROLE: z
+      .enum(["ADMIN", "MEMBER", "VIEWER"])
+      .optional(),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
-    AUTH_EMAIL_FROM: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
+    AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
+    AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
+    // EMAIL
+    EMAIL_FROM_ADDRESS: z.string().optional(),
+    SMTP_CONNECTION_URL: z.string().optional(),
+    // S3
+    S3_ENDPOINT: z.string().optional(),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_BUCKET_NAME: z.string().optional(),
+    S3_REGION: z.string().optional(),
   },
 
   /**
@@ -51,7 +66,9 @@ export const env = createEnv({
    */
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.enum(["US", "EU"]).optional(),
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
+      .enum(["US", "EU", "STAGING"])
+      .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
   },
@@ -77,14 +94,28 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
+    // Default project and role
+    LANGFUSE_DEFAULT_PROJECT_ID: process.env.LANGFUSE_DEFAULT_PROJECT_ID,
+    LANGFUSE_DEFAULT_PROJECT_ROLE: process.env.LANGFUSE_DEFAULT_PROJECT_ROLE,
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: process.env.AUTH_GOOGLE_CLIENT_ID,
     AUTH_GOOGLE_CLIENT_SECRET: process.env.AUTH_GOOGLE_CLIENT_SECRET,
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
-    AUTH_EMAIL_FROM: process.env.AUTH_EMAIL_FROM,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
+    AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
+      process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
+    AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
+    // Email
+    EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
+    SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
+    // S3
+    S3_ENDPOINT: process.env.S3_ENDPOINT,
+    S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
+    S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
+    S3_REGION: process.env.S3_REGION,
   },
 });

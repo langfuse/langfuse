@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      docs: Add a score to the database, upserts on id
+      method: POST
+      path: /scores
+      request: CreateScoreRequest
+      response: commons.Score
+    get:
+      docs: Get scores
+      method: GET
+      path: /scores
+      request:
+        name: GetScoresRequest
+        query-parameters:
+          page: optional<integer>
+          limit: optional<integer>
+          userId: optional<string>
+          name: optional<string>
+      response: Scores
+types:
+  CreateScoreRequest:
+    properties:
+      id: optional<string>
+      traceId: string
+      name: string
+      value: double
+      observationId: optional<string>
+      comment: optional<string>
+  Scores:
+    properties:
+      data: list<commons.Score>
+      meta: pagination.MetaResponse

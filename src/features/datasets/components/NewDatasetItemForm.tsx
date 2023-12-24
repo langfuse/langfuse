@@ -34,7 +34,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+    },
   ),
   expectedOutput: z.string().refine(
     (value) => {
@@ -46,7 +49,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+    },
   ),
 });
 
@@ -77,7 +83,7 @@ export const NewDatasetItemForm = (props: {
     projectId: props.projectId,
   });
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const createDatasetItemMutation = api.datasets.createDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
     onError: (error) => setFormError(error.message),

@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/code";
-import { type Trace, type Observation, type Score } from "@prisma/client";
+import { type Trace, type Score } from "@prisma/client";
 import {
   Card,
   CardContent,
@@ -17,16 +17,19 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components";
+import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { Badge } from "@/src/components/ui/badge";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { IOPreview } from "@/src/components/trace/IOPreview";
+import { formatInterval } from "@/src/utils/dates";
 
 export const TracePreview = ({
   trace,
   observations,
   scores,
 }: {
-  trace: Trace;
-  observations: Observation[];
+  trace: Trace & { latency?: number };
+  observations: ObservationReturnType[];
   scores: Score[];
 }) => {
   return (
@@ -41,13 +44,16 @@ export const TracePreview = ({
           </CardTitle>
           <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>
           <div className="flex flex-wrap gap-2">
+            {!!trace.latency && (
+              <Badge variant="outline">{formatInterval(trace.latency)}</Badge>
+            )}
             <TraceAggUsageBadge observations={observations} />
-            {trace.release ? (
+            {!!trace.release && (
               <Badge variant="outline">Release: {trace.release}</Badge>
-            ) : undefined}
-            {trace.version ? (
+            )}
+            {!!trace.version && (
               <Badge variant="outline">Version: {trace.version}</Badge>
-            ) : undefined}
+            )}
           </div>
         </div>
         <ManualScoreButton
@@ -56,7 +62,12 @@ export const TracePreview = ({
           scores={scores}
         />
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
+        <IOPreview
+          key={trace.id + "-io"}
+          input={trace.input ?? undefined}
+          output={trace.output ?? undefined}
+        />
         <JSONView
           key={trace.id + "-metadata"}
           title="Metadata"

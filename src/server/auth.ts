@@ -10,6 +10,8 @@ import { prisma } from "@/src/server/db";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
+import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { type Adapter } from "next-auth/adapters";
 
 // Providers
 import { type Provider } from "next-auth/providers";
@@ -52,6 +54,19 @@ const providers: Provider[] = [
     },
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
+      if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true")
+        throw new Error(
+          "Sign in with email and password is disabled for this instance. Please use SSO.",
+        );
+
+      const blockedDomains =
+        env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
+      const domain = credentials.email.split("@")[1]?.toLowerCase();
+      if (domain && blockedDomains.includes(domain)) {
+        throw new Error(
+          "Sign in with email and password is disabled for this domain. Please use SSO.",
+        );
+      }
 
       const dbUser = await prisma.user.findUnique({
         where: {
@@ -114,6 +129,26 @@ if (
       allowDangerousEmailAccountLinking: true,
     }),
   );
+
+// Extend Prisma Adapter
+const prismaAdapter = PrismaAdapter(prisma);
+const extendedPrismaAdapter: Adapter = {
+  ...prismaAdapter,
+  async createUser(profile) {
+    if (!prismaAdapter.createUser)
+      throw new Error("createUser not implemented");
+    if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
+      throw new Error("Sign up is disabled.");
+    }
+
+    const user = await prismaAdapter.createUser(profile);
+
+    await createProjectMembershipsOnSignup(user);
+
+    return user;
+  },
+};
+
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
@@ -167,7 +202,7 @@ export const authOptions: NextAuthOptions = {
       };
     },
   },
-  adapter: PrismaAdapter(prisma),
+  adapter: extendedPrismaAdapter,
   providers,
   pages: {
     signIn: "/auth/sign-in",
@@ -199,13 +234,11 @@ export const authOptions: NextAuthOptions = {
     },
   },
   events: {
-    createUser: async (message) => {
-      const { user } = message;
-      console.log("Sending new user signup webhook");
-      console.log(user);
+    createUser: async ({ user }) => {
       if (
         env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
-        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING"
       ) {
         await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
           method: "POST",

@@ -22,14 +22,14 @@ export const userRouter = createTRPCRouter({
       const users = await ctx.prisma.$queryRaw<
         {
           userId: string;
-          firstTrace: Date;
-          lastTrace: Date;
+          firstTrace: Date | null;
+          lastTrace: Date | null;
           totalTraces: number;
           totalPromptTokens: number;
           totalCompletionTokens: number;
           totalTokens: number;
-          firstObservation: Date;
-          lastObservation: Date;
+          firstObservation: Date | null;
+          lastObservation: Date | null;
           totalObservations: number;
           totalCount: number;
         }[]
@@ -112,21 +112,20 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const [agg, lastScoresOfUsers] = await Promise.all([
-        ctx.prisma.$queryRaw<
-          {
-            userId: string;
-            firstTrace: Date;
-            lastTrace: Date;
-            totalTraces: number;
-            totalPromptTokens: number;
-            totalCompletionTokens: number;
-            totalTokens: number;
-            firstObservation: Date;
-            lastObservation: Date;
-            totalObservations: number;
-          }[]
-        >`
+      const agg = await ctx.prisma.$queryRaw<
+        {
+          userId: string;
+          firstTrace: Date;
+          lastTrace: Date;
+          totalTraces: number;
+          totalPromptTokens: number;
+          totalCompletionTokens: number;
+          totalTokens: number;
+          firstObservation: Date;
+          lastObservation: Date;
+          totalObservations: number;
+        }[]
+      >`
         SELECT 
           t.user_id "userId",
           min(t."timestamp") "firstTrace",
@@ -147,15 +146,14 @@ export const userRouter = createTRPCRouter({
         GROUP BY 1
         ORDER BY "totalTokens" DESC
         LIMIT 50
-      `,
-
-        ctx.prisma.$queryRaw<
-          Array<
-            Score & {
-              userId: string;
-            }
-          >
-        >`
+      `;
+      const lastScoresOfUsers = await ctx.prisma.$queryRaw<
+        Array<
+          Score & {
+            userId: string;
+          }
+        >
+      >`
         WITH ranked_scores AS (
           SELECT
             t.user_id,
@@ -182,8 +180,7 @@ export const userRouter = createTRPCRouter({
         FROM
           ranked_scores
         WHERE rn = 1
-      `,
-      ]);
+      `;
 
       return {
         userId: input.userId,

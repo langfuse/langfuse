@@ -7,7 +7,7 @@ import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 
-type AuthHeaderVerificationResult =
+export type AuthHeaderVerificationResult =
   | {
       validKey: true;
       scope: ApiAccessScope;
@@ -50,7 +50,11 @@ export async function verifyAuthHeaderAndReturnScope(
               secretKey,
               dbKey.hashedSecretKey,
             );
-            if (!isValid) throw new Error("Invalid credentials");
+
+            if (!isValid) {
+              console.log("Old key is invalid", publicKey);
+              throw new Error("Invalid credentials");
+            }
 
             const shaKey = createShaHash(secretKey, salt);
 
@@ -63,7 +67,10 @@ export async function verifyAuthHeaderAndReturnScope(
             projectId = dbKey.projectId;
           }
 
-          if (!projectId) throw new Error("Invalid credentials");
+          if (!projectId) {
+            console.log("No project id found for key", publicKey);
+            throw new Error("Invalid credentials");
+          }
 
           return {
             validKey: true,
@@ -94,7 +101,6 @@ export async function verifyAuthHeaderAndReturnScope(
           error: error instanceof Error ? error.message : "Authorization error",
         };
       }
-
       return {
         validKey: false,
         error: "Invalid authorization header",
@@ -119,6 +125,9 @@ async function findDbKeyOrThrow(publicKey: string) {
   const dbKey = await prisma.apiKey.findUnique({
     where: { publicKey },
   });
-  if (!dbKey) throw new Error("Invalid public key");
+  if (!dbKey) {
+    console.log("No api key found for public key:", publicKey);
+    throw new Error("Invalid public key");
+  }
   return dbKey;
 }

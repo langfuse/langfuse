@@ -1,11 +1,14 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import { type Trace, type Observation, type Score } from "@prisma/client";
+import { type Trace, type Score } from "@prisma/client";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment } from "react";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { LevelColors } from "@/src/components/level-colors";
+import { formatInterval } from "@/src/utils/dates";
 
 export const ObservationTree = (props: {
-  observations: Observation[];
+  observations: ObservationReturnType[];
   trace: Trace;
   scores: Score[];
   currentObservationId: string | undefined;
@@ -54,7 +57,7 @@ const ObservationTreeTraceNode = (props: {
     {props.trace.latency ? (
       <div className="flex gap-2">
         <span className="text-xs text-gray-500">
-          {props.trace.latency.toFixed(2)} sec
+          {formatInterval(props.trace.latency)}
         </span>
       </div>
     ) : null}
@@ -81,7 +84,7 @@ const ObservationTreeNode = (props: {
         <Fragment key={observation.id}>
           <div className="flex">
             {Array.from({ length: props.indentationLevel }, (_, i) => (
-              <div className="mx-2 border-r" key={i} />
+              <div className="mx-2 border-r lg:mr-4" key={i} />
             ))}
             <div
               className={cn(
@@ -105,12 +108,11 @@ const ObservationTreeNode = (props: {
               <div className="flex gap-2">
                 {observation.endTime ? (
                   <span className="text-xs text-gray-500">
-                    {(
+                    {formatInterval(
                       (observation.endTime.getTime() -
                         observation.startTime.getTime()) /
-                      1000
-                    ).toFixed(2)}{" "}
-                    sec
+                        1000,
+                    )}
                   </span>
                 ) : null}
                 {observation.promptTokens ||
@@ -126,9 +128,9 @@ const ObservationTreeNode = (props: {
                 <div className="flex">
                   <span
                     className={cn(
-                      "rounded-sm text-xs",
-                      LevelColor[observation.level].bg,
-                      LevelColor[observation.level].text,
+                      "rounded-sm p-0.5 text-xs",
+                      LevelColors[observation.level].bg,
+                      LevelColors[observation.level].text,
                     )}
                   >
                     {observation.level}
@@ -158,14 +160,9 @@ const ObservationTreeNode = (props: {
   </>
 );
 
-const LevelColor = {
-  DEFAULT: { text: "", bg: "" },
-  DEBUG: { text: "text-gray-500", bg: "bg-gray-50" },
-  WARNING: { text: "text-yellow-800", bg: "bg-yellow-50" },
-  ERROR: { text: "text-red-800", bg: "bg-red-50" },
-};
-
-export function nestObservations(list: Observation[]): NestedObservation[] {
+export function nestObservations(
+  list: ObservationReturnType[],
+): NestedObservation[] {
   if (list.length === 0) return [];
 
   // Step 1: Create a map where the keys are object IDs, and the values are

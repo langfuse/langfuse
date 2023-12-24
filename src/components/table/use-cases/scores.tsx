@@ -1,15 +1,16 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { type ColumnDef } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-type RowData = {
+export type ScoresTableRow = {
   id: string;
   traceId: string;
   timestamp: string;
@@ -60,7 +61,7 @@ export default function ScoresTable({
     projectId,
   });
 
-  const columns: ColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<ScoresTableRow>[] = [
     {
       accessorKey: "traceId",
       enableColumnFilter: true,
@@ -95,22 +96,29 @@ export default function ScoresTable({
     {
       accessorKey: "timestamp",
       header: "Timestamp",
+      enableHiding: true,
     },
     {
       accessorKey: "name",
       header: "Name",
+      enableHiding: true,
     },
     {
       accessorKey: "value",
       header: "Value",
+      enableHiding: true,
     },
     {
       accessorKey: "comment",
       header: "Comment",
+      enableHiding: true,
     },
   ];
 
-  const convertToTableRow = (score: Score): RowData => {
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<ScoresTableRow>("scoresColumnVisibility", columns);
+
+  const convertToTableRow = (score: Score): ScoresTableRow => {
     return {
       id: score.id,
       timestamp: score.timestamp.toLocaleString(),
@@ -125,9 +133,12 @@ export default function ScoresTable({
   return (
     <div>
       <DataTableToolbar
+        columns={columns}
         filterColumnDefinition={scoresTableColsWithOptions(filterOptions.data)}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
       />
       <DataTable
         columns={columns}
@@ -135,22 +146,24 @@ export default function ScoresTable({
           scores.isLoading
             ? { isLoading: true, isError: false }
             : scores.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: scores.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: scores.data?.map((t) => convertToTableRow(t)),
-              }
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: scores.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: scores.data.map((t) => convertToTableRow(t)),
+                }
         }
         pagination={{
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );

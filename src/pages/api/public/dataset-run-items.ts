@@ -22,14 +22,12 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
 
   if (authCheck.scope.accessLevel !== "all") {
     return res.status(401).json({
-      success: false,
       message:
         "Access denied - need to use basic auth with secret key to GET scores",
     });
@@ -46,38 +44,35 @@ export default async function handler(
       const { datasetItemId, observationId, runName } =
         DatasetRunItemPostSchema.parse(req.body);
 
-      const [item, observation] = await Promise.all([
-        prisma.datasetItem.findUnique({
-          where: {
-            id: datasetItemId,
-            status: "ACTIVE",
-            dataset: {
-              projectId: authCheck.scope.projectId,
-            },
-          },
-          include: {
-            dataset: true,
-          },
-        }),
-        prisma.observation.findUnique({
-          where: {
-            id: observationId,
+      const item = await prisma.datasetItem.findUnique({
+        where: {
+          id: datasetItemId,
+          status: "ACTIVE",
+          dataset: {
             projectId: authCheck.scope.projectId,
           },
-        }),
-      ]);
+        },
+        include: {
+          dataset: true,
+        },
+      });
+      const observation = await prisma.observation.findUnique({
+        where: {
+          id: observationId,
+          projectId: authCheck.scope.projectId,
+        },
+      });
+
       // Validity of id and access checks
       if (!item) {
         console.error("item not found");
         return res.status(404).json({
-          success: false,
           message: "Dataset item not found or not active",
         });
       }
       if (!observation) {
         console.error("observation not found");
         return res.status(404).json({
-          success: false,
           message: "Observation not found",
         });
       }
@@ -110,7 +105,6 @@ export default async function handler(
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
-        success: false,
         message: "Invalid request data",
         error: errorMessage,
       });

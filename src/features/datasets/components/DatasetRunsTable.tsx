@@ -1,9 +1,10 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { formatInterval } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type ColumnDef } from "@tanstack/react-table";
 
 type RowData = {
   key: {
@@ -12,6 +13,7 @@ type RowData = {
   };
   createdAt: string;
   countRunItems: string;
+  avgLatency: number;
   scores: RouterOutput["datasets"]["runsByDatasetId"][number]["scores"];
 };
 
@@ -24,7 +26,7 @@ export function DatasetRunsTable(props: {
     datasetId: props.datasetId,
   });
 
-  const columns: ColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "key",
       header: "Name",
@@ -46,6 +48,14 @@ export function DatasetRunsTable(props: {
     {
       accessorKey: "countRunItems",
       header: "Run Items",
+    },
+    {
+      accessorKey: "avgLatency",
+      header: "Latency (avg)",
+      cell: ({ row }) => {
+        const avgLatency: RowData["avgLatency"] = row.getValue("avgLatency");
+        return <>{formatInterval(avgLatency)}</>;
+      },
     },
     {
       accessorKey: "scores",
@@ -72,6 +82,7 @@ export function DatasetRunsTable(props: {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toISOString(),
       countRunItems: item.countRunItems.toString(),
+      avgLatency: item.avgLatency,
       scores: item.scores,
     };
   };
@@ -83,16 +94,16 @@ export function DatasetRunsTable(props: {
         runs.isLoading
           ? { isLoading: true, isError: false }
           : runs.isError
-          ? {
-              isLoading: false,
-              isError: true,
-              error: runs.error.message,
-            }
-          : {
-              isLoading: false,
-              isError: false,
-              data: runs.data?.map((t) => convertToTableRow(t)),
-            }
+            ? {
+                isLoading: false,
+                isError: true,
+                error: runs.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: runs.data.map((t) => convertToTableRow(t)),
+              }
       }
     />
   );

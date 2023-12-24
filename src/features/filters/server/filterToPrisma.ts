@@ -6,6 +6,10 @@ import { Prisma } from "@prisma/client";
 const operatorReplacements = {
   "any of": "IN",
   "none of": "NOT IN",
+  contains: "ILIKE",
+  "does not contain": "NOT ILIKE",
+  "starts with": "ILIKE",
+  "ends with": "ILIKE",
 };
 
 export function filterToPrismaSql(
@@ -34,12 +38,7 @@ export function filterToPrismaSql(
     let valuePrisma: Prisma.Sql;
     switch (filter.type) {
       case "datetime":
-        valuePrisma = Prisma.sql`${
-          filter.value
-            .toISOString()
-            .split(".")[0]! // remove milliseconds
-            .replace("T", " ") // to Postgres datetime
-        }::TIMESTAMP`;
+        valuePrisma = Prisma.sql`${filter.value}::timestamp with time zone at time zone 'UTC'`;
         break;
       case "number":
       case "numberObject":
@@ -54,6 +53,9 @@ export function filterToPrismaSql(
           filter.value.map((v) => Prisma.sql`${v}`),
         )})`;
         break;
+      case "boolean":
+        valuePrisma = Prisma.sql`${filter.value}`;
+        break;
     }
     const jsonKeyPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
@@ -63,8 +65,23 @@ export function filterToPrismaSql(
       filter.type === "numberObject"
         ? [Prisma.raw("cast("), Prisma.raw(" as double precision)")]
         : [Prisma.empty, Prisma.empty];
+    const [valuePrefix, valueSuffix] =
+      filter.type === "string" || filter.type === "stringObject"
+        ? [
+            ["contains", "does not contain", "ends with"].includes(
+              filter.operator,
+            )
+              ? Prisma.raw("'%' || ")
+              : Prisma.empty,
+            ["contains", "does not contain", "starts with"].includes(
+              filter.operator,
+            )
+              ? Prisma.raw(" || '%'")
+              : Prisma.empty,
+          ]
+        : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrisma}`;
+    return Prisma.sql`${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueSuffix}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
@@ -90,10 +107,7 @@ export const datetimeFilterToPrismaSql = (
     throw new Error("Invalid date: " + value.toString());
   }
 
-  return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(operator)} ${
-    value
-      .toISOString()
-      .split(".")[0]! // remove milliseconds
-      .replace("T", " ") // to Postgres datetime
-  }::TIMESTAMP`;
+  return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(
+    operator,
+  )} ${value}::timestamp with time zone at time zone 'UTC'`;
 };

@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/code";
-import { type Observation, type Score } from "@prisma/client";
+import { type Score } from "@prisma/client";
 import {
   Card,
   CardContent,
@@ -16,61 +16,76 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components";
-import type Decimal from "decimal.js";
+import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { api } from "@/src/utils/api";
+import { IOPreview } from "@/src/components/trace/IOPreview";
+import { formatInterval } from "@/src/utils/dates";
 
 export const ObservationPreview = (props: {
-  observations: Array<Observation & { traceId: string } & { price?: Decimal }>;
+  observations: Array<ObservationReturnType>;
   projectId: string;
   scores: Score[];
-  currentObservationId: string | undefined;
+  currentObservationId: string;
+  traceId: string;
 }) => {
-  const observation = props.observations.find(
+  const observationWithInputAndOutput = api.observations.byId.useQuery({
+    observationId: props.currentObservationId,
+    traceId: props.traceId,
+  });
+
+  const preloadedObservation = props.observations.find(
     (o) => o.id === props.currentObservationId,
   );
-  if (!observation) return <div className="flex-1">Not found</div>;
+
+  if (!preloadedObservation) return <div className="flex-1">Not found</div>;
   return (
     <Card className="flex-1">
       <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
         <div className="flex flex-col gap-1">
           <CardTitle>
             <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-              {observation.type}
+              {preloadedObservation.type}
             </span>
-            <span>{observation.name}</span>
+            <span>{preloadedObservation.name}</span>
           </CardTitle>
           <CardDescription className="flex gap-2">
-            {observation.startTime.toLocaleString()}
+            {preloadedObservation.startTime.toLocaleString()}
           </CardDescription>
           <div className="flex flex-wrap gap-2">
-            {observation.endTime ? (
+            {preloadedObservation.endTime ? (
               <Badge variant="outline">
-                {`${(
-                  (observation.endTime.getTime() -
-                    observation.startTime.getTime()) /
-                  1000
-                ).toFixed(2)} sec`}
+                {formatInterval(
+                  (preloadedObservation.endTime.getTime() -
+                    preloadedObservation.startTime.getTime()) /
+                    1000,
+                )}
               </Badge>
             ) : null}
-            <Badge variant="outline">
-              {observation.promptTokens} prompt → {observation.completionTokens}{" "}
-              completion (∑ {observation.totalTokens})
-            </Badge>
-            {observation.version ? (
-              <Badge variant="outline">Version: {observation.version}</Badge>
-            ) : undefined}
-            {observation.model ? (
-              <Badge variant="outline">{observation.model}</Badge>
-            ) : null}
-            {observation.price ? (
+            {preloadedObservation.type === "GENERATION" && (
               <Badge variant="outline">
-                {observation.price.toString()} USD
+                {preloadedObservation.promptTokens} prompt →{" "}
+                {preloadedObservation.completionTokens} completion (∑{" "}
+                {preloadedObservation.totalTokens})
+              </Badge>
+            )}
+            {preloadedObservation.version ? (
+              <Badge variant="outline">
+                Version: {preloadedObservation.version}
               </Badge>
             ) : undefined}
-            {observation.modelParameters &&
-            typeof observation.modelParameters === "object"
-              ? Object.entries(observation.modelParameters)
+            {preloadedObservation.model ? (
+              <Badge variant="outline">{preloadedObservation.model}</Badge>
+            ) : null}
+            {preloadedObservation.price ? (
+              <Badge variant="outline">
+                {preloadedObservation.price.toString()} USD
+              </Badge>
+            ) : undefined}
+            {preloadedObservation.modelParameters &&
+            typeof preloadedObservation.modelParameters === "object"
+              ? Object.entries(preloadedObservation.modelParameters)
                   .filter(Boolean)
                   .map(([key, value]) => (
                     <Badge variant="outline" key={key}>
@@ -83,41 +98,47 @@ export const ObservationPreview = (props: {
         <div className="flex gap-2">
           <ManualScoreButton
             projectId={props.projectId}
-            traceId={observation.traceId}
-            observationId={observation.id}
+            traceId={preloadedObservation.traceId}
+            observationId={preloadedObservation.id}
             scores={props.scores}
           />
-          <NewDatasetItemFromObservationButton
-            observationId={observation.id}
-            projectId={props.projectId}
-            observationInput={observation.input}
-            observationOutput={observation.output}
-            key={observation.id}
-          />
+          {observationWithInputAndOutput.data ? (
+            <NewDatasetItemFromObservationButton
+              observationId={preloadedObservation.id}
+              projectId={props.projectId}
+              observationInput={observationWithInputAndOutput.data.input}
+              observationOutput={observationWithInputAndOutput.data.output}
+              key={preloadedObservation.id}
+            />
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <JSONView
-          key={observation.id + "-input"}
-          title={observation.type === "GENERATION" ? "Prompt" : "Input"}
-          json={observation.input}
+        <IOPreview
+          key={preloadedObservation.id + "-input"}
+          input={observationWithInputAndOutput.data?.input ?? undefined}
+          output={observationWithInputAndOutput.data?.output ?? undefined}
+          isLoading={observationWithInputAndOutput.isLoading}
         />
-        <JSONView
-          key={observation.id + "-output"}
-          title={observation.type === "GENERATION" ? "Completion" : "Output"}
-          json={observation.output}
-        />
-        <JSONView
-          key={observation.id + "-status"}
-          title="Status Message"
-          json={observation.statusMessage}
-        />
-        <JSONView
-          key={observation.id + "-metadata"}
-          title="Metadata"
-          json={observation.metadata}
-        />
-        {props.scores.find((s) => s.observationId === observation.id) ? (
+        {preloadedObservation.statusMessage ? (
+          <JSONView
+            key={preloadedObservation.id + "-status"}
+            title="Status Message"
+            json={preloadedObservation.statusMessage}
+          />
+        ) : null}
+
+        {preloadedObservation.metadata ? (
+          <JSONView
+            key={preloadedObservation.id + "-metadata"}
+            title="Metadata"
+            json={preloadedObservation.metadata}
+          />
+        ) : null}
+
+        {props.scores.find(
+          (s) => s.observationId === preloadedObservation.id,
+        ) ? (
           <div className="flex flex-col gap-2">
             <h3>Scores</h3>
             <Table>
@@ -131,7 +152,7 @@ export const ObservationPreview = (props: {
               </TableHeader>
               <TableBody>
                 {props.scores
-                  .filter((s) => s.observationId === observation.id)
+                  .filter((s) => s.observationId === preloadedObservation.id)
                   .map((s) => (
                     <TableRow key={s.id}>
                       <TableCell className="text-xs">

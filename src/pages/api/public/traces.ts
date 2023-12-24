@@ -4,19 +4,17 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@prisma/client";
-import { v4 as uuidv4 } from "uuid";
-import { jsonSchema, paginationZod } from "@/src/utils/zod";
-import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-
-const CreateTraceSchema = z.object({
-  id: z.string().nullish(),
-  name: z.string().nullish(),
-  externalId: z.string().nullish(),
-  userId: z.string().nullish(),
-  metadata: jsonSchema.nullish(),
-  release: z.string().nullish(),
-  version: z.string().nullish(),
-});
+import { paginationZod } from "@/src/utils/zod";
+import {
+  handleBatch,
+  handleBatchResultLegacy,
+} from "@/src/pages/api/public/ingestion";
+import {
+  TraceBody,
+  eventTypes,
+} from "@/src/features/public-api/server/ingestion-api-schema";
+import { v4 } from "uuid";
+import { telemetry } from "@/src/features/telemetry";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
@@ -36,7 +34,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -49,84 +46,28 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
 
-      const { id, name, metadata, externalId, userId, release, version } =
-        CreateTraceSchema.parse(req.body);
-
-      // CHECK ACCESS SCOPE
       if (authCheck.scope.accessLevel !== "all")
         return res.status(403).json({
-          success: false,
           message: "Access denied",
         });
-      // END CHECK ACCESS SCOPE
 
-      if (id && externalId)
-        return res.status(400).json({
-          success: false,
-          message: "Cannot create trace with both id and externalId",
-        });
+      const body = TraceBody.parse(req.body);
 
-      if (externalId) {
-        // For traces created with external ids, allow upserts
-        const newTrace = await prisma.trace.upsert({
-          where: {
-            projectId_externalId: {
-              externalId: externalId,
-              projectId: authCheck.scope.projectId,
-            },
-          },
-          create: {
-            timestamp: new Date(),
-            projectId: authCheck.scope.projectId,
-            externalId: externalId,
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-          update: {
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-        });
-        res.status(200).json(newTrace);
-      } else {
-        const internalId = id ?? uuidv4();
+      await telemetry();
 
-        const newTrace = await prisma.trace.upsert({
-          where: {
-            id: internalId,
-            projectId: authCheck.scope.projectId,
-          },
-          create: {
-            id: internalId,
-            projectId: authCheck.scope.projectId,
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-          update: {
-            name: name ?? undefined,
-            userId: userId ?? undefined,
-            metadata: metadata ?? undefined,
-            release: release ?? undefined,
-            version: version ?? undefined,
-          },
-        });
-        res.status(200).json(newTrace);
-      }
+      const event = {
+        id: v4(),
+        type: eventTypes.TRACE_CREATE,
+        timestamp: new Date().toISOString(),
+        body: body,
+      };
+
+      const result = await handleBatch([event], {}, req, authCheck);
+      handleBatchResultLegacy(result.errors, result.results, res);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          success: false,
           message:
             "Access denied - need to use basic auth with secret key to GET scores",
         });
@@ -138,8 +79,9 @@ export default async function handler(
       const userCondition = Prisma.sql`AND t."user_id" = ${obj.userId}`;
       const nameCondition = Prisma.sql`AND t."name" = ${obj.name}`;
 
-      const [traces, totalItems] = await Promise.all([
-        prisma.$queryRaw<Array<Trace & { observations: string[] }>>(Prisma.sql`
+      const traces = await prisma.$queryRaw<
+        Array<Trace & { observations: string[]; scores: string[] }>
+      >(Prisma.sql`
           SELECT
             t.id,
             t.timestamp,
@@ -150,9 +92,11 @@ export default async function handler(
             t.user_id as "userId",
             t.release,
             t.version,
-            ARRAY_AGG(o.id) AS "observations"
+            array_remove(array_agg(o.id), NULL) AS "observations",
+            array_remove(array_agg(s.id), NULL) AS "scores"
           FROM "traces" AS t
           LEFT JOIN "observations" AS o ON t.id = o.trace_id
+          LEFT JOIN "scores" AS s ON t.id = s.trace_id
           WHERE t.project_id = ${authCheck.scope.projectId}
           AND o.project_id = ${authCheck.scope.projectId}
           ${obj.userId ? userCondition : Prisma.empty}
@@ -160,15 +104,14 @@ export default async function handler(
           GROUP BY t.id
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
-          `),
-        prisma.trace.count({
-          where: {
-            projectId: authCheck.scope.projectId,
-            name: obj.name ?? undefined,
-            userId: obj.userId ?? undefined,
-          },
-        }),
-      ]);
+          `);
+      const totalItems = await prisma.trace.count({
+        where: {
+          projectId: authCheck.scope.projectId,
+          name: obj.name ?? undefined,
+          userId: obj.userId ?? undefined,
+        },
+      });
 
       return res.status(200).json({
         data: traces,
@@ -188,7 +131,6 @@ export default async function handler(
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });

@@ -21,7 +21,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -30,7 +29,6 @@ export default async function handler(
     if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          success: false,
           message:
             "Access denied - need to use basic auth with secret key to GET scores",
         });
@@ -38,8 +36,7 @@ export default async function handler(
 
       const obj = GetUsersSchema.parse(req.query); // uses query and not body
 
-      const [users, totalItemsRes] = await Promise.all([
-        prisma.$queryRaw`
+      const users = await prisma.$queryRaw`
           WITH model_usage AS (
             SELECT
               user_id,
@@ -95,15 +92,14 @@ export default async function handler(
           group by 1
           ORDER BY 1
           LIMIT ${obj.limit} OFFSET ${(obj.page - 1) * obj.limit}
-        `,
-        prisma.$queryRaw<{ count: bigint }[]>`
+        `;
+      const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>`
           SELECT
             count(DISTINCT CASE WHEN user_id IS NULL THEN 'COUNT_NULL' ELSE user_id END)
           FROM
             traces
           WHERE project_id = ${authCheck.scope.projectId}
-        `,
-      ]);
+        `;
 
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
@@ -126,7 +122,6 @@ export default async function handler(
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });

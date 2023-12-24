@@ -7,9 +7,10 @@ generator client {
 }
 
 datasource db {
-    provider  = "postgresql"
-    url       = env("DATABASE_URL")
-    directUrl = env("DIRECT_URL")
+    provider          = "postgresql"
+    url               = env("DATABASE_URL")
+    directUrl         = env("DIRECT_URL")
+    shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model Example {
@@ -49,19 +50,20 @@ model Session {
 }
 
 model User {
-    id            String       @id @default(cuid())
+    id            String                 @id @default(cuid())
     name          String?
-    email         String?      @unique
-    emailVerified DateTime?    @map("email_verified")
+    email         String?                @unique
+    emailVerified DateTime?              @map("email_verified")
     password      String?
     image         String?
-    admin         Boolean      @default(false)
+    admin         Boolean                @default(false)
     accounts      Account[]
     sessions      Session[]
     memberships   Membership[]
-    createdAt     DateTime     @default(now()) @map("created_at")
-    updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
-    featureFlags  String[]     @default([]) @map("feature_flags")
+    invitations   MembershipInvitation[]
+    createdAt     DateTime               @default(now()) @map("created_at")
+    updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
+    featureFlags  String[]               @default([]) @map("feature_flags")
 
     @@map("users")
 }
@@ -76,16 +78,19 @@ model VerificationToken {
 }
 
 model Project {
-    id           String        @id @default(cuid())
-    createdAt    DateTime      @default(now()) @map("created_at")
-    updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
+    id           String                 @id @default(cuid())
+    createdAt    DateTime               @default(now()) @map("created_at")
+    updatedAt    DateTime               @default(now()) @updatedAt @map("updated_at")
     name         String
+    cloudConfig  Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
     members      Membership[]
     traces       Trace[]
     observations Observation[]
     apiKeys      ApiKey[]
     dataset      Dataset[]
     RawEvents    Events[]
+    invitations  MembershipInvitation[]
+    sessions     TraceSession[]
 
     @@map("projects")
 }
@@ -124,6 +129,22 @@ model Membership {
     @@map("memberships")
 }
 
+model MembershipInvitation {
+    id        String         @id @unique @default(cuid())
+    email     String
+    role      MembershipRole
+    projectId String         @map("project_id")
+    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    senderId  String?        @map("sender_id")
+    sender    User?          @relation(fields: [senderId], references: [id], onDelete: SetNull)
+    createdAt DateTime       @default(now()) @map("created_at")
+    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+
+    @@index([projectId])
+    @@index([email])
+    @@map("membership_invitations")
+}
+
 enum MembershipRole {
     OWNER
     ADMIN
@@ -131,23 +152,45 @@ enum MembershipRole {
     VIEWER
 }
 
-model Trace {
+model TraceSession {
     id         String   @id @default(cuid())
-    externalId String?  @map("external_id")
-    timestamp  DateTime @default(now())
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+    projectId  String   @map("project_id")
+    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    bookmarked Boolean  @default(false)
+    public     Boolean  @default(false)
+    traces     Trace[]
+
+    @@unique([id, projectId])
+    @@index([projectId])
+    @@index([createdAt])
+    @@map("trace_sessions")
+}
+
+model Trace {
+    id         String        @id @default(cuid())
+    externalId String?       @map("external_id")
+    timestamp  DateTime      @default(now())
     name       String?
-    userId     String?  @map("user_id")
+    userId     String?       @map("user_id")
     metadata   Json?
     release    String?
     version    String?
-    projectId  String   @map("project_id")
-    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    public     Boolean  @default(false)
+    input      Json?
+    output     Json?
+    sessionId  String?       @map("session_id")
+    session    TraceSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+    projectId  String        @map("project_id")
+    project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    public     Boolean       @default(false)
+    bookmarked Boolean       @default(false)
 
     scores Score[]
 
     @@unique([projectId, externalId])
     @@index([projectId])
+    @@index([sessionId])
     @@index([name])
     @@index([userId])
     @@index([externalId])
@@ -169,6 +212,7 @@ model Observation {
     level               ObservationLevel @default(DEFAULT)
     statusMessage       String?          @map("status_message")
     version             String?
+    createdAt           DateTime         @default(now()) @map("created_at")
 
     // GENERATION ONLY
     model               String?
@@ -178,15 +222,18 @@ model Observation {
     promptTokens        Int               @default(0) @map("prompt_tokens")
     completionTokens    Int               @default(0) @map("completion_tokens")
     totalTokens         Int               @default(0) @map("total_tokens")
+    unit                String            @default("TOKENS")
     completionStartTime DateTime?         @map("completion_start_time")
     scores              Score[]
     project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
 
+    @@unique([id, projectId])
     @@index([traceId])
     @@index([type])
     @@index(startTime)
+    @@index(createdAt)
     @@index(projectId)
     @@index(parentObservationId)
     @@map("observations")
@@ -216,7 +263,10 @@ model Score {
     observationId String?      @map("observation_id")
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
+    @@unique([id, traceId]) // used for upsert
     @@index([value])
+    @@index([traceId], type: Hash)
+    @@index([observationId], type: Hash)
     @@map("scores")
 }
 
@@ -243,9 +293,10 @@ model Pricing {
 }
 
 model CronJobs {
-    name    String    @id
-    lastRun DateTime? @map("last_run")
-    state   String?
+    name         String    @id
+    lastRun      DateTime? @map("last_run")
+    jobStartedAt DateTime? @map("job_started_at")
+    state        String?
 
     @@map("cron_jobs")
 }
@@ -262,6 +313,7 @@ model Dataset {
     datasetRuns  DatasetRuns[]
 
     @@unique([projectId, name])
+    @@index([projectId], type: Hash)
     @@map("datasets")
 }
 
@@ -278,6 +330,8 @@ model DatasetItem {
     updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItems     DatasetRunItems[]
 
+    @@index([sourceObservationId], type: Hash)
+    @@index([datasetId], type: Hash)
     @@map("dataset_items")
 }
 
@@ -296,6 +350,7 @@ model DatasetRuns {
     datasetRunItems DatasetRunItems[]
 
     @@unique([datasetId, name])
+    @@index([datasetId], type: Hash)
     @@map("dataset_runs")
 }
 
@@ -310,6 +365,9 @@ model DatasetRunItems {
     createdAt     DateTime    @default(now()) @map("created_at")
     updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
 
+    @@index([datasetRunId], type: Hash)
+    @@index([datasetItemId], type: Hash)
+    @@index([observationId], type: Hash)
     @@map("dataset_run_items")
 }
 
@@ -320,8 +378,10 @@ model Events {
     projectId String   @map("project_id")
     project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
     data      Json
+    headers   Json     @default("{}")
     url       String?
     method    String?
 
+    @@index(projectId)
     @@map("events")
 }

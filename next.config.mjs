@@ -23,21 +23,37 @@ const nextConfig = {
   output: "standalone",
 
   async headers() {
-    // Required to check authentication status from langfuse.com
-    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
-      return [
-        {
-          source: '/api/auth/session',
-          headers: [
-            { key: "Access-Control-Allow-Origin", value: "https://langfuse.com" },
-            { key: "Access-Control-Allow-Credentials", value: "true" },
-            { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-            { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
-          ]
-        }
-      ]
-
-    return []
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "x-frame-options",
+            value: "SAMEORIGIN",
+          },
+        ],
+      },
+      // Required to check authentication status from langfuse.com
+      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ?
+        [
+          {
+            source: "/api/auth/session",
+            headers: [
+              {
+                key: "Access-Control-Allow-Origin",
+                value: "https://langfuse.com",
+              },
+              { key: "Access-Control-Allow-Credentials", value: "true" },
+              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+              {
+                key: "Access-Control-Allow-Headers",
+                value: "Content-Type, Authorization",
+              },
+            ]
+          },
+        ] : []
+      )
+    ]
   },
 
   // webassembly support for @dqbd/tiktoken

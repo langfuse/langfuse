@@ -35,6 +35,7 @@
       <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
       <a href="https://discord.gg/7NXusRtqYU"><img src="https://img.shields.io/discord/1111061815649124414?style=flat-square&logo=Discord&logoColor=white&label=Discord&color=%23434EE4" alt="Discord"></a>
       <a href="https://github.com/langfuse/langfuse"><img src="https://img.shields.io/github/stars/langfuse/langfuse?style=flat-square&logo=GitHub&label=langfuse%2Flangfuse" alt="Github Repo Stars"></a>
+      <a href="https://github.com/langfuse/langfuse/releases"><img src="https://img.shields.io/github/v/release/langfuse/langfuse?include_prereleases&style=flat-square" alt="langfuse releases"></a>
       <a href="https://github.com/langfuse/langfuse/actions/workflows/pipeline.yml?query=branch:main"><img src="https://img.shields.io/github/actions/workflow/status/langfuse/langfuse/pipeline.yml?style=flat-square&label=All%20tests" alt="CI test status"></a>
       <a href="https://status.langfuse.com"><img src="https://uptime.betterstack.com/status-badges/v1/monitor/udlc.svg" alt="Uptime Status"/></a>
       <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
@@ -98,7 +99,7 @@ Links: [Create account](https://cloud.langfuse.com), [learn more](https://cloud.
 
 #### Localhost
 
-Requirements: Docker, Node.js >=18, npm
+Requirements: docker, docker compose (e.g. using Docker Desktop)
 
 ```bash
 # Clone repository
@@ -107,16 +108,27 @@ cd langfuse
 
 # Run server and database
 docker compose up -d
-
-# Apply db migrations
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
 #### Self-host (Docker)
 
 [→ Instructions](https://langfuse.com/docs/deployment/self-host)
 
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/gmbqa_)
+
 ### Step 2: Data ingestion
+
+#### SDKs to instrument application
+
+Fully async, typed SDKs to instrument any LLM application. Currently available for Python & JS/TS.
+
+→ [Guide](https://langfuse.com/docs/guides/sdk-integration) with an example of how the SDK can be used
+
+| Package                                                                                                                                             | Description                      | Links                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [![PyPI Version](https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse)](https://pypi.python.org/pypi/langfuse)          | Python                           | [docs](https://langfuse.com/docs/integrations/sdk/python), [repo](https://github.com/langfuse/langfuse-python) |
+| [![npm Version](https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse)](https://www.npmjs.com/package/langfuse)                | JS/TS: Node >= 18, Edge runtimes | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
+| [![npm package](https://img.shields.io/npm/v/langfuse-node?style=flat-square&label=npm+langfuse-node)](https://www.npmjs.com/package/langfuse-node) | JS/TS: Node <18                  | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
 
 #### Langchain applications
 
@@ -148,19 +160,7 @@ chain.run(input="<user_input", callbacks=[handler])
 
 → [Langchain integration docs for JS/TS](https://langfuse.com/docs/integrations/langchain/typescript)
 
-#### SDKs to manually instrument application
-
-Fully async, typed SDKs to instrument any LLM application. Currently available for Python & JS/TS.
-
-→ [Guide](https://langfuse.com/docs/guides/sdk-integration) with an example of how the SDK can be used
-
-| Package                                                                                                                                             | Description                      | Links                                                                                                          |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| [![PyPI Version](https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse)](https://pypi.python.org/pypi/langfuse)          | Python                           | [docs](https://langfuse.com/docs/integrations/sdk/python), [repo](https://github.com/langfuse/langfuse-python) |
-| [![npm Version](https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse)](https://www.npmjs.com/package/langfuse)                | JS/TS: Node >= 18, Edge runtimes | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
-| [![npm package](https://img.shields.io/npm/v/langfuse-node?style=flat-square&label=npm+langfuse-node)](https://www.npmjs.com/package/langfuse-node) | JS/TS: Node <18                  | [docs](https://langfuse.com/docs/integrations/sdk/typescript), [repo](https://github.com/langfuse/langfuse-js) |
-
-### Add scores/evaluations to traces (optional)
+#### Add scores/evaluations to traces (optional)
 
 Quality/evaluation of traces is tracked via scores ([docs](https://langfuse.com/docs/scores)). Scores are related to traces and optionally to observations. Scores can be added via:
 
@@ -218,34 +218,7 @@ To contribute, send us a PR, raise a GitHub issue, or email at contributing@lang
 
 ### Development setup
 
-Requirements: Node.js >=18, npm, Docker
-
-```bash
-# Install dependencies
-npm install
-
-# Run the db
-docker-compose -f docker-compose.dev.yml up -d
-
-# create an env file
-cp .env.dev.example .env
-
-# Migration
-npm run db:migrate
-
-# Optional: seed the database
-# npm run db:seed
-# npm run db:seed:examples
-
-# Start the server
-npm run dev
-```
-
-Run tests
-
-```bash
-npm run test
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
 
 ## License
 
@@ -265,9 +238,6 @@ docker-compose pull
 
 # Run server and db
 docker compose up -d
-
-# Apply db migrations
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:5432/postgres npx prisma migrate deploy
 ```
 
 ### Run Langfuse in CI for integration tests
@@ -283,6 +253,6 @@ This helps us to:
 1. Understand how Langfuse is used and improve the most relevant features.
 2. Track overall usage for internal and external (e.g. fundraising) reporting.
 
-None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/pages/api/cron/telemetry.ts).
+None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/features/telemetry/index.ts).
 
 You can opt-out by setting `TELEMETRY_ENABLED=false`.

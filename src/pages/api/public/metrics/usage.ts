@@ -24,7 +24,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -33,7 +32,6 @@ export default async function handler(
     if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          success: false,
           message:
             "Access denied - need to use basic auth with secret key to GET scores",
         });
@@ -45,8 +43,7 @@ export default async function handler(
         : Prisma.empty;
 
       if (obj.group_by === undefined) {
-        const [usage, totalItemsRes] = await Promise.all([
-          prisma.$queryRaw`
+        const usage = await prisma.$queryRaw`
           WITH model_usage AS (
             SELECT
               DATE_TRUNC('DAY',
@@ -85,16 +82,15 @@ export default async function handler(
           FROM daily_usage
           ORDER BY 1 desc
           LIMIT ${obj.limit} OFFSET ${(obj.page - 1) * obj.limit}
-        `,
-          prisma.$queryRaw<{ count: bigint }[]>`
+        `;
+        const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>`
           SELECT
             count(DISTINCT DATE_TRUNC('DAY', observations.start_time))
           FROM
             observations
           JOIN traces ON observations.trace_id = traces.id
           WHERE traces.project_id = ${authCheck.scope.projectId}
-        `,
-        ]);
+        `;
 
         const totalItems =
           totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
@@ -109,8 +105,7 @@ export default async function handler(
           },
         });
       } else if (obj.group_by === "trace_name") {
-        const [usage, totalItemsRes] = await Promise.all([
-          prisma.$queryRaw`
+        const usage = await prisma.$queryRaw`
           WITH model_usage AS (
             SELECT
               t."name" trace_name,
@@ -169,15 +164,14 @@ export default async function handler(
           group by 1
           ORDER BY 1
           LIMIT ${obj.limit} OFFSET ${(obj.page - 1) * obj.limit}
-        `,
-          prisma.$queryRaw<{ count: bigint }[]>`
+        `;
+        const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>`
           SELECT
             count(DISTINCT CASE WHEN "name" IS NULL THEN 'COUNT_NULL' ELSE "name" END)
           FROM
             traces
           WHERE project_id = ${authCheck.scope.projectId}
-        `,
-        ]);
+        `;
 
         const totalItems =
           totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
@@ -193,7 +187,6 @@ export default async function handler(
         });
       } else {
         return res.status(400).json({
-          success: false,
           message: "Invalid group_by value",
         });
       }
@@ -206,7 +199,6 @@ export default async function handler(
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });

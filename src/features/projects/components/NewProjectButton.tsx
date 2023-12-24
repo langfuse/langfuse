@@ -44,7 +44,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
       name: "",
     },
   });
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const router = useRouter();
   const posthog = usePostHog();
   const createProjectMutation = api.projects.create.useMutation({
@@ -67,7 +67,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
       .catch((error) => {
         console.error(error);
       });
-    void chatRunTrigger("after-project-creation");
+    chatRunTrigger("after-project-creation");
   }
 
   return (

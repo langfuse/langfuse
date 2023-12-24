@@ -1,27 +1,17 @@
-import { prisma } from "@/src/server/db";
-import { ObservationLevel, ObservationType } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
-import { jsonSchema } from "@/src/utils/zod";
-import { persistEventMiddleware } from "@/src/pages/api/public/event-service";
-
-const ObservationSchema = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
-  traceIdType: z.enum(["LANGFUSE", "EXTERNAL"]).nullish(),
-  name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  metadata: jsonSchema.nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
-  statusMessage: z.string().nullish(),
-  parentObservationId: z.string().nullish(),
-  version: z.string().nullish(),
-});
+import {
+  CreateEventEvent,
+  eventTypes,
+  ingestionBatchEvent,
+} from "@/src/features/public-api/server/ingestion-api-schema";
+import {
+  handleBatch,
+  handleBatchResultLegacy,
+} from "@/src/pages/api/public/ingestion";
+import { type z } from "zod";
 
 export default async function handler(
   req: NextApiRequest,
@@ -39,7 +29,6 @@ export default async function handler(
   );
   if (!authCheck.validKey)
     return res.status(401).json({
-      success: false,
       message: authCheck.error,
     });
   // END CHECK AUTH
@@ -52,93 +41,34 @@ export default async function handler(
   );
 
   try {
-    const obj = ObservationSchema.parse(req.body);
-    const {
-      id,
-      name,
-      startTime,
-      metadata,
-      input,
-      output,
-      parentObservationId,
-      level,
-      statusMessage,
-      version,
-    } = obj;
+    const convertToObservation = (
+      generation: z.infer<typeof CreateEventEvent>,
+    ) => {
+      return {
+        ...generation,
+        type: "EVENT",
+      };
+    };
 
-    await persistEventMiddleware(prisma, authCheck.scope.projectId, req);
+    const event = {
+      id: uuidv4(),
+      type: eventTypes.OBSERVATION_CREATE,
+      timestamp: new Date().toISOString(),
+      body: convertToObservation(CreateEventEvent.parse(req.body)),
+    };
 
-    const traceId = !obj.traceId
-      ? // Create trace if no traceid - backwards compatibility
-        (
-          await prisma.trace.create({
-            data: {
-              projectId: authCheck.scope.projectId,
-              name: obj.name,
-            },
-          })
-        ).id
-      : obj.traceIdType === "EXTERNAL"
-      ? // Find or create trace if externalTraceId
-        (
-          await prisma.trace.upsert({
-            where: {
-              projectId_externalId: {
-                projectId: authCheck.scope.projectId,
-                externalId: obj.traceId,
-              },
-            },
-            create: {
-              projectId: authCheck.scope.projectId,
-              externalId: obj.traceId,
-            },
-            update: {},
-          })
-        ).id
-      : obj.traceId;
-
-    const newId = uuidv4();
-    const newObservation = await prisma.observation.upsert({
-      where: {
-        id: id ?? newId,
-        projectId: authCheck.scope.projectId,
-      },
-      create: {
-        id: id ?? newId,
-        traceId: traceId,
-        type: ObservationType.EVENT,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-        project: { connect: { id: authCheck.scope.projectId } },
-      },
-      update: {
-        type: ObservationType.EVENT,
-        name,
-        startTime: startTime ? new Date(startTime) : undefined,
-        metadata: metadata ?? undefined,
-        input: input ?? undefined,
-        output: output ?? undefined,
-        level: level ?? undefined,
-        statusMessage: statusMessage ?? undefined,
-        parentObservationId: parentObservationId ?? undefined,
-        version: version ?? undefined,
-      },
-    });
-
-    res.status(200).json(newObservation);
+    const result = await handleBatch(
+      ingestionBatchEvent.parse([event]),
+      {},
+      req,
+      authCheck,
+    );
+    handleBatchResultLegacy(result.errors, result.results, res);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
-      success: false,
       message: "Invalid request data",
       error: errorMessage,
     });
