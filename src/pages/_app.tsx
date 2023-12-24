@@ -19,6 +19,13 @@ import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
 
+// Custom polyfills not yet available in `next-core`:
+// https://github.com/vercel/next.js/issues/58242
+// https://nextjs.org/docs/architecture/supported-browsers#custom-polyfills
+import "core-js/features/array/to-reversed";
+import "core-js/features/array/to-spliced";
+import "core-js/features/array/to-sorted";
+
 // Other CSS
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
