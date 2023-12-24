@@ -73,6 +73,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cmdk": "^0.2.0",
+    "core-js": "^3.34.0",
     "cors": "^2.8.5",
     "date-fns": "^2.30.0",
     "decimal.js": "^10.4.3",
