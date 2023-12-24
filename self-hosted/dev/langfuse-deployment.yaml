@@ -18,22 +18,22 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: langfuse-secret
+                  name: langfuse-dev-secret
                   key: langfuse-db-url
             - name: NEXTAUTH_URL
               valueFrom:
                 secretKeyRef:
-                  name: langfuse-secret
+                  name: langfuse-dev-secret
                   key: langfuse-nextauth-url
             - name: NEXTAUTH_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: langfuse-secret
+                  name: langfuse-dev-secret
                   key: langfuse-nextauth-secret
             - name: SALT
               valueFrom:
                 secretKeyRef:
-                  name: langfuse-secret
+                  name: langfuse-dev-secret
                   key: langfuse-salt
           ports:
             - containerPort: 3000
