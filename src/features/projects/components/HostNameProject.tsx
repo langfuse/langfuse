@@ -12,8 +12,9 @@ export function HostNameProject() {
       </h2>
       <Card className="mb-4 p-4">
         <div className="mb-6">
-          <div className="my-2">
-            When connecting to Langfuse, use this hostname / baseurl.
+          <div className="my-2 text-sm text-gray-700">
+            When connecting to Langfuse, use this &quot;
+            <b>hostname / baseurl</b>&quot;.
           </div>
           <CodeView content={window.origin} />
         </div>
