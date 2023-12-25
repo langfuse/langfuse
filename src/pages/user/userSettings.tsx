@@ -28,24 +28,23 @@ export default function UserSettingPage() {
   const session = useSession();
   const [isFormVisible, setFormVisible] = useState(false);
 
-  const openForm = () => {
+  const utils = api.useUtils();
+  const mutCreateProjectMember = api.users.saveToken.useMutation({
+    onSuccess: () => utils.users.invalidate(),
+  });
+
+  const generateTokenAndSave = async () => {
+    const token = uuidv4();
+    const email = String(session.data?.user?.email);
     try {
-      const token = uuidv4();
-      const email = String(session.data?.user?.email);
-      const res = api.users.saveToken.useQuery({ token: token, email: email });
-      console.log(res);
-      // const res = await fetch("/api/user/saveToken", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(token),
-      // });
-      // if (!res) {
-      //   console.log("Failed to send token to server");
-      //   return;
-      // }
-      console.log(session.data?.user?.name);
-      console.log(session.data?.user?.email);
-      setFormVisible(!isFormVisible);
+      await mutCreateProjectMember
+        .mutateAsync({
+          email: email,
+          token: token,
+        })
+        .then(() => {
+          setFormVisible(false);
+        });
     } catch (err) {
       console.log(err);
     }
@@ -78,7 +77,7 @@ export default function UserSettingPage() {
         >
           <li
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onClick={openForm}
+            onClick={generateTokenAndSave}
           >
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
