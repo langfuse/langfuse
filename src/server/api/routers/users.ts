@@ -16,6 +16,25 @@ const UserAllOptions = UserFilterOptions.extend({
 });
 
 export const userRouter = createTRPCRouter({
+  saveToken: protectedProjectProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        email: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const user = await ctx.prisma.user.update({
+        where: {
+          email: input.email,
+        },
+        data: {
+          token: input.token,
+        },
+      });
+      return user;
+    }),
+
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {

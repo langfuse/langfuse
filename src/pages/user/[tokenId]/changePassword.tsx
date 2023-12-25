@@ -13,7 +13,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 
-export function PasswordForm() {
+export default function ChangePassword() {
   const credentialAuthForm = z.object({
     old_password: z.string().min(8, {
       message: "Password must be at least 8 characters long",

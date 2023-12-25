@@ -1,13 +1,16 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/ui/alert";
 import { useSession, signOut } from "next-auth/react";
-import { LogOut, KeySquare } from "lucide-react";
+import { LogOut, KeySquare, ChevronRightIcon } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { PasswordForm } from "@/src/features/auth/components/PasswordForm";
+import { TokenVerification } from "@/src/features/auth/components/TokenVerification";
+import { useState } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { api } from "@/src/utils/api";
 
 const instructionItems = [
   {
@@ -23,6 +26,30 @@ const instructionItems = [
 
 export default function UserSettingPage() {
   const session = useSession();
+  const [isFormVisible, setFormVisible] = useState(false);
+
+  const openForm = () => {
+    try {
+      const token = uuidv4();
+      const email = String(session.data?.user?.email);
+      const res = api.users.saveToken.useQuery({ token: token, email: email });
+      console.log(res);
+      // const res = await fetch("/api/user/saveToken", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify(token),
+      // });
+      // if (!res) {
+      //   console.log("Failed to send token to server");
+      //   return;
+      // }
+      console.log(session.data?.user?.name);
+      console.log(session.data?.user?.email);
+      setFormVisible(!isFormVisible);
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
   return (
     <div className="md:container">
@@ -49,7 +76,10 @@ export default function UserSettingPage() {
           role="list"
           className="mt-6 divide-y divide-gray-200 border-b border-t border-gray-200"
         >
-          <li>
+          <li
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onClick={openForm}
+          >
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
@@ -59,8 +89,17 @@ export default function UserSettingPage() {
               <div className="min-w-0 flex-1 items-center">
                 <div className="text-base font-medium text-gray-900">
                   Change Password
-                  <PasswordForm />
+                  <p className="text-sm text-gray-500">
+                    Want to Change your Password?
+                  </p>
+                  {isFormVisible && <TokenVerification />}
                 </div>
+              </div>
+              <div className="flex-shrink-0 self-center">
+                <ChevronRightIcon
+                  className="h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  aria-hidden="true"
+                />
               </div>
             </div>
           </li>
@@ -83,6 +122,12 @@ export default function UserSettingPage() {
                     </a>
                   </div>
                   <p className="text-sm text-gray-500">{item.description}</p>
+                </div>
+                <div className="flex-shrink-0 self-center">
+                  <ChevronRightIcon
+                    className="h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                    aria-hidden="true"
+                  />
                 </div>
               </div>
             </li>
