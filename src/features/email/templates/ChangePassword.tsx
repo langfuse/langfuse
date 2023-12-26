@@ -49,7 +49,7 @@ export const ChangePasswordTemplate = ({
             </Heading>
             <Text className="text-sm leading-6 text-black">Hello,</Text>
             <Text className="text-sm leading-6 text-black">
-              We have recieved a request to change the password for the Langfuse
+              We have received a request to change the password for the Langfuse
               Project owned by
               {recieverEmail}. The Link expires in 15 minutes.
             </Text>
