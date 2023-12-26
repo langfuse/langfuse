@@ -46,6 +46,7 @@ const useFormField = () => {
 
   const fieldState = getFieldState(fieldContext.name, formState);
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>");
   }
@@ -113,9 +114,7 @@ const FormControl = React.forwardRef<
       ref={ref}
       id={formItemId}
       aria-describedby={
-        !error
-          ? `${formDescriptionId}`
-          : `${formDescriptionId} ${formMessageId}`
+        !error ? formDescriptionId : `${formDescriptionId} ${formMessageId}`
       }
       aria-invalid={!!error}
       {...props}
