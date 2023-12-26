@@ -7,10 +7,14 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
+
 import { TokenVerification } from "@/src/features/auth/components/TokenVerification";
 import { useState } from "react";
+
 import { v4 as uuidv4 } from "uuid";
 import { api } from "@/src/utils/api";
+
+import { SendTokenInEmail } from "@/src/features/email/lib/send-token-in-email";
 
 const instructionItems = [
   {
@@ -29,24 +33,22 @@ export default function UserSettingPage() {
   const [isFormVisible, setFormVisible] = useState(false);
 
   const utils = api.useUtils();
-  const mutCreateProjectMember = api.users.saveToken.useMutation({
+  const mutUserToken = api.users.saveToken.useMutation({
     onSuccess: () => utils.users.invalidate(),
   });
 
   const generateTokenAndSave = async () => {
     const token = uuidv4();
     const email = String(session.data?.user?.email);
+    setFormVisible(true);
     try {
-      await mutCreateProjectMember
-        .mutateAsync({
-          email: email,
-          token: token,
-        })
-        .then(() => {
-          setFormVisible(false);
-        });
+      await mutUserToken.mutateAsync({
+        email: email,
+        token: token,
+      });
+      await SendTokenInEmail(email, token);
     } catch (err) {
-      console.log(err);
+      console.error(err);
     }
   };
 
@@ -88,11 +90,11 @@ export default function UserSettingPage() {
               <div className="min-w-0 flex-1 items-center">
                 <div className="text-base font-medium text-gray-900">
                   Change Password
-                  <p className="text-sm text-gray-500">
-                    Want to Change your Password?
-                  </p>
-                  {isFormVisible && <TokenVerification />}
                 </div>
+                <p className="text-sm text-gray-500">
+                  Want to Change your Password?
+                </p>
+                {isFormVisible && <TokenVerification />}
               </div>
               <div className="flex-shrink-0 self-center">
                 <ChevronRightIcon
