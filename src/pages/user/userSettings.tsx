@@ -14,8 +14,6 @@ import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { api } from "@/src/utils/api";
 
-import { SendTokenInEmail } from "@/src/features/email/lib/send-token-in-email";
-
 const instructionItems = [
   {
     name: "LogOut",
@@ -33,8 +31,13 @@ export default function UserSettingPage() {
   const [isFormVisible, setFormVisible] = useState(false);
 
   const utils = api.useUtils();
-  const mutUserToken = api.users.saveToken.useMutation({
+  const mutUserTokenToDB = api.users.saveToken.useMutation({
     onSuccess: () => utils.users.invalidate(),
+    onError: (error) => console.error(error),
+  });
+  const mutTokenToEmail = api.users.tokenToEmail.useMutation({
+    onSuccess: () => utils.users.invalidate(),
+    onError: (error) => console.error(error),
   });
 
   const generateTokenAndSave = async () => {
@@ -42,11 +45,14 @@ export default function UserSettingPage() {
     const email = String(session.data?.user?.email);
     setFormVisible(true);
     try {
-      await mutUserToken.mutateAsync({
+      await mutUserTokenToDB.mutateAsync({
         email: email,
         token: token,
       });
-      await SendTokenInEmail(email, token);
+      await mutTokenToEmail.mutateAsync({
+        email: email,
+        token: token,
+      });
     } catch (err) {
       console.error(err);
     }

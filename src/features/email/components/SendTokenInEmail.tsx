@@ -12,6 +12,9 @@ const langfuseUrls = {
 };
 
 export const SendTokenInEmail = async (email: string, token: string) => {
+  console.log(env.EMAIL_FROM_ADDRESS);
+  console.log(env.SMTP_CONNECTION_URL);
+
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     console.error(
       "Missing environment variables for sending change password email.",
@@ -25,14 +28,12 @@ export const SendTokenInEmail = async (email: string, token: string) => {
   authUrl = authUrl.concat(`/user/${token}/changePassword`);
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
-
     const htmlTemplate = render(
       ChangePasswordTemplate({
         recieverEmail: String(email),
         inviteLink: authUrl,
       }),
     );
-
     await mailer.sendMail({
       to: email,
       from: {
@@ -43,6 +44,6 @@ export const SendTokenInEmail = async (email: string, token: string) => {
       html: htmlTemplate,
     });
   } catch (error) {
-    console.error(error);
+    console.log(error);
   }
 };
