@@ -13,8 +13,9 @@ export default function TableLink({
 }: TableLinkProps) {
   return (
     <Link
-      className="block rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
+      className="inline-block rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
       href={path}
+      title={value}
     >
       {value.length > truncateAt
         ? `...${value.substring(value.length - truncateAt)}`
