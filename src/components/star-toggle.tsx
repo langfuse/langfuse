@@ -4,6 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { cn } from "@/src/utils/tailwind";
 
 export function StarToggle({
   value,
@@ -41,9 +42,10 @@ export function StarToggle({
       loading={loading}
     >
       <StarIcon
-        className={`h-4 w-4 ${
-          optimisticValue ? "fill-current text-yellow-500" : "text-gray-500"
-        }`}
+        className={cn(
+          "h-4 w-4",
+          optimisticValue ? "fill-current text-yellow-500" : "text-gray-500",
+        )}
       />
     </Button>
   );
