@@ -467,6 +467,49 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Prompts",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a specific prompt",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/prompts?name=&version=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "prompts"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Score",
       "item": [
         {

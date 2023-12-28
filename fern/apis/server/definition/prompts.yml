@@ -10,9 +10,11 @@ service:
       docs: Get a specific prompt
       method: GET
       path: /prompts
-      query-parameters:
-        name: string
-        version: optional<integer>
+      request:
+        name: GetParameterRequest
+        query-parameters:
+          name: string
+          version: optional<integer>
       response: Prompt
 
 types:
