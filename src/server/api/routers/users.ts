@@ -30,7 +30,7 @@ export const userRouter = createTRPCRouter({
           email: input.email,
         },
         data: {
-          token: input.token,
+          password_reset_token: input.token,
         },
       });
       return user;

@@ -50,21 +50,22 @@ model Session {
 }
 
 model User {
-    id            String                 @id @default(cuid())
-    name          String?
-    email         String?                @unique
-    emailVerified DateTime?              @map("email_verified")
-    password      String?
-    image         String?
-    admin         Boolean                @default(false)
-    accounts      Account[]
-    sessions      Session[]
-    memberships   Membership[]
-    invitations   MembershipInvitation[]
-    createdAt     DateTime               @default(now()) @map("created_at")
-    updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
-    featureFlags  String[]               @default([]) @map("feature_flags")
-    token         String?                @unique
+    id                      String                 @id @default(cuid())
+    name                    String?
+    email                   String?                @unique
+    emailVerified           DateTime?              @map("email_verified")
+    password                String?
+    image                   String?
+    admin                   Boolean                @default(false)
+    accounts                Account[]
+    sessions                Session[]
+    memberships             Membership[]
+    invitations             MembershipInvitation[]
+    createdAt               DateTime               @default(now()) @map("created_at")
+    updatedAt               DateTime               @default(now()) @updatedAt @map("updated_at")
+    featureFlags            String[]               @default([]) @map("feature_flags")
+    password_reset_token    String?                @unique
+    token_expiry_time       DateTime? 
 
     @@map("users")
 }
