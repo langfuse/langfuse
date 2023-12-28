@@ -12,16 +12,14 @@ export default function TableLink({
   truncateAt = 7,
 }: TableLinkProps) {
   return (
-    <div>
-      <Link
-        key="openTrace"
-        className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
-        href={path}
-      >
-        {value.length > truncateAt
-          ? `...${value.substring(value.length - truncateAt)}`
-          : value}
-      </Link>
-    </div>
+    <Link
+      className="inline-block rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
+      href={path}
+      title={value}
+    >
+      {value.length > truncateAt
+        ? `...${value.substring(value.length - truncateAt)}`
+        : value}
+    </Link>
   );
 }
