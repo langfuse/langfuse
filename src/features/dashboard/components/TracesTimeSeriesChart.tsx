@@ -84,7 +84,7 @@ export const TracesTimeSeriesChart = ({
       />
       {!isEmptyTimeSeries(transformedTraces) ? (
         <BaseTimeSeriesChart
-          className="min-h-80 h-full self-stretch"
+          className="h-full min-h-80 self-stretch"
           agg={agg}
           data={transformedTraces}
           connectNulls={true}
