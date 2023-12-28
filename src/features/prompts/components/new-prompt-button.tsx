@@ -16,7 +16,6 @@ import {
   FormControl,
   FormMessage,
   Form,
-  FormDescription,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,14 +23,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHog } from "posthog-js/react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import { AutocompleteInput } from "@/src/features/prompts/components/combo-box";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/ui/checkbox";
@@ -98,9 +89,9 @@ export const NewPromptForm = (props: {
     },
   });
 
-  const prompts = api.prompts.all.useQuery({
-    projectId: props.projectId,
-  });
+  // const prompts = api.prompts.all.useQuery({
+  //   projectId: props.projectId,
+  // });
 
   const utils = api.useUtils();
 
@@ -109,10 +100,10 @@ export const NewPromptForm = (props: {
     onError: (error) => setFormError(error.message),
   });
 
-  const comboboxOptions =
-    prompts.data?.map((prompt) => {
-      return { label: prompt.name, value: prompt.name };
-    }) ?? [];
+  // const comboboxOptions =
+  //   prompts.data?.map((prompt) => {
+  //     return { label: prompt.name, value: prompt.name };
+  //   }) ?? [];
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("prompts:new_prompt_form_submit");
