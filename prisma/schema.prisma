@@ -64,8 +64,7 @@ model User {
     createdAt     DateTime               @default(now()) @map("created_at")
     updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
     featureFlags  String[]               @default([]) @map("feature_flags")
-    password_reset_token         String?                @unique
-    token_expiry_time DateTime
+    token         String?                @unique
 
     @@map("users")
 }

@@ -50,16 +50,6 @@ export default function UserSettingPage() {
     }
   };
 
-  const getInitials = () => {
-    return session.data?.user?.name
-      ? session.data.user.name
-          .split(" ")
-          .map((word) => word[0])
-          .slice(0, 2)
-          .join("")
-      : null;
-  };
-
   return (
     <div className="md:container">
       <Header title="User Settings" />
@@ -71,7 +61,13 @@ export default function UserSettingPage() {
           <Avatar className="h-20 w-20">
             <AvatarImage src={session.data?.user?.image ?? undefined} />
             <AvatarFallback className="h-20 w-20 text-2xl">
-              {getInitials()}
+              {session.data?.user?.name
+                ? session.data.user.name
+                    .split(" ")
+                    .map((word) => word[0])
+                    .slice(0, 2)
+                    .concat("")
+                : null}
             </AvatarFallback>
           </Avatar>
         </div>
@@ -93,7 +89,7 @@ export default function UserSettingPage() {
                 <div className="text-base font-medium text-gray-900">
                   Change Password
                   <p className="text-sm text-gray-500">
-                    Want to change your password?
+                    Want to Change your Password?
                   </p>
                   {isFormVisible && <TokenVerification />}
                 </div>
@@ -107,7 +103,7 @@ export default function UserSettingPage() {
             </div>
           </li>
           {instructionItems.map((item, itemIdx) => (
-            <li key={itemIdx} onClick={() => void item.onClick()}>
+            <li key={itemIdx}>
               <div className="group relative flex items-start space-x-3 py-4">
                 <div className="flex-shrink-0">
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
@@ -116,7 +112,10 @@ export default function UserSettingPage() {
                 </div>
                 <div className="min-w-0 flex-1 items-center">
                   <div className="text-sm font-medium text-gray-900">
-                    <a className="cursor-pointer">
+                    <a
+                      onClick={() => void item.onClick()}
+                      className="cursor-pointer"
+                    >
                       <span className="absolute inset-0" aria-hidden="true" />
                       {item.name}
                     </a>
