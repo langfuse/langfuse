@@ -13,7 +13,7 @@ CREATE TABLE "prompts" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "project_id" TEXT NOT NULL,
-    "created_by" TEXT,
+    "created_by" TEXT NOT NULL,
     "prompt" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "version" INTEGER NOT NULL,
@@ -36,6 +36,3 @@ ALTER TABLE "Account" ADD CONSTRAINT "Account_user_id_provider_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "prompts" ADD CONSTRAINT "prompts_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "prompts" ADD CONSTRAINT "prompts_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -75,7 +75,7 @@ export function PromptTable(props: { projectId: string }) {
       name: item.name,
       version: item.version,
       isActive: item.isActive,
-      createdBy: item.createdBy ?? undefined,
+      createdBy: item.createdBy,
     };
   };
 
