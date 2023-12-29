@@ -16,14 +16,18 @@ const config = {
       rules: {
         "@typescript-eslint/no-non-null-assertion": "off",
         "@typescript-eslint/no-confusing-void-expression": "off",
-      }
+      },
     },
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
     project: path.join(__dirname, "tsconfig.json"),
   },
-  plugins: ["@typescript-eslint"],
+  plugins: [
+    "@typescript-eslint",
+    "eslint-plugin-testing-library",
+    "eslint-plugin-jest-dom",
+  ],
   extends: ["next/core-web-vitals"],
   ignorePatterns: ["generated/**/*"],
   rules: {
