@@ -1,10 +1,16 @@
+import { StatusBadge } from "@/src/components/layouts/live-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { CreatePromptButton } from "@/src/features/prompts/components/new-prompt-button";
+import { Button } from "@/src/components/ui/button";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
+import { LockIcon, PlusIcon } from "lucide-react";
+import { useEffect } from "react";
 
 type RowData = {
   id: string;
@@ -15,11 +21,40 @@ type RowData = {
 };
 
 export function PromptTable(props: { projectId: string }) {
+  const { setDetailPageList } = useDetailPageLists();
+
   const prompts = api.prompts.all.useQuery({
     projectId: props.projectId,
   });
 
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "datasets:CUD",
+  });
+
+  useEffect(() => {
+    if (prompts.isSuccess) {
+      setDetailPageList(
+        "prompts",
+        prompts.data.map((t) => t.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompts.isSuccess, prompts.data]);
+
   const columns: LangfuseColumnDef<RowData>[] = [
+    {
+      accessorKey: "isActive",
+      header: "Status",
+      cell: ({ row }) => {
+        const isActive = row.getValue("isActive");
+        return isActive ? (
+          <StatusBadge type="live" className="m-2 h-6 w-24" />
+        ) : (
+          <StatusBadge type="disabled" className="m-2 h-6 w-24" />
+        );
+      },
+    },
     {
       accessorKey: "id",
       header: "ID",
@@ -49,14 +84,7 @@ export function PromptTable(props: { projectId: string }) {
         return version;
       },
     },
-    {
-      accessorKey: "isActive",
-      header: "Active",
-      cell: ({ row }) => {
-        const isActive = row.getValue("isActive");
-        return isActive ? "Yes" : "No";
-      },
-    },
+
     {
       accessorKey: "createdBy",
       header: "Created By",
@@ -99,7 +127,16 @@ export function PromptTable(props: { projectId: string }) {
                 }
         }
       />
-      <CreatePromptButton projectId={props.projectId} className="mt-4" />
+      <CreatePromptDialog projectId={props.projectId} title="Create Prompt">
+        <Button variant="secondary" className="mt-4" disabled={!hasAccess}>
+          {hasAccess ? (
+            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+          ) : (
+            <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
+          )}
+          New prompt
+        </Button>
+      </CreatePromptDialog>
     </div>
   );
 }

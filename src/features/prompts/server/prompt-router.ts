@@ -29,7 +29,21 @@ export const promptRouter = createTRPCRouter({
         orderBy: [{ name: "asc" }, { version: "desc" }],
       });
     }),
-
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.prompt.findFirst({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+    }),
   create: protectedProjectProcedure
     .input(CreatePrompt)
     .mutation(async ({ input, ctx }) => {

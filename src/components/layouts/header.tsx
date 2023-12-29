@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { StatusBadge } from "./live-badge";
 
 export default function Header(props: {
   title: string;
@@ -95,15 +96,7 @@ export default function Header(props: {
               />
             ) : null}
           </div>
-          {props.live ? (
-            <div className="flex items-center gap-2 rounded-sm bg-green-100 px-3  text-green-600">
-              <span className="relative flex h-2 w-2 ">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-600"></span>
-              </span>
-              Live
-            </div>
-          ) : null}
+          {props.live ? <StatusBadge type="live" /> : null}
         </div>
         <div className="flex items-center gap-3">
           {props.actionButtons ?? null}

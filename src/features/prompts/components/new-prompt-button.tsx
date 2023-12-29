@@ -1,5 +1,4 @@
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,12 +26,16 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { extractVariables } from "@/src/utils/string";
 import { Badge } from "@/src/components/ui/badge";
-import { AutocompleteInput } from "@/src/features/prompts/components/auto-complete-input";
+import { Input } from "@/src/components/ui/input";
+import router from "next/router";
 
-export const CreatePromptButton = (props: {
+export const CreatePromptDialog = (props: {
   projectId: string;
-  datasetId?: string;
-  className?: string;
+  title: string;
+  promptName?: string;
+  promptText?: string;
+  subtitle?: string;
+  children?: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
@@ -42,26 +45,20 @@ export const CreatePromptButton = (props: {
 
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="secondary"
-          className={props.className}
-          disabled={!hasAccess}
-        >
-          {hasAccess ? (
-            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
-          ) : (
-            <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
-          )}
-          New prompt
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{props.children}</DialogTrigger>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="mb-5">Create new prompt</DialogTitle>
+          <DialogTitle className="mb-5">
+            {props.title}
+            {props.subtitle ? (
+              <p className="mt-3 text-sm	font-normal">{props.subtitle}</p>
+            ) : null}
+          </DialogTitle>
         </DialogHeader>
         <NewPromptForm
           projectId={props.projectId}
+          promptName={props.promptName}
+          promptText={props.promptText}
           onFormSuccess={() => setOpen(false)}
         />
       </DialogContent>
@@ -74,18 +71,17 @@ const formSchema = z.object({
   prompt: z
     .string()
     .min(1, "Enter a prompt")
-    .transform((value) => {
-      console.log("transform", value, extractVariables(value));
-      return extractVariables(value);
-    })
-    .pipe(
-      z.array(
-        z.string().regex(/^[A-Za-z]+$/, "variables must contain only letters"),
-        {
-          invalid_type_error: "variables must contain only letters",
-        },
-      ),
-    ),
+    .refine((val) => {
+      const variables = extractVariables(val);
+      const matches = variables.map((variable) => {
+        // check regex here
+        if (variable.match(/^[A-Za-z]+$/)) {
+          return true;
+        }
+        return false;
+      });
+      return !matches.includes(false);
+    }, "Variables must only contain letters"),
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
@@ -94,14 +90,19 @@ const formSchema = z.object({
 export const NewPromptForm = (props: {
   projectId: string;
   onFormSuccess?: () => void;
+  promptName?: string;
+  promptText?: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const posthog = usePostHog();
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       isActive: false,
+      name: props.promptName ?? "",
+      prompt: props.promptText ?? "",
     },
   });
 
@@ -127,6 +128,7 @@ export const NewPromptForm = (props: {
       ) ?? [];
 
   const extractedVariables = extractVariables(form.watch("prompt"));
+  const promptIsActivated = form.watch("isActive");
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("prompts:new_prompt_form_submit");
@@ -139,9 +141,15 @@ export const NewPromptForm = (props: {
         prompt: values.prompt,
         isActive: values.isActive,
       })
-      .then(() => {
+      .then((newPrompt) => {
         props.onFormSuccess?.();
         form.reset();
+        // go to the following page after creating the prompt
+        if (newPrompt) {
+          void router.push(
+            `/project/${props.projectId}/prompts/${newPrompt.id}`,
+          );
+        }
       })
       .catch((error) => {
         console.error(error);
@@ -162,26 +170,8 @@ export const NewPromptForm = (props: {
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <AutocompleteInput {...field} options={comboboxOptions} />
-              </FormControl>
-
-              {/* <Select onValueChange={field.onChange} defaultValue={field.value}>
-                
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a prompt name" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {prompts.data?.map((prompt) => (
-                    <SelectItem value={prompt.name} key={prompt.id}>
-                      {prompt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select> */}
-              {/* <FormControl>
                 <Input {...field} />
-              </FormControl> */}
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -220,7 +210,7 @@ export const NewPromptForm = (props: {
           control={form.control}
           name="isActive"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
               <FormControl>
                 <Checkbox
                   checked={field.value}
@@ -230,47 +220,22 @@ export const NewPromptForm = (props: {
               <div className="space-y-1 leading-none">
                 <FormLabel>Activate prompt</FormLabel>
               </div>
+              {promptIsActivated ? (
+                <div className="text-xs text-gray-500">
+                  Activating the prompt will make it available to the SDKs
+                  immediately.
+                </div>
+              ) : null}
             </FormItem>
           )}
         />
-        {/* <div className="grid flex-1 content-stretch gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="input"
-            render={({ field }) => (
-              <FormItem className="flex flex-col gap-2">
-                <FormLabel>Input</FormLabel>
-                <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="expectedOutput"
-            render={({ field }) => (
-              <FormItem className="flex flex-col gap-2">
-                <FormLabel>Expected output</FormLabel>
-                <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div> */}
         <Button
           type="submit"
           loading={createPromptMutation.isLoading}
           className="w-full"
+          onClick={() => {
+            () => setConfirmationOpen(true);
+          }}
         >
           Create prompt
         </Button>
