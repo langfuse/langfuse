@@ -28,7 +28,11 @@ export const PromptDetail = (props: PromptDetailProps) => {
   return (
     <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
       <Header
-        title="Prompt Detail"
+        title={
+          prompt.data
+            ? prompt.data.name + " - " + prompt.data.version
+            : "Loading"
+        }
         live={prompt.data?.isActive}
         breadcrumb={[
           {

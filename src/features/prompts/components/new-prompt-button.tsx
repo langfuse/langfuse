@@ -26,8 +26,23 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { extractVariables } from "@/src/utils/string";
 import { Badge } from "@/src/components/ui/badge";
-import { Input } from "@/src/components/ui/input";
 import router from "next/router";
+
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/src/components/ui/command";
+import { Input } from "@/src/components/ui/input";
+import { Search } from "lucide-react";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
+import { PopoverTrigger } from "@radix-ui/react-popover";
+import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
+import { type Option } from "@/src/features/prompts/components/auto-complete";
+import { ComboboxDemo } from "@/src/features/prompts/components/default";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -38,6 +53,7 @@ export const CreatePromptDialog = (props: {
   children?: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
+
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
@@ -94,8 +110,12 @@ export const NewPromptForm = (props: {
   promptText?: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
+  const [dropDownOpen, setDropDownOpen] = useState(true);
+
+  const [isLoading, setLoading] = useState(false);
+  const [isDisabled, setDisbled] = useState(false);
+
   const posthog = usePostHog();
-  const [confirmationOpen, setConfirmationOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -126,6 +146,14 @@ export const NewPromptForm = (props: {
         (prompt, i, arr) =>
           arr.findIndex((t) => t.label === prompt.label) === i,
       ) ?? [];
+
+  const currentName = form.watch("name");
+
+  const matchingOptions = comboboxOptions.filter((option) =>
+    option.label.toLowerCase().includes(currentName.toLowerCase()),
+  );
+
+  console.log(matchingOptions);
 
   const extractedVariables = extractVariables(form.watch("prompt"));
   const promptIsActivated = form.watch("isActive");
@@ -166,16 +194,36 @@ export const NewPromptForm = (props: {
         <FormField
           control={form.control}
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            console.log(field);
+
+            const setNameValue = (value: Option) => {
+              field.onChange(value.value);
+            };
+
+            return (
+              <div>
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <AutoComplete
+                      {...field}
+                      options={matchingOptions}
+                      emptyMessage="No resulsts."
+                      placeholder="Find something"
+                      isLoading={isLoading}
+                      onValueChange={setNameValue}
+                      value={{ value: field.value, label: field.value }}
+                      disabled={isDisabled}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              </div>
+            );
+          }}
         />
+
         <FormField
           control={form.control}
           name="prompt"
@@ -233,9 +281,6 @@ export const NewPromptForm = (props: {
           type="submit"
           loading={createPromptMutation.isLoading}
           className="w-full"
-          onClick={() => {
-            () => setConfirmationOpen(true);
-          }}
         >
           Create prompt
         </Button>
