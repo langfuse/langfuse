@@ -49,9 +49,9 @@ export function PromptTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const isActive = row.getValue("isActive");
         return isActive ? (
-          <StatusBadge type="live" className="m-2 h-6 w-24" />
+          <StatusBadge type="live" className="h-6 w-24" />
         ) : (
-          <StatusBadge type="disabled" className="m-2 h-6 w-24" />
+          <StatusBadge type="disabled" className="h-6 w-24" />
         );
       },
     },

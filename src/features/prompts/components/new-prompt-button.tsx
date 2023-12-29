@@ -27,22 +27,8 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import { extractVariables } from "@/src/utils/string";
 import { Badge } from "@/src/components/ui/badge";
 import router from "next/router";
-
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/src/components/ui/command";
-import { Input } from "@/src/components/ui/input";
-import { Search } from "lucide-react";
-import { Popover, PopoverContent } from "@/src/components/ui/popover";
-import { PopoverTrigger } from "@radix-ui/react-popover";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { type Option } from "@/src/features/prompts/components/auto-complete";
-import { ComboboxDemo } from "@/src/features/prompts/components/default";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -110,10 +96,6 @@ export const NewPromptForm = (props: {
   promptText?: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const [dropDownOpen, setDropDownOpen] = useState(true);
-
-  const [isLoading, setLoading] = useState(false);
-  const [isDisabled, setDisbled] = useState(false);
 
   const posthog = usePostHog();
 
@@ -152,8 +134,6 @@ export const NewPromptForm = (props: {
   const matchingOptions = comboboxOptions.filter((option) =>
     option.label.toLowerCase().includes(currentName.toLowerCase()),
   );
-
-  console.log(matchingOptions);
 
   const extractedVariables = extractVariables(form.watch("prompt"));
   const promptIsActivated = form.watch("isActive");
@@ -195,8 +175,6 @@ export const NewPromptForm = (props: {
           control={form.control}
           name="name"
           render={({ field }) => {
-            console.log(field);
-
             const setNameValue = (value: Option) => {
               field.onChange(value.value);
             };
@@ -209,12 +187,10 @@ export const NewPromptForm = (props: {
                     <AutoComplete
                       {...field}
                       options={matchingOptions}
-                      emptyMessage="No resulsts."
-                      placeholder="Find something"
-                      isLoading={isLoading}
+                      placeholder="Select a prompt name"
                       onValueChange={setNameValue}
                       value={{ value: field.value, label: field.value }}
-                      disabled={isDisabled}
+                      disabled={false}
                     />
                   </FormControl>
                   <FormMessage />

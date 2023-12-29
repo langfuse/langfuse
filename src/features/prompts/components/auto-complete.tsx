@@ -16,10 +16,8 @@ export type Option = Record<"value" | "label", string> & Record<string, string>;
 
 type AutoCompleteProps = {
   options: Option[];
-  emptyMessage: string;
   value: Option;
   onValueChange?: (value: Option) => void;
-  isLoading?: boolean;
   disabled?: boolean;
   placeholder?: string;
 };
@@ -27,14 +25,11 @@ type AutoCompleteProps = {
 export const AutoComplete = ({
   options,
   placeholder,
-  emptyMessage,
   value,
   onValueChange,
   disabled,
-  isLoading = false,
 }: AutoCompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
-
   const [isOpen, setOpen] = useState(false);
   const [selected, setSelected] = useState<Option>(value);
   const [inputValue, setInputValue] = useState<string>(value.label || "");
@@ -96,7 +91,7 @@ export const AutoComplete = ({
         <CommandInput
           ref={inputRef}
           value={inputValue}
-          onValueChange={isLoading ? undefined : setInputValue}
+          onValueChange={setInputValue}
           onBlur={handleBlur}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
@@ -108,14 +103,7 @@ export const AutoComplete = ({
         {isOpen ? (
           <div className="absolute top-0 z-10 w-full rounded-xl bg-stone-50 outline-none animate-in fade-in-0 zoom-in-95">
             <CommandList className="rounded-lg ring-1 ring-slate-200">
-              {isLoading ? (
-                <CommandPrimitive.Loading>
-                  <div className="p-1">
-                    {/* <Skeleton className="h-8 w-full" /> */}
-                  </div>
-                </CommandPrimitive.Loading>
-              ) : null}
-              {options.length > 0 && !isLoading ? (
+              {options.length > 0 ? (
                 <CommandGroup>
                   {options.map((option) => {
                     const isSelected = selected.value === option.value;
@@ -130,7 +118,7 @@ export const AutoComplete = ({
                         onSelect={() => handleSelectOption(option)}
                         className={cn(
                           "flex w-full items-center gap-2",
-                          !isSelected ? "pl-8" : "pl-8",
+                          !isSelected ? "pl-8" : null,
                         )}
                       >
                         {isSelected ? <Check className="w-4" /> : null}
@@ -140,15 +128,53 @@ export const AutoComplete = ({
                   })}
                 </CommandGroup>
               ) : null}
-              {!isLoading ? (
-                <CommandPrimitive.Empty className="select-none rounded-sm px-2 py-3 text-center text-sm">
-                  {emptyMessage}
-                </CommandPrimitive.Empty>
-              ) : null}
+              <CommandItemCreate
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onSelect={() =>
+                  handleSelectOption({ value: inputValue, label: inputValue })
+                }
+                {...{ inputValue, options }}
+              />
             </CommandList>
           </div>
         ) : null}
       </div>
     </CommandPrimitive>
+  );
+};
+
+const CommandItemCreate = ({
+  inputValue,
+  options,
+  onSelect,
+  onMouseDown,
+}: {
+  inputValue: string;
+  options: Option[];
+  onSelect: () => void;
+  onMouseDown: (event: React.MouseEvent<HTMLElement>) => void;
+}) => {
+  const hasNoOption = !options
+    .map(({ value }) => value)
+    .includes(inputValue.toLowerCase());
+
+  const render = inputValue !== "" && hasNoOption;
+
+  if (!render) return null;
+
+  return (
+    <CommandItem
+      key={inputValue}
+      value={inputValue}
+      className=" text-muted-foreground"
+      onSelect={onSelect}
+      onMouseDown={onMouseDown}
+    >
+      <div className={cn("mr-2 h-4 w-4")} />
+      Create new prompt name: &quot;{inputValue}&quot;
+    </CommandItem>
   );
 };

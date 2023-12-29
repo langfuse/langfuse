@@ -98,9 +98,13 @@ export function UpdatePrompt({
   const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
 
   const handlePromptEdit = () => {
-    router.push(`/project/${projectId}/prompts/${prompt?.id}/edit`, undefined, {
-      shallow: true,
-    });
+    void router.push(
+      `/project/${projectId}/prompts/${prompt?.id}/edit`,
+      undefined,
+      {
+        shallow: true,
+      },
+    );
   };
 
   return (
