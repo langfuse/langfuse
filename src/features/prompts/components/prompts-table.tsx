@@ -1,7 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { NewPromptButton } from "@/src/features/prompts/components/new-prompt-button";
+import { CreatePromptButton } from "@/src/features/prompts/components/new-prompt-button";
 
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -99,7 +99,7 @@ export function PromptTable(props: { projectId: string }) {
                 }
         }
       />
-      <NewPromptButton projectId={props.projectId} className="mt-4" />
+      <CreatePromptButton projectId={props.projectId} className="mt-4" />
     </div>
   );
 }

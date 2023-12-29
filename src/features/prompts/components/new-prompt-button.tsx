@@ -24,10 +24,12 @@ import { usePostHog } from "posthog-js/react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { Textarea } from "@/src/components/ui/textarea";
-import { Input } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import { extractVariables } from "@/src/utils/string";
+import { Badge } from "@/src/components/ui/badge";
+import { AutocompleteInput } from "@/src/features/prompts/components/auto-complete-input";
 
-export const NewPromptButton = (props: {
+export const CreatePromptButton = (props: {
   projectId: string;
   datasetId?: string;
   className?: string;
@@ -69,7 +71,21 @@ export const NewPromptButton = (props: {
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),
-  prompt: z.string().min(1, "Select a dataset"),
+  prompt: z
+    .string()
+    .min(1, "Enter a prompt")
+    .transform((value) => {
+      console.log("transform", value, extractVariables(value));
+      return extractVariables(value);
+    })
+    .pipe(
+      z.array(
+        z.string().regex(/^[A-Za-z]+$/, "variables must contain only letters"),
+        {
+          invalid_type_error: "variables must contain only letters",
+        },
+      ),
+    ),
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
@@ -89,9 +105,9 @@ export const NewPromptForm = (props: {
     },
   });
 
-  // const prompts = api.prompts.all.useQuery({
-  //   projectId: props.projectId,
-  // });
+  const prompts = api.prompts.all.useQuery({
+    projectId: props.projectId,
+  });
 
   const utils = api.useUtils();
 
@@ -100,10 +116,17 @@ export const NewPromptForm = (props: {
     onError: (error) => setFormError(error.message),
   });
 
-  // const comboboxOptions =
-  //   prompts.data?.map((prompt) => {
-  //     return { label: prompt.name, value: prompt.name };
-  //   }) ?? [];
+  const comboboxOptions =
+    prompts.data
+      ?.map((prompt) => {
+        return { label: prompt.name, value: prompt.name };
+      })
+      .filter(
+        (prompt, i, arr) =>
+          arr.findIndex((t) => t.label === prompt.label) === i,
+      ) ?? [];
+
+  const extractedVariables = extractVariables(form.watch("prompt"));
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("prompts:new_prompt_form_submit");
@@ -124,6 +147,7 @@ export const NewPromptForm = (props: {
         console.error(error);
       });
   }
+
   return (
     <Form {...form}>
       <form
@@ -137,8 +161,12 @@ export const NewPromptForm = (props: {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Name</FormLabel>
+              <FormControl>
+                <AutocompleteInput {...field} options={comboboxOptions} />
+              </FormControl>
+
               {/* <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
+                
                   <SelectTrigger>
                     <SelectValue placeholder="Select a prompt name" />
                   </SelectTrigger>
@@ -151,9 +179,9 @@ export const NewPromptForm = (props: {
                   ))}
                 </SelectContent>
               </Select> */}
-              <FormControl>
+              {/* <FormControl>
                 <Input {...field} />
-              </FormControl>
+              </FormControl> */}
               <FormMessage />
             </FormItem>
           )}
@@ -162,16 +190,30 @@ export const NewPromptForm = (props: {
           control={form.control}
           name="prompt"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Prompt</FormLabel>
-              <FormControl>
-                <Textarea
-                  {...field}
-                  className="min-h-[150px] flex-1 font-mono text-xs"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+            <>
+              <FormItem>
+                <FormLabel>Prompt</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+              <p className="text-sm text-gray-500">
+                You can use <code className="text-xs">{"{{variable}}"}</code> to
+                insert variables into your prompt. The following variables are
+                available:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {extractedVariables.map((variable) => (
+                  <Badge key={variable} variant="outline">
+                    {variable}
+                  </Badge>
+                ))}
+              </div>
+            </>
           )}
         />
         <FormField
