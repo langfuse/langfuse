@@ -22,7 +22,6 @@ import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
-import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";
 
 export const ObservationPreview = (props: {

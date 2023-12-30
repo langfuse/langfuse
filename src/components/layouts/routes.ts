@@ -54,6 +54,7 @@ export const ROUTES: Array<{
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: PenSquareIcon,
+    featureFlag: "promptFlag",
   },
   {
     name: "Datasets",
