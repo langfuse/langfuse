@@ -2,7 +2,7 @@
 
 import { prisma } from "@/src/server/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4, v4 } from "uuid";
 import { type Prompt } from "@prisma/client";
 
 describe("/api/public/prompts API Endpoint", () => {
@@ -148,6 +148,133 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("API");
+  });
+
+  it("should relate generation to prompt", async () => {
+    const traceId = v4();
+    const generationId = v4();
+
+    const promptId = uuidv4();
+
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        name: "prompt-name",
+        prompt: "prompt",
+        isActive: true,
+        version: 1,
+        project: {
+          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+        },
+        createdBy: "user-1",
+      },
+    });
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      metadata: {
+        sdk_verion: "1.0.0",
+        sdk_name: "python",
+      },
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+          },
+        },
+        {
+          id: v4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            promptName: "prompt-name",
+            promptVersion: 1,
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+
+    console.log("response body", response.body);
+
+    const dbGeneration = await prisma.observation.findUnique({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(dbGeneration?.id).toBe(generationId);
+    expect(dbGeneration?.promptId).toBe(promptId);
+  });
+  it("should fail if promtp version is missing", async () => {
+    const traceId = v4();
+    const generationId = v4();
+
+    const promptId = uuidv4();
+
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        name: "prompt-name",
+        prompt: "prompt",
+        isActive: true,
+        version: 1,
+        project: {
+          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+        },
+        createdBy: "user-1",
+      },
+    });
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      metadata: {
+        sdk_verion: "1.0.0",
+        sdk_name: "python",
+      },
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+          },
+        },
+        {
+          id: v4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            promptName: "prompt-name",
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+
+    console.log("response body", response.body);
+
+    const dbGeneration = await prisma.observation.findUnique({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(dbGeneration).toBeNull();
   });
 });
 

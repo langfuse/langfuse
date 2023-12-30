@@ -1527,6 +1527,12 @@ components:
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
+        promptName:
+          type: string
+          nullable: true
+        promptVersion:
+          type: integer
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/CreateSpanBody'
     UpdateGenerationBody:
@@ -1547,6 +1553,12 @@ components:
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
+          nullable: true
+        promptName:
+          type: string
+          nullable: true
+        promptVersion:
+          type: integer
           nullable: true
       allOf:
         - $ref: '#/components/schemas/UpdateSpanBody'

@@ -92,6 +92,8 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
+      promptName: optional<string>
+      promptVersion: optional<integer>
 
   UpdateGenerationBody:
     extends: UpdateSpanBody
@@ -100,6 +102,8 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
+      promptName: optional<string>
+      promptVersion: optional<integer>
 
   ObservationBody:
     properties:

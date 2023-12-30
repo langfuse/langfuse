@@ -231,6 +231,9 @@ model Observation {
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
 
+    promptId String? @map("prompt_id")
+    prompt   Prompt? @relation(fields: [promptId], onDelete: SetNull, references: [id])
+
     @@unique([id, projectId])
     @@index([traceId])
     @@index([type])
@@ -398,10 +401,11 @@ model Prompt {
 
     createdBy String @map("created_by")
 
-    prompt   String
-    name     String
-    version  Int
-    isActive Boolean @map("is_active")
+    prompt      String
+    name        String
+    version     Int
+    isActive    Boolean       @map("is_active")
+    Observation Observation[]
 
     @@unique([projectId, name, version])
     @@index([projectId, name, version])
