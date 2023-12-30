@@ -55,6 +55,8 @@ export default async function handler(
           projectId: authCheck.scope.projectId,
           name: searchParams.name,
           version: searchParams.version ?? undefined,
+          // if no version is given, we take the latest active prompt
+          // if no prompt is active, there will no prompt be available
           isActive: !searchParams.version ? true : undefined,
         },
       });
