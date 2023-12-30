@@ -3,9 +3,12 @@ import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  protectedProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Score } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
+
+import { SendTokenInEmail } from "@/src/features/email/components/SendTokenInEmail";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -16,6 +19,35 @@ const UserAllOptions = UserFilterOptions.extend({
 });
 
 export const userRouter = createTRPCRouter({
+  tokenToEmail: protectedProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        email: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await SendTokenInEmail(input.email, input.token);
+    }),
+  saveToken: protectedProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        email: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = await ctx.prisma.user.update({
+        where: {
+          email: input.email,
+        },
+        data: {
+          password_reset_token: input.token,
+        },
+      });
+      return user;
+    }),
+
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
