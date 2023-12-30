@@ -45,7 +45,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.createdBy).toBe("user-1");
   });
 
-  it("should fetch active prompt only", async () => {
+  it("should fetch active prompt only if no prompt version is given", async () => {
     const promptId = uuidv4();
 
     await prisma.prompt.create({
@@ -64,11 +64,63 @@ describe("/api/public/prompts API Endpoint", () => {
 
     const fetchedObservations = await makeAPICall(
       "GET",
-      "/api/public/prompts?name=prompt-name&version=1",
+      "/api/public/prompts?name=prompt-name",
       undefined,
     );
 
     expect(fetchedObservations.status).toBe(404);
+  });
+
+  it("should fetch inactive prompt if prompt version is given", async () => {
+    const promptId = uuidv4();
+    const promptTwoId = uuidv4();
+
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        name: "prompt-name",
+        prompt: "prompt-one",
+        isActive: false,
+        version: 1,
+        project: {
+          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+        },
+        createdBy: "user-1",
+      },
+    });
+
+    await prisma.prompt.create({
+      data: {
+        id: promptTwoId,
+        name: "prompt-name",
+        prompt: "prompt",
+        isActive: true,
+        version: 2,
+        project: {
+          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+        },
+        createdBy: "user-1",
+      },
+    });
+
+    const fetchedObservations = await makeAPICall(
+      "GET",
+      "/api/public/prompts?name=prompt-name&version=1",
+      undefined,
+    );
+
+    expect(fetchedObservations.status).toBe(200);
+
+    if (!isPrompt(fetchedObservations.body)) {
+      throw new Error("Expected body to be a prompt");
+    }
+
+    expect(fetchedObservations.body.id).toBe(promptId);
+    expect(fetchedObservations.body.name).toBe("prompt-name");
+    expect(fetchedObservations.body.prompt).toBe("prompt-one");
+    expect(fetchedObservations.body.version).toBe(1);
+    expect(fetchedObservations.body.isActive).toBe(false);
+    expect(fetchedObservations.body.createdBy).toBe("user-1");
   });
 
   it("should fetch active prompt when multiple exist", async () => {
