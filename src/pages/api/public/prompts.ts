@@ -55,7 +55,7 @@ export default async function handler(
           projectId: authCheck.scope.projectId,
           name: searchParams.name,
           version: searchParams.version ?? undefined,
-          isActive: true,
+          isActive: !searchParams.version ? true : undefined,
         },
       });
 
