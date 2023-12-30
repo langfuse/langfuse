@@ -22,6 +22,8 @@ import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
+import { cn } from "@/src/utils/tailwind";
+import { useRouter } from "next/router";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -82,6 +84,12 @@ export const ObservationPreview = (props: {
               <Badge variant="outline">
                 {preloadedObservation.price.toString()} USD
               </Badge>
+            ) : undefined}
+            {preloadedObservation.promptId ? (
+              <PromptBadge
+                promptId={preloadedObservation.promptId}
+                projectId={preloadedObservation.projectId}
+              />
             ) : undefined}
             {preloadedObservation.modelParameters &&
             typeof preloadedObservation.modelParameters === "object"
@@ -171,5 +179,31 @@ export const ObservationPreview = (props: {
         ) : null}
       </CardContent>
     </Card>
+  );
+};
+
+const PromptBadge = (props: { promptId: string; projectId: string }) => {
+  const router = useRouter();
+  const prompt = api.prompts.byId.useQuery({
+    id: props.promptId,
+    projectId: props.projectId,
+  });
+
+  if (prompt.isLoading) return null;
+
+  return (
+    <Badge
+      variant="outline"
+      className="cursor-pointer"
+      onClick={() =>
+        void router.push(
+          `/project/${props.projectId}/prompts/${props.promptId}`,
+        )
+      }
+    >
+      Prompt: {prompt.data?.name}
+      {" - "}
+      {prompt.data?.version}
+    </Badge>
   );
 };
