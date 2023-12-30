@@ -67,6 +67,65 @@ export const promptRouter = createTRPCRouter({
         throw e;
       }
     }),
+  promote: protectedProjectProcedure
+    .input(z.object({ promptId: z.string(), projectId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "prompts:CUD",
+        });
+
+        const toBePromotedPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
+          where: {
+            id: input.promptId,
+          },
+        });
+
+        const latestActivePrompt = await ctx.prisma.prompt.findMany({
+          where: {
+            projectId: input.projectId,
+            name: toBePromotedPrompt.name,
+            isActive: true,
+          },
+          orderBy: [{ version: "desc" }],
+          take: 1,
+        });
+
+        if (latestActivePrompt.length > 1) {
+          throw new Error(
+            `Expected exactly zero or one active prompt of name '${toBePromotedPrompt.name}', got ${latestActivePrompt.length}`,
+          );
+        }
+
+        const toBeExecuted = [
+          ctx.prisma.prompt.update({
+            where: {
+              id: toBePromotedPrompt.id,
+            },
+            data: {
+              isActive: true,
+            },
+          }),
+        ];
+        if (latestActivePrompt.length === 1)
+          toBeExecuted.push(
+            ctx.prisma.prompt.update({
+              where: {
+                id: latestActivePrompt[0]?.id,
+              },
+              data: {
+                isActive: false,
+              },
+            }),
+          );
+        await ctx.prisma.$transaction(toBeExecuted);
+      } catch (e) {
+        console.log(e);
+        throw e;
+      }
+    }),
 });
 
 export const createPrompt = async ({

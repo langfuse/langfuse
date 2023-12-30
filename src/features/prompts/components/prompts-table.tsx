@@ -5,6 +5,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
+import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 import { api } from "@/src/utils/api";
@@ -17,7 +18,8 @@ type RowData = {
   name: string;
   version: number;
   isActive: boolean;
-  createdBy?: string;
+  createdBy: string;
+  createdAt: Date;
 };
 
 export function PromptTable(props: { projectId: string }) {
@@ -84,13 +86,42 @@ export function PromptTable(props: { projectId: string }) {
         return version;
       },
     },
-
     {
       accessorKey: "createdBy",
       header: "Created By",
       cell: ({ row }) => {
         const createdBy = row.getValue("createdBy");
         return createdBy;
+      },
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created At",
+      cell: ({ row }) => {
+        const createdAt: Date = row.getValue("createdAt");
+        return createdAt.toLocaleString();
+      },
+    },
+    {
+      accessorKey: "action",
+      header: "Action",
+      cell: ({ row }) => {
+        const promptId = row.getValue("id");
+        const promptName = row.getValue("name");
+        const isActive = row.getValue("isActive");
+        return promptId &&
+          typeof promptId === "string" &&
+          isActive !== undefined &&
+          typeof isActive === "boolean" &&
+          promptName &&
+          typeof promptName === "string" ? (
+          <PromotePrompt
+            promptId={promptId}
+            projectId={props.projectId}
+            promptName={promptName}
+            disabled={isActive}
+          />
+        ) : undefined;
       },
     },
   ];
@@ -104,6 +135,7 @@ export function PromptTable(props: { projectId: string }) {
       version: item.version,
       isActive: item.isActive,
       createdBy: item.createdBy,
+      createdAt: item.createdAt,
     };
   };
 
