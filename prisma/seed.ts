@@ -53,6 +53,25 @@ async function main() {
     },
   });
 
+  const prompt = await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId: seedProjectId,
+        name: "summary-prompt",
+        version: 1,
+      },
+    },
+    create: {
+      name: "summary-prompt",
+      project: { connect: { id: seedProjectId } },
+      prompt: "prompt {{variable}} {{anotherVariable}}",
+      isActive: true,
+      version: 1,
+      createdBy: "user-1",
+    },
+    update: {},
+  });
+
   const seedApiKey = {
     id: "seed-api-key",
     secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890",
@@ -326,6 +345,11 @@ async function main() {
               totalTokens: promptTokens + completionTokens,
               parentObservationId: span.id,
               traceId: trace.id,
+              ...{
+                ...(Math.random() > 0.5 && trace.projectId === prompt.projectId
+                  ? { prompt: { connect: { id: prompt.id } } }
+                  : {}),
+              },
             },
           });
           if (Math.random() > 0.6)

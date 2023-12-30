@@ -10,6 +10,7 @@ import {
   TextSelect,
   UsersIcon,
   Route,
+  PenSquareIcon,
 } from "lucide-react";
 
 export const ROUTES: Array<{
@@ -48,6 +49,12 @@ export const ROUTES: Array<{
     name: "Users",
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
+  },
+  {
+    name: "Prompts",
+    pathname: "/project/[projectId]/prompts",
+    icon: PenSquareIcon,
+    featureFlag: "promptFlag",
   },
   {
     name: "Datasets",
