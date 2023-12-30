@@ -35,7 +35,7 @@ export default async function handler(
 
     try {
       console.log(
-        "trying to get observations, project ",
+        "trying to get prompts, project ",
         authCheck.scope.projectId,
         ", body:",
         JSON.stringify(req.query, null, 2),

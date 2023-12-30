@@ -1,11 +1,5 @@
-/*
-  Warnings:
-
-  - A unique constraint covering the columns `[id,email]` on the table `users` will be added. If there are existing duplicate values, this will fail.
-
-*/
--- DropForeignKey
-ALTER TABLE "Account" DROP CONSTRAINT "Account_user_id_fkey";
+-- AlterTable
+ALTER TABLE "observations" ADD COLUMN     "prompt_id" TEXT;
 
 -- CreateTable
 CREATE TABLE "prompts" (
@@ -28,11 +22,8 @@ CREATE INDEX "prompts_project_id_name_version_idx" ON "prompts"("project_id", "n
 -- CreateIndex
 CREATE UNIQUE INDEX "prompts_project_id_name_version_key" ON "prompts"("project_id", "name", "version");
 
--- CreateIndex
-CREATE UNIQUE INDEX "users_id_email_key" ON "users"("id", "email");
-
 -- AddForeignKey
-ALTER TABLE "Account" ADD CONSTRAINT "Account_user_id_provider_fkey" FOREIGN KEY ("user_id", "provider") REFERENCES "users"("id", "email") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "observations" ADD CONSTRAINT "observations_prompt_id_fkey" FOREIGN KEY ("prompt_id") REFERENCES "prompts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "prompts" ADD CONSTRAINT "prompts_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;

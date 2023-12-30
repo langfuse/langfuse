@@ -35,7 +35,7 @@ model Account {
     scope             String?
     id_token          String? // @db.Text
     session_state     String?
-    user              User    @relation(fields: [userId, provider], references: [id, email], onDelete: Cascade)
+    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@unique([provider, providerAccountId])
     @@index([userId])
@@ -65,7 +65,6 @@ model User {
     updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
     featureFlags  String[]               @default([]) @map("feature_flags")
 
-    @@unique([id, email])
     @@map("users")
 }
 

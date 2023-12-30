@@ -23,6 +23,7 @@ import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
 import { useRouter } from "next/router";
+import Link from "next/link";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -55,6 +56,12 @@ export const ObservationPreview = (props: {
             {preloadedObservation.startTime.toLocaleString()}
           </CardDescription>
           <div className="flex flex-wrap gap-2">
+            {preloadedObservation.promptId ? (
+              <PromptBadge
+                promptId={preloadedObservation.promptId}
+                projectId={preloadedObservation.projectId}
+              />
+            ) : undefined}
             {preloadedObservation.endTime ? (
               <Badge variant="outline">
                 {formatInterval(
@@ -84,12 +91,7 @@ export const ObservationPreview = (props: {
                 {preloadedObservation.price.toString()} USD
               </Badge>
             ) : undefined}
-            {preloadedObservation.promptId ? (
-              <PromptBadge
-                promptId={preloadedObservation.promptId}
-                projectId={preloadedObservation.projectId}
-              />
-            ) : undefined}
+
             {preloadedObservation.modelParameters &&
             typeof preloadedObservation.modelParameters === "object"
               ? Object.entries(preloadedObservation.modelParameters)
@@ -182,7 +184,6 @@ export const ObservationPreview = (props: {
 };
 
 const PromptBadge = (props: { promptId: string; projectId: string }) => {
-  const router = useRouter();
   const prompt = api.prompts.byId.useQuery({
     id: props.promptId,
     projectId: props.projectId,
@@ -191,18 +192,12 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
   if (prompt.isLoading) return null;
 
   return (
-    <Badge
-      variant="outline"
-      className="cursor-pointer"
-      onClick={() =>
-        void router.push(
-          `/project/${props.projectId}/prompts/${props.promptId}`,
-        )
-      }
-    >
-      Prompt: {prompt.data?.name}
-      {" - "}
-      {prompt.data?.version}
-    </Badge>
+    <Link href={`/project/${props.projectId}/prompts/${props.promptId}`}>
+      <Badge>
+        Prompt: {prompt.data?.name}
+        {" - "}
+        {prompt.data?.version}
+      </Badge>
+    </Link>
   );
 };

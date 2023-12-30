@@ -214,7 +214,8 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(dbGeneration?.id).toBe(generationId);
     expect(dbGeneration?.promptId).toBe(promptId);
   });
-  it("should fail if promtp version is missing", async () => {
+
+  it("should fail if prompt version is missing", async () => {
     const traceId = v4();
     const generationId = v4();
 

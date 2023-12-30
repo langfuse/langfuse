@@ -18,7 +18,6 @@ export const DetailPageNav = (props: {
 }) => {
   const { detailPagelists } = useDetailPageLists();
   const ids = detailPagelists[props.listKey] ?? [];
-  console.log(ids, detailPagelists);
 
   const posthog = usePostHog();
 

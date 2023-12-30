@@ -174,7 +174,8 @@ export const createPrompt = async ({
       },
     }),
   ];
-  if (latestActivePrompt)
+  if (latestActivePrompt && isActive)
+    // If we're creating a new active prompt, we need to deactivate the old one
     create.push(
       prisma.prompt.update({
         where: {

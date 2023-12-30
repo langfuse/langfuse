@@ -102,7 +102,7 @@ export const CreateGenerationBody = CreateSpanBody.extend({
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
-  // ensure that ither promptName and promptVersion are set, or none
+  // ensure that either promptName and promptVersion are set, or none
 
   if (!value.promptName && !value.promptVersion) return true;
   if (value.promptName && value.promptVersion) return true;
@@ -122,7 +122,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
-  // ensure that ither promptName and promptVersion are set, or none
+  // ensure that either promptName and promptVersion are set, or none
 
   if (!value.promptName && !value.promptVersion) return true;
   if (value.promptName && value.promptVersion) return true;

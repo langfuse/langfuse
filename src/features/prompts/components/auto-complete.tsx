@@ -169,11 +169,11 @@ const CommandItemCreate = ({
     <CommandItem
       key={inputValue}
       value={inputValue}
-      className=" text-muted-foreground"
+      className="text-muted-foreground"
       onSelect={onSelect}
       onMouseDown={onMouseDown}
     >
-      <div className={cn("mr-2 h-4 w-4")} />
+      <div className={cn("m-2 h-4 w-4")} />
       Create new prompt name: &quot;{inputValue}&quot;
     </CommandItem>
   );
