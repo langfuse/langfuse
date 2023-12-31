@@ -1,4 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
+import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
 import {
   Database,
   LayoutDashboard,
@@ -19,6 +20,7 @@ export const ROUTES: Array<{
   icon: LucideIcon;
   featureFlag?: Flag;
   label?: string;
+  rbacScope?: Scope;
 }> = [
   {
     name: "Dashboard",
@@ -55,6 +57,7 @@ export const ROUTES: Array<{
     pathname: "/project/[projectId]/prompts",
     icon: PenSquareIcon,
     label: "Beta",
+    rbacScope: "prompts:read",
   },
   {
     name: "Datasets",

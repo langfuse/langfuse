@@ -23,6 +23,7 @@ import Head from "next/head";
 import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
+import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 const userNavigation = [
   {
@@ -57,6 +58,11 @@ export default function Layout(props: PropsWithChildren) {
         featureFlag === undefined ||
         enableExperimentalFeatures ||
         session.data?.user?.featureFlags[featureFlag],
+    )
+    .filter(
+      ({ rbacScope }) =>
+        rbacScope === undefined ||
+        (projectId && hasAccess({ projectId, scope: rbacScope, session })),
     )
     .map(({ pathname, ...rest }) => ({
       pathname,
