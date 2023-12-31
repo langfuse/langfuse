@@ -29,9 +29,9 @@ export function PromptTable(props: { projectId: string }) {
     projectId: props.projectId,
   });
 
-  const hasAccess = useHasAccess({
+  const hasCUDAccess = useHasAccess({
     projectId: props.projectId,
-    scope: "datasets:CUD",
+    scope: "prompts:CUD",
   });
 
   useEffect(() => {
@@ -160,8 +160,8 @@ export function PromptTable(props: { projectId: string }) {
         }
       />
       <CreatePromptDialog projectId={props.projectId} title="Create Prompt">
-        <Button variant="secondary" className="mt-4" disabled={!hasAccess}>
-          {hasAccess ? (
+        <Button variant="secondary" className="mt-4" disabled={!hasCUDAccess}>
+          {hasCUDAccess ? (
             <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
           ) : (
             <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
