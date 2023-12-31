@@ -22,6 +22,11 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
       return ctx.prisma.prompt.findMany({
         where: {
           projectId: input.projectId,
@@ -37,6 +42,11 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
       return ctx.prisma.prompt.findFirst({
         where: {
           id: input.id,
