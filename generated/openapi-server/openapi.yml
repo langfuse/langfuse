@@ -551,6 +551,102 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/prompts:
+    get:
+      description: Get a specific prompt
+      operationId: prompts_get
+      tags:
+        - Prompts
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    post:
+      description: Create a specific prompt
+      operationId: prompts_create
+      tags:
+        - Prompts
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
   /api/public/scores:
     post:
       description: Add a score to the database, upserts on id
@@ -970,6 +1066,9 @@ components:
           type: string
           nullable: true
         parentObservationId:
+          type: string
+          nullable: true
+        promptId:
           type: string
           nullable: true
       required:
@@ -1431,6 +1530,12 @@ components:
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
+        promptName:
+          type: string
+          nullable: true
+        promptVersion:
+          type: integer
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/CreateSpanBody'
     UpdateGenerationBody:
@@ -1451,6 +1556,12 @@ components:
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
+          nullable: true
+        promptName:
+          type: string
+          nullable: true
+        promptVersion:
+          type: integer
           nullable: true
       allOf:
         - $ref: '#/components/schemas/UpdateSpanBody'
@@ -1764,6 +1875,34 @@ components:
       required:
         - id
         - name
+    CreatePromptRequest:
+      title: CreatePromptRequest
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+        prompt:
+          type: string
+      required:
+        - name
+        - isActive
+        - prompt
+    Prompt:
+      title: Prompt
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        prompt:
+          type: string
+      required:
+        - name
+        - version
+        - prompt
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object

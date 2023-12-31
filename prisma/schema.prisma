@@ -93,6 +93,7 @@ model Project {
     RawEvents    Events[]
     invitations  MembershipInvitation[]
     sessions     TraceSession[]
+    Prompt       Prompt[]
 
     @@map("projects")
 }
@@ -230,6 +231,9 @@ model Observation {
     project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
+
+    promptId String? @map("prompt_id")
+    prompt   Prompt? @relation(fields: [promptId], onDelete: SetNull, references: [id])
 
     @@unique([id, projectId])
     @@index([traceId])
@@ -386,4 +390,25 @@ model Events {
 
     @@index(projectId)
     @@map("events")
+}
+
+model Prompt {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+    projectId String  @map("project_id")
+    project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    createdBy String @map("created_by")
+
+    prompt      String
+    name        String
+    version     Int
+    isActive    Boolean       @map("is_active")
+    Observation Observation[]
+
+    @@unique([projectId, name, version])
+    @@index([projectId, name, version])
+    @@map("prompts")
 }
