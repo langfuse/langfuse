@@ -41,11 +41,11 @@ const ObservationTreeTraceNode = (props: {
 }) => (
   <div
     className={cn(
-      "group my-1 flex cursor-pointer flex-col gap-1 rounded-sm p-2",
+      "group my-1 flex cursor-pointer flex-col gap-1 rounded-sm bg-yellow-300 p-2",
       props.currentObservationId === undefined ||
         props.currentObservationId === ""
-        ? "bg-gray-100"
-        : "hover:bg-gray-50",
+        ? "border-2 border-gray-600"
+        : "hover:scale-105",
     )}
     onClick={() => props.setCurrentObservationId(undefined)}
   >
@@ -82,84 +82,104 @@ const ObservationTreeNode = (props: {
       .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
       .map((observation) => (
         <Fragment key={observation.id}>
-          <div className="flex">
-            {Array.from({ length: props.indentationLevel }, (_, i) => (
-              <div className="mx-2 border-r lg:mr-4" key={i} />
-            ))}
-            <div
-              className={cn(
-                "group my-1 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-2 ",
-                props.currentObservationId === observation.id
-                  ? "bg-gray-100"
-                  : "hover:bg-gray-50",
-              )}
-              onClick={() => props.setCurrentObservationId(observation.id)}
-            >
-              <div className="flex gap-2">
-                <span
-                  className={cn(
-                    "self-start rounded-sm bg-gray-200 p-1 text-xs",
-                  )}
-                >
-                  {observation.type}
-                </span>
-                <span className="line-clamp-1">{observation.name}</span>
-              </div>
-              <div className="flex gap-2">
-                {observation.endTime ? (
-                  <span className="text-xs text-gray-500">
-                    {formatInterval(
-                      (observation.endTime.getTime() -
-                        observation.startTime.getTime()) /
-                        1000,
-                    )}
-                  </span>
-                ) : null}
-                {observation.promptTokens ||
-                observation.completionTokens ||
-                observation.totalTokens ? (
-                  <span className="text-xs text-gray-500">
-                    {observation.promptTokens} → {observation.completionTokens}{" "}
-                    (∑ {observation.totalTokens})
-                  </span>
-                ) : null}
-              </div>
-              {observation.level !== "DEFAULT" ? (
-                <div className="flex">
+          <div className="flex w-full">
+            {props.indentationLevel === 1 && (
+              <div className="mx-2 border-r border-yellow-300 lg:mr-4" />
+            )}
+            <div className="flex w-full flex-col">
+              <div
+                className={cn(
+                  "group my-1 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-2 ",
+                  props.currentObservationId === observation.id
+                    ? "border-2 border-gray-600"
+                    : "hover:scale-105",
+                  observation.type === "SPAN"
+                    ? "bg-pink-300"
+                    : observation.type === "GENERATION"
+                      ? "bg-blue-300"
+                      : "bg-green-300",
+                )}
+                onClick={() => props.setCurrentObservationId(observation.id)}
+              >
+                <div className="flex gap-2">
                   <span
                     className={cn(
-                      "rounded-sm p-0.5 text-xs",
-                      LevelColors[observation.level].bg,
-                      LevelColors[observation.level].text,
+                      "self-start rounded-sm bg-gray-200 p-1 text-xs",
                     )}
                   >
-                    {observation.level}
+                    {observation.type}
                   </span>
                 </div>
-              ) : null}
-              {props.scores.find((s) => s.observationId === observation.id) ? (
-                <div className="flex flex-wrap gap-1">
-                  <GroupedScoreBadges
-                    scores={props.scores.filter(
-                      (s) => s.observationId === observation.id,
-                    )}
-                  />
+                <div className="flex gap-2">
+                  {observation.endTime ? (
+                    <span className="text-xs text-gray-500">
+                      {formatInterval(
+                        (observation.endTime.getTime() -
+                          observation.startTime.getTime()) /
+                          1000,
+                      )}
+                    </span>
+                  ) : null}
+                  {observation.promptTokens ||
+                  observation.completionTokens ||
+                  observation.totalTokens ? (
+                    <span className="text-xs text-gray-500">
+                      {observation.promptTokens} →{" "}
+                      {observation.completionTokens} (∑{" "}
+                      {observation.totalTokens})
+                    </span>
+                  ) : null}
                 </div>
-              ) : null}
+                {observation.level !== "DEFAULT" ? (
+                  <div className="flex">
+                    <span
+                      className={cn(
+                        "rounded-sm p-0.5 text-xs",
+                        LevelColors[observation.level].bg,
+                        LevelColors[observation.level].text,
+                      )}
+                    >
+                      {observation.level}
+                    </span>
+                  </div>
+                ) : null}
+                {props.scores.find(
+                  (s) => s.observationId === observation.id,
+                ) ? (
+                  <div className="flex flex-wrap gap-1">
+                    <GroupedScoreBadges
+                      scores={props.scores.filter(
+                        (s) => s.observationId === observation.id,
+                      )}
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <div className="flex">
+                <div
+                  className={cn(
+                    "mx-2 border-r lg:mr-4",
+                    observation.type === "SPAN"
+                      ? "border-pink-300"
+                      : observation.type == "GENERATION"
+                        ? "border-blue-300"
+                        : "border-green-300",
+                  )}
+                />
+                <ObservationTreeNode
+                  observations={observation.children}
+                  scores={props.scores}
+                  indentationLevel={props.indentationLevel + 1}
+                  currentObservationId={props.currentObservationId}
+                  setCurrentObservationId={props.setCurrentObservationId}
+                />
+              </div>
             </div>
           </div>
-          <ObservationTreeNode
-            observations={observation.children}
-            scores={props.scores}
-            indentationLevel={props.indentationLevel + 1}
-            currentObservationId={props.currentObservationId}
-            setCurrentObservationId={props.setCurrentObservationId}
-          />
         </Fragment>
       ))}
   </>
 );
-
 export function nestObservations(
   list: ObservationReturnType[],
 ): NestedObservation[] {
