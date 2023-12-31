@@ -79,7 +79,7 @@ export default function ChangePassword() {
         });
         if (!res) {
           setCredentialsFormError(
-            "Old Password doesnt match with the existing password",
+            "Old Password does not match with the existing password",
           );
           return;
         }
@@ -91,7 +91,7 @@ export default function ChangePassword() {
         });
         if (!res) {
           setCredentialsFormError(
-            "Old Password doesnt match with the existing password",
+            "Old Password does not match with the existing password",
           );
           return;
         }
