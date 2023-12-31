@@ -73,5 +73,5 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "prompts:CUD",
     "prompts:read",
   ],
-  VIEWER: [],
+  VIEWER: ["prompts:read"],
 };
