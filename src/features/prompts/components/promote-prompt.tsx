@@ -48,12 +48,12 @@ export function PromotePrompt({
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action cannot be undone and promotes the prompt to production.
-          SDKs requesting a prompt with name{" "}
+          This action promotes the prompt to production. SDKs requesting a
+          prompt with name{" "}
           <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
             {promptName}
           </code>
-          , will receive this prompt once confirmed.
+          will receive this prompt. Make sure that the variables match.
         </p>
         <div className="flex justify-end space-x-4">
           <Button
@@ -68,7 +68,7 @@ export function PromotePrompt({
               posthog.capture("prompt:promote");
             }}
           >
-            Promote Prompt
+            Promote to production
           </Button>
         </div>
       </PopoverContent>
