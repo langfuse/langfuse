@@ -39,7 +39,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
             name: "Prompts",
             href: `/project/${props.projectId}/prompts/`,
           },
-          { name: `${prompt.data.name} v${prompt.data.version}` },
+          { name: `${prompt.data.name} (v${prompt.data.version})` },
         ]}
         actionButtons={
           <>
