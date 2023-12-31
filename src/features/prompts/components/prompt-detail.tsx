@@ -25,21 +25,21 @@ export const PromptDetail = (props: PromptDetailProps) => {
     ? extractVariables(prompt.data.prompt)
     : [];
 
+  if (!prompt.data) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
       <Header
-        title={
-          prompt.data
-            ? prompt.data.name + " - " + prompt.data.version
-            : "Loading"
-        }
-        live={prompt.data?.isActive}
+        title={`${prompt.data.name} (v${prompt.data.version})`}
+        status={prompt.data.isActive ? "production" : "disabled"}
         breadcrumb={[
           {
             name: "Prompts",
             href: `/project/${props.projectId}/prompts/`,
           },
-          { name: props.promptId },
+          { name: `${prompt.data.name} (v${prompt.data.version})` },
         ]}
         actionButtons={
           <>
@@ -47,8 +47,8 @@ export const PromptDetail = (props: PromptDetailProps) => {
               projectId={props.projectId}
               title="Update Prompt"
               subtitle="We do not update prompts, instead we create a new version of the prompt."
-              promptName={prompt.data?.name}
-              promptText={prompt.data?.prompt}
+              promptName={prompt.data.name}
+              promptText={prompt.data.prompt}
             >
               <Button variant="outline" size="icon">
                 <Pencil className="h-5 w-5" />
@@ -68,9 +68,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
 
       <div className="mx-auto w-full rounded-lg border text-base leading-7 text-gray-700">
         <div className="border-b px-3 py-1 text-xs font-medium">Prompt</div>
-        <p className="p-3 text-sm leading-8">
-          {prompt.data?.prompt ?? "Loading"}
-        </p>
+        <p className="p-3 text-sm leading-8">{prompt.data.prompt}</p>
       </div>
       <div className="mx-auto mt-10 w-full rounded-lg border text-base leading-7 text-gray-700">
         <div className="border-b px-3 py-1 text-xs font-medium">Variables</div>

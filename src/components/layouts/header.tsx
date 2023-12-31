@@ -3,12 +3,12 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { StatusBadge } from "./live-badge";
+import { type Status, StatusBadge } from "./status-badge";
 
 export default function Header(props: {
   title: string;
   breadcrumb?: { name: string; href?: string }[];
-  live?: boolean;
+  status?: Status;
   help?: { description: string; href: string };
   actionButtons?: React.ReactNode;
 }) {
@@ -96,7 +96,7 @@ export default function Header(props: {
               />
             ) : null}
           </div>
-          {props.live ? <StatusBadge type="live" /> : null}
+          {props.status && <StatusBadge type={props.status} />}
         </div>
         <div className="flex items-center gap-3">
           {props.actionButtons ?? null}

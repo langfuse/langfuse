@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/layouts/live-badge";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -51,7 +51,7 @@ export function PromptTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const isActive = row.getValue("isActive");
         return isActive ? (
-          <StatusBadge type="live" className="h-6 w-24" />
+          <StatusBadge type="production" className="h-6 w-24" />
         ) : (
           <StatusBadge type="disabled" className="h-6 w-24" />
         );
