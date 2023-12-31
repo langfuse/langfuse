@@ -23,11 +23,17 @@ import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
 const pathsWithoutNavigation: string[] = [];
-const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
+const unauthenticatedPaths = [
+  "/auth/sign-in",
+  "/auth/sign-up",
+  "/user/change-password/[...token]",
+];
 const publishablePaths = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
 ];
+
+const customPaths = ["/user/change-password/[...token]"];
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -89,7 +95,8 @@ export default function Layout(props: PropsWithChildren) {
 
   if (
     session.status === "authenticated" &&
-    unauthenticatedPaths.includes(router.pathname)
+    unauthenticatedPaths.includes(router.pathname) &&
+    !customPaths.includes(router.pathname)
   ) {
     void router.replace("/");
     return <Spinner message="Redirecting" />;
@@ -426,7 +433,7 @@ export default function Layout(props: PropsWithChildren) {
                 <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
                   {session.data?.user?.name}
                 </span>
-                <Link href="/user/userSettings">
+                <Link href="/user/user-settings">
                   <UserRoundCog
                     className="h-5 w-5 text-gray-400"
                     aria-hidden="true"

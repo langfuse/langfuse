@@ -12,9 +12,6 @@ const langfuseUrls = {
 };
 
 export const SendTokenInEmail = async (email: string, token: string) => {
-  console.log(env.EMAIL_FROM_ADDRESS);
-  console.log(env.SMTP_CONNECTION_URL);
-
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     console.error(
       "Missing environment variables for sending change password email.",
@@ -25,7 +22,7 @@ export const SendTokenInEmail = async (email: string, token: string) => {
     ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
     : env.NEXTAUTH_URL;
 
-  authUrl = authUrl.concat(`/user/${token}/changePassword`);
+  authUrl = authUrl.concat(`/user/change-password/${token}/${email}`);
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
     const htmlTemplate = render(

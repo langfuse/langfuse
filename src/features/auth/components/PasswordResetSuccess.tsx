@@ -31,7 +31,7 @@ export function PasswordResetSuccess() {
             onClick={() => {
               void (async () => {
                 await signOut({
-                  redirect: false,
+                  redirect: true,
                   callbackUrl: "/auth/sign-in",
                 });
               })();

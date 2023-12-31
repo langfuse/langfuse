@@ -46,11 +46,11 @@ export default function UserSettingPage() {
     try {
       await mutUserTokenToDB.mutateAsync({
         email: email,
-        token: token,
+        password_reset_token: token,
       });
       await mutTokenToEmail.mutateAsync({
         email: email,
-        token: token,
+        password_reset_token: token,
       });
     } catch (err) {
       console.error(err);

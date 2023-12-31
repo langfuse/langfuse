@@ -221,6 +221,16 @@ export default function SignIn({ authProviders }: PageProps) {
             ) : null}
             <SSOButtons authProviders={authProviders} />
           </div>
+          <p className="mt-10 text-center text-sm text-gray-500">
+            Forgot your password?{" "}
+            <Link
+              href="/public/reset-password"
+              className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+            >
+              Click here
+            </Link>{" "}
+            to reset your password
+          </p>
           <CloudPrivacyNotice action="signing in" />
         </div>
 

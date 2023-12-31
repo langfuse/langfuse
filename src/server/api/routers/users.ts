@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
-  protectedProcedure,
+  publicProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Score } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
@@ -23,7 +23,41 @@ const UserAllOptions = UserFilterOptions.extend({
 });
 
 export const userRouter = createTRPCRouter({
-  resetPassword: protectedProcedure
+  findEmail: publicProcedure
+    .input(
+      z.object({
+        email: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = await ctx.prisma.user.findFirst({
+        where: {
+          email: input.email,
+        },
+      });
+      if (user == null) return null;
+      return true;
+    }),
+  resetPasswordLoggedOut: publicProcedure
+    .input(
+      z.object({
+        email: z.string(),
+        new_password: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const hash = await hashPassword(input.new_password);
+      await ctx.prisma.user.update({
+        where: {
+          email: input.email,
+        },
+        data: {
+          password: hash,
+        },
+      });
+      return true;
+    }),
+  resetPasswordLoggedIn: publicProcedure
     .input(
       z.object({
         email: z.string(),
@@ -37,12 +71,11 @@ export const userRouter = createTRPCRouter({
           email: input.email,
         },
       });
-      if (user == null) return null;
       const check = await verifyPassword(
         input.old_password,
-        String(user.password),
+        String(user?.password),
       );
-      if (!check) return null;
+      if (!check) return false;
       const hash = await hashPassword(input.new_password);
       await ctx.prisma.user.update({
         where: {
@@ -54,20 +87,20 @@ export const userRouter = createTRPCRouter({
       });
       return true;
     }),
-  tokenToEmail: protectedProcedure
+  tokenToEmail: publicProcedure
     .input(
       z.object({
-        token: z.string(),
+        password_reset_token: z.string(),
         email: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
-      await SendTokenInEmail(input.email, input.token);
+      await SendTokenInEmail(input.email, input.password_reset_token);
     }),
-  saveToken: protectedProcedure
+  saveToken: publicProcedure
     .input(
       z.object({
-        token: z.string(),
+        password_reset_token: z.string(),
         email: z.string(),
       }),
     )
@@ -77,7 +110,7 @@ export const userRouter = createTRPCRouter({
           email: input.email,
         },
         data: {
-          password_reset_token: input.token,
+          password_reset_token: input.password_reset_token,
         },
       });
       return user;

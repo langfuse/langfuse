@@ -20,13 +20,13 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { PasswordResetSuccess } from "@/src/features/auth/components/PasswordResetSuccess";
+import { useRouter } from "next/router";
 
 export default function ChangePassword() {
   const session = useSession();
+  const router = useRouter();
   const credentialAuthForm = z.object({
-    old_password: z.string().min(8, {
-      message: "Password must be at least 8 characters long",
-    }),
+    old_password: z.string(),
     new_password: z.string().min(8, {
       message: "New Password must be at least 8 characters long",
     }),
@@ -51,10 +51,17 @@ export default function ChangePassword() {
   });
 
   const utils = api.useUtils();
-  const mutPasswordToDB = api.users.resetPassword.useMutation({
+  const mutPasswordToDBLoggedIn = api.users.resetPasswordLoggedIn.useMutation({
     onSuccess: () => utils.users.invalidate(),
     onError: (error) => console.error(error),
   });
+  const mutPasswordToDBLoggedOut = api.users.resetPasswordLoggedOut.useMutation(
+    {
+      onSuccess: () => utils.users.invalidate(),
+      onError: (error) => console.error(error),
+    },
+  );
+
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,
   ) {
@@ -64,14 +71,30 @@ export default function ChangePassword() {
       return;
     }
     try {
-      const res = await mutPasswordToDB.mutateAsync({
-        email: String(session.data?.user?.email),
-        old_password: values.old_password,
-        new_password: values.new_password,
-      });
-      if (res == null) {
-        setCredentialsFormError("Credentials do not match. Please try again.");
-        return;
+      if (session.data?.user != null) {
+        const res = await mutPasswordToDBLoggedIn.mutateAsync({
+          email: String(session.data.user.email),
+          old_password: values.old_password,
+          new_password: values.new_password,
+        });
+        if (!res) {
+          setCredentialsFormError(
+            "Old Password doesnt match with the existing password",
+          );
+          return;
+        }
+      } else {
+        const res = await mutPasswordToDBLoggedOut.mutateAsync({
+          // @ts-expect-error: Object is possibly 'null'.
+          email: router.query.token[1],
+          new_password: values.new_password,
+        });
+        if (!res) {
+          setCredentialsFormError(
+            "Old Password doesnt match with the existing password",
+          );
+          return;
+        }
       }
       setIsPasswordResetSuccess(true);
     } catch (err) {
@@ -87,21 +110,25 @@ export default function ChangePassword() {
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSubmit={credentialsForm.handleSubmit(onCredentialsSubmit)}
         >
-          <FormField
-            control={credentialsForm.control}
-            name="old_password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-sm text-gray-500">
-                  Old Password
-                </FormLabel>
-                <FormControl>
-                  <Input type="password" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {session.data?.user != null ? (
+            <FormField
+              control={credentialsForm.control}
+              name="old_password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm text-gray-500">
+                    Old Password
+                  </FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : (
+            <></>
+          )}
           <FormField
             control={credentialsForm.control}
             name="new_password"
