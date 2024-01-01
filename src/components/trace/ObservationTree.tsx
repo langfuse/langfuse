@@ -109,6 +109,7 @@ const ObservationTreeNode = (props: {
                   >
                     {observation.type}
                   </span>
+                  <span className="line-clamp-1">{observation.name}</span>
                 </div>
                 <div className="flex gap-2">
                   {observation.endTime ? (
