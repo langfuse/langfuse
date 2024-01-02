@@ -1,3 +1,4 @@
+import { VERSION } from "@/src/constants/VERSION";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
 import { prisma } from "@/src/server/db";
@@ -12,7 +13,12 @@ export default async function handler(
   try {
     await prisma.$queryRaw`SELECT 1;`;
   } catch (e) {
-    return res.status(503).json({ status: "Database not available" });
+    return res.status(503).json({
+      status: "Database not available",
+      version: VERSION.replace("v", ""),
+    });
   }
-  return res.status(200).json({ status: "OK" });
+  return res
+    .status(200)
+    .json({ status: "OK", version: VERSION.replace("v", "") });
 }
