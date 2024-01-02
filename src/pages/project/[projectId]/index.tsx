@@ -122,7 +122,7 @@ export default function Start() {
           agg={agg}
         />
         <ModelUsageChart
-          className="min-h-24  col-span-1 xl:col-span-3"
+          className="col-span-1  min-h-24 xl:col-span-3"
           projectId={projectId}
           globalFilterState={globalFilterState}
           agg={agg}
