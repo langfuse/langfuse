@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get a specific prompt
+      method: GET
+      path: /prompts
+      request:
+        name: GetParameterRequest
+        query-parameters:
+          name: string
+          version: optional<integer>
+      response: Prompt
+    create:
+      docs: Create a specific prompt
+      method: POST
+      path: /prompts
+      request: CreatePromptRequest
+      response: Prompt
+
+types:
+  CreatePromptRequest:
+    properties:
+      name: string
+      isActive: boolean
+      prompt: string
+  Prompt:
+    properties:
+      name: string
+      version: integer
+      prompt: string
