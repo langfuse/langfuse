@@ -22,6 +22,7 @@ import Head from "next/head";
 import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
+import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
 const pathsWithoutNavigation: string[] = [];
 const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
 const publishablePaths = [
@@ -45,6 +46,11 @@ export default function Layout(props: PropsWithChildren) {
         featureFlag === undefined ||
         enableExperimentalFeatures ||
         session.data?.user?.featureFlags[featureFlag],
+    )
+    .filter(
+      ({ rbacScope }) =>
+        rbacScope === undefined ||
+        (projectId && hasAccess({ projectId, scope: rbacScope, session })),
     )
     .map(({ pathname, ...rest }) => ({
       pathname,
@@ -192,7 +198,7 @@ export default function Layout(props: PropsWithChildren) {
                         <li>
                           <ul role="list" className="-mx-2 space-y-1">
                             {navigation.map((item) => (
-                              <li key={item.name}>
+                              <li key={item.name} onClick={() => setSidebarOpen(false)}>
                                 <Link
                                   href={item.href}
                                   className={clsx(

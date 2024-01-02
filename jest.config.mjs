@@ -18,6 +18,8 @@ const serverTestConfig = {
   testEnvironment: "jest-environment-node",
 };
 
+// To avoid the "Cannot use import statement outside a module" errors while transforming ESM.
+const esModules = ["superjson"];
 // Add any custom config to be passed to Jest
 /** @type {import('jest').Config} */
 const config = {
@@ -26,7 +28,10 @@ const config = {
   verbose: true,
   projects: [
     await createJestConfig(clientTestConfig)(),
-    await createJestConfig(serverTestConfig)(),
+    {
+      ...(await createJestConfig(serverTestConfig)()),
+      transformIgnorePatterns: [`/node_modules/(?!(${esModules.join("|")})/)`],
+    },
   ],
 };
 

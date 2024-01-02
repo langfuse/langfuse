@@ -9,6 +9,7 @@ import {
   sendUserChatMessage,
   showAgentChatMessage,
 } from "@/src/features/support-chat/chat";
+import Link from "next/link";
 
 export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   projectId,
@@ -54,11 +55,11 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
           </>
         ) : null}
       </Card>
-      {chatAvailable && (
-        <>
+      <div className="mt-4 flex flex-row items-center gap-2">
+        {chatAvailable && (
           <Button
             variant="secondary"
-            className="mt-4"
+            className=""
             onClick={() => {
               sendUserChatMessage(
                 "I want to change my plan, project: " + projectId,
@@ -71,11 +72,16 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
               }, 2000);
             }}
           >
-            Change plan
+            Request plan change
           </Button>
-          <span className="ml-2 text-sm text-gray-500">Currently: {plan}</span>
-        </>
-      )}
+        )}
+        <Button variant="secondary" asChild>
+          <Link href="https://langfuse.com/pricing">View plans</Link>
+        </Button>
+        <div className="inline-block text-sm text-gray-500">
+          Currently: {plan}
+        </div>
+      </div>
     </div>
   );
 };
