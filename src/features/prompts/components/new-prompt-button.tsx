@@ -210,7 +210,7 @@ export const NewPromptForm = (props: {
                 <FormControl>
                   <Textarea
                     {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                    className="min-h-[150px] flex-1 whitespace-pre-wrap font-mono text-xs"
                   />
                 </FormControl>
                 <FormMessage />
