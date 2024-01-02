@@ -210,7 +210,10 @@ export default function Layout(props: PropsWithChildren) {
                         <li>
                           <ul role="list" className="-mx-2 space-y-1">
                             {navigation.map((item) => (
-                              <li key={item.name} onClick={() => setSidebarOpen(false)}>
+                              <li
+                                key={item.name}
+                                onClick={() => setSidebarOpen(false)}
+                              >
                                 <Link
                                   href={item.href}
                                   className={clsx(
