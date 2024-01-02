@@ -146,6 +146,7 @@ async function main() {
           metadata: {
             user: `user-${i}@langfuse.com`,
           },
+          tags: ["test-tag"],
           project: {
             connect: {
               id: [project1.id, project2.id][i % 2],
