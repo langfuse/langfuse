@@ -1,16 +1,8 @@
 "use client";
 
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnFiltersState,
-  getFilteredRowModel,
-  type OnChangeFn,
-  type PaginationState,
-  type RowSelectionState,
-  type VisibilityState,
-} from "@tanstack/react-table";
+import DocPopup from "@/src/components/layouts/doc-popup";
+import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   Table,
   TableBody,
@@ -19,10 +11,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { type OrderByState } from "@/src/features/orderBy/types";
+import { cn } from "@/src/utils/tailwind";
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  useReactTable,
+  type ColumnFiltersState,
+  type OnChangeFn,
+  type PaginationState,
+  type RowSelectionState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { useState } from "react";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import DocPopup from "@/src/components/layouts/doc-popup";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -36,6 +38,8 @@ interface DataTableProps<TData, TValue> {
   setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  orderBy?: OrderByState;
+  setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
 }
 
@@ -55,8 +59,11 @@ export function DataTable<TData extends object, TValue>({
   columnVisibility,
   onColumnVisibilityChange,
   help,
+  orderBy,
+  setOrderBy,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -93,17 +100,54 @@ export function DataTable<TData extends object, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
+                    const sortingEnabled =
+                      header.column.columnDef.enableSorting;
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
-                        className="whitespace-nowrap p-2"
+                        className={cn(
+                          sortingEnabled ? "cursor-pointer" : null,
+                          "whitespace-nowrap p-2",
+                        )}
+                        title={sortingEnabled ? "Sort by this column" : ""}
+                        onClick={(event) => {
+                          event.preventDefault(); // Add this line
+
+                          if (
+                            !setOrderBy ||
+                            !header.column.columnDef.id ||
+                            !sortingEnabled
+                          ) {
+                            return;
+                          }
+
+                          if (orderBy?.column === header.column.columnDef.id) {
+                            setOrderBy({
+                              column: header.column.columnDef.id,
+                              order: orderBy.order === "ASC" ? "DESC" : "ASC",
+                            });
+                          } else {
+                            setOrderBy({
+                              column: header.column.columnDef.id,
+                              order: "DESC",
+                            });
+                          }
+                        }}
                       >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                        {header.isPlaceholder ? null : (
+                          <>
+                            <div className="select-none">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+
+                              {orderBy?.column === header.column.columnDef.id
+                                ? renderOrderingIndicator(orderBy)
+                                : null}
+                            </div>
+                          </>
+                        )}
                       </TableHead>
                     ) : null;
                   })}
@@ -162,4 +206,10 @@ export function DataTable<TData extends object, TValue>({
       {pagination !== undefined ? <DataTablePagination table={table} /> : null}
     </>
   );
+}
+
+function renderOrderingIndicator(orderBy?: OrderByState) {
+  if (!orderBy) return;
+  if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
+  else return <span className="ml-1">▼</span>;
 }

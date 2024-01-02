@@ -7,8 +7,21 @@ service:
       docs: Check health of API and database
       method: GET
       path: /health
+      response: HealthResponse
       errors:
         - ServiceUnavailableError
+
+types:
+  HealthResponse:
+    properties:
+      version:
+        type: string
+        docs: Langfuse server version
+      status: string
+    examples:
+      - value:
+          version: 1.25.0
+          status: OK
 
 errors:
   ServiceUnavailableError:
