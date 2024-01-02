@@ -1,6 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { CodeView } from "@/src/components/ui/code";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
@@ -66,18 +67,19 @@ export const PromptDetail = (props: PromptDetailProps) => {
         }
       />
 
-      <div className="mx-auto w-full rounded-lg border text-base leading-7 text-gray-700">
-        <div className="border-b px-3 py-1 text-xs font-medium">Prompt</div>
-        <p className="p-3 text-sm leading-8">{prompt.data.prompt}</p>
-      </div>
-      <div className="mx-auto mt-10 w-full rounded-lg border text-base leading-7 text-gray-700">
+      <CodeView content={prompt.data.prompt} title="Prompt" />
+      <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7 text-gray-700">
         <div className="border-b px-3 py-1 text-xs font-medium">Variables</div>
         <div className="flex flex-wrap gap-2 p-3">
-          {extractedVariables.map((variable) => (
-            <Badge key={variable} variant="outline">
-              {variable}
-            </Badge>
-          ))}
+          {extractedVariables.length > 0 ? (
+            extractedVariables.map((variable) => (
+              <Badge key={variable} variant="outline">
+                {variable}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-xs">No variables</span>
+          )}
         </div>
       </div>
     </div>
