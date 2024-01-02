@@ -26,5 +26,5 @@ VALUES
   ('clqwniv8a000d08l2frjl7mmw', 'codechat-bison-32k', 'PER_1000_CHARS', 0.0005, 'USD', 'PROMPT'),
   ('clqwnj044000e08l2dfjm5g90', 'chat-bison-32k', 'PER_1000_CHARS', 0.0005, 'USD', 'PROMPT'),
   ('clqwnj47r000f08l2a16fekls', 'chat-bison-32k', 'PER_1000_CHARS', 0.0005, 'USD', 'COMPLETION'),
-  ('clqwnj863000g08l2bwxgdapm', 'codechat-bison-32k', 'PER_1000_CHARS', 0.0005, 'USD', 'COMPLETION');
+  ('clqwnj863000g08l2bwxgdapm', 'codechat-bison-32k', 'PER_1000_CHARS', 0.0005, 'USD', 'COMPLETION')
 ON CONFLICT (id) DO NOTHING;
