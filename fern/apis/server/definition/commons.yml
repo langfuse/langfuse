@@ -59,6 +59,7 @@ types:
       level: ObservationLevel
       statusMessage: optional<string>
       parentObservationId: optional<string>
+      promptId: optional<string>
   Usage:
     properties:
       input: optional<integer>

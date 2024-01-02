@@ -18,7 +18,11 @@ export function filterToPrismaSql(
 ): Prisma.Sql {
   const statements = filters.map((filter) => {
     // Get column definition to map column to internal name, e.g. "t.id"
-    const col = tableColumns.find((c) => c.name === filter.column);
+    const col = tableColumns.find(
+      (c) =>
+        // TODO: Only use id instead of name
+        c.name === filter.column || c.id === filter.column,
+    );
     if (!col) {
       console.error("Invalid filter column", filter.column);
       throw new Error("Invalid filter column: " + filter.column);

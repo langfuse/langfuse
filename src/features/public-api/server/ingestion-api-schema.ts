@@ -99,6 +99,14 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  promptName: z.string().nullish(),
+  promptVersion: z.number().int().nullish(),
+}).refine((value) => {
+  // ensure that either promptName and promptVersion are set, or none
+
+  if (!value.promptName && !value.promptVersion) return true;
+  if (value.promptName && value.promptVersion) return true;
+  return false;
 });
 
 export const UpdateGenerationBody = UpdateSpanBody.extend({
@@ -111,6 +119,14 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  promptName: z.string().nullish(),
+  promptVersion: z.number().int().nullish(),
+}).refine((value) => {
+  // ensure that either promptName and promptVersion are set, or none
+
+  if (!value.promptName && !value.promptVersion) return true;
+  if (value.promptName && value.promptVersion) return true;
+  return false;
 });
 
 export const ScoreBody = z.object({
