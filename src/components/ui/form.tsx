@@ -1,5 +1,3 @@
-// https://ui.shadcn.com/docs/forms/react-hook-form
-
 import * as React from "react";
 import type * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
@@ -11,8 +9,9 @@ import {
   FormProvider,
   useFormContext,
 } from "react-hook-form";
-import { Label } from "@/src/components/ui/label";
+
 import { cn } from "@/src/utils/tailwind";
+import { Label } from "@/src/components/ui/label";
 
 const Form = FormProvider;
 
@@ -47,6 +46,7 @@ const useFormField = () => {
 
   const fieldState = getFieldState(fieldContext.name, formState);
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>");
   }
@@ -114,9 +114,7 @@ const FormControl = React.forwardRef<
       ref={ref}
       id={formItemId}
       aria-describedby={
-        !error
-          ? `${formDescriptionId}`
-          : `${formDescriptionId} ${formMessageId}`
+        !error ? formDescriptionId : `${formDescriptionId} ${formMessageId}`
       }
       aria-invalid={!!error}
       {...props}
@@ -132,7 +130,7 @@ const FormDescription = React.forwardRef<
   const { formDescriptionId } = useFormField();
 
   return (
-    <div
+    <p
       ref={ref}
       id={formDescriptionId}
       className={cn("text-sm text-muted-foreground", className)}
@@ -147,21 +145,21 @@ const FormMessage = React.forwardRef<
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, children, ...props }, ref) => {
   const { error, formMessageId } = useFormField();
-  const body = error ? String(error?.message) : children;
+  const body = error ? String(error.message) : children;
 
   if (!body) {
     return null;
   }
 
   return (
-    <div
+    <p
       ref={ref}
       id={formMessageId}
       className={cn("text-sm font-medium text-destructive", className)}
       {...props}
     >
       {body}
-    </div>
+    </p>
   );
 });
 FormMessage.displayName = "FormMessage";

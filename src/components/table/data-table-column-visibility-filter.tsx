@@ -11,11 +11,12 @@ import {
   DropdownMenuTrigger,
   DropdownMenuCheckboxItem,
 } from "@/src/components/ui/dropdown-menu";
-import { type ColumnDef, type VisibilityState } from "@tanstack/react-table";
+import { type VisibilityState } from "@tanstack/react-table";
 import { ChevronDownIcon } from "lucide-react";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+  columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
 }
@@ -67,7 +68,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                   toggleColumn(column.accessorKey.toString())
                 }
               >
-                {column.accessorKey.toString()}
+                {column.header?.toString() ?? column.accessorKey.toString()}
               </DropdownMenuCheckboxItem>
             ),
         )}

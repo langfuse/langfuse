@@ -1,8 +1,15 @@
 // Langfuse Cloud only
 
+import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { Card, Flex, MarkerBar, Metric, Text } from "@tremor/react";
+import {
+  chatAvailable,
+  sendUserChatMessage,
+  showAgentChatMessage,
+} from "@/src/features/support-chat/chat";
+import Link from "next/link";
 
 export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   projectId,
@@ -10,8 +17,10 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   const usage = api.usageMetering.currentMonth.useQuery({
     projectId,
   });
-  // TODO: use planLimit from the API
-  const planLimit = 100000;
+  const project = api.projects.byId.useQuery({ projectId });
+  const planLimit =
+    project.data?.cloudConfig?.monthlyObservationLimit ?? 100_000;
+  const plan = project.data?.cloudConfig?.plan ?? "Hobby";
   const currentMonth = new Date().toLocaleDateString("en-US", {
     month: "short",
   });
@@ -46,6 +55,33 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
           </>
         ) : null}
       </Card>
+      <div className="mt-4 flex flex-row items-center gap-2">
+        {chatAvailable && (
+          <Button
+            variant="secondary"
+            className=""
+            onClick={() => {
+              sendUserChatMessage(
+                "I want to change my plan, project: " + projectId,
+              );
+              // wait for 2 seconds
+              setTimeout(() => {
+                showAgentChatMessage(
+                  "We're happy to help. Which plan would you like to change to? See https://langfuse.com/#pricing for details on available plans.",
+                );
+              }, 2000);
+            }}
+          >
+            Request plan change
+          </Button>
+        )}
+        <Button variant="secondary" asChild>
+          <Link href="https://langfuse.com/pricing">View plans</Link>
+        </Button>
+        <div className="inline-block text-sm text-gray-500">
+          Currently: {plan}
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,8 +1,16 @@
 import { Badge } from "@/src/components/ui/badge";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { cn } from "@/src/utils/tailwind";
+import { MessageCircle } from "lucide-react";
 
 type ScoreSimplified = {
   name: string;
   value: number;
+  comment?: string | null;
 };
 
 export const GroupedScoreBadges = ({
@@ -12,7 +20,7 @@ export const GroupedScoreBadges = ({
   scores: ScoreSimplified[];
   variant?: "badge" | "headings";
 }) => {
-  const groupedScores = scores.reduce(
+  const groupedScores = scores.reduce<Record<string, ScoreSimplified[]>>(
     (acc, score) => {
       if (!acc[score.name] || !Array.isArray(acc[score.name])) {
         acc[score.name] = [score];
@@ -21,7 +29,31 @@ export const GroupedScoreBadges = ({
       }
       return acc;
     },
-    {} as Record<string, ScoreSimplified[]>,
+    {},
+  );
+
+  const ScoresOfGroup = (props: {
+    scores: ScoreSimplified[];
+    className?: string;
+  }) => (
+    <div className={cn("text-xs", props.className)}>
+      {props.scores.map((s, i) => (
+        <span key={i} className="group/score ml-1 first:ml-0">
+          {s.value.toFixed(2)}
+          {s.comment && (
+            <HoverCard>
+              <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
+                <MessageCircle size={12} />
+              </HoverCardTrigger>
+              <HoverCardContent>
+                <p>{s.comment}</p>
+              </HoverCardContent>
+            </HoverCard>
+          )}
+          <span className="group-last/score:hidden">,</span>
+        </span>
+      ))}
+    </div>
   );
 
   if (variant === "headings")
@@ -32,9 +64,7 @@ export const GroupedScoreBadges = ({
           .map(([name, scores]) => (
             <div key={name}>
               <div className="text-xs text-gray-500">{name}</div>
-              <div className="text-xs">
-                {scores.map((s) => s.value.toFixed(2)).join(", ")}
-              </div>
+              <ScoresOfGroup scores={scores} />
             </div>
           ))}
       </div>
@@ -50,7 +80,7 @@ export const GroupedScoreBadges = ({
               key={name}
               className="break-all font-normal"
             >
-              {name}: {scores.map((s) => s.value.toFixed(2)).join(", ")}
+              {name}: <ScoresOfGroup scores={scores} className="ml-2" />
             </Badge>
           ))}
       </>

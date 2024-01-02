@@ -190,6 +190,7 @@ function isOpenAiModel(model: string): model is TiktokenModel {
       "gpt-3.5-turbo-0613",
       "gpt-3.5-turbo-16k",
       "gpt-3.5-turbo-16k-0613",
+      "gpt-3.5-turbo-1106",
     ].find((m) => m === model) !== undefined
   );
 }
@@ -224,7 +225,7 @@ export function calculateTokenCost(
 ): Decimal | undefined {
   const pricing = pricingList.filter((p) => p.modelName === input.model);
 
-  if (!pricing || pricing.length === 0) {
+  if (pricing.length === 0) {
     console.log("no pricing found for model", input.model);
     return undefined;
   } else {
@@ -247,21 +248,23 @@ export function calculateTokenCost(
       );
 
       if (promptPricing) {
-        promptPrice = calculateValue(
-          promptPricing.price,
-          promptPricing.pricingUnit,
-          input.promptTokens,
-          JSON.stringify(input.input),
-        );
+        promptPrice =
+          calculateValue(
+            promptPricing.price,
+            promptPricing.pricingUnit,
+            input.promptTokens,
+            JSON.stringify(input.input),
+          ) ?? new Decimal(0);
       }
 
       if (completionPricing) {
-        completionPrice = calculateValue(
-          completionPricing.price,
-          completionPricing.pricingUnit,
-          input.completionTokens,
-          JSON.stringify(input.output),
-        );
+        completionPrice =
+          calculateValue(
+            completionPricing.price,
+            completionPricing.pricingUnit,
+            input.completionTokens,
+            JSON.stringify(input.output),
+          ) ?? new Decimal(0);
       }
 
       return promptPrice.plus(completionPrice);
@@ -277,15 +280,21 @@ const calculateValue = (
   tokens: Decimal,
   characters: string,
 ) => {
-  if (unit === "PER_1000_TOKENS")
-    return price.times(tokens.dividedBy(new Decimal(1000))).toDecimalPlaces(5);
-  else if (unit === "PER_1000_CHARS")
-    return (
-      price
-        // strip whitespace, default for google bison, only character based model for now
-        .times(new Decimal(characters.replace(/\s/g, "").length))
-        .dividedBy(new Decimal(1000))
-        .toDecimalPlaces(5)
-    );
-  else throw new Error("Unknown pricing unit", unit);
+  switch (unit) {
+    case "PER_1000_TOKENS":
+      return price
+        .times(tokens.dividedBy(new Decimal(1000)))
+        .toDecimalPlaces(5);
+    case "PER_1000_CHARS":
+      return (
+        price
+          // strip whitespace, default for google bison, only character based model for now
+          .times(new Decimal(characters.replace(/\s/g, "").length))
+          .dividedBy(new Decimal(1000))
+          .toDecimalPlaces(5)
+      );
+    default:
+      console.log("unknown pricing unit", unit);
+      return undefined;
+  }
 };

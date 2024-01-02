@@ -31,14 +31,14 @@ export function DeleteProjectButton(props: { projectId: string }) {
   const posthog = usePostHog();
 
   //code for dynamic confirmation message
-  const userInfo = session?.data?.user;
-  const currentProject = userInfo?.projects?.find(
+  const userInfo = session.data?.user;
+  const currentProject = userInfo?.projects.find(
     (project) => project.id == props.projectId,
   );
   const confirmMessage =
     userInfo?.name?.replace(" ", "-") +
     "/" +
-    currentProject?.name?.replace(" ", "-");
+    currentProject?.name.replace(" ", "-");
 
   const formSchema = z.object({
     name: z.string().includes(confirmMessage, {
@@ -102,7 +102,6 @@ export function DeleteProjectButton(props: { projectId: string }) {
               // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-8"
-              data-testid="new-project-form"
             >
               <FormField
                 control={form.control}

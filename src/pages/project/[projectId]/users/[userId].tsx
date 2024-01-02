@@ -8,8 +8,9 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import TableLink from "@/src/components/table/table-link";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import SessionsTable from "@/src/components/table/use-cases/sessions";
 
-const tabs = ["Details", "Traces", "Scores"] as const;
+const tabs = ["Details", "Sessions", "Traces", "Scores"] as const;
 
 export default function TracePage() {
   const router = useRouter();
@@ -29,6 +30,8 @@ export default function TracePage() {
     switch (currentTab as (typeof tabs)[number]) {
       case "Details":
         return <DetailsTab userId={userId} projectId={projectId} />;
+      case "Sessions":
+        return <SessionsTab userId={userId} projectId={projectId} />;
       case "Traces":
         return <TracesTab userId={userId} projectId={projectId} />;
       case "Scores":
@@ -137,48 +140,46 @@ function DetailsTab({ userId, projectId }: TabProps) {
 
   return (
     <div className="mt-5 pt-5">
-      {userData ? (
-        <div className="mt-6 border-t border-gray-100">
-          <dl className="divide-y divide-gray-100">
-            {userData.map((item) => (
-              <div
-                key={item.label}
-                className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
-              >
-                <dt className="text-sm font-medium leading-6 text-gray-900">
-                  {item.label}
-                </dt>
-                <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                  {item.value ?? "-"}
-                </dd>
-              </div>
-            ))}
-            {user.data?.lastScore ? (
-              <div
-                key="score"
-                className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
-              >
-                <dt className="text-sm font-medium leading-6 text-gray-900">
-                  Last Score
-                </dt>
-                <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-                  <div className="flex items-center gap-4">
-                    <TableLink
-                      path={
-                        user.data?.lastScore.observationId
-                          ? `/project/${projectId}/traces/${user.data?.lastScore.traceId}?observation=${user.data?.lastScore.observationId}`
-                          : `/project/${projectId}/traces/${user.data?.lastScore.traceId}`
-                      }
-                      value={user.data?.lastScore.traceId}
-                    />
-                    <GroupedScoreBadges scores={[user.data?.lastScore]} />
-                  </div>
-                </dd>
-              </div>
-            ) : undefined}
-          </dl>
-        </div>
-      ) : undefined}
+      <div className="mt-6 border-t border-gray-100">
+        <dl className="divide-y divide-gray-100">
+          {userData.map((item) => (
+            <div
+              key={item.label}
+              className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
+            >
+              <dt className="text-sm font-medium leading-6 text-gray-900">
+                {item.label}
+              </dt>
+              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+                {item.value ?? "-"}
+              </dd>
+            </div>
+          ))}
+          {user.data?.lastScore ? (
+            <div
+              key="score"
+              className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
+            >
+              <dt className="text-sm font-medium leading-6 text-gray-900">
+                Last Score
+              </dt>
+              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+                <div className="flex items-center gap-4">
+                  <TableLink
+                    path={
+                      user.data.lastScore.observationId
+                        ? `/project/${projectId}/traces/${user.data.lastScore.traceId}?observation=${user.data.lastScore.observationId}`
+                        : `/project/${projectId}/traces/${user.data.lastScore.traceId}`
+                    }
+                    value={user.data.lastScore.traceId}
+                  />
+                  <GroupedScoreBadges scores={[user.data.lastScore]} />
+                </div>
+              </dd>
+            </div>
+          ) : undefined}
+        </dl>
+      </div>
     </div>
   );
 }
@@ -195,6 +196,18 @@ function TracesTab({ userId, projectId }: TabProps) {
   return (
     <div className="mt-5 pt-5">
       <TracesTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["userId"]}
+      />
+    </div>
+  );
+}
+
+function SessionsTab({ userId, projectId }: TabProps) {
+  return (
+    <div className="mt-5 pt-5">
+      <SessionsTable
         projectId={projectId}
         userId={userId}
         omittedFilter={["userId"]}

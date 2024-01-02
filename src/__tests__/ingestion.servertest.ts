@@ -8,11 +8,258 @@ import { v4 } from "uuid";
 describe("/api/public/ingestion API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
 
-  it("should create trace and generation", async () => {
+  [
+    {
+      usage: {
+        input: 100,
+        output: 200,
+        total: 100,
+        unit: "CHARACTERS",
+      },
+      expectedUnit: "CHARACTERS",
+      expectedPromptTokens: 100,
+      expectedCompletionTokens: 200,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        total: 100,
+        unit: "CHARACTERS",
+      },
+      expectedUnit: "CHARACTERS",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        total: 100,
+      },
+      expectedUnit: "TOKENS",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        promptTokens: 100,
+        completionTokens: 200,
+        totalTokens: 100,
+      },
+      expectedPromptTokens: 100,
+      expectedCompletionTokens: 200,
+      expectedTotalTokens: 100,
+      expectedUnit: "TOKENS",
+    },
+    {
+      usage: {
+        totalTokens: 100,
+      },
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
+      expectedUnit: "TOKENS",
+    },
+    {
+      usage: undefined,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 0,
+      expectedUnit: "TOKENS",
+    },
+    {
+      usage: null,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 0,
+      expectedUnit: "TOKENS",
+    },
+    {
+      usage: {},
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 0,
+      expectedUnit: "TOKENS",
+    },
+  ].forEach((testConfig) => {
+    it(`should create trace and generation ${JSON.stringify(
+      testConfig,
+    )}`, async () => {
+      const traceId = v4();
+      const generationId = v4();
+      const spanId = v4();
+      const scoreId = v4();
+
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        metadata: {
+          sdk_verion: "1.0.0",
+          sdk_name: "python",
+        },
+        batch: [
+          {
+            id: v4(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: traceId,
+              name: "trace-name",
+              userId: "user-1",
+              metadata: { key: "value" },
+              release: "1.0.0",
+              version: "2.0.0",
+            },
+          },
+          {
+            id: v4(),
+            type: "observation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              type: "GENERATION",
+              name: "generation-name",
+              startTime: "2021-01-01T00:00:00.000Z",
+              endTime: "2021-01-01T00:00:00.000Z",
+              modelParameters: { key: "value" },
+              input: { key: "value" },
+              metadata: { key: "value" },
+              version: "2.0.0",
+            },
+          },
+          {
+            id: v4(),
+            type: "observation-update",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              type: "GENERATION",
+              output: { key: "this is a great gpt output" },
+              usage: testConfig.usage,
+            },
+          },
+          {
+            id: v4(),
+            type: "observation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: spanId,
+              traceId: traceId,
+              type: "SPAN",
+              name: "span-name",
+              startTime: "2021-01-01T00:00:00.000Z",
+              endTime: "2021-01-01T00:00:00.000Z",
+              input: { input: "value" },
+              metadata: { meta: "value" },
+              version: "2.0.0",
+            },
+          },
+          {
+            id: v4(),
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: scoreId,
+              name: "score-name",
+              value: 100.5,
+              traceId: traceId,
+            },
+          },
+        ],
+      });
+
+      expect(response.status).toBe(207);
+
+      console.log("response body", response.body);
+
+      const dbTrace = await prisma.trace.findMany({
+        where: {
+          name: "trace-name",
+        },
+      });
+
+      expect(dbTrace.length).toBeGreaterThan(0);
+      expect(dbTrace[0]?.name).toBe("trace-name");
+      expect(dbTrace[0]?.release).toBe("1.0.0");
+      expect(dbTrace[0]?.externalId).toBeNull();
+      expect(dbTrace[0]?.version).toBe("2.0.0");
+      expect(dbTrace[0]?.projectId).toBe(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+
+      const dbGeneration = await prisma.observation.findUnique({
+        where: {
+          id: generationId,
+        },
+      });
+
+      expect(dbGeneration?.id).toBe(generationId);
+      expect(dbGeneration?.traceId).toBe(traceId);
+      expect(dbGeneration?.name).toBe("generation-name");
+      expect(dbGeneration?.startTime).toEqual(
+        new Date("2021-01-01T00:00:00.000Z"),
+      );
+      expect(dbGeneration?.endTime).toEqual(
+        new Date("2021-01-01T00:00:00.000Z"),
+      );
+      expect(dbGeneration?.model).toBeNull();
+      expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
+      expect(dbGeneration?.input).toEqual({ key: "value" });
+      expect(dbGeneration?.metadata).toEqual({ key: "value" });
+      expect(dbGeneration?.version).toBe("2.0.0");
+      expect(dbGeneration?.promptTokens).toEqual(
+        testConfig.expectedPromptTokens,
+      );
+      expect(dbGeneration?.completionTokens).toEqual(
+        testConfig.expectedCompletionTokens,
+      );
+      expect(dbGeneration?.totalTokens).toEqual(testConfig.expectedTotalTokens);
+      expect(dbGeneration?.unit).toEqual(testConfig.expectedUnit);
+      expect(dbGeneration?.output).toEqual({
+        key: "this is a great gpt output",
+      });
+
+      const dbSpan = await prisma.observation.findUnique({
+        where: {
+          id: spanId,
+        },
+      });
+
+      expect(dbSpan?.id).toBe(spanId);
+      expect(dbSpan?.name).toBe("span-name");
+      expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
+      expect(dbSpan?.endTime).toEqual(new Date("2021-01-:00:00.000Z"));
+      expect(dbSpan?.input).toEqual({ input: "value" });
+      expect(dbSpan?.metadata).toEqual({ meta: "value" });
+      expect(dbSpan?.version).toBe("2.0.0");
+
+      const dbScore = await prisma.score.findUnique({
+        where: {
+          id: scoreId,
+        },
+      });
+
+      expect(dbScore?.id).toBe(scoreId);
+      expect(dbScore?.traceId).toBe(traceId);
+      expect(dbScore?.name).toBe("score-name");
+      expect(dbScore?.value).toBe(100.5);
+      expect(dbScore?.observationId).toBeNull();
+    });
+  });
+
+  it("should create and update all events", async () => {
     const traceId = v4();
     const generationId = v4();
     const spanId = v4();
+    const eventId = v4();
     const scoreId = v4();
+
+    const exception = `
+    ERROR    langfuse:callback.py:677 'model_name'
+    Traceback (most recent call last):
+      File "/Users/maximiliandeichmann/development/github.com/langfuse/langfuse-python/langfuse/callback.py", line 674, in __on_llm_action
+        model_name = kwargs["invocation_params"]["model_name"]
+    KeyError: 'model_name'
+    `;
 
     const response = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
@@ -22,55 +269,55 @@ describe("/api/public/ingestion API Endpoint", () => {
           timestamp: new Date().toISOString(),
           body: {
             id: traceId,
-            name: "trace-name",
-            userId: "user-1",
-            metadata: { key: "value" },
-            release: "1.0.0",
-            version: "2.0.0",
           },
         },
         {
           id: v4(),
-          type: "observation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            traceId: traceId,
-            type: "GENERATION",
-            name: "generation-name",
-            startTime: "2021-01-01T00:00:00.000Z",
-            endTime: "2021-01-01T00:00:00.000Z",
-            modelParameters: { key: "value" },
-            input: { key: "value" },
-            metadata: { key: "value" },
-            version: "2.0.0",
-          },
-        },
-        {
-          id: v4(),
-          type: "observation-update",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            type: "GENERATION",
-            output: { key: "this is a great gpt output" },
-            usage: { promptTokens: 400, completionTokens: 1000 },
-          },
-        },
-        {
-          id: v4(),
-          type: "observation-create",
+          type: "span-create",
           timestamp: new Date().toISOString(),
           body: {
             id: spanId,
             traceId: traceId,
-            type: "SPAN",
+          },
+        },
+        {
+          id: v4(),
+          type: "span-update",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: spanId,
+            traceId: traceId,
             name: "span-name",
-            startTime: "2021-01-01T00:00:00.000Z",
-            endTime: "2021-01-01T00:00:00.000Z",
-            input: { input: "value" },
-            metadata: { meta: "value" },
-            version: "2.0.0",
+          },
+        },
+        {
+          id: v4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            parentObservationId: spanId,
+          },
+        },
+        {
+          id: v4(),
+          type: "generation-update",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            name: "generation-name",
+          },
+        },
+        {
+          id: v4(),
+          type: "event-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: eventId,
+            traceId: traceId,
+            name: "event-name",
+            parentObservationId: generationId,
           },
         },
         {
@@ -80,8 +327,17 @@ describe("/api/public/ingestion API Endpoint", () => {
           body: {
             id: scoreId,
             name: "score-name",
-            value: 100.5,
             traceId: traceId,
+            value: 100.5,
+            observationId: generationId,
+          },
+        },
+        {
+          id: v4(),
+          type: "sdk-log",
+          timestamp: new Date().toISOString(),
+          body: {
+            log: exception,
           },
         },
       ],
@@ -91,16 +347,22 @@ describe("/api/public/ingestion API Endpoint", () => {
 
     const dbTrace = await prisma.trace.findMany({
       where: {
-        name: "trace-name",
+        id: traceId,
       },
     });
 
     expect(dbTrace.length).toBeGreaterThan(0);
-    expect(dbTrace[0]?.name).toBe("trace-name");
-    expect(dbTrace[0]?.release).toBe("1.0.0");
-    expect(dbTrace[0]?.externalId).toBeNull();
-    expect(dbTrace[0]?.version).toBe("2.0.0");
     expect(dbTrace[0]?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+
+    const dbSpan = await prisma.observation.findUnique({
+      where: {
+        id: spanId,
+      },
+    });
+
+    expect(dbSpan?.id).toBe(spanId);
+    expect(dbSpan?.name).toBe("span-name");
+    expect(dbSpan?.traceId).toBe(traceId);
 
     const dbGeneration = await prisma.observation.findUnique({
       where: {
@@ -111,34 +373,18 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbGeneration?.id).toBe(generationId);
     expect(dbGeneration?.traceId).toBe(traceId);
     expect(dbGeneration?.name).toBe("generation-name");
-    expect(dbGeneration?.startTime).toEqual(
-      new Date("2021-01-01T00:00:00.000Z"),
-    );
-    expect(dbGeneration?.endTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbGeneration?.model).toBeNull();
-    expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
-    expect(dbGeneration?.input).toEqual({ key: "value" });
-    expect(dbGeneration?.metadata).toEqual({ key: "value" });
-    expect(dbGeneration?.version).toBe("2.0.0");
-    expect(dbGeneration?.promptTokens).toEqual(400);
-    expect(dbGeneration?.completionTokens).toEqual(1000);
-    expect(dbGeneration?.output).toEqual({
-      key: "this is a great gpt output",
-    });
+    expect(dbGeneration?.parentObservationId).toBe(spanId);
 
-    const dbSpan = await prisma.observation.findUnique({
+    const dbEvent = await prisma.observation.findUnique({
       where: {
-        id: spanId,
+        id: eventId,
       },
     });
 
-    expect(dbSpan?.id).toBe(spanId);
-    expect(dbSpan?.name).toBe("span-name");
-    expect(dbSpan?.startTime).toEqual(new Date("2021-01-01T00:00:00.000Z"));
-    expect(dbSpan?.endTime).toEqual(new Date("2021-01-:00:00.000Z"));
-    expect(dbSpan?.input).toEqual({ input: "value" });
-    expect(dbSpan?.metadata).toEqual({ meta: "value" });
-    expect(dbSpan?.version).toBe("2.0.0");
+    expect(dbEvent?.id).toBe(eventId);
+    expect(dbEvent?.traceId).toBe(traceId);
+    expect(dbEvent?.name).toBe("event-name");
+    expect(dbEvent?.parentObservationId).toBe(generationId);
 
     const dbScore = await prisma.score.findUnique({
       where: {
@@ -148,9 +394,21 @@ describe("/api/public/ingestion API Endpoint", () => {
 
     expect(dbScore?.id).toBe(scoreId);
     expect(dbScore?.traceId).toBe(traceId);
-    expect(dbScore?.name).toBe("score-name");
+    expect(dbScore?.observationId).toBe(generationId);
     expect(dbScore?.value).toBe(100.5);
-    expect(dbScore?.observationId).toBeNull();
+
+    const logEvent = await prisma.events.findFirst({
+      where: {
+        data: {
+          path: ["body", "log"],
+          string_contains: "ERROR",
+        },
+      },
+    });
+
+    expect(logEvent).toBeDefined();
+    expect(logEvent).not.toBeFalsy();
+    expect(JSON.stringify(logEvent?.data)).toContain("KeyError: 'model_name'");
   });
 
   it("should upsert threats", async () => {

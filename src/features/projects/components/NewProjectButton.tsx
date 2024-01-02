@@ -67,7 +67,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
       .catch((error) => {
         console.error(error);
       });
-    void chatRunTrigger("after-project-creation");
+    chatRunTrigger("after-project-creation");
   }
 
   return (

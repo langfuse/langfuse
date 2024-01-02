@@ -28,10 +28,9 @@ export const TracesTimeSeriesChart = ({
       projectId,
       from: "traces",
       select: [{ column: "traceId", agg: "COUNT" }],
-      filter:
-        globalFilterState.map((f) =>
-          f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-        ) ?? [],
+      filter: globalFilterState.map((f) =>
+        f.type === "datetime" ? { ...f, column: "timestamp" } : f,
+      ),
       groupBy: [
         {
           type: "datetime",
@@ -85,9 +84,9 @@ export const TracesTimeSeriesChart = ({
       />
       {!isEmptyTimeSeries(transformedTraces) ? (
         <BaseTimeSeriesChart
-          className="min-h-80 h-full self-stretch"
+          className="h-full min-h-80 self-stretch"
           agg={agg}
-          data={transformedTraces ?? []}
+          data={transformedTraces}
           connectNulls={true}
         />
       ) : (

@@ -7,8 +7,10 @@ import { useRouter } from "next/router";
 import { Code, Bird, GraduationCap } from "lucide-react";
 import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
+import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
 import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
+import RenameProject from "@/src/features/projects/components/RenameProject";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -18,6 +20,8 @@ export default function SettingsPage() {
       <Header title="Settings" />
       <div className="flex flex-col gap-10">
         <ProjectMembersTable projectId={projectId} />
+        <RenameProject projectId={projectId} />
+        <HostNameProject />
         <ApiKeyList projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
         <Instructions />

@@ -53,6 +53,25 @@ async function main() {
     },
   });
 
+  const prompt = await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId: seedProjectId,
+        name: "summary-prompt",
+        version: 1,
+      },
+    },
+    create: {
+      name: "summary-prompt",
+      project: { connect: { id: seedProjectId } },
+      prompt: "prompt {{variable}} {{anotherVariable}}",
+      isActive: true,
+      version: 1,
+      createdBy: "user-1",
+    },
+    update: {},
+  });
+
   const seedApiKey = {
     id: "seed-api-key",
     secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890",
@@ -133,19 +152,42 @@ async function main() {
             },
           },
           userId: `user-${i % 10}`,
+          session:
+            Math.random() > 0.3
+              ? {
+                  connectOrCreate: {
+                    where: {
+                      id: `session-${i % 10}`,
+                    },
+                    create: {
+                      id: `session-${i % 10}`,
+                      project: {
+                        connect: { id: [project1.id, project2.id][i % 2] },
+                      },
+                    },
+                  },
+                }
+              : undefined,
+          input:
+            Math.random() > 0.3
+              ? "I'm looking for a React component"
+              : undefined,
+          output:
+            Math.random() > 0.3
+              ? "What kind of component are you looking for?"
+              : undefined,
           scores: {
             createMany: {
               data: [
-                {
-                  name: "latency",
-                  value: Math.floor(Math.random() * 20),
-                  timestamp: traceTs,
-                },
-                {
-                  name: "feedback",
-                  value: Math.floor(Math.random() * 3) - 1,
-                  timestamp: traceTs,
-                },
+                ...(Math.random() > 0.5
+                  ? [
+                      {
+                        name: "feedback",
+                        value: Math.floor(Math.random() * 3) - 1,
+                        timestamp: traceTs,
+                      },
+                    ]
+                  : []),
                 ...(Math.random() > 0.7
                   ? [
                       {
@@ -303,25 +345,31 @@ async function main() {
               totalTokens: promptTokens + completionTokens,
               parentObservationId: span.id,
               traceId: trace.id,
+              ...{
+                ...(Math.random() > 0.5 && trace.projectId === prompt.projectId
+                  ? { prompt: { connect: { id: prompt.id } } }
+                  : {}),
+              },
             },
           });
-
-          await prisma.score.create({
-            data: {
-              name: "quality",
-              value: Math.random() * 2 - 1,
-              observationId: generation.id,
-              traceId: trace.id,
-            },
-          });
-          await prisma.score.create({
-            data: {
-              name: "conciseness",
-              value: Math.random() * 2 - 1,
-              observationId: generation.id,
-              traceId: trace.id,
-            },
-          });
+          if (Math.random() > 0.6)
+            await prisma.score.create({
+              data: {
+                name: "quality",
+                value: Math.random() * 2 - 1,
+                observationId: generation.id,
+                traceId: trace.id,
+              },
+            });
+          if (Math.random() > 0.6)
+            await prisma.score.create({
+              data: {
+                name: "conciseness",
+                value: Math.random() * 2 - 1,
+                observationId: generation.id,
+                traceId: trace.id,
+              },
+            });
 
           generationIds.push(generation.id);
 

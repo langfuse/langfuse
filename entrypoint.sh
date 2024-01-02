@@ -13,8 +13,10 @@ if [ -z "$DATABASE_URL" ]; then
     fi
 fi
 
-# Set DIRECT_URL to the value of DATABASE_URL, required for migrations
-export DIRECT_URL=$DATABASE_URL
+# Set DIRECT_URL to the value of DATABASE_URL if it is not set, required for migrations
+if [ -z "$DIRECT_URL" ]; then
+    export DIRECT_URL=$DATABASE_URL
+fi
 
 # Apply migrations
 prisma migrate deploy

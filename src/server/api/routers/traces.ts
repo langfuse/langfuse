@@ -155,6 +155,7 @@ export const traceRouter = createTRPCRouter({
         t.*,
         t."user_id" AS "userId",
         t."metadata" AS "metadata",
+        t.session_id AS "sessionId",
         t."bookmarked" AS "bookmarked",
         COALESCE(u."promptTokens", 0)::int AS "promptTokens",
         COALESCE(u."completionTokens", 0)::int AS "completionTokens",
@@ -274,46 +275,38 @@ export const traceRouter = createTRPCRouter({
         observations: enrichedObservations as ObservationReturnType[],
       };
     }),
-  delete: protectedProjectProcedure
-    .input(z.object({ traceId: z.string(), projectId: z.string() }))
+  deleteMany: protectedProjectProcedure
+    .input(
+      z.object({
+        traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
+        projectId: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "traces:delete",
-        });
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
 
-        const trace = await ctx.prisma.trace.findFirst({
+      return ctx.prisma.$transaction([
+        ctx.prisma.trace.deleteMany({
           where: {
-            id: input.traceId,
+            id: {
+              in: input.traceIds,
+            },
             projectId: input.projectId,
           },
-        });
-
-        if (!trace) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found in project",
-          });
-        }
-
-        return ctx.prisma.$transaction([
-          ctx.prisma.trace.delete({
-            where: {
-              id: input.traceId,
+        }),
+        ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
             },
-          }),
-          ctx.prisma.observation.deleteMany({
-            where: {
-              traceId: input.traceId,
-            },
-          }),
-        ]);
-      } catch (e) {
-        console.error("Failed to delete trace", e);
-        throw e;
-      }
+            projectId: input.projectId,
+          },
+        }),
+      ]);
     }),
   bookmark: protectedProjectProcedure
     .input(
@@ -324,36 +317,79 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:bookmark",
+      });
       try {
-        throwIfNoAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "traces:bookmark",
-        });
-        const trace = await ctx.prisma.trace.findFirst({
+        const trace = await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
             projectId: input.projectId,
-          },
-        });
-        if (!trace) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found in project",
-          });
-        }
-
-        return ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
           },
           data: {
             bookmarked: input.bookmarked,
           },
         });
-      } catch (e) {
-        console.error("Failed to bookmark trace", e);
-        throw e;
+        return trace;
+      } catch (error) {
+        console.error(error);
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025" // Record to update not found
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
+        } else {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
+      }
+    }),
+  publish: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        public: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:publish",
+      });
+      try {
+        const trace = await ctx.prisma.trace.update({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+          data: {
+            public: input.public,
+          },
+        });
+        return trace;
+      } catch (error) {
+        console.error(error);
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025" // Record to update not found
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found in project",
+          });
+        } else {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
       }
     }),
 });

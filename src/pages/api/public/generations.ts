@@ -4,10 +4,10 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { v4 as uuidv4 } from "uuid";
 import { ResourceNotFoundError } from "../../../utils/exceptions";
 import {
-  GenerationPatchSchema,
-  GenerationsCreateSchema,
+  LegacyGenerationPatchSchema,
+  LegacyGenerationsCreateSchema,
   eventTypes,
-  ingestionBatch,
+  ingestionBatchEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import {
   handleBatch,
@@ -41,7 +41,7 @@ export default async function handler(
       );
 
       const convertToObservation = (
-        generation: z.infer<typeof GenerationsCreateSchema>,
+        generation: z.infer<typeof LegacyGenerationsCreateSchema>,
       ) => {
         return {
           ...generation,
@@ -55,11 +55,14 @@ export default async function handler(
         id: uuidv4(),
         type: eventTypes.OBSERVATION_CREATE,
         timestamp: new Date().toISOString(),
-        body: convertToObservation(GenerationsCreateSchema.parse(req.body)),
+        body: convertToObservation(
+          LegacyGenerationsCreateSchema.parse(req.body),
+        ),
       };
 
       const result = await handleBatch(
-        ingestionBatch.parse([event]),
+        ingestionBatchEvent.parse([event]),
+        {},
         req,
         authCheck,
       );
@@ -84,7 +87,7 @@ export default async function handler(
       );
 
       const convertToObservation = (
-        generation: z.infer<typeof GenerationPatchSchema>,
+        generation: z.infer<typeof LegacyGenerationPatchSchema>,
       ) => {
         return {
           ...generation,
@@ -97,13 +100,14 @@ export default async function handler(
 
       const event = {
         id: uuidv4(),
-        type: eventTypes.OBSERVAION_UPDATE,
+        type: eventTypes.OBSERVATION_UPDATE,
         timestamp: new Date().toISOString(),
-        body: convertToObservation(GenerationPatchSchema.parse(req.body)),
+        body: convertToObservation(LegacyGenerationPatchSchema.parse(req.body)),
       };
 
       const result = await handleBatch(
-        ingestionBatch.parse([event]),
+        ingestionBatchEvent.parse([event]),
+        {},
         req,
         authCheck,
       );

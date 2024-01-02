@@ -1,5 +1,4 @@
 import { api, directApi } from "@/src/utils/api";
-import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -13,7 +12,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDownIcon, Loader } from "lucide-react";
-import { type ExportFileFormats } from "@/src/server/api/routers/generations";
 import { usePostHog } from "posthog-js/react";
 import {
   NumberParam,
@@ -24,41 +22,39 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { JSONView } from "@/src/components/ui/code";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type ObservationLevel } from "@prisma/client";
+import { cn } from "@/src/utils/tailwind";
+import { LevelColors } from "@/src/components/level-colors";
+import { usdFormatter } from "@/src/utils/numbers";
+import {
+  exportOptions,
+  type ExportFileFormats,
+} from "@/src/server/api/interfaces/exportTypes";
 
 export type GenerationsTableRow = {
   id: string;
   traceId: string;
   startTime: string;
+  level?: ObservationLevel;
+  statusMessage?: string;
   endTime?: string;
   latency?: number;
   name?: string;
   model?: string;
+  input?: unknown;
+  output?: unknown;
   traceName?: string;
+  metadata?: string;
   usage: {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
   };
 };
-
-const exportOptions: Record<
-  ExportFileFormats,
-  {
-    label: string;
-    extension: string;
-    fileType: string;
-  }
-> = {
-  CSV: { label: "CSV", extension: "csv", fileType: "text/csv" },
-  JSON: { label: "JSON", extension: "json", fileType: "application/json" },
-  "OPENAI-JSONL": {
-    label: "OpenAI JSONL (fine-tuning)",
-    extension: "jsonl",
-    fileType: "application/json",
-  },
-} as const;
 
 export type GenerationsTableProps = {
   projectId: string;
@@ -104,40 +100,47 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
 
     setIsExporting(true);
     posthog.capture("generations:export", { file_format: fileFormat });
-    const fileData = await directApi.generations.export.query({
-      projectId,
-      fileFormat,
-      filter: filterState,
-      searchQuery,
-    });
+    try {
+      const fileData = await directApi.generations.export.query({
+        projectId,
+        fileFormat,
+        filter: filterState,
+        searchQuery,
+      });
 
-    if (fileData) {
-      const file = new File(
-        [fileData],
-        `generations.${exportOptions[fileFormat].extension}`,
-        {
+      let url: string;
+      if (fileData.type === "s3") {
+        url = fileData.url;
+      } else {
+        const file = new File([fileData.data], fileData.fileName, {
           type: exportOptions[fileFormat].fileType,
-        },
-      );
+        });
 
-      // create url from file
-      const url = URL.createObjectURL(file);
+        // create url from file
+        url = URL.createObjectURL(file);
+      }
 
       // Use a dynamically created anchor element to trigger the download
       const a = document.createElement("a");
       document.body.appendChild(a);
       a.href = url;
-      a.download = `generations.${exportOptions[fileFormat].extension}`; // name of the downloaded file
+      a.download = fileData.fileName; // name of the downloaded file
       a.click();
       a.remove();
 
       // Revoke the blob URL after using it
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      if (fileData.type === "data") {
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      }
+
+      setIsExporting(false);
+    } catch (e) {
+      console.error(e);
+      setIsExporting(false);
     }
-    setIsExporting(false);
   };
 
-  const columns: ColumnDef<GenerationsTableRow>[] = [
+  const columns: LangfuseColumnDef<GenerationsTableRow>[] = [
     {
       accessorKey: "id",
       header: "ID",
@@ -186,10 +189,47 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latency");
         return value !== undefined ? (
-          <span>{value.toFixed(2)} sec</span>
+          <span>{formatInterval(value)}</span>
         ) : undefined;
       },
       enableHiding: true,
+    },
+    {
+      accessorKey: "cost",
+      header: "Cost",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("cost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+    },
+    {
+      accessorKey: "level",
+      header: "Level",
+      enableHiding: true,
+      cell({ row }) {
+        const value: ObservationLevel | undefined = row.getValue("level");
+        return value ? (
+          <span
+            className={cn(
+              "rounded-sm p-0.5 text-xs",
+              LevelColors[value].bg,
+              LevelColors[value].text,
+            )}
+          >
+            {value}
+          </span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "statusMessage",
+      header: "Status Message",
+      enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "model",
@@ -217,6 +257,36 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
     {
+      accessorKey: "input",
+      header: "Input",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("input");
+        return <JSONView json={value} className="w-[500px]" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "output",
+      header: "Output",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("output");
+        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      cell: ({ row }) => {
+        const values: string | undefined = row.getValue("metadata");
+        return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "version",
       header: "Version",
       enableHiding: true,
@@ -229,22 +299,32 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     );
 
   const rows: GenerationsTableRow[] = generations.isSuccess
-    ? generations.data.map((generation) => ({
-        id: generation.id,
-        traceId: generation.traceId,
-        traceName: generation.traceName,
-        startTime: generation.startTime.toLocaleString(),
-        endTime: generation.endTime?.toLocaleString() ?? undefined,
-        latency: generation.latency === null ? undefined : generation.latency,
-        name: generation.name ?? undefined,
-        version: generation.version ?? "",
-        model: generation.model ?? "",
-        usage: {
-          promptTokens: generation.promptTokens,
-          completionTokens: generation.completionTokens,
-          totalTokens: generation.totalTokens,
-        },
-      }))
+    ? generations.data.map((generation) => {
+        return {
+          id: generation.id,
+          traceId: generation.traceId,
+          traceName: generation.traceName,
+          startTime: generation.startTime.toLocaleString(),
+          endTime: generation.endTime?.toLocaleString() ?? undefined,
+          latency: generation.latency === null ? undefined : generation.latency,
+          cost: generation.cost,
+          name: generation.name ?? undefined,
+          version: generation.version ?? "",
+          model: generation.model ?? "",
+          input: generation.input,
+          output: generation.output,
+          level: generation.level,
+          metadata: generation.metadata
+            ? JSON.stringify(generation.metadata)
+            : undefined,
+          statusMessage: generation.statusMessage ?? undefined,
+          usage: {
+            promptTokens: generation.promptTokens,
+            completionTokens: generation.completionTokens,
+            totalTokens: generation.totalTokens,
+          },
+        };
+      })
     : [];
 
   return (

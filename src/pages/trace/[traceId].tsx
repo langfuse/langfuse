@@ -38,7 +38,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   };
 };
 
-const TracePage = () => {
+const TraceRedirectPage = () => {
   const router = useRouter();
   if (router.isFallback) {
     return <div>Loading...</div>;
@@ -47,4 +47,4 @@ const TracePage = () => {
   return <div>Redirecting...</div>;
 };
 
-export default TracePage;
+export default TraceRedirectPage;

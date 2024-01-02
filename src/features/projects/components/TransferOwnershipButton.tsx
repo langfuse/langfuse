@@ -34,7 +34,7 @@ export function TransferOwnershipButton(props: { projectId: string }) {
   const posthog = usePostHog();
 
   const session = useSession();
-  const project = session?.data?.user?.projects?.find(
+  const project = session.data?.user?.projects.find(
     (project) => project.id == props.projectId,
   );
   const hasAccess = useHasAccess({
@@ -94,7 +94,6 @@ export function TransferOwnershipButton(props: { projectId: string }) {
               // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-8"
-              data-testid="new-project-form"
             >
               <FormField
                 control={form.control}

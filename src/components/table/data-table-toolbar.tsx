@@ -5,7 +5,8 @@ import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-tab
 import { type FilterState } from "@/src/features/filters/types";
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import { type ColumnDef, type VisibilityState } from "@tanstack/react-table";
+import { type VisibilityState } from "@tanstack/react-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 interface SearchConfig {
   placeholder: string;
@@ -14,14 +15,14 @@ interface SearchConfig {
 }
 
 interface DataTableToolbarProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+  columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition: ColumnDefinition[];
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
   filterState: FilterState;
   setFilterState: Dispatch<SetStateAction<FilterState>>;
-  columnVisibility: VisibilityState;
-  setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
+  columnVisibility?: VisibilityState;
+  setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -48,6 +49,11 @@ export function DataTableToolbar<TData, TValue>({
               placeholder={searchConfig.placeholder}
               value={searchString}
               onChange={(event) => setSearchString(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  searchConfig.updateQuery(searchString);
+                }
+              }}
               className="h-10 w-[200px] lg:w-[350px]"
             />
             <Button
@@ -64,11 +70,13 @@ export function DataTableToolbar<TData, TValue>({
           onChange={setFilterState}
         />
         <div className="flex-1" />
-        <DataTableColumnVisibilityFilter
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-        />
+        {!!columnVisibility && !!setColumnVisibility && (
+          <DataTableColumnVisibilityFilter
+            columns={columns}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibility}
+          />
+        )}
         {actionButtons}
       </div>
     </div>
