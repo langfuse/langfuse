@@ -25,11 +25,14 @@ import {
 } from "@/src/features/filters/server/filterToPrisma";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
+  orderBy: orderBy,
   ...paginationZod,
 });
 
@@ -43,6 +46,10 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const filterCondition = filterToPrismaSql(
         input.filter ?? [],
+        tracesTableCols,
+      );
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
         tracesTableCols,
       );
 
@@ -174,8 +181,7 @@ export const traceRouter = createTRPCRouter({
         t."project_id" = ${input.projectId}
         ${searchCondition}
         ${filterCondition}
-      ORDER BY
-        t."timestamp" DESC
+      ${orderByCondition}
       LIMIT ${input.limit}
       OFFSET ${input.page * input.limit}
     `);
