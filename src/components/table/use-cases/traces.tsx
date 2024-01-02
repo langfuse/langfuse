@@ -300,7 +300,6 @@ export default function TracesTable({
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
       enableHiding: true,
-      enableSorting: true,
     },
     {
       accessorKey: "input",

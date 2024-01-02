@@ -110,7 +110,9 @@ export function DataTable<TData extends object, TValue>({
                           "whitespace-nowrap p-2",
                         )}
                         title={sortingEnabled ? "Sort by this column" : ""}
-                        onClick={() => {
+                        onClick={(event) => {
+                          event.preventDefault(); // Add this line
+
                           if (
                             !setOrderBy ||
                             !header.column.columnDef.id ||
@@ -134,13 +136,16 @@ export function DataTable<TData extends object, TValue>({
                       >
                         {header.isPlaceholder ? null : (
                           <>
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                            {orderBy?.column === header.column.columnDef.id
-                              ? renderOrderingIndicator(orderBy)
-                              : null}
+                            <div className="select-none">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+
+                              {orderBy?.column === header.column.columnDef.id
+                                ? renderOrderingIndicator(orderBy)
+                                : null}
+                            </div>
                           </>
                         )}
                       </TableHead>
