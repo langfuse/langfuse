@@ -80,6 +80,7 @@
     "date-fns": "^2.30.0",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.1",
+    "follow-redirects": "^1.15.4",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.302.0",
