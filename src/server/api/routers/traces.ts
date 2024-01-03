@@ -170,13 +170,10 @@ export const traceRouter = createTRPCRouter({
         },
       });
 
-      const newTraces = traces.map((trace) => {
+      return traces.map((trace) => {
         const filteredScores = scores.filter((s) => s.traceId === trace.id);
         return { ...trace, scores: filteredScores };
       });
-
-      console.log(newTraces);
-      return newTraces;
     }),
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
