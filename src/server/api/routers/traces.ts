@@ -201,6 +201,13 @@ export const traceRouter = createTRPCRouter({
           _all: true,
         },
       });
+      const tags: { count: number; value: string }[] = await ctx.prisma
+        .$queryRaw`
+        SELECT COUNT(*)::integer AS "count", tags.tag as value
+        FROM traces, UNNEST(traces.tags) AS tags(tag)
+        WHERE traces.project_id = ${input.projectId}
+        GROUP BY tags.tag;
+      `;
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
         name: names
@@ -209,6 +216,7 @@ export const traceRouter = createTRPCRouter({
             value: name.name ?? "undefined",
             count: name._count._all,
           })),
+        tags: tags,
       };
       return res;
     }),
