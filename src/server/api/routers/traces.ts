@@ -145,6 +145,7 @@ export const traceRouter = createTRPCRouter({
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
       `;
+
       const traces = await ctx.prisma.$queryRaw<
         Array<
           Trace & {
@@ -191,8 +192,17 @@ export const traceRouter = createTRPCRouter({
           projectId: input.projectId,
         },
         by: ["name"],
+        // limiting to 1k trace names to avoid performance issues.
+        // some users have unique names for large amounts of traces
+        // sending all trace names to the FE exceeds the cloud function return size limit
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
         _count: {
-          _all: true,
+          id: true,
         },
       });
       const res: TraceOptions = {
@@ -201,7 +211,7 @@ export const traceRouter = createTRPCRouter({
           .filter((n) => n.name !== null)
           .map((name) => ({
             value: name.name ?? "undefined",
-            count: name._count._all,
+            count: name._count.id,
           })),
       };
       return res;
