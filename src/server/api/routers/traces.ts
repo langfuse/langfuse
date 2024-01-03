@@ -146,7 +146,6 @@ export const traceRouter = createTRPCRouter({
         OFFSET ${input.page * input.limit}
       `;
 
-      console.log(query.sql, query.values);
       const traces = await ctx.prisma.$queryRaw<
         Array<
           Trace & {
