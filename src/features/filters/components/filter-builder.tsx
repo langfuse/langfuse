@@ -97,12 +97,14 @@ export function FilterBuilder({
                         ? new Date(filter.value).toLocaleDateString()
                         : filter.type === "stringOptions"
                           ? filter.value.join(", ")
-                          : filter.type === "number" ||
-                              filter.type === "numberObject"
-                            ? filter.value
-                            : filter.type === "boolean"
-                              ? `${filter.value}`
-                              : `"${filter.value}"`}
+                          : filter.type === "arrayOptions"
+                            ? filter.value.join(", ")
+                            : filter.type === "number" ||
+                                filter.type === "numberObject"
+                              ? filter.value
+                              : filter.type === "boolean"
+                                ? `${filter.value}`
+                                : `"${filter.value}"`}
                     </span>
                   );
                 })
@@ -328,6 +330,18 @@ function FilterBuilderForm({
                       className="min-w-[100px]"
                       options={
                         column?.type === "stringOptions" ? column.options : []
+                      }
+                      onValueChange={(value) =>
+                        handleFilterChange({ ...filter, value }, i)
+                      }
+                      values={Array.isArray(filter.value) ? filter.value : []}
+                    />
+                  ) : filter.type === "arrayOptions" ? (
+                    <MultiSelect
+                      title="Value"
+                      className="min-w-[100px]"
+                      options={
+                        column?.type === "arrayOptions" ? column.options : []
                       }
                       onValueChange={(value) =>
                         handleFilterChange({ ...filter, value }, i)
