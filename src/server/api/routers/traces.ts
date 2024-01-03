@@ -5,12 +5,7 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  type Observation,
-  Prisma,
-  type Score,
-  type Trace,
-} from "@prisma/client";
+import { type Observation, Prisma, type Trace } from "@prisma/client";
 import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
 import Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
