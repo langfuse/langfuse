@@ -43,11 +43,18 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "string",
     internal: 't."release"',
   },
+  {
+    name: "tags",
+    type: "arrayOptions",
+    internal: 't."tags"',
+    options: [], // to be filled in at runtime
+  },
 ];
 
 export type TraceOptions = {
   scores_avg: Array<string>;
   name: Array<OptionsDefinition>;
+  tags: Array<OptionsDefinition>;
 };
 
 export function tracesTableColsWithOptions(
@@ -59,6 +66,9 @@ export function tracesTableColsWithOptions(
     }
     if (col.name === "name") {
       return { ...col, options: options?.name ?? [] };
+    }
+    if (col.name === "tags") {
+      return { ...col, options: options?.tags ?? [] };
     }
     return col;
   });
