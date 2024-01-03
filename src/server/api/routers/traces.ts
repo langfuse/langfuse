@@ -157,6 +157,8 @@ export const traceRouter = createTRPCRouter({
         >
       >(query);
 
+      // get scores for each trace individually to increase
+      // performance of the query above
       const scores = await ctx.prisma.score.findMany({
         where: {
           trace: {
