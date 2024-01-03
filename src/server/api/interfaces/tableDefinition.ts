@@ -17,6 +17,12 @@ export type ColumnDefinition =
     }
   | {
       name: string;
+      type: "arrayOptions";
+      options: Array<OptionsDefinition>;
+      internal: string;
+    }
+  | {
+      name: string;
       type: "stringObject" | "numberObject";
       internal: string;
       keyOptions?: Array<string>;
