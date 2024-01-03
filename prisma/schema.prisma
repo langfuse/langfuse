@@ -198,6 +198,7 @@ model Trace {
     @@index([externalId])
     @@index(timestamp)
     @@index(release)
+    @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("traces")
 }
 
