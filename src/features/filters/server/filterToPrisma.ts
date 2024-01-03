@@ -12,6 +12,10 @@ const operatorReplacements = {
   "ends with": "ILIKE",
 };
 
+const arrayOperatorReplacements = {
+  "any of": "&&",
+};
+
 export function filterToPrismaSql(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
@@ -26,13 +30,19 @@ export function filterToPrismaSql(
 
     const colPrisma = Prisma.raw(col.internal);
     const operatorPrisma =
-      filter.operator in operatorReplacements
+      filter.type === "arrayOptions"
         ? Prisma.raw(
-            operatorReplacements[
-              filter.operator as keyof typeof operatorReplacements
+            arrayOperatorReplacements[
+              filter.operator as keyof typeof arrayOperatorReplacements
             ],
           )
-        : Prisma.raw(filter.operator); //checked by zod
+        : filter.operator in operatorReplacements
+          ? Prisma.raw(
+              operatorReplacements[
+                filter.operator as keyof typeof operatorReplacements
+              ],
+            )
+          : Prisma.raw(filter.operator); //checked by zod
 
     // Get prisma value
     let valuePrisma: Prisma.Sql;
@@ -53,6 +63,28 @@ export function filterToPrismaSql(
           filter.value.map((v) => Prisma.sql`${v}`),
         )})`;
         break;
+      case "arrayOptions":
+        if (filter.operator === "any of") {
+          valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
+            filter.value.map((v) => Prisma.sql`${v}`),
+            ", ",
+          )}] `;
+        } else if (filter.operator === "all of") {
+          valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
+            filter.value.map((v) => Prisma.sql`${v}`),
+            ", ",
+          )}] `;
+          return Prisma.sql`${colPrisma} @> ${valuePrisma}`;
+        } else {
+          /* none of operation */
+          valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
+            filter.value.map((v) => Prisma.sql`${v}`),
+            ", ",
+          )}] `;
+          return Prisma.sql`NOT(${colPrisma} && ${valuePrisma})`;
+        }
+        break;
+
       case "boolean":
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
