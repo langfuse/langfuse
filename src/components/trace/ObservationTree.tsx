@@ -25,6 +25,8 @@ export const ObservationTree = (props: {
         scores={props.scores}
         currentObservationId={props.currentObservationId}
         setCurrentObservationId={props.setCurrentObservationId}
+        showMetrics={props.showMetrics}
+        showScores={props.showScores}
       />
       <ObservationTreeNode
         observations={nestedObservations}
@@ -43,10 +45,12 @@ const ObservationTreeTraceNode = (props: {
   scores: Score[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
+  showMetrics?: boolean;
+  showScores?: boolean;
 }) => (
   <div
     className={cn(
-      "group my-1 flex cursor-pointer flex-col gap-1 rounded-sm p-2",
+      "group my-0.5 flex cursor-pointer flex-col gap-1 rounded-sm p-1.5",
       props.currentObservationId === undefined ||
         props.currentObservationId === ""
         ? "bg-gray-100"
@@ -56,23 +60,23 @@ const ObservationTreeTraceNode = (props: {
   >
     <div className="flex gap-2">
       <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>TRACE</span>
-      <span>{props.trace.name}</span>
+      <span className="text-sm">{props.trace.name}</span>
     </div>
 
-    {props.trace.latency ? (
+    {props.showMetrics && props.trace.latency ? (
       <div className="flex gap-2">
         <span className="text-xs text-gray-500">
           {formatInterval(props.trace.latency)}
         </span>
       </div>
     ) : null}
-    <div className="flex flex-wrap gap-1">
-      {props.scores.find((s) => s.observationId === null) ? (
+    {props.showScores && props.scores.find((s) => s.observationId === null) ? (
+      <div className="flex flex-wrap gap-1">
         <GroupedScoreBadges
           scores={props.scores.filter((s) => s.observationId === null)}
         />
-      ) : null}
-    </div>
+      </div>
+    ) : null}
   </div>
 );
 const ObservationTreeNode = (props: {
