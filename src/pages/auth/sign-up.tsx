@@ -22,6 +22,7 @@ import { usePostHog } from "posthog-js/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
+import { PasswordInput } from "@/src/components/ui/password-input";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -135,7 +136,7 @@ export default function SignIn({ authProviders }: PageProps) {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <PasswordInput {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
