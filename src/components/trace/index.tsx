@@ -62,7 +62,6 @@ export function Trace(props: {
       <div className="md:h-full md:overflow-hidden">
         <div className="flex flex-row justify-end gap-2">
           <Toggle
-            aria-label="show-scores"
             pressed={scoresOnObservationTree}
             onPressedChange={(e) => {
               setScoresOnObservationTree(e);
@@ -73,7 +72,6 @@ export function Trace(props: {
             <StarHalf className="h-4 w-4" />
           </Toggle>
           <Toggle
-            aria-label="expand-observation-tree"
             pressed={metricsOnObservationTree}
             onPressedChange={(e) => {
               setMetricsOnObservationTree(e);
