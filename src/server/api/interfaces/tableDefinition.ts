@@ -19,6 +19,7 @@ export type ColumnDefinition =
     }
   | {
       name: string;
+      id?: string; // TODO: Adopt for all tables
       type: "arrayOptions";
       options: Array<OptionsDefinition>;
       internal: string;
