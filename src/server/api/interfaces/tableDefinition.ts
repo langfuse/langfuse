@@ -6,11 +6,13 @@ export type OptionsDefinition = {
 export type ColumnDefinition =
   | {
       name: string;
+      id?: string; // TODO: Adopt for all tables
       type: "number" | "string" | "datetime" | "boolean";
       internal: string;
     }
   | {
       name: string;
+      id?: string; // TODO: Adopt for all tables
       type: "stringOptions";
       options: Array<OptionsDefinition>;
       internal: string;
@@ -23,6 +25,7 @@ export type ColumnDefinition =
     }
   | {
       name: string;
+      id?: string; // TODO: Adopt for all tables
       type: "stringObject" | "numberObject";
       internal: string;
       keyOptions?: Array<string>;

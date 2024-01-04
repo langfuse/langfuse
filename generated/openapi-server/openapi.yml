@@ -300,8 +300,12 @@ paths:
         - Health
       parameters: []
       responses:
-        '204':
+        '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
         '400':
           description: ''
           content:
@@ -1302,6 +1306,20 @@ components:
           type: string
       required:
         - name
+    HealthResponse:
+      title: HealthResponse
+      type: object
+      properties:
+        version:
+          type: string
+          description: Langfuse server version
+          example: 1.25.0
+        status:
+          type: string
+          example: OK
+      required:
+        - version
+        - status
     IngestionEvent:
       title: IngestionEvent
       oneOf:
