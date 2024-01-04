@@ -118,9 +118,9 @@ export default function TracesTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [traces.isSuccess, traces.data]);
 
-  // loading filter options indivdually form the remaining calls
-  // traces.all should load first together with everyhting else.
-  // This here happens in the backgorund.
+  // loading filter options individually from the remaining calls
+  // traces.all should load first together with everything else.
+  // This here happens in the background.
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
