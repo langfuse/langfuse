@@ -50,7 +50,7 @@ const ObservationTreeTraceNode = (props: {
 }) => (
   <div
     className={cn(
-      "group my-0.5 flex cursor-pointer flex-col gap-1 rounded-sm p-1.5",
+      "group mb-0.5 flex cursor-pointer flex-col gap-1 rounded-sm p-1.5",
       props.currentObservationId === undefined ||
         props.currentObservationId === ""
         ? "bg-gray-100"
