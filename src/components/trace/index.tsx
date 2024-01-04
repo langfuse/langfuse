@@ -60,7 +60,7 @@ export function Trace(props: {
         )}
       </div>
       <div className="md:h-full md:overflow-hidden">
-        <div className="flex flex-row justify-end gap-2">
+        <div className="mb-2 flex flex-row justify-end gap-2">
           <Toggle
             pressed={scoresOnObservationTree}
             onPressedChange={(e) => {
