@@ -17,6 +17,9 @@ import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { Toggle } from "@/src/components/ui/toggle";
+import { ChevronsDownUp, ChevronsUpDown, StarHalf } from "lucide-react";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -27,6 +30,12 @@ export function Trace(props: {
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
+  );
+  const [metricsOnObservationTree, setMetricsOnObservationTree] =
+    useLocalStorage("metricsOnObservationTree", true);
+  const [scoresOnObservationTree, setScoresOnObservationTree] = useLocalStorage(
+    "scoresOnObservationTree",
+    true,
   );
 
   return (
@@ -50,13 +59,44 @@ export function Trace(props: {
           />
         )}
       </div>
-      <div className="md:h-full md:overflow-y-auto">
+      <div className="md:h-full md:overflow-hidden">
+        <div className="flex flex-row justify-end gap-2">
+          <Toggle
+            aria-label="show-scores"
+            pressed={scoresOnObservationTree}
+            onPressedChange={(e) => {
+              setScoresOnObservationTree(e);
+            }}
+            size="sm"
+            title="Show scores"
+          >
+            <StarHalf className="h-4 w-4" />
+          </Toggle>
+          <Toggle
+            aria-label="expand-observation-tree"
+            pressed={metricsOnObservationTree}
+            onPressedChange={(e) => {
+              setMetricsOnObservationTree(e);
+            }}
+            size="sm"
+            title="Show metrics"
+          >
+            {metricsOnObservationTree ? (
+              <ChevronsDownUp className="h-4 w-4" />
+            ) : (
+              <ChevronsUpDown className="h-4 w-4" />
+            )}
+          </Toggle>
+        </div>
         <ObservationTree
           observations={props.observations}
           trace={props.trace}
           scores={props.scores}
           currentObservationId={currentObservationId ?? undefined}
           setCurrentObservationId={setCurrentObservationId}
+          showMetrics={metricsOnObservationTree}
+          showScores={scoresOnObservationTree}
+          className="md:h-full md:overflow-y-auto"
         />
       </div>
     </div>

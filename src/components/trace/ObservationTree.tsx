@@ -13,10 +13,13 @@ export const ObservationTree = (props: {
   scores: Score[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
+  showMetrics: boolean;
+  showScores: boolean;
+  className?: string;
 }) => {
   const nestedObservations = nestObservations(props.observations);
   return (
-    <div className="flex flex-col">
+    <div className={props.className}>
       <ObservationTreeTraceNode
         trace={props.trace}
         scores={props.scores}
@@ -29,6 +32,8 @@ export const ObservationTree = (props: {
         indentationLevel={1}
         currentObservationId={props.currentObservationId}
         setCurrentObservationId={props.setCurrentObservationId}
+        showMetrics={props.showMetrics}
+        showScores={props.showScores}
       />
     </div>
   );
@@ -76,6 +81,8 @@ const ObservationTreeNode = (props: {
   indentationLevel: number;
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
+  showMetrics?: boolean;
+  showScores?: boolean;
 }) => (
   <>
     {props.observations
@@ -84,11 +91,11 @@ const ObservationTreeNode = (props: {
         <Fragment key={observation.id}>
           <div className="flex">
             {Array.from({ length: props.indentationLevel }, (_, i) => (
-              <div className="mx-2 border-r lg:mr-4" key={i} />
+              <div className="mx-2 border-r" key={i} />
             ))}
             <div
               className={cn(
-                "group my-1 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-2 ",
+                "group my-0.5 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-1.5",
                 props.currentObservationId === observation.id
                   ? "bg-gray-100"
                   : "hover:bg-gray-50",
@@ -103,27 +110,34 @@ const ObservationTreeNode = (props: {
                 >
                   {observation.type}
                 </span>
-                <span className="line-clamp-1">{observation.name}</span>
+                <span className="line-clamp-1 text-sm">{observation.name}</span>
               </div>
-              <div className="flex gap-2">
-                {observation.endTime ? (
-                  <span className="text-xs text-gray-500">
-                    {formatInterval(
-                      (observation.endTime.getTime() -
-                        observation.startTime.getTime()) /
-                        1000,
-                    )}
-                  </span>
-                ) : null}
-                {observation.promptTokens ||
-                observation.completionTokens ||
-                observation.totalTokens ? (
-                  <span className="text-xs text-gray-500">
-                    {observation.promptTokens} → {observation.completionTokens}{" "}
-                    (∑ {observation.totalTokens})
-                  </span>
-                ) : null}
-              </div>
+              {props.showMetrics &&
+                (observation.promptTokens ||
+                  observation.completionTokens ||
+                  observation.totalTokens ||
+                  observation.endTime) && (
+                  <div className="flex gap-2">
+                    {observation.endTime ? (
+                      <span className="text-xs text-gray-500">
+                        {formatInterval(
+                          (observation.endTime.getTime() -
+                            observation.startTime.getTime()) /
+                            1000,
+                        )}
+                      </span>
+                    ) : null}
+                    {observation.promptTokens ||
+                    observation.completionTokens ||
+                    observation.totalTokens ? (
+                      <span className="text-xs text-gray-500">
+                        {observation.promptTokens} →{" "}
+                        {observation.completionTokens} (∑{" "}
+                        {observation.totalTokens})
+                      </span>
+                    ) : null}
+                  </div>
+                )}
               {observation.level !== "DEFAULT" ? (
                 <div className="flex">
                   <span
@@ -137,7 +151,8 @@ const ObservationTreeNode = (props: {
                   </span>
                 </div>
               ) : null}
-              {props.scores.find((s) => s.observationId === observation.id) ? (
+              {props.showScores &&
+              props.scores.find((s) => s.observationId === observation.id) ? (
                 <div className="flex flex-wrap gap-1">
                   <GroupedScoreBadges
                     scores={props.scores.filter(
@@ -154,6 +169,8 @@ const ObservationTreeNode = (props: {
             indentationLevel={props.indentationLevel + 1}
             currentObservationId={props.currentObservationId}
             setCurrentObservationId={props.setCurrentObservationId}
+            showMetrics={props.showMetrics}
+            showScores={props.showScores}
           />
         </Fragment>
       ))}
