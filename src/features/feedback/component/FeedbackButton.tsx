@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/react";
+import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
