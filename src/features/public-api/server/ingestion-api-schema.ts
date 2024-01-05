@@ -58,6 +58,7 @@ export const TraceBody = z.object({
   release: z.string().nullish(),
   version: z.string().nullish(),
   public: z.boolean().nullish(),
+  tags: z.array(z.string()).nullish(),
 });
 
 export const OptionalObservationBody = z.object({
@@ -99,6 +100,14 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  promptName: z.string().nullish(),
+  promptVersion: z.number().int().nullish(),
+}).refine((value) => {
+  // ensure that either promptName and promptVersion are set, or none
+
+  if (!value.promptName && !value.promptVersion) return true;
+  if (value.promptName && value.promptVersion) return true;
+  return false;
 });
 
 export const UpdateGenerationBody = UpdateSpanBody.extend({
@@ -111,6 +120,14 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  promptName: z.string().nullish(),
+  promptVersion: z.number().int().nullish(),
+}).refine((value) => {
+  // ensure that either promptName and promptVersion are set, or none
+
+  if (!value.promptName && !value.promptVersion) return true;
+  if (value.promptName && value.promptVersion) return true;
+  return false;
 });
 
 export const ScoreBody = z.object({
@@ -225,6 +242,12 @@ export const LegacyObservationBody = z.object({
   version: z.string().nullish(),
 });
 
+export const SdkLogEvent = z.object({
+  log: jsonSchema,
+});
+
+// definitions for the ingestion API
+
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
   SCORE_CREATE: "score-create",
@@ -233,6 +256,7 @@ export const eventTypes = {
   SPAN_UPDATE: "span-update",
   GENERATION_CREATE: "generation-create",
   GENERATION_UPDATE: "generation-update",
+  SDK_LOG: "sdk-log",
 
   // LEGACY, only required for backwards compatibility
   OBSERVATION_CREATE: "observation-create",
@@ -273,6 +297,10 @@ export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
   body: ScoreBody,
 });
+export const sdkLogEvent = base.extend({
+  type: z.literal(eventTypes.SDK_LOG),
+  body: SdkLogEvent,
+});
 export const legacyObservationCreateEvent = base.extend({
   type: z.literal(eventTypes.OBSERVATION_CREATE),
   body: LegacyObservationBody,
@@ -290,6 +318,7 @@ export const ingestionEvent = z.discriminatedUnion("type", [
   spanUpdateEvent,
   generationCreateEvent,
   generationUpdateEvent,
+  sdkLogEvent,
   // LEGACY, only required for backwards compatibility
   legacyObservationCreateEvent,
   legacyObservationUpdateEvent,

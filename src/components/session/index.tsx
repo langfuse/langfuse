@@ -8,13 +8,16 @@ import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import Link from "next/link";
+import { useEffect } from "react";
 
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const { setDetailPageList } = useDetailPageLists();
   const session = api.sessions.byId.useQuery(
     {
       sessionId,
@@ -27,6 +30,15 @@ export const SessionPage: React.FC<{
       },
     },
   );
+  useEffect(() => {
+    if (session.isSuccess) {
+      setDetailPageList(
+        "traces",
+        session.data.traces.map((t) => t.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.isSuccess, session.data]);
 
   if (session.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
 

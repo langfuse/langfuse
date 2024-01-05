@@ -14,6 +14,7 @@ types:
       version: optional<string>
       userId: optional<string>
       metadata: optional<unknown>
+      tags: optional<list<string>>
       public:
         type: optional<boolean>
         docs: Public traces are accessible via url without login
@@ -59,6 +60,7 @@ types:
       level: ObservationLevel
       statusMessage: optional<string>
       parentObservationId: optional<string>
+      promptId: optional<string>
   Usage:
     properties:
       input: optional<integer>

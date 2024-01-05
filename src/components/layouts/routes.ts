@@ -1,4 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
+import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
 import {
   Database,
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
   TextSelect,
   UsersIcon,
   Route,
+  PenSquareIcon,
 } from "lucide-react";
 
 export const ROUTES: Array<{
@@ -18,6 +20,7 @@ export const ROUTES: Array<{
   icon: LucideIcon;
   featureFlag?: Flag;
   label?: string;
+  rbacScope?: Scope;
 }> = [
   {
     name: "Dashboard",
@@ -28,7 +31,6 @@ export const ROUTES: Array<{
     name: "Sessions",
     pathname: `/project/[projectId]/sessions`,
     icon: Route,
-    label: "beta",
   },
   {
     name: "Traces",
@@ -49,6 +51,13 @@ export const ROUTES: Array<{
     name: "Users",
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
+  },
+  {
+    name: "Prompts",
+    pathname: "/project/[projectId]/prompts",
+    icon: PenSquareIcon,
+    label: "Beta",
+    rbacScope: "prompts:read",
   },
   {
     name: "Datasets",

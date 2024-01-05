@@ -18,6 +18,7 @@ import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import AzureADProvider from "next-auth/providers/azure-ad";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -115,6 +116,19 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     }),
   );
 
+if (
+  env.AUTH_AZURE_AD_CLIENT_ID &&
+  env.AUTH_AZURE_AD_CLIENT_SECRET &&
+  env.AUTH_AZURE_AD_TENANT_ID
+)
+  providers.push(
+    AzureADProvider({
+      clientId: env.AUTH_AZURE_AD_CLIENT_ID,
+      clientSecret: env.AUTH_AZURE_AD_CLIENT_SECRET,
+      tenantId: env.AUTH_AZURE_AD_TENANT_ID,
+    }),
+  );
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const extendedPrismaAdapter: Adapter = {
@@ -124,6 +138,12 @@ const extendedPrismaAdapter: Adapter = {
       throw new Error("createUser not implemented");
     if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
       throw new Error("Sign up is disabled.");
+    }
+    if (!profile.email) {
+      throw new Error(
+        "Cannot create db user as login profile does not contain an email: " +
+          JSON.stringify(profile),
+      );
     }
 
     const user = await prismaAdapter.createUser(profile);

@@ -20,6 +20,7 @@ export function deepParseJson(json: unknown): unknown {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const parsed = JSON.parse(json);
+      if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
       return deepParseJson(parsed); // Recursively parse parsed value
     } catch (e) {
       return json; // If it's not a valid JSON string, just return the original string

@@ -53,6 +53,25 @@ async function main() {
     },
   });
 
+  const prompt = await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId: seedProjectId,
+        name: "summary-prompt",
+        version: 1,
+      },
+    },
+    create: {
+      name: "summary-prompt",
+      project: { connect: { id: seedProjectId } },
+      prompt: "prompt {{variable}} {{anotherVariable}}",
+      isActive: true,
+      version: 1,
+      createdBy: "user-1",
+    },
+    update: {},
+  });
+
   const seedApiKey = {
     id: "seed-api-key",
     secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890",
@@ -103,6 +122,8 @@ async function main() {
     });
 
     const generationIds: string[] = [];
+    const envTags = [null, "development", "staging", "production"];
+    const colorTags = [null, "red", "blue", "yellow"];
 
     for (let i = 0; i < TRACE_VOLUME; i++) {
       // print progress to console with a progress bar that refreshes every 10 iterations
@@ -117,6 +138,11 @@ async function main() {
           Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
       );
 
+      const envTag = envTags[Math.floor(Math.random() * envTags.length)];
+      const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
+
+      const tags = [envTag, colorTag].filter((tag) => tag !== null);
+
       const trace = await prisma.trace.create({
         data: {
           id: `trace-${Math.floor(Math.random() * 1000000000)}`,
@@ -127,6 +153,7 @@ async function main() {
           metadata: {
             user: `user-${i}@langfuse.com`,
           },
+          tags: tags as string[],
           project: {
             connect: {
               id: [project1.id, project2.id][i % 2],
@@ -346,6 +373,11 @@ async function main() {
               totalTokens: promptTokens + completionTokens,
               parentObservationId: span.id,
               traceId: trace.id,
+              ...{
+                ...(Math.random() > 0.5 && trace.projectId === prompt.projectId
+                  ? { prompt: { connect: { id: prompt.id } } }
+                  : {}),
+              },
             },
           });
           if (Math.random() > 0.6)

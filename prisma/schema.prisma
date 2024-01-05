@@ -7,9 +7,10 @@ generator client {
 }
 
 datasource db {
-    provider  = "postgresql"
-    url       = env("DATABASE_URL")
-    directUrl = env("DIRECT_URL")
+    provider          = "postgresql"
+    url               = env("DATABASE_URL")
+    directUrl         = env("DIRECT_URL")
+    shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model Example {
@@ -28,6 +29,8 @@ model Account {
     refresh_token     String? // @db.Text
     access_token      String? // @db.Text
     expires_at        Int?
+    expires_in        Int?
+    ext_expires_in    Int?
     token_type        String?
     scope             String?
     id_token          String? // @db.Text
@@ -79,6 +82,7 @@ model Project {
     createdAt    DateTime               @default(now()) @map("created_at")
     updatedAt    DateTime               @default(now()) @updatedAt @map("updated_at")
     name         String
+    cloudConfig  Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
     members      Membership[]
     traces       Trace[]
     observations Observation[]
@@ -87,6 +91,7 @@ model Project {
     RawEvents    Events[]
     invitations  MembershipInvitation[]
     sessions     TraceSession[]
+    Prompt       Prompt[]
 
     @@map("projects")
 }
@@ -173,14 +178,15 @@ model Trace {
     metadata   Json?
     release    String?
     version    String?
-    input      Json?
-    output     Json?
-    sessionId  String?       @map("session_id")
-    session    TraceSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
     projectId  String        @map("project_id")
     project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     public     Boolean       @default(false)
     bookmarked Boolean       @default(false)
+    tags       String[]      @default([])
+    input      Json?
+    output     Json?
+    sessionId  String?       @map("session_id")
+    session    TraceSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
     scores Score[]
 
@@ -192,6 +198,7 @@ model Trace {
     @@index([externalId])
     @@index(timestamp)
     @@index(release)
+    @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("traces")
 }
 
@@ -225,6 +232,9 @@ model Observation {
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
 
+    promptId String? @map("prompt_id")
+    prompt   Prompt? @relation(fields: [promptId], onDelete: SetNull, references: [id])
+
     @@unique([id, projectId])
     @@index([traceId])
     @@index([type])
@@ -232,6 +242,7 @@ model Observation {
     @@index(createdAt)
     @@index(projectId)
     @@index(parentObservationId)
+    @@index(model)
     @@map("observations")
 }
 
@@ -293,6 +304,7 @@ model Pricing {
     currency    String      @default("USD")
     tokenType   TokenType   @map("token_type")
 
+    @@index(modelName)
     @@map("pricings")
 }
 
@@ -388,4 +400,25 @@ model Events {
 
     @@index(projectId)
     @@map("events")
+}
+
+model Prompt {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+    projectId String  @map("project_id")
+    project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    createdBy String @map("created_by")
+
+    prompt      String
+    name        String
+    version     Int
+    isActive    Boolean       @map("is_active")
+    Observation Observation[]
+
+    @@unique([projectId, name, version])
+    @@index([projectId, name, version])
+    @@map("prompts")
 }

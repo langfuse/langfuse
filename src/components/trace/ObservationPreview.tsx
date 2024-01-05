@@ -22,6 +22,7 @@ import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
 import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
+import Link from "next/link";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -54,6 +55,12 @@ export const ObservationPreview = (props: {
             {preloadedObservation.startTime.toLocaleString()}
           </CardDescription>
           <div className="flex flex-wrap gap-2">
+            {preloadedObservation.promptId ? (
+              <PromptBadge
+                promptId={preloadedObservation.promptId}
+                projectId={preloadedObservation.projectId}
+              />
+            ) : undefined}
             {preloadedObservation.endTime ? (
               <Badge variant="outline">
                 {formatInterval(
@@ -83,6 +90,7 @@ export const ObservationPreview = (props: {
                 {preloadedObservation.price.toString()} USD
               </Badge>
             ) : undefined}
+
             {preloadedObservation.modelParameters &&
             typeof preloadedObservation.modelParameters === "object"
               ? Object.entries(preloadedObservation.modelParameters)
@@ -173,5 +181,24 @@ export const ObservationPreview = (props: {
         ) : null}
       </CardContent>
     </Card>
+  );
+};
+
+const PromptBadge = (props: { promptId: string; projectId: string }) => {
+  const prompt = api.prompts.byId.useQuery({
+    id: props.promptId,
+    projectId: props.projectId,
+  });
+
+  if (prompt.isLoading) return null;
+
+  return (
+    <Link href={`/project/${props.projectId}/prompts/${props.promptId}`}>
+      <Badge>
+        Prompt: {prompt.data?.name}
+        {" - "}
+        {prompt.data?.version}
+      </Badge>
+    </Link>
   );
 };

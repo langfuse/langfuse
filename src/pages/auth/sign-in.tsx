@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
+import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
@@ -24,6 +25,7 @@ import { usePostHog } from "posthog-js/react";
 import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { PasswordInput } from "@/src/components/ui/password-input";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -38,6 +40,7 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    azureAd: boolean;
   };
 };
 
@@ -54,6 +57,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
+        azureAd:
+          env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
+          env.AUTH_AZURE_AD_CLIENT_SECRET !== undefined &&
+          env.AUTH_AZURE_AD_TENANT_ID !== undefined,
       },
     },
   };
@@ -72,11 +79,9 @@ export function SSOButtons({
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        {authProviders.credentials ? (
-          <Divider className="text-gray-400" />
-        ) : null}
+        {authProviders.credentials && <Divider className="text-gray-400" />}
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
-          {authProviders.google ? (
+          {authProviders.google && (
             <Button
               onClick={() => {
                 posthog.capture("sign_in:google_button_click");
@@ -87,8 +92,8 @@ export function SSOButtons({
               <FcGoogle className="mr-3" size={18} />
               {action} with Google
             </Button>
-          ) : null}
-          {authProviders.github ? (
+          )}
+          {authProviders.github && (
             <Button
               onClick={() => {
                 posthog.capture("sign_in:github_button_click");
@@ -99,7 +104,19 @@ export function SSOButtons({
               <FaGithub className="mr-3" size={18} />
               {action} with Github
             </Button>
-          ) : null}
+          )}
+          {authProviders.azureAd && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:azure_ad_button_click");
+                void signIn("azure-ad");
+              }}
+              variant="secondary"
+            >
+              <TbBrandAzure className="mr-3" size={18} />
+              {action} with Azure AD
+            </Button>
+          )}
         </div>
       </div>
     ) : null
@@ -180,7 +197,7 @@ export default function SignIn({ authProviders }: PageProps) {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <PasswordInput {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

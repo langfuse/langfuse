@@ -13,6 +13,7 @@ import {
   type spanUpdateEvent,
   type generationUpdateEvent,
   type legacyObservationUpdateEvent,
+  type sdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -28,8 +29,11 @@ import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 
 export interface EventProcessor {
-  process(apiScope: ApiAccessScope): Promise<Trace | Observation | Score>;
+  process(
+    apiScope: ApiAccessScope,
+  ): Promise<Trace | Observation | Score> | undefined;
 }
+
 export class ObservationProcessor implements EventProcessor {
   event:
     | z.infer<typeof legacyObservationCreateEvent>
@@ -120,6 +124,20 @@ export class ObservationProcessor implements EventProcessor {
       metadata ?? undefined,
     );
 
+    const prompts =
+      "promptName" in this.event.body &&
+      typeof this.event.body.promptName === "string" &&
+      "promptVersion" in this.event.body &&
+      typeof this.event.body.promptVersion === "number"
+        ? await prisma.prompt.findMany({
+            where: {
+              projectId: apiScope.projectId,
+              name: this.event.body.promptName,
+              version: this.event.body.promptVersion,
+            },
+          })
+        : undefined;
+
     const observationId = id ?? v4();
     return {
       id: observationId,
@@ -157,6 +175,9 @@ export class ObservationProcessor implements EventProcessor {
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
         project: { connect: { id: apiScope.projectId } },
+        ...(prompts && prompts.length === 1
+          ? { prompt: { connect: { id: prompts[0]?.id } } }
+          : undefined),
       },
       update: {
         name,
@@ -188,6 +209,9 @@ export class ObservationProcessor implements EventProcessor {
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
+        ...(prompts && prompts.length === 1
+          ? { prompt: { connect: { id: prompts[0]?.id } } }
+          : undefined),
       },
     };
   }
@@ -301,6 +325,7 @@ export class TraceProcessor implements EventProcessor {
           : undefined,
         public: body.public ?? undefined,
         project: { connect: { id: apiScope.projectId } },
+        tags: body.tags ?? undefined,
       },
       update: {
         name: body.name ?? undefined,
@@ -319,6 +344,7 @@ export class TraceProcessor implements EventProcessor {
             }
           : undefined,
         public: body.public ?? undefined,
+        tags: body.tags ?? undefined,
       },
     });
     return upsertedTrace;
@@ -382,5 +408,17 @@ export class ScoreProcessor implements EventProcessor {
         }),
       },
     });
+  }
+}
+
+export class SdkLogProcessor implements EventProcessor {
+  event: z.infer<typeof sdkLogEvent>;
+
+  constructor(event: z.infer<typeof sdkLogEvent>) {
+    this.event = event;
+  }
+
+  process() {
+    return undefined;
   }
 }

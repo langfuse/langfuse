@@ -103,7 +103,8 @@ export const IOPreview: React.FC<{
 const OpenAiMessageSchema = z
   .object({
     role: z.enum(["system", "user", "assistant"]).optional(),
-    content: z.string().nullable(),
+    name: z.string().optional(),
+    content: z.union([z.record(z.any()), z.string()]).nullable(),
   })
   .strict() // no additional properties
   .refine((value) => value.content !== null || value.role !== undefined);
@@ -129,7 +130,7 @@ const OpenAiMessageView: React.FC<{
         .map((message, index) => (
           <Fragment key={index}>
             <JSONView
-              title={message.role}
+              title={message.name ?? message.role}
               json={message.content}
               className={cn(
                 message.role === "system" && "bg-gray-100",

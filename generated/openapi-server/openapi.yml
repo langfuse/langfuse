@@ -2,6 +2,16 @@ openapi: 3.0.1
 info:
   title: langfuse
   version: ''
+  description: >
+    ## Authentication
+
+    Authenticate with the API using Basic Auth, get API keys in the project
+    settings:
+
+
+    - username: Langfuse Public Key
+
+    - password: Langfuse Secret Key
 paths:
   /api/public/dataset-items:
     post:
@@ -290,8 +300,12 @@ paths:
         - Health
       parameters: []
       responses:
-        '204':
+        '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
         '400':
           description: ''
           content:
@@ -541,6 +555,102 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/prompts:
+    get:
+      description: Get a specific prompt
+      operationId: prompts_get
+      tags:
+        - Prompts
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    post:
+      description: Create a specific prompt
+      operationId: prompts_create
+      tags:
+        - Prompts
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
   /api/public/scores:
     post:
       description: Add a score to the database, upserts on id
@@ -773,6 +883,15 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: tags
+          in: query
+          description: Only traces that include all of these tags will be returned.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
       responses:
         '200':
           description: ''
@@ -838,6 +957,11 @@ components:
           type: string
           nullable: true
         metadata:
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
           nullable: true
         public:
           type: boolean
@@ -960,6 +1084,9 @@ components:
           type: string
           nullable: true
         parentObservationId:
+          type: string
+          nullable: true
+        promptId:
           type: string
           nullable: true
       required:
@@ -1204,6 +1331,20 @@ components:
           type: string
       required:
         - name
+    HealthResponse:
+      title: HealthResponse
+      type: object
+      properties:
+        version:
+          type: string
+          description: Langfuse server version
+          example: 1.25.0
+        status:
+          type: string
+          example: OK
+      required:
+        - version
+        - status
     IngestionEvent:
       title: IngestionEvent
       oneOf:
@@ -1282,6 +1423,17 @@ components:
                   enum:
                     - span-update
             - $ref: '#/components/schemas/UpdateSpanEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - sdk-log
+            - $ref: '#/components/schemas/SDKLogEvent'
           required:
             - type
         - type: object
@@ -1421,6 +1573,12 @@ components:
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
+        promptName:
+          type: string
+          nullable: true
+        promptVersion:
+          type: integer
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/CreateSpanBody'
     UpdateGenerationBody:
@@ -1441,6 +1599,12 @@ components:
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
+          nullable: true
+        promptName:
+          type: string
+          nullable: true
+        promptVersion:
+          type: integer
           nullable: true
       allOf:
         - $ref: '#/components/schemas/UpdateSpanBody'
@@ -1530,10 +1694,22 @@ components:
           nullable: true
         metadata:
           nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
         public:
           type: boolean
           nullable: true
           description: Make trace publicly accessible via url
+    SDKLogBody:
+      title: SDKLogBody
+      type: object
+      properties:
+        log: {}
+      required:
+        - log
     ScoreBody:
       title: ScoreBody
       type: object
@@ -1607,6 +1783,16 @@ components:
       properties:
         body:
           $ref: '#/components/schemas/ScoreBody'
+      required:
+        - body
+      allOf:
+        - $ref: '#/components/schemas/BaseEvent'
+    SDKLogEvent:
+      title: SDKLogEvent
+      type: object
+      properties:
+        body:
+          $ref: '#/components/schemas/SDKLogBody'
       required:
         - body
       allOf:
@@ -1737,6 +1923,34 @@ components:
       required:
         - id
         - name
+    CreatePromptRequest:
+      title: CreatePromptRequest
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+        prompt:
+          type: string
+      required:
+        - name
+        - isActive
+        - prompt
+    Prompt:
+      title: Prompt
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        prompt:
+          type: string
+      required:
+        - name
+        - version
+        - prompt
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object

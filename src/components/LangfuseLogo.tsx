@@ -1,3 +1,4 @@
+import { VERSION } from "@/src/constants/VERSION";
 import { cn } from "@/src/utils/tailwind";
 
 export const LangfuseIcon = ({
@@ -20,9 +21,11 @@ export const LangfuseIcon = ({
 export const LangfuseLogo = ({
   className,
   size = "sm",
+  version = false,
 }: {
   size?: "sm" | "xl";
   className?: string;
+  version?: boolean;
 }) => (
   <div className={cn("flex items-center", className)}>
     <LangfuseIcon size={size === "sm" ? 16 : 20} />
@@ -34,5 +37,16 @@ export const LangfuseLogo = ({
     >
       Langfuse
     </span>
+    {version && (
+      <a
+        href="https://github.com/langfuse/langfuse/releases"
+        target="_blank"
+        rel="noopener"
+        title="View releases on GitHub"
+        className="ml-2 text-xs text-gray-400"
+      >
+        {VERSION}
+      </a>
+    )}
   </div>
 );
