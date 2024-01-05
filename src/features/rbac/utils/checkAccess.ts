@@ -34,7 +34,8 @@ export const useHasAccess = (p: { projectId: string; scope: Scope }) => {
   return hasAccess({ session, ...p });
 };
 
-function hasAccess(p: HasAccessParams): boolean {
+// For use in UI components as function, if session is already available
+export function hasAccess(p: HasAccessParams): boolean {
   const role: MembershipRole | undefined =
     "role" in p
       ? // MembershipRole

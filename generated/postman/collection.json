@@ -2,7 +2,7 @@
   "info": {
     "name": "Langfuse",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": null
+    "description": "## Authentication\nAuthenticate with the API using Basic Auth, get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key\n"
   },
   "variable": [
     {
@@ -459,6 +459,82 @@
             "method": "GET",
             "auth": null,
             "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Prompts",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a specific prompt",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/prompts?name=&version=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "prompts"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a specific prompt",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/prompts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "prompts"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"isActive\": true,\n    \"prompt\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }

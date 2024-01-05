@@ -124,6 +124,20 @@ export class ObservationProcessor implements EventProcessor {
       metadata ?? undefined,
     );
 
+    const prompts =
+      "promptName" in this.event.body &&
+      typeof this.event.body.promptName === "string" &&
+      "promptVersion" in this.event.body &&
+      typeof this.event.body.promptVersion === "number"
+        ? await prisma.prompt.findMany({
+            where: {
+              projectId: apiScope.projectId,
+              name: this.event.body.promptName,
+              version: this.event.body.promptVersion,
+            },
+          })
+        : undefined;
+
     const observationId = id ?? v4();
     return {
       id: observationId,
@@ -161,6 +175,9 @@ export class ObservationProcessor implements EventProcessor {
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
         project: { connect: { id: apiScope.projectId } },
+        ...(prompts && prompts.length === 1
+          ? { prompt: { connect: { id: prompts[0]?.id } } }
+          : undefined),
       },
       update: {
         name,
@@ -192,6 +209,9 @@ export class ObservationProcessor implements EventProcessor {
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
+        ...(prompts && prompts.length === 1
+          ? { prompt: { connect: { id: prompts[0]?.id } } }
+          : undefined),
       },
     };
   }
