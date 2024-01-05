@@ -949,6 +949,11 @@ components:
           nullable: true
         metadata:
           nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
         public:
           type: boolean
           nullable: true
@@ -1668,6 +1673,11 @@ components:
           type: string
           nullable: true
         metadata:
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
           nullable: true
         public:
           type: boolean

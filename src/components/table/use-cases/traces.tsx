@@ -43,6 +43,7 @@ export type TracesTableRow = {
   output?: unknown;
   sessionId?: string;
   scores: Score[];
+  tags: string[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -151,6 +152,7 @@ export default function TracesTable({
       input: trace.input,
       output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
+      tags: trace.tags,
       usage: {
         promptTokens: trace.promptTokens,
         completionTokens: trace.completionTokens,
@@ -355,6 +357,12 @@ export default function TracesTable({
       header: "Release",
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "tags",
+      id: "tags",
+      header: "Tags",
+      enableHiding: true,
     },
     {
       accessorKey: "action",

@@ -24,7 +24,9 @@ const CommaArrayParam = {
             ? f.value.toISOString()
             : f.type === "stringOptions"
               ? f.value.join("|")
-              : f.value
+              : f.type === "arrayOptions"
+                ? f.value.join("|")
+                : f.value
         }`;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
@@ -50,9 +52,11 @@ const CommaArrayParam = {
                 ? Number(value)
                 : type === "stringOptions"
                   ? value.split("|")
-                  : type === "boolean"
-                    ? value === "true"
-                    : value;
+                  : type === "arrayOptions"
+                    ? value.split("|")
+                    : type === "boolean"
+                      ? value === "true"
+                      : value;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
