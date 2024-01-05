@@ -708,7 +708,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -737,6 +737,11 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "tags",
+                  "value": "",
+                  "description": "Only traces that include all of these tags will be returned."
                 }
               ],
               "variable": []
