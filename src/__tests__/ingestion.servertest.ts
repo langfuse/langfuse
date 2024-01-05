@@ -107,6 +107,7 @@ describe("/api/public/ingestion API Endpoint", () => {
               metadata: { key: "value" },
               release: "1.0.0",
               version: "2.0.0",
+              tags: ["tag-1", "tag-2"],
             },
           },
           {
@@ -185,6 +186,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbTrace[0]?.projectId).toBe(
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       );
+      expect(dbTrace[0]?.tags).toEqual(["tag-1", "tag-2"]);
 
       const dbGeneration = await prisma.observation.findUnique({
         where: {

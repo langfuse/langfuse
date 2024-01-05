@@ -138,6 +138,9 @@ Requirements
     npm run dev
    ```
 
+> [!NOTE]
+> If you frequently switch branches, use `npm run dx` instead of `npm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
+
 ## Commit messages
 
 On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.

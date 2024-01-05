@@ -20,6 +20,7 @@ const GetTracesSchema = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
+  tags: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 
 export default async function handler(
@@ -76,8 +77,20 @@ export default async function handler(
       const obj = GetTracesSchema.parse(req.query); // uses query and not body
 
       const skipValue = (obj.page - 1) * obj.limit;
-      const userCondition = Prisma.sql`AND t."user_id" = ${obj.userId}`;
-      const nameCondition = Prisma.sql`AND t."name" = ${obj.name}`;
+      const userCondition = obj.userId
+        ? Prisma.sql`AND t."user_id" = ${obj.userId}`
+        : Prisma.empty;
+      const nameCondition = obj.name
+        ? Prisma.sql`AND t."name" = ${obj.name}`
+        : Prisma.empty;
+      const tagsCondition = obj.tags
+        ? Prisma.sql`AND ARRAY[${Prisma.join(
+            (Array.isArray(obj.tags) ? obj.tags : [obj.tags]).map(
+              (v) => Prisma.sql`${v}`,
+            ),
+            ", ",
+          )}] <@ t."tags"`
+        : Prisma.empty;
 
       const traces = await prisma.$queryRaw<
         Array<Trace & { observations: string[]; scores: string[] }>
@@ -92,15 +105,16 @@ export default async function handler(
             t.user_id as "userId",
             t.release,
             t.version,
+            t.tags,
             array_remove(array_agg(o.id), NULL) AS "observations",
             array_remove(array_agg(s.id), NULL) AS "scores"
           FROM "traces" AS t
-          LEFT JOIN "observations" AS o ON t.id = o.trace_id
+          LEFT JOIN "observations" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
           LEFT JOIN "scores" AS s ON t.id = s.trace_id
           WHERE t.project_id = ${authCheck.scope.projectId}
-          AND o.project_id = ${authCheck.scope.projectId}
-          ${obj.userId ? userCondition : Prisma.empty}
-          ${obj.name ? nameCondition : Prisma.empty}
+          ${userCondition}
+          ${nameCondition}
+          ${tagsCondition}
           GROUP BY t.id
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}

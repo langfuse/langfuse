@@ -12,6 +12,12 @@ const operatorReplacements = {
   "ends with": "ILIKE",
 };
 
+const arrayOperatorReplacements = {
+  "any of": "&&",
+  "all of": "@>",
+  "none of": "&&",
+};
+
 export function filterToPrismaSql(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
@@ -30,13 +36,19 @@ export function filterToPrismaSql(
 
     const colPrisma = Prisma.raw(col.internal);
     const operatorPrisma =
-      filter.operator in operatorReplacements
+      filter.type === "arrayOptions"
         ? Prisma.raw(
-            operatorReplacements[
-              filter.operator as keyof typeof operatorReplacements
+            arrayOperatorReplacements[
+              filter.operator as keyof typeof arrayOperatorReplacements
             ],
           )
-        : Prisma.raw(filter.operator); //checked by zod
+        : filter.operator in operatorReplacements
+          ? Prisma.raw(
+              operatorReplacements[
+                filter.operator as keyof typeof operatorReplacements
+              ],
+            )
+          : Prisma.raw(filter.operator); //checked by zod
 
     // Get prisma value
     let valuePrisma: Prisma.Sql;
@@ -57,6 +69,13 @@ export function filterToPrismaSql(
           filter.value.map((v) => Prisma.sql`${v}`),
         )})`;
         break;
+      case "arrayOptions":
+        valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
+          filter.value.map((v) => Prisma.sql`${v}`),
+          ", ",
+        )}] `;
+        break;
+
       case "boolean":
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
@@ -84,8 +103,12 @@ export function filterToPrismaSql(
               : Prisma.empty,
           ]
         : [Prisma.empty, Prisma.empty];
+    const [funcPrisma1, funcPrisma2] =
+      filter.type === "arrayOptions" && filter.operator === "none of"
+        ? [Prisma.raw("NOT ("), Prisma.raw(")")]
+        : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueSuffix}`;
+    return Prisma.sql`${funcPrisma1}${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
