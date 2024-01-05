@@ -15,6 +15,11 @@ spec:
         - name: langfuse
           image: ghcr.io/langfuse/langfuse:latest
           env:
+            - name: NODE_ENV
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-prod-secret
+                  key: langfuse-node-env
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -35,5 +40,20 @@ spec:
                 secretKeyRef:
                   name: langfuse-prod-secret
                   key: langfuse-salt
+            - name: TELEMETRY_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-prod-secret
+                  key: langfuse-telemetry-enabled
+            - name: NEXT_PUBLIC_SIGN_UP_DISABLED
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-prod-secret
+                  key: langfuse-next-public-sign-up-disabled
+            - name: LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-prod-secret
+                  key: langfuse-enable-experimentalfeatures
           ports:
             - containerPort: 3000
