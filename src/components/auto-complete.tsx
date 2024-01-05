@@ -96,11 +96,10 @@ export const AutoComplete = ({
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className="text-base"
         />
       </div>
       <div className="relative mt-1">
-        {isOpen ? (
+        {isOpen && (options.length > 0 || inputValue !== "") ? (
           <div className="absolute top-0 z-10 w-full rounded-xl bg-stone-50 outline-none animate-in fade-in-0 zoom-in-95">
             <CommandList className="rounded-lg ring-1 ring-slate-200">
               {options.length > 0 ? (
@@ -174,7 +173,7 @@ const CommandItemCreate = ({
       onMouseDown={onMouseDown}
     >
       <div className={cn("m-2 h-4 w-4")} />
-      Create new prompt name: &quot;{inputValue}&quot;
+      Create: &quot;{inputValue}&quot;
     </CommandItem>
   );
 };
