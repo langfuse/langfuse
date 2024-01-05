@@ -37,6 +37,16 @@ export const LangfuseLogo = ({
     >
       Langfuse
     </span>
-    {version && <span className="ml-2 text-xs text-gray-400">{VERSION}</span>}
+    {version && (
+      <a
+        href="https://github.com/langfuse/langfuse/releases"
+        target="_blank"
+        rel="noopener"
+        title="View releases on GitHub"
+        className="ml-2 text-xs text-gray-400"
+      >
+        {VERSION}
+      </a>
+    )}
   </div>
 );
