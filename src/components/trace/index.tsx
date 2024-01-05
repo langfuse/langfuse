@@ -19,7 +19,7 @@ import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
-import { ChevronsDownUp, ChevronsUpDown, StarHalf } from "lucide-react";
+import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -69,7 +69,7 @@ export function Trace(props: {
             size="sm"
             title="Show scores"
           >
-            <StarHalf className="h-4 w-4" />
+            <Award className="h-4 w-4" />
           </Toggle>
           <Toggle
             pressed={metricsOnObservationTree}
