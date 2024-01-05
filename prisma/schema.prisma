@@ -242,6 +242,7 @@ model Observation {
     @@index(createdAt)
     @@index(projectId)
     @@index(parentObservationId)
+    @@index(model)
     @@map("observations")
 }
 
@@ -295,6 +296,7 @@ model Pricing {
     currency    String      @default("USD")
     tokenType   TokenType   @map("token_type")
 
+    @@index(modelName)
     @@map("pricings")
 }
 
