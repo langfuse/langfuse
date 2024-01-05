@@ -58,6 +58,7 @@ export const TraceBody = z.object({
   release: z.string().nullish(),
   version: z.string().nullish(),
   public: z.boolean().nullish(),
+  tags: z.array(z.string()).nullish(),
 });
 
 export const OptionalObservationBody = z.object({

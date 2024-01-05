@@ -136,6 +136,7 @@ types:
       release: optional<string>
       version: optional<string>
       metadata: optional<unknown>
+      tags: optional<list<string>>
       public:
         type: optional<boolean>
         docs: Make trace publicly accessible via url

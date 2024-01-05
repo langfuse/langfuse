@@ -39,7 +39,7 @@ const instructionItems = [
     name: "Introduction",
     description:
       "Understand the basics of langfuse: tracing and feedback collection",
-    href: "https://langfuse.com/docs/integrations",
+    href: "https://langfuse.com/docs",
     icon: GraduationCap,
   },
   {

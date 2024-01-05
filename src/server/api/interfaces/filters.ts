@@ -4,6 +4,7 @@ export const filterOperators = {
   datetime: [">", "<", ">=", "<="],
   string: ["=", "contains", "does not contain", "starts with", "ends with"],
   stringOptions: ["any of", "none of"],
+  arrayOptions: ["any of", "none of", "all of"],
   number: ["=", ">", "<", ">=", "<="],
   stringObject: [
     "=",
@@ -41,6 +42,12 @@ export const stringOptionsFilter = z.object({
   value: z.array(z.string()).refine((v) => v.length > 0),
   type: z.literal("stringOptions"),
 });
+export const arrayOptionsFilter = z.object({
+  column: z.string(),
+  operator: z.enum(filterOperators.arrayOptions),
+  value: z.array(z.string()).refine((v) => v.length > 0),
+  type: z.literal("arrayOptions"),
+});
 export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
@@ -66,6 +73,7 @@ export const singleFilter = z.discriminatedUnion("type", [
   stringFilter,
   numberFilter,
   stringOptionsFilter,
+  arrayOptionsFilter,
   stringObjectFilter,
   numberObjectFilter,
   booleanFilter,
