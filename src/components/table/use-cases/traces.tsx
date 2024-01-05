@@ -360,6 +360,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "tags",
+      id: "tags",
       header: "Tags",
       enableHiding: true,
     },

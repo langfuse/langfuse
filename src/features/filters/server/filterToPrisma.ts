@@ -14,6 +14,8 @@ const operatorReplacements = {
 
 const arrayOperatorReplacements = {
   "any of": "&&",
+  "all of": "@>",
+  "none of": "&&",
 };
 
 export function filterToPrismaSql(
@@ -68,25 +70,10 @@ export function filterToPrismaSql(
         )})`;
         break;
       case "arrayOptions":
-        if (filter.operator === "any of") {
-          valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
-            filter.value.map((v) => Prisma.sql`${v}`),
-            ", ",
-          )}] `;
-        } else if (filter.operator === "all of") {
-          valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
-            filter.value.map((v) => Prisma.sql`${v}`),
-            ", ",
-          )}] `;
-          return Prisma.sql`${colPrisma} @> ${valuePrisma}`;
-        } else {
-          /* none of operation */
-          valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
-            filter.value.map((v) => Prisma.sql`${v}`),
-            ", ",
-          )}] `;
-          return Prisma.sql`NOT(${colPrisma} && ${valuePrisma})`;
-        }
+        valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
+          filter.value.map((v) => Prisma.sql`${v}`),
+          ", ",
+        )}] `;
         break;
 
       case "boolean":
@@ -116,8 +103,12 @@ export function filterToPrismaSql(
               : Prisma.empty,
           ]
         : [Prisma.empty, Prisma.empty];
+    const [funcPrisma1, funcPrisma2] =
+      filter.type === "arrayOptions" && filter.operator === "none of"
+        ? [Prisma.raw("NOT ("), Prisma.raw(")")]
+        : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueSuffix}`;
+    return Prisma.sql`${funcPrisma1}${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;

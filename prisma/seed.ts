@@ -122,8 +122,8 @@ async function main() {
     });
 
     const generationIds: string[] = [];
-    const envTags = ["", "development", "staging", "production"];
-    const colorTags = ["", "red", "blue", "yellow"];
+    const envTags = [null, "development", "staging", "production"];
+    const colorTags = [null, "red", "blue", "yellow"];
 
     for (let i = 0; i < TRACE_VOLUME; i++) {
       // print progress to console with a progress bar that refreshes every 10 iterations
@@ -141,7 +141,7 @@ async function main() {
       const envTag = envTags[Math.floor(Math.random() * envTags.length)];
       const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
 
-      const tags = [envTag, colorTag].filter((tag) => tag !== "");
+      const tags = [envTag, colorTag].filter((tag) => tag !== null);
 
       const trace = await prisma.trace.create({
         data: {
