@@ -2,8 +2,9 @@ openapi: 3.0.1
 info:
   title: langfuse
   version: ''
-  description: >
+  description: >-
     ## Authentication
+
 
     Authenticate with the API using Basic Auth, get API keys in the project
     settings:

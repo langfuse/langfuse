@@ -2,7 +2,7 @@
   "info": {
     "name": "Langfuse",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "## Authentication\nAuthenticate with the API using Basic Auth, get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key\n"
+    "description": "## Authentication\n\nAuthenticate with the API using Basic Auth, get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key"
   },
   "variable": [
     {
