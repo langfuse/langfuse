@@ -1,11 +1,11 @@
-import { api } from "@/src/utils/api";
-import { type FilterState } from "@/src/features/filters/types";
-import { TotalMetric } from "./TotalMetric";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
+import { type FilterState } from "@/src/features/filters/types";
+import { api } from "@/src/utils/api";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { TotalMetric } from "./TotalMetric";
 
 export const MetricTable = ({
   className,
@@ -54,12 +54,12 @@ export const MetricTable = ({
         .filter((item) => item.model !== null)
         .map((item, i) => [
           item.model as string,
-          <RightAlignedCell key={i}>
+          <RightAlignedCell key="tokens">
             {item.sumTotalTokens
               ? compactNumberFormatter(item.sumTotalTokens as number)
               : "0"}
           </RightAlignedCell>,
-          <RightAlignedCell key={i}>
+          <RightAlignedCell key="cost">
             {item.totalTokenCost
               ? usdFormatter(item.totalTokenCost as number)
               : "$0"}
@@ -76,8 +76,8 @@ export const MetricTable = ({
       <DashboardTable
         headers={[
           "Model",
-          <RightAlignedCell key={0}>Tokens</RightAlignedCell>,
-          <RightAlignedCell key={0}>USD</RightAlignedCell>,
+          <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
+          <RightAlignedCell key="cost">USD</RightAlignedCell>,
         ]}
         rows={metricsData}
         collapse={{ collapsed: 5, expanded: 20 }}
