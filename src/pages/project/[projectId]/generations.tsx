@@ -8,7 +8,14 @@ export default function Generations() {
 
   return (
     <div>
-      <Header title="Generations" />
+      <Header
+        title="Generations"
+        help={{
+          description:
+            "A generation captures a single LLM call. It is one type of observation which can be nested in a trace. See docs to learn more.",
+          href: "https://langfuse.com/docs/tracing",
+        }}
+      />
       <GenerationsTable projectId={projectId} />
     </div>
   );
