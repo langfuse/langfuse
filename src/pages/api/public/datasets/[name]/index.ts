@@ -47,7 +47,6 @@ export default async function handler(
         where: {
           name: name,
           projectId: authCheck.scope.projectId,
-          status: "ACTIVE",
         },
         include: {
           datasetItems: {
@@ -65,7 +64,7 @@ export default async function handler(
 
       if (!dataset) {
         return res.status(404).json({
-          message: "Dataset not found or not active",
+          message: "Dataset not found",
         });
       }
 
