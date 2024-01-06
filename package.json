@@ -28,7 +28,7 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@aws-sdk/client-s3": "^3.485.0",
-    "@aws-sdk/s3-request-presigner": "^3.478.0",
+    "@aws-sdk/s3-request-presigner": "^3.485.0",
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.1.1",
     "@hookform/resolvers": "^3.3.4",
