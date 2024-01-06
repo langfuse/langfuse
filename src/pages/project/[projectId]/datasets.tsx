@@ -8,7 +8,14 @@ export default function Traces() {
 
   return (
     <div>
-      <Header title="Datasets" />
+      <Header
+        title="Datasets"
+        help={{
+          description:
+            "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
+          href: "https://langfuse.com/docs/datasets",
+        }}
+      />
       <DatasetsTable projectId={projectId} />
     </div>
   );

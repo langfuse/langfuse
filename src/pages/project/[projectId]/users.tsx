@@ -115,7 +115,14 @@ export default function UsersPage() {
 
   return (
     <div>
-      <Header title="Users" />
+      <Header
+        title="Users"
+        help={{
+          description:
+            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+          href: "https://langfuse.com/docs/user-explorer",
+        }}
+      />
 
       <DataTable
         columns={columns}
