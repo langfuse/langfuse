@@ -6,7 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { Prisma, type Score } from "@prisma/client";
+import { Prisma, ScoreType, type Score } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
@@ -59,23 +59,38 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        type: z
+          .enum([
+            ScoreType.DEFAULT,
+            ScoreType.EVAL,
+            ScoreType.EXPERT,
+            ScoreType.USER,
+          ])
+          .optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
       const names = await ctx.prisma.score.groupBy({
         where: {
+          ...(input.type ? { type: input.type } : {}),
           trace: {
             projectId: input.projectId,
           },
         },
         by: ["name"],
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
         _count: {
-          _all: true,
+          id: true,
         },
       });
 
       const res: ScoreOptions = {
-        name: names.map((i) => ({ value: i.name, count: i._count._all })),
+        name: names.map((i) => ({ value: i.name, count: i._count.id })),
       };
 
       return res;
@@ -100,7 +115,7 @@ export const scoresRouter = createTRPCRouter({
       },
     }),
   ),
-  expertUpsertMany: protectedProcedure
+  expertUpdate: protectedProcedure
     .input(
       z.object({
         traceId: z.string(),
@@ -134,6 +149,19 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
+      // Delete all scores that are not in the input
+      // User removed them in the UI
+      await ctx.prisma.score.deleteMany({
+        where: {
+          traceId: input.traceId,
+          type: "EXPERT",
+          id: {
+            notIn: input.scores.map((i) => i.id).filter(Boolean) as string[],
+          },
+        },
+      });
+
+      // Upsert all scores that are in the input
       for (const score of input.scores) {
         const scoreId = score.id ?? v4();
         await ctx.prisma.score.upsert({

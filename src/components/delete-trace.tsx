@@ -48,11 +48,16 @@ export function DeleteTrace({
     <Popover key={traceId}>
       <PopoverTrigger asChild>
         {isTableAction ? (
-          <Button variant="ghost" size="xs">
+          <Button variant="ghost" size="xs" title="Delete trace">
             <TrashIcon className="h-4 w-4" />
           </Button>
         ) : (
-          <Button variant="outline" type="button" size="sm">
+          <Button
+            variant="outline"
+            type="button"
+            size="sm"
+            title="Delete trace"
+          >
             <TrashIcon className="h-4 w-4" />
           </Button>
         )}

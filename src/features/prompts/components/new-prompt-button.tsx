@@ -27,8 +27,8 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import { extractVariables } from "@/src/utils/string";
 import { Badge } from "@/src/components/ui/badge";
 import router from "next/router";
-import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
-import { type Option } from "@/src/features/prompts/components/auto-complete";
+import { AutoComplete } from "@/src/components/auto-complete";
+import { type Option } from "@/src/components/auto-complete";
 
 export const CreatePromptDialog = (props: {
   projectId: string;

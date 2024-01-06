@@ -10,6 +10,7 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { JSONView } from "@/src/components/ui/code";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -370,11 +371,19 @@ export default function TracesTable({
       cell: ({ row }) => {
         const traceId = row.getValue("id");
         return traceId && typeof traceId === "string" ? (
-          <DeleteTrace
-            traceId={traceId}
-            isTableAction={true}
-            projectId={projectId}
-          />
+          <>
+            <ExpertScoreButton
+              projectId={projectId}
+              traceId={traceId}
+              scores={row.getValue("scores")}
+              variant="row-action"
+            />
+            <DeleteTrace
+              traceId={traceId}
+              isTableAction={true}
+              projectId={projectId}
+            />
+          </>
         ) : undefined;
       },
     },

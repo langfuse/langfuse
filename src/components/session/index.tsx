@@ -113,15 +113,15 @@ export const SessionPage: React.FC<{
                 {trace.timestamp.toLocaleString()}
               </div>
               <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
-              <div className="flex flex-wrap content-start items-start gap-1">
+              <div className="group/scores flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
+                <ExpertScoreButton
+                  projectId={projectId}
+                  traceId={trace.id}
+                  scores={trace.scores}
+                  variant="badge"
+                />
               </div>
-              <ExpertScoreButton
-                projectId={projectId}
-                traceId={trace.id}
-                scores={trace.scores}
-                variant="badge"
-              />
             </div>
           </Card>
         ))}

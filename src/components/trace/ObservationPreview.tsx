@@ -23,6 +23,7 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
 import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
 import Link from "next/link";
+import Header from "@/src/components/layouts/header";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -38,6 +39,10 @@ export const ObservationPreview = (props: {
 
   const preloadedObservation = props.observations.find(
     (o) => o.id === props.currentObservationId,
+  );
+
+  const scores = props.scores.filter(
+    (s) => s.observationId === props.currentObservationId,
   );
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
@@ -103,13 +108,7 @@ export const ObservationPreview = (props: {
               : null}
           </div>
         </div>
-        <div className="flex gap-2">
-          <ExpertScoreButton
-            projectId={props.projectId}
-            traceId={preloadedObservation.traceId}
-            observationId={preloadedObservation.id}
-            scores={props.scores}
-          />
+        <div className="flex items-start gap-2">
           {observationWithInputAndOutput.data ? (
             <NewDatasetItemFromObservationButton
               observationId={preloadedObservation.id}
@@ -144,41 +143,54 @@ export const ObservationPreview = (props: {
           />
         ) : null}
 
-        {props.scores.find(
-          (s) => s.observationId === preloadedObservation.id,
-        ) ? (
-          <div className="flex flex-col gap-2">
-            <h3>Scores</h3>
-            <Table>
-              <TableHeader>
+        <div className="flex flex-col gap-2">
+          <Header
+            title="Scores"
+            level="h3"
+            actionButtons={
+              <ExpertScoreButton
+                projectId={props.projectId}
+                traceId={preloadedObservation.traceId}
+                observationId={preloadedObservation.id}
+                scores={props.scores}
+              />
+            }
+          />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">Timestamp</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Value</TableHead>
+                <TableHead>Comment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {scores.length > 0 ? (
+                scores.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-xs">
+                      {s.timestamp.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-xs">{s.name}</TableCell>
+                    <TableCell className="text-xs">{s.type}</TableCell>
+                    <TableCell className="text-right text-xs">
+                      {s.value}
+                    </TableCell>
+                    <TableCell className="text-xs">{s.comment}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
-                  <TableHead className="w-[100px]">Timestamp</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead>Comment</TableHead>
+                  <TableCell colSpan={5} className="text-center text-xs">
+                    No scores
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {props.scores
-                  .filter((s) => s.observationId === preloadedObservation.id)
-                  .map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="text-xs">
-                        {s.timestamp.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.name}</TableCell>
-                      <TableCell className="text-xs">{s.type}</TableCell>
-                      <TableCell className="text-right text-xs">
-                        {s.value}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.comment}</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : null}
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

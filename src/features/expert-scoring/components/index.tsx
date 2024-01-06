@@ -22,23 +22,30 @@ import * as z from "zod";
 
 import { useFieldArray, useForm } from "react-hook-form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { LockIcon, Trash } from "lucide-react";
+import { Award, LockIcon, Plus, Trash } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
+import { AutoComplete, type Option } from "@/src/components/auto-complete";
+import { Textarea } from "@/src/components/ui/textarea";
 
 const formSchema = z.object({
-  scores: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string().refine((value) => value !== "", {
-        message: "Name is required",
+  scores: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string().refine((value) => value !== "", {
+          message: "Name is required",
+        }),
+        value: z.string().refine((value) => isFinite(parseFloat(value)), {
+          message: "Invalid number string",
+        }),
+        comment: z.string().optional(),
       }),
-      value: z.string().refine((value) => isFinite(parseFloat(value)), {
-        message: "Invalid number string",
-      }),
-      comment: z.string().optional(),
-    }),
-  ),
+    )
+    .refine((value) => {
+      const names = value.map((v) => v.name);
+      return names.length === new Set(names).size;
+    }, "Names need to be unique"),
 });
 
 export function ExpertScoreButton({
@@ -52,11 +59,16 @@ export function ExpertScoreButton({
   scores: Score[];
   observationId?: string;
   projectId: string;
-  variant?: "button" | "badge";
+  variant?: "button" | "badge" | "row-action";
 }) {
   const hasAccess = useHasAccess({
     projectId,
     scope: "scores:CUD",
+  });
+
+  const expertScoreNamesInProject = api.scores.filterOptions.useQuery({
+    projectId,
+    type: "EXPERT",
   });
 
   const currentExpertScores = scores.filter(
@@ -77,13 +89,9 @@ export function ExpertScoreButton({
       utils.sessions.invalidate(),
     ]);
   };
-  const mutUpsertManyScores = api.scores.expertUpsertMany.useMutation({
+  const mutUpsertManyScores = api.scores.expertUpdate.useMutation({
     onSuccess,
   });
-  // const mutDeleteScore = api.scores.delete.useMutation({ onSuccess });
-  // const usedNames = api.scores.usedNames.useQuery({
-  //   projectId,
-  // });
 
   const [open, setOpen] = useState(false);
 
@@ -115,6 +123,9 @@ export function ExpertScoreButton({
           comment: s.comment ?? "",
         })),
       );
+      if (currentExpertScores.length === 0) {
+        addNewScore();
+      }
       setOpen(true);
     }
   };
@@ -135,22 +146,35 @@ export function ExpertScoreButton({
     onOpenChange(false);
   };
 
+  const addNewScore = () => {
+    append({ id: "new", name: "", value: "0", comment: "" });
+  };
+
   if (!hasAccess && variant === "badge") return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
+      <DialogTrigger asChild={variant !== "badge"}>
         {variant === "button" ? (
           <Button variant="secondary" disabled={!hasAccess}>
-            Expert score
+            Edit Scores
             {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
           </Button>
-        ) : (
-          <Badge className="cursor-pointer">
-            {currentExpertScores.length > 0 ? "Update score" : "Add score"}
+        ) : variant === "badge" ? (
+          <Badge className="hidden cursor-pointer group-hover/scores:block">
+            Edit scores
           </Badge>
+        ) : (
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={!hasAccess}
+            title="Edit scores"
+          >
+            <Award className="h-4 w-4" />
+          </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="mb-5">Update Scores</DialogTitle>
         </DialogHeader>
@@ -158,7 +182,7 @@ export function ExpertScoreButton({
           <form
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-4"
+            className="space-y-2"
           >
             <div className="grid grid-cols-6 gap-2">
               <span className="col-span-2">
@@ -181,10 +205,19 @@ export function ExpertScoreButton({
                     render={({ field }) => (
                       <FormItem className="col-span-2">
                         <FormControl>
-                          <Input
-                            placeholder="Name"
+                          <AutoComplete
                             {...field}
-                            autoComplete="off"
+                            options={[
+                              ...(expertScoreNamesInProject.data?.name.map(
+                                ({ value }) => ({ label: value, value: value }),
+                              ) ?? []),
+                            ]}
+                            placeholder="Score name"
+                            onValueChange={(value: Option) => {
+                              field.onChange(value.value);
+                            }}
+                            value={{ value: field.value, label: field.value }}
+                            disabled={false}
                           />
                         </FormControl>
                         <FormMessage />
@@ -197,7 +230,7 @@ export function ExpertScoreButton({
                     render={({ field }) => (
                       <FormItem>
                         <FormControl>
-                          <Input {...field} type="number" />
+                          <Input {...field} type="number" step={0.01} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -209,7 +242,11 @@ export function ExpertScoreButton({
                     render={({ field }) => (
                       <FormItem className="col-span-2">
                         <FormControl>
-                          <Input {...field} placeholder="Comment" />
+                          <Textarea
+                            {...field}
+                            placeholder="Comment"
+                            className="h-10 min-h-10"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -226,16 +263,20 @@ export function ExpertScoreButton({
               );
             })}
 
-            <div className="flex justify-end space-x-4">
+            <div className="flex justify-end space-x-2">
+              <span className="flex-grow text-destructive">
+                {form.formState.errors.scores?.root?.message}
+              </span>
               <Button
-                onClick={() =>
-                  append({ id: "new", name: "", value: "0", comment: "" })
-                }
+                onClick={() => {
+                  addNewScore();
+                }}
+                variant="secondary"
               >
-                Add new
+                <Plus size={14} />
               </Button>
               <Button type="submit" loading={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Loading ..." : "Update"}
+                {form.formState.isSubmitting ? "Loading ..." : "Save"}
               </Button>
             </div>
           </form>
