@@ -1,3 +1,6 @@
+// This page is currently only shown to Langfuse cloud users.
+// It might be expanded to everyone in the future when it does not only ask for the referral source.
+
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
