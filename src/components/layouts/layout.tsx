@@ -481,9 +481,14 @@ export default function Layout(props: PropsWithChildren) {
 type NavigationItem = (typeof ROUTES)[number] & {
   href: string;
   current: boolean;
+  children?: Omit<NavigationItem, "children">[]; // max 2 levels
 };
 
-const MainNavigation: React.FC<{ nav: NavigationItem[] }> = ({ nav }) => (
+// CURRENT
+const MainNavigation: React.FC<{
+  nav: NavigationItem[];
+  onNavitemClick?: () => void;
+}> = ({ nav, onNavitemClick }) => (
   <li>
     <ul role="list" className="-mx-2 space-y-1">
       {nav.map((item) => (
@@ -496,6 +501,7 @@ const MainNavigation: React.FC<{ nav: NavigationItem[] }> = ({ nav }) => (
                 : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
               "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
             )}
+            onClick={onNavitemClick}
           >
             <item.icon
               className={clsx(
