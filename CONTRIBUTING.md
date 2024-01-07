@@ -79,6 +79,10 @@ flowchart TB
    Python --- API
 ```
 
+### Database Overview
+
+<img src="./prisma/database.svg">
+
 ### Infrastructure & Network Overview
 
 ```mermaid
