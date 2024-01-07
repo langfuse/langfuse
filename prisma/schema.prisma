@@ -13,6 +13,14 @@ datasource db {
     shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
+generator erd {
+    provider     = "prisma-erd-generator"
+    ignoreTables = ["_prisma_migrations", "Session", "Account", "Example"]
+    disabled     = true
+    ignoreEnums  = true
+    output       = "database.svg"
+}
+
 model Example {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now()) @map("created_at")
