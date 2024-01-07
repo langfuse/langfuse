@@ -555,15 +555,10 @@ const MainNavigation: React.FC<{
             >
               {({ open }) => (
                 <>
-                  <Disclosure.Button
-                    className={clsx(
-                      item.current ? "bg-gray-50" : "hover:bg-gray-50",
-                      "flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6",
-                    )}
-                  >
+                  <Disclosure.Button className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600">
                     {item.icon && (
                       <item.icon
-                        className="h-6 w-6 shrink-0 text-gray-400"
+                        className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
                         aria-hidden="true"
                       />
                     )}
@@ -595,7 +590,9 @@ const MainNavigation: React.FC<{
                         <Link
                           href={subItem.href ?? "#"}
                           className={clsx(
-                            subItem.current ? "bg-gray-50" : "hover:bg-gray-50",
+                            subItem.current
+                              ? "bg-gray-50 text-indigo-600"
+                              : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
                             "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
                           )}
                         >
