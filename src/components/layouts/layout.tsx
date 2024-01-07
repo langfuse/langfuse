@@ -1,12 +1,12 @@
-import { ROUTES } from "@/src/components/layouts/routes";
+import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { Fragment, type PropsWithChildren, useState } from "react";
-import { Dialog, Menu, Transition } from "@headlessui/react";
+import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Code, MessageSquarePlus, Info } from "lucide-react";
+import { Code, MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
@@ -50,30 +50,47 @@ export default function Layout(props: PropsWithChildren) {
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
 
   const projectId = router.query.projectId as string | undefined;
-  const navigation: NavigationItem[] = ROUTES.filter(
-    ({ pathname }) => projectId || !pathname.includes("[projectId]"),
-  )
-    .filter(
-      ({ featureFlag }) =>
-        featureFlag === undefined ||
+
+  const mapNavigation = (route: Route): NavigationItem | null => {
+    // Project-level routes
+    if (!projectId && route.pathname?.includes("[projectId]")) return null;
+
+    // Feature Flags
+    if (
+      !(
+        route.featureFlag === undefined ||
         enableExperimentalFeatures ||
-        session.data?.user?.featureFlags[featureFlag],
+        session.data?.user?.featureFlags[route.featureFlag]
+      )
     )
-    .filter(
-      ({ rbacScope }) =>
-        rbacScope === undefined ||
-        (projectId && hasAccess({ projectId, scope: rbacScope, session })),
+      return null;
+
+    // RBAC
+    if (
+      route.rbacScope !== undefined &&
+      (!projectId || !hasAccess({ projectId, scope: route.rbacScope, session }))
     )
-    .map(({ pathname, ...rest }) => ({
-      pathname,
-      href: pathname.replace("[projectId]", projectId ?? ""),
-      ...rest,
-    }))
-    .map(({ pathname, ...rest }) => ({
-      pathname,
-      current: router.pathname === pathname,
-      ...rest,
-    }));
+      return null;
+
+    // apply to children as well
+    const children: (NavigationItem | null)[] =
+      route.children?.map((child) => mapNavigation(child)).filter(Boolean) ??
+      [];
+    return {
+      ...route,
+      href: route.pathname?.replace("[projectId]", projectId ?? ""),
+      current: router.pathname === route.pathname,
+      children:
+        children.length > 0
+          ? (children as NavigationItem[]) // does not include null due to filter
+          : undefined,
+    };
+  };
+
+  const navigationMapped: (NavigationItem | null)[] = ROUTES.map((route) =>
+    mapNavigation(route),
+  ).filter(Boolean);
+  const navigation = navigationMapped.filter(Boolean) as NavigationItem[]; // does not include null due to filter
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
 
@@ -478,13 +495,15 @@ export default function Layout(props: PropsWithChildren) {
   );
 }
 
-type NavigationItem = (typeof ROUTES)[number] & {
-  href: string;
-  current: boolean;
-  children?: Omit<NavigationItem, "children">[]; // max 2 levels
+type NavigationItem = NestedNavigationItem & {
+  children?: NestedNavigationItem[];
 };
 
-// CURRENT
+type NestedNavigationItem = Omit<Route, "children"> & {
+  href?: string;
+  current: boolean;
+};
+
 const MainNavigation: React.FC<{
   nav: NavigationItem[];
   onNavitemClick?: () => void;
@@ -493,39 +512,107 @@ const MainNavigation: React.FC<{
     <ul role="list" className="-mx-2 space-y-1">
       {nav.map((item) => (
         <li key={item.name}>
-          <Link
-            href={item.href}
-            className={clsx(
-              item.current
-                ? "bg-gray-50 text-indigo-600"
-                : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-              "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
-            )}
-            onClick={onNavitemClick}
-          >
-            <item.icon
+          {(!item.children || item.children.length === 0) && item.href ? (
+            <Link
+              href={item.href}
               className={clsx(
                 item.current
-                  ? "text-indigo-600"
-                  : "text-gray-400 group-hover:text-indigo-600",
-                "h-6 w-6 shrink-0",
+                  ? "bg-gray-50 text-indigo-600"
+                  : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
               )}
-              aria-hidden="true"
-            />
-            {item.name}
-            {item.label && (
-              <span
-                className={cn(
-                  "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                  item.current
-                    ? "border-indigo-600 text-indigo-600"
-                    : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                )}
-              >
-                {item.label}
-              </span>
-            )}
-          </Link>
+              onClick={onNavitemClick}
+            >
+              {item.icon && (
+                <item.icon
+                  className={clsx(
+                    item.current
+                      ? "text-indigo-600"
+                      : "text-gray-400 group-hover:text-indigo-600",
+                    "h-6 w-6 shrink-0",
+                  )}
+                  aria-hidden="true"
+                />
+              )}
+              {item.name}
+              {item.label && (
+                <span
+                  className={cn(
+                    "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                    item.current
+                      ? "border-indigo-600 text-indigo-600"
+                      : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                  )}
+                >
+                  {item.label}
+                </span>
+              )}
+            </Link>
+          ) : item.children && item.children.length > 0 ? (
+            <Disclosure
+              as="div"
+              defaultOpen={item.children.some((child) => child.current)}
+            >
+              {({ open }) => (
+                <>
+                  <Disclosure.Button
+                    className={clsx(
+                      item.current ? "bg-gray-50" : "hover:bg-gray-50",
+                      "flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6",
+                    )}
+                  >
+                    {item.icon && (
+                      <item.icon
+                        className="h-6 w-6 shrink-0 text-gray-400"
+                        aria-hidden="true"
+                      />
+                    )}
+                    {item.name}
+                    {item.label && (
+                      <span
+                        className={cn(
+                          "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                          item.current
+                            ? "border-indigo-600 text-indigo-600"
+                            : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                    )}
+                    <ChevronRightIcon
+                      className={clsx(
+                        open ? "rotate-90 text-gray-500" : "text-gray-400",
+                        "ml-auto h-5 w-5 shrink-0",
+                      )}
+                      aria-hidden="true"
+                    />
+                  </Disclosure.Button>
+                  <Disclosure.Panel as="ul" className="mt-1 px-2">
+                    {item.children?.map((subItem) => (
+                      <li key={subItem.name}>
+                        {/* 44px */}
+                        <Link
+                          href={subItem.href ?? "#"}
+                          className={clsx(
+                            subItem.current ? "bg-gray-50" : "hover:bg-gray-50",
+                            "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
+                          )}
+                        >
+                          {subItem.name}
+                          {subItem.label && (
+                            <span className="self-center whitespace-nowrap break-keep rounded-sm border border-gray-200 px-1 py-0.5 text-xs text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+                              {subItem.label}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+                    ))}
+                  </Disclosure.Panel>
+                </>
+              )}
+            </Disclosure>
+          ) : null}
         </li>
       ))}
       <FeedbackButtonWrapper className="w-full">
