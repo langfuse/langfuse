@@ -242,6 +242,12 @@ docker compose up -d
 
 ### Run Langfuse in CI for integration tests
 
+### Community
+
+#### Deploy Langfuse to AWS with Fargate
+
+Deploy Langfuse to AWS using the AWS Fargate service for serverless container deployment. You can find the deployment guide and Cloud Development Kit (CDK) scripts here: [langfuse-ecr-ecs-deployment-cdk](https://github.com/AI4Organization/langfuse-ecr-ecs-deployment-cdk).
+
 Checkout GitHub Actions workflows of [Python SDK](https://github.com/langfuse/langfuse-python/blob/main/.github/workflows/ci.yml) and [JS/TS SDK](https://github.com/langfuse/langfuse-js/blob/main/.github/workflows/ci.yml).
 
 ### Telemetry
