@@ -569,9 +569,7 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="py-4">
-            <div className="px-4">{props.children}</div>
-          </main>
+          <main className="p-4">{props.children}</main>
         </div>
       </div>
     </>
