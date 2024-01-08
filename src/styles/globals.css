@@ -88,3 +88,28 @@
     height: 100%;
   }
 }
+
+
+.resizer {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 5px;
+  right: -1px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  opacity: 0;
+}
+
+.resizer.isResizing {
+  background: blue;
+  cursor: col-resize;
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .resizer:hover {
+    opacity: 1;
+  }
+}

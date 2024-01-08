@@ -18,6 +18,7 @@ import {
   getCoreRowModel,
   getFilteredRowModel,
   useReactTable,
+  ColumnResizeMode,
   type ColumnFiltersState,
   type OnChangeFn,
   type PaginationState,
@@ -64,9 +65,13 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
+  const [columnResizeMode, setColumnResizeMode] =
+    useState<ColumnResizeMode>("onChange");
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
+    columnResizeMode,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
@@ -95,7 +100,7 @@ export function DataTable<TData extends object, TValue>({
     <>
       <div className="space-y-4">
         <div className="rounded-md border">
-          <Table>
+          <Table style={{ width: table.getCenterTotalSize() }}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -109,6 +114,10 @@ export function DataTable<TData extends object, TValue>({
                           sortingEnabled ? "cursor-pointer" : null,
                           "whitespace-nowrap p-2",
                         )}
+                        style={{
+                          position: "relative",
+                          width: header.getSize(),
+                        }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onClick={(event) => {
                           event.preventDefault(); // Add this line
@@ -148,6 +157,17 @@ export function DataTable<TData extends object, TValue>({
                             </div>
                           </>
                         )}
+                        <div
+                          {...{
+                            onDoubleClick: () => header.column.resetSize(),
+                            onMouseDown: header.getResizeHandler(),
+                            onTouchStart: header.getResizeHandler(),
+                            className: `resizer ltr ${
+                              header.column.getIsResizing() ? "isResizing" : ""
+                            }`,
+                            style: { transform: "" },
+                          }}
+                        />
                       </TableHead>
                     ) : null;
                   })}
@@ -166,10 +186,11 @@ export function DataTable<TData extends object, TValue>({
                 </TableRow>
               ) : table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} style={{ position: "relative" }}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
+                        style={{ width: cell.column.getSize() }}
                         className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
                       >
                         {flexRender(
