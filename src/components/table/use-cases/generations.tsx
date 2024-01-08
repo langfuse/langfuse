@@ -23,6 +23,7 @@ import {
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
 import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
+import useColumnSizing from "@/src/features/column-sizing/hooks/useColumnSizing";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -292,6 +293,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
   ];
+  const [columnSizing, setColumnSizing] = useColumnSizing<GenerationsTableRow>(
+    "generationsColumnSizing",
+    columns,
+  );
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<GenerationsTableRow>(
       "generationsColumnVisibility",
@@ -397,6 +402,8 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnSizing={columnSizing}
+        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />

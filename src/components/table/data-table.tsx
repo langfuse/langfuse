@@ -18,7 +18,7 @@ import {
   getCoreRowModel,
   getFilteredRowModel,
   useReactTable,
-  ColumnResizeMode,
+  type ColumnSizingState,
   type ColumnFiltersState,
   type OnChangeFn,
   type PaginationState,
@@ -37,6 +37,8 @@ interface DataTableProps<TData, TValue> {
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
+  columnSizing?: ColumnSizingState;
+  onColumnSizingChange?: OnChangeFn<ColumnSizingState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   orderBy?: OrderByState;
@@ -57,6 +59,8 @@ export function DataTable<TData extends object, TValue>({
   pagination,
   rowSelection,
   setRowSelection,
+  columnSizing,
+  onColumnSizingChange,
   columnVisibility,
   onColumnVisibilityChange,
   help,
@@ -76,6 +80,7 @@ export function DataTable<TData extends object, TValue>({
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
+    onColumnSizingChange: onColumnSizingChange,
     onColumnVisibilityChange: onColumnVisibilityChange,
     getRowId: (row, index) => {
       if ("id" in row && typeof row.id === "string") {
@@ -87,6 +92,7 @@ export function DataTable<TData extends object, TValue>({
     state: {
       columnFilters,
       pagination: pagination?.state,
+      columnSizing,
       columnVisibility,
       rowSelection,
     },
