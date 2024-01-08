@@ -119,7 +119,7 @@ export function DataTable<TData extends object, TValue>({
                         )}
                         style={{ width: header.getSize() }}
                         title={sortingEnabled ? "Sort by this column" : ""}
-                        onPointerUp={(event) => {
+                        onPointerUp={() => {
                           if (
                             !setOrderBy ||
                             !header.column.columnDef.id ||
