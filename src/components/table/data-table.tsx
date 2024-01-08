@@ -112,12 +112,9 @@ export function DataTable<TData extends object, TValue>({
                         key={header.id}
                         className={cn(
                           sortingEnabled ? "cursor-pointer" : null,
-                          "whitespace-nowrap p-2",
+                          "relative whitespace-nowrap p-2",
                         )}
-                        style={{
-                          position: "relative",
-                          width: header.getSize(),
-                        }}
+                        style={{ width: header.getSize() }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onClick={(event) => {
                           event.preventDefault(); // Add this line
@@ -158,16 +155,15 @@ export function DataTable<TData extends object, TValue>({
                           </>
                         )}
                         <div
-                          {...{
-                            onDoubleClick: () => header.column.resetSize(),
-                            onMouseDown: header.getResizeHandler(),
-                            onTouchStart: header.getResizeHandler(),
-                            className: `resizer ltr ${
-                              header.column.getIsResizing() ? "isResizing" : ""
-                            }`,
-                            style: { transform: "" },
-                          }}
-                        />
+                          onDoubleClick={() => header.column.resetSize()}
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-pointer select-none ${
+                            header.column.getIsResizing()
+                              ? "cursor-col-resize bg-blue-400"
+                              : ""
+                          }`}
+                        ></div>
                       </TableHead>
                     ) : null;
                   })}
@@ -186,7 +182,7 @@ export function DataTable<TData extends object, TValue>({
                 </TableRow>
               ) : table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} style={{ position: "relative" }}>
+                  <TableRow key={row.id} className="relative">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
