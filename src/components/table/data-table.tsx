@@ -201,7 +201,7 @@ export function DataTable<TData extends object, TValue>({
                 </TableRow>
               ) : table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className="relative">
+                  <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
