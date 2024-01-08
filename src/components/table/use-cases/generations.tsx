@@ -293,10 +293,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
   ];
+
   const [columnSizing, setColumnSizing] = useColumnSizing<GenerationsTableRow>(
     "generationsColumnSizing",
     columns,
   );
+
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<GenerationsTableRow>(
       "generationsColumnVisibility",

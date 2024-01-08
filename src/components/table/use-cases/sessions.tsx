@@ -3,6 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import useColumnSizing from "@/src/features/column-sizing/hooks/useColumnSizing";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
@@ -13,6 +14,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { GenerationsTableRow } from "@/src/components/table/use-cases/generations";
 
 export type SessionTableRow = {
   id: string;
@@ -169,6 +171,11 @@ export default function SessionsTable({
     },
   ];
 
+  const [columnSizing, setColumnSizing] = useColumnSizing<SessionTableRow>(
+    "sessionsColumnSizing",
+    columns,
+  );
+
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
@@ -204,6 +211,8 @@ export default function SessionsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnSizing={columnSizing}
+        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         help={{
