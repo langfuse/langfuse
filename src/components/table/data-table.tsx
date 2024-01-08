@@ -119,9 +119,7 @@ export function DataTable<TData extends object, TValue>({
                         )}
                         style={{ width: header.getSize() }}
                         title={sortingEnabled ? "Sort by this column" : ""}
-                        onClick={(event) => {
-                          event.preventDefault(); // Add this line
-
+                        onPointerUp={(event) => {
                           if (
                             !setOrderBy ||
                             !header.column.columnDef.id ||
@@ -160,22 +158,25 @@ export function DataTable<TData extends object, TValue>({
 
                         <div
                           onDoubleClick={() => header.column.resetSize()}
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          title="Resize this column"
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                            event.currentTarget.setPointerCapture(
+                              event.pointerId,
+                            );
+                            header.getResizeHandler()(event);
                           }}
-                          onPointerDown={(e) => {
-                            e.currentTarget.setPointerCapture(e.pointerId);
-                          }}
-                          onPointerUp={(e) => {
-                            e.currentTarget.releasePointerCapture(e.pointerId);
+                          onPointerUp={(event) => {
+                            event.stopPropagation();
+                            event.currentTarget.releasePointerCapture(
+                              event.pointerId,
+                            );
                           }}
                           className={cn(
-                            "absolute right-0 top-0 h-full w-1 select-none ",
+                            "absolute right-0 top-0 h-full w-1 select-none",
                             header.column.getIsResizing()
                               ? "cursor-col-resize bg-blue-300"
-                              : "cursor-grab ",
+                              : "cursor-grab",
                           )}
                         ></div>
                       </TableHead>
