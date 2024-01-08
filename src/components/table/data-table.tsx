@@ -205,7 +205,6 @@ export function DataTable<TData extends object, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        //                        style={{ width: cell.column.getSize() }}
                         className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
                       >
                         {flexRender(
