@@ -65,13 +65,10 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
-  const [columnResizeMode, setColumnResizeMode] =
-    useState<ColumnResizeMode>("onChange");
-
   const table = useReactTable({
     data: data.data ?? [],
     columns,
-    columnResizeMode,
+    columnResizeMode: "onChange",
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
@@ -160,7 +157,7 @@ export function DataTable<TData extends object, TValue>({
                           onTouchStart={header.getResizeHandler()}
                           className={`absolute right-0 top-0 h-full w-1 cursor-pointer select-none ${
                             header.column.getIsResizing()
-                              ? "cursor-col-resize bg-blue-400"
+                              ? "cursor-col-resize bg-blue-300"
                               : ""
                           }`}
                         ></div>
