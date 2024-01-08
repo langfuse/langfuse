@@ -113,6 +113,8 @@ export default function SessionsTable({
           />
         ) : undefined;
       },
+      enableResizing: false,
+      size: 35,
     },
     {
       accessorKey: "id",

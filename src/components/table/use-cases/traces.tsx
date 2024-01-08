@@ -190,6 +190,8 @@ export default function TracesTable({
           aria-label="Select row"
         />
       ),
+      enableResizing: false,
+      size: 35,
     },
     {
       accessorKey: "bookmarked",
@@ -209,6 +211,8 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableResizing: false,
+      size: 35,
     },
     {
       accessorKey: "id",
@@ -378,6 +382,8 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableResizing: false,
+      size: 60,
     },
   ];
 
