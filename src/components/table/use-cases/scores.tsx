@@ -10,7 +10,6 @@ import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { GenerationsTableRow } from "@/src/components/table/use-cases/generations";
 
 export type ScoresTableRow = {
   id: string;

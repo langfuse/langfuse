@@ -14,7 +14,6 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { GenerationsTableRow } from "@/src/components/table/use-cases/generations";
 
 export type SessionTableRow = {
   id: string;

@@ -4,7 +4,8 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 function useColumnSizing<TData>(
   localStorageKey: string,
-  columns: LangfuseColumnDef<TData>[],
+  // We currently do not examine passed columns, but we might in the future.
+  _columns: LangfuseColumnDef<TData>[],
 ) {
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
     try {
