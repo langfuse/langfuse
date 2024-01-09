@@ -17,6 +17,7 @@ import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
+import { TagPopOver } from "@/src/features/tag/components/TagPopOver";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -74,6 +75,23 @@ export function TracePage({ traceId }: { traceId: string }) {
       },
     },
   );
+
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId: trace.data?.projectId ?? "",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      enabled: !!trace.data?.projectId && trace.isSuccess,
+    },
+  );
+
+  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
   const totalCost = trace.data?.observations.reduce(
     (acc, o) => {
       if (!o.price) return acc;
@@ -82,7 +100,6 @@ export function TracePage({ traceId }: { traceId: string }) {
     },
     undefined as Decimal | undefined,
   );
-
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
 
@@ -148,6 +165,17 @@ export function TracePage({ traceId }: { traceId: string }) {
             Total cost: {totalCost.toString()} USD
           </Badge>
         ) : undefined}
+      </div>
+      <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
+        <div className="flex flex-row items-center gap-3 p-2.5">
+          Tags
+          <TagPopOver
+            tags={trace.data.tags}
+            availableTags={allTags}
+            traceId={trace.data.id}
+            projectId={trace.data.projectId}
+          />
+        </div>
       </div>
       <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
         <Trace

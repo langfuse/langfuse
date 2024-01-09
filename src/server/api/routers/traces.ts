@@ -170,7 +170,7 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-
+      await delay(2000);
       return traces.map((trace) => {
         const filteredScores = scores.filter((s) => s.traceId === trace.id);
         return { ...trace, scores: filteredScores };
@@ -436,3 +436,7 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 });
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

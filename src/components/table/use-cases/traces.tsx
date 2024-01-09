@@ -6,7 +6,7 @@ import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-m
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TagPopOver } from "@/src/components/tag-pop-over";
+import { TagPopOver } from "@/src/features/tag/components/TagPopOver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { JSONView } from "@/src/components/ui/code";
@@ -368,7 +368,7 @@ export default function TracesTable({
         const traceId: string = row.getValue("id");
         const filterOptionTags = traceFilterOptions.data?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
-
+        console.log("Row selectedTags", selectedTags);
         return (
           <TagPopOver
             projectId={projectId}
