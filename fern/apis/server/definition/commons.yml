@@ -80,7 +80,6 @@ types:
     properties:
       id: string
       name: string
-      status: DatasetStatus
       projectId: string
       createdAt: datetime
       updatedAt: datetime
