@@ -4,48 +4,50 @@ import {
   Database,
   LayoutDashboard,
   LifeBuoy,
-  LineChart,
   ListTree,
   type LucideIcon,
   Settings,
-  TextSelect,
   UsersIcon,
-  Route,
   PenSquareIcon,
 } from "lucide-react";
 
-export const ROUTES: Array<{
+export type Route = {
   name: string;
-  pathname: string;
-  icon: LucideIcon;
   featureFlag?: Flag;
   label?: string;
   rbacScope?: Scope;
-}> = [
+  icon?: LucideIcon; // ignored for nested routes
+  pathname?: string; // link, ignored if children
+  children?: Array<Route>; // folder
+};
+
+export const ROUTES: Route[] = [
   {
     name: "Dashboard",
     pathname: `/project/[projectId]`,
     icon: LayoutDashboard,
   },
   {
-    name: "Sessions",
-    pathname: `/project/[projectId]/sessions`,
-    icon: Route,
-  },
-  {
-    name: "Traces",
-    pathname: `/project/[projectId]/traces`,
+    name: "Tracing",
     icon: ListTree,
-  },
-  {
-    name: "Generations",
-    pathname: `/project/[projectId]/generations`,
-    icon: TextSelect,
-  },
-  {
-    name: "Scores",
-    pathname: `/project/[projectId]/scores`,
-    icon: LineChart,
+    children: [
+      {
+        name: "Traces",
+        pathname: `/project/[projectId]/traces`,
+      },
+      {
+        name: "Sessions",
+        pathname: `/project/[projectId]/sessions`,
+      },
+      {
+        name: "Generations",
+        pathname: `/project/[projectId]/generations`,
+      },
+      {
+        name: "Scores",
+        pathname: `/project/[projectId]/scores`,
+      },
+    ],
   },
   {
     name: "Users",
