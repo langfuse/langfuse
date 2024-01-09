@@ -20,6 +20,7 @@ import { NoAccessError } from "@/src/components/no-access";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -39,8 +40,8 @@ export function Trace(props: {
   );
 
   return (
-    <div className="grid h-full gap-4 md:grid-cols-3">
-      <div className="md:col-span-2 md:h-full md:overflow-y-auto">
+    <div className="grid gap-4 md:h-full md:grid-cols-3">
+      <ScrollArea className="md:col-span-2 md:h-full">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -58,9 +59,9 @@ export function Trace(props: {
             traceId={props.trace.id}
           />
         )}
-      </div>
-      <div className="md:h-full md:overflow-hidden">
-        <div className="mb-2 flex flex-row justify-end gap-2">
+      </ScrollArea>
+      <div className="md:flex md:h-full md:flex-col md:overflow-hidden">
+        <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
           <Toggle
             pressed={scoresOnObservationTree}
             onPressedChange={(e) => {
@@ -86,16 +87,17 @@ export function Trace(props: {
             )}
           </Toggle>
         </div>
-        <ObservationTree
-          observations={props.observations}
-          trace={props.trace}
-          scores={props.scores}
-          currentObservationId={currentObservationId ?? undefined}
-          setCurrentObservationId={setCurrentObservationId}
-          showMetrics={metricsOnObservationTree}
-          showScores={scoresOnObservationTree}
-          className="md:h-full md:overflow-y-auto"
-        />
+        <ScrollArea className="flex flex-grow">
+          <ObservationTree
+            observations={props.observations}
+            trace={props.trace}
+            scores={props.scores}
+            currentObservationId={currentObservationId ?? undefined}
+            setCurrentObservationId={setCurrentObservationId}
+            showMetrics={metricsOnObservationTree}
+            showScores={scoresOnObservationTree}
+          />
+        </ScrollArea>
       </div>
     </div>
   );
@@ -125,7 +127,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   if (!trace.data) return <div>loading...</div>;
 
   return (
-    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
+    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-2rem)]">
       <Header
         title="Trace Detail"
         breadcrumb={[
