@@ -18,7 +18,6 @@ import type * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { usePostHog } from "posthog-js/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
@@ -28,7 +27,6 @@ import { PasswordInput } from "@/src/components/ui/password-input";
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
 export default function SignIn({ authProviders }: PageProps) {
-  const posthog = usePostHog();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
@@ -36,20 +34,12 @@ export default function SignIn({ authProviders }: PageProps) {
       name: "",
       email: "",
       password: "",
-      referralSource: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof signupSchema>) {
     try {
       setFormError(null);
-      if (values.referralSource !== "") {
-        posthog.capture("survey sent", {
-          $survey_id: "018ade05-4d8c-0000-36b7-fc390b221590",
-          $survey_name: "Referral source",
-          $survey_response: values.referralSource,
-        });
-      }
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,7 +55,9 @@ export default function SignIn({ authProviders }: PageProps) {
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/?getStarted=1",
+        callbackUrl: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+          ? "/onboarding"
+          : "/?getStarted=1",
       });
     } catch (err) {
       setFormError("An error occurred. Please try again.");
@@ -142,24 +134,6 @@ export default function SignIn({ authProviders }: PageProps) {
                   </FormItem>
                 )}
               />
-              {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
-                <FormField
-                  control={form.control}
-                  name="referralSource"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Where did you hear about us?{" "}
-                        <span className="font-normal">(optional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input type="referralSource" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : null}
               <Button
                 type="submit"
                 className="w-full"

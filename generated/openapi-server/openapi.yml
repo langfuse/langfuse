@@ -1147,8 +1147,6 @@ components:
           type: string
         name:
           type: string
-        status:
-          $ref: '#/components/schemas/DatasetStatus'
         projectId:
           type: string
         createdAt:
@@ -1168,7 +1166,6 @@ components:
       required:
         - id
         - name
-        - status
         - projectId
         - createdAt
         - updatedAt
