@@ -35,9 +35,9 @@ const userNavigation = [
   },
 ];
 
-const pathsWithoutNavigation: string[] = [];
-const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
-const publishablePaths = [
+const pathsWithoutNavigation: string[] = ["/onboarding"];
+const unauthenticatedPaths: string[] = ["/auth/sign-in", "/auth/sign-up"];
+const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
 ];
