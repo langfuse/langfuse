@@ -1,8 +1,7 @@
 apiVersion: v1
-kind: Secret
+kind: ConfigMap
 metadata:
-  name: langfuse-prod-secret
-type: Opaque
+  name: langfuse-configmap
 data:
   langfuse-node-env: production
   langfuse-db-url: postgresql://postgres:postgres@db:5432/postgres
