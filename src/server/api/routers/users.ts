@@ -3,9 +3,16 @@ import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  publicProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Score } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
+
+import { SendTokenInEmail } from "@/src/features/email/components/SendTokenInEmail";
+import {
+  hashPassword,
+  verifyPassword,
+} from "@/src/features/auth/lib/emailPassword";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -16,6 +23,99 @@ const UserAllOptions = UserFilterOptions.extend({
 });
 
 export const userRouter = createTRPCRouter({
+  findEmail: publicProcedure
+    .input(
+      z.object({
+        email: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = await ctx.prisma.user.findFirst({
+        where: {
+          email: input.email,
+        },
+      });
+      if (user == null) return null;
+      return true;
+    }),
+  resetPasswordLoggedOut: publicProcedure
+    .input(
+      z.object({
+        email: z.string(),
+        new_password: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const hash = await hashPassword(input.new_password);
+      await ctx.prisma.user.update({
+        where: {
+          email: input.email,
+        },
+        data: {
+          password: hash,
+        },
+      });
+      return true;
+    }),
+  resetPasswordLoggedIn: publicProcedure
+    .input(
+      z.object({
+        email: z.string(),
+        old_password: z.string(),
+        new_password: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = await ctx.prisma.user.findFirst({
+        where: {
+          email: input.email,
+        },
+      });
+      const check = await verifyPassword(
+        input.old_password,
+        String(user?.password),
+      );
+      if (!check) return false;
+      const hash = await hashPassword(input.new_password);
+      await ctx.prisma.user.update({
+        where: {
+          email: input.email,
+        },
+        data: {
+          password: hash,
+        },
+      });
+      return true;
+    }),
+  tokenToEmail: publicProcedure
+    .input(
+      z.object({
+        password_reset_token: z.string(),
+        email: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await SendTokenInEmail(input.email, input.password_reset_token);
+    }),
+  saveToken: publicProcedure
+    .input(
+      z.object({
+        password_reset_token: z.string(),
+        email: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = await ctx.prisma.user.update({
+        where: {
+          email: input.email,
+        },
+        data: {
+          password_reset_token: input.password_reset_token,
+        },
+      });
+      return user;
+    }),
+
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {

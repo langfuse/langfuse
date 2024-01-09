@@ -6,9 +6,8 @@ import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Code, MessageSquarePlus, Info } from "lucide-react";
+import { Code, MessageSquarePlus, Info, UserRoundCog } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
 import {
   Avatar,
@@ -36,11 +35,17 @@ const userNavigation = [
 ];
 
 const pathsWithoutNavigation: string[] = [];
-const unauthenticatedPaths = ["/auth/sign-in", "/auth/sign-up"];
+const unauthenticatedPaths = [
+  "/auth/sign-in",
+  "/auth/sign-up",
+  "/user/change-password/[...token]",
+];
 const publishablePaths = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
 ];
+
+const customPaths = ["/user/change-password/[...token]"];
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -107,7 +112,8 @@ export default function Layout(props: PropsWithChildren) {
 
   if (
     session.status === "authenticated" &&
-    unauthenticatedPaths.includes(router.pathname)
+    unauthenticatedPaths.includes(router.pathname) &&
+    !customPaths.includes(router.pathname)
   ) {
     void router.replace("/");
     return <Spinner message="Redirecting" />;
@@ -447,10 +453,12 @@ export default function Layout(props: PropsWithChildren) {
                 <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
                   {session.data?.user?.name}
                 </span>
-                <ChevronDownIcon
-                  className="h-5 w-5 text-gray-400"
-                  aria-hidden="true"
-                />
+                <Link href="/user/user-settings">
+                  <UserRoundCog
+                    className="h-5 w-5 text-gray-400"
+                    aria-hidden="true"
+                  />
+                </Link>
               </Menu.Button>
               <Transition
                 as={Fragment}
@@ -460,25 +468,7 @@ export default function Layout(props: PropsWithChildren) {
                 leave="transition ease-in duration-75"
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
-              >
-                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                  {userNavigation.map((item) => (
-                    <Menu.Item key={item.name}>
-                      {({ active }) => (
-                        <a
-                          onClick={() => void item.onClick()}
-                          className={cn(
-                            active ? "bg-gray-50" : "",
-                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
-                          )}
-                        >
-                          {item.name}
-                        </a>
-                      )}
-                    </Menu.Item>
-                  ))}
-                </Menu.Items>
-              </Transition>
+              ></Transition>
             </Menu>
           </div>
         </div>
@@ -519,21 +509,19 @@ export default function Layout(props: PropsWithChildren) {
               leaveTo="transform opacity-0 scale-95"
             >
               <Menu.Items className="absolute right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                {userNavigation.map((item) => (
-                  <Menu.Item key={item.name}>
-                    {({ active }) => (
-                      <a
-                        onClick={() => void item.onClick()}
-                        className={cn(
-                          active ? "bg-gray-50" : "",
-                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
-                        )}
-                      >
-                        {item.name}
-                      </a>
-                    )}
-                  </Menu.Item>
-                ))}
+                <Menu.Item key="User Settings">
+                  {({ active }) => (
+                    <Link
+                      href="/user/userSettings"
+                      className={cn(
+                        active ? "bg-gray-50" : "",
+                        "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                      )}
+                    >
+                      User Settings
+                    </Link>
+                  )}
+                </Menu.Item>
               </Menu.Items>
             </Transition>
           </Menu>
