@@ -60,6 +60,24 @@ export function StarTraceToggle({
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
+    onMutate: () => {
+      console.log("onMutate called");
+      console.log("traceId", traceId);
+      const prev = utils.traces.all.getData();
+      console.log("stale data", prev);
+      if (!prev) {
+        return;
+      }
+      /* prev.bookmarked = !value;
+      console.log("prev", prev.bookmarked);
+       utils.traces.byId.setData({ traceId }, (old) => {
+        if (!old) {
+          return;
+        }
+        old.bookmarked = !value;
+        return old;
+      }); */
+    },
     onSuccess: () => {
       void utils.traces.invalidate();
     },
@@ -113,7 +131,7 @@ export function StarSessionToggle({
           bookmarked: value,
         })
       }
-      index={0}
+      index={1}
     />
   );
 }
