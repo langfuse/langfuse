@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 export function useOptimisticUpdate<T>(
   value: T,
   updateFunction: (value: T) => Promise<unknown>,
+  index: number,
 ) {
   const [cachedValue, setCachedValue] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
@@ -10,7 +11,9 @@ export function useOptimisticUpdate<T>(
 
   useEffect(() => {
     setCachedValue(null);
-    console.log("useEffect called, value", value);
+    if (index === 0) {
+      console.log("useEffect called, value", value);
+    }
   }, [value]);
 
   const handleUpdate = async (newValue: T) => {

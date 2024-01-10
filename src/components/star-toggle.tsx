@@ -12,22 +12,25 @@ export function StarToggle({
   disabled = false,
   onClick,
   size = "sm",
+  index,
 }: {
   value: boolean;
   disabled?: boolean;
   onClick: (value: boolean) => Promise<unknown>;
   size?: "sm" | "xs";
+  index: number;
 }) {
   const { optimisticValue, loading, handleUpdate } = useOptimisticUpdate(
     value,
     onClick,
+    index,
   );
 
   return (
     <Button
       variant="ghost"
       size={size}
-      onClick={() => handleUpdate(!optimisticValue)}
+      onClick={() => void handleUpdate(!optimisticValue)}
       disabled={disabled}
       loading={loading}
     >
@@ -46,11 +49,13 @@ export function StarTraceToggle({
   traceId,
   value,
   size = "sm",
+  index,
 }: {
   projectId: string;
   traceId: string;
   value: boolean;
   size?: "sm" | "xs";
+  index: number;
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
@@ -72,6 +77,7 @@ export function StarTraceToggle({
           bookmarked: value,
         })
       }
+      index={index}
     />
   );
 }
@@ -107,6 +113,7 @@ export function StarSessionToggle({
           bookmarked: value,
         })
       }
+      index={0}
     />
   );
 }
