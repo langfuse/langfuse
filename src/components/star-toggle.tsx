@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { cn } from "@/src/utils/tailwind";
+import { useOptimisticUpdate } from "@/src/features/tag/useOptimisticUpdate";
 
 export function StarToggle({
   value,
@@ -17,27 +18,16 @@ export function StarToggle({
   onClick: (value: boolean) => Promise<unknown>;
   size?: "sm" | "xs";
 }) {
-  const [cachedValue, setCachedValue] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(false);
-  const optimisticValue = cachedValue ?? value;
-
-  useEffect(() => {
-    setCachedValue(null);
-  }, [value]);
-
-  const handleBookmarkClick = async () => {
-    if (disabled) return;
-    setLoading(true);
-    setCachedValue(!optimisticValue);
-    await onClick(!optimisticValue);
-    setLoading(false);
-  };
+  const { optimisticValue, loading, handleUpdate } = useOptimisticUpdate(
+    value,
+    onClick,
+  );
 
   return (
     <Button
       variant="ghost"
       size={size}
-      onClick={() => void handleBookmarkClick()}
+      onClick={() => handleUpdate(!optimisticValue)}
       disabled={disabled}
       loading={loading}
     >
