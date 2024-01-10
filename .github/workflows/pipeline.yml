@@ -25,7 +25,6 @@ jobs:
     permissions:
       packages: write
       contents: read
-
     steps:
       - name: Setup node
         uses: actions/setup-node@v3
