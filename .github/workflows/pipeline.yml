@@ -11,6 +11,7 @@ on:
   pull_request:
     branches:
       - "main"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -72,7 +73,7 @@ jobs:
         if: failure()
         with:
           name: npm-logs
-          path: ~/.npm/_logs
+          path: /root/.npm/_logs
 
   lint:
     runs-on: ubuntu-latest
