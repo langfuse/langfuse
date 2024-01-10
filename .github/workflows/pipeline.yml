@@ -67,6 +67,7 @@ jobs:
             NEXTAUTH_SECRET=${{ env.NEXTAUTH_SECRET }}
             NEXTAUTH_URL=${{ env.NEXTAUTH_URL }}
             SALT=${{ env.SALT }}
+
       - name: Archive npm failure logs
         uses: actions/upload-artifact@v2
         if: failure()
