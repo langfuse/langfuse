@@ -5,7 +5,6 @@ import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { cn } from "@/src/utils/tailwind";
 import { useOptimisticUpdate } from "@/src/features/tag/useOptimisticUpdate";
-import { useQueryClient } from "@tanstack/react-query";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 
 export function StarToggle({
@@ -66,9 +65,6 @@ export function StarTraceToggle({
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
     onMutate: async () => {
-      console.log("onMutate called");
-      console.log("traceId", traceId);
-
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
       await utils.traces.all.cancel();
