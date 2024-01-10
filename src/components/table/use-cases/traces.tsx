@@ -198,7 +198,6 @@ export default function TracesTable({
       cell: ({ row }) => {
         const bookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
-        const index = row.index;
 
         return typeof traceId === "string" &&
           typeof bookmarked === "boolean" ? (
@@ -208,7 +207,6 @@ export default function TracesTable({
             projectId={projectId}
             value={bookmarked}
             size="xs"
-            index={index}
           />
         ) : undefined;
       },

@@ -4,7 +4,6 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { cn } from "@/src/utils/tailwind";
-import { useOptimisticUpdate } from "@/src/features/tag/useOptimisticUpdate";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 
 export function StarToggle({
@@ -12,32 +11,26 @@ export function StarToggle({
   disabled = false,
   onClick,
   size = "sm",
-  index,
+  isLoading,
 }: {
   value: boolean;
   disabled?: boolean;
   onClick: (value: boolean) => Promise<unknown>;
   size?: "sm" | "xs";
-  index: number;
+  isLoading: boolean;
 }) {
-  const { optimisticValue, loading, handleUpdate } = useOptimisticUpdate(
-    value,
-    onClick,
-    index,
-  );
-
   return (
     <Button
       variant="ghost"
       size={size}
-      onClick={() => void handleUpdate(!optimisticValue)}
+      onClick={() => void onClick(!value)}
       disabled={disabled}
-      loading={loading}
+      loading={isLoading}
     >
       <StarIcon
         className={cn(
           "h-4 w-4",
-          optimisticValue ? "fill-current text-yellow-500" : "text-gray-500",
+          value ? "fill-current text-yellow-500" : "text-gray-500",
         )}
       />
     </Button>
@@ -50,15 +43,13 @@ export function StarTraceToggle({
   traceId,
   value,
   size = "sm",
-  index,
 }: {
   //api.traces.all.useQueryKey
-  tracesFilter: RouterInput["traces"]["all"];
+  tracesFilter?: RouterInput["traces"]["all"];
   projectId: string;
   traceId: string;
   value: boolean;
   size?: "sm" | "xs";
-  index: number;
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
@@ -68,34 +59,59 @@ export function StarTraceToggle({
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
       await utils.traces.all.cancel();
+      await utils.traces.byId.cancel();
 
       // Snapshot the previous value
       const prev = utils.traces.all.getData(tracesFilter);
+      const prevById = utils.traces.byId.getData({ traceId });
 
       // Optimistically update to the new value
-      utils.traces.all.setData(
-        tracesFilter,
-        (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
+      tracesFilter
+        ? utils.traces.all.setData(
+            tracesFilter,
+            (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
+              return oldQueryData
+                ? oldQueryData.map((trace) => {
+                    return {
+                      ...trace,
+                      bookmarked:
+                        trace.id === traceId
+                          ? !trace.bookmarked
+                          : trace.bookmarked,
+                    };
+                  })
+                : [];
+            },
+          )
+        : undefined;
+
+      utils.traces.byId.setData(
+        { traceId },
+        (oldQueryData: RouterOutput["traces"]["byId"] | undefined) => {
           return oldQueryData
-            ? oldQueryData.map((trace) => {
-                return {
-                  ...trace,
-                  bookmarked:
-                    trace.id === traceId ? !trace.bookmarked : trace.bookmarked,
-                };
-              })
-            : [];
+            ? {
+                ...oldQueryData,
+                bookmarked: !oldQueryData.bookmarked,
+              }
+            : undefined;
         },
       );
-      return { prev };
+      return { prev, prevById };
     },
     onError: (err, _newTodo, context) => {
       // Rollback to the previous value if mutation fails
-      utils.traces.all.setData(tracesFilter, context?.prev);
+      tracesFilter
+        ? utils.traces.all.setData(tracesFilter, context?.prev)
+        : undefined;
+      utils.traces.byId.setData({ traceId }, context?.prevById);
     },
     onSettled: () => {
       void utils.traces.all.invalidate();
+      void utils.traces.byId.invalidate();
     },
+    // onSuccess: () => {
+    //   void utils.traces.byId.invalidate({ traceId });
+    // },
   });
 
   return (
@@ -103,6 +119,7 @@ export function StarTraceToggle({
       value={value}
       size={size}
       disabled={!hasAccess}
+      isLoading={mutBookmarkTrace.isLoading}
       onClick={(value) =>
         mutBookmarkTrace.mutateAsync({
           projectId,
@@ -110,7 +127,6 @@ export function StarTraceToggle({
           bookmarked: value,
         })
       }
-      index={index}
     />
   );
 }
@@ -139,6 +155,7 @@ export function StarSessionToggle({
       value={value}
       size={size}
       disabled={!hasAccess}
+      isLoading={mutBookmarkSession.isLoading}
       onClick={(value) =>
         mutBookmarkSession.mutateAsync({
           projectId,
@@ -146,7 +163,6 @@ export function StarSessionToggle({
           bookmarked: value,
         })
       }
-      index={1}
     />
   );
 }
