@@ -10,7 +10,7 @@ test("should see new projects dialog open after clicking new project btn", async
   await page.waitForTimeout(2000);
   await page.waitForTimeout(2000);
   await page.isVisible("Create new project");
-  await page.click('[data-testid="create-project-btn"]');
+  await page.getByText("Create new project").click();
   await page.waitForTimeout(2000);
   await page.isVisible('[data-testid="new-project-form"]');
 });
@@ -22,7 +22,7 @@ test("Create a project with provided name", async ({ page }) => {
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
   await page.isVisible("Create new project");
-  await page.click('[data-testid="create-project-btn"]');
+  await page.getByText("Create new project").click();
   await page.waitForTimeout(2000);
   await page.isVisible('[data-testid="new-project-form"]');
   await page.fill(
