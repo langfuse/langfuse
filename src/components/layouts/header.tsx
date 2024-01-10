@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { type Status, StatusBadge } from "./status-badge";
+import { cn } from "@/src/utils/tailwind";
 
 export default function Header(props: {
   title: string;
@@ -11,6 +12,7 @@ export default function Header(props: {
   status?: Status;
   help?: { description: string; href: string };
   actionButtons?: React.ReactNode;
+  level?: "h2" | "h3";
 }) {
   const router = useRouter();
   const session = useSession();
@@ -35,7 +37,7 @@ export default function Header(props: {
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
 
   return (
-    <div className="mb-8">
+    <div className={cn(props.level === "h2" ? "mb-8" : "mb-1")}>
       <div>
         {backHref ? (
           <nav className="sm:hidden" aria-label="Back">
@@ -51,7 +53,7 @@ export default function Header(props: {
             </Link>
           </nav>
         ) : null}
-        {breadcrumb.length ? (
+        {(props.level === "h2" || props.breadcrumb) && breadcrumb.length ? (
           <nav className="hidden sm:flex" aria-label="Breadcrumb">
             <ol role="list" className="flex items-center space-x-4">
               {breadcrumb.map(({ name, href }, index) => (
@@ -85,9 +87,15 @@ export default function Header(props: {
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3 md:gap-5">
           <div className="flex min-w-0 flex-row">
-            <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
-              {props.title}
-            </h2>
+            {props.level === "h2" ? (
+              <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                {props.title}
+              </h2>
+            ) : (
+              <h3 className="text-lg font-bold leading-7 text-gray-900 sm:truncate sm:text-xl sm:tracking-tight">
+                {props.title}
+              </h3>
+            )}
             {props.help ? (
               <DocPopup
                 description={props.help.description}
