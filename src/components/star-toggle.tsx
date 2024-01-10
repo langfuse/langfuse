@@ -26,7 +26,7 @@ export function StarToggle({
     <Button
       variant="ghost"
       size={size}
-      onClick={() => handleUpdate(!optimisticValue)}
+      onClick={() => void handleUpdate(!optimisticValue)}
       disabled={disabled}
       loading={loading}
     >
@@ -55,7 +55,8 @@ export function StarTraceToggle({
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
     onSuccess: () => {
-      void utils.traces.all.invalidate();
+      void utils.traces.all.invalidate({ projectId });
+      void utils.traces.invalidate();
       console.log("Success");
     },
   });

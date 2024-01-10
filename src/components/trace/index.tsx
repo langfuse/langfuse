@@ -102,7 +102,6 @@ export function TracePage({ traceId }: { traceId: string }) {
   );
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
-
   return (
     <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
       <Header
@@ -169,12 +168,14 @@ export function TracePage({ traceId }: { traceId: string }) {
       <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
         <div className="flex flex-row items-center gap-3 p-2.5">
           Tags
-          <TagPopOver
+          {/* <TagPopOver
+            index={0}
             tags={trace.data.tags}
+            setTags={() => {}}
             availableTags={allTags}
             traceId={trace.data.id}
             projectId={trace.data.projectId}
-          />
+          /> */}
         </div>
       </div>
       <div className="mt-5 flex-1 overflow-hidden border-t pt-5">

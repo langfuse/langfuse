@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Popover,
   PopoverTrigger,
@@ -7,7 +7,6 @@ import {
 import { Button } from "@/src/components/ui/button";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
@@ -17,16 +16,21 @@ import { Check } from "lucide-react";
 import { useOptimisticUpdate } from "@/src/features/tag/useOptimisticUpdate";
 import { TagInput } from "@/src/features/tag/components/TagInput";
 import { TagItemCreate } from "@/src/features/tag/components/TagCreateItem";
+import { TagButton } from "@/src/features/tag/components/TagButton";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 export function TagPopOver({
+  index,
   tags,
+  setTags,
   availableTags,
   projectId,
   traceId,
 }: {
+  index: number;
   tags: string[];
+  setTags: (tags: string[]) => void;
   availableTags: string[];
   projectId: string;
   traceId: string;
@@ -36,49 +40,55 @@ export function TagPopOver({
   const utils = api.useUtils();
   // const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
   const mutTags = api.traces.updateTags.useMutation({
-    onSuccess: () => {
-      void utils.traces.filterOptions.invalidate();
-      void utils.traces.all.invalidate();
+    onSuccess: async () => {
+      await utils.traces.filterOptions.invalidate({ projectId });
+      await utils.traces.all.invalidate({ projectId });
       console.log("Success");
     },
   });
-  console.log("Popover selectedTags ", selectedTags);
+
   const { optimisticValue, loading, handleUpdate } = useOptimisticUpdate(
-    tags,
-    (value) =>
-      mutTags.mutateAsync({
+    selectedTags,
+    async (newValue: string[]) => {
+      setTags(newValue);
+      await mutTags.mutateAsync({
         projectId,
         traceId,
-        tags: value,
-      }),
+        tags: newValue,
+      });
+    },
   );
 
-  const allTags = availableTags.filter(
-    (value) => !selectedTags.includes(value),
+  const allTags = useMemo(
+    () => availableTags.filter((value) => !optimisticValue.includes(value)),
+    [availableTags, optimisticValue],
   );
+  if (index === 0) {
+    console.log("Rendered Pop Over with tags: ", tags);
+    console.log("Rendered Pop Over with optimisticValue: ", optimisticValue);
+    console.log("Rendered Pop Over with selectedTags: ", selectedTags);
+  }
+
+  const handlePopoverChange = (open: boolean) => {
+    console.log("Pop Over Open: ", open);
+    console.log("Call stack: ", new Error().stack);
+    if (!open) {
+      void handleUpdate(optimisticValue);
+      console.log("Pop Up Closed: ", open);
+    }
+  };
+
+  React.useEffect(() => {
+    setSelectedTags(tags);
+  }, [tags]);
 
   return (
-    <Popover
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          void handleUpdate(selectedTags);
-          console.log("Pop Up Closed");
-        }
-      }}
-    >
+    <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
         <div className="flex flex-wrap gap-x-2 gap-y-1">
           {optimisticValue.length > 0 ? (
             optimisticValue.map((tag) => (
-              <Button
-                key={tag}
-                variant="secondary"
-                size="xs"
-                className="text-xs font-semibold hover:bg-white"
-                loading={loading}
-              >
-                {tag}
-              </Button>
+              <TagButton key={tag} tag={tag} loading={loading} />
             ))
           ) : (
             <Button
@@ -96,7 +106,7 @@ export function TagPopOver({
           <TagInput
             value={inputValue}
             onValueChange={setInputValue}
-            selectedTags={selectedTags}
+            selectedTags={optimisticValue}
             setSelectedTags={setSelectedTags}
           />
           <CommandList>
@@ -141,30 +151,3 @@ export function TagPopOver({
     </Popover>
   );
 }
-
-/* export function TagPopOverTraces({
-  projectId,
-  traceId,
-  tags,
-}: {
-  projectId: string;
-  traceId: string;
-  tags: string[];
-}) {
-  const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
-
-  const updateFunction = async (newTags: string[]) => {
-    await api.traces.tag.mutateAsync({
-      projectId,
-      traceId,
-      tags: newTags,
-    });
-    void utils.traces.invalidate();
-  };
-
-  return (
-    <TagPopOver tags={tags} onClick={hasAccess ? updateFunction : undefined} />
-  );
-}
- */

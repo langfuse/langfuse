@@ -21,7 +21,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   NumberParam,
   StringParam,
@@ -29,6 +29,7 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import { set } from "lodash";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -100,7 +101,6 @@ export default function TracesTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
   const traces = api.traces.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
@@ -135,7 +135,6 @@ export default function TracesTable({
       },
     },
   );
-
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"][0],
   ): TracesTableRow => {
@@ -161,6 +160,78 @@ export default function TracesTable({
       },
     };
   };
+
+  const [isOpen, setIsOpen] = useState<boolean[]>(
+    traces.data?.map(() => false) ?? [],
+  );
+  const [parentTags, setParentTags] = useState<Record<number, string[]>>({});
+
+  const handleIsOpenChange = useCallback(
+    (newIsOpen: boolean, index: number) => {
+      console.log("Setting isOpen to: ", newIsOpen);
+      setIsOpen(isOpen.map((o, i) => (i === index ? newIsOpen : o)));
+      console.log("After setter function ", isOpen[index]);
+    },
+    [isOpen],
+  );
+  useEffect(() => {
+    console.log("After setter function ", isOpen);
+  }, [isOpen]);
+
+  /*
+  // state management for tags
+  const [isOpen, setIsOpen] = useState<boolean[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean[]>([]);
+
+  // Mutating tags
+    const utils = api.useUtils();
+    // const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
+    const mutTags = api.traces.updateTags.useMutation({
+      onSuccess: () => {
+        void utils.traces.filterOptions.invalidate();
+        void utils.traces.all.invalidate();
+        console.log("Successfully updated tags");
+      },
+    });
+  
+    // Initialize states based on the data
+    useEffect(() => {
+      if (traces.data) {
+        setIsOpen(new Array(traces.data.length).fill(false));
+        setTags(traces.data.flatMap((trace) => trace.tags));
+        setLoading(new Array<boolean>(traces.data.length).fill(false));
+      }
+    }, [traces.data]);
+  
+    // Popover Toggle function
+    const togglePopover = async (index: number) => {
+      // If popover needs to fetch data and is not currently open
+      if (!isOpen[index]) {
+        setLoading(loading.map((l, i) => (i === index ? true : l)));
+        try {
+          mutTags.mutate({
+            projectId,
+            traceId: traces.data[index].id,
+            tags: tags[index],
+          });
+          // Update tags based on fetched data
+          setTags(tags.map((t, i) => (i === index ? fetchedData : t)));
+        } catch (error) {
+          // Handle error
+        } finally {
+          setLoading(loading.map((l, i) => (i === index ? false : l)));
+        }
+      }
+      // Toggle the isOpen state
+      setIsOpen(isOpen.map((o, i) => (i === index ? !o : o)));
+    };
+  
+    const updateTags = (index, newTags) => {
+      // Update tags for a specific row
+      setTags(tags.map((t, i) => (i === index ? newTags : t)));
+      // Optionally, send this update to the backend
+    }; */
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
@@ -198,7 +269,6 @@ export default function TracesTable({
       cell: ({ row }) => {
         const bookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
-
         return typeof traceId === "string" &&
           typeof bookmarked === "boolean" ? (
           <StarTraceToggle
@@ -364,16 +434,33 @@ export default function TracesTable({
       id: "tags",
       header: "Tags",
       cell: ({ row }) => {
-        const selectedTags: string[] = row.getValue("tags");
+        const tags: string[] = row.getValue("tags");
+        const index = row.index;
         const traceId: string = row.getValue("id");
         const filterOptionTags = traceFilterOptions.data?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
-        console.log("Row selectedTags", selectedTags);
+        let selectedTags = tags;
+        if (index === 0) {
+          console.log("Rendering Pop Over with index: ", index);
+          console.log("Cell open: ", isOpen[index]);
+        }
+        const handleTagsChange = (newTags: string[]) => {
+          console.log("Cache: ", row._valuesCache.tags);
+          row._valuesCache.tags = newTags;
+          setParentTags((prevState) => {
+            const newState = { ...prevState };
+            newState[row.index] = newTags;
+            selectedTags = newTags;
+            return newState;
+          });
+        };
         return (
           <TagPopOver
-            projectId={projectId}
+            index={index}
             tags={selectedTags}
+            setTags={handleTagsChange}
             availableTags={allTags}
+            projectId={projectId}
             traceId={traceId}
           />
         );

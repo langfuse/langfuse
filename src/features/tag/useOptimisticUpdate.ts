@@ -13,6 +13,7 @@ export function useOptimisticUpdate<T>(
   }, [value]);
 
   const handleUpdate = async (newValue: T) => {
+    console.log("handleUpdate triggered");
     setLoading(true);
     setCachedValue(newValue);
     await updateFunction(newValue);
