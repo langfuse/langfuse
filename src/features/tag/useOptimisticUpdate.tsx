@@ -10,6 +10,7 @@ export function useOptimisticUpdate<T>(
 
   useEffect(() => {
     setCachedValue(null);
+    console.log("useEffect called, value", value);
   }, [value]);
 
   const handleUpdate = async (newValue: T) => {
