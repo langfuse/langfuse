@@ -29,10 +29,6 @@ import "core-js/features/array/to-sorted";
 // Other CSS
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
-
-// Dev tools
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-
 const setProjectInPosthog = () => {
   // project
   const url = window.location.href;
@@ -95,7 +91,6 @@ const MyApp: AppType<{ session: Session | null }> = ({
               <Layout>
                 <Component {...pageProps} />
                 <UserTracking />
-                <ReactQueryDevtools initialIsOpen={false} />
               </Layout>
               <CrispWidget />
             </DetailPageListsProvider>

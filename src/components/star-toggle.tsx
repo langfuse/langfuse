@@ -1,11 +1,12 @@
 import { StarIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { cn } from "@/src/utils/tailwind";
 import { useOptimisticUpdate } from "@/src/features/tag/useOptimisticUpdate";
+import { useQueryClient } from "@tanstack/react-query";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 
 export function StarToggle({
   value,
@@ -45,12 +46,15 @@ export function StarToggle({
 }
 
 export function StarTraceToggle({
+  tracesFilter,
   projectId,
   traceId,
   value,
   size = "sm",
   index,
 }: {
+  //api.traces.all.useQueryKey
+  tracesFilter: RouterInput["traces"]["all"];
   projectId: string;
   traceId: string;
   value: boolean;
@@ -59,27 +63,42 @@ export function StarTraceToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
-    onMutate: () => {
+    onMutate: async () => {
       console.log("onMutate called");
       console.log("traceId", traceId);
-      const prev = utils.traces.all.getData();
-      console.log("stale data", prev);
-      if (!prev) {
-        return;
-      }
-      /* prev.bookmarked = !value;
-      console.log("prev", prev.bookmarked);
-       utils.traces.byId.setData({ traceId }, (old) => {
-        if (!old) {
-          return;
-        }
-        old.bookmarked = !value;
-        return old;
-      }); */
+
+      // Cancel any outgoing refetches
+      // (so they don't overwrite our optimistic update)
+      await utils.traces.all.cancel();
+
+      // Snapshot the previous value
+      const prev = utils.traces.all.getData(tracesFilter);
+
+      // Optimistically update to the new value
+      utils.traces.all.setData(
+        tracesFilter,
+        (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
+          return oldQueryData
+            ? oldQueryData.map((trace) => {
+                return {
+                  ...trace,
+                  bookmarked:
+                    trace.id === traceId ? !trace.bookmarked : trace.bookmarked,
+                };
+              })
+            : [];
+        },
+      );
+      return { prev };
     },
-    onSuccess: () => {
-      void utils.traces.invalidate();
+    onError: (err, _newTodo, context) => {
+      // Rollback to the previous value if mutation fails
+      utils.traces.all.setData(tracesFilter, context?.prev);
+    },
+    onSettled: () => {
+      void utils.traces.all.invalidate();
     },
   });
 

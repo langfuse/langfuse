@@ -14,7 +14,7 @@ export function useOptimisticUpdate<T>(
     if (index === 0) {
       console.log("useEffect called, value", value);
     }
-  }, [value]);
+  }, [value, index]);
 
   const handleUpdate = async (newValue: T) => {
     setLoading(true);
