@@ -1,6 +1,6 @@
 {
   "name": "langfuse-core",
-  "version": "1.31.0",
+  "version": "1.30.0",
   "private": true,
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
@@ -56,9 +56,9 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@react-email/components": "^0.0.12",
     "@react-email/render": "^0.0.10",
-    "@sentry/nextjs": "^7.93.0",
+    "@sentry/nextjs": "^7.92.0",
     "@sentry/profiling-node": "^1.3.2",
-    "@sentry/types": "^7.93.0",
+    "@sentry/types": "^7.88.0",
     "@t3-oss/env-nextjs": "^0.7.1",
     "@tailwindcss/forms": "^0.5.7",
     "@tanstack/react-query": "^4.36.1",
