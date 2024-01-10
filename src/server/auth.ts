@@ -211,6 +211,11 @@ export const authOptions: NextAuthOptions = {
   providers,
   pages: {
     signIn: "/auth/sign-in",
+    ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? {
+          newUser: "/onboarding",
+        }
+      : {}),
   },
   cookies: {
     sessionToken: {
