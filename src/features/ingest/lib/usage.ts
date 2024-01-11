@@ -191,6 +191,14 @@ function isOpenAiModel(model: string): model is TiktokenModel {
       "gpt-3.5-turbo-16k",
       "gpt-3.5-turbo-16k-0613",
       "gpt-3.5-turbo-1106",
+      // alternative spelling, used by Azure
+      "gpt-35",
+      "gpt-35-turbo",
+      "gpt-35-turbo-0301",
+      "gpt-35-turbo-0613",
+      "gpt-35-turbo-16k",
+      "gpt-35-turbo-16k-0613",
+      "gpt-35-turbo-1106",
     ].find((m) => m === model) !== undefined
   );
 }
