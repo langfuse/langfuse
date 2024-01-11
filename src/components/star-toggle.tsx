@@ -187,17 +187,53 @@ export function StarSessionToggle({
   sessionId,
   value,
   size = "sm",
+  sessionsFilter,
 }: {
   projectId: string;
   sessionId: string;
   value: boolean;
   size?: "sm" | "xs";
+  sessionsFilter: RouterInput["sessions"]["all"];
 }) {
   const utils = api.useUtils();
+  const [isLoading, setIsLoading] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
-    onSuccess: () => {
-      void utils.sessions.invalidate();
+    onMutate: async () => {
+      await utils.sessions.all.cancel();
+
+      setIsLoading(true);
+
+      // Snapshot the previous value
+      const prev = utils.sessions.all.getData(sessionsFilter);
+
+      return { prev };
+    },
+    onError: (err, _newTodo, context) => {
+      setIsLoading(false);
+      // Rollback to the previous value if mutation fails
+
+      utils.sessions.all.setData(sessionsFilter, context?.prev);
+    },
+    onSettled: () => {
+      setIsLoading(false);
+      utils.sessions.all.setData(
+        sessionsFilter,
+        (oldQueryData: RouterOutput["sessions"]["all"] | undefined) => {
+          return oldQueryData
+            ? oldQueryData.map((session) => {
+                return {
+                  ...session,
+                  bookmarked:
+                    session.id === sessionId
+                      ? !session.bookmarked
+                      : session.bookmarked,
+                };
+              })
+            : [];
+        },
+      );
+      void utils.sessions.all.invalidate();
     },
   });
 
@@ -206,7 +242,73 @@ export function StarSessionToggle({
       value={value}
       size={size}
       disabled={!hasAccess}
-      isLoading={mutBookmarkSession.isLoading}
+      isLoading={isLoading}
+      onClick={(value) =>
+        mutBookmarkSession.mutateAsync({
+          projectId,
+          sessionId,
+          bookmarked: value,
+        })
+      }
+    />
+  );
+}
+
+export function StarSessionDetailsToggle({
+  projectId,
+  sessionId,
+  value,
+  size = "sm",
+}: {
+  projectId: string;
+  sessionId: string;
+  value: boolean;
+  size?: "sm" | "xs";
+}) {
+  const utils = api.useUtils();
+  const [isLoading, setIsLoading] = useState(false);
+  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+  const mutBookmarkSession = api.sessions.bookmark.useMutation({
+    onMutate: async () => {
+      await utils.sessions.byId.cancel();
+
+      setIsLoading(true);
+
+      // Snapshot the previous value
+      const prevById = utils.sessions.byId.getData({ projectId, sessionId });
+
+      return { prevById };
+    },
+    onError: (err, _newTodo, context) => {
+      setIsLoading(false);
+      // Rollback to the previous value if mutation fails
+
+      utils.sessions.byId.setData({ projectId, sessionId }, context?.prevById);
+    },
+    onSettled: () => {
+      setIsLoading(false);
+      utils.sessions.byId.setData(
+        { projectId, sessionId },
+        (oldQueryData: RouterOutput["sessions"]["byId"] | undefined) => {
+          return oldQueryData
+            ? {
+                ...oldQueryData,
+                bookmarked: !oldQueryData.bookmarked,
+              }
+            : undefined;
+        },
+      );
+      void utils.sessions.all.invalidate();
+      void utils.sessions.byId.invalidate();
+    },
+  });
+
+  return (
+    <StarToggle
+      value={value}
+      size={size}
+      disabled={!hasAccess}
+      isLoading={isLoading}
       onClick={(value) =>
         mutBookmarkSession.mutateAsync({
           projectId,
