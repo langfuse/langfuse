@@ -63,12 +63,15 @@ export default function SessionsTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const sessions = api.sessions.all.useQuery({
+  const sessionsAllQueryFilters = {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
-  });
+  };
+
+  const sessions = api.sessions.all.useQuery(sessionsAllQueryFilters);
+
   const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
     if (sessions.isSuccess) {
@@ -108,6 +111,7 @@ export default function SessionsTable({
             projectId={projectId}
             value={bookmarked}
             size="xs"
+            sessionsFilter={sessionsAllQueryFilters}
           />
         ) : undefined;
       },
