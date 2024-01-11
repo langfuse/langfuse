@@ -82,14 +82,37 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     },
   ]);
 
-  const generations = api.generations.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    projectId,
-    filter: filterState,
-    searchQuery,
-  });
-  const totalCount = generations.data?.slice(1)[0]?.totalCount ?? 0;
+  const generationsQueries = api.useQueries((t) => [
+    t.generations.all({
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize / 2,
+      projectId,
+      filter: filterState,
+      searchQuery,
+    }),
+    t.generations.all({
+      page: paginationState.pageIndex + paginationState.pageSize / 2,
+      limit: paginationState.pageSize / 2,
+      projectId,
+      filter: filterState,
+      searchQuery,
+    }),
+  ]);
+
+  const generations = {
+    isLoading:
+      generationsQueries[0].isLoading || generationsQueries[1].isLoading,
+    isError: generationsQueries[0].isError || generationsQueries[1].isError,
+    isSuccess:
+      generationsQueries[0].isSuccess || generationsQueries[1].isSuccess,
+    data: [
+      ...(generationsQueries[0].data ?? []),
+      ...(generationsQueries[1].data ?? []),
+    ],
+    error: generationsQueries[0].error ?? generationsQueries[1].error,
+  };
+
+  const totalCount = generations.data.slice(1)[0]?.totalCount ?? 0;
 
   const filterOptions = api.generations.filterOptions.useQuery({
     projectId,
@@ -380,7 +403,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }
-            : generations.isError
+            : generations.error
               ? {
                   isLoading: false,
                   isError: true,
