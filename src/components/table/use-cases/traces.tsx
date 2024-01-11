@@ -100,15 +100,16 @@ export default function TracesTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
-  const traces = api.traces.all.useQuery({
+  const tracesAllQueryFilter = {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
-  });
+  };
+  const traces = api.traces.all.useQuery(tracesAllQueryFilter);
+
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
     if (traces.isSuccess) {
@@ -204,6 +205,7 @@ export default function TracesTable({
         return typeof traceId === "string" &&
           typeof bookmarked === "boolean" ? (
           <StarTraceToggle
+            tracesFilter={tracesAllQueryFilter}
             traceId={traceId}
             projectId={projectId}
             value={bookmarked}

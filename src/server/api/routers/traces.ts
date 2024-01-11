@@ -170,7 +170,6 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-
       return traces.map((trace) => {
         const filteredScores = scores.filter((s) => s.traceId === trace.id);
         return { ...trace, scores: filteredScores };
@@ -344,6 +343,7 @@ export const traceRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
+
         return trace;
       } catch (error) {
         console.error(error);
