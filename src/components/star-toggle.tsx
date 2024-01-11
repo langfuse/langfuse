@@ -72,6 +72,7 @@ export function StarTraceToggle({
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
       // Rollback to the previous value if mutation fails
+      console.log("error", err);
       utils.traces.all.setData(tracesFilter, context?.prev);
     },
     onSettled: () => {
@@ -142,6 +143,7 @@ export function StarTraceDetailsToggle({
     },
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
+      console.log("error", err);
       // Rollback to the previous value if mutation fails
       utils.traces.byId.setData({ traceId }, context?.prevData);
     },
