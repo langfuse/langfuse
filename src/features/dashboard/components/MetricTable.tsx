@@ -54,12 +54,12 @@ export const MetricTable = ({
         .filter((item) => item.model !== null)
         .map((item, i) => [
           item.model as string,
-          <RightAlignedCell key="tokens">
+          <RightAlignedCell key={`${i}-tokens`}>
             {item.sumTotalTokens
               ? compactNumberFormatter(item.sumTotalTokens as number)
               : "0"}
           </RightAlignedCell>,
-          <RightAlignedCell key="cost">
+          <RightAlignedCell key={`${i}-cost`}>
             {item.totalTokenCost
               ? usdFormatter(item.totalTokenCost as number)
               : "$0"}
