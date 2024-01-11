@@ -16,7 +16,7 @@ const config = {
       rules: {
         "@typescript-eslint/no-non-null-assertion": "off",
         "@typescript-eslint/no-confusing-void-expression": "off",
-      }
+      },
     },
   ],
   parser: "@typescript-eslint/parser",
@@ -35,6 +35,12 @@ const config = {
       },
     ],
     "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    "react/jsx-key": [
+      "error",
+      {
+        warnOnDuplicates: true,
+      },
+    ],
   },
 };
 
