@@ -4,36 +4,34 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { cn } from "@/src/utils/tailwind";
-import { useOptimisticUpdate } from "@/src/features/tag/useOptimisticUpdate";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { useState } from "react";
 
 export function StarToggle({
   value,
   disabled = false,
   onClick,
   size = "sm",
+  isLoading,
 }: {
   value: boolean;
   disabled?: boolean;
   onClick: (value: boolean) => Promise<unknown>;
   size?: "sm" | "xs";
+  isLoading: boolean;
 }) {
-  const { optimisticValue, loading, handleUpdate } = useOptimisticUpdate(
-    value,
-    onClick,
-  );
-
   return (
     <Button
       variant="ghost"
       size={size}
-      onClick={() => void handleUpdate(!optimisticValue)}
+      onClick={() => void onClick(!value)}
       disabled={disabled}
-      loading={loading}
+      loading={isLoading}
     >
       <StarIcon
         className={cn(
           "h-4 w-4",
-          optimisticValue ? "fill-current text-yellow-500" : "text-gray-500",
+          value ? "fill-current text-yellow-500" : "text-gray-500",
         )}
       />
     </Button>
@@ -41,6 +39,83 @@ export function StarToggle({
 }
 
 export function StarTraceToggle({
+  tracesFilter,
+  projectId,
+  traceId,
+  value,
+  size = "sm",
+}: {
+  tracesFilter: RouterInput["traces"]["all"];
+  projectId: string;
+  traceId: string;
+  value: boolean;
+  size?: "sm" | "xs";
+}) {
+  const utils = api.useUtils();
+  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const mutBookmarkTrace = api.traces.bookmark.useMutation({
+    // Optimistic update
+    // Tanstack docs: https://tanstack.com/query/v4/docs/react/guides/optimistic-updates
+
+    onMutate: async () => {
+      // Cancel any outgoing refetches
+      // (so they don't overwrite our optimistic update)
+      await utils.traces.all.cancel();
+
+      setIsLoading(true);
+
+      // Snapshot the previous value
+      const prev = utils.traces.all.getData(tracesFilter);
+
+      return { prev };
+    },
+    onError: (err, _newTodo, context) => {
+      setIsLoading(false);
+      // Rollback to the previous value if mutation fails
+      console.log("error", err);
+      utils.traces.all.setData(tracesFilter, context?.prev);
+    },
+    onSettled: () => {
+      setIsLoading(false);
+      utils.traces.all.setData(
+        tracesFilter,
+        (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
+          return oldQueryData
+            ? oldQueryData.map((trace) => {
+                return {
+                  ...trace,
+                  bookmarked:
+                    trace.id === traceId ? !trace.bookmarked : trace.bookmarked,
+                };
+              })
+            : [];
+        },
+      );
+      void utils.traces.all.invalidate();
+    },
+  });
+
+  return (
+    <StarToggle
+      value={value}
+      size={size}
+      disabled={!hasAccess}
+      isLoading={isLoading}
+      onClick={(value) =>
+        mutBookmarkTrace.mutateAsync({
+          projectId,
+          traceId,
+          bookmarked: value,
+        })
+      }
+    />
+  );
+}
+
+export function StarTraceDetailsToggle({
   projectId,
   traceId,
   value,
@@ -53,11 +128,44 @@ export function StarTraceToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+
+  const [isLoading, setIsLoading] = useState(false);
+
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
-    onSuccess: () => {
-      void utils.traces.all.invalidate({ projectId });
-      void utils.traces.invalidate();
-      console.log("Success");
+    onMutate: async () => {
+      // Cancel any outgoing refetches
+      // (so they don't overwrite our optimistic update)
+      await utils.traces.byId.cancel();
+
+      setIsLoading(true);
+
+      // Snapshot the previous value
+      const prevData = utils.traces.byId.getData({ traceId });
+
+      return { prevData };
+    },
+    onError: (err, _newTodo, context) => {
+      setIsLoading(false);
+      console.log("error", err);
+      // Rollback to the previous value if mutation fails
+      utils.traces.byId.setData({ traceId }, context?.prevData);
+    },
+    onSettled: () => {
+      setIsLoading(false);
+
+      utils.traces.byId.setData(
+        { traceId },
+        (oldQueryData: RouterOutput["traces"]["byId"] | undefined) => {
+          return oldQueryData
+            ? {
+                ...oldQueryData,
+                bookmarked: !oldQueryData.bookmarked,
+              }
+            : undefined;
+        },
+      );
+      void utils.traces.byId.invalidate();
+      void utils.traces.all.invalidate();
     },
   });
 
@@ -66,6 +174,7 @@ export function StarTraceToggle({
       value={value}
       size={size}
       disabled={!hasAccess}
+      isLoading={isLoading}
       onClick={(value) =>
         mutBookmarkTrace.mutateAsync({
           projectId,
@@ -100,6 +209,7 @@ export function StarSessionToggle({
     <StarToggle
       value={value}
       size={size}
+      isLoading={mutBookmarkSession.isLoading}
       disabled={!hasAccess}
       onClick={(value) =>
         mutBookmarkSession.mutateAsync({

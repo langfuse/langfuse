@@ -8,7 +8,14 @@ export default function Traces() {
 
   return (
     <div>
-      <Header title="Traces" />
+      <Header
+        title="Traces"
+        help={{
+          description:
+            "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+          href: "https://langfuse.com/docs/tracing",
+        }}
+      />
       <TracesTable projectId={projectId} />
     </div>
   );

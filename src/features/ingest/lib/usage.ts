@@ -24,29 +24,30 @@ export function tokenCount(p: {
   model: string;
   text: unknown;
 }): number | undefined {
+  const model = cleanModelString(p.model);
   if (
     p.text === null ||
     p.text === undefined ||
     (Array.isArray(p.text) && p.text.length === 0)
   ) {
     return undefined;
-  } else if (isOpenAiModel(p.model)) {
+  } else if (isOpenAiModel(model)) {
     return isChatMessageArray(p.text)
       ? openAiChatTokenCount({
-          model: p.model,
+          model: model,
           messages: p.text,
         })
       : isString(p.text)
-        ? openAiStringTokenCount({ model: p.model, text: p.text })
+        ? openAiStringTokenCount({ model: model, text: p.text })
         : openAiStringTokenCount({
-            model: p.model,
+            model: model,
             text: JSON.stringify(p.text),
           });
-  } else if (isClaudeModel(p.model)) {
+  } else if (isClaudeModel(model)) {
     return isString(p.text)
-      ? claudeStringTokenCount({ model: p.model, text: p.text })
+      ? claudeStringTokenCount({ model: model, text: p.text })
       : claudeStringTokenCount({
-          model: p.model,
+          model: model,
           text: JSON.stringify(p.text),
         });
   } else {
@@ -223,7 +224,8 @@ export function calculateTokenCost(
     completionTokens: Decimal;
   },
 ): Decimal | undefined {
-  const pricing = pricingList.filter((p) => p.modelName === input.model);
+  const model = cleanModelString(input.model);
+  const pricing = pricingList.filter((p) => p.modelName === model);
 
   if (pricing.length === 0) {
     console.log("no pricing found for model", input.model);
@@ -298,3 +300,6 @@ const calculateValue = (
       return undefined;
   }
 };
+
+const cleanModelString = (model: string) =>
+  model.toLowerCase().replaceAll("gpt-35", "gpt-3.5");

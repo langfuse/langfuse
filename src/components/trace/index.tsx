@@ -14,10 +14,14 @@ import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { DeleteTrace } from "@/src/components/delete-trace";
-import { StarTraceToggle } from "@/src/components/star-toggle";
+import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
 import { TagPopOver } from "@/src/features/tag/components/TagPopOver";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { Toggle } from "@/src/components/ui/toggle";
+import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -29,10 +33,16 @@ export function Trace(props: {
     "observation",
     StringParam,
   );
+  const [metricsOnObservationTree, setMetricsOnObservationTree] =
+    useLocalStorage("metricsOnObservationTree", true);
+  const [scoresOnObservationTree, setScoresOnObservationTree] = useLocalStorage(
+    "scoresOnObservationTree",
+    true,
+  );
 
   return (
-    <div className="grid h-full gap-4 md:grid-cols-3">
-      <div className="md:col-span-2 md:h-full md:overflow-y-auto">
+    <div className="grid gap-4 md:h-full md:grid-cols-3">
+      <ScrollArea className="md:col-span-2 md:h-full">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -50,15 +60,45 @@ export function Trace(props: {
             traceId={props.trace.id}
           />
         )}
-      </div>
-      <div className="md:h-full md:overflow-y-auto">
-        <ObservationTree
-          observations={props.observations}
-          trace={props.trace}
-          scores={props.scores}
-          currentObservationId={currentObservationId ?? undefined}
-          setCurrentObservationId={setCurrentObservationId}
-        />
+      </ScrollArea>
+      <div className="md:flex md:h-full md:flex-col md:overflow-hidden">
+        <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
+          <Toggle
+            pressed={scoresOnObservationTree}
+            onPressedChange={(e) => {
+              setScoresOnObservationTree(e);
+            }}
+            size="sm"
+            title="Show scores"
+          >
+            <Award className="h-4 w-4" />
+          </Toggle>
+          <Toggle
+            pressed={metricsOnObservationTree}
+            onPressedChange={(e) => {
+              setMetricsOnObservationTree(e);
+            }}
+            size="sm"
+            title="Show metrics"
+          >
+            {metricsOnObservationTree ? (
+              <ChevronsDownUp className="h-4 w-4" />
+            ) : (
+              <ChevronsUpDown className="h-4 w-4" />
+            )}
+          </Toggle>
+        </div>
+        <ScrollArea className="flex flex-grow">
+          <ObservationTree
+            observations={props.observations}
+            trace={props.trace}
+            scores={props.scores}
+            currentObservationId={currentObservationId ?? undefined}
+            setCurrentObservationId={setCurrentObservationId}
+            showMetrics={metricsOnObservationTree}
+            showScores={scoresOnObservationTree}
+          />
+        </ScrollArea>
       </div>
     </div>
   );
@@ -103,7 +143,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
   return (
-    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
+    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-2rem)]">
       <Header
         title="Trace Detail"
         breadcrumb={[
@@ -115,7 +155,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         ]}
         actionButtons={
           <>
-            <StarTraceToggle
+            <StarTraceDetailsToggle
               traceId={trace.data.id}
               projectId={trace.data.projectId}
               value={trace.data.bookmarked}

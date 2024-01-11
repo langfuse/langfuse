@@ -79,6 +79,14 @@ flowchart TB
    Python --- API
 ```
 
+### Database Overview
+
+The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
+
+Full database schema: [prisma/schema.prisma](prisma/schema.prisma)
+
+<img src="./prisma/database.svg">
+
 ### Infrastructure & Network Overview
 
 ```mermaid
@@ -137,6 +145,9 @@ Requirements
    ```bash
     npm run dev
    ```
+
+> [!NOTE]
+> If you frequently switch branches, use `npm run dx` instead of `npm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
 
 ## Commit messages
 
