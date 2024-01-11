@@ -2,7 +2,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import Header from "@/src/components/layouts/header";
 import { NoAccessError } from "@/src/components/no-access";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
-import { StarSessionDetailsToggle } from "@/src/components/star-toggle";
+import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
@@ -54,7 +54,7 @@ export const SessionPage: React.FC<{
           { name: sessionId },
         ]}
         actionButtons={[
-          <StarSessionDetailsToggle
+          <StarSessionToggle
             key="star"
             projectId={projectId}
             sessionId={sessionId}
