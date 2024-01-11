@@ -57,6 +57,9 @@ export function StarTraceToggle({
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
+    // Optimistic update
+    // Tanstack docs: https://tanstack.com/query/v4/docs/react/guides/optimistic-updates
+
     onMutate: async () => {
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
