@@ -1,9 +1,9 @@
+import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
+import { prisma } from "@/src/server/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@/src/server/db";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -53,6 +53,13 @@ export default async function handler(
         scores: true,
       },
     });
+
+    if (!trace) {
+      return res.status(404).json({
+        message: "Trace not found within authorized project",
+      });
+    }
+
     const observations = await prisma.observation.findMany({
       where: {
         traceId: traceId,
@@ -60,11 +67,6 @@ export default async function handler(
       },
     });
 
-    if (!trace) {
-      return res.status(404).json({
-        message: "Trace not found within authorized project",
-      });
-    }
     return res
       .status(200)
       .json({ ...trace, observations: observations.map(mapUsageOutput) });
