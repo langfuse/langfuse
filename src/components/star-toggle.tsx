@@ -46,7 +46,7 @@ export function StarTraceToggle({
   size = "sm",
 }: {
   //api.traces.all.useQueryKey
-  tracesFilter?: RouterInput["traces"]["all"];
+  tracesFilter: RouterInput["traces"]["all"];
   projectId: string;
   traceId: string;
   value: boolean;
@@ -62,45 +62,92 @@ export function StarTraceToggle({
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
       await utils.traces.all.cancel();
-      await utils.traces.byId.cancel();
 
       setIsLoading(true);
 
       // Snapshot the previous value
       const prev = utils.traces.all.getData(tracesFilter);
-      const prevById = utils.traces.byId.getData({ traceId });
 
-      return { prev, prevById };
+      return { prev };
     },
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
       // Rollback to the previous value if mutation fails
-      tracesFilter
-        ? utils.traces.all.setData(tracesFilter, context?.prev)
-        : undefined;
+      utils.traces.all.setData(tracesFilter, context?.prev);
+    },
+    onSettled: () => {
+      setIsLoading(false);
+      utils.traces.all.setData(
+        tracesFilter,
+        (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
+          return oldQueryData
+            ? oldQueryData.map((trace) => {
+                return {
+                  ...trace,
+                  bookmarked:
+                    trace.id === traceId ? !trace.bookmarked : trace.bookmarked,
+                };
+              })
+            : [];
+        },
+      );
+      void utils.traces.all.invalidate();
+    },
+  });
+
+  return (
+    <StarToggle
+      value={value}
+      size={size}
+      disabled={!hasAccess}
+      isLoading={isLoading}
+      onClick={(value) =>
+        mutBookmarkTrace.mutateAsync({
+          projectId,
+          traceId,
+          bookmarked: value,
+        })
+      }
+    />
+  );
+}
+
+export function StarTraceDetailsToggle({
+  projectId,
+  traceId,
+  value,
+  size = "sm",
+}: {
+  projectId: string;
+  traceId: string;
+  value: boolean;
+  size?: "sm" | "xs";
+}) {
+  const utils = api.useUtils();
+  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const mutBookmarkTrace = api.traces.bookmark.useMutation({
+    onMutate: async () => {
+      // Cancel any outgoing refetches
+      // (so they don't overwrite our optimistic update)
+      await utils.traces.byId.cancel();
+
+      setIsLoading(true);
+
+      // Snapshot the previous value
+      const prevById = utils.traces.byId.getData({ traceId });
+
+      return { prevById };
+    },
+    onError: (err, _newTodo, context) => {
+      setIsLoading(false);
+      // Rollback to the previous value if mutation fails
       utils.traces.byId.setData({ traceId }, context?.prevById);
     },
     onSettled: () => {
       setIsLoading(false);
-      // Optimistically update to the new value
-      tracesFilter
-        ? utils.traces.all.setData(
-            tracesFilter,
-            (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
-              return oldQueryData
-                ? oldQueryData.map((trace) => {
-                    return {
-                      ...trace,
-                      bookmarked:
-                        trace.id === traceId
-                          ? !trace.bookmarked
-                          : trace.bookmarked,
-                    };
-                  })
-                : [];
-            },
-          )
-        : undefined;
 
       utils.traces.byId.setData(
         { traceId },
@@ -113,8 +160,8 @@ export function StarTraceToggle({
             : undefined;
         },
       );
-      void utils.traces.all.invalidate();
       void utils.traces.byId.invalidate();
+      void utils.traces.all.invalidate();
     },
   });
 
