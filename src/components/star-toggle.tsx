@@ -136,14 +136,14 @@ export function StarTraceDetailsToggle({
       setIsLoading(true);
 
       // Snapshot the previous value
-      const prevById = utils.traces.byId.getData({ traceId });
+      const prevData = utils.traces.byId.getData({ traceId });
 
-      return { prevById };
+      return { prevData };
     },
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
       // Rollback to the previous value if mutation fails
-      utils.traces.byId.setData({ traceId }, context?.prevById);
+      utils.traces.byId.setData({ traceId }, context?.prevData);
     },
     onSettled: () => {
       setIsLoading(false);
