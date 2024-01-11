@@ -14,7 +14,7 @@ import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { DeleteTrace } from "@/src/components/delete-trace";
-import { StarTraceToggle } from "@/src/components/star-toggle";
+import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -139,7 +139,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         ]}
         actionButtons={
           <>
-            <StarTraceToggle
+            <StarTraceDetailsToggle
               traceId={trace.data.id}
               projectId={trace.data.projectId}
               value={trace.data.bookmarked}
