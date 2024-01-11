@@ -465,6 +465,7 @@ export default function TracesTable({
             availableTags={allTags}
             projectId={projectId}
             traceId={traceId}
+            tracesFilter={tracesAllQueryFilter}
           />
         );
       },
