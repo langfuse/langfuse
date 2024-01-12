@@ -10,6 +10,8 @@ import {
 } from "@/src/server/api/trpc";
 import { executeQuery } from "@/src/server/api/services/query-builder";
 import { sqlInterface } from "@/src/server/api/services/sqlInterface";
+import { tableDefinitions } from "@/src/server/api/services/tableDefinitions";
+import { time } from "node:console";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -70,6 +72,37 @@ export const dashboardRouter = createTRPCRouter({
       });
 
       const parsedQuery = sqlInterface.parse(chart.query);
+
+      const timeseriesColumn =
+        tableDefinitions[parsedQuery.from]?.timeseriesColumn;
+
+      if (!timeseriesColumn) {
+        throw new Error("Invalid table, no timeseries column found");
+      }
+
+      const timeFilter = [];
+
+      if (input.from) {
+        timeFilter.push({
+          type: "datetime" as const,
+          column: timeseriesColumn.name,
+          operator: ">" as const,
+          value: input.from,
+        });
+      }
+
+      if (input.to) {
+        timeFilter.push({
+          type: "datetime" as const,
+          column: timeseriesColumn.name,
+          operator: "<" as const,
+          value: input.to,
+        });
+      }
+
+      parsedQuery.filter = parsedQuery.filter
+        ? [...parsedQuery.filter, ...timeFilter]
+        : timeFilter;
 
       return await executeQuery(ctx.prisma, input.projectId, parsedQuery);
     }),
