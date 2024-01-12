@@ -215,16 +215,15 @@ export const tableDefinitions: TableDefinitions = {
   },
   traces_metrics: {
     table: ` 
-    (
+    traces t
+    LEFT JOIN (
       SELECT
-        t.*,
-        o.project_id observation_project_id,
-        sum(o.)
-      FROM traces t
-      LEFT JOIN observations o ON observations.trace_id = traces.id
-    ) 
-      
-    traces t JOIN observations o ON t.id = o.trace_id`,
+        trace_id,
+        sum(total_tokens) total_tokens
+      FROM observations
+      GROUP BY 1
+    ) AS o ON o.trace_id = t.id
+    `,
     columns: [
       tracesProjectId,
       traceVersion,
@@ -233,7 +232,7 @@ export const tableDefinitions: TableDefinitions = {
       traceTimestamp,
       traceName,
       traceUser,
-      { name: "projectId", type: "string", internal: 't."project_id"' },
+      { name: "totalTokens", type: "number", internal: 'o."total_tokens"' },
     ],
   },
 };
