@@ -18,6 +18,46 @@ export const dashboardRouter = createTRPCRouter({
       return await executeQuery(ctx.prisma, input.projectId, input);
     }),
 
+  list: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return await ctx.prisma.charts.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+      });
+    }),
+
+  create: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        chartType: z.union([z.literal("timeseries"), z.literal("table")]),
+        query: z.string(),
+        chartConfig: z.object({
+          position: z.number().int(),
+        }),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const email = ctx.session.user.email;
+      if (!email) {
+        throw new Error("User email not found");
+      }
+
+      return await ctx.prisma.charts.create({
+        data: {
+          project: { connect: { id: input.projectId } },
+          name: input.name,
+          chartType: input.chartType,
+          query: input.query,
+          chartConfig: input.chartConfig,
+          createdBy: email,
+        },
+      });
+    }),
+
   scores: protectedProjectProcedure
     .input(
       z.object({
