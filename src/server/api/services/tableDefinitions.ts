@@ -222,8 +222,7 @@ export const tableDefinitions: TableDefinitions = {
         sum(o.)
       FROM traces t
       LEFT JOIN observations o ON observations.trace_id = traces.id
-    ) 
-      
+    )
     traces t JOIN observations o ON t.id = o.trace_id`,
     columns: [
       tracesProjectId,
