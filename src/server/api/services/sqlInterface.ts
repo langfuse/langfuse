@@ -10,19 +10,19 @@ export const temporalUnit = z.enum([
   "minute",
 ]);
 
-export const aggregations = z
-  .enum([
-    "SUM",
-    "AVG",
-    "COUNT",
-    "MAX",
-    "MIN",
-    "50thPercentile",
-    "90thPercentile",
-    "95thPercentile",
-    "99thPercentile",
-  ])
-  .optional();
+export const aggregationRawStrings = [
+  "SUM",
+  "AVG",
+  "COUNT",
+  "MAX",
+  "MIN",
+  "50thPercentile",
+  "90thPercentile",
+  "95thPercentile",
+  "99thPercentile",
+] as const;
+
+export const aggregations = z.enum(aggregationRawStrings).optional();
 
 export const groupByInterface = z.array(
   z.discriminatedUnion("type", [

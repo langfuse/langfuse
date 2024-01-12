@@ -1,18 +1,9 @@
-import { api } from "@/src/utils/api";
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { type FilterState } from "@/src/features/filters/types";
+import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
-import { NoData } from "@/src/features/dashboard/components/NoData";
-
-type TimeSeriesDataPoint = [Date, number];
+import { type Chart } from "@prisma/client";
+import { AreaChart } from "@tremor/react";
 
 export const CustomTimeSeriesChart = ({
   className,
@@ -20,24 +11,46 @@ export const CustomTimeSeriesChart = ({
   chartConfig,
 }: {
   className?: string;
-  chartConfig: any;
-  globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
+  projectId: string;
+  chartConfig: Chart;
 }) => {
-  const dataPoints = [[new Date("2023-01-01"), 1]] as TimeSeriesDataPoint[];
+  const dataPoints = api.dashboard.executeQuery.useQuery({
+    projectId,
+    chartId: chartConfig.id,
+  });
+
+  const transformedData: TimeSeriesChartDataPoint[] = dataPoints.data
+    ? dataPoints.data.map((item) => {
+        return {
+          ts: item[0] as number,
+          values: [
+            {
+              label: "Value",
+              value: item[1] as number,
+            },
+          ],
+        };
+      })
+    : [];
 
   return (
     <DashboardCard
       className={className}
       title={chartConfig.name}
-      isLoading={false}
+      isLoading={dataPoints.isLoading}
       cardContentClassName="flex flex-col content-end "
     >
-      <BaseTimeSeriesChart
-        className="h-full min-h-80 self-stretch"
-        agg={agg}
-        data={transformedTraces}
+      <AreaChart
+        className="mt-4 h-full min-h-80 self-stretch"
+        data={transformedData}
+        index="timestamp"
+        categories={["Value"]}
         connectNulls={true}
+        colors={["indigo", "cyan", "zinc", "purple"]}
+        valueFormatter={compactNumberFormatter}
+        noDataText="No data"
+        showLegend={false}
+        showAnimation={true}
       />
     </DashboardCard>
   );
