@@ -213,4 +213,16 @@ export const tableDefinitions: TableDefinitions = {
       observationsProjectId,
     ],
   },
+  traces_metrics: {
+    table: ` traces t`,
+    columns: [
+      tracesProjectId,
+      traceVersion,
+      release,
+      traceId,
+      traceTimestamp,
+      traceName,
+      traceUser,
+    ],
+  },
 };
