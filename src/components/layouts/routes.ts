@@ -1,5 +1,6 @@
 import { type Flag } from "@/src/features/feature-flags/types";
 import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
+import { ChartBarIcon } from "@heroicons/react/20/solid";
 import {
   Database,
   LayoutDashboard,
@@ -65,6 +66,11 @@ export const ROUTES: Route[] = [
     name: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
+  },
+  {
+    name: "Analytics",
+    pathname: `/project/[projectId]/analytics`,
+    icon: ChartBarIcon,
   },
   {
     name: "Settings",
