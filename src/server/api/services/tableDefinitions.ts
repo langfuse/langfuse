@@ -219,7 +219,9 @@ export const tableDefinitions: TableDefinitions = {
     LEFT JOIN (
       SELECT
         trace_id,
-        sum(total_tokens) total_tokens
+        sum(total_tokens) total_tokens,
+        sum(prompt_tokens) prompt_tokens,
+        sum(completion_tokens) completion_tokens
       FROM observations
       GROUP BY 1
     ) AS o ON o.trace_id = t.id
@@ -233,6 +235,8 @@ export const tableDefinitions: TableDefinitions = {
       traceName,
       traceUser,
       { name: "totalTokens", type: "number", internal: 'o."total_tokens"' },
+      { name: "promptTokens", type: "number", internal: 'o."prompt_tokens"' },
+      { name: "completionTokens", type: "number", internal: 'o."completion_tokens"' },
     ],
   },
 };
