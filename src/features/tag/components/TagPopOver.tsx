@@ -4,21 +4,19 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/src/components/ui/popover";
-import { Button } from "@/src/components/ui/button";
 import {
   Command,
   CommandGroup,
-  CommandItem,
   CommandList,
 } from "@/src/components/ui/command";
-import { cn } from "@/src/utils/tailwind";
-import { Check } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 import { TagInput } from "@/src/features/tag/components/TagInput";
-import { TagItemCreate } from "@/src/features/tag/components/TagCreateItem";
-import { TagButton } from "@/src/features/tag/components/TagButton";
+import TagCreateItem from "@/src/features/tag/components/TagCreateItem";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
+import TagList from "@/src/features/tag/components/TagList";
 
 export function TagPopOver({
   tags,
@@ -82,43 +80,20 @@ export function TagPopOver({
       });
     }
   };
+  const handleItemCreate = () => {
+    setSelectedTags([...selectedTags, inputValue]);
+    availableTags.push(inputValue);
+    setInputValue("");
+  };
+
   if (!hasAccess) {
-    return (
-      <div className="flex flex-wrap gap-x-2 gap-y-1">
-        {selectedTags.length > 0 ? (
-          selectedTags.map((tag) => (
-            <TagButton key={tag} tag={tag} loading={isLoading} />
-          ))
-        ) : (
-          <Button
-            variant="outline"
-            size="xs"
-            className="text-xs font-bold opacity-0 hover:bg-white hover:opacity-100"
-          >
-            Add tag
-          </Button>
-        )}
-      </div>
-    );
+    return <TagList selectedTags={selectedTags} isLoading={isLoading} />;
   }
+
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
-      <PopoverTrigger className="select-none" asChild>
-        <div className="flex flex-wrap gap-x-2 gap-y-1">
-          {selectedTags.length > 0 ? (
-            selectedTags.map((tag) => (
-              <TagButton key={tag} tag={tag} loading={isLoading} />
-            ))
-          ) : (
-            <Button
-              variant="outline"
-              size="xs"
-              className="text-xs font-bold opacity-0 hover:bg-white hover:opacity-100"
-            >
-              Add tag
-            </Button>
-          )}
-        </div>
+      <PopoverTrigger className="select-none">
+        <TagList selectedTags={selectedTags} isLoading={isLoading} />
       </PopoverTrigger>
       <PopoverContent>
         <Command>
@@ -131,35 +106,15 @@ export function TagPopOver({
           <CommandList>
             <CommandGroup>
               {allTags.map((value: string) => (
-                <CommandItem
+                <TagCommandItem
                   key={value}
-                  onSelect={() => {
-                    setSelectedTags([...selectedTags, value]);
-                  }}
-                  disabled={isLoading}
-                >
-                  <div
-                    className={cn(
-                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary opacity-50 [&_svg]:invisible",
-                    )}
-                  >
-                    <Check className={cn("h-4 w-4")} />
-                  </div>
-                  <Button variant="secondary" size="xs">
-                    {value}
-                  </Button>
-                </CommandItem>
+                  value={value}
+                  selectedTags={selectedTags}
+                  setSelectedTags={setSelectedTags}
+                />
               ))}
-              <TagItemCreate
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onSelect={() => {
-                  setSelectedTags([...selectedTags, inputValue]);
-                  availableTags.push(inputValue);
-                  setInputValue("");
-                }}
+              <TagCreateItem
+                onSelect={handleItemCreate}
                 inputValue={inputValue}
                 options={availableTags}
               />
@@ -233,43 +188,21 @@ export function TagDetailsPopOver({
       });
     }
   };
+
+  const handleItemCreate = () => {
+    setSelectedTags([...selectedTags, inputValue]);
+    availableTags.push(inputValue);
+    setInputValue("");
+  };
+
   if (!hasAccess) {
-    return (
-      <div className="flex flex-wrap gap-x-2 gap-y-1">
-        {selectedTags.length > 0 ? (
-          selectedTags.map((tag) => (
-            <TagButton key={tag} tag={tag} loading={isLoading} />
-          ))
-        ) : (
-          <Button
-            variant="outline"
-            size="xs"
-            className="text-xs font-bold opacity-0 hover:bg-white hover:opacity-100"
-          >
-            Add tag
-          </Button>
-        )}
-      </div>
-    );
+    return <TagList selectedTags={selectedTags} isLoading={isLoading} />;
   }
+
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
-      <PopoverTrigger className="select-none" asChild>
-        <div className="flex flex-wrap gap-x-2 gap-y-1">
-          {selectedTags.length > 0 ? (
-            selectedTags.map((tag) => (
-              <TagButton key={tag} tag={tag} loading={isLoading} />
-            ))
-          ) : (
-            <Button
-              variant="outline"
-              size="xs"
-              className="text-xs font-bold opacity-0 hover:bg-white hover:opacity-100"
-            >
-              Add tag
-            </Button>
-          )}
-        </div>
+      <PopoverTrigger className="select-none">
+        <TagList selectedTags={selectedTags} isLoading={isLoading} />
       </PopoverTrigger>
       <PopoverContent>
         <Command>
@@ -282,35 +215,15 @@ export function TagDetailsPopOver({
           <CommandList>
             <CommandGroup>
               {allTags.map((value: string) => (
-                <CommandItem
+                <TagCommandItem
                   key={value}
-                  onSelect={() => {
-                    setSelectedTags([...selectedTags, value]);
-                  }}
-                  disabled={isLoading}
-                >
-                  <div
-                    className={cn(
-                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary opacity-50 [&_svg]:invisible",
-                    )}
-                  >
-                    <Check className={cn("h-4 w-4")} />
-                  </div>
-                  <Button variant="secondary" size="xs">
-                    {value}
-                  </Button>
-                </CommandItem>
+                  value={value}
+                  selectedTags={selectedTags}
+                  setSelectedTags={setSelectedTags}
+                />
               ))}
-              <TagItemCreate
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onSelect={() => {
-                  setSelectedTags([...selectedTags, inputValue]);
-                  availableTags.push(inputValue);
-                  setInputValue("");
-                }}
+              <TagCreateItem
+                onSelect={handleItemCreate}
                 inputValue={inputValue}
                 options={availableTags}
               />
