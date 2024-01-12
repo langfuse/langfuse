@@ -38,23 +38,22 @@ export function TagPopOver({
   const [isLoading, setIsLoading] = useState(false);
 
   const utils = api.useUtils();
-  //const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
+  const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
   const mutTags = api.traces.updateTags.useMutation({
     onMutate: async () => {
       await utils.traces.all.cancel();
       setIsLoading(true);
       // Snapshot the previous value
-      const prev = utils.traces.all.getData(tracesFilter);
-      return { prev };
+      const prevTrace = utils.traces.all.getData(tracesFilter);
+      return { prevTrace };
     },
     onError: (err, _newTags, context) => {
       // Rollback to the previous value if mutation fails
-      utils.traces.all.setData(tracesFilter, context?.prev);
+      utils.traces.all.setData(tracesFilter, context?.prevTrace);
       console.log("error", err);
       setIsLoading(false);
     },
     onSettled: (data, error, { traceId, tags }) => {
-      setIsLoading(false);
       utils.traces.all.setData(
         tracesFilter,
         (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
@@ -65,6 +64,7 @@ export function TagPopOver({
             : [];
         },
       );
+      setIsLoading(false);
     },
   });
 
@@ -82,7 +82,25 @@ export function TagPopOver({
       });
     }
   };
-
+  if (!hasAccess) {
+    return (
+      <div className="flex flex-wrap gap-x-2 gap-y-1">
+        {selectedTags.length > 0 ? (
+          selectedTags.map((tag) => (
+            <TagButton key={tag} tag={tag} loading={isLoading} />
+          ))
+        ) : (
+          <Button
+            variant="outline"
+            size="xs"
+            className="text-xs font-bold opacity-0 hover:bg-white hover:opacity-100"
+          >
+            Add tag
+          </Button>
+        )}
+      </div>
+    );
+  }
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
@@ -168,7 +186,7 @@ export function TagDetailsPopOver({
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const utils = api.useUtils();
-  // const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
+  const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
   const mutTags = api.traces.updateTags.useMutation({
     onMutate: async () => {
       await utils.traces.byId.cancel();
@@ -207,19 +225,33 @@ export function TagDetailsPopOver({
   );
 
   const handlePopoverChange = (open: boolean) => {
-    console.log("Pop Over Open: ", open);
-    console.log("selectedTags: ", selectedTags);
-    console.log("tags: ", tags);
     if (!open && selectedTags !== tags) {
       void mutTags.mutateAsync({
         projectId,
         traceId,
         tags: selectedTags,
       });
-      console.log("Pop Up Closed: ", open);
     }
   };
-
+  if (!hasAccess) {
+    return (
+      <div className="flex flex-wrap gap-x-2 gap-y-1">
+        {selectedTags.length > 0 ? (
+          selectedTags.map((tag) => (
+            <TagButton key={tag} tag={tag} loading={isLoading} />
+          ))
+        ) : (
+          <Button
+            variant="outline"
+            size="xs"
+            className="text-xs font-bold opacity-0 hover:bg-white hover:opacity-100"
+          >
+            Add tag
+          </Button>
+        )}
+      </div>
+    );
+  }
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
