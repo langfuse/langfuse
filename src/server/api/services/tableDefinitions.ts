@@ -136,6 +136,7 @@ export const tableDefinitions: TableDefinitions = {
       traceName,
       traceUser,
     ],
+    timeseriesColumn: traceTimestamp,
   },
   traces_observations: {
     table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
@@ -153,6 +154,7 @@ export const tableDefinitions: TableDefinitions = {
       traceUser,
       startTime,
     ],
+    timeseriesColumn: traceTimestamp,
   },
   observations: {
     table: ` observations o`,
@@ -175,6 +177,7 @@ export const tableDefinitions: TableDefinitions = {
       { name: "endTime", type: "datetime", internal: 'o."end_time"' },
       duration,
     ],
+    timeseriesColumn: startTime,
   },
   traces_scores: {
     table: ` traces t JOIN scores s ON t.id = s.trace_id`,
@@ -193,6 +196,7 @@ export const tableDefinitions: TableDefinitions = {
       traceUser,
       tracesProjectId,
     ],
+    timeseriesColumn: traceTimestamp,
   },
   traces_parent_observation_scores: {
     table: ` traces t LEFT JOIN observations o on t."id" = o."trace_id" and o."parent_observation_id" is NULL LEFT JOIN scores s ON t."id" = s."trace_id"`,
@@ -212,6 +216,7 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       observationsProjectId,
     ],
+    timeseriesColumn: traceTimestamp,
   },
   traces_metrics: {
     table: ` 
@@ -236,7 +241,12 @@ export const tableDefinitions: TableDefinitions = {
       traceUser,
       { name: "totalTokens", type: "number", internal: 'o."total_tokens"' },
       { name: "promptTokens", type: "number", internal: 'o."prompt_tokens"' },
-      { name: "completionTokens", type: "number", internal: 'o."completion_tokens"' },
+      {
+        name: "completionTokens",
+        type: "number",
+        internal: 'o."completion_tokens"',
+      },
     ],
+    timeseriesColumn: traceTimestamp,
   },
 };

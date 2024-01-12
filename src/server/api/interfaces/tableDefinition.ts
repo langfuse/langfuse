@@ -36,5 +36,6 @@ export type TableDefinitions = {
   [tableName: string]: {
     table: string;
     columns: ColumnDefinition[];
+    timeseriesColumn: ColumnDefinition;
   };
 };
