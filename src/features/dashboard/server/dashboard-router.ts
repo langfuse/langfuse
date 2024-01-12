@@ -17,7 +17,6 @@ export const dashboardRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return await executeQuery(ctx.prisma, input.projectId, input);
     }),
-
   list: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -27,7 +26,6 @@ export const dashboardRouter = createTRPCRouter({
         },
       });
     }),
-
   create: protectedProjectProcedure
     .input(
       z.object({
@@ -57,7 +55,16 @@ export const dashboardRouter = createTRPCRouter({
         },
       });
     }),
-
+  executeQuery: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        chartId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return null
+    }),
   scores: protectedProjectProcedure
     .input(
       z.object({
