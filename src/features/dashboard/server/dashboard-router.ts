@@ -20,7 +20,7 @@ export const dashboardRouter = createTRPCRouter({
   list: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      return await ctx.prisma.charts.findMany({
+      return await ctx.prisma.chart.findMany({
         where: {
           projectId: input.projectId,
         },
@@ -32,7 +32,7 @@ export const dashboardRouter = createTRPCRouter({
         projectId: z.string(),
         name: z.string(),
         chartType: z.union([z.literal("timeseries"), z.literal("table")]),
-        query: z.string(),
+        query: sqlInterface.extend({ projectId: z.string() }),
         chartConfig: z.object({
           position: z.number().int(),
         }),
@@ -44,7 +44,7 @@ export const dashboardRouter = createTRPCRouter({
         throw new Error("User email not found");
       }
 
-      return await ctx.prisma.charts.create({
+      return await ctx.prisma.chart.create({
         data: {
           project: { connect: { id: input.projectId } },
           name: input.name,
@@ -60,10 +60,18 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         chartId: z.string(),
+        from: z.date().optional(),
+        to: z.date().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
-      return null
+      const chart = await ctx.prisma.chart.findUniqueOrThrow({
+        where: { id: input.chartId, projectId: input.projectId },
+      });
+
+      const parsedQuery = sqlInterface.parse(chart.query);
+
+      return await executeQuery(ctx.prisma, input.projectId, parsedQuery);
     }),
   scores: protectedProjectProcedure
     .input(

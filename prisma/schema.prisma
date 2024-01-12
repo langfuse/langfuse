@@ -100,7 +100,7 @@ model Project {
     invitations  MembershipInvitation[]
     sessions     TraceSession[]
     Prompt       Prompt[]
-    Charts       Charts[]
+    Charts       Chart[]
 
     @@map("projects")
 }
@@ -423,7 +423,7 @@ model Prompt {
     @@map("prompts")
 }
 
-model Charts {
+model Chart {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
