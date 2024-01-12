@@ -17,7 +17,7 @@ import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
-import { TagPopOver } from "@/src/features/tag/components/TagPopOver";
+import { TagDetailsPopOver } from "@/src/features/tag/components/TagPopOver";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
@@ -208,14 +208,12 @@ export function TracePage({ traceId }: { traceId: string }) {
       <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
         <div className="flex flex-row items-center gap-3 p-2.5">
           Tags
-          {/* <TagPopOver
-            index={0}
+          <TagDetailsPopOver
             tags={trace.data.tags}
-            setTags={() => {}}
             availableTags={allTags}
             traceId={trace.data.id}
             projectId={trace.data.projectId}
-          /> */}
+          />
         </div>
       </div>
       <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
