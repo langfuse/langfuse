@@ -21,14 +21,12 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 
 export function TagPopOver({
-  index,
   tags,
   availableTags,
   projectId,
   traceId,
   tracesFilter,
 }: {
-  index: number;
   tags: string[];
   availableTags: string[];
   projectId: string;
@@ -55,7 +53,7 @@ export function TagPopOver({
       console.log("error", err);
       setIsLoading(false);
     },
-    onSettled: (data, error, { projectId, traceId, tags }) => {
+    onSettled: (data, error, { traceId, tags }) => {
       setIsLoading(false);
       utils.traces.all.setData(
         tracesFilter,
@@ -67,8 +65,6 @@ export function TagPopOver({
             : [];
         },
       );
-      void utils.traces.all.invalidate({ projectId });
-      void utils.traces.byId.invalidate({ traceId });
     },
   });
 
@@ -76,22 +72,14 @@ export function TagPopOver({
     () => availableTags.filter((value) => !selectedTags.includes(value)),
     [availableTags, selectedTags],
   );
-  /*   if (index === 0) {
-    console.log("Rendered Pop Over with tags: ", tags);
-    console.log("Rendered Pop Over with selectedTags: ", selectedTags);
-    console.log("Rendered Pop Over with availableTags: ", availableTags);
-    console.log("Rendered Pop Over with allTags: ", allTags);
-  } */
 
   const handlePopoverChange = (open: boolean) => {
-    console.log("Pop Over Open: ", open);
     if (!open && selectedTags !== tags) {
       void mutTags.mutateAsync({
         projectId,
         traceId,
         tags: selectedTags,
       });
-      console.log("Pop Up Closed: ", open);
     }
   };
 
