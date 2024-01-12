@@ -21,7 +21,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   NumberParam,
   StringParam,
@@ -29,7 +29,6 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { set } from "lodash";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -162,22 +161,6 @@ export default function TracesTable({
       },
     };
   };
-  const [isOpen, setIsOpen] = useState<boolean[]>(
-    traces.data?.map(() => false) ?? [],
-  );
-  /* const [parentTags, setParentTags] = useState<Record<number, string[]>>({});
-
-  const handleIsOpenChange = useCallback(
-    (newIsOpen: boolean, index: number) => {
-      console.log("Setting isOpen to: ", newIsOpen);
-      setIsOpen(isOpen.map((o, i) => (i === index ? newIsOpen : o)));
-      console.log("After setter function ", isOpen[index]);
-    },
-    [isOpen],
-  ); */
-  useEffect(() => {
-    console.log("After setter function ", isOpen);
-  }, [isOpen]);
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
@@ -382,13 +365,11 @@ export default function TracesTable({
       header: "Tags",
       cell: ({ row }) => {
         const tags: string[] = row.getValue("tags");
-        const index = row.index;
         const traceId: string = row.getValue("id");
         const filterOptionTags = traceFilterOptions.data?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
         return (
           <TagPopOver
-            index={index}
             tags={tags}
             availableTags={allTags}
             projectId={projectId}
