@@ -17,6 +17,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
 import TagList from "@/src/features/tag/components/TagList";
+import useTagManager from "@/src/features/tag/hooks/useTagManager";
 
 export function TagPopOver({
   tags,
@@ -31,8 +32,15 @@ export function TagPopOver({
   traceId: string;
   tracesFilter: RouterInput["traces"]["all"];
 }) {
-  const [selectedTags, setSelectedTags] = useState<string[]>(tags);
-  const [inputValue, setInputValue] = useState("");
+  const {
+    selectedTags,
+    inputValue,
+    allTags,
+    handleItemCreate,
+    setInputValue,
+    setSelectedTags,
+  } = useTagManager({ initialTags: tags, availableTags });
+
   const [isLoading, setIsLoading] = useState(false);
 
   const utils = api.useUtils();
@@ -66,11 +74,6 @@ export function TagPopOver({
     },
   });
 
-  const allTags = useMemo(
-    () => availableTags.filter((value) => !selectedTags.includes(value)),
-    [availableTags, selectedTags],
-  );
-
   const handlePopoverChange = (open: boolean) => {
     if (!open && selectedTags !== tags) {
       void mutTags.mutateAsync({
@@ -79,11 +82,6 @@ export function TagPopOver({
         tags: selectedTags,
       });
     }
-  };
-  const handleItemCreate = () => {
-    setSelectedTags([...selectedTags, inputValue]);
-    availableTags.push(inputValue);
-    setInputValue("");
   };
 
   if (!hasAccess) {
@@ -137,8 +135,15 @@ export function TagDetailsPopOver({
   projectId: string;
   traceId: string;
 }) {
-  const [selectedTags, setSelectedTags] = useState<string[]>(tags);
-  const [inputValue, setInputValue] = useState("");
+  const {
+    selectedTags,
+    inputValue,
+    allTags,
+    handleItemCreate,
+    setInputValue,
+    setSelectedTags,
+  } = useTagManager({ initialTags: tags, availableTags });
+
   const [isLoading, setIsLoading] = useState(false);
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
@@ -174,11 +179,6 @@ export function TagDetailsPopOver({
     },
   });
 
-  const allTags = useMemo(
-    () => availableTags.filter((value) => !selectedTags.includes(value)),
-    [availableTags, selectedTags],
-  );
-
   const handlePopoverChange = (open: boolean) => {
     if (!open && selectedTags !== tags) {
       void mutTags.mutateAsync({
@@ -187,12 +187,6 @@ export function TagDetailsPopOver({
         tags: selectedTags,
       });
     }
-  };
-
-  const handleItemCreate = () => {
-    setSelectedTags([...selectedTags, inputValue]);
-    availableTags.push(inputValue);
-    setInputValue("");
   };
 
   if (!hasAccess) {
