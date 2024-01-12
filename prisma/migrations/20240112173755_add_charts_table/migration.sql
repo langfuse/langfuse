@@ -7,7 +7,7 @@ CREATE TABLE "charts" (
     "created_by" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "chart_type" TEXT NOT NULL,
-    "query" TEXT NOT NULL,
+    "query" JSONB NOT NULL,
     "chart_config" JSONB NOT NULL,
 
     CONSTRAINT "charts_pkey" PRIMARY KEY ("id")

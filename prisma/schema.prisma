@@ -436,7 +436,7 @@ model Charts {
     name String
 
     chartType   String @map("chart_type")
-    query       String
+    query       Json
     chartConfig Json   @map("chart_config")
 
     @@unique([projectId, name])
