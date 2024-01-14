@@ -2,7 +2,7 @@
   "info": {
     "name": "Langfuse",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "## Authentication\nAuthenticate with the API using Basic Auth, get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key\n"
+    "description": "## Authentication\n\nAuthenticate with the API using Basic Auth, get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key"
   },
   "variable": [
     {
@@ -320,7 +320,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"example\",\n                \"name\": \"example\",\n                \"userId\": \"example\",\n                \"input\": \"UNKNOWN\",\n                \"output\": \"UNKNOWN\",\n                \"sessionId\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"metadata\": \"UNKNOWN\",\n                \"public\": true\n            },\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"metadata\": \"UNKNOWN\"\n        }\n    ]\n}",
+              "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"example\",\n                \"name\": \"example\",\n                \"userId\": \"example\",\n                \"input\": \"UNKNOWN\",\n                \"output\": \"UNKNOWN\",\n                \"sessionId\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"metadata\": \"UNKNOWN\",\n                \"tags\": [\n                    \"example\"\n                ],\n                \"public\": true\n            },\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"metadata\": \"UNKNOWN\"\n        }\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -708,7 +708,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -737,6 +737,11 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "tags",
+                  "value": "",
+                  "description": "Only traces that include all of these tags will be returned."
                 }
               ],
               "variable": []

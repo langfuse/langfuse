@@ -43,6 +43,7 @@ export type TracesTableRow = {
   output?: unknown;
   sessionId?: string;
   scores: Score[];
+  tags: string[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -98,15 +99,16 @@ export default function TracesTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
-  const traces = api.traces.all.useQuery({
+  const tracesAllQueryFilter = {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
-  });
+  };
+  const traces = api.traces.all.useQuery(tracesAllQueryFilter);
+
   const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
     if (traces.isSuccess) {
@@ -151,6 +153,7 @@ export default function TracesTable({
       input: trace.input,
       output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
+      tags: trace.tags,
       usage: {
         promptTokens: trace.promptTokens,
         completionTokens: trace.completionTokens,
@@ -199,6 +202,7 @@ export default function TracesTable({
         return typeof traceId === "string" &&
           typeof bookmarked === "boolean" ? (
           <StarTraceToggle
+            tracesFilter={tracesAllQueryFilter}
             traceId={traceId}
             projectId={projectId}
             value={bookmarked}
@@ -355,6 +359,12 @@ export default function TracesTable({
       header: "Release",
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "tags",
+      id: "tags",
+      header: "Tags",
+      enableHiding: true,
     },
     {
       accessorKey: "action",

@@ -40,7 +40,6 @@ describe("/api/public/traces API Endpoint", () => {
       id: "trace-id",
       name: "trace-name",
       userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       metadata: { key: "value" },
       release: "1.0.0",
       version: "2.0.0",
@@ -65,7 +64,6 @@ describe("/api/public/traces API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/traces", {
       id: "trace-id",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       metadata: { key: "value" },
       release: "1.0.0",
       version: "5.0.0",
@@ -87,5 +85,55 @@ describe("/api/public/traces API Endpoint", () => {
       public: false,
       userId: "user-1",
     });
+  });
+
+  it("should use tags correctly on POST and GET", async () => {
+    await pruneDatabase();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: "trace-1",
+      tags: ["tag-1", "tag-2", "tag-3"],
+    });
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: "trace-2",
+      tags: ["tag-1"],
+    });
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: "trace-3",
+      tags: ["tag-2", "tag-3"],
+    });
+
+    // multiple tags
+    const traces = await makeAPICall(
+      "GET",
+      "/api/public/traces?tags=tag-2&tags=tag-3",
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const traceIds = traces.body.data.map((t: { id: string }) => t.id);
+    // check for equality ok as ordered by timestamp
+    expect(traceIds).toEqual(["trace-3", "trace-1"]);
+
+    // single tag
+    const traces2 = await makeAPICall("GET", "/api/public/traces?tags=tag-1");
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const traceIds2 = traces2.body.data.map((t: { id: string }) => t.id);
+    // check for equality ok as ordered by timestamp
+    expect(traceIds2).toEqual(["trace-2", "trace-1"]);
+
+    // wrong tag
+    const traces3 = await makeAPICall("GET", "/api/public/traces?tags=tag-10");
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const traceIds3 = traces3.body.data.map((t: { id: string }) => t.id);
+    // check for equality ok as ordered by timestamp
+    expect(traceIds3).toEqual([]);
+
+    // no tag
+    const traces4 = await makeAPICall("GET", "/api/public/traces?tags=");
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const traceIds4 = traces4.body.data.map((t: { id: string }) => t.id);
+    // check for equality ok as ordered by timestamp
+    expect(traceIds4).toEqual(["trace-3", "trace-2", "trace-1"]);
   });
 });

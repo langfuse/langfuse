@@ -170,7 +170,6 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-
       return traces.map((trace) => {
         const filteredScores = scores.filter((s) => s.traceId === trace.id);
         return { ...trace, scores: filteredScores };
@@ -205,6 +204,13 @@ export const traceRouter = createTRPCRouter({
           id: true,
         },
       });
+      const tags: { count: number; value: string }[] = await ctx.prisma
+        .$queryRaw`
+        SELECT COUNT(*)::integer AS "count", tags.tag as value
+        FROM traces, UNNEST(traces.tags) AS tags(tag)
+        WHERE traces.project_id = ${input.projectId}
+        GROUP BY tags.tag;
+      `;
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
         name: names
@@ -213,6 +219,7 @@ export const traceRouter = createTRPCRouter({
             value: name.name ?? "undefined",
             count: name._count.id,
           })),
+        tags: tags,
       };
       return res;
     }),
@@ -336,6 +343,7 @@ export const traceRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
+
         return trace;
       } catch (error) {
         console.error(error);
