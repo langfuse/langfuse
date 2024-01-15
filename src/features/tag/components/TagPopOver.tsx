@@ -90,7 +90,7 @@ export function TagPopOver({
 
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
-      <PopoverTrigger className="select-none">
+      <PopoverTrigger asChild className="select-none">
         <TagList selectedTags={selectedTags} isLoading={isLoading} />
       </PopoverTrigger>
       <PopoverContent>
@@ -173,9 +173,10 @@ export function TagDetailsPopOver({
               }
             : undefined;
         },
-      ),
-        void utils.traces.all.invalidate({ projectId });
-      void utils.traces.byId.invalidate({ traceId });
+      );
+      void utils.traces.all.invalidate();
+      void utils.traces.byId.invalidate();
+      void utils.traces.filterOptions.invalidate();
     },
   });
 

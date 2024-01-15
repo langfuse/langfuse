@@ -344,7 +344,7 @@ export const traceRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
-        await delay(2000);
+        // await delay(2000);
         return trace;
       } catch (error) {
         console.error(error);

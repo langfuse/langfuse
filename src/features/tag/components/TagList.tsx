@@ -8,12 +8,12 @@ type TagListProps = {
 };
 
 export const TagList = forwardRef<HTMLDivElement, TagListProps>(
-  ({ selectedTags, isLoading }: TagListProps, ref) => {
+  ({ selectedTags, isLoading, ...props }: TagListProps, ref) => {
     return (
       <div ref={ref} className="flex flex-wrap gap-x-2 gap-y-1">
         {selectedTags.length > 0 ? (
           selectedTags.map((tag) => (
-            <TagButton key={tag} tag={tag} loading={isLoading} />
+            <TagButton {...props} key={tag} tag={tag} loading={isLoading} />
           ))
         ) : (
           <Button
