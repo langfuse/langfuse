@@ -53,6 +53,44 @@ async function main() {
     },
   });
 
+  const models = await prisma.model.createMany({
+    data: [
+      {
+        modelName: "gpt-3.5-turbo",
+        promptPrice: "0.003",
+        completionPrice: "0.002",
+        matchPattern: "gpt-3.5-turbo",
+        projectId: null,
+        startDate: null,
+        tokenizerConfig: {},
+        totalPrice: null,
+        unit: "TOKENS",
+      },
+      {
+        modelName: "gpt-3.5-turbo",
+        promptPrice: "0.003",
+        completionPrice: "0.002",
+        matchPattern: "gpt-3.5-turbo",
+        projectId: seedProjectId,
+        startDate: null,
+        tokenizerConfig: {},
+        totalPrice: null,
+        unit: "TOKENS",
+      },
+      {
+        modelName: "gpt-4-32k-0613",
+        promptPrice: "0.06",
+        completionPrice: "0.12",
+        matchPattern: "gpt-4-32k-0613",
+        projectId: null,
+        startDate: null,
+        tokenizerConfig: {},
+        totalPrice: null,
+        unit: "TOKENS",
+      },
+    ],
+  });
+
   const prompt = await prisma.prompt.upsert({
     where: {
       projectId_name_version: {
