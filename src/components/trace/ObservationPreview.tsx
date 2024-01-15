@@ -61,8 +61,19 @@ export const ObservationPreview = (props: {
                 projectId={preloadedObservation.projectId}
               />
             ) : undefined}
+            {preloadedObservation.completionStartTime ? (
+              <Badge variant="outline">
+                Time to first token:{" "}
+                {formatInterval(
+                  (preloadedObservation.completionStartTime.getTime() -
+                    preloadedObservation.startTime.getTime()) /
+                    1000,
+                )}
+              </Badge>
+            ) : null}
             {preloadedObservation.endTime ? (
               <Badge variant="outline">
+                Latency:{" "}
                 {formatInterval(
                   (preloadedObservation.endTime.getTime() -
                     preloadedObservation.startTime.getTime()) /
