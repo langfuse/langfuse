@@ -83,15 +83,20 @@ export function StarTraceToggle({
       utils.traces.all.setData(
         tracesFilter,
         (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
-          return oldQueryData
-            ? oldQueryData.map((trace) => {
-                return {
-                  ...trace,
-                  bookmarked:
-                    trace.id === traceId ? !trace.bookmarked : trace.bookmarked,
-                };
-              })
-            : [];
+          return {
+            totalCount: oldQueryData?.totalCount,
+            traces: oldQueryData?.traces
+              ? oldQueryData.traces.map((trace) => {
+                  return {
+                    ...trace,
+                    bookmarked:
+                      trace.id === traceId
+                        ? !trace.bookmarked
+                        : trace.bookmarked,
+                  };
+                })
+              : [],
+          };
         },
       );
       void utils.traces.all.invalidate();

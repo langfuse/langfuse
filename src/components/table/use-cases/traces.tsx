@@ -109,12 +109,12 @@ export default function TracesTable({
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
 
-  const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
+  const totalCount = traces.data?.totalCount ?? 0;
   useEffect(() => {
     if (traces.isSuccess) {
       setDetailPageList(
         "traces",
-        traces.data.map((t) => t.id),
+        traces.data.traces.map((t) => t.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,7 +137,7 @@ export default function TracesTable({
   );
 
   const convertToTableRow = (
-    trace: RouterOutput["traces"]["all"][0],
+    trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
     return {
       bookmarked: trace.bookmarked,
@@ -403,7 +403,8 @@ export default function TracesTable({
           <TraceTableMultiSelectAction
             // Exclude traces that are not in the current page
             selectedTraceIds={Object.keys(selectedRows).filter(
-              (traceId) => traces.data?.map((t) => t.id).includes(traceId),
+              (traceId) =>
+                traces.data?.traces.map((t) => t.id).includes(traceId),
             )}
             projectId={projectId}
             onDeleteSuccess={() => {
@@ -428,11 +429,11 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: traces.data.map((t) => convertToTableRow(t)),
+                  data: traces.data.traces.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}
