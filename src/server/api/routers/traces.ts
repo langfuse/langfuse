@@ -23,6 +23,7 @@ import { TRPCError } from "@trpc/server";
 import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { type Sql } from "@prisma/client/runtime/library";
+import { instrumentAsync } from "@/src/utils/instrumentation";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -91,17 +92,19 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
-      const traces = await ctx.prisma.$queryRaw<
-        Array<
-          Trace & {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-            totalCount: number;
-            latency: number | null;
-          }
-        >
-      >(tracesQuery);
+      const traces = await instrumentAsync({ name: "get-all-traces" }, () =>
+        ctx.prisma.$queryRaw<
+          Array<
+            Trace & {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+              totalCount: number;
+              latency: number | null;
+            }
+          >
+        >(tracesQuery),
+      );
 
       const countQyery = createTracesQuery(
         Prisma.sql`count(*)`,
@@ -114,8 +117,10 @@ export const traceRouter = createTRPCRouter({
         Prisma.empty,
       );
 
-      const totalTraces =
-        await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery);
+      const totalTraces = await instrumentAsync(
+        { name: "get-total-traces" },
+        () => ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery),
+      );
 
       console.log(totalTraces);
 
