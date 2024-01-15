@@ -442,3 +442,47 @@ model Model {
 
     @@map("models")
 }
+
+// This view is a mix of the obsevation and model. Once prisma supports
+// inheritance, we should remove code duplication here.
+view ObservationView {
+    id                  String           @id @default(cuid())
+    traceId             String?          @map("trace_id")
+    projectId           String           @map("project_id")
+    type                ObservationType
+    startTime           DateTime         @default(now()) @map("start_time")
+    endTime             DateTime?        @map("end_time")
+    name                String?
+    metadata            Json?
+    parentObservationId String?          @map("parent_observation_id")
+    level               ObservationLevel @default(DEFAULT)
+    statusMessage       String?          @map("status_message")
+    version             String?
+    createdAt           DateTime         @default(now()) @map("created_at")
+
+    // GENERATION ONLY
+    model               String?
+    modelParameters     Json?
+    input               Json?
+    output              Json?
+    promptTokens        Int       @default(0) @map("prompt_tokens")
+    completionTokens    Int       @default(0) @map("completion_tokens")
+    totalTokens         Int       @default(0) @map("total_tokens")
+    unit                String    @default("TOKENS")
+    completionStartTime DateTime? @map("completion_start_time")
+
+    promptId String? @map("prompt_id")
+
+    // Model
+    model_id    String?  @map("model_id")
+    inputPrice  Decimal? @map("input_price")
+    outputPrice Decimal? @map("output_price")
+    totalPrice  Decimal? @map("total_price")
+
+    // calculated fields
+    inputCost  Decimal? @map("input_cost")
+    outputCost Decimal? @map("output_cost")
+    totalCost  Decimal? @map("total_cost")
+
+    @@map("observations_view")
+}

@@ -110,7 +110,7 @@ export default function Start() {
           projectId={projectId}
           globalFilterState={globalFilterState}
         />
-        <ScoresTable
+         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={globalFilterState}
@@ -144,7 +144,7 @@ export default function Start() {
           projectId={projectId}
           agg={agg}
           globalFilterState={globalFilterState}
-        />
+        /> */}
       </div>
     </div>
   );

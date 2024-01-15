@@ -96,9 +96,9 @@ export const ObservationPreview = (props: {
             {preloadedObservation.model ? (
               <Badge variant="outline">{preloadedObservation.model}</Badge>
             ) : null}
-            {preloadedObservation.price ? (
+            {preloadedObservation.totalCost ? (
               <Badge variant="outline">
-                {preloadedObservation.price.toString()} USD
+                {preloadedObservation.totalCost.toString()} USD
               </Badge>
             ) : undefined}
 

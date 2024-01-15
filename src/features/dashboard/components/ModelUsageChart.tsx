@@ -36,7 +36,7 @@ export const ModelUsageChart = ({
       from: "observations",
       select: [
         { column: "totalTokens", agg: "SUM" },
-        { column: "totalTokenCost" },
+        { column: "totalCost", agg: "SUM" },
         { column: "model" },
       ],
       filter: globalFilterState,
@@ -51,7 +51,7 @@ export const ModelUsageChart = ({
           column: "model",
         },
       ],
-      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+      orderBy: [{ column: "totalCost", direction: "DESC", agg: "SUM" }],
     },
     {
       trpc: {
@@ -78,14 +78,14 @@ export const ModelUsageChart = ({
     tokens.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
-            { labelColumn: "model", valueColumn: "totalTokenCost" },
+            { labelColumn: "model", valueColumn: "sumTotalCost" },
           ]),
           allModels,
         )
       : [];
 
   const totalCost = tokens.data?.reduce(
-    (acc, curr) => acc + (curr.totalTokenCost as number),
+    (acc, curr) => acc + (curr.sumTotalCost as number),
     0,
   );
 

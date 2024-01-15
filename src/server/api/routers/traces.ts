@@ -5,9 +5,8 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Observation, Prisma, type Trace } from "@prisma/client";
-import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
-import Decimal from "decimal.js";
+import { Prisma, type Trace, type ObservationView } from "@prisma/client";
+import type Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -33,7 +32,10 @@ const TraceFilterOptions = z.object({
   ...paginationZod,
 });
 
-export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
+export type ObservationReturnType = Omit<
+  ObservationView,
+  "input" | "output"
+> & {
   traceId: string;
 } & { price?: Decimal };
 
@@ -203,7 +205,7 @@ export const traceRouter = createTRPCRouter({
           scores: true,
         },
       });
-      const observations = await ctx.prisma.observation.findMany({
+      const observations = await ctx.prisma.observationView.findMany({
         where: {
           traceId: {
             equals: input.traceId,
@@ -211,7 +213,6 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-      const pricings = await ctx.prisma.pricing.findMany();
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -231,28 +232,12 @@ export const traceRouter = createTRPCRouter({
               : undefined
           : undefined;
 
-      const enrichedObservations = observations.map(
-        ({ input, output, ...rest }) => {
-          return {
-            ...rest,
-            price: rest.model
-              ? calculateTokenCost(pricings, {
-                  model: rest.model,
-                  totalTokens: new Decimal(rest.totalTokens),
-                  promptTokens: new Decimal(rest.promptTokens),
-                  completionTokens: new Decimal(rest.completionTokens),
-                  input: input,
-                  output: output,
-                })
-              : undefined,
-          };
-        },
-      );
-
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        observations: enrichedObservations as ObservationReturnType[],
+        observations: observations.map(({ input, output, ...rest }) => {
+          return { ...rest };
+        }) as ObservationReturnType[],
       };
     }),
   deleteMany: protectedProjectProcedure
