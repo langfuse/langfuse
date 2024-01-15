@@ -17,7 +17,7 @@ import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
-import { TagDetailsPopOver } from "@/src/features/tag/components/TagPopOver";
+import { TagDetailsPopOver } from "@/src/features/tag/components/TagDetailsPopOver";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
