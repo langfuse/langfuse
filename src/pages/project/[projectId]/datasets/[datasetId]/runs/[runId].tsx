@@ -1,5 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 
@@ -26,6 +27,15 @@ export default function Dataset() {
           },
           { name: "Run: " + runId },
         ]}
+        actionButtons={
+          <DetailPageNav
+            currentId={runId}
+            path={(id) =>
+              `/project/${projectId}/datasets/${datasetId}/runs/${id}`
+            }
+            listKey="datasetRuns"
+          />
+        }
       />
       <DatasetRunItemsTable
         projectId={projectId}
