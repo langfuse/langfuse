@@ -40,10 +40,13 @@ export function TagPopOver({
         tracesFilter,
         (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
           return oldQueryData
-            ? oldQueryData.map((trace) => {
-                return trace.id === traceId ? { ...trace, tags } : trace;
-              })
-            : [];
+            ? {
+                totalCount: oldQueryData.totalCount,
+                traces: oldQueryData.traces.map((trace) => {
+                  return trace.id === traceId ? { ...trace, tags } : trace;
+                }),
+              }
+            : { totalCount: BigInt(0), traces: [] };
         },
       );
       setIsLoading(false);

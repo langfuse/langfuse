@@ -60,7 +60,7 @@ const TagManager = ({
             selectedTags={selectedTags}
             setSelectedTags={setSelectedTags}
           />
-          <CommandList>
+          <CommandList className={allTags.length > 0 ? "mt-2" : undefined}>
             <CommandGroup>
               {allTags.map((value: string) => (
                 <TagCommandItem
