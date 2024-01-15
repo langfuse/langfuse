@@ -22,6 +22,8 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { type Sql } from "@prisma/client/runtime/library";
+import { instrumentAsync } from "@/src/utils/instrumentation";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -70,58 +72,8 @@ export const traceRouter = createTRPCRouter({
       )`
         : Prisma.empty;
 
-      const query = Prisma.sql`
-        WITH usage AS (
-          SELECT
-            trace_id,
-            sum(prompt_tokens) AS "promptTokens",
-            sum(completion_tokens) AS "completionTokens",
-            sum(total_tokens) AS "totalTokens"
-          FROM
-            "observations"
-          WHERE
-            "trace_id" IS NOT NULL
-            AND "type" = 'GENERATION'
-            AND "project_id" = ${input.projectId}
-            ${observationTimeseriesFilter}
-          GROUP BY
-            trace_id
-        ),
-        trace_latency AS (
-          SELECT
-            trace_id,
-            EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
-          FROM
-            "observations"
-          WHERE
-            "trace_id" IS NOT NULL
-            AND "project_id" = ${input.projectId}
-            ${observationTimeseriesFilter}
-          GROUP BY
-            trace_id
-        ),
-        -- used for filtering
-        scores_avg AS (
-          SELECT
-            trace_id,
-            jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
-          FROM (
-            SELECT
-              trace_id,
-              name,
-              avg(value) avg_value
-            FROM
-              scores
-            GROUP BY
-              1,
-              2
-            ORDER BY
-              1) tmp
-          GROUP BY
-            1
-        )
-        SELECT
-          t.*,
+      const tracesQuery = createTracesQuery(
+        Prisma.sql`t.*,
           t."user_id" AS "userId",
           t."metadata" AS "metadata",
           t.session_id AS "sessionId",
@@ -129,34 +81,48 @@ export const traceRouter = createTRPCRouter({
           COALESCE(u."promptTokens", 0)::int AS "promptTokens",
           COALESCE(u."completionTokens", 0)::int AS "completionTokens",
           COALESCE(u."totalTokens", 0)::int AS "totalTokens",
-          tl.latency AS "latency",
-          (count(*) OVER ())::int AS "totalCount"
-        FROM
-          "traces" AS t
-          LEFT JOIN usage AS u ON u.trace_id = t.id
-          -- used for filtering
-          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
-          LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
-        WHERE 
-          t."project_id" = ${input.projectId}
-          ${searchCondition}
-          ${filterCondition}
-        ${orderByCondition}
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
-      `;
+          tl.latency AS "latency"`,
+        input.projectId,
+        observationTimeseriesFilter,
+        input.page,
+        input.limit,
+        searchCondition,
+        filterCondition,
+        orderByCondition,
+      );
 
-      const traces = await ctx.prisma.$queryRaw<
-        Array<
-          Trace & {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-            totalCount: number;
-            latency: number | null;
-          }
-        >
-      >(query);
+      const traces = await instrumentAsync(
+        { name: "get-all-traces" },
+        async () =>
+          await ctx.prisma.$queryRaw<
+            Array<
+              Trace & {
+                promptTokens: number;
+                completionTokens: number;
+                totalTokens: number;
+                totalCount: number;
+                latency: number | null;
+              }
+            >
+          >(tracesQuery),
+      );
+
+      const countQyery = createTracesQuery(
+        Prisma.sql`count(*)`,
+        input.projectId,
+        observationTimeseriesFilter,
+        0,
+        1,
+        searchCondition,
+        filterCondition,
+        Prisma.empty,
+      );
+
+      const totalTraces = await instrumentAsync(
+        { name: "get-total-traces" },
+        async () =>
+          await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery),
+      );
 
       // get scores for each trace individually to increase
       // performance of the query above
@@ -170,10 +136,13 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-      return traces.map((trace) => {
-        const filteredScores = scores.filter((s) => s.traceId === trace.id);
-        return { ...trace, scores: filteredScores };
-      });
+      return {
+        traces: traces.map((trace) => {
+          const filteredScores = scores.filter((s) => s.traceId === trace.id);
+          return { ...trace, scores: filteredScores };
+        }),
+        totalCount: totalTraces[0]?.count,
+      };
     }),
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -435,3 +404,81 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 });
+
+function createTracesQuery(
+  select: Sql,
+  projectId: string,
+  observationTimeseriesFilter: Sql,
+  page: number,
+  limit: number,
+  searchCondition: Sql,
+  filterCondition: Sql,
+  orderByCondition: Sql,
+) {
+  return Prisma.sql`
+  WITH usage AS (
+    SELECT
+      trace_id,
+      sum(prompt_tokens) AS "promptTokens",
+      sum(completion_tokens) AS "completionTokens",
+      sum(total_tokens) AS "totalTokens"
+    FROM
+      "observations"
+    WHERE
+      "trace_id" IS NOT NULL
+      AND "type" = 'GENERATION'
+      AND "project_id" = ${projectId}
+      ${observationTimeseriesFilter}
+    GROUP BY
+      trace_id
+  ),
+  trace_latency AS (
+    SELECT
+      trace_id,
+      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
+    FROM
+      "observations"
+    WHERE
+      "trace_id" IS NOT NULL
+      AND "project_id" = ${projectId}
+      ${observationTimeseriesFilter}
+    GROUP BY
+      trace_id
+  ),
+  -- used for filtering
+  scores_avg AS (
+    SELECT
+      trace_id,
+      jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+    FROM (
+      SELECT
+        trace_id,
+        name,
+        avg(value) avg_value
+      FROM
+        scores
+      GROUP BY
+        1,
+        2
+      ORDER BY
+        1) tmp
+    GROUP BY
+      1
+  )
+  SELECT
+      ${select}
+  FROM
+    "traces" AS t
+    LEFT JOIN usage AS u ON u.trace_id = t.id
+    -- used for filtering
+    LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
+    LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
+  WHERE 
+    t."project_id" = ${projectId}
+    ${searchCondition}
+    ${filterCondition}
+  ${orderByCondition}
+  LIMIT ${limit}
+  OFFSET ${page * limit}
+`;
+}
