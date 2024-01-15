@@ -57,8 +57,8 @@ async function main() {
     data: [
       {
         modelName: "gpt-3.5-turbo",
-        promptPrice: "0.003",
-        completionPrice: "0.002",
+        inputPrice: "0.003",
+        outputPrice: "0.002",
         matchPattern: "gpt-3.5-turbo",
         projectId: null,
         startDate: null,
@@ -68,8 +68,19 @@ async function main() {
       },
       {
         modelName: "gpt-3.5-turbo",
-        promptPrice: "0.003",
-        completionPrice: "0.002",
+        inputPrice: "0.003",
+        outputPrice: "0.002",
+        matchPattern: "gpt-3.5-turbo",
+        projectId: null,
+        startDate: new Date("2023-06-01"),
+        tokenizerConfig: {},
+        totalPrice: null,
+        unit: "TOKENS",
+      },
+      {
+        modelName: "gpt-3.5-turbo",
+        inputPrice: "0.003",
+        outputPrice: "0.002",
         matchPattern: "gpt-3.5-turbo",
         projectId: seedProjectId,
         startDate: null,
@@ -79,8 +90,8 @@ async function main() {
       },
       {
         modelName: "gpt-4-32k-0613",
-        promptPrice: "0.06",
-        completionPrice: "0.12",
+        inputPrice: "0.06",
+        outputPrice: "0.12",
         matchPattern: "gpt-4-32k-0613",
         projectId: null,
         startDate: null,

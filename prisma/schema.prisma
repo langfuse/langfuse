@@ -3,7 +3,7 @@
 
 generator client {
     provider        = "prisma-client-js"
-    previewFeatures = ["tracing"]
+    previewFeatures = ["tracing", "views"]
 }
 
 datasource db {
@@ -434,8 +434,8 @@ model Model {
     modelName       String    @map("model_name")
     matchPattern    String    @map("match_pattern")
     startDate       DateTime? @map("start_date")
-    promptPrice     Decimal?  @map("prompt_price")
-    completionPrice Decimal?  @map("completion_price")
+    inputPrice      Decimal?  @map("input_price")
+    outputPrice     Decimal?  @map("output_price")
     totalPrice      Decimal?  @map("total_price")
     unit            String    @default("TOKENS")
     tokenizerConfig Json      @map("tokenizer_config")
