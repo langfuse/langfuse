@@ -35,7 +35,7 @@ const TraceFilterOptions = z.object({
 
 export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
   traceId: string;
-} & { price?: Decimal };
+} & { price?: number };
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -243,7 +243,7 @@ export const traceRouter = createTRPCRouter({
                   completionTokens: new Decimal(rest.completionTokens),
                   input: input,
                   output: output,
-                })
+                })?.toNumber()
               : undefined,
           };
         },
