@@ -90,6 +90,17 @@ describe("/api/public/ingestion API Endpoint", () => {
       const spanId = v4();
       const scoreId = v4();
 
+      await prisma.model.create({
+        data: {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+          inputPrice: 0.00000006,
+          outputPrice: 0.00000006,
+          unit: "TOKENS",
+          tokenizerConfig: {},
+        },
+      });
+
       const response = await makeAPICall("POST", "/api/public/ingestion", {
         metadata: {
           sdk_verion: "1.0.0",
@@ -125,6 +136,7 @@ describe("/api/public/ingestion API Endpoint", () => {
               input: { key: "value" },
               metadata: { key: "value" },
               version: "2.0.0",
+              model: "gpt-3.5",
             },
           },
           {
@@ -208,6 +220,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbGeneration?.input).toEqual({ key: "value" });
       expect(dbGeneration?.metadata).toEqual({ key: "value" });
       expect(dbGeneration?.version).toBe("2.0.0");
+      expect(dbGeneration?.internalModel).toEqual("gpt-3.5-turbo");
       expect(dbGeneration?.promptTokens).toEqual(
         testConfig.expectedPromptTokens,
       );

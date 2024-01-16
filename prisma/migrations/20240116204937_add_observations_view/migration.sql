@@ -25,7 +25,7 @@ FROM
 			models
 		WHERE (project_id = o.project_id
 			OR project_id IS NULL)
-		AND model_name = o.model
+		AND model_name = o.internal_model
 		AND(start_date < o.start_time
 			OR o.start_time IS NULL)
 	ORDER BY

@@ -22,7 +22,7 @@ import {
   type Trace,
   type Observation,
   type Score,
-  type Prisma,
+  Prisma,
 } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
@@ -96,6 +96,30 @@ export class ObservationProcessor implements EventProcessor {
       !existingObservation
     ) {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
+    }
+
+    let internalModel: string | null = null;
+    if (
+      type === "GENERATION" &&
+      !existingObservation?.internalModel &&
+      "model" in body
+    ) {
+      const foundModels = await prisma.$queryRaw<
+        Array<{ id: string; modelName: string }>
+      >(Prisma.sql`
+        SELECT
+          id, model_name as "modelName"
+        FROM
+          models
+        WHERE (project_id = ${apiScope.projectId}
+          OR project_id IS NULL)
+        AND match_pattern ~* ${body.model} 
+        AND start_date < ${body.startTime ?? new Date()}::timestamp
+      ORDER BY
+        project_id ASC,
+        start_date DESC
+      LIMIT 1;`);
+      internalModel = foundModels[0]?.modelName ?? null;
     }
 
     const finalTraceId =
@@ -178,6 +202,7 @@ export class ObservationProcessor implements EventProcessor {
         ...(prompts && prompts.length === 1
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
+        internalModel: internalModel,
       },
       update: {
         name,
@@ -212,6 +237,7 @@ export class ObservationProcessor implements EventProcessor {
         ...(prompts && prompts.length === 1
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
+        internalModel: internalModel,
       },
     };
   }
