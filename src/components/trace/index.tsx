@@ -16,7 +16,7 @@ import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
-import { TagDetailsPopOver } from "@/src/features/tag/components/TagDetailsPopOver";
+import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
@@ -132,7 +132,7 @@ export function TracePage({ traceId }: { traceId: string }) {
 
   const filterOptionTags = traceFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
-  
+
   const totalCost: number | undefined = trace.data?.observations.reduce(
     (prev: number | undefined, curr: ObservationReturnType) => {
       if (!curr.price) return prev;
@@ -207,7 +207,7 @@ export function TracePage({ traceId }: { traceId: string }) {
       <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
         <div className="flex flex-row items-center gap-3 p-2.5">
           Tags
-          <TagDetailsPopOver
+          <TagTraceDetailsPopover
             tags={trace.data.tags}
             availableTags={allTags}
             traceId={trace.data.id}

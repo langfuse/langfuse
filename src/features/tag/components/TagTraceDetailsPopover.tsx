@@ -1,55 +1,56 @@
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { type RouterOutput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagMananger";
 
-type TagPopOverProps = {
+type TagTraceDetailsPopoverProps = {
   tags: string[];
   availableTags: string[];
   projectId: string;
   traceId: string;
-  tracesFilter: RouterInput["traces"]["all"];
 };
 
-export function TagPopOver({
+export function TagTraceDetailsPopover({
   tags,
   availableTags,
   projectId,
   traceId,
-  tracesFilter,
-}: TagPopOverProps) {
+}: TagTraceDetailsPopoverProps) {
   const [isLoading, setIsLoading] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
 
   const utils = api.useUtils();
   const mutTags = api.traces.updateTags.useMutation({
     onMutate: async () => {
-      await utils.traces.all.cancel();
+      await utils.traces.byId.cancel();
       setIsLoading(true);
-      const prevTrace = utils.traces.all.getData(tracesFilter);
-      return { prevTrace };
+      // Snapshot the previous value
+      const prev = utils.traces.byId.getData({ traceId });
+
+      return { prev };
     },
     onError: (err, _newTags, context) => {
-      utils.traces.all.setData(tracesFilter, context?.prevTrace);
-      console.log("error", err);
       setIsLoading(false);
+      // Rollback to the previous value if mutation fails
+      utils.traces.byId.setData({ traceId }, context?.prev);
     },
     onSettled: (data, error, { traceId, tags }) => {
-      utils.traces.all.setData(
-        tracesFilter,
-        (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
+      setIsLoading(false);
+      utils.traces.byId.setData(
+        { traceId },
+        (oldQueryData: RouterOutput["traces"]["byId"] | undefined) => {
           return oldQueryData
             ? {
-                totalCount: oldQueryData.totalCount,
-                traces: oldQueryData.traces.map((trace) => {
-                  return trace.id === traceId ? { ...trace, tags } : trace;
-                }),
+                ...oldQueryData,
+                tags: tags,
               }
-            : { totalCount: BigInt(0), traces: [] };
+            : undefined;
         },
       );
-      setIsLoading(false);
+      void utils.traces.all.invalidate();
+      void utils.traces.byId.invalidate();
+      void utils.traces.filterOptions.invalidate();
     },
   });
 
@@ -64,7 +65,7 @@ export function TagPopOver({
   return (
     <TagManager
       tags={tags}
-      availableTags={availableTags}
+      allTags={availableTags}
       hasAccess={hasAccess}
       isLoading={isLoading}
       mutateTags={mutateTags}

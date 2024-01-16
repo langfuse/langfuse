@@ -12,7 +12,7 @@ import { Command, CommandList, CommandGroup } from "cmdk";
 
 type TagManagerProps = {
   tags: string[];
-  availableTags: string[];
+  allTags: string[];
   hasAccess: boolean;
   isLoading: boolean;
   mutateTags: (value: string[]) => void;
@@ -20,7 +20,7 @@ type TagManagerProps = {
 
 const TagManager = ({
   tags,
-  availableTags,
+  allTags,
   hasAccess,
   isLoading,
   mutateTags,
@@ -28,11 +28,11 @@ const TagManager = ({
   const {
     selectedTags,
     inputValue,
-    allTags,
+    availableTags,
     handleItemCreate,
     setInputValue,
     setSelectedTags,
-  } = useTagManager({ initialTags: tags, availableTags });
+  } = useTagManager({ initialTags: tags, allTags });
 
   const handlePopoverChange = (open: boolean) => {
     if (!open && selectedTags !== tags) {
@@ -60,9 +60,11 @@ const TagManager = ({
             selectedTags={selectedTags}
             setSelectedTags={setSelectedTags}
           />
-          <CommandList className={allTags.length > 0 ? "mt-2" : undefined}>
+          <CommandList
+            className={availableTags.length > 0 ? "mt-2" : undefined}
+          >
             <CommandGroup>
-              {allTags.map((value: string) => (
+              {availableTags.map((value: string) => (
                 <TagCommandItem
                   key={value}
                   value={value}
@@ -73,7 +75,7 @@ const TagManager = ({
               <TagCreateItem
                 onSelect={handleItemCreate}
                 inputValue={inputValue}
-                options={availableTags}
+                options={allTags}
               />
             </CommandGroup>
           </CommandList>

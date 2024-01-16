@@ -2,16 +2,16 @@ import { useState, useMemo } from "react";
 
 type UseTagManagerProps = {
   initialTags: string[];
-  availableTags: string[];
+  allTags: string[];
 };
 
-function useTagManager({ initialTags, availableTags }: UseTagManagerProps) {
+function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
   const [selectedTags, setSelectedTags] = useState(initialTags);
   const [inputValue, setInputValue] = useState("");
 
-  const allTags = useMemo(
-    () => availableTags.filter((value) => !selectedTags.includes(value)),
-    [availableTags, selectedTags],
+  const availableTags = useMemo(
+    () => allTags.filter((value) => !selectedTags.includes(value)),
+    [allTags, selectedTags],
   );
   const handleItemCreate = () => {
     setSelectedTags([...selectedTags, inputValue]);
@@ -22,7 +22,7 @@ function useTagManager({ initialTags, availableTags }: UseTagManagerProps) {
   return {
     selectedTags,
     inputValue,
-    allTags,
+    availableTags,
     handleItemCreate,
     setInputValue,
     setSelectedTags,
