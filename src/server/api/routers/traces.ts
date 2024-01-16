@@ -243,7 +243,7 @@ export const traceRouter = createTRPCRouter({
                   completionTokens: new Decimal(rest.completionTokens),
                   input: input,
                   output: output,
-                })
+                })?.toNumber()
               : undefined,
           };
         },
