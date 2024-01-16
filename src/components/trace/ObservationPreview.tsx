@@ -41,12 +41,6 @@ export const ObservationPreview = (props: {
     (o) => o.id === props.currentObservationId,
   );
 
-  console.log(
-    "preloadedObservation",
-    typeof preloadedObservation?.price,
-    preloadedObservation?.price,
-  );
-
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
   return (
     <Card className="flex-1">
