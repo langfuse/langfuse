@@ -278,7 +278,7 @@ export const generationsRouter = createTRPCRouter({
                   generation.model ?? "",
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
-                  generation.cost ? usdFormatter(generation.cost, 2, 4) : "",
+                  generation.cost ? usdFormatter(generation.cost, 2, 8) : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
                   JSON.stringify(generation.metadata),
