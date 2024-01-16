@@ -94,13 +94,19 @@ export const ModelUsageChart = ({
     0,
   );
 
+  // had to add this function as tremor under the hodd adds more variables
+  // to the function call which would break usdFormatter.
+  const oneValueUsdFormatter = (value: number) => {
+    return usdFormatter(value, 2, 2);
+  };
+
   const data = [
     {
       tabTitle: "Total cost",
       data: transformedModelCost,
-      totalMetric: totalCost ? usdFormatter(totalCost) : usdFormatter(0),
+      totalMetric: totalCost ? usdFormatter(totalCost, 2, 2) : usdFormatter(0),
       metricDescription: `Token cost`,
-      formatter: usdFormatter,
+      formatter: oneValueUsdFormatter,
     },
     {
       tabTitle: "Total tokens",
@@ -115,7 +121,7 @@ export const ModelUsageChart = ({
   return (
     <DashboardCard
       className={className}
-      title={"Model Usage"}
+      title="Model Usage"
       isLoading={tokens.isLoading}
     >
       <TabComponent
