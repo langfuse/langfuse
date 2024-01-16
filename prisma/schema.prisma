@@ -440,6 +440,8 @@ model Model {
     unit            String    @default("TOKENS")
     tokenizerConfig Json      @map("tokenizer_config")
 
+    @@unique([projectId, modelName, startDate, unit])
+    @@index([projectId, modelName])
     @@map("models")
 }
 

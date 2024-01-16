@@ -13,7 +13,7 @@ SELECT
 		AND o.total_tokens IS NOT NULL THEN
 		m.total_price * o.total_tokens
 	ELSE
-		o.prompt_tokens * (m.input_price / 1000) + o.completion_tokens * (m.output_price / 1000)
+		(o.prompt_tokens / 1000 ) * m.input_price + (o.completion_tokens / 1000) * m.output_price
 	END AS "total_cost"
 FROM
 	observations o

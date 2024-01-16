@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 
-import { type Observation, Prisma } from "@prisma/client";
+import { type Observation, Prisma, type ObservationView } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -79,7 +79,7 @@ export const generationsRouter = createTRPCRouter({
 
       const generations = await ctx.prisma.$queryRaw<
         Array<
-          Observation & {
+          ObservationView & {
             traceId: string;
             traceName: string;
             totalCount: number;
@@ -92,7 +92,7 @@ export const generationsRouter = createTRPCRouter({
             SELECT
               o.*,
               CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-            FROM observations o
+            FROM observations_view o
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             ${datetimeFilter}
@@ -116,6 +116,7 @@ export const generationsRouter = createTRPCRouter({
             o.level,
             o.status_message as "statusMessage",
             o.version,
+            o.total_cost as "totalCost",
             (count(*) OVER())::int AS "totalCount"
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
@@ -129,23 +130,11 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      const pricings = await ctx.prisma.pricing.findMany();
-
       return generations.map(({ input, output, ...rest }) => {
         return {
           ...rest,
           input,
           output,
-          cost: rest.model
-            ? calculateTokenCost(pricings, {
-                model: rest.model,
-                totalTokens: new Decimal(rest.totalTokens),
-                promptTokens: new Decimal(rest.promptTokens),
-                completionTokens: new Decimal(rest.completionTokens),
-                input: input,
-                output: output,
-              })
-            : undefined,
         };
       });
     }),
