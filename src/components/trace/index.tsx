@@ -6,7 +6,6 @@ import { TracePreview } from "./TracePreview";
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import Decimal from "decimal.js";
 import { StringParam, useQueryParam } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
