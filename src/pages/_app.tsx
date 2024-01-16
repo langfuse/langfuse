@@ -29,6 +29,8 @@ import "core-js/features/array/to-sorted";
 // Other CSS
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
+import Decimal from "decimal.js";
+import SuperJSON from "superjson";
 const setProjectInPosthog = () => {
   // project
   const url = window.location.href;
@@ -40,6 +42,17 @@ const setProjectInPosthog = () => {
     posthog.resetGroups();
   }
 };
+
+// https://github.com/blitz-js/superjson?tab=readme-ov-file#recipes
+// support for decimal.js in superjson
+SuperJSON.registerCustom<Decimal, string>(
+  {
+    isApplicable: (v): v is Decimal => Decimal.isDecimal(v),
+    serialize: (v) => v.toJSON(),
+    deserialize: (v) => new Decimal(v),
+  },
+  "decimal.js",
+);
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
