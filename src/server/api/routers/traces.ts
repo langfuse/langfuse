@@ -37,7 +37,7 @@ export type ObservationReturnType = Omit<
   "input" | "output"
 > & {
   traceId: string;
-} & { price?: Decimal };
+};
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure

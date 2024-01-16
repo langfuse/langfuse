@@ -136,9 +136,9 @@ export function TracePage({ traceId }: { traceId: string }) {
 
   const totalCost: Decimal | undefined = trace.data?.observations.reduce(
     (prev: Decimal | undefined, curr: ObservationReturnType) => {
-      if (!curr.price) return prev;
+      if (!curr.totalCost) return prev;
 
-      return prev ? prev.plus(curr.price) : curr.price;
+      return prev ? prev.plus(curr.totalCost) : curr.totalCost;
     },
     undefined,
   );
