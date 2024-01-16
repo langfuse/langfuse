@@ -136,12 +136,13 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+      const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
           return { ...trace, scores: filteredScores };
         }),
-        totalCount: totalTraces[0]?.count,
+        totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
   filterOptions: protectedProjectProcedure
