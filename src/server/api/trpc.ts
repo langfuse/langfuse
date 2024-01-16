@@ -70,7 +70,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import { Decimal } from "@prisma/client/runtime/library";
+import Decimal from "decimal.js";
 
 superjson.registerCustom<Decimal, string>(
   {
