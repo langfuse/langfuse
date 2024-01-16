@@ -6,6 +6,7 @@ import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-m
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { TagTracePopver } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { JSONView } from "@/src/components/ui/code";
@@ -135,7 +136,6 @@ export default function TracesTable({
       },
     },
   );
-
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
@@ -198,7 +198,6 @@ export default function TracesTable({
       cell: ({ row }) => {
         const bookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
-
         return typeof traceId === "string" &&
           typeof bookmarked === "boolean" ? (
           <StarTraceToggle
@@ -364,6 +363,21 @@ export default function TracesTable({
       accessorKey: "tags",
       id: "tags",
       header: "Tags",
+      cell: ({ row }) => {
+        const tags: string[] = row.getValue("tags");
+        const traceId: string = row.getValue("id");
+        const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+        const allTags = filterOptionTags.map((t) => t.value);
+        return (
+          <TagTracePopver
+            tags={tags}
+            availableTags={allTags}
+            projectId={projectId}
+            traceId={traceId}
+            tracesFilter={tracesAllQueryFilter}
+          />
+        );
+      },
       enableHiding: true,
     },
     {

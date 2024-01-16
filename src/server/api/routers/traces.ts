@@ -313,7 +313,6 @@ export const traceRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
-
         return trace;
       } catch (error) {
         console.error(error);
@@ -372,6 +371,37 @@ export const traceRouter = createTRPCRouter({
             code: "INTERNAL_SERVER_ERROR",
           });
         }
+      }
+    }),
+  updateTags: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        tags: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:tag",
+      });
+      try {
+        const trace = await ctx.prisma.trace.update({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+          data: {
+            tags: {
+              set: input.tags,
+            },
+          },
+        });
+        return trace;
+      } catch (error) {
+        console.error(error);
       }
     }),
 });
