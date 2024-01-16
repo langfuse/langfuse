@@ -23,6 +23,7 @@ import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
 import Link from "next/link";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -38,6 +39,12 @@ export const ObservationPreview = (props: {
 
   const preloadedObservation = props.observations.find(
     (o) => o.id === props.currentObservationId,
+  );
+
+  console.log(
+    "preloadedObservation",
+    typeof preloadedObservation?.price,
+    preloadedObservation?.price,
   );
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
@@ -98,7 +105,7 @@ export const ObservationPreview = (props: {
             ) : null}
             {preloadedObservation.price ? (
               <Badge variant="outline">
-                {preloadedObservation.price.toString()} USD
+                {usdFormatter(preloadedObservation.price.toNumber())}
               </Badge>
             ) : undefined}
 

@@ -105,6 +105,7 @@ export default function Start() {
           projectId={projectId}
           globalFilterState={globalFilterState}
         />
+
         <MetricTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}

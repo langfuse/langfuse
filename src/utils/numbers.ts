@@ -17,9 +17,9 @@ export const numberFormatter = (number: number) => {
 export const usdFormatter = (
   number: number,
   minimumFractionDigits: number = 2,
-  maximumFractionDigits: number = 2,
-) =>
-  new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: number = 4,
+) => {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
 
@@ -28,3 +28,4 @@ export const usdFormatter = (
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/NumberFormat/NumberFormat#maximumfractiondigits
     maximumFractionDigits,
   }).format(number);
+};
