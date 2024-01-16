@@ -21,6 +21,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -114,13 +115,13 @@ export function TracePage({ traceId }: { traceId: string }) {
       },
     },
   );
-  const totalCost = trace.data?.observations.reduce(
-    (acc, o) => {
-      if (!o.price) return acc;
+  const totalCost: number | undefined = trace.data?.observations.reduce(
+    (prev: number | undefined, curr: ObservationReturnType) => {
+      if (!curr.price) return prev;
 
-      return acc ? acc.plus(o.price) : new Decimal(0).plus(o.price);
+      return prev ? prev + curr.price : curr.price;
     },
-    undefined as Decimal | undefined,
+    undefined,
   );
 
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
@@ -184,9 +185,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         ) : null}
         <TraceAggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
-          <Badge variant="outline">
-            Total cost: {totalCost.toString()} USD
-          </Badge>
+          <Badge variant="outline">Total cost: {usdFormatter(totalCost)}</Badge>
         ) : undefined}
       </div>
       <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
