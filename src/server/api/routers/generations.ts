@@ -115,8 +115,7 @@ export const generationsRouter = createTRPCRouter({
             o.total_tokens as "totalTokens",
             o.level,
             o.status_message as "statusMessage",
-            o.version,
-            (count(*) OVER())::int AS "totalCount"
+            o.version
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
           WHERE
@@ -129,25 +128,52 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
+      const totalGenerations = await ctx.prisma.$queryRaw<
+        Array<{ count: bigint }>
+      >(
+        Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          )
+          SELECT
+            count(*)
+          FROM observations_with_latency o
+          JOIN traces t ON t.id = o.trace_id
+          WHERE
+            t.project_id = ${input.projectId}
+            ${searchCondition}
+            ${filterCondition}
+        `,
+      );
+
       const pricings = await ctx.prisma.pricing.findMany();
 
-      return generations.map(({ input, output, ...rest }) => {
-        return {
-          ...rest,
-          input,
-          output,
-          cost: rest.model
-            ? calculateTokenCost(pricings, {
-                model: rest.model,
-                totalTokens: new Decimal(rest.totalTokens),
-                promptTokens: new Decimal(rest.promptTokens),
-                completionTokens: new Decimal(rest.completionTokens),
-                input: input,
-                output: output,
-              })?.toNumber()
-            : undefined,
-        };
-      });
+      return {
+        totalCount: Number(totalGenerations[0]?.count),
+        generations: generations.map(({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            input,
+            output,
+            cost: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })?.toNumber()
+              : undefined,
+          };
+        }),
+      };
     }),
 
   export: protectedProjectProcedure

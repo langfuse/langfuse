@@ -141,7 +141,7 @@ export const traceRouter = createTRPCRouter({
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
           return { ...trace, scores: filteredScores };
         }),
-        totalCount: totalTraces[0]?.count,
+        totalCount: Number(totalTraces[0]?.count),
       };
     }),
   filterOptions: protectedProjectProcedure
