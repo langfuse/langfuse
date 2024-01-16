@@ -30,7 +30,6 @@ import {
   exportFileFormats,
   exportOptions,
 } from "@/src/server/api/interfaces/exportTypes";
-import { min } from "lodash";
 
 const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
