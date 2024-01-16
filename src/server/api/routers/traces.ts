@@ -35,7 +35,7 @@ const TraceFilterOptions = z.object({
 
 export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
   traceId: string;
-} & { price?: Decimal };
+} & { price?: number };
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -136,12 +136,13 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+      const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
           return { ...trace, scores: filteredScores };
         }),
-        totalCount: totalTraces[0]?.count,
+        totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
   filterOptions: protectedProjectProcedure
@@ -243,7 +244,7 @@ export const traceRouter = createTRPCRouter({
                   completionTokens: new Decimal(rest.completionTokens),
                   input: input,
                   output: output,
-                })
+                })?.toNumber()
               : undefined,
           };
         },

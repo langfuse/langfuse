@@ -23,6 +23,7 @@ import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
 import Link from "next/link";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -98,7 +99,7 @@ export const ObservationPreview = (props: {
             ) : null}
             {preloadedObservation.price ? (
               <Badge variant="outline">
-                {preloadedObservation.price.toString()} USD
+                {usdFormatter(preloadedObservation.price)}
               </Badge>
             ) : undefined}
 
