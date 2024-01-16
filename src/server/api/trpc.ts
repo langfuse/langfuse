@@ -70,16 +70,9 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import Decimal from "decimal.js";
+import { setUpSuperjson } from "@/src/utils/superjson";
 
-superjson.registerCustom<Decimal, string>(
-  {
-    isApplicable: (v): v is Decimal => Decimal.isDecimal(v),
-    serialize: (v) => v.toJSON(),
-    deserialize: (v) => new Decimal(v),
-  },
-  "decimal.js",
-);
+setUpSuperjson();
 
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,

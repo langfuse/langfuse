@@ -16,16 +16,9 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import superjson from "superjson";
 
 import { type AppRouter } from "@/src/server/api/root";
-import Decimal from "decimal.js";
+import { setUpSuperjson } from "@/src/utils/superjson";
 
-superjson.registerCustom<Decimal, string>(
-  {
-    isApplicable: (v): v is Decimal => Decimal.isDecimal(v),
-    serialize: (v) => v.toJSON(),
-    deserialize: (v) => new Decimal(v),
-  },
-  "decimal.js",
-);
+setUpSuperjson();
 
 const getBaseUrl = () => {
   if (typeof window !== "undefined") return ""; // browser should use relative url
