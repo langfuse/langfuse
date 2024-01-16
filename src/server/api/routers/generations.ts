@@ -153,9 +153,9 @@ export const generationsRouter = createTRPCRouter({
       );
 
       const pricings = await ctx.prisma.pricing.findMany();
-
+      const count = totalGenerations[0]?.count;
       return {
-        totalCount: Number(totalGenerations[0]?.count),
+        totalCount: count ? Number(count) : undefined,
         generations: generations.map(({ input, output, ...rest }) => {
           return {
             ...rest,
