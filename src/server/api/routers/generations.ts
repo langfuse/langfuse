@@ -30,6 +30,7 @@ import {
   exportFileFormats,
   exportOptions,
 } from "@/src/server/api/interfaces/exportTypes";
+import { min } from "lodash";
 
 const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -253,7 +254,7 @@ export const generationsRouter = createTRPCRouter({
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
                   generation.cost
-                    ? usdFormatter(generation.cost.toNumber())
+                    ? usdFormatter(generation.cost.toNumber(), 2, 4)
                     : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
