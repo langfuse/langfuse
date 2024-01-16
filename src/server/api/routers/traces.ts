@@ -233,24 +233,6 @@ export const traceRouter = createTRPCRouter({
               : undefined
           : undefined;
 
-      const enrichedObservations = observations.map(
-        ({ input, output, ...rest }) => {
-          return {
-            ...rest,
-            price: rest.model
-              ? calculateTokenCost(pricings, {
-                  model: rest.model,
-                  totalTokens: new Decimal(rest.totalTokens),
-                  promptTokens: new Decimal(rest.promptTokens),
-                  completionTokens: new Decimal(rest.completionTokens),
-                  input: input,
-                  output: output,
-                })?.toNumber()
-              : undefined,
-          };
-        },
-      );
-
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
