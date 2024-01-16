@@ -22,6 +22,7 @@ import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { usdFormatter } from "@/src/utils/numbers";
+import type Decimal from "decimal.js";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -133,11 +134,11 @@ export function TracePage({ traceId }: { traceId: string }) {
   const filterOptionTags = traceFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
 
-  const totalCost: number | undefined = trace.data?.observations.reduce(
-    (prev: number | undefined, curr: ObservationReturnType) => {
+  const totalCost: Decimal | undefined = trace.data?.observations.reduce(
+    (prev: Decimal | undefined, curr: ObservationReturnType) => {
       if (!curr.price) return prev;
 
-      return prev ? prev + curr.price : curr.price;
+      return prev ? prev.plus(curr.price) : curr.price;
     },
     undefined,
   );
@@ -201,7 +202,9 @@ export function TracePage({ traceId }: { traceId: string }) {
         ) : null}
         <TraceAggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
-          <Badge variant="outline">Total cost: {usdFormatter(totalCost)}</Badge>
+          <Badge variant="outline">
+            Total cost: {usdFormatter(totalCost.toNumber())}
+          </Badge>
         ) : undefined}
       </div>
       <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">

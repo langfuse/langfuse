@@ -99,7 +99,7 @@ export const ObservationPreview = (props: {
             ) : null}
             {preloadedObservation.totalCost ? (
               <Badge variant="outline">
-                {usdFormatter(preloadedObservation.totalCost)}
+                {usdFormatter(preloadedObservation.totalCost.toNumber())}
               </Badge>
             ) : undefined}
 

@@ -6,7 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Trace, type ObservationView } from "@prisma/client";
-import Decimal from "decimal.js";
+import type Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -37,7 +37,7 @@ export type ObservationReturnType = Omit<
   "input" | "output"
 > & {
   traceId: string;
-} & { price?: number };
+} & { price?: Decimal };
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
