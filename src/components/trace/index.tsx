@@ -6,7 +6,6 @@ import { TracePreview } from "./TracePreview";
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import Decimal from "decimal.js";
 import { StringParam, useQueryParam } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -17,10 +16,12 @@ import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
+import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -114,18 +115,34 @@ export function TracePage({ traceId }: { traceId: string }) {
       },
     },
   );
-  const totalCost = trace.data?.observations.reduce(
-    (acc, o) => {
-      if (!o.price) return acc;
 
-      return acc ? acc.plus(o.price) : new Decimal(0).plus(o.price);
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId: trace.data?.projectId ?? "",
     },
-    undefined as Decimal | undefined,
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      enabled: !!trace.data?.projectId && trace.isSuccess,
+    },
   );
 
+  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
+
+  const totalCost: number | undefined = trace.data?.observations.reduce(
+    (prev: number | undefined, curr: ObservationReturnType) => {
+      if (!curr.price) return prev;
+
+      return prev ? prev + curr.price : curr.price;
+    },
+    undefined,
+  );
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
-
   return (
     <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-2rem)]">
       <Header
@@ -184,10 +201,19 @@ export function TracePage({ traceId }: { traceId: string }) {
         ) : null}
         <TraceAggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
-          <Badge variant="outline">
-            Total cost: {totalCost.toString()} USD
-          </Badge>
+          <Badge variant="outline">Total cost: {usdFormatter(totalCost)}</Badge>
         ) : undefined}
+      </div>
+      <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
+        <div className="flex flex-row items-center gap-3 p-2.5">
+          Tags
+          <TagTraceDetailsPopover
+            tags={trace.data.tags}
+            availableTags={allTags}
+            traceId={trace.data.id}
+            projectId={trace.data.projectId}
+          />
+        </div>
       </div>
       <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
         <Trace

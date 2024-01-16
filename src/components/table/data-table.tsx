@@ -129,10 +129,14 @@ export function DataTable<TData extends object, TValue>({
                           }
 
                           if (orderBy?.column === header.column.columnDef.id) {
-                            setOrderBy({
-                              column: header.column.columnDef.id,
-                              order: orderBy.order === "ASC" ? "DESC" : "ASC",
-                            });
+                            if (orderBy.order === "DESC") {
+                              setOrderBy({
+                                column: header.column.columnDef.id,
+                                order: "ASC",
+                              });
+                            } else {
+                              setOrderBy(null);
+                            }
                           } else {
                             setOrderBy({
                               column: header.column.columnDef.id,
