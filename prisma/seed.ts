@@ -139,11 +139,9 @@ async function main() {
       );
 
       const envTag = envTags[Math.floor(Math.random() * envTags.length)];
-      // const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
-      // colorTag;
-      const tags = [envTag].filter((tag) => tag !== null);
+      const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
 
-      const f = tags.length > 0 ? [tags[0]] : [];
+      const tags = [envTag, colorTag].filter((tag) => tag !== null);
 
       const trace = await prisma.trace.create({
         data: {
@@ -155,7 +153,7 @@ async function main() {
           metadata: {
             user: `user-${i}@langfuse.com`,
           },
-          tags: f as string[],
+          tags: tags as string[],
           project: {
             connect: {
               id: [project1.id, project2.id][i % 2],
