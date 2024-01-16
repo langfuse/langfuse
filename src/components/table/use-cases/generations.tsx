@@ -106,13 +106,13 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     isSuccess:
       generationsQueries[0].isSuccess || generationsQueries[1].isSuccess,
     data: [
-      ...(generationsQueries[0].data ?? []),
-      ...(generationsQueries[1].data ?? []),
+      ...(generationsQueries[0].data?.generations ?? []),
+      ...(generationsQueries[1].data?.generations ?? []),
     ],
     error: generationsQueries[0].error ?? generationsQueries[1].error,
   };
 
-  const totalCount = generations.data.slice(1)[0]?.totalCount ?? 0;
+  const totalCount = generationsQueries[0].data?.totalCount ?? 0;
 
   const filterOptions = api.generations.filterOptions.useQuery({
     projectId,

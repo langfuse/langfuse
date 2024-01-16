@@ -130,13 +130,52 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      return generations.map(({ input, output, ...rest }) => {
-        return {
-          ...rest,
-          input,
-          output,
-        };
-      });
+      const totalGenerations = await ctx.prisma.$queryRaw<
+        Array<{ count: bigint }>
+      >(
+        Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          )
+          SELECT
+            count(*)
+          FROM observations_with_latency o
+          JOIN traces t ON t.id = o.trace_id
+          WHERE
+            t.project_id = ${input.projectId}
+            ${searchCondition}
+            ${filterCondition}
+        `,
+      );
+
+      const pricings = await ctx.prisma.pricing.findMany();
+      const count = totalGenerations[0]?.count;
+      return {
+        totalCount: count ? Number(count) : undefined,
+        generations: generations.map(({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            input,
+            output,
+            cost: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })?.toNumber()
+              : undefined,
+          };
+        }),
+      };
     }),
 
   export: protectedProjectProcedure
@@ -209,7 +248,7 @@ export const generationsRouter = createTRPCRouter({
                   completionTokens: new Decimal(rest.completionTokens),
                   input: input,
                   output: output,
-                })
+                })?.toNumber()
               : undefined,
           };
         },
@@ -241,9 +280,7 @@ export const generationsRouter = createTRPCRouter({
                   generation.model ?? "",
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
-                  generation.cost
-                    ? usdFormatter(generation.cost.toNumber())
-                    : "",
+                  generation.cost ? usdFormatter(generation.cost, 2, 8) : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
                   JSON.stringify(generation.metadata),

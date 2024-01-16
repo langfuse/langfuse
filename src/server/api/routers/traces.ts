@@ -6,7 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Trace, type ObservationView } from "@prisma/client";
-import type Decimal from "decimal.js";
+import Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -37,7 +37,7 @@ export type ObservationReturnType = Omit<
   "input" | "output"
 > & {
   traceId: string;
-} & { price?: Decimal };
+} & { price?: number };
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -138,12 +138,13 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+      const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
           return { ...trace, scores: filteredScores };
         }),
-        totalCount: totalTraces[0]?.count,
+        totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
   filterOptions: protectedProjectProcedure
@@ -232,6 +233,24 @@ export const traceRouter = createTRPCRouter({
               : undefined
           : undefined;
 
+      const enrichedObservations = observations.map(
+        ({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            price: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })?.toNumber()
+              : undefined,
+          };
+        },
+      );
+
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
@@ -297,7 +316,6 @@ export const traceRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
-
         return trace;
       } catch (error) {
         console.error(error);
@@ -356,6 +374,37 @@ export const traceRouter = createTRPCRouter({
             code: "INTERNAL_SERVER_ERROR",
           });
         }
+      }
+    }),
+  updateTags: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        tags: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:tag",
+      });
+      try {
+        const trace = await ctx.prisma.trace.update({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+          data: {
+            tags: {
+              set: input.tags,
+            },
+          },
+        });
+        return trace;
+      } catch (error) {
+        console.error(error);
       }
     }),
 });
