@@ -25,7 +25,7 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -98,26 +98,49 @@ export function DataTable<TData extends object, TValue>({
     },
     manualFiltering: true,
   });
+  const totalSize = table.getCenterTotalSize();
+  const headerGroups = useMemo(() => {
+    return table.getHeaderGroups().map((headerGroup) => {
+      return {
+        ...headerGroup,
+        headers: headerGroup.headers.map((header) => {
+          return {
+            ...header,
+            size: header.getSize(),
+          };
+        }),
+      };
+    });
+  }, [table, columnSizing]);
+
+  const isResizing = headerGroups.some((headerGroup) =>
+    headerGroup.headers.some((header) => header.column.getIsResizing()),
+  );
+  console.log("isResizing", isResizing);
 
   return (
     <>
       <div className="space-y-4">
         <div className="rounded-md border">
-          <Table style={{ width: table.getCenterTotalSize() }}>
+          <Table style={{ width: totalSize, minWidth: "100%" }}>
             <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
+              {headerGroups.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const sortingEnabled =
                       header.column.columnDef.enableSorting;
+                    const resizingEnabled = header.column.getCanResize();
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
                         className={cn(
                           sortingEnabled ? "cursor-pointer" : null,
                           "relative whitespace-nowrap p-2",
+                          resizingEnabled ? "border-r" : null,
                         )}
-                        style={{ width: header.getSize() }}
+                        style={{
+                          width: header.size,
+                        }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onPointerUp={() => {
                           if (
