@@ -97,8 +97,8 @@ describe("/api/public/ingestion API Endpoint", () => {
         data: {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
-          inputPrice: 0.00000006,
-          outputPrice: 0.00000006,
+          inputPrice: 0.001,
+          outputPrice: 0.002,
           unit: "TOKENS",
           tokenizerConfig: {},
         },
@@ -218,7 +218,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbGeneration?.endTime).toEqual(
         new Date("2021-01-01T00:00:00.000Z"),
       );
-      expect(dbGeneration?.model).toBeNull();
+      expect(dbGeneration?.model).toBe("gpt-3.5");
       expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
       expect(dbGeneration?.input).toEqual({ key: "value" });
       expect(dbGeneration?.metadata).toEqual({ key: "value" });

@@ -113,13 +113,15 @@ export class ObservationProcessor implements EventProcessor {
           models
         WHERE (project_id = ${apiScope.projectId}
           OR project_id IS NULL)
-        AND match_pattern ~* ${body.model} 
+        AND ${body.model} ~* match_pattern
         AND start_date < ${body.startTime ?? new Date()}::timestamp
       ORDER BY
         project_id ASC,
         start_date DESC
       LIMIT 1;`);
       internalModel = foundModels[0]?.modelName ?? null;
+
+      console.log("Found model", internalModel, "for", body.model);
     }
 
     const finalTraceId =
@@ -203,6 +205,9 @@ export class ObservationProcessor implements EventProcessor {
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
         internalModel: internalModel,
+        inputCost: "usage" in body ? body.usage?.inputCost : undefined,
+        outputCost: "usage" in body ? body.usage?.outputCost : undefined,
+        totalCost: "usage" in body ? body.usage?.totalCost : undefined,
       },
       update: {
         name,
@@ -238,6 +243,9 @@ export class ObservationProcessor implements EventProcessor {
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
         internalModel: internalModel,
+        inputCost: "usage" in body ? body.usage?.inputCost : undefined,
+        outputCost: "usage" in body ? body.usage?.outputCost : undefined,
+        totalCost: "usage" in body ? body.usage?.totalCost : undefined,
       },
     };
   }
