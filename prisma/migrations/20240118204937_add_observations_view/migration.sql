@@ -7,15 +7,15 @@ SELECT
 	m.output_price,
 	m.total_price,
 	m.tokenizer_config AS "tokenizer_config",
-	(o.prompt_tokens ::decimal / 1000) * m.input_price AS "input_cost",
-	(o.completion_tokens ::decimal / 1000) * m.output_price AS "output_cost",
+	(o.prompt_tokens ::decimal / 1000) * m.input_price AS "calculated_input_cost",
+	(o.completion_tokens ::decimal / 1000) * m.output_price AS "calculated_output_cost",
 	CASE WHEN m.total_price IS NOT NULL
 		AND o.total_tokens IS NOT NULL THEN
 		m.total_price * o.total_tokens
 	ELSE
 		(o.prompt_tokens ::decimal / 1000) * m.input_price + 
 		(o.completion_tokens ::decimal / 1000) * m.output_price
-	END AS "total_cost"
+	END AS "calculated_total_cost"
 FROM
 	observations o
 	LEFT JOIN models m ON m.id = (

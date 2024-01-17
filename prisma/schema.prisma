@@ -234,6 +234,9 @@ model Observation {
     promptTokens        Int               @default(0) @map("prompt_tokens")
     completionTokens    Int               @default(0) @map("completion_tokens")
     totalTokens         Int               @default(0) @map("total_tokens")
+    inputCost           Decimal?          @map("input_cost")
+    outputCost          Decimal?          @map("output_cost")
+    totalCost           Decimal?          @map("total_cost")
     unit                String            @default("TOKENS")
     completionStartTime DateTime?         @map("completion_start_time")
     scores              Score[]
@@ -483,9 +486,9 @@ view ObservationView {
     totalPrice  Decimal? @map("total_price")
 
     // calculated fields
-    inputCost  Decimal? @map("input_cost")
-    outputCost Decimal? @map("output_cost")
-    totalCost  Decimal? @map("total_cost")
+    calculatedInputCost  Decimal? @map("calculated_input_cost")
+    calculatedOutputCost Decimal? @map("calculated_output_cost")
+    calculatedTotalCost  Decimal? @map("calculated_total_cost")
 
     @@map("observations_view")
 }
