@@ -26,6 +26,14 @@ import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "3mb",
+    },
+  },
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
