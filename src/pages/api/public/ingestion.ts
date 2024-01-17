@@ -317,7 +317,9 @@ export const handleBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
-    Sentry.captureException(returnedErrors);
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      Sentry.captureException(returnedErrors);
+    }
     console.log("Error processing events", returnedErrors);
   }
 
