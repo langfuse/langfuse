@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import ColumnResizeIndicator from "@/src/features/column-sizing/components/ColumnResizeIndicator";
 import { type OrderByState } from "@/src/features/orderBy/types";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -24,6 +25,8 @@ import {
   type PaginationState,
   type RowSelectionState,
   type VisibilityState,
+  type HeaderGroup,
+  type Header,
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 
@@ -98,35 +101,35 @@ export function DataTable<TData extends object, TValue>({
     },
     manualFiltering: true,
   });
-  const totalSize = table.getCenterTotalSize();
+  const totalSize = table.getTotalSize();
   const headerGroups = useMemo(() => {
     return table.getHeaderGroups().map((headerGroup) => {
+      console.log("Rerender header group");
       return {
         ...headerGroup,
         headers: headerGroup.headers.map((header) => {
+          console.log(header.index, header.getSize());
           return {
             ...header,
-            size: header.getSize(),
           };
         }),
       };
     });
-  }, [table, columnSizing]);
+  }, [table, columnSizing, columnVisibility]);
 
   const isResizing = headerGroups.some((headerGroup) =>
     headerGroup.headers.some((header) => header.column.getIsResizing()),
   );
-  console.log("isResizing", isResizing);
-
+  // headerGroups.map((headerGroup) => console.log(headerGroup.headers));
   return (
     <>
       <div className="space-y-4">
         <div className="rounded-md border">
           <Table style={{ width: totalSize, minWidth: "100%" }}>
             <TableHeader>
-              {headerGroups.map((headerGroup) => (
+              {headerGroups.map((headerGroup: HeaderGroup<TData>) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
+                  {headerGroup.headers.map((header: Header<TData, unknown>) => {
                     const sortingEnabled =
                       header.column.columnDef.enableSorting;
                     const resizingEnabled = header.column.getCanResize();
@@ -136,11 +139,9 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           sortingEnabled ? "cursor-pointer" : null,
                           "relative whitespace-nowrap p-2",
-                          resizingEnabled ? "border-r" : null,
+                          resizingEnabled ? "border-r" : "w-0",
                         )}
-                        style={{
-                          width: header.size,
-                        }}
+                        style={{ width: header.getSize() }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onPointerUp={() => {
                           if (
@@ -184,31 +185,7 @@ export function DataTable<TData extends object, TValue>({
                         )}
 
                         {header.column.getCanResize() ? (
-                          <>
-                            <div
-                              onDoubleClick={() => header.column.resetSize()}
-                              title="Resize this column"
-                              onPointerDown={(event) => {
-                                event.stopPropagation();
-                                event.currentTarget.setPointerCapture(
-                                  event.pointerId,
-                                );
-                                header.getResizeHandler()(event);
-                              }}
-                              onPointerUp={(event) => {
-                                event.stopPropagation();
-                                event.currentTarget.releasePointerCapture(
-                                  event.pointerId,
-                                );
-                              }}
-                              className={cn(
-                                "absolute right-0 top-0 h-full w-1 select-none",
-                                header.column.getIsResizing()
-                                  ? "cursor-col-resize bg-blue-300"
-                                  : "cursor-grab",
-                              )}
-                            ></div>
-                          </>
+                          <ColumnResizeIndicator header={header} />
                         ) : null}
                       </TableHead>
                     ) : null;
