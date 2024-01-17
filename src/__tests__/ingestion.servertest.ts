@@ -300,6 +300,7 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: generationId,
             traceId: traceId,
             parentObservationId: spanId,
+            modelParameters: { someKey: ["user-1", "user-2"] },
           },
         },
         {
@@ -376,6 +377,9 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(traceId);
     expect(dbGeneration?.name).toBe("generation-name");
     expect(dbGeneration?.parentObservationId).toBe(spanId);
+    expect(dbGeneration?.modelParameters).toEqual({
+      someKey: ["user-1", "user-2"],
+    });
 
     const dbEvent = await prisma.observation.findUnique({
       where: {
