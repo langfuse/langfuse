@@ -2,11 +2,9 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
-import { type RouterInput } from "@/src/utils/types";
 import { type Model } from "@prisma/client";
 import Decimal from "decimal.js";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -22,20 +20,11 @@ export type ModelTableRow = {
   unit: string;
 };
 
-export type ModelFilterInput = Omit<RouterInput["models"]["all"], "projectId">;
-
-export default function ModelTable({
-  projectId,
-}: {
-  projectId: string;
-  userId?: string;
-}) {
+export default function ModelTable({ projectId }: { projectId: string }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
-  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
 
   const models = api.models.all.useQuery({
     page: paginationState.pageIndex,
@@ -43,10 +32,6 @@ export default function ModelTable({
     projectId,
   });
   const totalCount = models.data?.totalCount ?? 0;
-
-  const filterOptions = api.models.filterOptions.useQuery({
-    projectId,
-  });
 
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
     {
@@ -175,14 +160,6 @@ export default function ModelTable({
 
   return (
     <div>
-      <DataTableToolbar
-        columns={columns}
-        filterColumnDefinition={scoresTableColsWithOptions(filterOptions.data)}
-        filterState={userFilterState}
-        setFilterState={setUserFilterState}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-      />
       <DataTable
         columns={columns}
         data={
