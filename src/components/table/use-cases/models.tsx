@@ -5,6 +5,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
+import { usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput } from "@/src/utils/types";
 import { type Model } from "@prisma/client";
 import Decimal from "decimal.js";
@@ -68,26 +69,77 @@ export default function ModelTable({
       accessorKey: "matchPattern",
       id: "matchPattern",
       header: "Match Pattern",
+      cell: ({ row }) => {
+        const value: string = row.getValue("matchPattern");
+
+        return (
+          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs ">
+            {value}
+          </code>
+        );
+      },
     },
     {
       accessorKey: "startDate",
       id: "startDate",
       header: "Start Date",
+      cell: ({ row }) => {
+        const value: Date | undefined = row.getValue("startDate");
+
+        return value ? (
+          <span className="text-xs">{value.toLocaleDateString()} </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "inputPrice",
       id: "inputPrice",
       header: "Input Price",
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("inputPrice");
+
+        return value ? (
+          <span className="text-xs">
+            {usdFormatter(value.toNumber(), 2, 8)}
+          </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "outputPrice",
       id: "outputPrice",
       header: "Output Price",
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("outputPrice");
+
+        return value ? (
+          <span className="text-xs">
+            {usdFormatter(value.toNumber(), 2, 8)}
+          </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "totalPrice",
       id: "totalprice",
       header: "Total Price",
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("totalPrice");
+
+        return value ? (
+          <span className="text-xs">
+            {usdFormatter(value.toNumber(), 2, 8)}
+          </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "unit",
