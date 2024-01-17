@@ -108,6 +108,9 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     });
   });
   num_tokens += 3; // every reply is primed with <| start |> assistant <| message |>
+  // https://github.com/dqbd/tiktoken/issues/72
+  // we need to ensure to deallocate memory from the encoder
+  encoding.free();
   return num_tokens;
 }
 
@@ -132,6 +135,8 @@ const claudeStringTokenCount = (p: { model: string; text: string }) => {
 const getTokens = (name: TiktokenEncoding, text: string) => {
   const encoding = get_encoding(name);
   const tokens = encoding.encode(text);
+  // https://github.com/dqbd/tiktoken/issues/72
+  // we need to ensure to deallocate memory from the encoder
   encoding.free();
   return tokens.length;
 };
