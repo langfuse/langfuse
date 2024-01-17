@@ -8,6 +8,9 @@ export const Usage = z.object({
   output: z.number().int().nullish(),
   total: z.number().int().nullish(),
   unit: z.enum(["TOKENS", "CHARACTERS"]).nullable(),
+  inputCost: z.number().nullish(),
+  outputCost: z.number().nullish(),
+  totalCost: z.number().nullish(),
 });
 
 const MixedUsage = z.object({
@@ -18,6 +21,9 @@ const MixedUsage = z.object({
   promptTokens: z.number().int().nullish(),
   completionTokens: z.number().int().nullish(),
   totalTokens: z.number().int().nullish(),
+  inputCost: z.number().nullish(),
+  outputCost: z.number().nullish(),
+  totalCost: z.number().nullish(),
 });
 
 export const usage = MixedUsage.nullish()
