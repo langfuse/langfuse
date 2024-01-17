@@ -6,7 +6,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Trace, type ObservationView } from "@prisma/client";
-import type Decimal from "decimal.js";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {

@@ -44,7 +44,7 @@ export default function ModelTable({
   });
   const totalCount = models.data?.totalCount ?? 0;
 
-  const filterOptions = api.scores.filterOptions.useQuery({
+  const filterOptions = api.models.filterOptions.useQuery({
     projectId,
   });
 
