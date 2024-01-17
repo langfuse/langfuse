@@ -277,7 +277,9 @@ export class TraceProcessor implements EventProcessor {
     const { body } = this.event;
 
     if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError("Access denied for trace creation");
+      throw new AuthenticationError(
+        `Access denied for trace creation, ${apiScope.accessLevel}`,
+      );
 
     const internalId = body.id ?? v4();
 

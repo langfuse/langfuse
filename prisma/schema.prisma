@@ -198,7 +198,6 @@ model Trace {
 
     scores Score[]
 
-    @@unique([projectId, externalId])
     @@index([projectId])
     @@index([sessionId])
     @@index([name])
