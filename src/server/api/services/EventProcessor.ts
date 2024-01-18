@@ -102,8 +102,13 @@ export class ObservationProcessor implements EventProcessor {
     if (
       type === "GENERATION" &&
       !existingObservation?.internalModel &&
-      "model" in body
+      "model" in body &&
+      "usage" in body
     ) {
+      const unit = body.usage?.unit
+        ? body.usage.unit
+        : existingObservation?.unit ?? "TOKENS";
+
       const foundModels = await prisma.$queryRaw<
         Array<{ id: string; modelName: string }>
       >(Prisma.sql`
@@ -114,7 +119,7 @@ export class ObservationProcessor implements EventProcessor {
         WHERE (project_id = ${apiScope.projectId}
           OR project_id IS NULL)
         AND ${body.model} ~* match_pattern
-        AND start_date < ${body.startTime ?? new Date()}::timestamp
+        AND unit = ${unit}
       ORDER BY
         project_id ASC,
         start_date DESC
@@ -204,7 +209,7 @@ export class ObservationProcessor implements EventProcessor {
         ...(prompts && prompts.length === 1
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
-        internalModel: internalModel,
+        ...(internalModel ? { internalModel: internalModel } : undefined),
         inputCost: "usage" in body ? body.usage?.inputCost : undefined,
         outputCost: "usage" in body ? body.usage?.outputCost : undefined,
         totalCost: "usage" in body ? body.usage?.totalCost : undefined,
@@ -242,7 +247,7 @@ export class ObservationProcessor implements EventProcessor {
         ...(prompts && prompts.length === 1
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
-        internalModel: internalModel,
+        ...(internalModel ? { internalModel: internalModel } : undefined),
         inputCost: "usage" in body ? body.usage?.inputCost : undefined,
         outputCost: "usage" in body ? body.usage?.outputCost : undefined,
         totalCost: "usage" in body ? body.usage?.totalCost : undefined,
