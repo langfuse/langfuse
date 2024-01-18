@@ -371,4 +371,73 @@ describe("cost retrieval tests", () => {
     expect(view?.calculatedOutputCost?.toString()).toBe("0.012");
     expect(view?.calculatedTotalCost?.toString()).toBe("0.0124");
   });
+
+  it(`should prioritize user provided cost`, async () => {
+    await pruneDatabase();
+
+    await prisma.model.create({
+      data: {
+        id: "model-1",
+        modelName: "gpt-3.5-turbo",
+        inputPrice: "0.0010",
+        outputPrice: "0.0020",
+        totalPrice: "0.1",
+        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+        startDate: new Date("2023-12-02"),
+        tokenizerConfig: {},
+        unit: "TOKENS",
+      },
+    });
+    await prisma.model.create({
+      data: {
+        id: "model-2",
+        modelName: "gpt-3.5-turbo",
+        inputPrice: "0.0020",
+        outputPrice: "0.0040",
+        totalPrice: undefined,
+        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+        startDate: new Date("2023-12-01"),
+        tokenizerConfig: {},
+        project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
+        unit: "TOKENS",
+      },
+    });
+
+    const dbTrace = await prisma.trace.create({
+      data: {
+        name: "trace-name",
+        project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
+      },
+    });
+
+    await prisma.observation.create({
+      data: {
+        traceId: dbTrace.id,
+        type: "GENERATION",
+        project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
+        model: "gpt-3.5-turbo",
+        internalModel: "gpt-3.5-turbo",
+        startTime: new Date("2024-01-01T00:00:00.000Z"),
+        unit: "TOKENS",
+        promptTokens: 200,
+        completionTokens: 3000,
+        totalTokens: undefined,
+        inputCost: "1",
+        outputCost: "2",
+        totalCost: "3",
+      },
+    });
+
+    const view = await prisma.observationView.findFirst({
+      where: { traceId: dbTrace.id },
+    });
+
+    console.log(view);
+
+    // calculated cost fields
+    expect(view?.model_id).toBe("model-2");
+    expect(view?.calculatedInputCost?.toString()).toBe("1");
+    expect(view?.calculatedOutputCost?.toString()).toBe("2");
+    expect(view?.calculatedTotalCost?.toString()).toBe("3");
+  });
 });
