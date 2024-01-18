@@ -330,7 +330,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           startTime: generation.startTime.toLocaleString(),
           endTime: generation.endTime?.toLocaleString() ?? undefined,
           latency: generation.latency === null ? undefined : generation.latency,
-          cost: generation.totalCost,
+          cost: generation.calculatedTotalCost,
           name: generation.name ?? undefined,
           version: generation.version ?? "",
           model: generation.model ?? "",
