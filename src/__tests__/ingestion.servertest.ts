@@ -85,24 +85,13 @@ describe("/api/public/ingestion API Endpoint", () => {
       expectedUnit: "TOKENS",
     },
   ].forEach((testConfig) => {
-    it(`should create trace and generation ${JSON.stringify(
+    it(`should create trace, generation and score without matching models ${JSON.stringify(
       testConfig,
     )}`, async () => {
       const traceId = v4();
       const generationId = v4();
       const spanId = v4();
       const scoreId = v4();
-
-      await prisma.model.create({
-        data: {
-          modelName: "gpt-3.5-turbo",
-          matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
-          inputPrice: 0.001,
-          outputPrice: 0.002,
-          unit: "TOKENS",
-          tokenizerConfig: {},
-        },
-      });
 
       const response = await makeAPICall("POST", "/api/public/ingestion", {
         metadata: {
@@ -139,7 +128,6 @@ describe("/api/public/ingestion API Endpoint", () => {
               input: { key: "value" },
               metadata: { key: "value" },
               version: "2.0.0",
-              model: "gpt-3.5",
             },
           },
           {
@@ -218,12 +206,12 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbGeneration?.endTime).toEqual(
         new Date("2021-01-01T00:00:00.000Z"),
       );
-      expect(dbGeneration?.model).toBe("gpt-3.5");
+      expect(dbGeneration?.model).toBeNull();
       expect(dbGeneration?.modelParameters).toEqual({ key: "value" });
       expect(dbGeneration?.input).toEqual({ key: "value" });
       expect(dbGeneration?.metadata).toEqual({ key: "value" });
       expect(dbGeneration?.version).toBe("2.0.0");
-      expect(dbGeneration?.internalModel).toEqual("gpt-3.5-turbo");
+      expect(dbGeneration?.internalModel).toBeNull();
       expect(dbGeneration?.promptTokens).toEqual(
         testConfig.expectedPromptTokens,
       );
@@ -261,6 +249,177 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbScore?.name).toBe("score-name");
       expect(dbScore?.value).toBe(100.5);
       expect(dbScore?.observationId).toBeNull();
+    });
+  });
+
+  [
+    {
+      observationExternalModel: "gpt-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+        },
+        {
+          modelName: "gpt-3.5-turbo-new",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T10:00:00.000Z"),
+          unit: "TOKENS",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3.5",
+      observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo-new",
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+        },
+        {
+          modelName: "gpt-3.5-turbo-new",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T10:00:00.000Z"),
+          unit: "TOKENS",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-4",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: null,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "CHARACTERS",
+      expectedInternalModel: null,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+        },
+      ],
+    },
+  ].forEach((testConfig) => {
+    it(`should match observations to internal models ${JSON.stringify(
+      testConfig,
+    )}`, async () => {
+      const traceId = v4();
+      const generationId = v4();
+
+      await Promise.all(
+        testConfig.models.map(async (model) =>
+          prisma.model.create({
+            data: {
+              modelName: model.modelName,
+              matchPattern: model.matchPattern,
+              startDate: model.startDate,
+              unit: model.unit,
+              tokenizerConfig: {},
+            },
+          }),
+        ),
+      );
+
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        metadata: {
+          sdk_verion: "1.0.0",
+          sdk_name: "python",
+        },
+        batch: [
+          {
+            id: v4(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: traceId,
+              name: "trace-name",
+            },
+          },
+          {
+            id: v4(),
+            type: "observation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              type: "GENERATION",
+              name: "generation-name",
+              startTime: testConfig.observationStartTime.toISOString(),
+              model: testConfig.observationExternalModel,
+              unit: testConfig.modelUnit,
+            },
+          },
+        ],
+      });
+
+      expect(response.status).toBe(207);
+
+      console.log("response body", response.body);
+
+      const dbGeneration = await prisma.observation.findUnique({
+        where: {
+          id: generationId,
+        },
+      });
+
+      expect(dbGeneration?.id).toBe(generationId);
+      expect(dbGeneration?.traceId).toBe(traceId);
+      expect(dbGeneration?.name).toBe("generation-name");
+      expect(dbGeneration?.startTime).toEqual(testConfig.observationStartTime);
+      expect(dbGeneration?.model).toBe(testConfig.observationExternalModel);
+      expect(dbGeneration?.internalModel).toBe(
+        testConfig.expectedInternalModel,
+      );
     });
   });
 

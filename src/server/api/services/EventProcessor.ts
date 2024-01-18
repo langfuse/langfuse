@@ -103,30 +103,34 @@ export class ObservationProcessor implements EventProcessor {
       type === "GENERATION" &&
       !existingObservation?.internalModel &&
       "model" in body &&
-      "usage" in body
+      "usage" in body &&
+      body.model
     ) {
       const unit = body.usage?.unit
         ? body.usage.unit
         : existingObservation?.unit ?? "TOKENS";
 
-      const foundModels = await prisma.$queryRaw<
-        Array<{ id: string; modelName: string }>
-      >(Prisma.sql`
+      const sql = Prisma.sql`
         SELECT
           id, model_name as "modelName"
         FROM
           models
         WHERE (project_id = ${apiScope.projectId}
           OR project_id IS NULL)
-        AND ${body.model} ~* match_pattern
+        AND ${body.model} ~ match_pattern
         AND unit = ${unit}
+        AND (start_date IS NULL OR start_date <= ${
+          startTime ? new Date(startTime) : new Date()
+        }::timestamp with time zone at time zone 'UTC')
       ORDER BY
         project_id ASC,
         start_date DESC
-      LIMIT 1;`);
-      internalModel = foundModels[0]?.modelName ?? null;
+      LIMIT 1;`;
 
-      console.log("Found model", internalModel, "for", body.model);
+      const foundModels =
+        await prisma.$queryRaw<Array<{ id: string; modelName: string }>>(sql);
+
+      internalModel = foundModels[0]?.modelName ?? null;
     }
 
     const finalTraceId =
@@ -146,6 +150,13 @@ export class ObservationProcessor implements EventProcessor {
       "usage" in body
         ? this.calculateTokenCounts(body, existingObservation ?? undefined)
         : [undefined, undefined];
+
+    console.log(
+      "usage calc",
+      "usage" in body ? body.usage : null,
+      newInputCount,
+      newOutputCount,
+    );
 
     // merge metadata from existingObservation.metadata and metadata
     const mergedMetadata = mergeJson(
@@ -170,6 +181,7 @@ export class ObservationProcessor implements EventProcessor {
         : undefined;
 
     const observationId = id ?? v4();
+
     return {
       id: observationId,
       create: {

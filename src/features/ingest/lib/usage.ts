@@ -6,8 +6,6 @@ import {
   type Tiktoken,
 } from "tiktoken";
 import { countTokens } from "@anthropic-ai/tokenizer";
-import { type PricingUnit, type Pricing } from "@prisma/client";
-import { Decimal } from "decimal.js";
 
 type ChatMessage = {
   role: string;
@@ -225,94 +223,6 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       (!("name" in item) || typeof item.name === "string"),
   );
 }
-
-export function calculateTokenCost(
-  pricingList: Pricing[],
-  input: {
-    model: string;
-    input: unknown;
-    output: unknown;
-    totalTokens: Decimal;
-    promptTokens: Decimal;
-    completionTokens: Decimal;
-  },
-): Decimal | undefined {
-  const model = cleanModelString(input.model);
-  const pricing = pricingList.filter((p) => p.modelName === model);
-
-  if (pricing.length === 0) {
-    console.log("no pricing found for model", input.model);
-    return undefined;
-  } else {
-    if (pricing.length === 1 && pricing[0]?.tokenType === "TOTAL") {
-      return calculateValue(
-        pricing[0].price,
-        pricing[0].pricingUnit,
-        input.totalTokens,
-        JSON.stringify(input.input) + JSON.stringify(input.output),
-      );
-    }
-
-    if (pricing.length === 2) {
-      let promptPrice: Decimal = new Decimal(0);
-      let completionPrice: Decimal = new Decimal(0);
-
-      const promptPricing = pricing.find((p) => p.tokenType === "PROMPT");
-      const completionPricing = pricing.find(
-        (p) => p.tokenType === "COMPLETION",
-      );
-
-      if (promptPricing) {
-        promptPrice =
-          calculateValue(
-            promptPricing.price,
-            promptPricing.pricingUnit,
-            input.promptTokens,
-            JSON.stringify(input.input),
-          ) ?? new Decimal(0);
-      }
-
-      if (completionPricing) {
-        completionPrice =
-          calculateValue(
-            completionPricing.price,
-            completionPricing.pricingUnit,
-            input.completionTokens,
-            JSON.stringify(input.output),
-          ) ?? new Decimal(0);
-      }
-
-      return promptPrice.plus(completionPrice);
-    }
-    console.log("unknown model", input.model);
-    return undefined;
-  }
-}
-
-const calculateValue = (
-  price: Decimal,
-  unit: PricingUnit,
-  tokens: Decimal,
-  characters: string,
-) => {
-  switch (unit) {
-    case "PER_1000_TOKENS":
-      return price
-        .times(tokens.dividedBy(new Decimal(1000)))
-        .toDecimalPlaces(5);
-    case "PER_1000_CHARS":
-      return (
-        price
-          // strip whitespace, default for google bison, only character based model for now
-          .times(new Decimal(characters.replace(/\s/g, "").length))
-          .dividedBy(new Decimal(1000))
-          .toDecimalPlaces(5)
-      );
-    default:
-      console.log("unknown pricing unit", unit);
-      return undefined;
-  }
-};
 
 const cleanModelString = (model: string) =>
   model.toLowerCase().replaceAll("gpt-35", "gpt-3.5");
