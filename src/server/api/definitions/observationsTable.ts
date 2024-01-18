@@ -60,7 +60,7 @@ export const observationsTableCols: ColumnDefinition[] = [
   {
     name: "metadata",
     type: "stringObject",
-    internal: 't."metadata"',
+    internal: 'o."metadata"',
   },
   {
     name: "version",
