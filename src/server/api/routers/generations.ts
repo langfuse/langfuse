@@ -6,7 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 
 import { Prisma, type ObservationView } from "@prisma/client";
-import { paginationZod } from "@/src/utils/zod";
+import { jsonSchema, paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
   datetimeFilterToPrismaSql,
@@ -264,9 +264,11 @@ export const generationsRouter = createTRPCRouter({
               content: z.string(),
             }),
           );
-          const outputSchema = z.object({
-            completion: z.string(),
-          });
+          const outputSchema = z
+            .object({
+              completion: jsonSchema,
+            })
+            .or(jsonSchema);
           output = generations
             .map((generation) => ({
               parsedInput: inputSchemaOpenAI.safeParse(generation.input),
@@ -280,7 +282,14 @@ export const generationsRouter = createTRPCRouter({
                       ? [
                           {
                             role: "assistant",
-                            content: generation.parsedOutput.data.completion,
+                            content:
+                              typeof generation.parsedOutput.data ===
+                                "object" &&
+                              "completion" in generation.parsedOutput.data
+                                ? JSON.stringify(
+                                    generation.parsedOutput.data.completion,
+                                  )
+                                : JSON.stringify(generation.parsedOutput.data),
                           },
                         ]
                       : [],
@@ -290,6 +299,7 @@ export const generationsRouter = createTRPCRouter({
             // to jsonl
             .map((row) => JSON.stringify(row))
             .join("\n");
+          console.log(output);
           break;
         default:
           throw new Error("Invalid export file format");
