@@ -71,7 +71,7 @@ export const LatencyChart = ({
     return latencies.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(latencies.data, "startTime", [
-            { labelcolumn: "internalModel", valueColumn: valueColumn },
+            { labelColumn: "internalModel", valueColumn: valueColumn },
           ]),
           allModels,
         )
