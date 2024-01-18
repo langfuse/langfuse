@@ -1,6 +1,6 @@
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
-import { NoData } from "../NoData";
 import { useState, type ReactNode } from "react";
+import { NoData } from "../NoData";
 
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];
@@ -57,11 +57,11 @@ export const DashboardTable = ({
                           : collapse.collapsed
                         : undefined,
                     )
-                    .map((row) => (
-                      <tr key={"1"}>
-                        {row.map((cell, i) => (
+                    .map((row, i) => (
+                      <tr key={i}>
+                        {row.map((cell, j) => (
                           <td
-                            key={i}
+                            key={j}
                             className="whitespace-nowrap py-2 pl-3 pr-2 text-xs text-gray-500 sm:pl-0"
                           >
                             {cell}
