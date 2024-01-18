@@ -77,9 +77,9 @@ export const totalTokens = {
   internal: 'o."total_tokens"',
 } as const;
 export const model = {
-  name: "model",
+  name: "internalModel",
   type: "string",
-  internal: 'o."model"',
+  internal: 'o."internal_model"',
 } as const;
 export const traceUser = {
   name: "user",
@@ -87,10 +87,10 @@ export const traceUser = {
   internal: 't."user_id"',
 } as const;
 
-export const totalCost = {
-  name: "totalCost",
+export const calculatedTotalCost = {
+  name: "calculatedTotalCost",
   type: "number",
-  internal: 'o."total_cost"',
+  internal: 'o."calculated_total_cost"',
 } as const;
 
 export const tableDefinitions: TableDefinitions = {
@@ -115,7 +115,7 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       observationsProjectId,
       duration,
-      totalCost,
+      calculatedTotalCost,
       totalTokens,
       model,
       traceTimestamp,
@@ -127,7 +127,7 @@ export const tableDefinitions: TableDefinitions = {
     table: ` observations_view o`,
     columns: [
       traceId,
-      totalCost,
+      calculatedTotalCost,
       observationName,
       { name: "type", type: "string", internal: 'o."type"' },
       completionTokens,

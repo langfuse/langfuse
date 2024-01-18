@@ -36,7 +36,7 @@ export const LatencyChart = ({
         { column: "duration", agg: "90thPercentile" },
         { column: "duration", agg: "95thPercentile" },
         { column: "duration", agg: "99thPercentile" },
-        { column: "model" },
+        { column: "internalModel" },
       ],
       filter: [
         ...globalFilterState,
@@ -53,7 +53,7 @@ export const LatencyChart = ({
           column: "startTime",
           temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
         },
-        { type: "string", column: "model" },
+        { type: "string", column: "internalModel" },
       ],
     },
     {
@@ -71,7 +71,7 @@ export const LatencyChart = ({
     return latencies.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(latencies.data, "startTime", [
-            { labelColumn: "model", valueColumn: valueColumn },
+            { labelcolumn: "internalModel", valueColumn: valueColumn },
           ]),
           allModels,
         )

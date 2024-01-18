@@ -114,7 +114,7 @@ export const generationsRouter = createTRPCRouter({
             o.level,
             o.status_message as "statusMessage",
             o.version,
-            o.total_cost as "totalCost",
+            o.calculated_total_cost as "calculatedTotalCost",
             (count(*) OVER())::int AS "totalCount"
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id

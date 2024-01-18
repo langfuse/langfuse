@@ -360,6 +360,7 @@ const getColumnDefinition = (
     return c.name === column;
   });
   if (!foundColumn) {
+    console.log(tableDefinitions[table]);
     console.error(`Column ${column} not found in table ${table}`);
     throw new Error(`Column ${column} not found in table ${table}`);
   }

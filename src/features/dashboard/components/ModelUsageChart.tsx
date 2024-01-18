@@ -36,8 +36,8 @@ export const ModelUsageChart = ({
       from: "observations",
       select: [
         { column: "totalTokens", agg: "SUM" },
-        { column: "totalCost", agg: "SUM" },
-        { column: "model" },
+        { column: "calculatedTotalCost", agg: "SUM" },
+        { column: "internalModel" },
       ],
       filter: globalFilterState,
       groupBy: [
@@ -48,10 +48,12 @@ export const ModelUsageChart = ({
         },
         {
           type: "string",
-          column: "model",
+          column: "internalModel",
         },
       ],
-      orderBy: [{ column: "totalCost", direction: "DESC", agg: "SUM" }],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
     },
     {
       trpc: {
@@ -68,7 +70,7 @@ export const ModelUsageChart = ({
     tokens.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
-            { labelColumn: "model", valueColumn: "sumTotalTokens" },
+            { labelColumn: "internalModel", valueColumn: "sumTotalTokens" },
           ]),
           allModels,
         )
@@ -78,19 +80,22 @@ export const ModelUsageChart = ({
     tokens.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
-            { labelColumn: "model", valueColumn: "sumTotalCost" },
+            {
+              labelColumn: "internalModel",
+              valueColumn: "sumCalculatedTotalCost",
+            },
           ]),
           allModels,
         )
       : [];
 
   const totalCost = tokens.data?.reduce(
-    (acc, curr) => acc + (curr.sumTotalCost as number),
+    (acc, curr) => acc + (curr.sumCalculatedTotalCost as number),
     0,
   );
 
   const totalTokens = tokens.data?.reduce(
-    (acc, curr) => acc + (curr.sumTotalTokens as number),
+    (acc, curr) => acc + (curr.sumCalculatedTotalCost as number),
     0,
   );
 

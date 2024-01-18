@@ -26,13 +26,15 @@ export const MetricTable = ({
       projectId,
       from: "traces_observations",
       select: [
-        { column: "totalCost", agg: "SUM" },
+        { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },
-        { column: "model" },
+        { column: "internalModel" },
       ],
       filter: localFilters,
-      groupBy: [{ type: "string", column: "model" }],
-      orderBy: [{ column: "totalCost", direction: "DESC", agg: "SUM" }],
+      groupBy: [{ type: "string", column: "internalModel" }],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
     },
     {
       trpc: {
@@ -43,25 +45,30 @@ export const MetricTable = ({
     },
   );
 
+  console.log(metrics.data);
+
   const totalTokens = metrics.data?.reduce(
     (acc, curr) =>
-      acc + (curr.sumTotalCost ? (curr.sumTotalCost as number) : 0),
+      acc +
+      (curr.sumCalculatedTotalCost
+        ? (curr.sumCalculatedTotalCost as number)
+        : 0),
     0,
   );
 
   const metricsData = metrics.data
     ? metrics.data
-        .filter((item) => item.model !== null)
+        .filter((item) => item.internalModel !== null)
         .map((item, i) => [
-          item.model as string,
+          item.internalModel as string,
           <RightAlignedCell key={`${i}-tokens`}>
             {item.sumTotalTokens
               ? compactNumberFormatter(item.sumTotalTokens as number)
               : "0"}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-cost`}>
-            {item.totalTokenCost
-              ? usdFormatter(item.totalTokenCost as number, 2, 2)
+            {item.sumCalculatedTotalCost
+              ? usdFormatter(item.sumCalculatedTotalCost as number, 2, 2)
               : "$0"}
           </RightAlignedCell>,
         ])

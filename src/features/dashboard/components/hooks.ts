@@ -11,7 +11,7 @@ export const getAllModels = (
     {
       projectId,
       from: "observations",
-      select: [{ column: "model" }],
+      select: [{ column: "internalModel" }],
       filter: [
         ...globalFilterState,
         {
@@ -21,7 +21,7 @@ export const getAllModels = (
           value: "GENERATION",
         },
       ],
-      groupBy: [{ type: "string", column: "model" }],
+      groupBy: [{ type: "string", column: "internalModel" }],
     },
     {
       trpc: {

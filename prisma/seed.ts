@@ -349,6 +349,8 @@ async function main() {
           const promptTokens = Math.floor(Math.random() * 1000) + 300;
           const completionTokens = Math.floor(Math.random() * 500) + 100;
 
+          const model = Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4";
+
           const generation = await prisma.observation.create({
             data: {
               type: "GENERATION",
@@ -415,7 +417,8 @@ async function main() {
               
               Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
               },
-              model: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
+              model: model,
+              internalModel: model,
               modelParameters: {
                 temperature:
                   Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
