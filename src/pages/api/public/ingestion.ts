@@ -307,6 +307,9 @@ export const handleBatchResult = (
         error: error.error.message,
       });
     } else {
+      if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+        Sentry.captureException(error);
+      }
       returnedErrors.push({
         id: error.id,
         status: 500,
@@ -317,9 +320,6 @@ export const handleBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
-    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-      Sentry.captureException(returnedErrors);
-    }
     console.log("Error processing events", returnedErrors);
   }
 
