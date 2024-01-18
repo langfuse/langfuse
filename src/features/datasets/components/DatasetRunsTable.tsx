@@ -2,9 +2,11 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { formatInterval } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
+import { useEffect } from "react";
 
 type RowData = {
   key: {
@@ -25,7 +27,16 @@ export function DatasetRunsTable(props: {
     projectId: props.projectId,
     datasetId: props.datasetId,
   });
-
+  const { setDetailPageList } = useDetailPageLists();
+  useEffect(() => {
+    if (runs.isSuccess) {
+      setDetailPageList(
+        "datasetRuns",
+        runs.data.map((t) => t.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs.isSuccess, runs.data]);
   const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "key",

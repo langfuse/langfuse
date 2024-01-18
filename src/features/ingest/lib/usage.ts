@@ -24,29 +24,30 @@ export function tokenCount(p: {
   model: string;
   text: unknown;
 }): number | undefined {
+  const model = cleanModelString(p.model);
   if (
     p.text === null ||
     p.text === undefined ||
     (Array.isArray(p.text) && p.text.length === 0)
   ) {
     return undefined;
-  } else if (isOpenAiModel(p.model)) {
+  } else if (isOpenAiModel(model)) {
     return isChatMessageArray(p.text)
       ? openAiChatTokenCount({
-          model: p.model,
+          model: model,
           messages: p.text,
         })
       : isString(p.text)
-        ? openAiStringTokenCount({ model: p.model, text: p.text })
+        ? openAiStringTokenCount({ model: model, text: p.text })
         : openAiStringTokenCount({
-            model: p.model,
+            model: model,
             text: JSON.stringify(p.text),
           });
-  } else if (isClaudeModel(p.model)) {
+  } else if (isClaudeModel(model)) {
     return isString(p.text)
-      ? claudeStringTokenCount({ model: p.model, text: p.text })
+      ? claudeStringTokenCount({ model: model, text: p.text })
       : claudeStringTokenCount({
-          model: p.model,
+          model: model,
           text: JSON.stringify(p.text),
         });
   } else {
@@ -56,13 +57,6 @@ export function tokenCount(p: {
 }
 
 function openAiChatTokenCount(params: TokenCalculationParams) {
-  let encoding: Tiktoken;
-  try {
-    encoding = encoding_for_model(params.model);
-  } catch (KeyError) {
-    console.log("Warning: model not found. Using cl100k_base encoding.");
-    encoding = get_encoding("cl100k_base");
-  }
   let tokens_per_message = 0;
   let tokens_per_name = 0;
 
@@ -99,7 +93,7 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     Object.keys(message).forEach((key) => {
       const value = message[key as keyof typeof message];
       if (value) {
-        num_tokens += encoding.encode(value).length;
+        num_tokens += getTokensByModel(params.model, value);
       }
       if (key === "name") {
         num_tokens += tokens_per_name;
@@ -107,6 +101,7 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     });
   });
   num_tokens += 3; // every reply is primed with <| start |> assistant <| message |>
+
   return num_tokens;
 }
 
@@ -131,8 +126,27 @@ const claudeStringTokenCount = (p: { model: string; text: string }) => {
 const getTokens = (name: TiktokenEncoding, text: string) => {
   const encoding = get_encoding(name);
   const tokens = encoding.encode(text);
+  // https://github.com/dqbd/tiktoken/issues/72
+  // we need to ensure to deallocate memory from the encoder
   encoding.free();
   return tokens.length;
+};
+
+const getTokensByModel = (model: TiktokenModel, text: string) => {
+  let encoding: Tiktoken;
+  try {
+    encoding = encoding_for_model(model);
+  } catch (KeyError) {
+    console.log("Warning: model not found. Using cl100k_base encoding.");
+    encoding = get_encoding("cl100k_base");
+  }
+
+  const length = encoding.encode(text).length;
+
+  // https://github.com/dqbd/tiktoken/issues/72
+  // we need to ensure to deallocate memory from the encoder
+  encoding.free();
+  return length;
 };
 
 function isString(value: unknown): value is string {
@@ -223,7 +237,8 @@ export function calculateTokenCost(
     completionTokens: Decimal;
   },
 ): Decimal | undefined {
-  const pricing = pricingList.filter((p) => p.modelName === input.model);
+  const model = cleanModelString(input.model);
+  const pricing = pricingList.filter((p) => p.modelName === model);
 
   if (pricing.length === 0) {
     console.log("no pricing found for model", input.model);
@@ -298,3 +313,6 @@ const calculateValue = (
       return undefined;
   }
 };
+
+const cleanModelString = (model: string) =>
+  model.toLowerCase().replaceAll("gpt-35", "gpt-3.5");

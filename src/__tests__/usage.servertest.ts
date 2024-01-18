@@ -4,11 +4,13 @@ describe("Token Count Functions", () => {
   describe("token count for strings", () => {
     [
       { model: "gpt-3.5", tokens: 114 },
+      { model: "gpt-35", tokens: 114 },
       { model: "gpt-4-1106-preview", tokens: 114 },
       { model: "gpt-4-vision-preview", tokens: 114 },
       { model: "claude", tokens: 118 },
       { model: "claude-instant-1.2", tokens: 118 },
       { model: "gpt-3.5-turbo-1106", tokens: 114 },
+      { model: "gpt-35-turbo-1106", tokens: 114 },
     ].forEach(({ model, tokens }) => {
       it(`should return token count ${tokens} for ${model}`, () => {
         const result = tokenCount({
@@ -71,6 +73,7 @@ describe("Token Count Functions", () => {
     [
       { model: "gpt-4", tokens: 44 },
       { model: "gpt-3.5-turbo-16k-0613", tokens: 44 },
+      { model: "gpt-35-turbo-16k-0613", tokens: 44 },
       { model: "claude-instant-1.2", tokens: 48 },
     ].forEach(({ model, tokens }) => {
       it(`should return token count ${tokens} for ${model}`, () => {

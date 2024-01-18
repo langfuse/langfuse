@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -23,6 +24,13 @@ export default function DatasetItems() {
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           { name: dataset.data?.name ?? datasetId },
         ]}
+        actionButtons={
+          <DetailPageNav
+            currentId={datasetId}
+            path={(id) => `/project/${projectId}/datasets/${id}/items/`}
+            listKey="datasets"
+          />
+        }
       />
       <Tabs value="items" className="mb-3">
         <TabsList>
