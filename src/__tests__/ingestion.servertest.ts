@@ -300,6 +300,7 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: generationId,
             traceId: traceId,
             parentObservationId: spanId,
+            modelParameters: { someKey: ["user-1", "user-2"] },
           },
         },
         {
@@ -376,6 +377,9 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbGeneration?.traceId).toBe(traceId);
     expect(dbGeneration?.name).toBe("generation-name");
     expect(dbGeneration?.parentObservationId).toBe(spanId);
+    expect(dbGeneration?.modelParameters).toEqual({
+      someKey: ["user-1", "user-2"],
+    });
 
     const dbEvent = await prisma.observation.findUnique({
       where: {
@@ -788,6 +792,66 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace.length).toEqual(1);
     expect(dbTrace[0]?.release).toBe("1.0.0");
     expect(dbTrace[0]?.version).toBe("2.0.0");
+  });
+
+  it("should not override a trace from a different project", async () => {
+    const traceId = v4();
+    const newProjectId = v4();
+
+    await prisma.project.create({
+      data: {
+        id: newProjectId,
+        name: "another-project",
+      },
+    });
+
+    await prisma.trace.create({
+      data: {
+        id: traceId,
+        project: { connect: { id: newProjectId } },
+      },
+    });
+
+    const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+            userId: "user-1",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
+        },
+      ],
+    });
+    expect(responseOne.status).toBe(207);
+
+    console.log(responseOne.body);
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const errors = responseOne.body.errors;
+
+    expect(errors).toBeDefined();
+    console.log(errors);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(errors.length).toBe(1);
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toEqual(1);
+    expect(dbTrace[0]?.name).toBeNull();
+    expect(dbTrace[0]?.release).toBeNull();
+    expect(dbTrace[0]?.metadata).toBeNull();
+    expect(dbTrace[0]?.version).toBeNull();
   });
 
   [

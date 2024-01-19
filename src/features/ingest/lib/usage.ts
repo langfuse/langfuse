@@ -57,13 +57,6 @@ export function tokenCount(p: {
 }
 
 function openAiChatTokenCount(params: TokenCalculationParams) {
-  let encoding: Tiktoken;
-  try {
-    encoding = encoding_for_model(params.model);
-  } catch (KeyError) {
-    console.log("Warning: model not found. Using cl100k_base encoding.");
-    encoding = get_encoding("cl100k_base");
-  }
   let tokens_per_message = 0;
   let tokens_per_name = 0;
 
@@ -100,7 +93,7 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     Object.keys(message).forEach((key) => {
       const value = message[key as keyof typeof message];
       if (value) {
-        num_tokens += encoding.encode(value).length;
+        num_tokens += getTokensByModel(params.model, value);
       }
       if (key === "name") {
         num_tokens += tokens_per_name;
@@ -108,6 +101,7 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     });
   });
   num_tokens += 3; // every reply is primed with <| start |> assistant <| message |>
+
   return num_tokens;
 }
 
@@ -132,8 +126,27 @@ const claudeStringTokenCount = (p: { model: string; text: string }) => {
 const getTokens = (name: TiktokenEncoding, text: string) => {
   const encoding = get_encoding(name);
   const tokens = encoding.encode(text);
+  // https://github.com/dqbd/tiktoken/issues/72
+  // we need to ensure to deallocate memory from the encoder
   encoding.free();
   return tokens.length;
+};
+
+const getTokensByModel = (model: TiktokenModel, text: string) => {
+  let encoding: Tiktoken;
+  try {
+    encoding = encoding_for_model(model);
+  } catch (KeyError) {
+    console.log("Warning: model not found. Using cl100k_base encoding.");
+    encoding = get_encoding("cl100k_base");
+  }
+
+  const length = encoding.encode(text).length;
+
+  // https://github.com/dqbd/tiktoken/issues/72
+  // we need to ensure to deallocate memory from the encoder
+  encoding.free();
+  return length;
 };
 
 function isString(value: unknown): value is string {
