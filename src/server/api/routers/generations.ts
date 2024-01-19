@@ -88,92 +88,99 @@ export const generationsRouter = createTRPCRouter({
         >
       >(
         Prisma.sql`
-          WITH observations_with_latency AS (
-            SELECT
-              o.*,
-              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-            FROM observations o
-            WHERE o.type = 'GENERATION'
-            AND o.project_id = ${input.projectId}
-            ${datetimeFilter}
-          )
+        WITH observations_with_latency AS (
           SELECT
-            o.id,
-            o.name,
-            o.model,
-            o.start_time as "startTime",
-            o.end_time as "endTime",
-            o.latency,
-            o.input,
-            o.output,
-            o.metadata,
-            o.trace_id as "traceId",
-            t.name as "traceName",
-            o.completion_start_time as "completionStartTime",
-            o.prompt_tokens as "promptTokens",
-            o.completion_tokens as "completionTokens",
-            o.total_tokens as "totalTokens",
-            o.level,
-            o.status_message as "statusMessage",
-            o.version
-          FROM observations_with_latency o
-          JOIN traces t ON t.id = o.trace_id
-          WHERE
-            t.project_id = ${input.projectId}
-            ${searchCondition}
-            ${filterCondition}
-          ORDER BY o.start_time DESC
-          LIMIT ${input.limit}
-          OFFSET ${input.page * input.limit}
-        `,
+            o.*,
+            CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+          FROM observations o
+          WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          ${datetimeFilter}
+        ),
+        -- used for filtering
+        scores_avg AS (
+          SELECT
+            trace_id,
+            jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+          FROM (
+            SELECT
+              trace_id,
+              name,
+              avg(value) avg_value
+            FROM
+              scores
+            GROUP BY
+              1,
+              2
+            ORDER BY
+              1) tmp
+          GROUP BY
+            1
+        )
+        SELECT
+          o.id,
+          o.name,
+          o.model,
+          o.start_time as "startTime",
+          o.end_time as "endTime",
+          o.latency,
+          o.input,
+          o.output,
+          o.metadata,
+          o.trace_id as "traceId",
+          t.name as "traceName",
+          o.completion_start_time as "completionStartTime",
+          o.prompt_tokens as "promptTokens",
+          o.completion_tokens as "completionTokens",
+          o.total_tokens as "totalTokens",
+          o.level,
+          o.status_message as "statusMessage",
+          o.version,
+          (count(*) OVER())::int AS "totalCount"
+        FROM observations_with_latency o
+        JOIN traces t ON t.id = o.trace_id
+        LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
+        WHERE
+          t.project_id = ${input.projectId}
+          ${searchCondition}
+          ${filterCondition}
+        ORDER BY o.start_time DESC
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `,
       );
 
-      const totalGenerations = await ctx.prisma.$queryRaw<
-        Array<{ count: bigint }>
-      >(
-        Prisma.sql`
-          WITH observations_with_latency AS (
-            SELECT
-              o.*,
-              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-            FROM observations o
-            WHERE o.type = 'GENERATION'
-            AND o.project_id = ${input.projectId}
-            ${datetimeFilter}
-          )
-          SELECT
-            count(*)
-          FROM observations_with_latency o
-          JOIN traces t ON t.id = o.trace_id
-          WHERE
-            t.project_id = ${input.projectId}
-            ${searchCondition}
-            ${filterCondition}
-        `,
-      );
+      const scores = await ctx.prisma.score.findMany({
+        where: {
+          traceId: {
+            in: generations.map((gen) => gen.traceId),
+          },
+        },
+      });
 
       const pricings = await ctx.prisma.pricing.findMany();
-      const count = totalGenerations[0]?.count;
-      return {
-        totalCount: count ? Number(count) : undefined,
-        generations: generations.map(({ input, output, ...rest }) => {
-          return {
-            ...rest,
-            input,
-            output,
-            cost: rest.model
-              ? calculateTokenCost(pricings, {
-                  model: rest.model,
-                  totalTokens: new Decimal(rest.totalTokens),
-                  promptTokens: new Decimal(rest.promptTokens),
-                  completionTokens: new Decimal(rest.completionTokens),
-                  input: input,
-                  output: output,
-                })
-              : undefined,
-          };
-        }),
-      };
+
+      return generations.map(({ input, output, ...rest }) => {
+        const filteredScores = scores.filter(
+          (score) => score.traceId === rest.traceId,
+        );
+        return {
+          ...rest,
+          input,
+          output,
+          scores: filteredScores,
+          cost: rest.model
+            ? calculateTokenCost(pricings, {
+                model: rest.model,
+                totalTokens: new Decimal(rest.totalTokens),
+                promptTokens: new Decimal(rest.promptTokens),
+                completionTokens: new Decimal(rest.completionTokens),
+                input: input,
+                output: output,
+              })
+            : undefined,
+        };
+      });
     }),
 
   export: protectedProjectProcedure
@@ -203,6 +210,26 @@ export const generationsRouter = createTRPCRouter({
         >
       >(
         Prisma.sql`
+        -- used for filtering
+        WITH scores_avg AS (
+          SELECT
+            trace_id,
+            jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+          FROM (
+            SELECT
+              trace_id,
+              name,
+              avg(value) avg_value
+            FROM
+              scores
+            GROUP BY
+              1,
+              2
+            ORDER BY
+              1) tmp
+          GROUP BY
+            1
+        )
           SELECT
             o.id,
             o.name,
@@ -221,6 +248,7 @@ export const generationsRouter = createTRPCRouter({
             o.version
           FROM observations o
           JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
           WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             AND t.project_id = ${input.projectId}
@@ -406,6 +434,15 @@ export const generationsRouter = createTRPCRouter({
         type: "GENERATION",
       } as const;
 
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          trace: {
+            projectId: input.projectId,
+          },
+        },
+        by: ["name"],
+      });
+
       const model = await ctx.prisma.observation.groupBy({
         by: ["model"],
         where: queryFilter,
@@ -453,6 +490,7 @@ export const generationsRouter = createTRPCRouter({
             value: i.traceName as string,
             count: i.count,
           })),
+        scores_avg: scores.map((score) => score.name),
       };
       return res;
     }),

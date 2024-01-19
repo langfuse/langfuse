@@ -1,4 +1,5 @@
 import { api, directApi } from "@/src/utils/api";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -26,6 +27,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type Score } from "@prisma/client";
 import { type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -49,6 +51,7 @@ export type GenerationsTableRow = {
   output?: unknown;
   traceName?: string;
   metadata?: string;
+  scores: Score[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -106,17 +109,26 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     isSuccess:
       generationsQueries[0].isSuccess || generationsQueries[1].isSuccess,
     data: [
-      ...(generationsQueries[0].data?.generations ?? []),
-      ...(generationsQueries[1].data?.generations ?? []),
+      ...(generationsQueries[0].data ?? []),
+      ...(generationsQueries[1].data ?? []),
     ],
     error: generationsQueries[0].error ?? generationsQueries[1].error,
   };
 
-  const totalCount = generationsQueries[0].data?.totalCount ?? 0;
+  const totalCount = generations.data.slice(1)[0]?.totalCount ?? 0;
 
-  const filterOptions = api.generations.filterOptions.useQuery({
-    projectId,
-  });
+  const filterOptions = api.generations.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const handleExport = async (fileFormat: ExportFileFormats) => {
     if (isExporting) return;
@@ -204,6 +216,16 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     {
       accessorKey: "startTime",
       header: "Start Time",
+      enableHiding: true,
+    },
+    {
+      accessorKey: "scores",
+      id: "scores",
+      header: "Scores",
+      cell: ({ row }) => {
+        const values: Score[] = row.getValue("scores");
+        return <GroupedScoreBadges scores={values} variant="headings" />;
+      },
       enableHiding: true,
     },
     {
@@ -335,6 +357,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
+          scores: generation.scores,
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata
