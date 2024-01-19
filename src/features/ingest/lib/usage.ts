@@ -1,11 +1,34 @@
+import { countTokens } from "@anthropic-ai/tokenizer";
 import {
-  type TiktokenEncoding,
-  get_encoding,
-  encoding_for_model,
+  getEncoding,
+  encodingForModel,
   type TiktokenModel,
   type Tiktoken,
-} from "tiktoken";
-import { countTokens } from "@anthropic-ai/tokenizer";
+  type TiktokenEncoding,
+} from "js-tiktoken";
+
+export function tokenCount(p: {
+  internalModel: string;
+  tokenizer: string;
+  text: unknown;
+}): number | undefined {
+  if (
+    p.text === null ||
+    p.text === undefined ||
+    (Array.isArray(p.text) && p.text.length === 0)
+  ) {
+    return undefined;
+  }
+
+  if (p.tokenizer === "openai") {
+    return openAiTokenCount(p);
+  } else if (p.tokenizer === "claude") {
+    return claudeTokenCount(p);
+  } else {
+    console.error(`Unknown tokenizer ${p.tokenizer}`);
+    return undefined;
+  }
+}
 
 type ChatMessage = {
   role: string;
@@ -18,40 +41,25 @@ type TokenCalculationParams = {
   model: TiktokenModel;
 };
 
-export function tokenCount(p: {
-  model: string;
-  text: unknown;
-}): number | undefined {
-  const model = cleanModelString(p.model);
-  if (
-    p.text === null ||
-    p.text === undefined ||
-    (Array.isArray(p.text) && p.text.length === 0)
-  ) {
-    return undefined;
-  } else if (isOpenAiModel(model)) {
-    return isChatMessageArray(p.text)
-      ? openAiChatTokenCount({
-          model: model,
-          messages: p.text,
-        })
-      : isString(p.text)
-        ? openAiStringTokenCount({ model: model, text: p.text })
-        : openAiStringTokenCount({
-            model: model,
-            text: JSON.stringify(p.text),
-          });
-  } else if (isClaudeModel(model)) {
-    return isString(p.text)
-      ? claudeStringTokenCount({ model: model, text: p.text })
-      : claudeStringTokenCount({
-          model: model,
+function openAiTokenCount(p: { internalModel: string; text: unknown }) {
+  if (!isOpenAiModel(p.internalModel)) return undefined;
+
+  return isChatMessageArray(p.text)
+    ? openAiChatTokenCount({
+        model: p.internalModel,
+        messages: p.text,
+      })
+    : isString(p.text)
+      ? openAiStringTokenCount({ model: p.internalModel, text: p.text })
+      : openAiStringTokenCount({
+          model: p.internalModel,
           text: JSON.stringify(p.text),
         });
-  } else {
-    console.log("Unknown model provider", p.model);
-    return undefined;
-  }
+}
+function claudeTokenCount(p: { internalModel: string; text: unknown }) {
+  return isString(p.text)
+    ? countTokens(p.text)
+    : countTokens(JSON.stringify(p.text));
 }
 
 function openAiChatTokenCount(params: TokenCalculationParams) {
@@ -117,94 +125,31 @@ const openAiStringTokenCount = (p: { model: string; text: string }) => {
   return undefined;
 };
 
-const claudeStringTokenCount = (p: { model: string; text: string }) => {
-  return countTokens(p.text);
-};
-
 const getTokens = (name: TiktokenEncoding, text: string) => {
-  const encoding = get_encoding(name);
+  const encoding = getEncoding(name);
   const tokens = encoding.encode(text);
-  // https://github.com/dqbd/tiktoken/issues/72
-  // we need to ensure to deallocate memory from the encoder
-  encoding.free();
+
   return tokens.length;
 };
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
   let encoding: Tiktoken;
   try {
-    encoding = encoding_for_model(model);
+    encoding = encodingForModel(model);
   } catch (KeyError) {
     console.log("Warning: model not found. Using cl100k_base encoding.");
-    encoding = get_encoding("cl100k_base");
+    encoding = getEncoding("cl100k_base");
   }
 
-  const length = encoding.encode(text).length;
-
-  // https://github.com/dqbd/tiktoken/issues/72
-  // we need to ensure to deallocate memory from the encoder
-  encoding.free();
-  return length;
+  return encoding.encode(text).length;
 };
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function isClaudeModel(model: string) {
-  return model.toLowerCase().startsWith("claude");
-}
-
 function isOpenAiModel(model: string): model is TiktokenModel {
-  return (
-    [
-      "text-davinci-003",
-      "text-davinci-002",
-      "text-davinci-001",
-      "text-curie-001",
-      "text-babbage-001",
-      "text-ada-001",
-      "davinci",
-      "curie",
-      "babbage",
-      "ada",
-      "code-davinci-002",
-      "code-davinci-001",
-      "code-cushman-002",
-      "code-cushman-001",
-      "davinci-codex",
-      "cushman-codex",
-      "text-davinci-edit-001",
-      "code-davinci-edit-001",
-      "text-embedding-ada-002",
-      "text-similarity-davinci-001",
-      "text-similarity-curie-001",
-      "text-similarity-babbage-001",
-      "text-similarity-ada-001",
-      "text-search-davinci-doc-001",
-      "text-search-curie-doc-001",
-      "text-search-babbage-doc-001",
-      "text-search-ada-doc-001",
-      "code-search-babbage-code-001",
-      "code-search-ada-code-001",
-      "gpt2",
-      "gpt-4",
-      "gpt-4-0314",
-      "gpt-4-0613",
-      "gpt-4-32k",
-      "gpt-4-32k-0314",
-      "gpt-4-32k-0613",
-      "gpt-4-1106-preview",
-      "gpt-4-vision-preview",
-      "gpt-3.5",
-      "gpt-3.5-turbo",
-      "gpt-3.5-turbo-0301",
-      "gpt-3.5-turbo-0613",
-      "gpt-3.5-turbo-16k",
-      "gpt-3.5-turbo-16k-0613",
-      "gpt-3.5-turbo-1106",
-    ].find((m) => m === model) !== undefined
-  );
+  return !!model.includes(model as TiktokenModel);
 }
 
 function isChatMessageArray(value: unknown): value is ChatMessage[] {
@@ -223,6 +168,3 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       (!("name" in item) || typeof item.name === "string"),
   );
 }
-
-const cleanModelString = (model: string) =>
-  model.toLowerCase().replaceAll("gpt-35", "gpt-3.5");

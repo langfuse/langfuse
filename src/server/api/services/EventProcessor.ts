@@ -98,7 +98,9 @@ export class ObservationProcessor implements EventProcessor {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
     }
 
-    let internalModel: string | null = null;
+    let internalModel: string | null =
+      existingObservation?.internalModel ?? null;
+
     if (
       type === "GENERATION" &&
       !existingObservation?.internalModel &&
@@ -147,8 +149,12 @@ export class ObservationProcessor implements EventProcessor {
         : traceId;
 
     const [newInputCount, newOutputCount] =
-      "usage" in body
-        ? this.calculateTokenCounts(body, existingObservation ?? undefined)
+      "usage" in body && internalModel
+        ? this.calculateTokenCounts(
+            body,
+            internalModel,
+            existingObservation ?? undefined,
+          )
         : [undefined, undefined];
 
     console.log(
@@ -271,24 +277,29 @@ export class ObservationProcessor implements EventProcessor {
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
+    internalModel: string,
     existingObservation?: Observation,
   ) {
-    const mergedModel = body.model ?? existingObservation?.model;
+    const tokenizerId = await prisma.model.findUnique({
+      where: {
+        modelName: internalModel,
+      },
+    });
 
     const newPromptTokens =
       body.usage?.input ??
-      ((body.input || existingObservation?.input) && mergedModel
+      ((body.input || existingObservation?.input) && internalModel
         ? tokenCount({
-            model: mergedModel,
+            internalModel: internalModel,
             text: body.input ?? existingObservation?.input,
           })
         : undefined);
 
     const newCompletionTokens =
       body.usage?.output ??
-      ((body.output || existingObservation?.output) && mergedModel
+      ((body.output || existingObservation?.output) && internalModel
         ? tokenCount({
-            model: mergedModel,
+            internalModel: internalModel,
             text: body.output ?? existingObservation?.output,
           })
         : undefined);
