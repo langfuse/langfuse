@@ -277,7 +277,9 @@ export class TraceProcessor implements EventProcessor {
     const { body } = this.event;
 
     if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError("Access denied for trace creation");
+      throw new AuthenticationError(
+        `Access denied for trace creation, ${apiScope.accessLevel}`,
+      );
 
     const internalId = body.id ?? v4();
 
@@ -294,6 +296,16 @@ export class TraceProcessor implements EventProcessor {
       },
     });
 
+    // access rights note:
+    // if trace exists, check if project id matches
+    // if trace does not exist, insert the trace with the projectId from scope
+
+    if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
+      throw new AuthenticationError(
+        `Access denied for trace creation ${existingTrace.projectId} `,
+      );
+    }
+
     const mergedMetadata = mergeJson(
       existingTrace?.metadata
         ? jsonSchema.parse(existingTrace.metadata)
@@ -304,7 +316,6 @@ export class TraceProcessor implements EventProcessor {
     const upsertedTrace = await prisma.trace.upsert({
       where: {
         id: internalId,
-        projectId: apiScope.projectId,
       },
       create: {
         id: internalId,

@@ -6,7 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 
 import { type Observation, Prisma } from "@prisma/client";
-import { paginationZod } from "@/src/utils/zod";
+import { jsonSchema, paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
   datetimeFilterToPrismaSql,
@@ -115,8 +115,7 @@ export const generationsRouter = createTRPCRouter({
             o.total_tokens as "totalTokens",
             o.level,
             o.status_message as "statusMessage",
-            o.version,
-            (count(*) OVER())::int AS "totalCount"
+            o.version
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
           WHERE
@@ -129,25 +128,52 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      const pricings = await ctx.prisma.pricing.findMany();
+      const totalGenerations = await ctx.prisma.$queryRaw<
+        Array<{ count: bigint }>
+      >(
+        Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          )
+          SELECT
+            count(*)
+          FROM observations_with_latency o
+          JOIN traces t ON t.id = o.trace_id
+          WHERE
+            t.project_id = ${input.projectId}
+            ${searchCondition}
+            ${filterCondition}
+        `,
+      );
 
-      return generations.map(({ input, output, ...rest }) => {
-        return {
-          ...rest,
-          input,
-          output,
-          cost: rest.model
-            ? calculateTokenCost(pricings, {
-                model: rest.model,
-                totalTokens: new Decimal(rest.totalTokens),
-                promptTokens: new Decimal(rest.promptTokens),
-                completionTokens: new Decimal(rest.completionTokens),
-                input: input,
-                output: output,
-              })
-            : undefined,
-        };
-      });
+      const pricings = await ctx.prisma.pricing.findMany();
+      const count = totalGenerations[0]?.count;
+      return {
+        totalCount: count ? Number(count) : undefined,
+        generations: generations.map(({ input, output, ...rest }) => {
+          return {
+            ...rest,
+            input,
+            output,
+            cost: rest.model
+              ? calculateTokenCost(pricings, {
+                  model: rest.model,
+                  totalTokens: new Decimal(rest.totalTokens),
+                  promptTokens: new Decimal(rest.promptTokens),
+                  completionTokens: new Decimal(rest.completionTokens),
+                  input: input,
+                  output: output,
+                })
+              : undefined,
+          };
+        }),
+      };
     }),
 
   export: protectedProjectProcedure
@@ -253,7 +279,7 @@ export const generationsRouter = createTRPCRouter({
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
                   generation.cost
-                    ? usdFormatter(generation.cost.toNumber())
+                    ? usdFormatter(generation.cost.toNumber(), 2, 8)
                     : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
@@ -277,9 +303,11 @@ export const generationsRouter = createTRPCRouter({
               content: z.string(),
             }),
           );
-          const outputSchema = z.object({
-            completion: z.string(),
-          });
+          const outputSchema = z
+            .object({
+              completion: jsonSchema,
+            })
+            .or(jsonSchema);
           output = enrichedGenerations
             .map((generation) => ({
               parsedInput: inputSchemaOpenAI.safeParse(generation.input),
@@ -293,7 +321,14 @@ export const generationsRouter = createTRPCRouter({
                       ? [
                           {
                             role: "assistant",
-                            content: generation.parsedOutput.data.completion,
+                            content:
+                              typeof generation.parsedOutput.data ===
+                                "object" &&
+                              "completion" in generation.parsedOutput.data
+                                ? JSON.stringify(
+                                    generation.parsedOutput.data.completion,
+                                  )
+                                : JSON.stringify(generation.parsedOutput.data),
                           },
                         ]
                       : [],
@@ -303,6 +338,7 @@ export const generationsRouter = createTRPCRouter({
             // to jsonl
             .map((row) => JSON.stringify(row))
             .join("\n");
+          console.log(output);
           break;
         default:
           throw new Error("Invalid export file format");
