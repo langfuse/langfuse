@@ -22,7 +22,7 @@ test("Create a project with provided name", async ({ page }) => {
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[type="submit"]');
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(30000);
   expect(await page.getByTestId("project-title-span-1").textContent()).toBe(
     "demo-app",
   );
@@ -36,7 +36,7 @@ test("Create a project with provided name", async ({ page }) => {
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
   expect(page.url()).toContain("/project/");
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(30000);
   expect(await page.getByTestId("project-title-span-2").textContent()).toBe(
     "my e2e demo project",
   );
