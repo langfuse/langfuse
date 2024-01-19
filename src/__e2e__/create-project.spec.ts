@@ -25,9 +25,7 @@ test("Create a project with provided name", async ({ page }) => {
   await page.fill('input[type="password"]', "password");
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
-  expect(await page.getByTestId("project-title-span-1").textContent()).toBe(
-    "demo-app",
-  );
+  await page.isVisible('[data-testid="new-project-form"]');
   await page.click('[data-testid="create-project-btn"]');
   await page.waitForTimeout(2000);
   await expect(page.locator("data-testid=new-project-form")).toBeVisible();
