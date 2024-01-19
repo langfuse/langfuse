@@ -258,12 +258,15 @@ describe("/api/public/ingestion API Endpoint", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: "TOKENS",
       expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
       models: [
         {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
       ],
     },
@@ -272,12 +275,15 @@ describe("/api/public/ingestion API Endpoint", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: "TOKENS",
       expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
       models: [
         {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
       ],
     },
@@ -286,18 +292,22 @@ describe("/api/public/ingestion API Endpoint", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: "TOKENS",
       expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
       models: [
         {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
         {
           modelName: "gpt-3.5-turbo-new",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T10:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
       ],
     },
@@ -306,18 +316,22 @@ describe("/api/public/ingestion API Endpoint", () => {
       observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
       modelUnit: "TOKENS",
       expectedInternalModel: "gpt-3.5-turbo-new",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
       models: [
         {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
         {
           modelName: "gpt-3.5-turbo-new",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T10:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
       ],
     },
@@ -326,12 +340,15 @@ describe("/api/public/ingestion API Endpoint", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: "TOKENS",
       expectedInternalModel: null,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
       models: [
         {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
       ],
     },
@@ -340,12 +357,15 @@ describe("/api/public/ingestion API Endpoint", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: "CHARACTERS",
       expectedInternalModel: null,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
       models: [
         {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
           unit: "TOKENS",
+          tokenizerId: "openai",
         },
       ],
     },
@@ -364,6 +384,7 @@ describe("/api/public/ingestion API Endpoint", () => {
               matchPattern: model.matchPattern,
               startDate: model.startDate,
               unit: model.unit,
+              tokenizerId: model.tokenizerId,
               tokenizerConfig: {},
             },
           }),
@@ -397,6 +418,8 @@ describe("/api/public/ingestion API Endpoint", () => {
               startTime: testConfig.observationStartTime.toISOString(),
               model: testConfig.observationExternalModel,
               unit: testConfig.modelUnit,
+              input: "This is a great prompt",
+              output: "This is a great gpt output",
             },
           },
         ],
@@ -417,6 +440,10 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbGeneration?.name).toBe("generation-name");
       expect(dbGeneration?.startTime).toEqual(testConfig.observationStartTime);
       expect(dbGeneration?.model).toBe(testConfig.observationExternalModel);
+      expect(dbGeneration?.promptTokens).toBe(testConfig.expectedPromptTokens);
+      expect(dbGeneration?.completionTokens).toBe(
+        testConfig.expectedCompletionTokens,
+      );
       expect(dbGeneration?.internalModel).toBe(
         testConfig.expectedInternalModel,
       );
@@ -793,6 +820,17 @@ describe("/api/public/ingestion API Endpoint", () => {
     const traceId = v4();
     const generationId = v4();
 
+    await prisma.model.create({
+      data: {
+        modelName: "gpt-3.5",
+        matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+        startDate: new Date("2021-01-01T00:00:00.000Z"),
+        unit: "TOKENS",
+        tokenizerId: "openai",
+        tokenizerConfig: {},
+      },
+    });
+
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
         {
@@ -859,6 +897,17 @@ describe("/api/public/ingestion API Endpoint", () => {
   it("should update all token counts if update does not contain model name and events come in wrong order", async () => {
     const traceId = v4();
     const generationId = v4();
+
+    await prisma.model.create({
+      data: {
+        modelName: "gpt-3.5",
+        matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+        startDate: new Date("2021-01-01T00:00:00.000Z"),
+        unit: "TOKENS",
+        tokenizerId: "openai",
+        tokenizerConfig: {},
+      },
+    });
 
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [

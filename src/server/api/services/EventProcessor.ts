@@ -108,7 +108,7 @@ export class ObservationProcessor implements EventProcessor {
       // either get the model from the existing observation
       // or match pattern on the user provided model name
       const modelCondition = existingObservation?.internalModel
-        ? Prisma.sql`AND internal_model = ${existingObservation.internalModel}`
+        ? Prisma.sql`AND model_name = ${existingObservation.internalModel}`
         : "model" in body && body.model
           ? Prisma.sql`AND ${body.model} ~ match_pattern`
           : undefined;
@@ -116,7 +116,7 @@ export class ObservationProcessor implements EventProcessor {
       // usage either from existing generation or from the current event
       const unit =
         existingObservation?.unit ??
-        ("usage" in body ? body.usage?.unit : undefined);
+        ("usage" in body ? body.usage?.unit ?? "TOKENS" : "TOKENS");
 
       if (!unit || !modelCondition) {
         console.log("no unit or model condition", unit, modelCondition);
@@ -135,7 +135,7 @@ export class ObservationProcessor implements EventProcessor {
           total_price AS "totalPrice",
           unit, 
           tokenizer_id AS "tokenizerId",
-          tokenizer_config AS "tokenizerConfig",
+          tokenizer_config AS "tokenizerConfig"
         FROM
           models
         WHERE (project_id = ${apiScope.projectId}
@@ -170,7 +170,7 @@ export class ObservationProcessor implements EventProcessor {
         : traceId;
 
     const [newInputCount, newOutputCount] =
-      "usage" in body && internalModel
+      "usage" in body
         ? this.calculateTokenCounts(
             body,
             internalModel,
