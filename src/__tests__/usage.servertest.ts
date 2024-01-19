@@ -1,6 +1,24 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 
 describe("Token Count Functions", () => {
+  const generateModel = (model: string, tokenizer: string) => {
+    return {
+      id: "1",
+      modelName: model,
+      tokenizerId: tokenizer,
+      tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      matchPattern: "",
+      projectId: null,
+      startDate: null,
+      inputPrice: null,
+      outputPrice: null,
+      totalPrice: null,
+      unit: "TOKENS",
+    };
+  };
+
   describe("token count for strings", () => {
     [
       { model: "gpt-3.5", tokenizer: "openai", tokens: 114 },
@@ -14,8 +32,7 @@ describe("Token Count Functions", () => {
     ].forEach(({ model, tokens, tokenizer }) => {
       it(`should return token count ${tokens} for ${model}`, () => {
         const result = tokenCount({
-          internalModel: model,
-          tokenizer: tokenizer,
+          model: generateModel(model, tokenizer),
           text: "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.",
         });
         expect(result).toBeDefined();
@@ -25,8 +42,7 @@ describe("Token Count Functions", () => {
 
     it("should return undefined for unknown model", () => {
       const result = tokenCount({
-        internalModel: "unknown-model",
-        tokenizer: "unknown-tokenizer",
+        model: generateModel("unknown-model", "unknown-tokenizer"),
         text: "Hello, World!",
       });
       expect(result).toBeUndefined();
@@ -34,8 +50,7 @@ describe("Token Count Functions", () => {
 
     it("should return for invalid text type", () => {
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: 1234,
       });
       expect(result).toBe(2);
@@ -43,8 +58,7 @@ describe("Token Count Functions", () => {
 
     it("should return correct token count for empty string", () => {
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: "",
       });
       expect(result).toBe(0);
@@ -53,8 +67,7 @@ describe("Token Count Functions", () => {
     it("should return correct token count for very long string", () => {
       const longString = "A".repeat(10000);
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: longString,
       });
       expect(result).toBeDefined();
@@ -63,16 +76,14 @@ describe("Token Count Functions", () => {
 
     it("should return undefined for null text input", () => {
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: null,
       });
       expect(result).toBeUndefined();
     });
     it("should return undefined for undefined text input", () => {
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: undefined,
       });
       expect(result).toBeUndefined();
@@ -88,8 +99,7 @@ describe("Token Count Functions", () => {
     ].forEach(({ model, tokens, tokenizer }) => {
       it(`should return token count ${tokens} for ${model}`, () => {
         const result = tokenCount({
-          internalModel: model,
-          tokenizer: tokenizer,
+          model: generateModel(model, tokenizer),
           text: [
             { role: "system", content: "You are a helpful assistant." },
             { role: "user", content: "Who won the world series in 2020?" },
@@ -106,8 +116,7 @@ describe("Token Count Functions", () => {
 
     it("should return for non array", () => {
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: { role: "Helo world" },
       });
       expect(result).toBe(7);
@@ -115,8 +124,7 @@ describe("Token Count Functions", () => {
 
     it("should return for empty array", () => {
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: [],
       });
       expect(result).toBeUndefined();
@@ -124,8 +132,7 @@ describe("Token Count Functions", () => {
 
     it("should return for array of invalid object", () => {
       const result = tokenCount({
-        internalModel: "gpt-4",
-        tokenizer: "openai",
+        model: generateModel("gpt-4", "openai"),
         text: [{ role: "Helo world" }],
       });
       expect(result).toBe(9);

@@ -1,5 +1,6 @@
 import { instrument } from "@/src/utils/instrumentation";
 import { countTokens } from "@anthropic-ai/tokenizer";
+import { type Model } from "@prisma/client";
 import {
   getEncoding,
   encodingForModel,
@@ -7,10 +8,10 @@ import {
   type Tiktoken,
   type TiktokenEncoding,
 } from "js-tiktoken";
+import { z } from "zod";
 
 export function tokenCount(p: {
-  internalModel: string;
-  tokenizer: string;
+  model: Model;
   text: unknown;
 }): number | undefined {
   if (
@@ -21,18 +22,31 @@ export function tokenCount(p: {
     return undefined;
   }
 
-  if (p.tokenizer === "openai") {
-    return openAiTokenCount({
-      internalModel: p.internalModel,
-      text: p.text,
-    });
-  } else if (p.tokenizer === "claude") {
+  if (p.model.tokenizerId === "openai") {
+    // check if the tokenizerConfig is a valid OpenAiTokenConfig
+    const parsedConfig = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
+    if (!parsedConfig.success) {
+      console.error(
+        `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
+          p.model.tokenizerConfig,
+        )}`,
+      );
+      return undefined;
+    }
+
+    if (p.model.tokenizerConfig)
+      return openAiTokenCount({
+        internalModel: p.model.modelName,
+        config: parsedConfig.data,
+        text: p.text,
+      });
+  } else if (p.model.tokenizerId === "claude") {
     return claudeTokenCount({
-      internalModel: p.internalModel,
+      internalModel: p.model.modelName,
       text: p.text,
     });
   } else {
-    console.error(`Unknown tokenizer ${p.tokenizer}`);
+    console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
     return undefined;
   }
 }
@@ -46,15 +60,21 @@ type ChatMessage = {
 type TokenCalculationParams = {
   messages: ChatMessage[];
   model: TiktokenModel;
+  config: z.infer<typeof OpenAiTokenConfig>;
 };
 
-function openAiTokenCount(p: { internalModel: string; text: unknown }) {
+function openAiTokenCount(p: {
+  internalModel: string;
+  text: unknown;
+  config: z.infer<typeof OpenAiTokenConfig>;
+}) {
   if (!isOpenAiModel(p.internalModel)) return undefined;
 
   return isChatMessageArray(p.text)
     ? openAiChatTokenCount({
         model: p.internalModel,
         messages: p.text,
+        config: p.config,
       })
     : isString(p.text)
       ? openAiStringTokenCount({ model: p.internalModel, text: p.text })
@@ -69,53 +89,29 @@ function claudeTokenCount(p: { internalModel: string; text: unknown }) {
     : countTokens(JSON.stringify(p.text));
 }
 
-function openAiChatTokenCount(params: TokenCalculationParams) {
-  let tokens_per_message = 0;
-  let tokens_per_name = 0;
+const OpenAiTokenConfig = z.object({
+  tokensPerMessage: z.number(),
+  tokensPerName: z.number(),
+});
 
-  if (
-    [
-      "gpt-3.5-turbo-0613",
-      "gpt-3.5-turbo-16k-0613",
-      "gpt-4-0314",
-      "gpt-4-32k-0314",
-      "gpt-4-0613",
-      "gpt-4-32k-0613",
-    ].includes(params.model)
-  ) {
-    tokens_per_message = 3;
-    tokens_per_name = 1;
-  } else if (params.model === "gpt-3.5-turbo-0301") {
-    tokens_per_message = 4; // every message follows <|start|>{role/name}\n{content}<|end|>\n
-    tokens_per_name = -1; // if there's a name, the role is omitted
-  } else if (
-    params.model.includes("gpt-3.5-turbo") ||
-    params.model.startsWith("gpt-3.5")
-  ) {
-    return openAiChatTokenCount({ ...params, model: "gpt-3.5-turbo-0613" });
-  } else if (params.model.includes("gpt-4")) {
-    return openAiChatTokenCount({ ...params, model: "gpt-4-0613" });
-  } else {
-    console.error(`Not implemented for model ${params.model}`);
-    throw new Error(`Not implemented for model ${params.model}`);
-  }
-  let num_tokens = 0;
+function openAiChatTokenCount(params: TokenCalculationParams) {
+  let numTokens = 0;
   params.messages.forEach((message) => {
-    num_tokens += tokens_per_message;
+    numTokens += params.config.tokensPerMessage;
 
     Object.keys(message).forEach((key) => {
       const value = message[key as keyof typeof message];
       if (value) {
-        num_tokens += getTokensByModel(params.model, value);
+        numTokens += getTokensByModel(params.model, value);
       }
       if (key === "name") {
-        num_tokens += tokens_per_name;
+        numTokens += params.config.tokensPerName;
       }
     });
   });
-  num_tokens += 3; // every reply is primed with <| start |> assistant <| message |>
+  numTokens += 3; // every reply is primed with <| start |> assistant <| message |>
 
-  return num_tokens;
+  return numTokens;
 }
 
 const openAiStringTokenCount = (p: { model: string; text: string }) => {

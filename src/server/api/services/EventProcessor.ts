@@ -28,7 +28,6 @@ import {
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
-import { model } from "@/src/server/api/services/tableDefinitions";
 
 export interface EventProcessor {
   process(
@@ -309,8 +308,7 @@ export class ObservationProcessor implements EventProcessor {
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
         ? tokenCount({
-            internalModel: model.modelName,
-            tokenizer: model.tokenizerId,
+            model: model,
             text: body.input ?? existingObservation?.input,
           })
         : undefined);
@@ -321,8 +319,7 @@ export class ObservationProcessor implements EventProcessor {
       model &&
       model.tokenizerId
         ? tokenCount({
-            internalModel: model.modelName,
-            tokenizer: model.tokenizerId,
+            model: model,
             text: body.output ?? existingObservation?.output,
           })
         : undefined);

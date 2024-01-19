@@ -385,7 +385,7 @@ describe("/api/public/ingestion API Endpoint", () => {
               startDate: model.startDate,
               unit: model.unit,
               tokenizerId: model.tokenizerId,
-              tokenizerConfig: {},
+              tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
             },
           }),
         ),
@@ -827,7 +827,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         startDate: new Date("2021-01-01T00:00:00.000Z"),
         unit: "TOKENS",
         tokenizerId: "openai",
-        tokenizerConfig: {},
+        tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
       },
     });
 
@@ -905,7 +905,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         startDate: new Date("2021-01-01T00:00:00.000Z"),
         unit: "TOKENS",
         tokenizerId: "openai",
-        tokenizerConfig: {},
+        tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
       },
     });
 

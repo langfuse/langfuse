@@ -34,27 +34,4 @@ export const modelRouter = createTRPCRouter({
         totalCount: totalAmount,
       };
     }),
-
-  filterOptions: protectedProjectProcedure
-    .input(ModelAllOptions)
-    .query(async ({ input, ctx }) => {
-      const models = await ctx.prisma.model.findMany({
-        where: {
-          OR: [{ projectId: input.projectId }, { projectId: null }],
-        },
-        skip: input.page * input.limit,
-        take: input.limit,
-      });
-
-      const totalAmount = await ctx.prisma.model.count({
-        where: {
-          OR: [{ projectId: input.projectId }, { projectId: null }],
-        },
-      });
-
-      return {
-        models,
-        totalCount: totalAmount,
-      };
-    }),
 });
