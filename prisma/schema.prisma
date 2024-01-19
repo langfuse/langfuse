@@ -441,7 +441,7 @@ model Model {
     outputPrice     Decimal?  @map("output_price")
     totalPrice      Decimal?  @map("total_price")
     unit            String    @default("TOKENS")
-    tokenizer_id    String?   @map("tokenizer_id")
+    tokenizerId     String?   @map("tokenizer_id")
     tokenizerConfig Json      @map("tokenizer_config")
 
     @@unique([projectId, modelName, startDate, unit])

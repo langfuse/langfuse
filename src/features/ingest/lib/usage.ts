@@ -1,3 +1,4 @@
+import { instrument } from "@/src/utils/instrumentation";
 import { countTokens } from "@anthropic-ai/tokenizer";
 import {
   getEncoding,
@@ -21,9 +22,15 @@ export function tokenCount(p: {
   }
 
   if (p.tokenizer === "openai") {
-    return openAiTokenCount(p);
+    return openAiTokenCount({
+      internalModel: p.internalModel,
+      text: p.text,
+    });
   } else if (p.tokenizer === "claude") {
-    return claudeTokenCount(p);
+    return claudeTokenCount({
+      internalModel: p.internalModel,
+      text: p.text,
+    });
   } else {
     console.error(`Unknown tokenizer ${p.tokenizer}`);
     return undefined;
@@ -116,32 +123,36 @@ const openAiStringTokenCount = (p: { model: string; text: string }) => {
     p.model.toLowerCase().startsWith("gpt") ||
     p.model.toLowerCase().includes("ada")
   ) {
-    return getTokens("cl100k_base", p.text);
+    return getTokensByEncoding("cl100k_base", p.text);
   }
   if (p.model.toLowerCase().startsWith("text-davinci")) {
-    return getTokens("p50k_base", p.text);
+    return getTokensByEncoding("p50k_base", p.text);
   }
   console.log("Unknown model", p.model);
   return undefined;
 };
 
-const getTokens = (name: TiktokenEncoding, text: string) => {
-  const encoding = getEncoding(name);
-  const tokens = encoding.encode(text);
+const getTokensByEncoding = (name: TiktokenEncoding, text: string) => {
+  return instrument({ name: "get-tokens-by-encoding" }, () => {
+    const encoding = getEncoding(name);
+    const tokens = encoding.encode(text);
 
-  return tokens.length;
+    return tokens.length;
+  });
 };
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
-  let encoding: Tiktoken;
-  try {
-    encoding = encodingForModel(model);
-  } catch (KeyError) {
-    console.log("Warning: model not found. Using cl100k_base encoding.");
-    encoding = getEncoding("cl100k_base");
-  }
+  return instrument({ name: "get-tokens-by-model" }, () => {
+    let encoding: Tiktoken;
+    try {
+      encoding = encodingForModel(model);
+    } catch (KeyError) {
+      console.log("Warning: model not found. Using cl100k_base encoding.");
+      encoding = getEncoding("cl100k_base");
+    }
 
-  return encoding.encode(text).length;
+    return encoding.encode(text).length;
+  });
 };
 
 function isString(value: unknown): value is string {

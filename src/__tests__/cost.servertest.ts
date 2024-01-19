@@ -225,8 +225,6 @@ describe("cost retrieval tests", () => {
         where: { traceId: dbTrace.id },
       });
 
-      console.log(view);
-
       // calculated cost fields
       expect(view?.model_id).toBe(input.expectedModelId);
       expect(view?.calculatedInputCost?.toString()).toBe(

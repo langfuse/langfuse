@@ -23,10 +23,12 @@ import {
   type Observation,
   type Score,
   Prisma,
+  type Model,
 } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
+import { model } from "@/src/server/api/services/tableDefinitions";
 
 export interface EventProcessor {
   process(
@@ -98,28 +100,47 @@ export class ObservationProcessor implements EventProcessor {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
     }
 
-    let internalModel: string | null =
-      existingObservation?.internalModel ?? null;
+    // we need to get the matching model on each generation
+    // to be able to calculate the token counts
+    let internalModel: Model | undefined = undefined;
 
-    if (
-      type === "GENERATION" &&
-      !existingObservation?.internalModel &&
-      "model" in body &&
-      "usage" in body &&
-      body.model
-    ) {
-      const unit = body.usage?.unit
-        ? body.usage.unit
-        : existingObservation?.unit ?? "TOKENS";
+    if (type === "GENERATION") {
+      // either get the model from the existing observation
+      // or match pattern on the user provided model name
+      const modelCondition = existingObservation?.internalModel
+        ? Prisma.sql`AND internal_model = ${existingObservation.internalModel}`
+        : "model" in body && body.model
+          ? Prisma.sql`AND ${body.model} ~ match_pattern`
+          : undefined;
 
-      const sql = Prisma.sql`
+      // usage either from existing generation or from the current event
+      const unit =
+        existingObservation?.unit ??
+        ("usage" in body ? body.usage?.unit : undefined);
+
+      if (!unit || !modelCondition) {
+        console.log("no unit or model condition", unit, modelCondition);
+      } else {
+        const sql = Prisma.sql`
         SELECT
-          id, model_name as "modelName"
+          id,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt",
+          project_id AS "projectId",
+          model_name AS "modelName",
+          match_pattern AS "matchPattern",
+          start_date AS "startDate",
+          input_price AS "inputPrice",
+          output_price AS "outputPrice",
+          total_price AS "totalPrice",
+          unit, 
+          tokenizer_id AS "tokenizerId",
+          tokenizer_config AS "tokenizerConfig",
         FROM
           models
         WHERE (project_id = ${apiScope.projectId}
           OR project_id IS NULL)
-        AND ${body.model} ~ match_pattern
+        ${modelCondition}
         AND unit = ${unit}
         AND (start_date IS NULL OR start_date <= ${
           startTime ? new Date(startTime) : new Date()
@@ -129,10 +150,10 @@ export class ObservationProcessor implements EventProcessor {
         start_date DESC
       LIMIT 1;`;
 
-      const foundModels =
-        await prisma.$queryRaw<Array<{ id: string; modelName: string }>>(sql);
+        const foundModels = await prisma.$queryRaw<Array<Model>>(sql);
 
-      internalModel = foundModels[0]?.modelName ?? null;
+        internalModel = foundModels[0] ?? undefined;
+      }
     }
 
     const finalTraceId =
@@ -227,7 +248,9 @@ export class ObservationProcessor implements EventProcessor {
         ...(prompts && prompts.length === 1
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
-        ...(internalModel ? { internalModel: internalModel } : undefined),
+        ...(internalModel
+          ? { internalModel: internalModel.modelName }
+          : undefined),
         inputCost: "usage" in body ? body.usage?.inputCost : undefined,
         outputCost: "usage" in body ? body.usage?.outputCost : undefined,
         totalCost: "usage" in body ? body.usage?.totalCost : undefined,
@@ -265,7 +288,9 @@ export class ObservationProcessor implements EventProcessor {
         ...(prompts && prompts.length === 1
           ? { prompt: { connect: { id: prompts[0]?.id } } }
           : undefined),
-        ...(internalModel ? { internalModel: internalModel } : undefined),
+        ...(internalModel
+          ? { internalModel: internalModel.modelName }
+          : undefined),
         inputCost: "usage" in body ? body.usage?.inputCost : undefined,
         outputCost: "usage" in body ? body.usage?.outputCost : undefined,
         totalCost: "usage" in body ? body.usage?.totalCost : undefined,
@@ -277,32 +302,31 @@ export class ObservationProcessor implements EventProcessor {
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
-    internalModel: string,
+    model?: Model,
     existingObservation?: Observation,
   ) {
-    const tokenizerId = await prisma.model.findUnique({
-      where: {
-        modelName: internalModel,
-      },
-    });
-
     const newPromptTokens =
       body.usage?.input ??
-      ((body.input || existingObservation?.input) && internalModel
+      ((body.input || existingObservation?.input) && model && model.tokenizerId
         ? tokenCount({
-            internalModel: internalModel,
+            internalModel: model.modelName,
+            tokenizer: model.tokenizerId,
             text: body.input ?? existingObservation?.input,
           })
         : undefined);
 
     const newCompletionTokens =
       body.usage?.output ??
-      ((body.output || existingObservation?.output) && internalModel
+      ((body.output || existingObservation?.output) &&
+      model &&
+      model.tokenizerId
         ? tokenCount({
-            internalModel: internalModel,
+            internalModel: model.modelName,
+            tokenizer: model.tokenizerId,
             text: body.output ?? existingObservation?.output,
           })
         : undefined);
+
     return [newPromptTokens, newCompletionTokens];
   }
 
