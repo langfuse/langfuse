@@ -26,6 +26,9 @@ service:
           limit: optional<integer>
           userId: optional<string>
           name: optional<string>
+          orderBy:
+            type: string
+            docs: Format of the string sort_by=timestamp.asc (id, timestamp, name, userId, release, version, public, bookmarked, sessionId)
           tags:
             type: optional<string>
             allow-multiple: true
@@ -37,3 +40,6 @@ types:
     properties:
       data: list<commons.TraceWithDetails>
       meta: pagination.MetaResponse
+  Sort:
+    properties:
+      id: string
