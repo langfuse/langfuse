@@ -13,7 +13,7 @@ export default function ScoresPage() {
         title="Models"
         help={{
           description:
-            "A model represents a LLM model. It is used to choose tokenizer and calculate costs.",
+            "A model represents a LLM model. It is used to calculate tokens and cost.",
           href: "https://langfuse.com/docs/models",
         }}
       />

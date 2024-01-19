@@ -3,12 +3,12 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
-import { type Model } from "@prisma/client";
+import { type Prisma, type Model } from "@prisma/client";
 import Decimal from "decimal.js";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ModelTableRow = {
-  projectId?: string;
+  maintainer: string;
   modelName: string;
   matchPattern: string;
   startDate?: Date;
@@ -16,6 +16,8 @@ export type ModelTableRow = {
   outputPrice?: Decimal;
   totalPrice?: Decimal;
   unit: string;
+  tokenizerId?: string;
+  config?: Prisma.JsonValue;
 };
 
 export default function ModelTable({ projectId }: { projectId: string }) {
@@ -37,11 +39,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       id: "maintainer",
       enableColumnFilter: true,
       header: "Maintainer",
-      cell: ({ row }) => {
-        const value = row.getValue("projectId");
-
-        return typeof value === "string" ? "User" : "Langfuse";
-      },
     },
     {
       accessorKey: "modelName",
@@ -110,7 +107,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "totalPrice",
-      id: "totalprice",
+      id: "totalPrice",
       header: "Total Price",
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalPrice");
@@ -136,6 +133,21 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       header: "Tokenizer",
       enableHiding: true,
     },
+    {
+      accessorKey: "config",
+      id: "config",
+      header: "Tokenizer",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Prisma.JsonValue | undefined = row.getValue("config");
+
+        return value ? (
+          <span className="text-xs">{JSON.stringify(value)}</span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -143,7 +155,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 
   const convertToTableRow = (model: Model): ModelTableRow => {
     return {
-      projectId: model.projectId ?? undefined,
+      maintainer: model.projectId ? "User" : "Langfuse",
       modelName: model.modelName,
       matchPattern: model.matchPattern,
       startDate: model.startDate ? new Date(model.startDate) : undefined,
@@ -153,6 +165,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         : undefined,
       totalPrice: model.totalPrice ? new Decimal(model.totalPrice) : undefined,
       unit: model.unit,
+      tokenizerId: model.tokenizerId ?? undefined,
+      config: model.tokenizerConfig,
     };
   };
 
