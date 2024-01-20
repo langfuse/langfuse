@@ -15,12 +15,24 @@ import {
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
+  orderBy: z
+    .string() // orderBy=timestamp.asc
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      const [column, order] = v.split(".");
+      return { column, order: order?.toUpperCase() };
+    })
+    .pipe(orderBy.nullish()),
 });
 
 export default async function handler(
@@ -92,6 +104,11 @@ export default async function handler(
           )}] <@ t."tags"`
         : Prisma.empty;
 
+      const orderByCondition = orderByToPrismaSql(
+        obj.orderBy ?? null,
+        tracesTableCols,
+      );
+
       const traces = await prisma.$queryRaw<
         Array<Trace & { observations: string[]; scores: string[] }>
       >(Prisma.sql`
@@ -116,7 +133,7 @@ export default async function handler(
           ${nameCondition}
           ${tagsCondition}
           GROUP BY t.id
-          ORDER BY t."timestamp" DESC
+          ${orderByCondition}
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `);
       const totalItems = await prisma.trace.count({
