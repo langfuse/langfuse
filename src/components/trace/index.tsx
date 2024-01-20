@@ -23,6 +23,7 @@ import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
+import { useCallback, useState } from "react";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -41,9 +42,36 @@ export function Trace(props: {
     true,
   );
 
+  const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
+    [],
+  );
+
+  const toggleCollapsedObservation = useCallback(
+    (id: string) => {
+      if (collapsedObservations.includes(id)) {
+        setCollapsedObservations(collapsedObservations.filter((i) => i !== id));
+      } else {
+        setCollapsedObservations([...collapsedObservations, id]);
+      }
+    },
+    [collapsedObservations],
+  );
+
+  const collapseAll = useCallback(() => {
+    setCollapsedObservations(
+      props.observations
+        .map((o) => o.id)
+        .filter((id) => id !== currentObservationId),
+    );
+  }, [props.observations, currentObservationId]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedObservations([]);
+  }, [setCollapsedObservations]);
+
   return (
-    <div className="grid gap-4 md:h-full md:grid-cols-3">
-      <ScrollArea className="md:col-span-2 md:h-full">
+    <div className="grid gap-4 md:h-full md:grid-cols-5">
+      <ScrollArea className="md:col-span-3 md:h-full">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -62,7 +90,7 @@ export function Trace(props: {
           />
         )}
       </ScrollArea>
-      <div className="md:flex md:h-full md:flex-col md:overflow-hidden">
+      <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
         <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
           <Toggle
             pressed={scoresOnObservationTree}
@@ -92,6 +120,10 @@ export function Trace(props: {
         <ScrollArea className="flex flex-grow">
           <ObservationTree
             observations={props.observations}
+            collapsedObservations={collapsedObservations}
+            toggleCollapsedObservation={toggleCollapsedObservation}
+            collapseAll={collapseAll}
+            expandAll={expandAll}
             trace={props.trace}
             scores={props.scores}
             currentObservationId={currentObservationId ?? undefined}

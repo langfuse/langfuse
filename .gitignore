@@ -49,3 +49,7 @@ yarn-error.log*
 
 # openapi spec that is copied during build
 /public/openapi*.yml
+
+
+# vscode
+.devcontainer
