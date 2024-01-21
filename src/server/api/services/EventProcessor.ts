@@ -35,6 +35,62 @@ export interface EventProcessor {
   ): Promise<Trace | Observation | Score> | undefined;
 }
 
+export const findModel = async (
+  projectId: string,
+  model?: string,
+  unit?: string,
+  startTime?: string,
+  existingObservation?: Observation,
+) => {
+  // either get the model from the existing observation
+  // or match pattern on the user provided model name
+  const modelCondition = existingObservation?.internalModel
+    ? Prisma.sql`AND model_name = ${existingObservation.internalModel}`
+    : model
+      ? Prisma.sql`AND ${model} ~ match_pattern`
+      : undefined;
+
+  // usage either from existing generation or from the current event
+  const mergedUnit = existingObservation?.unit ?? unit ?? "TOKENS";
+
+  if (!unit || !modelCondition) {
+    console.log("no unit or model condition", unit, modelCondition);
+  } else {
+    const sql = Prisma.sql`
+        SELECT
+          id,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt",
+          project_id AS "projectId",
+          model_name AS "modelName",
+          match_pattern AS "matchPattern",
+          start_date AS "startDate",
+          input_price AS "inputPrice",
+          output_price AS "outputPrice",
+          total_price AS "totalPrice",
+          unit, 
+          tokenizer_id AS "tokenizerId",
+          tokenizer_config AS "tokenizerConfig"
+        FROM
+          models
+        WHERE (project_id = ${projectId}
+          OR project_id IS NULL)
+        ${modelCondition}
+        AND unit = ${mergedUnit}
+        AND (start_date IS NULL OR start_date <= ${
+          startTime ? new Date(startTime) : new Date()
+        }::timestamp with time zone at time zone 'UTC')
+      ORDER BY
+        project_id ASC,
+        start_date DESC
+      LIMIT 1;`;
+
+    const foundModels = await prisma.$queryRaw<Array<Model>>(sql);
+
+    return foundModels[0] ?? undefined;
+  }
+};
+
 export class ObservationProcessor implements EventProcessor {
   event:
     | z.infer<typeof legacyObservationCreateEvent>
@@ -101,59 +157,16 @@ export class ObservationProcessor implements EventProcessor {
 
     // we need to get the matching model on each generation
     // to be able to calculate the token counts
-    let internalModel: Model | undefined = undefined;
-
-    if (type === "GENERATION") {
-      // either get the model from the existing observation
-      // or match pattern on the user provided model name
-      const modelCondition = existingObservation?.internalModel
-        ? Prisma.sql`AND model_name = ${existingObservation.internalModel}`
-        : "model" in body && body.model
-          ? Prisma.sql`AND ${body.model} ~ match_pattern`
-          : undefined;
-
-      // usage either from existing generation or from the current event
-      const unit =
-        existingObservation?.unit ??
-        ("usage" in body ? body.usage?.unit ?? "TOKENS" : "TOKENS");
-
-      if (!unit || !modelCondition) {
-        console.log("no unit or model condition", unit, modelCondition);
-      } else {
-        const sql = Prisma.sql`
-        SELECT
-          id,
-          created_at AS "createdAt",
-          updated_at AS "updatedAt",
-          project_id AS "projectId",
-          model_name AS "modelName",
-          match_pattern AS "matchPattern",
-          start_date AS "startDate",
-          input_price AS "inputPrice",
-          output_price AS "outputPrice",
-          total_price AS "totalPrice",
-          unit, 
-          tokenizer_id AS "tokenizerId",
-          tokenizer_config AS "tokenizerConfig"
-        FROM
-          models
-        WHERE (project_id = ${apiScope.projectId}
-          OR project_id IS NULL)
-        ${modelCondition}
-        AND unit = ${unit}
-        AND (start_date IS NULL OR start_date <= ${
-          startTime ? new Date(startTime) : new Date()
-        }::timestamp with time zone at time zone 'UTC')
-      ORDER BY
-        project_id ASC,
-        start_date DESC
-      LIMIT 1;`;
-
-        const foundModels = await prisma.$queryRaw<Array<Model>>(sql);
-
-        internalModel = foundModels[0] ?? undefined;
-      }
-    }
+    const internalModel: Model | undefined =
+      type === "GENERATION"
+        ? await findModel(
+            apiScope.projectId,
+            "model" in body ? body.model ?? undefined : undefined,
+            "usage" in body ? body.usage?.unit ?? undefined : undefined,
+            startTime ?? undefined,
+            existingObservation ?? undefined,
+          )
+        : undefined;
 
     const finalTraceId =
       !traceId && !existingObservation
