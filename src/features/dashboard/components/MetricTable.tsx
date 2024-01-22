@@ -45,8 +45,6 @@ export const MetricTable = ({
     },
   );
 
-  console.log(metrics.data);
-
   const totalTokens = metrics.data?.reduce(
     (acc, curr) =>
       acc +

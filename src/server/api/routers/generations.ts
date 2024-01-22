@@ -303,7 +303,7 @@ export const generationsRouter = createTRPCRouter({
             // to jsonl
             .map((row) => JSON.stringify(row))
             .join("\n");
-          console.log(output);
+
           break;
         default:
           throw new Error("Invalid export file format");

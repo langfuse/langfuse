@@ -22,6 +22,7 @@ import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { type Sql } from "@prisma/client/runtime/library";
 import { instrumentAsync } from "@/src/utils/instrumentation";
+import type Decimal from "decimal.js";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -82,7 +83,10 @@ export const traceRouter = createTRPCRouter({
           COALESCE(u."promptTokens", 0)::int AS "promptTokens",
           COALESCE(u."completionTokens", 0)::int AS "completionTokens",
           COALESCE(u."totalTokens", 0)::int AS "totalTokens",
-          tl.latency AS "latency"`,
+          tl.latency AS "latency",
+          COALESCE(u."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost"
+          `,
+
         input.projectId,
         observationTimeseriesFilter,
         input.page,
@@ -103,6 +107,7 @@ export const traceRouter = createTRPCRouter({
                 totalTokens: number;
                 totalCount: number;
                 latency: number | null;
+                calculatedTotalCost: Decimal | null;
               }
             >
           >(tracesQuery),
@@ -406,9 +411,10 @@ function createTracesQuery(
       trace_id,
       sum(prompt_tokens) AS "promptTokens",
       sum(completion_tokens) AS "completionTokens",
-      sum(total_tokens) AS "totalTokens"
+      sum(total_tokens) AS "totalTokens",
+      sum(calculated_total_cost) AS "calculatedTotalCost"
     FROM
-      "observations"
+      "observations_view"
     WHERE
       "trace_id" IS NOT NULL
       AND "type" = 'GENERATION'
