@@ -56,7 +56,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@react-email/components": "^0.0.12",
     "@react-email/render": "^0.0.10",
-    "@sentry/nextjs": "^7.92.0",
+    "@sentry/nextjs": "^7.94.1",
     "@sentry/profiling-node": "^1.3.2",
     "@sentry/types": "^7.88.0",
     "@t3-oss/env-nextjs": "^0.7.1",
