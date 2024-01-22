@@ -308,7 +308,7 @@ export const handleBatchResult = (
       });
     } else {
       if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-        Sentry.captureException(error);
+        Sentry.captureException(error.error);
       }
       returnedErrors.push({
         id: error.id,
