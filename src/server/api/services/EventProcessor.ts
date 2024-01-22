@@ -253,7 +253,6 @@ export class ObservationProcessor implements EventProcessor {
         })
       : null;
 
-    // Auth check outside of final opsert
     if (
       existingObservation &&
       existingObservation.projectId !== apiScope.projectId
@@ -307,10 +306,6 @@ export class TraceProcessor implements EventProcessor {
         id: internalId,
       },
     });
-
-    // access rights note:
-    // if trace exists, check if project id matches
-    // if trace does not exist, insert the trace with the projectId from scope
 
     if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
       throw new AuthenticationError(
