@@ -173,11 +173,6 @@ export default function SessionsTable({
     },
   ];
 
-  const [columnSizing, setColumnSizing] = useColumnSizing<SessionTableRow>(
-    "sessionsColumnSizing",
-    columns,
-  );
-
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
@@ -213,10 +208,9 @@ export default function SessionsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnSizing={columnSizing}
-        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        resizingEnabled
         help={{
           description:
             "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",

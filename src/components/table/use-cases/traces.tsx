@@ -326,7 +326,7 @@ export default function TracesTable({
       header: "Input",
       cell: ({ row }) => {
         const value: unknown = row.getValue("input");
-        return <JSONView json={value} className="w-[500px]" />;
+        return <JSONView json={value} className="w-[auto]" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -336,7 +336,7 @@ export default function TracesTable({
       header: "Output",
       cell: ({ row }) => {
         const value: unknown = row.getValue("output");
-        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+        return <JSONView json={value} className="w-[auto] bg-green-50" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -403,11 +403,6 @@ export default function TracesTable({
     },
   ];
 
-  const [columnSizing, setColumnSizing] = useColumnSizing<TracesTableRow>(
-    "tracesColumnSizing",
-    columns,
-  );
-
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
@@ -467,10 +462,9 @@ export default function TracesTable({
         orderBy={orderByState}
         rowSelection={selectedRows}
         setRowSelection={setSelectedRows}
-        columnSizing={columnSizing}
-        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        resizingEnabled
       />
     </div>
   );

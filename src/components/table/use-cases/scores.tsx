@@ -116,11 +116,6 @@ export default function ScoresTable({
     },
   ];
 
-  const [columnSizing, setColumnSizing] = useColumnSizing<ScoresTableRow>(
-    "scoresColumnSizing",
-    columns,
-  );
-
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<ScoresTableRow>("scoresColumnVisibility", columns);
 
@@ -168,10 +163,9 @@ export default function ScoresTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnSizing={columnSizing}
-        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        resizingEnabled
       />
     </div>
   );

@@ -285,7 +285,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Input",
       cell: ({ row }) => {
         const value: unknown = row.getValue("input");
-        return <JSONView json={value} className="w-[500px]" />;
+        return <JSONView json={value} className="w-[auto]" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -295,7 +295,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Output",
       cell: ({ row }) => {
         const value: unknown = row.getValue("output");
-        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+        return <JSONView json={value} className="w-[auto] bg-green-50" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -316,11 +316,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
     },
   ];
-
-  const [columnSizing, setColumnSizing] = useColumnSizing<GenerationsTableRow>(
-    "generationsColumnSizing",
-    columns,
-  );
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<GenerationsTableRow>(
@@ -427,10 +422,9 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnSizing={columnSizing}
-        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        resizingEnabled
       />
     </div>
   );
