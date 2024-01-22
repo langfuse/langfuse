@@ -1,4 +1,3 @@
-import { instrument } from "@/src/utils/instrumentation";
 import { countTokens } from "@anthropic-ai/tokenizer";
 import { type Model } from "@prisma/client";
 import {
@@ -129,26 +128,22 @@ const openAiStringTokenCount = (p: { model: string; text: string }) => {
 };
 
 const getTokensByEncoding = (name: TiktokenEncoding, text: string) => {
-  return instrument({ name: "get-tokens-by-encoding" }, () => {
-    const encoding = get_encoding(name);
-    const tokens = encoding.encode(text);
+  const encoding = get_encoding(name);
+  const tokens = encoding.encode(text);
 
-    return tokens.length;
-  });
+  return tokens.length;
 };
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
-  return instrument({ name: "get-tokens-by-model" }, () => {
-    let encoding: Tiktoken;
-    try {
-      encoding = encoding_for_model(model);
-    } catch (KeyError) {
-      console.log("Warning: model not found. Using cl100k_base encoding.");
-      encoding = get_encoding("cl100k_base");
-    }
+  let encoding: Tiktoken;
+  try {
+    encoding = encoding_for_model(model);
+  } catch (KeyError) {
+    console.log("Warning: model not found. Using cl100k_base encoding.");
+    encoding = get_encoding("cl100k_base");
+  }
 
-    return encoding.encode(text).length;
-  });
+  return encoding.encode(text).length;
 };
 
 function isString(value: unknown): value is string {

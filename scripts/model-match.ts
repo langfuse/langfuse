@@ -1,7 +1,3 @@
-//
-// create a function which takes 10k observations ordered by date descending, which do not have an internalModel set
-// group the observations by date day, model, usage
-// for each group, find the first observation with a model set
 import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
@@ -31,7 +27,7 @@ export async function modelMatch() {
     take: 10_000,
   });
 
-  // group by date, model, unit, projectid
+  console.log(`Found ${observations.length} observations to migrate`);
 
   interface GroupedObservations {
     [key: string]: Observation[];
@@ -39,9 +35,9 @@ export async function modelMatch() {
 
   const groupedObservations = observations.reduce<GroupedObservations>(
     (acc, observation) => {
-      const key = `${observation.startTime.toISOString().slice(0, 10)}-${
+      const key = `${observation.startTime.toISOString().slice(0, 10)}_${
         observation.model
-      }-${observation.unit}-${observation.projectId}`;
+      }_${observation.unit}_${observation.projectId}`;
 
       // Ensure the array is initialized before using it
       acc[key] = acc[key] ?? [];
@@ -56,7 +52,9 @@ export async function modelMatch() {
 
   for (const [key, observationsGroup] of Object.entries(groupedObservations)) {
     // Split the key into its components
-    const [date, model, unit, projectId] = key.split("-");
+    const [date, model, unit, projectId] = key.split("_");
+
+    console.log("Execute key: ", date, model, unit, projectId);
 
     if (!projectId) {
       throw new Error("No project id");
@@ -64,6 +62,15 @@ export async function modelMatch() {
 
     // Note: The findModel function is assumed to be asynchronous.
     const foundModel = await findModel(projectId, model, unit, date, undefined);
+
+    console.log(
+      "Found model: ",
+      foundModel?.id,
+      " for key: ",
+      key,
+      " with observations: ",
+      observationsGroup.length,
+    );
 
     // Push the promise for updating observations into the array
     updatePromises.push(

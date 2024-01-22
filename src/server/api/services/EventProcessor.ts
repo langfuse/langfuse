@@ -190,13 +190,6 @@ export class ObservationProcessor implements EventProcessor {
           )
         : [undefined, undefined];
 
-    console.log(
-      "usage calc",
-      "usage" in body ? body.usage : null,
-      newInputCount,
-      newOutputCount,
-    );
-
     // merge metadata from existingObservation.metadata and metadata
     const mergedMetadata = mergeJson(
       existingObservation?.metadata
@@ -317,7 +310,6 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
-    console.log("calculate token counts", body, model, existingObservation);
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
