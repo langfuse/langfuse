@@ -3,8 +3,9 @@ import { test, expect } from "@playwright/test";
 test("should see new projects dialog open after clicking new project btn", async ({
   page,
 }) => {
-  await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo2@langfuse.com");
+  await page.goto("auth/sign-up");
+  await page.fill('input[name="name"]', "demo user");
+  await page.fill('input[name="email"]', randomEmailAddress());
   await page.fill('input[type="password"]', "password");
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2000);
@@ -41,3 +42,7 @@ test("Create a project with provided name", async ({ page }) => {
     "my e2e demo project",
   );
 });
+
+// random email address to be used in tests
+const randomEmailAddress = () =>
+  Math.random().toString(36).substring(2, 11) + "@example.com";

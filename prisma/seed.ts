@@ -34,21 +34,6 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
-    where: { id: "demo-user-2" },
-    update: {
-      name: "Demo2 User",
-      email: "demo2@langfuse.com",
-      password: await hash("password", 12),
-    },
-    create: {
-      id: "demo-user-2",
-      name: "Demo2 User",
-      email: "demo2@langfuse.com",
-      password: await hash("password", 12),
-    },
-  });
-
   const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   const project1 = await prisma.project.upsert({
