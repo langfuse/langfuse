@@ -162,7 +162,7 @@ export class ObservationProcessor implements EventProcessor {
         ? await findModel(
             apiScope.projectId,
             "model" in body ? body.model ?? undefined : undefined,
-            "usage" in body ? body.usage?.unit ?? undefined : undefined,
+            "usage" in body ? body.usage?.unit ?? "TOKENS" : "TOKENS",
             startTime ?? undefined,
             existingObservation ?? undefined,
           )
@@ -317,6 +317,7 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
+    console.log("calculate token counts", body, model, existingObservation);
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId

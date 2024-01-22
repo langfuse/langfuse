@@ -417,7 +417,9 @@ describe("/api/public/ingestion API Endpoint", () => {
               name: "generation-name",
               startTime: testConfig.observationStartTime.toISOString(),
               model: testConfig.observationExternalModel,
-              unit: testConfig.modelUnit,
+              usage: {
+                unit: testConfig.modelUnit,
+              },
               input: "This is a great prompt",
               output: "This is a great gpt output",
             },
