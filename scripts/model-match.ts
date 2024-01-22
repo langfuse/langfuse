@@ -10,7 +10,6 @@ import { type Observation } from "@prisma/client";
 
 async function main() {
   return await modelMatch();
-  // ... more code using 'result'
 }
 
 // Call the function
@@ -64,27 +63,19 @@ export async function modelMatch() {
     }
 
     // Note: The findModel function is assumed to be asynchronous.
-    const foundModelPromise = findModel(
-      projectId,
-      model,
-      unit,
-      date,
-      undefined,
-    );
+    const foundModel = await findModel(projectId, model, unit, date, undefined);
 
     // Push the promise for updating observations into the array
     updatePromises.push(
-      foundModelPromise.then((foundModel) => {
-        return prisma.observation.updateMany({
-          where: {
-            id: {
-              in: observationsGroup.map((observation) => observation.id),
-            },
+      prisma.observation.updateMany({
+        where: {
+          id: {
+            in: observationsGroup.map((observation) => observation.id),
           },
-          data: {
-            internalModel: foundModel?.modelName,
-          },
-        });
+        },
+        data: {
+          internalModel: foundModel?.modelName,
+        },
       }),
     );
   }
