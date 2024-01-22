@@ -57,10 +57,13 @@ export class ObservationProcessor implements EventProcessor {
     this.event = event;
   }
 
-  async convertToObservation(apiScope: ApiAccessScope): Promise<{
+  async convertToObservation(
+    apiScope: ApiAccessScope,
+    existingObservation: Observation | null,
+  ): Promise<{
     id: string;
-    create: Prisma.ObservationCreateInput;
-    update: Prisma.ObservationUpdateInput;
+    create: Prisma.ObservationUncheckedCreateInput;
+    update: Prisma.ObservationUncheckedUpdateInput;
   }> {
     const { body } = this.event;
 
@@ -84,12 +87,6 @@ export class ObservationProcessor implements EventProcessor {
     }
 
     const { id, traceId, name, startTime, metadata } = body;
-
-    const existingObservation = id
-      ? await prisma.observation.findUnique({
-          where: { id, projectId: apiScope.projectId },
-        })
-      : null;
 
     if (
       this.event.type === eventTypes.OBSERVATION_UPDATE &&
@@ -124,19 +121,23 @@ export class ObservationProcessor implements EventProcessor {
       metadata ?? undefined,
     );
 
-    const prompts =
+    const prompt =
       "promptName" in this.event.body &&
       typeof this.event.body.promptName === "string" &&
       "promptVersion" in this.event.body &&
       typeof this.event.body.promptVersion === "number"
-        ? await prisma.prompt.findMany({
+        ? await prisma.prompt.findUnique({
             where: {
-              projectId: apiScope.projectId,
-              name: this.event.body.promptName,
-              version: this.event.body.promptVersion,
+              projectId_name_version: {
+                projectId: apiScope.projectId,
+                name: this.event.body.promptName,
+                version: this.event.body.promptVersion,
+              },
             },
           })
         : undefined;
+    if (prompt === null)
+      console.warn("Prompt not found for observation", this.event.body);
 
     const observationId = id ?? v4();
     return {
@@ -174,10 +175,8 @@ export class ObservationProcessor implements EventProcessor {
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
-        ...(prompts && prompts.length === 1
-          ? { prompt: { connect: { id: prompts[0]?.id } } }
-          : undefined),
+        projectId: apiScope.projectId,
+        promptId: prompt ? prompt.id : undefined,
       },
       update: {
         name,
@@ -209,9 +208,7 @@ export class ObservationProcessor implements EventProcessor {
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
-        ...(prompts && prompts.length === 1
-          ? { prompt: { connect: { id: prompts[0]?.id } } }
-          : undefined),
+        promptId: prompt ? prompt.id : undefined,
       },
     };
   }
@@ -250,14 +247,29 @@ export class ObservationProcessor implements EventProcessor {
     if (apiScope.accessLevel !== "all")
       throw new AuthenticationError("Access denied for observation creation");
 
-    const obs = await this.convertToObservation(apiScope);
+    const existingObservation = this.event.body.id
+      ? await prisma.observation.findUnique({
+          where: { id: this.event.body.id, projectId: apiScope.projectId },
+        })
+      : null;
 
+    // Auth check outside of final opsert
+    if (
+      existingObservation &&
+      existingObservation.projectId !== apiScope.projectId
+    ) {
+      throw new AuthenticationError(
+        `Access denied for observation creation ${existingObservation.projectId} `,
+      );
+    }
+
+    const obs = await this.convertToObservation(apiScope, existingObservation);
+
+    // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
+    // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
     return await prisma.observation.upsert({
       where: {
-        id_projectId: {
-          id: obs.id,
-          projectId: apiScope.projectId,
-        },
+        id: obs.id,
       },
       create: obs.create,
       update: obs.update,
@@ -329,7 +341,7 @@ export class TraceProcessor implements EventProcessor {
       });
     }
 
-    // Do not use nested upserts as this should be a single native database upsert
+    // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
     const upsertedTrace = await prisma.trace.upsert({
       where: {
