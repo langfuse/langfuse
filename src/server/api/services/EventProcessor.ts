@@ -313,6 +313,24 @@ export class TraceProcessor implements EventProcessor {
       body.metadata ?? undefined,
     );
 
+    if (body.sessionId) {
+      await prisma.traceSession.upsert({
+        where: {
+          id_projectId: {
+            id: body.sessionId,
+            projectId: apiScope.projectId,
+          },
+        },
+        create: {
+          id: body.sessionId,
+          projectId: apiScope.projectId,
+        },
+        update: {},
+      });
+    }
+
+    // Do not use nested upserts as this should be a single native database upsert
+    // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
     const upsertedTrace = await prisma.trace.upsert({
       where: {
         id: internalId,
@@ -326,16 +344,9 @@ export class TraceProcessor implements EventProcessor {
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
-        session: body.sessionId
-          ? {
-              connectOrCreate: {
-                where: { id: body.sessionId, projectId: apiScope.projectId },
-                create: { id: body.sessionId, projectId: apiScope.projectId },
-              },
-            }
-          : undefined,
+        sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
+        projectId: apiScope.projectId,
         tags: body.tags ?? undefined,
       },
       update: {
@@ -346,14 +357,7 @@ export class TraceProcessor implements EventProcessor {
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
-        session: body.sessionId
-          ? {
-              connectOrCreate: {
-                where: { id: body.sessionId, projectId: apiScope.projectId },
-                create: { id: body.sessionId, projectId: apiScope.projectId },
-              },
-            }
-          : undefined,
+        sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
         tags: body.tags ?? undefined,
       },
