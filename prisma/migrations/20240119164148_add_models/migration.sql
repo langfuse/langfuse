@@ -40,8 +40,8 @@ VALUES
   ('clrntkjgy000c08jxesb30p3f', NULL, 'gpt-3.5-turbo', '(?i)^(gpt-)(35|3.5)(-turbo)$', '2023-06-27', 0.0000015, 0.000002, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
   ('clrkwk4cc000808l51xmk4uic', NULL, 'gpt-3.5-turbo-0613', '(?i)^(gpt-)(35|3.5)(-turbo-0613)$', NULL, 0.0000015, 0.000002, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
 
-  ('clrntkjgy000b08jx769q1bah', NULL, 'gpt-3.5-turbo', '(?i)^(gpt-)(35|3.5)(-turbo)$', NULL,  0.000002,  0.000002, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrntkjgy000a08jx4e062mr0', NULL, 'gpt-3.5-turbo-0301', '(?i)^(gpt-)(35|3.5)(-turbo-0301)$', NULL,  0.000002,  0.000002, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
+  ('clrntkjgy000b08jx769q1bah', NULL, 'gpt-3.5-turbo', '(?i)^(gpt-)(35|3.5)(-turbo)$', NULL,  0.000002,  0.000002, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 4, "tokensPerName": -1 }'),
+  ('clrntkjgy000a08jx4e062mr0', NULL, 'gpt-3.5-turbo-0301', '(?i)^(gpt-)(35|3.5)(-turbo-0301)$', NULL,  0.000002,  0.000002, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 4, "tokensPerName": -1 }'),
 
 
   ('clrkwk4cb000308l5go4b6otm', NULL, 'gpt-3.5-turbo-16k', '(?i)^(gpt-)(35|3.5)(-turbo-16k)$', NULL, 0.00003, 0.00004, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
@@ -51,20 +51,20 @@ VALUES
 
 
   -- nothing earlier required for ada
-  ('clrntjt89000908jwhvkz5crm', NULL, 'text-embedding-ada-002', '(?i)^(text-embedding-ada-002)$', '2022-12-06', NULL, NULL, 0.0000001, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrntjt89000908jwhvkz5crg', NULL, 'text-embedding-ada-002-v2', '(?i)^(text-embedding-ada-002-v2)$', '2022-12-06', NULL, NULL, 0.0000001, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
+  ('clrntjt89000908jwhvkz5crm', NULL, 'text-embedding-ada-002', '(?i)^(text-embedding-ada-002)$', '2022-12-06', NULL, NULL, 0.0000001, 'TOKENS', 'openai', NULL),
+  ('clrntjt89000908jwhvkz5crg', NULL, 'text-embedding-ada-002-v2', '(?i)^(text-embedding-ada-002-v2)$', '2022-12-06', NULL, NULL, 0.0000001, 'TOKENS', 'openai', NULL),
   
 
   
   
   -- legacy price 2023-08-22 https://platform.openai.com/docs/deprecations/2023-07-06-gpt-and-embeddings
-  ('clrntjt89000108jwcou1af71', NULL, 'text-ada-001', '(?i)^(text-ada-001)$', NULL, NULL, NULL, 0.000004, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrntjt89000208jwawjr894q', NULL, 'text-babbage-001', '(?i)^(text-babbage-001)$', NULL, NULL, NULL, 0.0000005, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrp1wopz000708l079w02hkc', NULL, 'text-babbage-002', '(?i)^(text-babbage-002)$', NULL, NULL, NULL, 0.0000005, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrntjt89000308jw0jtfa4rs', NULL, 'text-curie-001', '(?i)^(text-curie-001)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrntjt89000408jwc2c93h6i', NULL, 'text-davinci-001', '(?i)^(text-davinci-001)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrntjt89000508jw192m64qi', NULL, 'text-davinci-002', '(?i)^(text-davinci-002)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrntjt89000608jw4m3x5s55', NULL, 'text-davinci-003', '(?i)^(text-davinci-003)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
+  ('clrntjt89000108jwcou1af71', NULL, 'text-ada-001', '(?i)^(text-ada-001)$', NULL, NULL, NULL, 0.000004, 'TOKENS', 'openai', NULL),
+  ('clrntjt89000208jwawjr894q', NULL, 'text-babbage-001', '(?i)^(text-babbage-001)$', NULL, NULL, NULL, 0.0000005, 'TOKENS', 'openai', NULL),
+  ('clrp1wopz000708l079w02hkc', NULL, 'text-babbage-002', '(?i)^(text-babbage-002)$', NULL, NULL, NULL, 0.0000005, 'TOKENS', 'openai', NULL),
+  ('clrntjt89000308jw0jtfa4rs', NULL, 'text-curie-001', '(?i)^(text-curie-001)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', NULL),
+  ('clrntjt89000408jwc2c93h6i', NULL, 'text-davinci-001', '(?i)^(text-davinci-001)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', NULL),
+  ('clrntjt89000508jw192m64qi', NULL, 'text-davinci-002', '(?i)^(text-davinci-002)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', NULL),
+  ('clrntjt89000608jw4m3x5s55', NULL, 'text-davinci-003', '(?i)^(text-davinci-003)$', NULL, NULL, NULL, 0.00002, 'TOKENS', 'openai', NULL),
 
 
   -- claude
