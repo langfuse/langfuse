@@ -136,6 +136,8 @@ export class ObservationProcessor implements EventProcessor {
             },
           })
         : undefined;
+
+    // Only null if promptName and promptVersion are set but prompt is not found
     if (prompt === null)
       console.warn("Prompt not found for observation", this.event.body);
 
