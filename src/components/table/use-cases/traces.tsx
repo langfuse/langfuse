@@ -310,7 +310,6 @@ export default function TracesTable({
       enableHiding: true,
     },
     {
-      // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "cost",
       header: "Cost",
       cell: ({ row }) => {
