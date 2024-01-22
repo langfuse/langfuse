@@ -19,6 +19,7 @@ import {
   getFilteredRowModel,
   useReactTable,
   type ColumnFiltersState,
+  type ColumnSizingState,
   type OnChangeFn,
   type PaginationState,
   type RowSelectionState,
@@ -36,6 +37,8 @@ interface DataTableProps<TData, TValue> {
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
+  columnSizing?: ColumnSizingState;
+  onColumnSizingChange?: OnChangeFn<ColumnSizingState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   orderBy?: OrderByState;
@@ -56,6 +59,8 @@ export function DataTable<TData extends object, TValue>({
   pagination,
   rowSelection,
   setRowSelection,
+  columnSizing,
+  onColumnSizingChange,
   columnVisibility,
   onColumnVisibilityChange,
   help,
@@ -67,6 +72,7 @@ export function DataTable<TData extends object, TValue>({
   const table = useReactTable({
     data: data.data ?? [],
     columns,
+    columnResizeMode: "onChange",
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
@@ -74,6 +80,7 @@ export function DataTable<TData extends object, TValue>({
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
+    onColumnSizingChange: onColumnSizingChange,
     onColumnVisibilityChange: onColumnVisibilityChange,
     getRowId: (row, index) => {
       if ("id" in row && typeof row.id === "string") {
@@ -85,6 +92,7 @@ export function DataTable<TData extends object, TValue>({
     state: {
       columnFilters,
       pagination: pagination?.state,
+      columnSizing,
       columnVisibility,
       rowSelection,
     },
@@ -95,7 +103,7 @@ export function DataTable<TData extends object, TValue>({
     <>
       <div className="space-y-4">
         <div className="rounded-md border">
-          <Table>
+          <Table style={{ width: table.getCenterTotalSize() }}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -107,12 +115,11 @@ export function DataTable<TData extends object, TValue>({
                         key={header.id}
                         className={cn(
                           sortingEnabled ? "cursor-pointer" : null,
-                          "whitespace-nowrap p-2",
+                          "relative whitespace-nowrap p-2",
                         )}
+                        style={{ width: header.getSize() }}
                         title={sortingEnabled ? "Sort by this column" : ""}
-                        onClick={(event) => {
-                          event.preventDefault(); // Add this line
-
+                        onPointerUp={() => {
                           if (
                             !setOrderBy ||
                             !header.column.columnDef.id ||
@@ -152,6 +159,34 @@ export function DataTable<TData extends object, TValue>({
                             </div>
                           </>
                         )}
+
+                        {header.column.getCanResize() ? (
+                          <>
+                            <div
+                              onDoubleClick={() => header.column.resetSize()}
+                              title="Resize this column"
+                              onPointerDown={(event) => {
+                                event.stopPropagation();
+                                event.currentTarget.setPointerCapture(
+                                  event.pointerId,
+                                );
+                                header.getResizeHandler()(event);
+                              }}
+                              onPointerUp={(event) => {
+                                event.stopPropagation();
+                                event.currentTarget.releasePointerCapture(
+                                  event.pointerId,
+                                );
+                              }}
+                              className={cn(
+                                "absolute right-0 top-0 h-full w-1 select-none",
+                                header.column.getIsResizing()
+                                  ? "cursor-col-resize bg-blue-300"
+                                  : "cursor-grab",
+                              )}
+                            ></div>
+                          </>
+                        ) : null}
                       </TableHead>
                     ) : null;
                   })}

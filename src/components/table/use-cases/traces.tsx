@@ -10,6 +10,7 @@ import { TagTracePopver } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { JSONView } from "@/src/components/ui/code";
+import useColumnSizing from "@/src/features/column-sizing/hooks/useColumnSizing";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
@@ -190,6 +191,8 @@ export default function TracesTable({
           aria-label="Select row"
         />
       ),
+      enableResizing: false,
+      size: 35,
     },
     {
       accessorKey: "bookmarked",
@@ -209,6 +212,8 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableResizing: false,
+      size: 35,
     },
     {
       accessorKey: "id",
@@ -393,8 +398,15 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableResizing: false,
+      size: 60,
     },
   ];
+
+  const [columnSizing, setColumnSizing] = useColumnSizing<TracesTableRow>(
+    "tracesColumnSizing",
+    columns,
+  );
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
@@ -455,6 +467,8 @@ export default function TracesTable({
         orderBy={orderByState}
         rowSelection={selectedRows}
         setRowSelection={setSelectedRows}
+        columnSizing={columnSizing}
+        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />

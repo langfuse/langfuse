@@ -3,6 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import useColumnSizing from "@/src/features/column-sizing/hooks/useColumnSizing";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
@@ -112,6 +113,8 @@ export default function SessionsTable({
           />
         ) : undefined;
       },
+      enableResizing: false,
+      size: 35,
     },
     {
       accessorKey: "id",
@@ -170,6 +173,11 @@ export default function SessionsTable({
     },
   ];
 
+  const [columnSizing, setColumnSizing] = useColumnSizing<SessionTableRow>(
+    "sessionsColumnSizing",
+    columns,
+  );
+
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
@@ -205,6 +213,8 @@ export default function SessionsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnSizing={columnSizing}
+        onColumnSizingChange={setColumnSizing}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         help={{
