@@ -248,8 +248,8 @@ export class ObservationProcessor implements EventProcessor {
       throw new AuthenticationError("Access denied for observation creation");
 
     const existingObservation = this.event.body.id
-      ? await prisma.observation.findUnique({
-          where: { id: this.event.body.id, projectId: apiScope.projectId },
+      ? await prisma.observation.findFirst({
+          where: { id: this.event.body.id },
         })
       : null;
 
@@ -302,7 +302,7 @@ export class TraceProcessor implements EventProcessor {
       body,
     );
 
-    const existingTrace = await prisma.trace.findUnique({
+    const existingTrace = await prisma.trace.findFirst({
       where: {
         id: internalId,
       },
