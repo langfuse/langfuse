@@ -884,6 +884,14 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: orderBy
+          in: query
+          description: >-
+            Format of the string sort_by=timestamp.asc (id, timestamp, name,
+            userId, release, version, public, bookmarked, sessionId)
+          required: true
+          schema:
+            type: string
         - name: tags
           in: query
           description: Only traces that include all of these tags will be returned.
@@ -1992,6 +2000,14 @@ components:
       required:
         - data
         - meta
+    Sort:
+      title: Sort
+      type: object
+      properties:
+        id:
+          type: string
+      required:
+        - id
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object
