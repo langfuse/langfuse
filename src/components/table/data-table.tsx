@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import ColumnResizeIndicator from "@/src/features/column-sizing/components/ColumnResizeIndicator";
+import useColumnSizing from "@/src/features/column-sizing/hooks/useColumnSizing";
 import { type OrderByState } from "@/src/features/orderBy/types";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -20,15 +21,13 @@ import {
   getFilteredRowModel,
   useReactTable,
   type ColumnFiltersState,
-  type ColumnSizingState,
   type OnChangeFn,
   type PaginationState,
   type RowSelectionState,
   type VisibilityState,
-  type HeaderGroup,
-  type Header,
 } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/router";
+import { useEffect, useMemo, useState } from "react";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -38,10 +37,9 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
+  resizingEnabled?: boolean;
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
-  columnSizing?: ColumnSizingState;
-  onColumnSizingChange?: OnChangeFn<ColumnSizingState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   orderBy?: OrderByState;
@@ -62,16 +60,17 @@ export function DataTable<TData extends object, TValue>({
   pagination,
   rowSelection,
   setRowSelection,
-  columnSizing,
-  onColumnSizingChange,
   columnVisibility,
   onColumnVisibilityChange,
   help,
   orderBy,
   setOrderBy,
+  resizingEnabled = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
+  const router = useRouter();
+  const parentComponent = router.route.split("/")[3] ?? "unknown";
+  const storageKey = parentComponent + "ColumnSizing";
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -83,7 +82,6 @@ export function DataTable<TData extends object, TValue>({
     pageCount: pagination?.pageCount ?? 0,
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
-    onColumnSizingChange: onColumnSizingChange,
     onColumnVisibilityChange: onColumnVisibilityChange,
     getRowId: (row, index) => {
       if ("id" in row && typeof row.id === "string") {
@@ -95,53 +93,84 @@ export function DataTable<TData extends object, TValue>({
     state: {
       columnFilters,
       pagination: pagination?.state,
-      columnSizing,
       columnVisibility,
       rowSelection,
     },
     manualFiltering: true,
   });
-  const totalSize = table.getTotalSize();
+
+  const [columnSizing, setColumnSizing] = useColumnSizing(storageKey);
+
+  const columnSizeVars = useMemo(() => {
+    const headers = table.getFlatHeaders();
+    const colSizes: { [key: string]: number } = {};
+    for (let i = 0; i < headers.length; i++) {
+      console.log("ColumnSizing Options", table.getState().columnSizingInfo);
+      const header = headers[i]!;
+      colSizes[`--header-${header.id}-size`] = header.getSize();
+      colSizes[`--col-${header.column.id}-size`] = header.column.getSize();
+      console.log("size", header.getSize());
+    }
+    return colSizes;
+  }, [table.getState().columnSizingInfo]);
+
   const headerGroups = useMemo(() => {
     return table.getHeaderGroups().map((headerGroup) => {
-      console.log("Rerender header group");
       return {
         ...headerGroup,
         headers: headerGroup.headers.map((header) => {
-          console.log(header.index, header.getSize());
           return {
             ...header,
+            size: `calc(var(--header-${header.id}-size) * 1px)`,
           };
         }),
       };
     });
-  }, [table, columnSizing, columnVisibility]);
+  }, [table]);
+  console.log("ColumnSizing Options", table.getState().columnSizingInfo);
 
-  const isResizing = headerGroups.some((headerGroup) =>
-    headerGroup.headers.some((header) => header.column.getIsResizing()),
-  );
-  // headerGroups.map((headerGroup) => console.log(headerGroup.headers));
+  useEffect(() => {
+    const headers = table.getFlatHeaders();
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i]!;
+      const newSize = header.getSize();
+      if (newSize !== columnSizing[header.column.id]) {
+        setColumnSizing((prevSizing) => ({
+          ...prevSizing,
+          [header.column.id]: newSize,
+        }));
+      }
+    }
+  }, [table.getState().columnSizingInfo, columnSizing, setColumnSizing]);
+
   return (
     <>
       <div className="space-y-4">
         <div className="rounded-md border">
-          <Table style={{ width: totalSize, minWidth: "100%" }}>
+          <Table
+            style={{
+              ...columnSizeVars,
+              width: table.getTotalSize(),
+              minWidth: "100%",
+            }}
+          >
             <TableHeader>
-              {headerGroups.map((headerGroup: HeaderGroup<TData>) => (
+              {headerGroups.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header: Header<TData, unknown>) => {
+                  {headerGroup.headers.map((header) => {
                     const sortingEnabled =
                       header.column.columnDef.enableSorting;
-                    const resizingEnabled = header.column.getCanResize();
+                    const columnResizable =
+                      header.column.getCanResize() && resizingEnabled;
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
                         className={cn(
                           sortingEnabled ? "cursor-pointer" : null,
                           "relative whitespace-nowrap p-2",
-                          resizingEnabled ? "border-r" : "w-0",
+                          columnResizable ? "border-r" : "w-0",
                         )}
-                        style={{ width: header.getSize() }}
+                        style={{ width: header.size }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onPointerUp={() => {
                           if (
@@ -176,7 +205,6 @@ export function DataTable<TData extends object, TValue>({
                                 header.column.columnDef.header,
                                 header.getContext(),
                               )}
-
                               {orderBy?.column === header.column.columnDef.id
                                 ? renderOrderingIndicator(orderBy)
                                 : null}
@@ -184,7 +212,7 @@ export function DataTable<TData extends object, TValue>({
                           </>
                         )}
 
-                        {header.column.getCanResize() ? (
+                        {header.column.getCanResize() && resizingEnabled ? (
                           <ColumnResizeIndicator header={header} />
                         ) : null}
                       </TableHead>
