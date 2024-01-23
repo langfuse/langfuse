@@ -41,6 +41,11 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: '"latency"',
   },
   {
+    name: "Cost ($)",
+    type: "number",
+    internal: 'o."calculated_total_cost"',
+  },
+  {
     name: "level",
     type: "stringOptions",
     internal: 'o."level"::text',
