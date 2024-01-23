@@ -311,6 +311,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "cost",
+      id: "cost",
       header: "Cost",
       cell: ({ row }) => {
         const cost: Decimal | undefined = row.getValue("cost");
@@ -325,6 +326,7 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "scores",
