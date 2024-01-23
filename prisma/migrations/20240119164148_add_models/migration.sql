@@ -68,13 +68,13 @@ VALUES
 
 
   -- claude
-  ('clrnwbota000908jsgg9mb1ml', NULL, 'claude-instant-1', '(?i)^(claude-instant-1)$', NULL, 0.00000163, 0.000000551, NULL, 'CHARACTERS', 'openai', NULL),
-  ('clrnwb41q000308jsfrac9uh6', NULL, 'claude-instant-1.2', '(?i)^(claude-instant-1.2)$', NULL, 0.000000163, 0.000000551, NULL, 'CHARACTERS', 'openai', NULL),
-  ('clrnwb836000408jsallr6u11', NULL, 'claude-2.0', '(?i)^(claude-2.0)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'openai', NULL),
-  ('clrnwbd1m000508js4hxu6o7n', NULL, 'claude-2.1', '(?i)^(claude-2.1)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'openai', NULL),
-  ('clrnwbg2b000608jse2pp4q2d', NULL, 'claude-1.3', '(?i)^(claude-1.3)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'openai', NULL),
-  ('clrnwbi9d000708jseiy44k26', NULL, 'claude-1.2', '(?i)^(claude-1.2)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'openai', NULL),
-  ('clrnwblo0000808jsc1385hdp', NULL, 'claude-1.1', '(?i)^(claude-1.1)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'openai', NULL),
+  ('clrnwbota000908jsgg9mb1ml', NULL, 'claude-instant-1', '(?i)^(claude-instant-1)$', NULL, 0.00000163, 0.00000551, NULL, 'CHARACTERS', 'claude', NULL),
+  ('clrnwb41q000308jsfrac9uh6', NULL, 'claude-instant-1.2', '(?i)^(claude-instant-1.2)$', NULL, 0.00000163, 0.00000551, NULL, 'CHARACTERS', 'claude', NULL),
+  ('clrnwbd1m000508js4hxu6o7n', NULL, 'claude-2.1', '(?i)^(claude-2.1)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'claude', NULL),
+  ('clrnwb836000408jsallr6u11', NULL, 'claude-2.0', '(?i)^(claude-2.0)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'claude', NULL),
+  ('clrnwbg2b000608jse2pp4q2d', NULL, 'claude-1.3', '(?i)^(claude-1.3)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'claude', NULL),
+  ('clrnwbi9d000708jseiy44k26', NULL, 'claude-1.2', '(?i)^(claude-1.2)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'claude', NULL),
+  ('clrnwblo0000808jsc1385hdp', NULL, 'claude-1.1', '(?i)^(claude-1.1)$', NULL, 0.000008, 0.000024, NULL, 'CHARACTERS', 'claude', NULL),
 
 
   -- vertex

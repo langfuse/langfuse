@@ -42,6 +42,14 @@ export const findModel = async (
   startTime?: string,
   existingObservation?: Observation,
 ) => {
+  console.log(
+    "find model",
+    projectId,
+    model,
+    unit,
+    startTime,
+    existingObservation,
+  );
   // either get the model from the existing observation
   // or match pattern on the user provided model name
   const modelCondition = existingObservation?.internalModel
@@ -51,10 +59,15 @@ export const findModel = async (
       : undefined;
 
   // usage either from existing generation or from the current event
-  const mergedUnit = existingObservation?.unit ?? unit ?? "TOKENS";
+  const mergedUnit = existingObservation?.unit ?? unit;
 
-  if (!unit || !modelCondition) {
-    console.log("no unit or model condition", unit, modelCondition);
+  const unitCondition = mergedUnit
+    ? Prisma.sql`AND unit = ${mergedUnit}`
+    : Prisma.empty;
+
+  if (!modelCondition) {
+    console.log("no model condition", modelCondition);
+    return;
   } else {
     const sql = Prisma.sql`
         SELECT
@@ -76,7 +89,7 @@ export const findModel = async (
         WHERE (project_id = ${projectId}
           OR project_id IS NULL)
         ${modelCondition}
-        AND unit = ${mergedUnit}
+        ${unitCondition}
         AND (start_date IS NULL OR start_date <= ${
           startTime ? new Date(startTime) : new Date()
         }::timestamp with time zone at time zone 'UTC')
@@ -162,7 +175,7 @@ export class ObservationProcessor implements EventProcessor {
         ? await findModel(
             apiScope.projectId,
             "model" in body ? body.model ?? undefined : undefined,
-            "usage" in body ? body.usage?.unit ?? "TOKENS" : "TOKENS",
+            "usage" in body ? body.usage?.unit ?? undefined : undefined,
             startTime ?? undefined,
             existingObservation ?? undefined,
           )
@@ -244,7 +257,10 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in body
             ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined,
-        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        unit:
+          "usage" in body
+            ? body.usage?.unit ?? internalModel?.unit
+            : internalModel?.unit,
         level: body.level ?? undefined,
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
@@ -285,7 +301,10 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in body
             ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined,
-        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        unit:
+          "usage" in body
+            ? body.usage?.unit ?? internalModel?.unit
+            : internalModel?.unit,
         level: body.level ?? undefined,
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
@@ -310,6 +329,7 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
+    console.log("calculate tokens for ", model);
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
