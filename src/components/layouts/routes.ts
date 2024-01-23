@@ -5,10 +5,11 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListTree,
-  type LucideIcon,
-  Settings,
-  UsersIcon,
   PenSquareIcon,
+  Settings,
+  TerminalSquareIcon,
+  UsersIcon,
+  type LucideIcon,
 } from "lucide-react";
 
 export type Route = {
@@ -65,6 +66,12 @@ export const ROUTES: Route[] = [
     name: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
+  },
+  {
+    name: "Playground",
+    pathname: `/project/[projectId]/playground`,
+    icon: TerminalSquareIcon,
+    rbacScope: "playground:CUD",
   },
   {
     name: "Settings",

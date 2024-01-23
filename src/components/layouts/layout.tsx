@@ -1,29 +1,29 @@
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
-import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import { Fragment, useState, type PropsWithChildren } from "react";
 
-import Link from "next/link";
-import { useRouter } from "next/router";
-import clsx from "clsx";
-import { Code, MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
-import { cn } from "@/src/utils/tailwind";
+import { LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { Spinner } from "@/src/components/layouts/spinner";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { api } from "@/src/utils/api";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
-import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
-import Head from "next/head";
 import { env } from "@/src/env.mjs";
-import { LangfuseLogo } from "@/src/components/LangfuseLogo";
-import { Spinner } from "@/src/components/layouts/spinner";
+import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
+import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import clsx from "clsx";
+import { ChevronRightIcon, Code, Info, MessageSquarePlus } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
+import Head from "next/head";
+import Link from "next/link";
+import { useRouter } from "next/router";
 
 const userNavigation = [
   {
@@ -454,7 +454,7 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="xl:pl-72">
+        <div className="md:h-[calc(100vh-64px)] xl:h-full xl:pl-72">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
@@ -485,7 +485,7 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="p-4">{props.children}</main>
+          <main className="h-full p-4">{props.children}</main>
         </div>
       </div>
     </>
