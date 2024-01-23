@@ -42,14 +42,6 @@ export const findModel = async (
   startTime?: string,
   existingObservation?: Observation,
 ) => {
-  console.log(
-    "find model",
-    projectId,
-    model,
-    unit,
-    startTime,
-    existingObservation,
-  );
   // either get the model from the existing observation
   // or match pattern on the user provided model name
   const modelCondition = existingObservation?.internalModel

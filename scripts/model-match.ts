@@ -1,3 +1,8 @@
+// Description: This script is used to match observations with their internal model. This is needed
+// to be able to calculate the cost of the observation.
+// See docs: https://langfuse.com/docs/deployment/self-host#updating-the-application
+// Execute: `npm run model:match`
+
 import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
@@ -111,6 +116,10 @@ export async function modelMatch() {
     // Wait for all update operations to complete
     await Promise.all(updatePromises);
     console.warn("Updated observations count: ", updatedObservations);
+
+    if (updatedObservations === 0) {
+      continueLoop = false;
+    }
   }
   const end = Date.now();
 

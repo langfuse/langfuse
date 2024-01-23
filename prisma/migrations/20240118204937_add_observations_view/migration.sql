@@ -40,7 +40,7 @@ LEFT JOIN models m ON m.id = (
         models
     WHERE (project_id = o.project_id OR project_id IS NULL)
     AND model_name = o.internal_model
-    AND (start_date < o.start_time OR o.start_time IS NULL OR start_date is NULL)
+    AND (start_date < o.start_time OR start_date is NULL)
     AND o.unit::TEXT = unit
     ORDER BY
         project_id ASC, -- in postgres, NULLs are sorted first

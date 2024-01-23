@@ -80,7 +80,6 @@ export const generationsRouter = createTRPCRouter({
           ObservationView & {
             traceId: string;
             traceName: string;
-            totalCount: number;
             latency: number | null;
           }
         >
@@ -114,8 +113,7 @@ export const generationsRouter = createTRPCRouter({
             o.level,
             o.status_message as "statusMessage",
             o.version,
-            o.calculated_total_cost as "calculatedTotalCost",
-            (count(*) OVER())::int AS "totalCount"
+            o.calculated_total_cost as "calculatedTotalCost"
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
           WHERE
@@ -201,6 +199,7 @@ export const generationsRouter = createTRPCRouter({
             o.prompt_tokens as "promptTokens",
             o.completion_tokens as "completionTokens",
             o.total_tokens as "totalTokens",
+            o.calculated_total_cost as "calculatedTotalCost",
             o.version
           FROM observations_view o
           JOIN traces t ON t.id = o.trace_id

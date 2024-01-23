@@ -33,12 +33,11 @@ export function tokenCount(p: {
       return undefined;
     }
 
-    if (p.model.tokenizerConfig)
-      return openAiTokenCount({
-        internalModel: p.model.modelName,
-        config: parsedConfig.data,
-        text: p.text,
-      });
+    return openAiTokenCount({
+      internalModel: p.model.modelName,
+      config: parsedConfig.data,
+      text: p.text,
+    });
   } else if (p.model.tokenizerId === "claude") {
     return claudeTokenCount({
       internalModel: p.model.modelName,
