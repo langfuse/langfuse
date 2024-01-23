@@ -1,12 +1,11 @@
+import { noHtmlCheck } from "@/src/utils/zod";
 import * as z from "zod";
-
-export const noHtmlRegex = /<[^>]*>/;
 
 export const signupSchema = z.object({
   name: z
     .string()
     .min(1, { message: "Name is required" })
-    .refine((value) => !noHtmlRegex.test(value), {
+    .refine((value) => noHtmlCheck(value), {
       message: "Input should not contain HTML",
     }),
   email: z.string().email(),
