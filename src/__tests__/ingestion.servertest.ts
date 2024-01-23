@@ -332,23 +332,24 @@ describe("/api/public/ingestion API Endpoint", () => {
       observationExternalModel: "GPT-3.5",
       observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
       modelUnit: "TOKENS",
-      expectedInternalModel: "gpt-3.5-turbo-new",
+      expectedInternalModel: "gpt-3.5-turbo",
       expectedPromptTokens: 5,
       expectedCompletionTokens: 7,
       models: [
         {
-          modelName: "gpt-3.5-turbo",
+          modelName: "gpt-3.5-turbo-new",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
           unit: "TOKENS",
           tokenizerId: "openai",
         },
         {
-          modelName: "gpt-3.5-turbo-new",
+          modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T10:00:00.000Z"),
           unit: "TOKENS",
           tokenizerId: "openai",
+          tokenizerModel: "gpt-3.5-turbo",
         },
       ],
     },
@@ -402,7 +403,14 @@ describe("/api/public/ingestion API Endpoint", () => {
               startDate: model.startDate,
               unit: model.unit,
               tokenizerId: model.tokenizerId,
-              tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+              tokenizerConfig: {
+                tokensPerMessage: 3,
+                tokensPerName: 1,
+                tokenizerModel:
+                  "tokenizerModel" in model
+                    ? model.tokenizerModel
+                    : model.modelName,
+              },
             },
           }),
         ),
@@ -846,7 +854,11 @@ describe("/api/public/ingestion API Endpoint", () => {
         startDate: new Date("2021-01-01T00:00:00.000Z"),
         unit: "TOKENS",
         tokenizerId: "openai",
-        tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+        tokenizerConfig: {
+          tokensPerMessage: 3,
+          tokensPerName: 1,
+          tokenizerModel: "gpt-3.5-turbo",
+        },
       },
     });
 
@@ -924,7 +936,11 @@ describe("/api/public/ingestion API Endpoint", () => {
         startDate: new Date("2021-01-01T00:00:00.000Z"),
         unit: "TOKENS",
         tokenizerId: "openai",
-        tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+        tokenizerConfig: {
+          tokensPerMessage: 3,
+          tokensPerName: 1,
+          tokenizerModel: "gpt-3.5-turbo",
+        },
       },
     });
 

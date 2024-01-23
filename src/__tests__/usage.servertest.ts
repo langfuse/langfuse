@@ -6,7 +6,11 @@ describe("Token Count Functions", () => {
       id: "1",
       modelName: model,
       tokenizerId: tokenizer,
-      tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+      tokenizerConfig: {
+        tokensPerMessage: 3,
+        tokensPerName: 1,
+        tokenizerModel: model,
+      },
       createdAt: new Date(),
       updatedAt: new Date(),
       matchPattern: "",
@@ -21,14 +25,12 @@ describe("Token Count Functions", () => {
 
   describe("token count for strings", () => {
     [
-      { model: "gpt-3.5", tokenizer: "openai", tokens: 114 },
-      { model: "gpt-35", tokenizer: "openai", tokens: 114 },
+      { model: "gpt-3.5-turbo", tokenizer: "openai", tokens: 114 },
       { model: "gpt-4-1106-preview", tokenizer: "openai", tokens: 114 },
       { model: "gpt-4-vision-preview", tokenizer: "openai", tokens: 114 },
       { model: "claude", tokenizer: "claude", tokens: 118 },
       { model: "claude-instant-1.2", tokenizer: "claude", tokens: 118 },
       { model: "gpt-3.5-turbo-1106", tokenizer: "openai", tokens: 114 },
-      { model: "gpt-35-turbo-1106", tokenizer: "openai", tokens: 114 },
     ].forEach(({ model, tokens, tokenizer }) => {
       it(`should return token count ${tokens} for ${model}`, () => {
         const result = tokenCount({

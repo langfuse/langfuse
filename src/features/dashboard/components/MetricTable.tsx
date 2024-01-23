@@ -31,7 +31,7 @@ export const MetricTable = ({
         { column: "model" },
       ],
       filter: localFilters,
-      groupBy: [{ type: "string", column: "internalModel" }],
+      groupBy: [{ type: "string", column: "model" }],
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],

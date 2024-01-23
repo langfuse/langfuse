@@ -53,7 +53,7 @@ export const LatencyChart = ({
           column: "startTime",
           temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
         },
-        { type: "string", column: "internalModel" },
+        { type: "string", column: "model" },
       ],
     },
     {
@@ -71,7 +71,7 @@ export const LatencyChart = ({
     return latencies.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(latencies.data, "startTime", [
-            { labelColumn: "internalModel", valueColumn: valueColumn },
+            { labelColumn: "model", valueColumn: valueColumn },
           ]),
           allModels,
         )

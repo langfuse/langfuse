@@ -11,7 +11,7 @@ export const getAllModels = (
     {
       projectId,
       from: "observations",
-      select: [{ column: "internalModel" }],
+      select: [{ column: "model" }],
       filter: [
         ...globalFilterState,
         {

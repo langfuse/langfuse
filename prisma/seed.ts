@@ -277,6 +277,7 @@ async function main() {
             "claude-instant-1",
             "claude-2.1",
             "gpt-4-vision-preview",
+            "MIXTRAL-8X7B",
           ];
 
           const model = models[Math.floor(Math.random() * models.length)];

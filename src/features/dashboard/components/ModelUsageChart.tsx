@@ -70,7 +70,7 @@ export const ModelUsageChart = ({
     tokens.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
-            { labelColumn: "internalModel", valueColumn: "sumTotalTokens" },
+            { labelColumn: "model", valueColumn: "sumTotalTokens" },
           ]),
           allModels,
         )
@@ -81,7 +81,7 @@ export const ModelUsageChart = ({
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
             {
-              labelColumn: "internalModel",
+              labelColumn: "model",
               valueColumn: "sumCalculatedTotalCost",
             },
           ]),
