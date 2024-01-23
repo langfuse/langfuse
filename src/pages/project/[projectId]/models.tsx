@@ -14,7 +14,7 @@ export default function ScoresPage() {
         help={{
           description:
             "A model represents a LLM model. It is used to calculate tokens and cost.",
-          href: "https://langfuse.com/docs/models",
+          href: "https://langfuse.com/docs/token-usage",
         }}
       />
       <ModelTable projectId={projectId} />
