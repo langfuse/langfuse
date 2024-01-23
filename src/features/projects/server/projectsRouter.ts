@@ -2,6 +2,7 @@ import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import * as z from "zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
+import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -77,7 +78,7 @@ export const projectsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        newName: z.string(),
+        newName: projectNameSchema,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -92,7 +93,7 @@ export const projectsRouter = createTRPCRouter({
           id: input.projectId,
         },
         data: {
-          name: input.newName,
+          name: input.newName.name,
         },
       });
       return true;
