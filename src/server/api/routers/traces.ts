@@ -237,10 +237,11 @@ export const traceRouter = createTRPCRouter({
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        observations: observations.map(({ input, output, ...rest }) => {
-          return { ...rest };
-        }) as ObservationReturnType[],
+        observations: observations.map(
+          ({ input: _input, output: _output, ...rest }) => {
+            return { ...rest };
+          },
+        ) as ObservationReturnType[],
       };
     }),
   deleteMany: protectedProjectProcedure
