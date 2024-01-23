@@ -271,6 +271,23 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     },
     {
+      observationExternalModel: "gpt-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: null,
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
       observationExternalModel: "GPT-3.5",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: "TOKENS",
