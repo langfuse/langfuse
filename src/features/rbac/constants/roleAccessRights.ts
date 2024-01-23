@@ -9,6 +9,9 @@ const scopes = [
   "apiKeys:create",
   "apiKeys:delete",
 
+  "llmApiKeys:CUD",
+  "llmApiKeys:read",
+
   "objects:publish",
   "objects:bookmark",
   "objects:tag",
@@ -25,6 +28,8 @@ const scopes = [
 
   "prompts:CUD",
   "prompts:read",
+
+  "playground:CUD",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -38,6 +43,8 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
+    "llmApiKeys:CUD",
+    "llmApiKeys:read",
     "objects:publish",
     "objects:bookmark",
     "objects:tag",
@@ -49,6 +56,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "playground:CUD",
   ],
   ADMIN: [
     "project:update",
@@ -58,6 +66,8 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
+    "llmApiKeys:CUD",
+    "llmApiKeys:read",
     "objects:publish",
     "objects:bookmark",
     "objects:tag",
@@ -66,9 +76,11 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "playground:CUD",
   ],
   MEMBER: [
     "members:read",
+    "llmApiKeys:read",
     "objects:publish",
     "objects:bookmark",
     "objects:tag",
@@ -76,6 +88,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "playground:CUD",
   ],
   VIEWER: ["prompts:read"],
 };

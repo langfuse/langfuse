@@ -58,20 +58,21 @@ model Session {
 }
 
 model User {
-    id            String                 @id @default(cuid())
-    name          String?
-    email         String?                @unique
-    emailVerified DateTime?              @map("email_verified")
-    password      String?
-    image         String?
-    admin         Boolean                @default(false)
-    accounts      Account[]
-    sessions      Session[]
-    memberships   Membership[]
-    invitations   MembershipInvitation[]
-    createdAt     DateTime               @default(now()) @map("created_at")
-    updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
-    featureFlags  String[]               @default([]) @map("feature_flags")
+    id                  String                 @id @default(cuid())
+    name                String?
+    email               String?                @unique
+    emailVerified       DateTime?              @map("email_verified")
+    password            String?
+    image               String?
+    admin               Boolean                @default(false)
+    accounts            Account[]
+    sessions            Session[]
+    memberships         Membership[]
+    invitations         MembershipInvitation[]
+    playgroundHistories PlaygroundHistory[]
+    createdAt           DateTime               @default(now()) @map("created_at")
+    updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+    featureFlags        String[]               @default([]) @map("feature_flags")
 
     @@map("users")
 }
@@ -86,20 +87,22 @@ model VerificationToken {
 }
 
 model Project {
-    id           String                 @id @default(cuid())
-    createdAt    DateTime               @default(now()) @map("created_at")
-    updatedAt    DateTime               @default(now()) @updatedAt @map("updated_at")
-    name         String
-    cloudConfig  Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
-    members      Membership[]
-    traces       Trace[]
-    observations Observation[]
-    apiKeys      ApiKey[]
-    dataset      Dataset[]
-    RawEvents    Events[]
-    invitations  MembershipInvitation[]
-    sessions     TraceSession[]
-    Prompt       Prompt[]
+    id                  String                 @id @default(cuid())
+    createdAt           DateTime               @default(now()) @map("created_at")
+    updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+    name                String
+    cloudConfig         Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
+    members             Membership[]
+    traces              Trace[]
+    observations        Observation[]
+    apiKeys             ApiKey[]
+    dataset             Dataset[]
+    RawEvents           Events[]
+    invitations         MembershipInvitation[]
+    sessions            TraceSession[]
+    Prompt              Prompt[]
+    playgroundHistories PlaygroundHistory[]
+    llmApiKeys          LlmApiKey[]
 
     @@map("projects")
 }
@@ -419,4 +422,49 @@ model Prompt {
     @@unique([projectId, name, version])
     @@index([projectId, name, version])
     @@map("prompts")
+}
+
+model PlaygroundHistory {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+    mode       String
+    model      String
+    provider   String
+    parameters Json
+    input      Json
+    output     Json?
+    status     String
+
+    projectId String  @map("project_id")
+    project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    userId String? @map("user_id")
+    user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+    keyId String?    @map("key_id")
+    key   LlmApiKey? @relation(fields: [keyId], references: [id], onDelete: NoAction)
+
+    @@index(projectId)
+    @@map("playground_histories")
+}
+
+model LlmApiKey {
+    id         String    @id @unique @default(cuid())
+    createdAt  DateTime  @default(now()) @map("created_at")
+    lastUsedAt DateTime? @map("last_used_at")
+
+    encryptedKey Bytes   @unique @map("encrypted_key")
+    name         String?
+    model        String?
+    provider     String?
+
+    playgroundHistories PlaygroundHistory[]
+
+    projectId String  @map("project_id")
+    project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    @@index(projectId)
+    @@map("llm_api_keys")
 }
