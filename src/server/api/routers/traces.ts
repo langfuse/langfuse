@@ -124,11 +124,8 @@ export const traceRouter = createTRPCRouter({
         Prisma.empty,
       );
 
-      const totalTraces = await instrumentAsync(
-        { name: "get-total-traces" },
-        async () =>
-          await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery),
-      );
+      const totalTraces =
+        await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery);
 
       // get scores for each trace individually to increase
       // performance of the query above

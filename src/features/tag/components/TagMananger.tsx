@@ -64,7 +64,7 @@ const TagManager = ({
             className={availableTags.length > 0 ? "mt-2" : undefined}
           >
             <CommandGroup>
-              {availableTags.map((value: string) => (
+              {availableTags.slice(0, 5).map((value: string) => (
                 <TagCommandItem
                   key={value}
                   value={value}
