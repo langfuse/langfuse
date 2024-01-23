@@ -20,7 +20,6 @@ VALUES
   -- GPT-4 Turbo
   ('clrkvq6iq000008ju6c16gynt', NULL, 'gpt-4-turbo', '(?i)^(gpt-4-1106-preview)$', NULL, 0.00001, 0.00003, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
   ('clrkvx5gp000108juaogs54ea', NULL, 'gpt-4-turbo-vision', '(?i)^(gpt-4-vision-preview)$', NULL, 0.00001, 0.00003, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
-  ('clrp1wopz000608l0haiw4wmj', NULL, 'gpt-4-turbo-vision', '(?i)^(gpt-4-vision-preview)$', NULL, 0.00001, 0.00003, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
   
   -- GPT-4
   ('clrntkjgy000f08jx79v9g1xj', NULL, 'gpt-4', '(?i)^(gpt-4)$', NULL, 0.00003, 0.00006, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1 }'),
