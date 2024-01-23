@@ -12,7 +12,7 @@ const options = {
 
 const prisma = new PrismaClient();
 
-const TRACE_VOLUME = 10_000;
+const TRACE_VOLUME = 100;
 
 async function main() {
   const environment = parseArgs({
