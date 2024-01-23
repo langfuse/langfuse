@@ -134,7 +134,7 @@ export const generationsRouter = createTRPCRouter({
             SELECT
               o.*,
               CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-            FROM observations o
+            FROM observations_view o
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             ${datetimeFilter}
