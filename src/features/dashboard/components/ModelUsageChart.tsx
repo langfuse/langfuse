@@ -37,7 +37,7 @@ export const ModelUsageChart = ({
       select: [
         { column: "totalTokens", agg: "SUM" },
         { column: "calculatedTotalCost", agg: "SUM" },
-        { column: "internalModel" },
+        { column: "model" },
       ],
       filter: globalFilterState,
       groupBy: [
@@ -48,7 +48,7 @@ export const ModelUsageChart = ({
         },
         {
           type: "string",
-          column: "internalModel",
+          column: "model",
         },
       ],
       orderBy: [

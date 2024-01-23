@@ -21,7 +21,7 @@ export const getAllModels = (
           value: "GENERATION",
         },
       ],
-      groupBy: [{ type: "string", column: "internalModel" }],
+      groupBy: [{ type: "string", column: "model" }],
     },
     {
       trpc: {

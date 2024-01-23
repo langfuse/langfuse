@@ -28,7 +28,7 @@ export const MetricTable = ({
       select: [
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },
-        { column: "internalModel" },
+        { column: "model" },
       ],
       filter: localFilters,
       groupBy: [{ type: "string", column: "internalModel" }],

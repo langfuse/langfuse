@@ -137,7 +137,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   const totalCost: Decimal | undefined = trace.data?.observations.reduce(
     (prev: Decimal | undefined, curr: ObservationReturnType) => {
       if (!curr.calculatedTotalCost) return prev;
-      console.log(curr.calculatedTotalCost);
+
       return prev
         ? prev.plus(curr.calculatedTotalCost)
         : curr.calculatedTotalCost;

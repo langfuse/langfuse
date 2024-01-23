@@ -36,7 +36,7 @@ export const LatencyChart = ({
         { column: "duration", agg: "90thPercentile" },
         { column: "duration", agg: "95thPercentile" },
         { column: "duration", agg: "99thPercentile" },
-        { column: "internalModel" },
+        { column: "model" },
       ],
       filter: [
         ...globalFilterState,
