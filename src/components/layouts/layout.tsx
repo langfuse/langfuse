@@ -1,29 +1,29 @@
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
-import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import { Fragment, useState, type PropsWithChildren } from "react";
 
-import Link from "next/link";
-import { useRouter } from "next/router";
-import clsx from "clsx";
-import { Code, MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
-import { cn } from "@/src/utils/tailwind";
+import { LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { Spinner } from "@/src/components/layouts/spinner";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { api } from "@/src/utils/api";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
-import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
-import Head from "next/head";
 import { env } from "@/src/env.mjs";
-import { LangfuseLogo } from "@/src/components/LangfuseLogo";
-import { Spinner } from "@/src/components/layouts/spinner";
+import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
+import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import clsx from "clsx";
+import { ChevronRightIcon, Code, Info, MessageSquarePlus } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
+import Head from "next/head";
+import Link from "next/link";
+import { useRouter } from "next/router";
 
 const userNavigation = [
   {
@@ -141,7 +141,6 @@ export default function Layout(props: PropsWithChildren) {
         {props.children}
       </main>
     );
-
   return (
     <>
       <Head>
@@ -455,7 +454,7 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="xl:pl-72">
+        <div className="md:h-[calc(100vh-64px)] xl:h-full xl:pl-72">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
@@ -486,7 +485,7 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="p-4">{props.children}</main>
+          <main className="h-full p-4">{props.children}</main>
         </div>
       </div>
     </>
@@ -505,120 +504,151 @@ type NestedNavigationItem = Omit<Route, "children"> & {
 const MainNavigation: React.FC<{
   nav: NavigationItem[];
   onNavitemClick?: () => void;
-}> = ({ nav, onNavitemClick }) => (
-  <li>
-    <ul role="list" className="-mx-2 space-y-1">
-      {nav.map((item) => (
-        <li key={item.name}>
-          {(!item.children || item.children.length === 0) && item.href ? (
-            <Link
-              href={item.href}
-              className={clsx(
-                item.current
-                  ? "bg-gray-50 text-indigo-600"
-                  : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
-              )}
-              onClick={onNavitemClick}
-            >
-              {item.icon && (
-                <item.icon
-                  className={clsx(
-                    item.current
-                      ? "text-indigo-600"
-                      : "text-gray-400 group-hover:text-indigo-600",
-                    "h-6 w-6 shrink-0",
-                  )}
-                  aria-hidden="true"
-                />
-              )}
-              {item.name}
-              {item.label && (
-                <span
-                  className={cn(
-                    "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                    item.current
-                      ? "border-indigo-600 text-indigo-600"
-                      : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                  )}
-                >
-                  {item.label}
-                </span>
-              )}
-            </Link>
-          ) : item.children && item.children.length > 0 ? (
-            <Disclosure
-              as="div"
-              defaultOpen={item.children.some((child) => child.current)}
-            >
-              {({ open }) => (
-                <>
-                  <Disclosure.Button className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600">
-                    {item.icon && (
-                      <item.icon
-                        className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-                        aria-hidden="true"
-                      />
+}> = ({ nav, onNavitemClick }) => {
+  const STORAGE_KEY = "sidebar-tracing-default-open";
+  const getDefaultOpen = () => {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    if (savedState !== null) {
+      try {
+        return JSON.parse(savedState) as boolean;
+      } catch (e) {
+        console.error("Error parsing saved state: ", e);
+      }
+    }
+    return false;
+  };
+
+  const handleDropDownClick = () => {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    const isOpen =
+      savedState !== null ? (JSON.parse(savedState) as boolean) : false;
+    const newState = !isOpen;
+    localStorage.setItem(
+      "sidebar-tracing-default-open",
+      JSON.stringify(newState),
+    );
+  };
+  return (
+    <li>
+      <ul role="list" className="-mx-2 space-y-1">
+        {nav.map((item) => (
+          <li key={item.name}>
+            {(!item.children || item.children.length === 0) && item.href ? (
+              <Link
+                href={item.href}
+                className={clsx(
+                  item.current
+                    ? "bg-gray-50 text-indigo-600"
+                    : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
+                )}
+                onClick={onNavitemClick}
+              >
+                {item.icon && (
+                  <item.icon
+                    className={clsx(
+                      item.current
+                        ? "text-indigo-600"
+                        : "text-gray-400 group-hover:text-indigo-600",
+                      "h-6 w-6 shrink-0",
                     )}
-                    {item.name}
-                    {item.label && (
-                      <span
-                        className={cn(
-                          "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                          item.current
-                            ? "border-indigo-600 text-indigo-600"
-                            : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                        )}
-                      >
-                        {item.label}
-                      </span>
+                    aria-hidden="true"
+                  />
+                )}
+                {item.name}
+                {item.label && (
+                  <span
+                    className={cn(
+                      "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                      item.current
+                        ? "border-indigo-600 text-indigo-600"
+                        : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
                     )}
-                    <ChevronRightIcon
-                      className={clsx(
-                        open ? "rotate-90 text-gray-500" : "text-gray-400",
-                        "ml-auto h-5 w-5 shrink-0",
+                  >
+                    {item.label}
+                  </span>
+                )}
+              </Link>
+            ) : item.children && item.children.length > 0 ? (
+              <Disclosure
+                as="div"
+                defaultOpen={
+                  item.children.some((child) => child.current) ||
+                  getDefaultOpen()
+                }
+              >
+                {({ open }) => (
+                  <>
+                    <Disclosure.Button
+                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
+                      onClick={handleDropDownClick}
+                    >
+                      {item.icon && (
+                        <item.icon
+                          className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                          aria-hidden="true"
+                        />
                       )}
-                      aria-hidden="true"
-                    />
-                  </Disclosure.Button>
-                  <Disclosure.Panel as="ul" className="mt-1 px-2">
-                    {item.children?.map((subItem) => (
-                      <li key={subItem.name}>
-                        {/* 44px */}
-                        <Link
-                          href={subItem.href ?? "#"}
-                          className={clsx(
-                            subItem.current
-                              ? "bg-gray-50 text-indigo-600"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                            "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
+                      {item.name}
+                      {item.label && (
+                        <span
+                          className={cn(
+                            "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                            item.current
+                              ? "border-indigo-600 text-indigo-600"
+                              : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
                           )}
                         >
-                          {subItem.name}
-                          {subItem.label && (
-                            <span className="self-center whitespace-nowrap break-keep rounded-sm border border-gray-200 px-1 py-0.5 text-xs text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
-                              {subItem.label}
-                            </span>
-                          )}
-                        </Link>
-                      </li>
-                    ))}
-                  </Disclosure.Panel>
-                </>
-              )}
-            </Disclosure>
-          ) : null}
-        </li>
-      ))}
-      <FeedbackButtonWrapper className="w-full">
-        <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
-          <MessageSquarePlus
-            className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-            aria-hidden="true"
-          />
-          Feedback
-        </li>
-      </FeedbackButtonWrapper>
-    </ul>
-  </li>
-);
+                          {item.label}
+                        </span>
+                      )}
+                      <ChevronRightIcon
+                        className={clsx(
+                          open ? "rotate-90 text-gray-500" : "text-gray-400",
+                          "ml-auto h-5 w-5 shrink-0",
+                        )}
+                        aria-hidden="true"
+                      />
+                    </Disclosure.Button>
+                    <Disclosure.Panel as="ul" className="mt-1 px-2">
+                      {item.children?.map((subItem) => (
+                        <li key={subItem.name}>
+                          {/* 44px */}
+                          <Link
+                            href={subItem.href ?? "#"}
+                            className={clsx(
+                              subItem.current
+                                ? "bg-gray-50 text-indigo-600"
+                                : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                              "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
+                            )}
+                          >
+                            {subItem.name}
+                            {subItem.label && (
+                              <span className="self-center whitespace-nowrap break-keep rounded-sm border border-gray-200 px-1 py-0.5 text-xs text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+                                {subItem.label}
+                              </span>
+                            )}
+                          </Link>
+                        </li>
+                      ))}
+                    </Disclosure.Panel>
+                  </>
+                )}
+              </Disclosure>
+            ) : null}
+          </li>
+        ))}
+        <FeedbackButtonWrapper className="w-full">
+          <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+            <MessageSquarePlus
+              className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+              aria-hidden="true"
+            />
+            Feedback
+          </li>
+        </FeedbackButtonWrapper>
+      </ul>
+    </li>
+  );
+};

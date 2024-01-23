@@ -96,7 +96,9 @@ export const CreateGenerationBody = CreateSpanBody.extend({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      z
+        .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+        .nullish(),
     )
     .nullish(),
   usage: usage,
@@ -116,7 +118,9 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      z
+        .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+        .nullish(),
     )
     .nullish(),
   usage: usage,

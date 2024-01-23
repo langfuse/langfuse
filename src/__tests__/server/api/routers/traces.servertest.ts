@@ -53,7 +53,7 @@ describe("Traces TRPC Router", () => {
       orderBy: null,
     });
     expect(traces).toBeDefined();
-    expect(traces).toMatchObject([trace]);
+    expect(traces).toMatchObject({ traces: [trace] });
   });
 
   test("traces.all RPC orders traces by userId", async () => {
@@ -88,7 +88,7 @@ describe("Traces TRPC Router", () => {
         order: "ASC",
       },
     });
-    expect(tracesASC).toMatchObject([trace1, trace2]);
+    expect(tracesASC).toMatchObject({ traces: [trace1, trace2] });
 
     const tracesDESC = await caller.traces.all({
       page: 0,
@@ -102,6 +102,6 @@ describe("Traces TRPC Router", () => {
         order: "DESC",
       },
     });
-    expect(tracesDESC).toMatchObject([trace2, trace1]);
+    expect(tracesDESC).toMatchObject({ traces: [trace2, trace1] });
   });
 });

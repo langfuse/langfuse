@@ -15,6 +15,8 @@ import { Button } from "@/src/components/ui/button";
 import { DatasetStatus, type DatasetItem } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useEffect } from "react";
 
 type RowData = {
   id: string;
@@ -31,11 +33,22 @@ export function DatasetItemsTable({
   projectId: string;
   datasetId: string;
 }) {
+  const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
   });
+
+  useEffect(() => {
+    if (items.isSuccess) {
+      setDetailPageList(
+        "datasetItems",
+        items.data.map((t) => t.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.isSuccess, items.data]);
 
   const mutUpdate = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),

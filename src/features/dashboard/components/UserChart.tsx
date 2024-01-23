@@ -114,15 +114,17 @@ export const UserChart = ({
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
+  const localUsdFormatter = (value: number) => usdFormatter(value, 2, 2);
+
   const data = [
     {
       tabTitle: "Token cost",
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCost ? usdFormatter(totalCost) : usdFormatter(0),
+      totalMetric: totalCost ? usdFormatter(totalCost, 2, 2) : usdFormatter(0),
       metricDescription: "Total cost",
-      formatter: usdFormatter,
+      formatter: localUsdFormatter,
     },
     {
       tabTitle: "Count of Traces",

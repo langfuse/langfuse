@@ -61,7 +61,7 @@ export const MetricTable = ({
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-cost`}>
             {item.totalTokenCost
-              ? usdFormatter(item.totalTokenCost as number)
+              ? usdFormatter(item.totalTokenCost as number, 2, 2)
               : "$0"}
           </RightAlignedCell>,
         ])
@@ -83,7 +83,7 @@ export const MetricTable = ({
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
-          metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
+          metric={totalTokens ? usdFormatter(totalTokens, 2, 2) : "$0"}
           description="Total cost"
         >
           <DocPopup

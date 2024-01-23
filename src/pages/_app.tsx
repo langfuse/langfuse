@@ -29,6 +29,7 @@ import "core-js/features/array/to-sorted";
 // Other CSS
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
+
 const setProjectInPosthog = () => {
   // project
   const url = window.location.href;

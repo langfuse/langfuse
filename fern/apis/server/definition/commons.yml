@@ -129,6 +129,7 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
+      - optional<list<string>>
   DatasetStatus:
     enum:
       - ACTIVE
