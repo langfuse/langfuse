@@ -101,7 +101,7 @@ export const generationsRouter = createTRPCRouter({
         scores_avg AS (
           SELECT
             trace_id,
-            jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            jsonb_object_agg(name::text, avg_value::float) AS scores_avg
           FROM (
             SELECT
               trace_id,
@@ -152,6 +152,9 @@ export const generationsRouter = createTRPCRouter({
 
       const scores = await ctx.prisma.score.findMany({
         where: {
+          trace: {
+            projectId: input.projectId,
+          },
           traceId: {
             in: generations.map((gen) => gen.traceId),
           },
@@ -214,7 +217,7 @@ export const generationsRouter = createTRPCRouter({
         WITH scores_avg AS (
           SELECT
             trace_id,
-            jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            jsonb_object_agg(name::text, avg_value::float) AS scores_avg
           FROM (
             SELECT
               trace_id,

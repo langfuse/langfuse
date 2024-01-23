@@ -442,7 +442,7 @@ function createTracesQuery(
   scores_avg AS (
     SELECT
       trace_id,
-      jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+      jsonb_object_agg(name::text, avg_value::float) AS scores_avg
     FROM (
       SELECT
         trace_id,
