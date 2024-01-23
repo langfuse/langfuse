@@ -44,21 +44,20 @@ export const findModel = async (
 ) => {
   // either get the model from the existing observation
   // or match pattern on the user provided model name
-  const modelCondition = existingObservation?.internalModel
-    ? Prisma.sql`AND model_name = ${existingObservation.internalModel}`
-    : model
-      ? Prisma.sql`AND ${model} ~ match_pattern`
+  const modelCondition = model
+    ? Prisma.sql`AND ${model} ~ match_pattern`
+    : existingObservation?.internalModel
+      ? Prisma.sql`AND model_name = ${existingObservation.internalModel}`
       : undefined;
 
   // usage either from existing generation or from the current event
-  const mergedUnit = existingObservation?.unit ?? unit;
+  const mergedUnit = unit ?? existingObservation?.unit;
 
   const unitCondition = mergedUnit
     ? Prisma.sql`AND unit = ${mergedUnit}`
     : Prisma.empty;
 
   if (!modelCondition) {
-    console.log("no model condition", modelCondition);
     return;
   } else {
     const sql = Prisma.sql`

@@ -1,3 +1,4 @@
+import { isTiktokenModel } from "@/src/utils/types";
 import { countTokens } from "@anthropic-ai/tokenizer";
 import { type Model } from "@prisma/client";
 import {
@@ -90,6 +91,9 @@ function claudeTokenCount(p: { internalModel: string; text: unknown }) {
 const OpenAiTokenConfig = z.object({
   tokensPerMessage: z.number(),
   tokensPerName: z.number(),
+  tokenizerModel: z.string().refine(isTiktokenModel, {
+    message: "Unknown model",
+  }),
 });
 
 function openAiChatTokenCount(params: TokenCalculationParams) {
@@ -100,7 +104,7 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     Object.keys(message).forEach((key) => {
       const value = message[key as keyof typeof message];
       if (value) {
-        numTokens += getTokensByModel(params.model, value);
+        numTokens += getTokensByModel(params.config.tokenizerModel, value);
       }
       if (key === "name") {
         numTokens += params.config.tokensPerName;

@@ -77,9 +77,9 @@ export const totalTokens = {
   internal: 'o."total_tokens"',
 } as const;
 export const model = {
-  name: "internalModel",
+  name: "model",
   type: "string",
-  internal: 'o."internal_model"',
+  internal: 'o."model"',
 } as const;
 export const traceUser = {
   name: "user",
