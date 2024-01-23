@@ -1,7 +1,7 @@
 version: "3.5"
 
 services:
-  db:
+  postgres:
     image: postgres
     restart: always
     command: ["postgres", "-c", "log_statement=all"]
@@ -13,6 +13,17 @@ services:
       - 5432:5432
     volumes:
       - database_data:/var/lib/postgresql/data
+
+  pg_proxy:
+    image: ghcr.io/neondatabase/wsproxy:latest
+    environment:
+      APPEND_PORT: "postgres:5432"
+      ALLOW_ADDR_REGEX: ".*"
+      LOG_TRAFFIC: "true"
+    ports:
+      - "5433:80"
+    depends_on:
+      - postgres
 
 volumes:
   database_data:
