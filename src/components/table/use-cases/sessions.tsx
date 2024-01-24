@@ -130,7 +130,7 @@ export default function SessionsTable({
         const value = row.getValue("id");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/sessions/${value}`}
+            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
           />
         ) : undefined;
@@ -169,7 +169,7 @@ export default function SessionsTable({
             {(value as string[]).map((user) => (
               <TableLink
                 key={user}
-                path={`/project/${projectId}/users/${user}`}
+                path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
                 value={user}
                 truncateAt={40}
               />

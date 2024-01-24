@@ -12,9 +12,9 @@ import SessionsTable from "@/src/components/table/use-cases/sessions";
 
 const tabs = ["Details", "Sessions", "Traces", "Scores"] as const;
 
-export default function TracePage() {
+export default function UserPage() {
   const router = useRouter();
-  const userId = router.query.userId as string;
+  const userId = decodeURIComponent(router.query.userId as string);
   const projectId = router.query.projectId as string;
 
   const [currentTab, setCurrentTab] = useQueryParam(
@@ -51,8 +51,10 @@ export default function TracePage() {
         ]}
         actionButtons={
           <DetailPageNav
-            currentId={userId}
-            path={(id) => `/project/${projectId}/users/${id}`}
+            currentId={encodeURIComponent(userId)}
+            path={(id) =>
+              `/project/${projectId}/users/${encodeURIComponent(id)}`
+            }
             listKey="users"
           />
         }
