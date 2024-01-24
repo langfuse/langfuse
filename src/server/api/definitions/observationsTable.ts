@@ -8,35 +8,41 @@ import { ObservationLevel } from "@prisma/client";
 export const observationsTableCols: ColumnDefinition[] = [
   {
     name: "id",
+    id: "id",
     type: "string",
     internal: 'o."id"',
   },
   {
     name: "name",
+    id: "name",
     type: "stringOptions",
     internal: 'o."name"',
     options: [], // to be added at runtime
   },
-  { name: "traceId", type: "string", internal: 't."id"' },
+  { name: "traceId", id: "traceId", type: "string", internal: 't."id"' },
   {
     name: "traceName",
+    id: "traceName",
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be added at runtime
   },
-  { name: "userId", type: "string", internal: 't."user_id"' },
+  { name: "userId", id: "userId", type: "string", internal: 't."user_id"' },
   {
     name: "start_time",
+    id: "startTime",
     type: "datetime",
     internal: 'o."start_time"',
   },
   {
     name: "end_time",
+    id: "endTime",
     type: "datetime",
     internal: 'o."end_time"',
   },
   {
     name: "latency (s)",
+    id: "latency",
     type: "number",
     internal: '"latency"',
   },
@@ -47,28 +53,33 @@ export const observationsTableCols: ColumnDefinition[] = [
   },
   {
     name: "level",
+    id: "level",
     type: "stringOptions",
     internal: 'o."level"::text',
     options: Object.values(ObservationLevel).map((value) => ({ value })),
   },
   {
     name: "Status Message",
+    id: "statusMessage",
     type: "string",
     internal: 'o."status_message"',
   },
   {
     name: "model",
+    id: "model",
     type: "stringOptions",
     internal: 'o."model"',
     options: [], // to be added at runtime
   },
   {
     name: "metadata",
+    id: "metadata",
     type: "stringObject",
     internal: 'o."metadata"',
   },
   {
     name: "version",
+    id: "version",
     type: "string",
     internal: 'o."version"',
   },
