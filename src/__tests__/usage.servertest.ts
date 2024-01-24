@@ -50,6 +50,49 @@ describe("Token Count Functions", () => {
       expect(result).toBeUndefined();
     });
 
+    it("check extensive openai chat message", () => {
+      const result = tokenCount({
+        model: generateModel("gpt-3.5-turbo", "openai"),
+        text: [
+          {
+            role: "system",
+            content: "some test",
+            id: "some-id",
+            isPersisted: true,
+          },
+          {
+            id: "some-id",
+            content: "some test",
+            role: "user",
+            timestamp: "2024-01-00:00:00.488Z",
+            isPersisted: true,
+          },
+          {
+            id: "some id",
+            content: "some test",
+            role: "user",
+            timestamp: "2024-01-24T10:00:00.929Z",
+            isPersisted: true,
+          },
+          {
+            content: true,
+            role: "user",
+            id: "some id",
+          },
+          {
+            role: "system",
+            content: "This is some content",
+          },
+          {
+            id: "another id",
+            role: "assistant",
+            content: "This is some content",
+          },
+        ],
+      });
+      expect(result).toBe(137);
+    });
+
     it("should return for invalid text type", () => {
       const result = tokenCount({
         model: generateModel("gpt-4", "openai"),
