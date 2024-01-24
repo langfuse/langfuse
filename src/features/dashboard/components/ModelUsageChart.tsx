@@ -95,7 +95,7 @@ export const ModelUsageChart = ({
   );
 
   const totalTokens = tokens.data?.reduce(
-    (acc, curr) => acc + (curr.sumCalculatedTotalCost as number),
+    (acc, curr) => acc + (curr.sumTotalTokens as number),
     0,
   );
 
