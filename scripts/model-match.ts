@@ -7,6 +7,7 @@ import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@/src/server/db";
+import lodash from "lodash";
 
 async function main() {
   return await modelMatch();
