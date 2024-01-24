@@ -20,7 +20,16 @@ export const modelRouter = createTRPCRouter({
           OR: [{ projectId: input.projectId }, { projectId: null }],
         },
         skip: input.page * input.limit,
-        orderBy: [{ modelName: "asc" }, { startDate: "desc" }],
+        orderBy: [
+          { modelName: "asc" },
+          { unit: "asc" },
+          {
+            startDate: {
+              sort: "desc",
+              nulls: "last",
+            },
+          },
+        ],
         take: input.limit,
       });
 
