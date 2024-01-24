@@ -24,6 +24,8 @@ export async function modelMatch() {
 
   // while observations are not null, get the next 10000 observations
   let continueLoop = true;
+  let index = 0;
+  let totalObservations = 0;
 
   while (continueLoop) {
     const observations = await prisma.observation.findMany({
@@ -35,12 +37,9 @@ export async function modelMatch() {
         type: "GENERATION",
       },
       take: 10_000,
+      skip: index * 10_000,
     });
-
-    if (observations.length === 0) {
-      console.log("No more observations to migrate");
-      continueLoop = false;
-    }
+    console.log("Observations: ", observations[0]?.id);
 
     console.log(`Found ${observations.length} observations to migrate`);
 
@@ -96,28 +95,43 @@ export async function modelMatch() {
         observationsGroup.length,
       );
 
-      // Push the promise for updating observations into the array
-      updatePromises.push(
-        prisma.observation.updateMany({
-          where: {
-            id: {
-              in: observationsGroup.map((observation) => observation.id),
+      if (foundModel) {
+        // Push the promise for updating observations into the array
+        updatePromises.push(
+          prisma.observation.updateMany({
+            where: {
+              id: {
+                in: observationsGroup.map((observation) => observation.id),
+              },
             },
-          },
-          data: {
-            internalModel: foundModel?.modelName,
-          },
-        }),
-      );
+            data: {
+              internalModel: foundModel.modelName,
+            },
+          }),
+        );
 
-      updatedObservations += observationsGroup.length;
+        updatedObservations += observationsGroup.length;
+      }
     }
 
+    totalObservations += updatedObservations;
     // Wait for all update operations to complete
     await Promise.all(updatePromises);
-    console.warn("Updated observations count: ", updatedObservations);
+    console.warn(
+      "Updated observations count: ",
+      updatedObservations,
+      " in total: ",
+      totalObservations,
+    );
+
+    console.log(updatedObservations, observations.length);
 
     if (updatedObservations === 0) {
+      index++;
+    }
+
+    if (observations.length === 0) {
+      console.log("No more observations to migrate");
       continueLoop = false;
     }
   }
