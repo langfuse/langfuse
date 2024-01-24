@@ -144,6 +144,8 @@ async function main() {
 
       const tags = [envTag, colorTag].filter((tag) => tag !== null);
 
+      const projectId = [project1.id, project2.id][i % 2] as string;
+
       const trace = await prisma.trace.create({
         data: {
           id: `trace-${Math.floor(Math.random() * 1000000000)}`,
@@ -156,9 +158,7 @@ async function main() {
           },
           tags: tags as string[],
           project: {
-            connect: {
-              id: [project1.id, project2.id][i % 2],
-            },
+            connect: { id: projectId },
           },
           userId: `user-${i % 10}`,
           session:
@@ -166,13 +166,14 @@ async function main() {
               ? {
                   connectOrCreate: {
                     where: {
-                      id: `session-${i % 10}`,
+                      id_projectId: {
+                        id: `session-${i % 10}`,
+                        projectId: projectId,
+                      },
                     },
                     create: {
                       id: `session-${i % 10}`,
-                      project: {
-                        connect: { id: [project1.id, project2.id][i % 2] },
-                      },
+                      projectId: projectId,
                     },
                   },
                 }

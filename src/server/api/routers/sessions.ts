@@ -163,8 +163,10 @@ export const sessionRouter = createTRPCRouter({
 
         const session = await ctx.prisma.traceSession.update({
           where: {
-            id: input.sessionId,
-            projectId: input.projectId,
+            id_projectId: {
+              id: input.sessionId,
+              projectId: input.projectId,
+            },
           },
           data: {
             bookmarked: input.bookmarked,
@@ -205,8 +207,10 @@ export const sessionRouter = createTRPCRouter({
         });
         return ctx.prisma.traceSession.update({
           where: {
-            id: input.sessionId,
-            projectId: input.projectId,
+            id_projectId: {
+              id: input.sessionId,
+              projectId: input.projectId,
+            },
           },
           data: {
             public: input.public,
