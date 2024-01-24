@@ -76,7 +76,7 @@ describe("Token Count Functions", () => {
             isPersisted: true,
           },
           {
-            content: "NEW",
+            content: true,
             role: "user",
             id: "urPmjcU",
           },
@@ -93,7 +93,7 @@ describe("Token Count Functions", () => {
           },
         ],
       });
-      expect(result).toBeDefined();
+      expect(result).toBe(316);
     });
 
     it("should return for invalid text type", () => {

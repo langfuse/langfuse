@@ -105,6 +105,9 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
     Object.keys(message).forEach((key) => {
       const value = message[key as keyof typeof message];
       if (
+        // check API docs for available keys: https://platform.openai.com/docs/api-reference/chat/create?lang=node.js
+        // memory access out of bounds error in tiktoken if unexpected key and value of type boolean
+        // expected keys with booleans work
         value &&
         [
           "content",
@@ -158,7 +161,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
     encoding = get_encoding("cl100k_base");
   }
 
-  return encoding.encode(text.toString()).length;
+  return encoding.encode(text).length;
 };
 
 function isString(value: unknown): value is string {
