@@ -113,6 +113,12 @@ export const generationsRouter = createTRPCRouter({
             o.level,
             o.status_message as "statusMessage",
             o.version,
+            o.model_id as "modelId",
+            o.input_price as "inputPrice",
+            o.output_price as "outputPrice",
+            o.total_price as "totalPrice",
+            o.calculated_input_cost as "calculatedInputCost",
+            o.calculated_output_cost as "calculatedOutputCost",
             o.calculated_total_cost as "calculatedTotalCost"
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
@@ -199,8 +205,14 @@ export const generationsRouter = createTRPCRouter({
             o.prompt_tokens as "promptTokens",
             o.completion_tokens as "completionTokens",
             o.total_tokens as "totalTokens",
-            o.calculated_total_cost as "calculatedTotalCost",
-            o.version
+            o.version,
+            o.model_id as "modelId",
+            o.input_price as "inputPrice",
+            o.output_price as "outputPrice",
+            o.total_price as "totalPrice",
+            o.calculated_input_cost as "calculatedInputCost",
+            o.calculated_output_cost as "calculatedOutputCost",
+            o.calculated_total_cost as "calculatedTotalCost"
           FROM observations_view o
           JOIN traces t ON t.id = o.trace_id
           WHERE o.type = 'GENERATION'
