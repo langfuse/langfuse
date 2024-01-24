@@ -67,7 +67,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const value: Date | undefined = row.getValue("startDate");
 
         return value ? (
-          <span className="text-xs">{value.toLocaleDateString()} </span>
+          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
         ) : (
           <span className="text-xs">-</span>
         );
