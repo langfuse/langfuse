@@ -1,13 +1,54 @@
+import { isTiktokenModel } from "@/src/utils/types";
+import { countTokens } from "@anthropic-ai/tokenizer";
+import { type Model } from "@prisma/client";
 import {
+  type TiktokenModel,
+  type Tiktoken,
   type TiktokenEncoding,
   get_encoding,
   encoding_for_model,
-  type TiktokenModel,
-  type Tiktoken,
 } from "tiktoken";
-import { countTokens } from "@anthropic-ai/tokenizer";
-import { type PricingUnit, type Pricing } from "@prisma/client";
-import { Decimal } from "decimal.js";
+import { z } from "zod";
+
+export function tokenCount(p: {
+  model: Model;
+  text: unknown;
+}): number | undefined {
+  if (
+    p.text === null ||
+    p.text === undefined ||
+    (Array.isArray(p.text) && p.text.length === 0)
+  ) {
+    return undefined;
+  }
+
+  if (p.model.tokenizerId === "openai") {
+    // check if the tokenizerConfig is a valid OpenAiTokenConfig
+    const parsedConfig = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
+    if (!parsedConfig.success) {
+      console.error(
+        `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
+          p.model.tokenizerConfig,
+        )}`,
+      );
+      return undefined;
+    }
+
+    return openAiTokenCount({
+      internalModel: p.model.modelName,
+      config: parsedConfig.data,
+      text: p.text,
+    });
+  } else if (p.model.tokenizerId === "claude") {
+    return claudeTokenCount({
+      internalModel: p.model.modelName,
+      text: p.text,
+    });
+  } else {
+    console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+    return undefined;
+  }
+}
 
 type ChatMessage = {
   role: string;
@@ -18,91 +59,61 @@ type ChatMessage = {
 type TokenCalculationParams = {
   messages: ChatMessage[];
   model: TiktokenModel;
+  config: z.infer<typeof OpenAiTokenConfig>;
 };
 
-export function tokenCount(p: {
-  model: string;
+function openAiTokenCount(p: {
+  internalModel: string;
   text: unknown;
-}): number | undefined {
-  const model = cleanModelString(p.model);
-  if (
-    p.text === null ||
-    p.text === undefined ||
-    (Array.isArray(p.text) && p.text.length === 0)
-  ) {
-    return undefined;
-  } else if (isOpenAiModel(model)) {
-    return isChatMessageArray(p.text)
-      ? openAiChatTokenCount({
-          model: model,
-          messages: p.text,
-        })
-      : isString(p.text)
-        ? openAiStringTokenCount({ model: model, text: p.text })
-        : openAiStringTokenCount({
-            model: model,
-            text: JSON.stringify(p.text),
-          });
-  } else if (isClaudeModel(model)) {
-    return isString(p.text)
-      ? claudeStringTokenCount({ model: model, text: p.text })
-      : claudeStringTokenCount({
-          model: model,
+  config: z.infer<typeof OpenAiTokenConfig>;
+}) {
+  if (!isOpenAiModel(p.internalModel)) return undefined;
+
+  return isChatMessageArray(p.text)
+    ? openAiChatTokenCount({
+        model: p.internalModel,
+        messages: p.text,
+        config: p.config,
+      })
+    : isString(p.text)
+      ? openAiStringTokenCount({ model: p.internalModel, text: p.text })
+      : openAiStringTokenCount({
+          model: p.internalModel,
           text: JSON.stringify(p.text),
         });
-  } else {
-    console.log("Unknown model provider", p.model);
-    return undefined;
-  }
+}
+function claudeTokenCount(p: { internalModel: string; text: unknown }) {
+  return isString(p.text)
+    ? countTokens(p.text)
+    : countTokens(JSON.stringify(p.text));
 }
 
-function openAiChatTokenCount(params: TokenCalculationParams) {
-  let tokens_per_message = 0;
-  let tokens_per_name = 0;
+const OpenAiTokenConfig = z.object({
+  tokensPerMessage: z.number(),
+  tokensPerName: z.number(),
+  tokenizerModel: z.string().refine(isTiktokenModel, {
+    message: "Unknown model",
+  }),
+});
 
-  if (
-    [
-      "gpt-3.5-turbo-0613",
-      "gpt-3.5-turbo-16k-0613",
-      "gpt-4-0314",
-      "gpt-4-32k-0314",
-      "gpt-4-0613",
-      "gpt-4-32k-0613",
-    ].includes(params.model)
-  ) {
-    tokens_per_message = 3;
-    tokens_per_name = 1;
-  } else if (params.model === "gpt-3.5-turbo-0301") {
-    tokens_per_message = 4; // every message follows <|start|>{role/name}\n{content}<|end|>\n
-    tokens_per_name = -1; // if there's a name, the role is omitted
-  } else if (
-    params.model.includes("gpt-3.5-turbo") ||
-    params.model.startsWith("gpt-3.5")
-  ) {
-    return openAiChatTokenCount({ ...params, model: "gpt-3.5-turbo-0613" });
-  } else if (params.model.includes("gpt-4")) {
-    return openAiChatTokenCount({ ...params, model: "gpt-4-0613" });
-  } else {
-    console.error(`Not implemented for model ${params.model}`);
-    throw new Error(`Not implemented for model ${params.model}`);
-  }
-  let num_tokens = 0;
+function openAiChatTokenCount(params: TokenCalculationParams) {
+  let numTokens = 0;
   params.messages.forEach((message) => {
-    num_tokens += tokens_per_message;
+    numTokens += params.config.tokensPerMessage;
 
     Object.keys(message).forEach((key) => {
       const value = message[key as keyof typeof message];
       if (value) {
-        num_tokens += getTokensByModel(params.model, value);
+        numTokens += getTokensByModel(params.config.tokenizerModel, value);
       }
       if (key === "name") {
-        num_tokens += tokens_per_name;
+        numTokens += params.config.tokensPerName;
       }
     });
   });
-  num_tokens += 3; // every reply is primed with <| start |> assistant <| message |>
+  numTokens += 3; // every reply is primed with <| start |> assistant <| message |>
 
-  return num_tokens;
+  return numTokens;
 }
 
 const openAiStringTokenCount = (p: { model: string; text: string }) => {
@@ -110,25 +121,19 @@ const openAiStringTokenCount = (p: { model: string; text: string }) => {
     p.model.toLowerCase().startsWith("gpt") ||
     p.model.toLowerCase().includes("ada")
   ) {
-    return getTokens("cl100k_base", p.text);
+    return getTokensByEncoding("cl100k_base", p.text);
   }
   if (p.model.toLowerCase().startsWith("text-davinci")) {
-    return getTokens("p50k_base", p.text);
+    return getTokensByEncoding("p50k_base", p.text);
   }
   console.log("Unknown model", p.model);
   return undefined;
 };
 
-const claudeStringTokenCount = (p: { model: string; text: string }) => {
-  return countTokens(p.text);
-};
-
-const getTokens = (name: TiktokenEncoding, text: string) => {
+const getTokensByEncoding = (name: TiktokenEncoding, text: string) => {
   const encoding = get_encoding(name);
   const tokens = encoding.encode(text);
-  // https://github.com/dqbd/tiktoken/issues/72
-  // we need to ensure to deallocate memory from the encoder
-  encoding.free();
+
   return tokens.length;
 };
 
@@ -141,72 +146,15 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
     encoding = get_encoding("cl100k_base");
   }
 
-  const length = encoding.encode(text).length;
-
-  // https://github.com/dqbd/tiktoken/issues/72
-  // we need to ensure to deallocate memory from the encoder
-  encoding.free();
-  return length;
+  return encoding.encode(text).length;
 };
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function isClaudeModel(model: string) {
-  return model.toLowerCase().startsWith("claude");
-}
-
 function isOpenAiModel(model: string): model is TiktokenModel {
-  return (
-    [
-      "text-davinci-003",
-      "text-davinci-002",
-      "text-davinci-001",
-      "text-curie-001",
-      "text-babbage-001",
-      "text-ada-001",
-      "davinci",
-      "curie",
-      "babbage",
-      "ada",
-      "code-davinci-002",
-      "code-davinci-001",
-      "code-cushman-002",
-      "code-cushman-001",
-      "davinci-codex",
-      "cushman-codex",
-      "text-davinci-edit-001",
-      "code-davinci-edit-001",
-      "text-embedding-ada-002",
-      "text-similarity-davinci-001",
-      "text-similarity-curie-001",
-      "text-similarity-babbage-001",
-      "text-similarity-ada-001",
-      "text-search-davinci-doc-001",
-      "text-search-curie-doc-001",
-      "text-search-babbage-doc-001",
-      "text-search-ada-doc-001",
-      "code-search-babbage-code-001",
-      "code-search-ada-code-001",
-      "gpt2",
-      "gpt-4",
-      "gpt-4-0314",
-      "gpt-4-0613",
-      "gpt-4-32k",
-      "gpt-4-32k-0314",
-      "gpt-4-32k-0613",
-      "gpt-4-1106-preview",
-      "gpt-4-vision-preview",
-      "gpt-3.5",
-      "gpt-3.5-turbo",
-      "gpt-3.5-turbo-0301",
-      "gpt-3.5-turbo-0613",
-      "gpt-3.5-turbo-16k",
-      "gpt-3.5-turbo-16k-0613",
-      "gpt-3.5-turbo-1106",
-    ].find((m) => m === model) !== undefined
-  );
+  return !!model.includes(model as TiktokenModel);
 }
 
 function isChatMessageArray(value: unknown): value is ChatMessage[] {
@@ -225,94 +173,3 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       (!("name" in item) || typeof item.name === "string"),
   );
 }
-
-export function calculateTokenCost(
-  pricingList: Pricing[],
-  input: {
-    model: string;
-    input: unknown;
-    output: unknown;
-    totalTokens: Decimal;
-    promptTokens: Decimal;
-    completionTokens: Decimal;
-  },
-): Decimal | undefined {
-  const model = cleanModelString(input.model);
-  const pricing = pricingList.filter((p) => p.modelName === model);
-
-  if (pricing.length === 0) {
-    console.log("no pricing found for model", input.model);
-    return undefined;
-  } else {
-    if (pricing.length === 1 && pricing[0]?.tokenType === "TOTAL") {
-      return calculateValue(
-        pricing[0].price,
-        pricing[0].pricingUnit,
-        input.totalTokens,
-        JSON.stringify(input.input) + JSON.stringify(input.output),
-      );
-    }
-
-    if (pricing.length === 2) {
-      let promptPrice: Decimal = new Decimal(0);
-      let completionPrice: Decimal = new Decimal(0);
-
-      const promptPricing = pricing.find((p) => p.tokenType === "PROMPT");
-      const completionPricing = pricing.find(
-        (p) => p.tokenType === "COMPLETION",
-      );
-
-      if (promptPricing) {
-        promptPrice =
-          calculateValue(
-            promptPricing.price,
-            promptPricing.pricingUnit,
-            input.promptTokens,
-            JSON.stringify(input.input),
-          ) ?? new Decimal(0);
-      }
-
-      if (completionPricing) {
-        completionPrice =
-          calculateValue(
-            completionPricing.price,
-            completionPricing.pricingUnit,
-            input.completionTokens,
-            JSON.stringify(input.output),
-          ) ?? new Decimal(0);
-      }
-
-      return promptPrice.plus(completionPrice);
-    }
-    console.log("unknown model", input.model);
-    return undefined;
-  }
-}
-
-const calculateValue = (
-  price: Decimal,
-  unit: PricingUnit,
-  tokens: Decimal,
-  characters: string,
-) => {
-  switch (unit) {
-    case "PER_1000_TOKENS":
-      return price
-        .times(tokens.dividedBy(new Decimal(1000)))
-        .toDecimalPlaces(5);
-    case "PER_1000_CHARS":
-      return (
-        price
-          // strip whitespace, default for google bison, only character based model for now
-          .times(new Decimal(characters.replace(/\s/g, "").length))
-          .dividedBy(new Decimal(1000))
-          .toDecimalPlaces(5)
-      );
-    default:
-      console.log("unknown pricing unit", unit);
-      return undefined;
-  }
-};
-
-const cleanModelString = (model: string) =>
-  model.toLowerCase().replaceAll("gpt-35", "gpt-3.5");
