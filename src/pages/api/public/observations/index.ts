@@ -6,7 +6,6 @@ import { paginationZod } from "@/src/utils/zod";
 import {
   Prisma,
   type PrismaClient,
-  type Observation,
   type ObservationView,
 } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -64,6 +63,16 @@ export default async function handler(
       authCheck.scope.projectId,
       searchParams,
     );
+
+    console.log({
+      data: observations.map(mapUsageOutput),
+      meta: {
+        page: searchParams.page,
+        limit: searchParams.limit,
+        totalItems: totalObservations,
+        totalPages: Math.ceil(totalObservations / searchParams.limit),
+      },
+    });
 
     return res.status(200).json({
       data: observations.map(mapUsageOutput),

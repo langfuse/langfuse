@@ -9,6 +9,12 @@ export const mapUsageOutput = (observation: ObservationView) => {
   const { promptTokens, completionTokens, totalTokens, unit } = observation;
   return {
     ...observation,
+    inputPrice: observation.inputPrice?.toNumber(),
+    outputPrice: observation.outputPrice?.toNumber(),
+    totalPrice: observation.totalPrice?.toNumber(),
+    calculatedInputCost: observation.calculatedInputCost?.toNumber(),
+    calculatedOutputCost: observation.calculatedOutputCost?.toNumber(),
+    calculatedTotalCost: observation.calculatedTotalCost?.toNumber(),
     usage: {
       unit,
       input: promptTokens,
