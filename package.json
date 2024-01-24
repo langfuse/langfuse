@@ -106,7 +106,7 @@
     "@mermaid-js/mermaid-cli": "^10.6.1",
     "@playwright/test": "^1.40.1",
     "@release-it/bumper": "^6.0.1",
-    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/jest-dom": "^6.2.1",
     "@testing-library/react": "^14.1.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
