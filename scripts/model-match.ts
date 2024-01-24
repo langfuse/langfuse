@@ -7,7 +7,7 @@ import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@/src/server/db";
-import { type Observation } from "@prisma/client";
+import lodash from "lodash";
 
 async function main() {
   return await modelMatch();
@@ -28,23 +28,41 @@ export async function modelMatch() {
   let totalObservations = 0;
 
   while (continueLoop) {
+    type selectedType = {
+      model: string | null;
+      id: string;
+      projectId: string;
+      startTime: Date;
+      unit: string;
+    };
+
     const observations = await prisma.observation.findMany({
+      select: {
+        id: true,
+        startTime: true,
+        model: true,
+        unit: true,
+        projectId: true,
+      },
       orderBy: {
         startTime: "desc",
       },
       where: {
         internalModel: null,
         type: "GENERATION",
+        startTime: {
+          lt: new Date("2020-01-24"),
+        },
       },
-      take: 10_000,
-      skip: index * 10_000,
+      take: 100_000,
+      skip: index * 100_000,
     });
     console.log("Observations: ", observations[0]?.id);
 
     console.log(`Found ${observations.length} observations to migrate`);
 
     interface GroupedObservations {
-      [key: string]: Observation[];
+      [key: string]: selectedType[];
     }
 
     const groupedObservations = observations.reduce<GroupedObservations>(
@@ -62,7 +80,7 @@ export async function modelMatch() {
       {},
     );
 
-    const updatePromises = [];
+    const updatePromises: Array<Promise<unknown>> = [];
     let updatedObservations = 0;
 
     for (const [key, observationsGroup] of Object.entries(
@@ -97,18 +115,38 @@ export async function modelMatch() {
 
       if (foundModel) {
         // Push the promise for updating observations into the array
-        updatePromises.push(
-          prisma.observation.updateMany({
-            where: {
-              id: {
-                in: observationsGroup.map((observation) => observation.id),
+
+        lodash.chunk(observationsGroup, 32000).map((chunk) => {
+          updatePromises.push(
+            prisma.observation.updateMany({
+              where: {
+                id: {
+                  in: chunk.map((observation) => observation.id),
+                },
               },
-            },
-            data: {
-              internalModel: foundModel.modelName,
-            },
-          }),
-        );
+              data: {
+                internalModel: foundModel.modelName,
+              },
+            }),
+          );
+        });
+
+        updatedObservations += observationsGroup.length;
+      } else {
+        lodash.chunk(observationsGroup, 32000).map((chunk) => {
+          updatePromises.push(
+            prisma.observation.updateMany({
+              where: {
+                id: {
+                  in: chunk.map((observation) => observation.id),
+                },
+              },
+              data: {
+                internalModel: "none",
+              },
+            }),
+          );
+        });
 
         updatedObservations += observationsGroup.length;
       }
@@ -135,6 +173,16 @@ export async function modelMatch() {
       continueLoop = false;
     }
   }
+
+  await prisma.observation.updateMany({
+    where: {
+      internalModel: "none",
+    },
+    data: {
+      internalModel: null,
+    },
+  });
+
   const end = Date.now();
 
   console.log(`Model match took ${end - start} ms`);
