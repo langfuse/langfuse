@@ -50,7 +50,7 @@ describe("Token Count Functions", () => {
       expect(result).toBeUndefined();
     });
 
-    it("huhu", () => {
+    it("check extensive openai chat message", () => {
       const result = tokenCount({
         model: generateModel("gpt-3.5-turbo", "openai"),
         text: [
