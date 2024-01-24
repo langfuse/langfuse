@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type PrismaClient } from "@prisma/client";
+import { type Prompt, type PrismaClient } from "@prisma/client";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -27,12 +27,17 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
-      return ctx.prisma.prompt.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-        orderBy: [{ name: "asc" }, { version: "desc" }],
-      });
+      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
+        SELECT id, name, version, created_at AS "createdAt", is_active AS "isActive"
+        FROM prompts
+        WHERE (name, version) IN (
+          SELECT name, MAX(version)
+          FROM prompts
+          WHERE "project_id" = ${input.projectId}
+          GROUP BY name
+        )
+        AND "project_id" = ${input.projectId}`;
+      return prompts;
     }),
   byId: protectedProjectProcedure
     .input(
@@ -50,6 +55,28 @@ export const promptRouter = createTRPCRouter({
       return ctx.prisma.prompt.findFirst({
         where: {
           id: input.id,
+          projectId: input.projectId,
+        },
+      });
+    }),
+  byNameAndVersion: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        version: z.number(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+      return ctx.prisma.prompt.findFirst({
+        where: {
+          name: input.name,
+          version: input.version,
           projectId: input.projectId,
         },
       });
@@ -135,6 +162,22 @@ export const promptRouter = createTRPCRouter({
         console.log(e);
         throw e;
       }
+    }),
+  history: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), name: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+      return ctx.prisma.prompt.findMany({
+        where: {
+          projectId: input.projectId,
+          name: input.name,
+        },
+        orderBy: [{ version: "desc" }],
+      });
     }),
 });
 
