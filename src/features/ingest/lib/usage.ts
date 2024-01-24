@@ -4,7 +4,6 @@ import { type Model } from "@prisma/client";
 import {
   type TiktokenModel,
   type Tiktoken,
-  type TiktokenEncoding,
   get_encoding,
   encoding_for_model,
 } from "tiktoken";
@@ -39,9 +38,7 @@ export function tokenCount(p: {
   }
 
   if (p.model.tokenizerId === "openai") {
-    console.log("openai token count");
     return openAiTokenCount({
-      internalModel: p.model.modelName,
       model: p.model,
       text: p.text,
     });
@@ -62,11 +59,7 @@ type ChatMessage = {
   content: string;
 };
 
-function openAiTokenCount(p: {
-  internalModel: string;
-  model: Model;
-  text: unknown;
-}) {
+function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
     console.error(
@@ -80,7 +73,7 @@ function openAiTokenCount(p: {
   let result = undefined;
 
   if (isChatMessageArray(p.text) && isChatModel(config.data.tokenizerModel)) {
-    // check if the tokenizerConfig is a valid OpenAiTokenConfig
+    // check if the tokenizerConfig is a valid chat config
     const parsedConfig = OpenAiChatTokenConfig.safeParse(
       p.model.tokenizerConfig,
     );
@@ -97,17 +90,9 @@ function openAiTokenCount(p: {
       config: parsedConfig.data,
     });
   } else {
-    console.log("openai string token count");
-
     result = isString(p.text)
-      ? openAiStringTokenCount({
-          model: config.data.tokenizerModel,
-          text: p.text,
-        })
-      : openAiStringTokenCount({
-          model: p.internalModel,
-          text: JSON.stringify(p.text),
-        });
+      ? getTokensByModel(config.data.tokenizerModel, p.text)
+      : getTokensByModel(config.data.tokenizerModel, JSON.stringify(p.text));
   }
   return result;
 }
@@ -157,27 +142,6 @@ function openAiChatTokenCount(params: {
 
   return numTokens;
 }
-
-const openAiStringTokenCount = (p: { model: string; text: string }) => {
-  if (
-    p.model.toLowerCase().startsWith("gpt") ||
-    p.model.toLowerCase().includes("ada")
-  ) {
-    return getTokensByEncoding("cl100k_base", p.text);
-  }
-  if (p.model.toLowerCase().startsWith("text-davinci")) {
-    return getTokensByEncoding("p50k_base", p.text);
-  }
-  console.log("Unknown model", p.model);
-  return undefined;
-};
-
-const getTokensByEncoding = (name: TiktokenEncoding, text: string) => {
-  const encoding = get_encoding(name);
-  const tokens = encoding.encode(text);
-
-  return tokens.length;
-};
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
   let encoding: Tiktoken;
