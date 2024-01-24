@@ -78,7 +78,7 @@ export const projectsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        newName: projectNameSchema,
+        newName: projectNameSchema.shape.name,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -93,7 +93,7 @@ export const projectsRouter = createTRPCRouter({
           id: input.projectId,
         },
         data: {
-          name: input.newName.name,
+          name: input.newName,
         },
       });
       return true;
