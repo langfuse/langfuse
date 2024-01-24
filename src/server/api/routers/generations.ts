@@ -28,6 +28,8 @@ import {
   exportFileFormats,
   exportOptions,
 } from "@/src/server/api/interfaces/exportTypes";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
 const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -36,6 +38,7 @@ const GenerationFilterOptions = z.object({
 });
 
 const ListInputs = GenerationFilterOptions.extend({
+  orderBy: orderBy,
   ...paginationZod,
 });
 
@@ -59,6 +62,11 @@ export const generationsRouter = createTRPCRouter({
 
       const filterCondition = filterToPrismaSql(
         input.filter,
+        observationsTableCols,
+      );
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
         observationsTableCols,
       );
 
@@ -126,7 +134,7 @@ export const generationsRouter = createTRPCRouter({
             t.project_id = ${input.projectId}
             ${searchCondition}
             ${filterCondition}
-          ORDER BY o.start_time DESC
+          ${orderByCondition}
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
         `,
