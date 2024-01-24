@@ -7,8 +7,6 @@ import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@/src/server/db";
-import { loadStaticPaths } from "next/dist/server/dev/static-paths-worker";
-import lodash from "lodash";
 
 async function main() {
   return await modelMatch();
