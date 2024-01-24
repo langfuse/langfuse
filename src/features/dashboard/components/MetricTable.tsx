@@ -56,9 +56,9 @@ export const MetricTable = ({
 
   const metricsData = metrics.data
     ? metrics.data
-        .filter((item) => item.internalModel !== null)
+        .filter((item) => item.model !== null)
         .map((item, i) => [
-          item.internalModel as string,
+          item.model as string,
           <RightAlignedCell key={`${i}-tokens`}>
             {item.sumTotalTokens
               ? compactNumberFormatter(item.sumTotalTokens as number)
