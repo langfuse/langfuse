@@ -319,7 +319,6 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
-    console.log("calculate tokens for ", model);
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId

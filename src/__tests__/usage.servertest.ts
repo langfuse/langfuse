@@ -26,6 +26,7 @@ describe("Token Count Functions", () => {
   describe("token count for strings", () => {
     [
       { model: "gpt-3.5-turbo", tokenizer: "openai", tokens: 114 },
+      { model: "text-embedding-ada-002", tokenizer: "openai", tokens: 114 },
       { model: "gpt-4-1106-preview", tokenizer: "openai", tokens: 114 },
       { model: "gpt-4-vision-preview", tokenizer: "openai", tokens: 114 },
       { model: "claude", tokenizer: "claude", tokens: 118 },

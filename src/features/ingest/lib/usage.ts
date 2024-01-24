@@ -1,14 +1,29 @@
-import { isTiktokenModel } from "@/src/utils/types";
+import { isChatModel, isTiktokenModel } from "@/src/utils/types";
 import { countTokens } from "@anthropic-ai/tokenizer";
 import { type Model } from "@prisma/client";
 import {
   type TiktokenModel,
   type Tiktoken,
-  type TiktokenEncoding,
   get_encoding,
   encoding_for_model,
 } from "tiktoken";
 import { z } from "zod";
+
+const OpenAiTokenConfig = z.object({
+  tokenizerModel: z.string().refine(isTiktokenModel, {
+    message: "Unknown tiktoken model",
+  }),
+});
+
+const OpenAiChatTokenConfig = z.object({
+  tokenizerModel: z
+    .string()
+    .refine((m) => isTiktokenModel(m) && isChatModel(m), {
+      message: "Chat model expected",
+    }),
+  tokensPerMessage: z.number(),
+  tokensPerName: z.number(),
+});
 
 export function tokenCount(p: {
   model: Model;
@@ -23,20 +38,8 @@ export function tokenCount(p: {
   }
 
   if (p.model.tokenizerId === "openai") {
-    // check if the tokenizerConfig is a valid OpenAiTokenConfig
-    const parsedConfig = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
-    if (!parsedConfig.success) {
-      console.error(
-        `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
-          p.model.tokenizerConfig,
-        )}`,
-      );
-      return undefined;
-    }
-
     return openAiTokenCount({
-      internalModel: p.model.modelName,
-      config: parsedConfig.data,
+      model: p.model,
       text: p.text,
     });
   } else if (p.model.tokenizerId === "claude") {
@@ -56,47 +59,57 @@ type ChatMessage = {
   content: string;
 };
 
-type TokenCalculationParams = {
-  messages: ChatMessage[];
-  model: TiktokenModel;
-  config: z.infer<typeof OpenAiTokenConfig>;
-};
+function openAiTokenCount(p: { model: Model; text: unknown }) {
+  const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
+  if (!config.success) {
+    console.error(
+      `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
+        p.model.tokenizerConfig,
+      )}, ${JSON.stringify(config.error)}`,
+    );
+    return undefined;
+  }
 
-function openAiTokenCount(p: {
-  internalModel: string;
-  text: unknown;
-  config: z.infer<typeof OpenAiTokenConfig>;
-}) {
-  if (!isOpenAiModel(p.internalModel)) return undefined;
+  let result = undefined;
 
-  return isChatMessageArray(p.text)
-    ? openAiChatTokenCount({
-        model: p.internalModel,
-        messages: p.text,
-        config: p.config,
-      })
-    : isString(p.text)
-      ? openAiStringTokenCount({ model: p.internalModel, text: p.text })
-      : openAiStringTokenCount({
-          model: p.internalModel,
-          text: JSON.stringify(p.text),
-        });
+  if (isChatMessageArray(p.text) && isChatModel(config.data.tokenizerModel)) {
+    // check if the tokenizerConfig is a valid chat config
+    const parsedConfig = OpenAiChatTokenConfig.safeParse(
+      p.model.tokenizerConfig,
+    );
+    if (!parsedConfig.success) {
+      console.error(
+        `Invalid tokenizer config for chat model ${
+          p.model.id
+        }: ${JSON.stringify(p.model.tokenizerConfig)}`,
+      );
+      return undefined;
+    }
+    result = openAiChatTokenCount({
+      messages: p.text,
+      config: parsedConfig.data,
+    });
+  } else {
+    result = isString(p.text)
+      ? getTokensByModel(config.data.tokenizerModel, p.text)
+      : getTokensByModel(config.data.tokenizerModel, JSON.stringify(p.text));
+  }
+  return result;
 }
+
 function claudeTokenCount(p: { internalModel: string; text: unknown }) {
   return isString(p.text)
     ? countTokens(p.text)
     : countTokens(JSON.stringify(p.text));
 }
 
-const OpenAiTokenConfig = z.object({
-  tokensPerMessage: z.number(),
-  tokensPerName: z.number(),
-  tokenizerModel: z.string().refine(isTiktokenModel, {
-    message: "Unknown model",
-  }),
-});
+function openAiChatTokenCount(params: {
+  messages: ChatMessage[];
+  config: z.infer<typeof OpenAiChatTokenConfig>;
+}) {
+  const model = params.config.tokenizerModel;
+  if (!isTiktokenModel(model)) return undefined;
 
-function openAiChatTokenCount(params: TokenCalculationParams) {
   let numTokens = 0;
   params.messages.forEach((message) => {
     numTokens += params.config.tokensPerMessage;
@@ -118,7 +131,7 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
           "functionCall",
         ].some((k) => k === key)
       ) {
-        numTokens += getTokensByModel(params.config.tokenizerModel, value);
+        numTokens += getTokensByModel(model, value);
       }
       if (key === "name") {
         numTokens += params.config.tokensPerName;
@@ -129,27 +142,6 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
 
   return numTokens;
 }
-
-const openAiStringTokenCount = (p: { model: string; text: string }) => {
-  if (
-    p.model.toLowerCase().startsWith("gpt") ||
-    p.model.toLowerCase().includes("ada")
-  ) {
-    return getTokensByEncoding("cl100k_base", p.text);
-  }
-  if (p.model.toLowerCase().startsWith("text-davinci")) {
-    return getTokensByEncoding("p50k_base", p.text);
-  }
-  console.log("Unknown model", p.model);
-  return undefined;
-};
-
-const getTokensByEncoding = (name: TiktokenEncoding, text: string) => {
-  const encoding = get_encoding(name);
-  const tokens = encoding.encode(text);
-
-  return tokens.length;
-};
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
   let encoding: Tiktoken;
@@ -165,10 +157,6 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
-}
-
-function isOpenAiModel(model: string): model is TiktokenModel {
-  return !!model.includes(model as TiktokenModel);
 }
 
 function isChatMessageArray(value: unknown): value is ChatMessage[] {
