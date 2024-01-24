@@ -9,7 +9,7 @@ import { usePostHog } from "posthog-js/react";
 
 export type DocPopupProps = {
   description: React.ReactNode;
-  href: string;
+  href?: string;
   size?: "sm" | "md" | "lg";
 };
 
@@ -35,14 +35,20 @@ export default function DocPopup({
       }}
     >
       <HoverCardTrigger className="mx-1 cursor-pointer" asChild>
-        <Link
-          href={href}
-          rel="noopener"
-          target="_blank"
-          className="inline-block whitespace-nowrap text-gray-500 sm:pl-0"
-        >
-          <HelpCircle className={sizes[size]} />
-        </Link>
+        {href ? (
+          <Link
+            href={href}
+            rel="noopener"
+            target="_blank"
+            className="inline-block whitespace-nowrap text-gray-500 sm:pl-0"
+          >
+            <HelpCircle className={sizes[size]} />
+          </Link>
+        ) : (
+          <div className="inline-block whitespace-nowrap text-gray-500 sm:pl-0">
+            <HelpCircle className={sizes[size]} />
+          </div>
+        )}
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (

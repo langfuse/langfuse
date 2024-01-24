@@ -20,6 +20,24 @@ export type ModelTableRow = {
   config?: Prisma.JsonValue;
 };
 
+const modelConfigDescriptions = {
+  modelName:
+    "Standardized model name. Generations are assigned to this model name if they match the `matchPattern` upon ingestion.",
+  matchPattern:
+    "Regex pattern to match `model` parameter of generations to model pricing",
+  startDate:
+    "Date to start pricing model. If not set, model is active unless a more recent version exists.",
+  inputPrice: "Price per unit of input",
+  outputPrice: "Price per unit of output",
+  totalPrice:
+    "Price per unit, for models that don't have input/output specific prices",
+  unit: "Unit of measurement for model, can be TOKENS or CHARACTERS.",
+  tokenizerId:
+    "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
+  config:
+    "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
+} as const;
+
 export default function ModelTable({ projectId }: { projectId: string }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -44,10 +62,34 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "modelName",
       id: "modelName",
       header: "Model Name",
+      headerTooltip: {
+        description: modelConfigDescriptions.modelName,
+      },
+    },
+
+    {
+      accessorKey: "startDate",
+      id: "startDate",
+      header: "Start Date",
+      headerTooltip: {
+        description: modelConfigDescriptions.startDate,
+      },
+      cell: ({ row }) => {
+        const value: Date | undefined = row.getValue("startDate");
+
+        return value ? (
+          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "matchPattern",
       id: "matchPattern",
+      headerTooltip: {
+        description: modelConfigDescriptions.matchPattern,
+      },
       header: "Match Pattern",
       cell: ({ row }) => {
         const value: string = row.getValue("matchPattern");
@@ -60,23 +102,12 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
     },
     {
-      accessorKey: "startDate",
-      id: "startDate",
-      header: "Start Date",
-      cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("startDate");
-
-        return value ? (
-          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
-      },
-    },
-    {
       accessorKey: "inputPrice",
       id: "inputPrice",
       header: "Input Price",
+      headerTooltip: {
+        description: modelConfigDescriptions.inputPrice,
+      },
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputPrice");
 
@@ -92,6 +123,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "outputPrice",
       id: "outputPrice",
+      headerTooltip: {
+        description: modelConfigDescriptions.outputPrice,
+      },
       header: "Output Price",
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputPrice");
@@ -109,6 +143,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "totalPrice",
       id: "totalPrice",
       header: "Total Price",
+      headerTooltip: {
+        description: modelConfigDescriptions.totalPrice,
+      },
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalPrice");
 
@@ -125,18 +162,27 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "unit",
       id: "unit",
       header: "Unit",
+      headerTooltip: {
+        description: modelConfigDescriptions.unit,
+      },
       enableHiding: true,
     },
     {
       accessorKey: "tokenizerId",
       id: "tokenizerId",
       header: "Tokenizer",
+      headerTooltip: {
+        description: modelConfigDescriptions.tokenizerId,
+      },
       enableHiding: true,
     },
     {
       accessorKey: "config",
       id: "config",
-      header: "Tokenizer",
+      header: "Tokenizer Configuration",
+      headerTooltip: {
+        description: modelConfigDescriptions.config,
+      },
       enableHiding: true,
       cell: ({ row }) => {
         const value: Prisma.JsonValue | undefined = row.getValue("config");
