@@ -26,13 +26,15 @@ export const MetricTable = ({
       projectId,
       from: "traces_observations",
       select: [
-        { column: "totalTokenCost" },
+        { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },
         { column: "model" },
       ],
       filter: localFilters,
       groupBy: [{ type: "string", column: "model" }],
-      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
     },
     {
       trpc: {
@@ -45,7 +47,10 @@ export const MetricTable = ({
 
   const totalTokens = metrics.data?.reduce(
     (acc, curr) =>
-      acc + (curr.totalTokenCost ? (curr.totalTokenCost as number) : 0),
+      acc +
+      (curr.sumCalculatedTotalCost
+        ? (curr.sumCalculatedTotalCost as number)
+        : 0),
     0,
   );
 
@@ -60,8 +65,8 @@ export const MetricTable = ({
               : "0"}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-cost`}>
-            {item.totalTokenCost
-              ? usdFormatter(item.totalTokenCost as number, 2, 2)
+            {item.sumCalculatedTotalCost
+              ? usdFormatter(item.sumCalculatedTotalCost as number, 2, 2)
               : "$0"}
           </RightAlignedCell>,
         ])

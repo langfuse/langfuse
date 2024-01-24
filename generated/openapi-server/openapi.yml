@@ -1119,6 +1119,18 @@ components:
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
           nullable: true
+        inputCost:
+          type: number
+          format: double
+          nullable: true
+        outputCost:
+          type: number
+          format: double
+          nullable: true
+        totalCost:
+          type: number
+          format: double
+          nullable: true
     Score:
       title: Score
       type: object

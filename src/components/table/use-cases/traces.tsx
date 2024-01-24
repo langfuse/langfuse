@@ -29,6 +29,8 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import type Decimal from "decimal.js";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -50,6 +52,7 @@ export type TracesTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
+  cost?: Decimal;
 };
 
 export type TracesTableProps = {
@@ -159,6 +162,7 @@ export default function TracesTable({
         completionTokens: trace.completionTokens,
         totalTokens: trace.totalTokens,
       },
+      cost: trace.calculatedTotalCost ?? undefined,
     };
   };
 
@@ -304,6 +308,25 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
+    },
+    {
+      accessorKey: "cost",
+      id: "cost",
+      header: "Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("cost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>Not Available</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "scores",
