@@ -7,7 +7,8 @@ import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@/src/server/db";
-import { type Observation } from "@prisma/client";
+import { loadStaticPaths } from "next/dist/server/dev/static-paths-worker";
+import lodash from "lodash";
 
 async function main() {
   return await modelMatch();
@@ -50,9 +51,12 @@ export async function modelMatch() {
       where: {
         internalModel: null,
         type: "GENERATION",
+        startTime: {
+          lt: new Date("2020-01-24"),
+        },
       },
-      take: 20_000,
-      skip: index * 20_000,
+      take: 100_000,
+      skip: index * 100_000,
     });
     console.log("Observations: ", observations[0]?.id);
 
@@ -77,7 +81,7 @@ export async function modelMatch() {
       {},
     );
 
-    const updatePromises = [];
+    const updatePromises: Array<Promise<unknown>> = [];
     let updatedObservations = 0;
 
     for (const [key, observationsGroup] of Object.entries(
@@ -112,33 +116,38 @@ export async function modelMatch() {
 
       if (foundModel) {
         // Push the promise for updating observations into the array
-        updatePromises.push(
-          prisma.observation.updateMany({
-            where: {
-              id: {
-                in: observationsGroup.map((observation) => observation.id),
+
+        lodash.chunk(observationsGroup, 32000).map((chunk) => {
+          updatePromises.push(
+            prisma.observation.updateMany({
+              where: {
+                id: {
+                  in: chunk.map((observation) => observation.id),
+                },
               },
-            },
-            data: {
-              internalModel: foundModel.modelName,
-            },
-          }),
-        );
+              data: {
+                internalModel: foundModel.modelName,
+              },
+            }),
+          );
+        });
 
         updatedObservations += observationsGroup.length;
       } else {
-        updatePromises.push(
-          prisma.observation.updateMany({
-            where: {
-              id: {
-                in: observationsGroup.map((observation) => observation.id),
+        lodash.chunk(observationsGroup, 32000).map((chunk) => {
+          updatePromises.push(
+            prisma.observation.updateMany({
+              where: {
+                id: {
+                  in: chunk.map((observation) => observation.id),
+                },
               },
-            },
-            data: {
-              internalModel: "none",
-            },
-          }),
-        );
+              data: {
+                internalModel: "none",
+              },
+            }),
+          );
+        });
 
         updatedObservations += observationsGroup.length;
       }
