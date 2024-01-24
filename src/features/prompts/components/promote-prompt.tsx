@@ -15,11 +15,13 @@ export function PromotePrompt({
   projectId,
   promptName,
   disabled,
+  variant,
 }: {
   promptId: string;
   projectId: string;
   promptName: string;
   disabled: boolean;
+  variant?: "ghost" | "outline";
 }) {
   const [isPromoted, setIsPromoted] = useState(false);
   const utils = api.useUtils();
@@ -41,7 +43,13 @@ export function PromotePrompt({
   return (
     <Popover key={promptId}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="xs" disabled={disabled}>
+        <Button
+          variant={variant ?? "ghost"}
+          size={variant ? "icon" : "xs"}
+          disabled={disabled}
+          aria-label="Promote Prompt to production"
+          title="Promote Prompt to production"
+        >
           <PlayIcon className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
