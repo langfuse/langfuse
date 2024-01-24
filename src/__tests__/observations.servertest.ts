@@ -107,7 +107,7 @@ describe("/api/public/observations API Endpoint", () => {
       },
     });
 
-    const model = await prisma.model.create({
+    await prisma.model.create({
       data: {
         id: "model-1",
         modelName: "gpt-3.5-turbo",

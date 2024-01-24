@@ -44,7 +44,7 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const observation = await prisma.observation.findFirst({
+    const observation = await prisma.observationView.findFirst({
       where: {
         id: observationId,
         projectId: authCheck.scope.projectId,
