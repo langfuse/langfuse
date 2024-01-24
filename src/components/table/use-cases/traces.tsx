@@ -247,7 +247,7 @@ export default function TracesTable({
         const value = row.getValue("userId");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/users/${value}`}
+            path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
             value={value}
             truncateAt={40}
           />
@@ -264,7 +264,7 @@ export default function TracesTable({
         const value = row.getValue("sessionId");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/sessions/${value}`}
+            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
             truncateAt={40}
           />

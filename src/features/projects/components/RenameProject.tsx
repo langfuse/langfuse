@@ -69,7 +69,7 @@ export default function RenameProject(props: { projectId: string }) {
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p className="mb-4 text-sm text-gray-700">
+          <p className="mb-4 text-sm text-gray-700" data-testid="project-name">
             Your Project is currently named &quot;<b>{projectName}</b>
             &quot;.
           </p>
