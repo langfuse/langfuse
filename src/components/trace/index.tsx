@@ -184,18 +184,18 @@ export function TracePage({ traceId }: { traceId: string }) {
       <div className="flex flex-wrap gap-2">
         {trace.data.sessionId ? (
           <Link
-            href={`/project/${router.query.projectId as string}/sessions/${
-              trace.data.sessionId
-            }`}
+            href={`/project/${
+              router.query.projectId as string
+            }/sessions/${encodeURIComponent(trace.data.sessionId)}`}
           >
             <Badge>Session: {trace.data.sessionId}</Badge>
           </Link>
         ) : null}
         {trace.data.userId ? (
           <Link
-            href={`/project/${router.query.projectId as string}/users/${
-              trace.data.userId
-            }`}
+            href={`/project/${
+              router.query.projectId as string
+            }/users/${encodeURIComponent(trace.data.userId)}`}
           >
             <Badge>User ID: {trace.data.userId}</Badge>
           </Link>
