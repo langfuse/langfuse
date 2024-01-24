@@ -42,6 +42,7 @@ export const findModel = async (
   startTime?: string,
   existingObservation?: Observation,
 ) => {
+
   // either get the model from the existing observation
   // or match pattern on the user provided model name
   const modelCondition = model
@@ -181,7 +182,7 @@ export class ObservationProcessor implements EventProcessor {
             })
           ).id
         : traceId;
-
+    console.log("internal model", internalModel);
     const [newInputCount, newOutputCount] =
       "usage" in body
         ? this.calculateTokenCounts(
@@ -319,7 +320,6 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
-    console.log("calculate tokens for ", model);
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
