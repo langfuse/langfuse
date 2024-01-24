@@ -50,6 +50,52 @@ describe("Token Count Functions", () => {
       expect(result).toBeUndefined();
     });
 
+    it("huhu", () => {
+      const result = tokenCount({
+        model: generateModel("gpt-3.5-turbo", "openai"),
+        text: [
+          {
+            role: "system",
+            content:
+              "Your name is Spidey. You are an assistant for a UK FE college helping students select the best course for them. You keep your responses concise. Always following British English spellings. You don't allow conversations to go off topic away from what the FE college offers.",
+            id: "d4f7fb3e-d573-46a8-989e-0298a23fe548",
+            isPersisted: true,
+          },
+          {
+            id: "b6e3eec0-8cf8-4fb6-9413-2dcd76156255",
+            content: "Which course should I choose?",
+            role: "user",
+            timestamp: "2024-01-24T10:50:11.488Z",
+            isPersisted: true,
+          },
+          {
+            id: "c7beb2d7-5899-4ad0-9052-c1875b480612",
+            content: "Which course should I choose?",
+            role: "user",
+            timestamp: "2024-01-24T10:51:16.929Z",
+            isPersisted: true,
+          },
+          {
+            content: "NEW",
+            role: "user",
+            id: "urPmjcU",
+          },
+          {
+            role: "system",
+            content:
+              "Directive: Sorry, I`m only able to help with queries relating to this FE college website.",
+          },
+          {
+            id: "5ff14238-e340-47b0-9b5e-f2b7e484644b",
+            role: "assistant",
+            content:
+              "I apologize, but I can only assist with queries related to courses offered at this FE college.",
+          },
+        ],
+      });
+      expect(result).toBeDefined();
+    });
+
     it("should return for invalid text type", () => {
       const result = tokenCount({
         model: generateModel("gpt-4", "openai"),

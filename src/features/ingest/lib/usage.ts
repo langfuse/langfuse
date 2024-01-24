@@ -24,6 +24,7 @@ export function tokenCount(p: {
 
   if (p.model.tokenizerId === "openai") {
     // check if the tokenizerConfig is a valid OpenAiTokenConfig
+    console.log("openai");
     const parsedConfig = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
     if (!parsedConfig.success) {
       console.error(
@@ -103,7 +104,18 @@ function openAiChatTokenCount(params: TokenCalculationParams) {
 
     Object.keys(message).forEach((key) => {
       const value = message[key as keyof typeof message];
-      if (value) {
+      if (
+        value &&
+        [
+          "content",
+          "role",
+          "name",
+          "tool_calls",
+          "function_call",
+          "toolCalls",
+          "functionCall",
+        ].some((k) => k === key)
+      ) {
         numTokens += getTokensByModel(params.config.tokenizerModel, value);
       }
       if (key === "name") {
@@ -146,7 +158,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
     encoding = get_encoding("cl100k_base");
   }
 
-  return encoding.encode(text).length;
+  return encoding.encode(text.toString()).length;
 };
 
 function isString(value: unknown): value is string {
