@@ -16,21 +16,16 @@ export const MetricTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
-  const localFilters = globalFilterState.map((f) => ({
-    ...f,
-    column: "timestamp",
-  }));
-
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observations",
+      from: "observations",
       select: [
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },
         { column: "model" },
       ],
-      filter: localFilters,
+      filter: globalFilterState,
       groupBy: [{ type: "string", column: "model" }],
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
@@ -45,7 +40,7 @@ export const MetricTable = ({
     },
   );
 
-  const totalTokens = metrics.data?.reduce(
+  const totalTokenCost = metrics.data?.reduce(
     (acc, curr) =>
       acc +
       (curr.sumCalculatedTotalCost
@@ -88,7 +83,7 @@ export const MetricTable = ({
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
-          metric={totalTokens ? usdFormatter(totalTokens, 2, 2) : "$0"}
+          metric={totalTokenCost ? usdFormatter(totalTokenCost, 2, 2) : "$0"}
           description="Total cost"
         >
           <DocPopup
