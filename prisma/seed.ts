@@ -98,9 +98,9 @@ async function main() {
 
   // Do not run the following for local docker compose setup
   if (environment === "examples") {
-    const project2 = await prisma.project.create({
-      data: {
-        id: "239ad00f-562f-411d-af14-831c75ddd875",
+    const project2 = await prisma.project.upsert({
+      where: { id: "239ad00f-562f-411d-af14-831c75ddd875" },
+      create: {
         name: "demo-app",
         apiKeys: {
           create: [
@@ -119,6 +119,7 @@ async function main() {
           },
         },
       },
+      update: {},
     });
 
     const generationIds: string[] = [];
@@ -268,6 +269,19 @@ async function main() {
           const promptTokens = Math.floor(Math.random() * 1000) + 300;
           const completionTokens = Math.floor(Math.random() * 500) + 100;
 
+          const models = [
+            "gpt-3.5-turbo",
+            "gpt-4",
+            "gpt-4-32k-0613",
+            "gpt-3.5-turbo-16k-0613",
+            "claude-instant-1",
+            "claude-2.1",
+            "gpt-4-vision-preview",
+            "MIXTRAL-8X7B",
+          ];
+
+          const model = models[Math.floor(Math.random() * models.length)];
+
           const generation = await prisma.observation.create({
             data: {
               type: "GENERATION",
@@ -334,7 +348,8 @@ async function main() {
               
               Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
               },
-              model: Math.random() > 0.5 ? "gpt-3.5-turbo" : "gpt-4",
+              model: model,
+              internalModel: model,
               modelParameters: {
                 temperature:
                   Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
@@ -358,6 +373,11 @@ async function main() {
                   ? { prompt: { connect: { id: prompt.id } } }
                   : {}),
               },
+              unit: model
+                ? model.includes("claude")
+                  ? "CHARACTERS"
+                  : "TOKENS"
+                : undefined,
             },
           });
           if (Math.random() > 0.6)

@@ -255,8 +255,6 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(response.status).toBe(207);
 
-    console.log("response body", response.body);
-
     const dbGeneration = await prisma.observation.findUnique({
       where: {
         id: generationId,
