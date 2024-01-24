@@ -14,7 +14,7 @@ service:
         observationId:
           type: string
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
-      response: commons.Observation
+      response: commons.ObservationsView
     getMany:
       docs: Get a list of observations
       method: GET

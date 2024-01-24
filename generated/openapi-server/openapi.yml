@@ -408,7 +408,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Observation'
+                $ref: '#/components/schemas/ObservationsView'
         '400':
           description: ''
           content:
@@ -1005,7 +1005,7 @@ components:
         observations:
           type: array
           items:
-            $ref: '#/components/schemas/Observation'
+            $ref: '#/components/schemas/ObservationsView'
         scores:
           type: array
           items:

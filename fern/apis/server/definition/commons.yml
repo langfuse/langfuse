@@ -30,7 +30,7 @@ types:
   TraceWithFullDetails:
     extends: Trace
     properties:
-      observations: list<Observation>
+      observations: list<ObservationsView>
       scores: list<Score>
   Session:
     properties:
