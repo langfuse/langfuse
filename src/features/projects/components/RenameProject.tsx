@@ -45,7 +45,7 @@ export default function RenameProject(props: { projectId: string }) {
     renameProject
       .mutateAsync({
         projectId: props.projectId,
-        newName: { name: values.name },
+        newName: values.name,
       })
       .then(() => {
         form.reset();
