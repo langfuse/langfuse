@@ -3,7 +3,7 @@
 import { prisma } from "@/src/server/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
-import { type Observation } from "@prisma/client";
+import { type ObservationView, type Observation } from "@prisma/client";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -25,6 +25,18 @@ describe("/api/public/generations API Endpoint", () => {
         version: "2.0.0",
       },
     });
+    const model = await prisma.model.create({
+      data: {
+        id: "model-1",
+        modelName: "gpt-3.5-turbo",
+        inputPrice: "0.0000010",
+        outputPrice: "0.0000020",
+        totalPrice: "0.1",
+        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+        projectId: null,
+        unit: "TOKENS",
+      },
+    });
 
     await prisma.observation.create({
       data: {
@@ -33,7 +45,7 @@ describe("/api/public/generations API Endpoint", () => {
         name: "generation-name",
         startTime: new Date("2021-01-01T00:00:00.000Z"),
         endTime: new Date("2021-01-01T00:00:00.000Z"),
-        model: "model-name",
+        model: "gpt-3.5-turbo",
         modelParameters: { key: "value" },
         input: { key: "input" },
         output: { key: "output" },
@@ -42,6 +54,7 @@ describe("/api/public/generations API Endpoint", () => {
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
+        internalModel: "gpt-3.5-turbo",
       },
     });
 
@@ -61,6 +74,17 @@ describe("/api/public/generations API Endpoint", () => {
     expect(fetchedObservations.body.data[0]?.traceId).toBe(traceId);
     expect(fetchedObservations.body.data[0]?.input).toEqual({ key: "input" });
     expect(fetchedObservations.body.data[0]?.output).toEqual({ key: "output" });
+    expect(fetchedObservations.body.data[0]?.model).toEqual("gpt-3.5-turbo");
+    expect(fetchedObservations.body.data[0]?.modelId).toEqual(model.id);
+    expect(
+      fetchedObservations.body.data[0]?.calculatedInputCost,
+    ).toBeGreaterThan(0);
+    expect(
+      fetchedObservations.body.data[0]?.calculatedOutputCost,
+    ).toBeGreaterThan(0);
+    expect(
+      fetchedObservations.body.data[0]?.calculatedTotalCost,
+    ).toBeGreaterThan(0);
   });
   it("should fetch all observations, filtered by generations", async () => {
     await pruneDatabase();
@@ -156,11 +180,18 @@ const isObservationList = (val: unknown): val is ObservationResponse => {
         "input" in element &&
         "output" in element &&
         "metadata" in element &&
-        "version" in element,
+        "version" in element &&
+        "modelId" in element &&
+        "inputPrice" in element &&
+        "outputPrice" in element &&
+        "totalPrice" in element &&
+        "calculatedInputCost" in element &&
+        "calculatedOutputCost" in element &&
+        "calculatedTotalCost" in element,
     )
   );
 };
 
 type ObservationResponse = {
-  data: Observation[];
+  data: ObservationView[];
 };

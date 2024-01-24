@@ -490,7 +490,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Observations'
+                $ref: '#/components/schemas/ObservationsViews'
         '400':
           description: ''
           content:
@@ -1103,6 +1103,39 @@ components:
         - type
         - startTime
         - level
+    ObservationsView:
+      title: ObservationsView
+      type: object
+      properties:
+        modelId:
+          type: string
+          nullable: true
+        inputPrice:
+          type: number
+          format: double
+          nullable: true
+        outputPrice:
+          type: number
+          format: double
+          nullable: true
+        totalPrice:
+          type: number
+          format: double
+          nullable: true
+        calculatedInputCost:
+          type: number
+          format: double
+          nullable: true
+        calculatedOutputCost:
+          type: number
+          format: double
+          nullable: true
+        calculatedTotalCost:
+          type: number
+          format: double
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/Observation'
     Usage:
       title: Usage
       type: object
@@ -1908,6 +1941,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Observation'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    ObservationsViews:
+      title: ObservationsViews
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservationsView'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
       required:

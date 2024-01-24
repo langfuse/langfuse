@@ -3,7 +3,12 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@/src/server/db";
 import { paginationZod } from "@/src/utils/zod";
-import { Prisma, type PrismaClient, type Observation } from "@prisma/client";
+import {
+  Prisma,
+  type PrismaClient,
+  type Observation,
+  type ObservationView,
+} from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -105,7 +110,7 @@ const getObservation = async (
     ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
     : Prisma.empty;
 
-  const observations = await prisma.$queryRaw<Observation[]>`
+  const observations = await prisma.$queryRaw<ObservationView[]>`
       SELECT 
         o."id",
         o."name",
@@ -127,8 +132,15 @@ const getObservation = async (
         o."version",
         o."project_id" AS "projectId",
         o."trace_id" AS "traceId",
-        o."modelParameters" AS "modelParameters"
-      FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
+        o."modelParameters" AS "modelParameters",
+        o."model_id" as "modelId",
+        o."input_price" as "inputPrice",
+        o."output_price" as "outputPrice",
+        o."total_price" as "totalPrice",
+        o."calculated_input_cost" as "calculatedInputCost",
+        o."calculated_output_cost" as "calculatedOutputCost",
+        o."calculated_total_cost" as "calculatedTotalCost"
+      FROM observations_view o LEFT JOIN traces ON o."trace_id" = traces."id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${nameCondition}
       ${userIdCondition}

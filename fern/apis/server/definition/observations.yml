@@ -29,10 +29,15 @@ service:
           type: optional<string>
           traceId: optional<string>
           parentObservationId: optional<string>
-      response: Observations
+      response: ObservationsViews
 
 types:
   Observations:
     properties:
       data: list<commons.Observation>
+      meta: pagination.MetaResponse
+
+  ObservationsViews:
+    properties:
+      data: list<commons.ObservationsView>
       meta: pagination.MetaResponse

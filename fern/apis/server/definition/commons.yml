@@ -61,6 +61,18 @@ types:
       statusMessage: optional<string>
       parentObservationId: optional<string>
       promptId: optional<string>
+
+  ObservationsView:
+    extends: Observation
+    properties:
+      modelId: optional<string>
+      inputPrice: optional<double>
+      outputPrice: optional<double>
+      totalPrice: optional<double>
+      calculatedInputCost: optional<double>
+      calculatedOutputCost: optional<double>
+      calculatedTotalCost: optional<double>
+
   Usage:
     properties:
       input: optional<integer>
