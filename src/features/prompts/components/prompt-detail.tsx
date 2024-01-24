@@ -9,77 +9,113 @@ import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@prisma/client";
 import { Pencil } from "lucide-react";
+import { PromptHistoryNode } from "./prompt-history";
+import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
+import { ScrollArea } from "@radix-ui/react-scroll-area";
+import { useQueryParam, NumberParam } from "use-query-params";
 import router from "next/router";
 
 export type PromptDetailProps = {
   projectId: string;
-  promptId: string;
+  promptName: string;
+  promptVersion: number;
 };
 
 export const PromptDetail = (props: PromptDetailProps) => {
-  const prompt = api.prompts.byId.useQuery({
-    id: props.promptId,
+  const prompt = api.prompts.byNameAndVersion.useQuery({
+    name: props.promptName,
+    version: props.promptVersion,
     projectId: props.projectId,
   });
-
+  const promptHistory = api.prompts.history.useQuery({
+    name: props.promptName,
+    projectId: props.projectId,
+  });
+  const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
+    "promptVersion",
+    NumberParam,
+  );
   const extractedVariables = prompt.data
     ? extractVariables(prompt.data.prompt)
     : [];
 
-  if (!prompt.data) {
+  if (!prompt.data || !promptHistory.data) {
     return <div>Loading...</div>;
   }
 
   return (
-    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
-      <Header
-        title={`${prompt.data.name} (v${prompt.data.version})`}
-        status={prompt.data.isActive ? "production" : "disabled"}
-        breadcrumb={[
-          {
-            name: "Prompts",
-            href: `/project/${props.projectId}/prompts/`,
-          },
-          { name: `${prompt.data.name} (v${prompt.data.version})` },
-        ]}
-        actionButtons={
-          <>
-            <CreatePromptDialog
-              projectId={props.projectId}
-              title="Update Prompt"
-              subtitle="We do not update prompts, instead we create a new version of the prompt."
-              promptName={prompt.data.name}
-              promptText={prompt.data.prompt}
-            >
-              <Button variant="outline" size="icon">
-                <Pencil className="h-5 w-5" />
-              </Button>
-            </CreatePromptDialog>
-            <DetailPageNav
-              key="nav"
-              currentId={props.promptId}
-              path={(id) =>
-                `/project/${router.query.projectId as string}/prompts/${id}`
-              }
-              listKey="prompts"
+    <div className="grid grid-cols-3 gap-4 md:h-full">
+      <div className="col-span-3">
+        <Header
+          title={`${prompt.data.name} (v${prompt.data.version})`}
+          breadcrumb={[
+            {
+              name: "Prompts",
+              href: `/project/${props.projectId}/prompts/`,
+            },
+            { name: prompt.data.name },
+            { name: `Version ${prompt.data.version}` },
+          ]}
+          actionButtons={
+            <>
+              <PromotePrompt
+                projectId={props.projectId}
+                promptId={prompt.data.id}
+                promptName={prompt.data.name}
+                disabled={prompt.data.isActive}
+                variant="outline"
+              />
+              <CreatePromptDialog
+                projectId={props.projectId}
+                title="Update Prompt"
+                subtitle="We do not update prompts, instead we create a new version of the prompt."
+                promptName={prompt.data.name}
+                promptText={prompt.data.prompt}
+              >
+                <Button variant="outline" size="icon">
+                  <Pencil className="h-5 w-5" />
+                </Button>
+              </CreatePromptDialog>
+              <DetailPageNav
+                key="nav"
+                currentId={prompt.data.name}
+                path={(name) => `/project/${props.projectId}/prompts/${name}/1`}
+                listKey="prompts"
+              />
+            </>
+          }
+        />
+      </div>
+      <div className="col-span-2 md:h-full">
+        <CodeView content={prompt.data.prompt} title="Prompt" />
+        <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7 text-gray-700">
+          <div className="border-b px-3 py-1 text-xs font-medium">
+            Variables
+          </div>
+          <div className="flex flex-wrap gap-2 p-3">
+            {extractedVariables.length > 0 ? (
+              extractedVariables.map((variable) => (
+                <Badge key={variable} variant="outline">
+                  {variable}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-xs">No variables</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="col-span-1">
+        {/* <div className="mx-auto w-full rounded-lg border text-base leading-7 text-gray-700"> */}
+        <div className="text-m  px-3 font-medium">
+          History
+          <ScrollArea className="mt-2 border-l pl-2 md:h-full">
+            <PromptHistoryNode
+              prompts={promptHistory.data}
+              currentPromptVersion={prompt.data.version}
+              setCurrentPromptVersion={setCurrentPromptVersion}
             />
-          </>
-        }
-      />
-
-      <CodeView content={prompt.data.prompt} title="Prompt" />
-      <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7 text-gray-700">
-        <div className="border-b px-3 py-1 text-xs font-medium">Variables</div>
-        <div className="flex flex-wrap gap-2 p-3">
-          {extractedVariables.length > 0 ? (
-            extractedVariables.map((variable) => (
-              <Badge key={variable} variant="outline">
-                {variable}
-              </Badge>
-            ))
-          ) : (
-            <span className="text-xs">No variables</span>
-          )}
+          </ScrollArea>
         </div>
       </div>
     </div>
