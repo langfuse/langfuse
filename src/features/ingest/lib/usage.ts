@@ -151,8 +151,8 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
     console.log("Warning: model not found. Using cl100k_base encoding.");
     encoding = get_encoding("cl100k_base");
   }
-
-  return encoding.encode(text).length;
+  const cleandedText = unicodeToBytesInString(text);
+  return encoding.encode(cleandedText).length;
 };
 
 function isString(value: unknown): value is string {
@@ -174,4 +174,24 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       typeof item.content === "string" &&
       (!("name" in item) || typeof item.name === "string"),
   );
+}
+
+function unicodeToBytesInString(input: string): string {
+  let result = "";
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (char && /[\u{10000}-\u{10FFFF}]/u.test(char)) {
+      const bytes = unicodeToBytes(char);
+      result += Array.from(bytes)
+        .map((b) => b.toString(16))
+        .join("");
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+function unicodeToBytes(input: string): Uint8Array {
+  const encoder = new TextEncoder();
+  return encoder.encode(input);
 }
