@@ -182,21 +182,21 @@ export const promptRouter = createTRPCRouter({
         },
         orderBy: [{ version: "desc" }],
       });
-      const memberships = await ctx.prisma.membership.findMany({
-        where: {
-          projectId: input.projectId,
+      const users = await ctx.prisma.user.findMany({
+        select: {
+          // never select passwords as they should never be returned to the FE
+          id: true,
+          name: true,
+          email: true,
         },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
+        where: {
+          memberships: {
+            some: {
+              projectId: input.projectId,
             },
           },
         },
       });
-
-      const users = memberships.map((membership) => membership.user);
 
       const joinedPromptAndUsers = prompts.map((p) => {
         const user = users.find((u) => u.id === p.createdBy);
