@@ -4,9 +4,9 @@ import { type Model } from "@prisma/client";
 import {
   type TiktokenModel,
   type Tiktoken,
-  get_encoding,
-  encoding_for_model,
-} from "tiktoken";
+  getEncoding,
+  encodingForModel,
+} from "js-tiktoken";
 import { z } from "zod";
 
 const OpenAiTokenConfig = z.object({
@@ -131,7 +131,8 @@ function openAiChatTokenCount(params: {
           "functionCall",
         ].some((k) => k === key)
       ) {
-        numTokens += getTokensByModel(model, value);
+        const tokens = getTokensByModel(model, value);
+        if (tokens) numTokens += tokens;
       }
       if (key === "name") {
         numTokens += params.config.tokensPerName;
@@ -144,16 +145,26 @@ function openAiChatTokenCount(params: {
 }
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
-  let encoding: Tiktoken;
+  // encoiding should be kept in memory to avoid re-creating it
+  let encoding: Tiktoken | undefined;
   try {
-    encoding = encoding_for_model(model);
+    cachedTokenizerByModel[model] =
+      cachedTokenizerByModel[model] || encodingForModel(model);
+
+    encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
     console.log("Warning: model not found. Using cl100k_base encoding.");
-    encoding = get_encoding("cl100k_base");
+
+    encoding = getEncoding("cl100k_base");
   }
   const cleandedText = unicodeToBytesInString(text);
-  return encoding.encode(cleandedText).length;
+  return encoding?.encode(cleandedText).length;
 };
+
+interface Tokenizer {
+  [model: string]: Tiktoken;
+}
+const cachedTokenizerByModel: Tokenizer = {};
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
