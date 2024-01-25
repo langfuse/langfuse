@@ -23,15 +23,13 @@ export function PromotePrompt({
   disabled: boolean;
   variant?: "ghost" | "outline";
 }) {
-  const [isPromoted, setIsPromoted] = useState(false);
   const utils = api.useUtils();
   const posthog = usePostHog();
-
+  const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
 
   const mutPromotePrompt = api.prompts.promote.useMutation({
     onSuccess: () => {
-      setIsPromoted(true);
       void utils.prompts.invalidate();
     },
   });
@@ -41,7 +39,11 @@ export function PromotePrompt({
   }
 
   return (
-    <Popover key={promptId}>
+    <Popover
+      key={promptId}
+      open={isOpen}
+      onOpenChange={() => setIsOpen(!isOpen)}
+    >
       <PopoverTrigger asChild>
         <Button
           variant={variant ?? "ghost"}
@@ -67,13 +69,14 @@ export function PromotePrompt({
           <Button
             type="button"
             variant="destructive"
-            loading={mutPromotePrompt.isLoading || isPromoted}
+            loading={mutPromotePrompt.isLoading}
             onClick={() => {
               void mutPromotePrompt.mutateAsync({
                 promptId,
                 projectId,
               });
               posthog.capture("prompt:promote");
+              setIsOpen(false);
             }}
           >
             Promote to production
