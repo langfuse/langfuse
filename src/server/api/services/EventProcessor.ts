@@ -22,7 +22,8 @@ import {
   type Trace,
   type Observation,
   type Score,
-  type Prisma,
+  Prisma,
+  type Model,
 } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
@@ -33,6 +34,66 @@ export interface EventProcessor {
     apiScope: ApiAccessScope,
   ): Promise<Trace | Observation | Score> | undefined;
 }
+
+export const findModel = async (
+  projectId: string,
+  model?: string,
+  unit?: string,
+  startTime?: string,
+  existingObservation?: Observation,
+) => {
+  // either get the model from the existing observation
+  // or match pattern on the user provided model name
+  const modelCondition = model
+    ? Prisma.sql`AND ${model} ~ match_pattern`
+    : existingObservation?.internalModel
+      ? Prisma.sql`AND model_name = ${existingObservation.internalModel}`
+      : undefined;
+
+  // usage either from existing generation or from the current event
+  const mergedUnit = unit ?? existingObservation?.unit;
+
+  const unitCondition = mergedUnit
+    ? Prisma.sql`AND unit = ${mergedUnit}`
+    : Prisma.empty;
+
+  if (!modelCondition) {
+    return;
+  } else {
+    const sql = Prisma.sql`
+        SELECT
+          id,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt",
+          project_id AS "projectId",
+          model_name AS "modelName",
+          match_pattern AS "matchPattern",
+          start_date AS "startDate",
+          input_price AS "inputPrice",
+          output_price AS "outputPrice",
+          total_price AS "totalPrice",
+          unit, 
+          tokenizer_id AS "tokenizerId",
+          tokenizer_config AS "tokenizerConfig"
+        FROM
+          models
+        WHERE (project_id = ${projectId}
+          OR project_id IS NULL)
+        ${modelCondition}
+        ${unitCondition}
+        AND (start_date IS NULL OR start_date <= ${
+          startTime ? new Date(startTime) : new Date()
+        }::timestamp with time zone at time zone 'UTC')
+      ORDER BY
+        project_id ASC,
+        start_date DESC
+      LIMIT 1;`;
+
+    const foundModels = await prisma.$queryRaw<Array<Model>>(sql);
+
+    return foundModels[0] ?? undefined;
+  }
+};
 
 export class ObservationProcessor implements EventProcessor {
   event:
@@ -95,6 +156,19 @@ export class ObservationProcessor implements EventProcessor {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
     }
 
+    // we need to get the matching model on each generation
+    // to be able to calculate the token counts
+    const internalModel: Model | undefined =
+      type === "GENERATION"
+        ? await findModel(
+            apiScope.projectId,
+            "model" in body ? body.model ?? undefined : undefined,
+            "usage" in body ? body.usage?.unit ?? undefined : undefined,
+            startTime ?? undefined,
+            existingObservation ?? undefined,
+          )
+        : undefined;
+
     const finalTraceId =
       !traceId && !existingObservation
         ? // Create trace if no traceid
@@ -110,7 +184,11 @@ export class ObservationProcessor implements EventProcessor {
 
     const [newInputCount, newOutputCount] =
       "usage" in body
-        ? this.calculateTokenCounts(body, existingObservation ?? undefined)
+        ? this.calculateTokenCounts(
+            body,
+            internalModel,
+            existingObservation ?? undefined,
+          )
         : [undefined, undefined];
 
     // merge metadata from existingObservation.metadata and metadata
@@ -142,6 +220,7 @@ export class ObservationProcessor implements EventProcessor {
       console.warn("Prompt not found for observation", this.event.body);
 
     const observationId = id ?? v4();
+
     return {
       id: observationId,
       create: {
@@ -172,13 +251,22 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in body
             ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined,
-        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        unit:
+          "usage" in body
+            ? body.usage?.unit ?? internalModel?.unit
+            : internalModel?.unit,
         level: body.level ?? undefined,
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
         projectId: apiScope.projectId,
         promptId: prompt ? prompt.id : undefined,
+        ...(internalModel
+          ? { internalModel: internalModel.modelName }
+          : undefined),
+        inputCost: "usage" in body ? body.usage?.inputCost : undefined,
+        outputCost: "usage" in body ? body.usage?.outputCost : undefined,
+        totalCost: "usage" in body ? body.usage?.totalCost : undefined,
       },
       update: {
         name,
@@ -205,12 +293,21 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in body
             ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined,
-        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        unit:
+          "usage" in body
+            ? body.usage?.unit ?? internalModel?.unit
+            : internalModel?.unit,
         level: body.level ?? undefined,
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
         promptId: prompt ? prompt.id : undefined,
+        ...(internalModel
+          ? { internalModel: internalModel.modelName }
+          : undefined),
+        inputCost: "usage" in body ? body.usage?.inputCost : undefined,
+        outputCost: "usage" in body ? body.usage?.outputCost : undefined,
+        totalCost: "usage" in body ? body.usage?.totalCost : undefined,
       },
     };
   }
@@ -219,27 +316,29 @@ export class ObservationProcessor implements EventProcessor {
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
+    model?: Model,
     existingObservation?: Observation,
   ) {
-    const mergedModel = body.model ?? existingObservation?.model;
-
     const newPromptTokens =
       body.usage?.input ??
-      ((body.input || existingObservation?.input) && mergedModel
+      ((body.input || existingObservation?.input) && model && model.tokenizerId
         ? tokenCount({
-            model: mergedModel,
+            model: model,
             text: body.input ?? existingObservation?.input,
           })
         : undefined);
 
     const newCompletionTokens =
       body.usage?.output ??
-      ((body.output || existingObservation?.output) && mergedModel
+      ((body.output || existingObservation?.output) &&
+      model &&
+      model.tokenizerId
         ? tokenCount({
-            model: mergedModel,
+            model: model,
             text: body.output ?? existingObservation?.output,
           })
         : undefined);
+
     return [newPromptTokens, newCompletionTokens];
   }
 
