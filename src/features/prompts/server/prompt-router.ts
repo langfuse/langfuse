@@ -250,7 +250,7 @@ export const createPrompt = async ({
         version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
         isActive: isActive,
         project: { connect: { id: projectId } },
-        creator: { connect: { id: createdBy } },
+        createdBy: createdBy,
       },
     }),
   ];
