@@ -47,11 +47,9 @@ export function PromptTable(props: { projectId: string }) {
       header: "Name",
       cell: ({ row }) => {
         const name: string = row.getValue("name");
-        const version: string = row.getValue("version");
-        console.log(name);
         return name && typeof name === "string" ? (
           <TableLink
-            path={`/project/${props.projectId}/prompts/${name}/${version}`}
+            path={`/project/${props.projectId}/prompts/${name}`}
             value={name}
             truncateAt={30}
           />
