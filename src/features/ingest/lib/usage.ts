@@ -4,9 +4,9 @@ import { type Model } from "@prisma/client";
 import {
   type TiktokenModel,
   type Tiktoken,
-  get_encoding,
-  encoding_for_model,
-} from "tiktoken";
+  getEncoding,
+  encodingForModel,
+} from "js-tiktoken";
 import { z } from "zod";
 
 const OpenAiTokenConfig = z.object({
@@ -146,10 +146,10 @@ function openAiChatTokenCount(params: {
 const getTokensByModel = (model: TiktokenModel, text: string) => {
   let encoding: Tiktoken;
   try {
-    encoding = encoding_for_model(model);
+    encoding = encodingForModel(model);
   } catch (KeyError) {
     console.log("Warning: model not found. Using cl100k_base encoding.");
-    encoding = get_encoding("cl100k_base");
+    encoding = getEncoding("cl100k_base");
   }
   const cleandedText = unicodeToBytesInString(text);
   return encoding.encode(cleandedText).length;
