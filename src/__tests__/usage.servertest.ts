@@ -70,7 +70,8 @@ describe("Token Count Functions", () => {
           },
           {
             id: "some id",
-            content: "some test",
+            content:
+              "Hey Simon! 😊 How's your day going? Have you been up to anything interesting lately?",
             role: "user",
             timestamp: "2024-01-24T10:00:00.929Z",
             isPersisted: true,
@@ -91,7 +92,7 @@ describe("Token Count Functions", () => {
           },
         ],
       });
-      expect(result).toBe(137);
+      expect(result).toBe(155);
     });
 
     it("should return for invalid text type", () => {
