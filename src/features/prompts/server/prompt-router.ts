@@ -168,12 +168,12 @@ export const promptRouter = createTRPCRouter({
 
       const joinedPromptAndUsers = prompts.map((p) => {
         const user = users.find((u) => u.id === p.createdBy);
-        if (!user && p.createdBy !== "API") {
+        if (!user && p.createdBy === "API") {
           return { ...p, creator: "API" };
         }
         if (!user) {
           console.log(`User not found for promptId ${p.id}`);
-          throw new Error("User not found");
+          throw new Error("User not found for promptId ${p.id}");
         }
         return {
           ...p,
