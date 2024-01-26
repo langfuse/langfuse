@@ -45,8 +45,10 @@ export default async function handler(
 
     const session = await prisma.traceSession.findUnique({
       where: {
-        id: sessionId,
-        projectId: authCheck.scope.projectId,
+        id_projectId: {
+          id: sessionId,
+          projectId: authCheck.scope.projectId,
+        },
       },
       include: {
         traces: true,

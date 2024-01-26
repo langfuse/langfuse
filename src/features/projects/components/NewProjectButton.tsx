@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import * as z from "zod";
+import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -26,10 +26,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { chatRunTrigger } from "@/src/features/support-chat/chat";
 import { usePostHog } from "posthog-js/react";
-
-const formSchema = z.object({
-  name: z.string().min(3, "Must have at least 3 characters"),
-});
+import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 
 interface NewProjectButtonProps {
   size?: "xs" | "default";
@@ -38,8 +35,8 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   const [open, setOpen] = useState(false);
   const { update: updateSession } = useSession();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof projectNameSchema>>({
+    resolver: zodResolver(projectNameSchema),
     defaultValues: {
       name: "",
     },
@@ -56,7 +53,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
     onError: (error) => form.setError("name", { message: error.message }),
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<typeof projectNameSchema>) {
     posthog.capture("projects:new_project_form_submit");
     createProjectMutation
       .mutateAsync(values)
