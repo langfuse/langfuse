@@ -1,11 +1,9 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
-import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 import { api } from "@/src/utils/api";
@@ -14,12 +12,11 @@ import { LockIcon, PlusIcon } from "lucide-react";
 import { useEffect } from "react";
 
 type RowData = {
-  id: string;
   name: string;
   version: number;
-  isActive: boolean;
-  createdBy: string;
+  id: string;
   createdAt: Date;
+  isActive: boolean;
 };
 
 export function PromptTable(props: { projectId: string }) {
@@ -28,7 +25,6 @@ export function PromptTable(props: { projectId: string }) {
   const prompts = api.prompts.all.useQuery({
     projectId: props.projectId,
   });
-
   const hasCUDAccess = useHasAccess({
     projectId: props.projectId,
     scope: "prompts:CUD",
@@ -38,7 +34,7 @@ export function PromptTable(props: { projectId: string }) {
     if (prompts.isSuccess) {
       setDetailPageList(
         "prompts",
-        prompts.data.map((t) => t.id),
+        prompts.data.map((t) => t.name),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -46,82 +42,33 @@ export function PromptTable(props: { projectId: string }) {
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
-      accessorKey: "isActive",
-      header: "Status",
+      accessorKey: "name",
+      header: "Name",
       cell: ({ row }) => {
-        const isActive = row.getValue("isActive");
-        return isActive ? (
-          <StatusBadge type="production" className="h-6 w-24" />
-        ) : (
-          <StatusBadge type="disabled" className="h-6 w-24" />
-        );
-      },
-    },
-    {
-      accessorKey: "id",
-      header: "ID",
-      cell: ({ row }) => {
-        const value = row.getValue("id");
-        return value && typeof value === "string" ? (
+        const name: string = row.getValue("name");
+        return name && typeof name === "string" ? (
           <TableLink
-            path={`/project/${props.projectId}/prompts/${value}`}
-            value={value}
+            path={`/project/${props.projectId}/prompts/${name}`}
+            value={name}
+            truncateAt={30}
           />
         ) : undefined;
       },
     },
     {
-      accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => {
-        const name = row.getValue("name");
-        return name;
-      },
-    },
-    {
       accessorKey: "version",
-      header: "Version",
+      header: "Latest Version",
       cell: ({ row }) => {
         const version = row.getValue("version");
         return version;
       },
     },
     {
-      accessorKey: "createdBy",
-      header: "Created By",
-      cell: ({ row }) => {
-        const createdBy = row.getValue("createdBy");
-        return createdBy;
-      },
-    },
-    {
       accessorKey: "createdAt",
-      header: "Created At",
+      header: "Latest Version Created At",
       cell: ({ row }) => {
         const createdAt: Date = row.getValue("createdAt");
         return createdAt.toLocaleString();
-      },
-    },
-    {
-      accessorKey: "action",
-      header: "Action",
-      cell: ({ row }) => {
-        const promptId = row.getValue("id");
-        const promptName = row.getValue("name");
-        const isActive = row.getValue("isActive");
-        return promptId &&
-          typeof promptId === "string" &&
-          isActive !== undefined &&
-          typeof isActive === "boolean" &&
-          promptName &&
-          typeof promptName === "string" ? (
-          <PromotePrompt
-            promptId={promptId}
-            projectId={props.projectId}
-            promptName={promptName}
-            disabled={isActive}
-          />
-        ) : undefined;
       },
     },
   ];
@@ -133,9 +80,8 @@ export function PromptTable(props: { projectId: string }) {
       id: item.id,
       name: item.name,
       version: item.version,
-      isActive: item.isActive,
-      createdBy: item.createdBy,
       createdAt: item.createdAt,
+      isActive: item.isActive,
     };
   };
 
@@ -160,7 +106,12 @@ export function PromptTable(props: { projectId: string }) {
         }
       />
       <CreatePromptDialog projectId={props.projectId} title="Create Prompt">
-        <Button variant="secondary" className="mt-4" disabled={!hasCUDAccess}>
+        <Button
+          variant="secondary"
+          className="mt-4"
+          disabled={!hasCUDAccess}
+          aria-label="Promote Prompt to Production"
+        >
           {hasCUDAccess ? (
             <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
           ) : (
