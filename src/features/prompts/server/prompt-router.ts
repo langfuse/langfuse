@@ -173,7 +173,7 @@ export const promptRouter = createTRPCRouter({
         }
         if (!user) {
           console.log(`User not found for promptId ${p.id}`);
-          throw new Error("User not found for promptId ${p.id}");
+          throw new Error(`User not found for promptId ${p.id}`);
         }
         return {
           ...p,
