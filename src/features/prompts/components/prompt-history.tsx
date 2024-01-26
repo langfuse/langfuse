@@ -1,19 +1,10 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
-
-type Prompt = {
-  id: string;
-  name: string;
-  version: number;
-  createdAt: Date;
-  isActive: boolean;
-  createdBy: string;
-  creator: string | null;
-};
 
 const PromptHistoryTraceNode = (props: {
   index: number;
-  prompt: Prompt;
+  prompt: RouterOutputs["prompts"]["allVersions"][number];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (version: number | undefined) => void;
   router: NextRouter;
@@ -29,11 +20,10 @@ const PromptHistoryTraceNode = (props: {
         : props.setCurrentPromptVersion(props.prompt.version);
     }}
   >
-    <div // center all the content in the div below horizontally
-      className="flex items-center gap-2"
-    >
-      <span className="rounded-sm bg-gray-200 p-1 text-xs">PROMPT</span>
-      <span className="text-sm">Version {props.prompt.version}</span>
+    <div className="flex items-center gap-2">
+      <span className="rounded-sm bg-gray-200 p-1 text-xs">
+        Version {props.prompt.version}
+      </span>
       {props.prompt.isActive ? <StatusBadge type={"production"} /> : null}
     </div>
 
@@ -51,7 +41,7 @@ const PromptHistoryTraceNode = (props: {
 );
 
 export const PromptHistoryNode = (props: {
-  prompts: Prompt[];
+  prompts: RouterOutputs["prompts"]["allVersions"];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (id: number | undefined) => void;
 }) => {
