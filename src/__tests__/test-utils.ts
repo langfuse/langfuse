@@ -14,6 +14,7 @@ export const pruneDatabase = async () => {
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();
   await prisma.events.deleteMany();
+  await prisma.model.deleteMany();
 };
 
 export function createBasicAuthHeader(

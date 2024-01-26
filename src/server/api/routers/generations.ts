@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 
-import { type Observation, Prisma } from "@prisma/client";
+import { Prisma, type ObservationView } from "@prisma/client";
 import { jsonSchema, paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -16,8 +16,6 @@ import {
   type ObservationOptions,
   observationsTableCols,
 } from "@/src/server/api/definitions/observationsTable";
-import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
-import Decimal from "decimal.js";
 import { usdFormatter } from "@/src/utils/numbers";
 import { env } from "@/src/env.mjs";
 import {
@@ -30,6 +28,8 @@ import {
   exportFileFormats,
   exportOptions,
 } from "@/src/server/api/interfaces/exportTypes";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
 const GenerationFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -38,6 +38,7 @@ const GenerationFilterOptions = z.object({
 });
 
 const ListInputs = GenerationFilterOptions.extend({
+  orderBy: orderBy,
   ...paginationZod,
 });
 
@@ -64,6 +65,11 @@ export const generationsRouter = createTRPCRouter({
         observationsTableCols,
       );
 
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        observationsTableCols,
+      );
+
       // to improve query performance, add timeseries filter to observation queries as well
       const startTimeFilter = input.filter.find(
         (f) => f.column === "start_time" && f.type === "datetime",
@@ -79,10 +85,9 @@ export const generationsRouter = createTRPCRouter({
 
       const generations = await ctx.prisma.$queryRaw<
         Array<
-          Observation & {
+          ObservationView & {
             traceId: string;
             traceName: string;
-            totalCount: number;
             latency: number | null;
           }
         >
@@ -92,7 +97,7 @@ export const generationsRouter = createTRPCRouter({
             SELECT
               o.*,
               CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-            FROM observations o
+            FROM observations_view o
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             ${datetimeFilter}
@@ -115,14 +120,21 @@ export const generationsRouter = createTRPCRouter({
             o.total_tokens as "totalTokens",
             o.level,
             o.status_message as "statusMessage",
-            o.version
+            o.version,
+            o.model_id as "modelId",
+            o.input_price as "inputPrice",
+            o.output_price as "outputPrice",
+            o.total_price as "totalPrice",
+            o.calculated_input_cost as "calculatedInputCost",
+            o.calculated_output_cost as "calculatedOutputCost",
+            o.calculated_total_cost as "calculatedTotalCost"
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
           WHERE
             t.project_id = ${input.projectId}
             ${searchCondition}
             ${filterCondition}
-          ORDER BY o.start_time DESC
+          ${orderByCondition}
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
         `,
@@ -136,7 +148,7 @@ export const generationsRouter = createTRPCRouter({
             SELECT
               o.*,
               CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-            FROM observations o
+            FROM observations_view o
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             ${datetimeFilter}
@@ -152,27 +164,10 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
-      const pricings = await ctx.prisma.pricing.findMany();
       const count = totalGenerations[0]?.count;
       return {
         totalCount: count ? Number(count) : undefined,
-        generations: generations.map(({ input, output, ...rest }) => {
-          return {
-            ...rest,
-            input,
-            output,
-            cost: rest.model
-              ? calculateTokenCost(pricings, {
-                  model: rest.model,
-                  totalTokens: new Decimal(rest.totalTokens),
-                  promptTokens: new Decimal(rest.promptTokens),
-                  completionTokens: new Decimal(rest.completionTokens),
-                  input: input,
-                  output: output,
-                })
-              : undefined,
-          };
-        }),
+        generations: generations,
       };
     }),
 
@@ -196,7 +191,7 @@ export const generationsRouter = createTRPCRouter({
 
       const generations = await ctx.prisma.$queryRaw<
         Array<
-          Observation & {
+          ObservationView & {
             traceId: string;
             traceName: string;
           }
@@ -218,8 +213,15 @@ export const generationsRouter = createTRPCRouter({
             o.prompt_tokens as "promptTokens",
             o.completion_tokens as "completionTokens",
             o.total_tokens as "totalTokens",
-            o.version
-          FROM observations o
+            o.version,
+            o.model_id as "modelId",
+            o.input_price as "inputPrice",
+            o.output_price as "outputPrice",
+            o.total_price as "totalPrice",
+            o.calculated_input_cost as "calculatedInputCost",
+            o.calculated_output_cost as "calculatedOutputCost",
+            o.calculated_total_cost as "calculatedTotalCost"
+          FROM observations_view o
           JOIN traces t ON t.id = o.trace_id
           WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
@@ -228,28 +230,6 @@ export const generationsRouter = createTRPCRouter({
             ${filterCondition}
           ORDER BY o.start_time DESC
         `,
-      );
-
-      const pricings = await ctx.prisma.pricing.findMany();
-
-      const enrichedGenerations = generations.map(
-        ({ input, output, ...rest }) => {
-          return {
-            ...rest,
-            input,
-            output,
-            cost: rest.model
-              ? calculateTokenCost(pricings, {
-                  model: rest.model,
-                  totalTokens: new Decimal(rest.totalTokens),
-                  promptTokens: new Decimal(rest.promptTokens),
-                  completionTokens: new Decimal(rest.completionTokens),
-                  input: input,
-                  output: output,
-                })
-              : undefined,
-          };
-        },
       );
 
       let output: string = "";
@@ -271,15 +251,19 @@ export const generationsRouter = createTRPCRouter({
             ],
           ]
             .concat(
-              enrichedGenerations.map((generation) =>
+              generations.map((generation) =>
                 [
                   generation.traceId,
                   generation.name ?? "",
                   generation.model ?? "",
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
-                  generation.cost
-                    ? usdFormatter(generation.cost.toNumber(), 2, 8)
+                  generation.calculatedTotalCost
+                    ? usdFormatter(
+                        generation.calculatedTotalCost.toNumber(),
+                        2,
+                        8,
+                      )
                     : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
@@ -294,7 +278,7 @@ export const generationsRouter = createTRPCRouter({
             .join("\n");
           break;
         case "JSON":
-          output = JSON.stringify(enrichedGenerations);
+          output = JSON.stringify(generations);
           break;
         case "OPENAI-JSONL":
           const inputSchemaOpenAI = z.array(
@@ -308,7 +292,7 @@ export const generationsRouter = createTRPCRouter({
               completion: jsonSchema,
             })
             .or(jsonSchema);
-          output = enrichedGenerations
+          output = generations
             .map((generation) => ({
               parsedInput: inputSchemaOpenAI.safeParse(generation.input),
               parsedOutput: outputSchema.safeParse(generation.output),
@@ -338,7 +322,7 @@ export const generationsRouter = createTRPCRouter({
             // to jsonl
             .map((row) => JSON.stringify(row))
             .join("\n");
-          console.log(output);
+
           break;
         default:
           throw new Error("Invalid export file format");

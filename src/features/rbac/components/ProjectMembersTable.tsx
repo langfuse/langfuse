@@ -84,7 +84,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                   <TableCell>
                     <Button
                       variant="ghost"
-                      size="xs"
+                      size="icon"
                       loading={mutDeleteMembership.isLoading}
                       onClick={() => {
                         mutDeleteMembership.mutate({
@@ -129,7 +129,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                       <TableCell>
                         <Button
                           variant="ghost"
-                          size="xs"
+                          size="icon"
                           loading={mutDeleteInvitation.isLoading}
                           onClick={() => {
                             mutDeleteInvitation.mutate({

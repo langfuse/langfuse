@@ -708,7 +708,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&orderBy=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -737,6 +737,11 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "orderBy",
+                  "value": "",
+                  "description": "Format of the string sort_by=timestamp.asc (id, timestamp, name, userId, release, version, public, bookmarked, sessionId)"
                 },
                 {
                   "key": "tags",

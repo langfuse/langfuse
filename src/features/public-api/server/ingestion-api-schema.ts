@@ -8,6 +8,9 @@ export const Usage = z.object({
   output: z.number().int().nullish(),
   total: z.number().int().nullish(),
   unit: z.enum(["TOKENS", "CHARACTERS"]).nullable(),
+  inputCost: z.number().nullish(),
+  outputCost: z.number().nullish(),
+  totalCost: z.number().nullish(),
 });
 
 const MixedUsage = z.object({
@@ -18,7 +21,12 @@ const MixedUsage = z.object({
   promptTokens: z.number().int().nullish(),
   completionTokens: z.number().int().nullish(),
   totalTokens: z.number().int().nullish(),
+  inputCost: z.number().nullish(),
+  outputCost: z.number().nullish(),
+  totalCost: z.number().nullish(),
 });
+
+export const stringDate = z.string().datetime({ offset: true }).nullish();
 
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
@@ -64,7 +72,7 @@ export const TraceBody = z.object({
 export const OptionalObservationBody = z.object({
   traceId: z.string().nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
+  startTime: stringDate,
   metadata: jsonSchema.nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
@@ -83,15 +91,15 @@ export const UpdateEventEvent = OptionalObservationBody.extend({
 });
 
 export const CreateSpanBody = CreateEventEvent.extend({
-  endTime: z.string().datetime({ offset: true }).nullish(),
+  endTime: stringDate,
 });
 
 export const UpdateSpanBody = UpdateEventEvent.extend({
-  endTime: z.string().datetime({ offset: true }).nullish(),
+  endTime: stringDate,
 });
 
 export const CreateGenerationBody = CreateSpanBody.extend({
-  completionStartTime: z.string().datetime({ offset: true }).nullish(),
+  completionStartTime: stringDate,
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -113,7 +121,7 @@ export const CreateGenerationBody = CreateSpanBody.extend({
 });
 
 export const UpdateGenerationBody = UpdateSpanBody.extend({
-  completionStartTime: z.string().datetime({ offset: true }).nullish(),
+  completionStartTime: stringDate,
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -148,8 +156,8 @@ export const LegacySpanPostSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  endTime: z.string().datetime({ offset: true }).nullish(),
+  startTime: stringDate,
+  endTime: stringDate,
   metadata: jsonSchema.nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
@@ -163,8 +171,8 @@ export const LegacySpanPatchSchema = z.object({
   spanId: z.string(),
   traceId: z.string().nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  endTime: z.string().datetime({ offset: true }).nullish(),
+  startTime: stringDate,
+  endTime: stringDate,
   metadata: jsonSchema.nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
@@ -177,9 +185,9 @@ export const LegacyGenerationsCreateSchema = z.object({
   id: z.string().nullish(),
   traceId: z.string().nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  endTime: z.string().datetime({ offset: true }).nullish(),
-  completionStartTime: z.string().datetime({ offset: true }).nullish(),
+  startTime: stringDate,
+  endTime: stringDate,
+  completionStartTime: stringDate,
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -201,9 +209,9 @@ export const LegacyGenerationPatchSchema = z.object({
   generationId: z.string(),
   traceId: z.string().nullish(),
   name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  endTime: z.string().datetime({ offset: true }).nullish(),
-  completionStartTime: z.string().datetime({ offset: true }).nullish(),
+  startTime: stringDate,
+  endTime: stringDate,
+  completionStartTime: stringDate,
   model: z.string().nullish(),
   modelParameters: z
     .record(
@@ -225,9 +233,9 @@ export const LegacyObservationBody = z.object({
   traceId: z.string().nullish(),
   type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
-  startTime: z.string().datetime({ offset: true }).nullish(),
-  endTime: z.string().datetime({ offset: true }).nullish(),
-  completionStartTime: z.string().datetime({ offset: true }).nullish(),
+  startTime: stringDate,
+  endTime: stringDate,
+  completionStartTime: stringDate,
   model: z.string().nullish(),
   modelParameters: z
     .record(

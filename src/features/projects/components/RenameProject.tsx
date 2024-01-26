@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
-import * as z from "zod";
+import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -14,10 +14,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-
-const formSchema = z.object({
-  newName: z.string().min(3, "Must have at least 3 characters"),
-});
+import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 
 export default function RenameProject(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -30,10 +27,10 @@ export default function RenameProject(props: { projectId: string }) {
     (p) => p.id === props.projectId,
   )?.name;
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof projectNameSchema>>({
+    resolver: zodResolver(projectNameSchema),
     defaultValues: {
-      newName: "",
+      name: "",
     },
   });
   const renameProject = api.projects.update.useMutation({
@@ -41,12 +38,15 @@ export default function RenameProject(props: { projectId: string }) {
       void updateSession();
       void utils.projects.invalidate();
     },
-    onError: (error) => form.setError("newName", { message: error.message }),
+    onError: (error) => form.setError("name", { message: error.message }),
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<typeof projectNameSchema>) {
     renameProject
-      .mutateAsync({ projectId: props.projectId, newName: values.newName })
+      .mutateAsync({
+        projectId: props.projectId,
+        newName: values.name,
+      })
       .then(() => {
         form.reset();
       })
@@ -66,10 +66,10 @@ export default function RenameProject(props: { projectId: string }) {
         {form.getValues().newName !== "" ? (
           <p className="mb-4 text-sm text-gray-700 dark:text-white">
             Your Project will be renamed to &quot;
-            <b>{form.watch().newName}</b>&quot;.
+            <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p className="mb-4 text-sm text-gray-700 dark:text-white">
+          <p className="mb-4 text-sm text-gray-700 dark:text-white" data-testid="project-name">
             Your Project is currently named &quot;<b>{projectName}</b>
             &quot;.
           </p>
@@ -84,7 +84,7 @@ export default function RenameProject(props: { projectId: string }) {
           >
             <FormField
               control={form.control}
-              name="newName"
+              name="name"
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
@@ -103,7 +103,7 @@ export default function RenameProject(props: { projectId: string }) {
               variant="secondary"
               type="submit"
               loading={renameProject.isLoading}
-              disabled={form.getValues().newName === ""}
+              disabled={form.getValues().name === ""}
               className="mt-4"
             >
               Save
