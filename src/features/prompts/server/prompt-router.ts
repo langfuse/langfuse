@@ -28,7 +28,7 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
-        SELECT id, name, version, created_at AS "createdAt", is_active AS "isActive"
+        SELECT id, name, version, project_id as "projectId", prompt, updated_at as "updatedAt", created_at AS "createdAt", is_active AS "isActive"
         FROM prompts
         WHERE (name, version) IN (
           SELECT name, MAX(version)
@@ -57,39 +57,6 @@ export const promptRouter = createTRPCRouter({
         where: {
           id: input.id,
           projectId: input.projectId,
-        },
-      });
-    }),
-  byName: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        name: z.string(),
-        version: z.number().optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "prompts:read",
-      });
-      if (input.version) {
-        return ctx.prisma.prompt.findFirst({
-          where: {
-            name: input.name,
-            version: input.version,
-            projectId: input.projectId,
-          },
-        });
-      }
-      return ctx.prisma.prompt.findFirst({
-        where: {
-          name: input.name,
-          projectId: input.projectId,
-        },
-        orderBy: {
-          version: "desc",
         },
       });
     }),
@@ -201,9 +168,12 @@ export const promptRouter = createTRPCRouter({
 
       const joinedPromptAndUsers = prompts.map((p) => {
         const user = users.find((u) => u.id === p.createdBy);
-        if (!user) {
-          console.log("User not found");
+        if (!user && p.createdBy !== "API") {
           return { ...p, creator: "API" };
+        }
+        if (!user) {
+          console.log(`User not found for promptId ${p.id}`);
+          throw new Error("User not found");
         }
         return {
           ...p,
