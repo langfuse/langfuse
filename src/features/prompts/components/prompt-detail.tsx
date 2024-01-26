@@ -29,10 +29,11 @@ export const PromptDetail = (props: PromptDetailProps) => {
     name: props.promptName,
     projectId: props.projectId,
   });
-  const prompt = promptHistory.data?.find(
-    (prompt) => prompt.version === currentPromptVersion,
-  );
-
+  const prompt = currentPromptVersion
+    ? promptHistory.data?.find(
+        (prompt) => prompt.version === currentPromptVersion,
+      )
+    : promptHistory.data?.[0];
   const extractedVariables = prompt ? extractVariables(prompt.prompt) : [];
 
   if (!promptHistory.data || !prompt) {
@@ -40,7 +41,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
   }
 
   return (
-    <div className="flex flex-col md:h-[calc(100vh-2rem)]">
+    <div className="flex flex-col xl:container md:h-[calc(100vh-2rem)]">
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-3">
           <Header
@@ -50,7 +51,10 @@ export const PromptDetail = (props: PromptDetailProps) => {
                 name: "Prompts",
                 href: `/project/${props.projectId}/prompts/`,
               },
-              { name: prompt.name },
+              {
+                name: prompt.name,
+                href: `/project/${props.projectId}/prompts/${prompt.name}`,
+              },
               { name: `Version ${prompt.version}` },
             ]}
             actionButtons={
