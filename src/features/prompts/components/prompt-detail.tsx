@@ -18,7 +18,6 @@ import router from "next/router";
 export type PromptDetailProps = {
   projectId: string;
   promptName: string;
-  //promptVersion: number;
 };
 
 export const PromptDetail = (props: PromptDetailProps) => {
@@ -31,7 +30,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
     projectId: props.projectId,
     version: currentPromptVersion ?? undefined,
   });
-  const promptHistory = api.prompts.history.useQuery({
+  const promptHistory = api.prompts.allVersions.useQuery({
     name: props.promptName,
     projectId: props.projectId,
   });
