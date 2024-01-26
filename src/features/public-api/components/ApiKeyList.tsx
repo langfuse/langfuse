@@ -115,7 +115,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="destructive" size="icon">
+        <Button variant="ghost" size="icon">
           <TrashIcon className="h-4 w-4" />
         </Button>
       </DialogTrigger>

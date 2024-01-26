@@ -74,7 +74,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                 m.role !== "OWNER" ? (
                   <TableCell>
                     <Button
-                      variant="destructive"
+                      variant="ghost"
                       size="icon"
                       loading={mutDeleteMembership.isLoading}
                       onClick={() => {
@@ -119,7 +119,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                     {hasDeleteAccess ? (
                       <TableCell>
                         <Button
-                          variant="destructive"
+                          variant="ghost"
                           size="icon"
                           loading={mutDeleteInvitation.isLoading}
                           onClick={() => {
