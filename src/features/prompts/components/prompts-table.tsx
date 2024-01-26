@@ -4,7 +4,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
-import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 import { api } from "@/src/utils/api";
@@ -70,28 +69,6 @@ export function PromptTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const createdAt: Date = row.getValue("createdAt");
         return createdAt.toLocaleString();
-      },
-    },
-    {
-      accessorKey: "action",
-      header: "Action",
-      cell: ({ row }) => {
-        const promptName = row.getValue("name");
-        const promptId = row.original.id;
-        const isActive = row.original.isActive;
-        return promptId &&
-          typeof promptId === "string" &&
-          !isActive &&
-          typeof isActive === "boolean" &&
-          promptName &&
-          typeof promptName === "string" ? (
-          <PromotePrompt
-            promptId={promptId}
-            projectId={props.projectId}
-            promptName={promptName}
-            disabled={isActive}
-          />
-        ) : undefined;
       },
     },
   ];
