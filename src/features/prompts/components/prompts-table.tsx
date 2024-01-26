@@ -97,7 +97,7 @@ export function PromptTable(props: { projectId: string }) {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["prompts"]["all"][0],
+    item: RouterOutput["prompts"]["all"][number],
   ): RowData => {
     return {
       id: item.id,
