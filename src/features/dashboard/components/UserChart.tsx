@@ -32,7 +32,7 @@ export const UserChart = ({
       projectId,
       from: "traces_observations",
       select: [
-        { column: "totalTokenCost" },
+        { column: "calculatedTotalCost", agg: "SUM" },
         { column: "user" },
         { column: "traceId", agg: "COUNT" },
       ],
@@ -43,7 +43,9 @@ export const UserChart = ({
           column: "user",
         },
       ],
-      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
     },
     {
       trpc: {
@@ -97,13 +99,15 @@ export const UserChart = ({
         .map((item) => {
           return {
             name: (item.user as string | null | undefined) ?? "Unknown",
-            value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
+            value: item.sumCalculatedTotalCost
+              ? (item.sumCalculatedTotalCost as number)
+              : 0,
           };
         })
     : [];
 
   const totalCost = user.data?.reduce(
-    (acc, curr) => acc + (curr.totalTokenCost as number),
+    (acc, curr) => acc + (curr.sumCalculatedTotalCost as number),
     0,
   );
 
