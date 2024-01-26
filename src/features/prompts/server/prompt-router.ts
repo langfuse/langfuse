@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type PrismaClient } from "@prisma/client";
+import { type Prompt, type PrismaClient } from "@prisma/client";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -27,12 +27,18 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
-      return ctx.prisma.prompt.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-        orderBy: [{ name: "asc" }, { version: "desc" }],
-      });
+      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
+        SELECT id, name, version, project_id as "projectId", prompt, updated_at as "updatedAt", created_at AS "createdAt", is_active AS "isActive"
+        FROM prompts
+        WHERE (name, version) IN (
+          SELECT name, MAX(version)
+          FROM prompts
+          WHERE "project_id" = ${input.projectId}
+          GROUP BY name
+        )
+        AND "project_id" = ${input.projectId}
+        ORDER BY name ASC`;
+      return prompts;
     }),
   byId: protectedProjectProcedure
     .input(
@@ -93,21 +99,14 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        const latestActivePrompt = await ctx.prisma.prompt.findMany({
+        const latestActivePrompt = await ctx.prisma.prompt.findFirst({
           where: {
             projectId: input.projectId,
             name: toBePromotedPrompt.name,
             isActive: true,
           },
           orderBy: [{ version: "desc" }],
-          take: 1,
         });
-
-        if (latestActivePrompt.length > 1) {
-          throw new Error(
-            `Expected exactly zero or one active prompt of name '${toBePromotedPrompt.name}', got ${latestActivePrompt.length}`,
-          );
-        }
 
         const toBeExecuted = [
           ctx.prisma.prompt.update({
@@ -119,11 +118,11 @@ export const promptRouter = createTRPCRouter({
             },
           }),
         ];
-        if (latestActivePrompt.length === 1)
+        if (latestActivePrompt)
           toBeExecuted.push(
             ctx.prisma.prompt.update({
               where: {
-                id: latestActivePrompt[0]?.id,
+                id: latestActivePrompt.id,
               },
               data: {
                 isActive: false,
@@ -135,6 +134,53 @@ export const promptRouter = createTRPCRouter({
         console.log(e);
         throw e;
       }
+    }),
+  allVersions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), name: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+      const prompts = await ctx.prisma.prompt.findMany({
+        where: {
+          projectId: input.projectId,
+          name: input.name,
+        },
+        orderBy: [{ version: "desc" }],
+      });
+      const users = await ctx.prisma.user.findMany({
+        select: {
+          // never select passwords as they should never be returned to the FE
+          id: true,
+          name: true,
+          email: true,
+        },
+        where: {
+          memberships: {
+            some: {
+              projectId: input.projectId,
+            },
+          },
+        },
+      });
+
+      const joinedPromptAndUsers = prompts.map((p) => {
+        const user = users.find((u) => u.id === p.createdBy);
+        if (!user && p.createdBy !== "API") {
+          return { ...p, creator: "API" };
+        }
+        if (!user) {
+          console.log(`User not found for promptId ${p.id}`);
+          throw new Error("User not found");
+        }
+        return {
+          ...p,
+          creator: user.name,
+        };
+      });
+      return joinedPromptAndUsers;
     }),
 });
 
@@ -159,7 +205,6 @@ export const createPrompt = async ({
       name: name,
     },
     orderBy: [{ version: "desc" }],
-    take: 1,
   });
 
   const latestActivePrompt = await prisma.prompt.findFirst({
@@ -169,7 +214,6 @@ export const createPrompt = async ({
       isActive: true,
     },
     orderBy: [{ version: "desc" }],
-    take: 1,
   });
 
   const create = [
