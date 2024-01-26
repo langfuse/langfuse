@@ -79,7 +79,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-6 text-base font-semibold leading-6 text-gray-900">
+      <h2 className="mb-6 text-base font-semibold leading-6 text-gray-900 dark:text-white">
         Danger Zone
       </h2>
       <Dialog>

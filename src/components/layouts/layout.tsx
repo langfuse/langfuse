@@ -24,6 +24,7 @@ import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import ModeToggle from "@/src/components/layouts/mode-toggle";
 
 const userNavigation = [
   {
@@ -219,7 +220,7 @@ export default function Layout(props: PropsWithChildren) {
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4">
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4 dark:bg-slate-950">
                     <LangfuseLogo version size="xl" />
                     <nav className="flex flex-1 flex-col">
                       <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -285,7 +286,7 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7">
+          <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7 dark:bg-slate-950 dark:text-white">
             <LangfuseLogo version size="xl" className="mb-2 px-6" />
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
               <ul role="list" className="flex h-full flex-col gap-y-4">
@@ -304,8 +305,8 @@ export default function Layout(props: PropsWithChildren) {
                           href={`/project/${project.id}`}
                           className={cn(
                             projectId === project.id
-                              ? "bg-gray-50 text-indigo-600"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                              ? "bg-gray-50 text-indigo-600 dark:text-black"
+                              : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-white dark:hover:text-black",
                             "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                           )}
                         >
@@ -346,7 +347,7 @@ export default function Layout(props: PropsWithChildren) {
             </nav>
 
             <Menu as="div" className="relative left-1">
-              <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+              <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50 dark:text-white dark:hover:text-black">
                 <span className="sr-only">Open user menu</span>
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -360,7 +361,7 @@ export default function Layout(props: PropsWithChildren) {
                       : null}
                   </AvatarFallback>
                 </Avatar>
-                <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                <span className="flex-shrink truncate text-sm font-semibold leading-6">
                   {session.data?.user?.name}
                 </span>
                 <ChevronDownIcon
@@ -368,6 +369,7 @@ export default function Layout(props: PropsWithChildren) {
                   aria-hidden="true"
                 />
               </Menu.Button>
+              <ModeToggle />
               <Transition
                 as={Fragment}
                 enter="transition ease-out duration-100"
@@ -377,7 +379,7 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none dark:border-white dark:bg-slate-950 dark:ring-white">
                   {userNavigation.map((item) => (
                     <Menu.Item key={item.name}>
                       {({ active }) => (
@@ -385,7 +387,7 @@ export default function Layout(props: PropsWithChildren) {
                           onClick={() => void item.onClick()}
                           className={cn(
                             active ? "bg-gray-50" : "",
-                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900 dark:text-white dark:hover:text-black",
                           )}
                         >
                           {item.name}
@@ -399,7 +401,7 @@ export default function Layout(props: PropsWithChildren) {
           </div>
         </div>
 
-        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 xl:hidden">
+        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm dark:bg-slate-950 sm:px-6 xl:hidden">
           <button
             type="button"
             className="-m-2.5 p-2.5 text-gray-700 xl:hidden"
@@ -409,6 +411,7 @@ export default function Layout(props: PropsWithChildren) {
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
           <LangfuseLogo version className="flex-1" />
+          <ModeToggle />
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>
@@ -538,8 +541,8 @@ const MainNavigation: React.FC<{
                 href={item.href}
                 className={clsx(
                   item.current
-                    ? "bg-gray-50 text-indigo-600"
-                    : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                    ? "bg-gray-50 text-indigo-600 dark:text-slate-950"
+                    : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-white dark:hover:text-slate-950",
                   "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                 )}
                 onClick={onNavitemClick}
@@ -580,7 +583,7 @@ const MainNavigation: React.FC<{
                 {({ open }) => (
                   <>
                     <Disclosure.Button
-                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
+                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600 dark:text-white dark:hover:text-black"
                       onClick={handleDropDownClick}
                     >
                       {item.icon && (
@@ -595,7 +598,7 @@ const MainNavigation: React.FC<{
                           className={cn(
                             "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                             item.current
-                              ? "border-indigo-600 text-indigo-600"
+                              ? "border-indigo-600 text-indigo-600 "
                               : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
                           )}
                         >
@@ -618,8 +621,8 @@ const MainNavigation: React.FC<{
                             href={subItem.href ?? "#"}
                             className={clsx(
                               subItem.current
-                                ? "bg-gray-50 text-indigo-600"
-                                : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                                ? "bg-gray-50 text-indigo-600 dark:text-black"
+                                : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-white dark:hover:text-black",
                               "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
                             )}
                           >
@@ -640,9 +643,9 @@ const MainNavigation: React.FC<{
           </li>
         ))}
         <FeedbackButtonWrapper className="w-full">
-          <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+          <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-white dark:hover:text-black">
             <MessageSquarePlus
-              className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+              className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600 "
               aria-hidden="true"
             />
             Feedback

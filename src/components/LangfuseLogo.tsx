@@ -31,7 +31,7 @@ export const LangfuseLogo = ({
     <LangfuseIcon size={size === "sm" ? 16 : 20} />
     <span
       className={cn(
-        "font-mono font-semibold",
+        "font-mono font-semibold dark:text-white",
         size === "sm" ? "ml-2 text-sm" : "ml-3 text-xl",
       )}
     >

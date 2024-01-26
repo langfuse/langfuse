@@ -19,7 +19,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
         <select
           id="tabs"
           name="tabs"
-          className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+          className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:bg-slate-950 dark:text-white sm:text-sm"
           defaultValue={0}
         >
           {tabs.map((tab) => (
@@ -35,7 +35,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                 key={tab.tabTitle}
                 className={cn(
                   index === selectedIndex
-                    ? "border-indigo-500 text-indigo-600"
+                    ? "border-indigo-500 text-indigo-600 dark:text-white"
                     : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700",
                   "cursor-pointer whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium",
                 )}
