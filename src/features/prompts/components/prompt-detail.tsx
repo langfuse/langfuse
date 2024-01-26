@@ -25,21 +25,17 @@ export const PromptDetail = (props: PromptDetailProps) => {
     "version",
     NumberParam,
   );
-  const prompt = api.prompts.byName.useQuery({
-    name: props.promptName,
-    projectId: props.projectId,
-    version: currentPromptVersion ?? undefined,
-  });
   const promptHistory = api.prompts.allVersions.useQuery({
     name: props.promptName,
     projectId: props.projectId,
   });
+  const prompt = promptHistory.data?.find(
+    (prompt) => prompt.version === currentPromptVersion,
+  );
 
-  const extractedVariables = prompt.data
-    ? extractVariables(prompt.data.prompt)
-    : [];
+  const extractedVariables = prompt ? extractVariables(prompt.prompt) : [];
 
-  if (!prompt.data || !promptHistory.data) {
+  if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
   }
 
@@ -48,30 +44,30 @@ export const PromptDetail = (props: PromptDetailProps) => {
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-3">
           <Header
-            title={`${prompt.data.name} (v${prompt.data.version})`}
+            title={prompt.name}
             breadcrumb={[
               {
                 name: "Prompts",
                 href: `/project/${props.projectId}/prompts/`,
               },
-              { name: prompt.data.name },
-              { name: `Version ${prompt.data.version}` },
+              { name: prompt.name },
+              { name: `Version ${prompt.version}` },
             ]}
             actionButtons={
               <>
                 <PromotePrompt
                   projectId={props.projectId}
-                  promptId={prompt.data.id}
-                  promptName={prompt.data.name}
-                  disabled={prompt.data.isActive}
+                  promptId={prompt.id}
+                  promptName={prompt.name}
+                  disabled={prompt.isActive}
                   variant="outline"
                 />
                 <CreatePromptDialog
                   projectId={props.projectId}
                   title="Update Prompt"
                   subtitle="We do not update prompts, instead we create a new version of the prompt."
-                  promptName={prompt.data.name}
-                  promptText={prompt.data.prompt}
+                  promptName={prompt.name}
+                  promptText={prompt.prompt}
                 >
                   <Button variant="outline" size="icon">
                     <Pencil className="h-5 w-5" />
@@ -79,7 +75,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
                 </CreatePromptDialog>
                 <DetailPageNav
                   key="nav"
-                  currentId={prompt.data.name}
+                  currentId={prompt.name}
                   path={(name) => `/project/${props.projectId}/prompts/${name}`}
                   listKey="prompts"
                 />
@@ -88,7 +84,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
           />
         </div>
         <div className="col-span-2 md:h-full">
-          <CodeView content={prompt.data.prompt} title="Prompt" />
+          <CodeView content={prompt.prompt} title="Prompt" />
           <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7 text-gray-700">
             <div className="border-b px-3 py-1 text-xs font-medium">
               Variables
@@ -111,7 +107,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
             <ScrollArea className="flex border-l pl-2">
               <PromptHistoryNode
                 prompts={promptHistory.data}
-                currentPromptVersion={prompt.data.version}
+                currentPromptVersion={prompt.version}
                 setCurrentPromptVersion={setCurrentPromptVersion}
               />
             </ScrollArea>
