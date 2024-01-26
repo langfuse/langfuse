@@ -36,7 +36,8 @@ export const promptRouter = createTRPCRouter({
           WHERE "project_id" = ${input.projectId}
           GROUP BY name
         )
-        AND "project_id" = ${input.projectId}`;
+        AND "project_id" = ${input.projectId}
+        ORDER BY name ASC`;
       return prompts;
     }),
   byId: protectedProjectProcedure
@@ -167,7 +168,7 @@ export const promptRouter = createTRPCRouter({
         throw e;
       }
     }),
-  history: protectedProjectProcedure
+  allVersions: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), name: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
@@ -200,7 +201,10 @@ export const promptRouter = createTRPCRouter({
 
       const joinedPromptAndUsers = prompts.map((p) => {
         const user = users.find((u) => u.id === p.createdBy);
-        if (!user) return { ...p, creator: "Unknown" };
+        if (!user) {
+          console.log("User not found");
+          return { ...p, creator: "API" };
+        }
         return {
           ...p,
           creator: user.name,
