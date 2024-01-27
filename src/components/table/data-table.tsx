@@ -150,6 +150,7 @@ export function DataTable<TData extends object, TValue>({
                                     columnDef.headerTooltip.description
                                   }
                                   href={columnDef.headerTooltip.href}
+                                  size="xs"
                                 />
                               )}
 

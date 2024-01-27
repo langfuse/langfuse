@@ -1,13 +1,17 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { Button } from "@/src/components/ui/button";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@prisma/client";
 import Decimal from "decimal.js";
+import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ModelTableRow = {
+  modelId: string;
   maintainer: string;
   modelName: string;
   matchPattern: string;
@@ -66,7 +70,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.modelName,
       },
     },
-
     {
       accessorKey: "startDate",
       id: "startDate",
@@ -194,6 +197,20 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         );
       },
     },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        return row.original.maintainer === "User" ? (
+          <DeleteModelButton
+            projectId={projectId}
+            modelId={row.original.modelId}
+          />
+        ) : (
+          <div className="h-6" />
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -201,6 +218,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 
   const convertToTableRow = (model: Model): ModelTableRow => {
     return {
+      modelId: model.id,
       maintainer: model.projectId ? "User" : "Langfuse",
       modelName: model.modelName,
       matchPattern: model.matchPattern,
@@ -246,3 +264,46 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     </div>
   );
 }
+
+const DeleteModelButton = ({
+  modelId,
+  projectId,
+}: {
+  modelId: string;
+  projectId: string;
+}) => {
+  const utils = api.useUtils();
+  const mut = api.models.delete.useMutation({
+    onSuccess: () => {
+      void utils.models.invalidate();
+    },
+  });
+
+  const hasAccess = useHasAccess({
+    projectId,
+    scope: "models:CUD",
+  });
+
+  if (!hasAccess) {
+    return null;
+  }
+
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      onClick={() => {
+        mut
+          .mutateAsync({
+            projectId,
+            modelId,
+          })
+          .catch((error) => {
+            console.error(error);
+          });
+      }}
+    >
+      <Trash size={14} />
+    </Button>
+  );
+};
