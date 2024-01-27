@@ -243,7 +243,7 @@ export const NewModelForm = (props: {
                 </SelectContent>
               </Select>
               <FormDescription>
-                The unit that the model is priced in.
+                The unit of measurement for the model.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -255,7 +255,7 @@ export const NewModelForm = (props: {
             name="inputPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Input price</FormLabel>
+                <FormLabel>Input price (USD)</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" />
                 </FormControl>
@@ -269,7 +269,7 @@ export const NewModelForm = (props: {
             name="outputPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Output price</FormLabel>
+                <FormLabel>Output price (USD)</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" />
                 </FormControl>
@@ -283,7 +283,7 @@ export const NewModelForm = (props: {
             name="totalPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Total price</FormLabel>
+                <FormLabel>Total price (USD)</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" />
                 </FormControl>
