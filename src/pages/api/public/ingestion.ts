@@ -30,7 +30,7 @@ import * as Sentry from "@sentry/nextjs";
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "4.5mb",
+      sizeLimit: "3mb",
     },
   },
 };
