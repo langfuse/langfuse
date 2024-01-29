@@ -13,7 +13,7 @@ export default function Header({
   title: string;
   breadcrumb?: { name: string; href?: string }[];
   status?: Status;
-  help?: { description: string; href: string };
+  help?: { description: string; href?: string };
   actionButtons?: React.ReactNode;
   level?: "h2" | "h3";
 }) {
