@@ -1,13 +1,17 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { Button } from "@/src/components/ui/button";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@prisma/client";
 import Decimal from "decimal.js";
+import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ModelTableRow = {
+  modelId: string;
   maintainer: string;
   modelName: string;
   matchPattern: string;
@@ -19,6 +23,24 @@ export type ModelTableRow = {
   tokenizerId?: string;
   config?: Prisma.JsonValue;
 };
+
+const modelConfigDescriptions = {
+  modelName:
+    "Standardized model name. Generations are assigned to this model name if they match the `matchPattern` upon ingestion.",
+  matchPattern:
+    "Regex pattern to match `model` parameter of generations to model pricing",
+  startDate:
+    "Date to start pricing model. If not set, model is active unless a more recent version exists.",
+  inputPrice: "Price per unit of input",
+  outputPrice: "Price per unit of output",
+  totalPrice:
+    "Price per unit, for models that don't have input/output specific prices",
+  unit: "Unit of measurement for model, can be TOKENS or CHARACTERS.",
+  tokenizerId:
+    "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
+  config:
+    "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
+} as const;
 
 export default function ModelTable({ projectId }: { projectId: string }) {
   const [paginationState, setPaginationState] = useQueryParams({
@@ -44,10 +66,33 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "modelName",
       id: "modelName",
       header: "Model Name",
+      headerTooltip: {
+        description: modelConfigDescriptions.modelName,
+      },
+    },
+    {
+      accessorKey: "startDate",
+      id: "startDate",
+      header: "Start Date",
+      headerTooltip: {
+        description: modelConfigDescriptions.startDate,
+      },
+      cell: ({ row }) => {
+        const value: Date | undefined = row.getValue("startDate");
+
+        return value ? (
+          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "matchPattern",
       id: "matchPattern",
+      headerTooltip: {
+        description: modelConfigDescriptions.matchPattern,
+      },
       header: "Match Pattern",
       cell: ({ row }) => {
         const value: string = row.getValue("matchPattern");
@@ -60,23 +105,12 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
     },
     {
-      accessorKey: "startDate",
-      id: "startDate",
-      header: "Start Date",
-      cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("startDate");
-
-        return value ? (
-          <span className="text-xs">{value.toLocaleDateString()} </span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
-      },
-    },
-    {
       accessorKey: "inputPrice",
       id: "inputPrice",
       header: "Input Price",
+      headerTooltip: {
+        description: modelConfigDescriptions.inputPrice,
+      },
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputPrice");
 
@@ -92,6 +126,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "outputPrice",
       id: "outputPrice",
+      headerTooltip: {
+        description: modelConfigDescriptions.outputPrice,
+      },
       header: "Output Price",
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputPrice");
@@ -109,6 +146,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "totalPrice",
       id: "totalPrice",
       header: "Total Price",
+      headerTooltip: {
+        description: modelConfigDescriptions.totalPrice,
+      },
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalPrice");
 
@@ -125,18 +165,27 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "unit",
       id: "unit",
       header: "Unit",
+      headerTooltip: {
+        description: modelConfigDescriptions.unit,
+      },
       enableHiding: true,
     },
     {
       accessorKey: "tokenizerId",
       id: "tokenizerId",
       header: "Tokenizer",
+      headerTooltip: {
+        description: modelConfigDescriptions.tokenizerId,
+      },
       enableHiding: true,
     },
     {
       accessorKey: "config",
       id: "config",
-      header: "Tokenizer",
+      header: "Tokenizer Configuration",
+      headerTooltip: {
+        description: modelConfigDescriptions.config,
+      },
       enableHiding: true,
       cell: ({ row }) => {
         const value: Prisma.JsonValue | undefined = row.getValue("config");
@@ -148,6 +197,20 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         );
       },
     },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        return row.original.maintainer === "User" ? (
+          <DeleteModelButton
+            projectId={projectId}
+            modelId={row.original.modelId}
+          />
+        ) : (
+          <div className="h-6" />
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -155,6 +218,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 
   const convertToTableRow = (model: Model): ModelTableRow => {
     return {
+      modelId: model.id,
       maintainer: model.projectId ? "User" : "Langfuse",
       modelName: model.modelName,
       matchPattern: model.matchPattern,
@@ -200,3 +264,46 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     </div>
   );
 }
+
+const DeleteModelButton = ({
+  modelId,
+  projectId,
+}: {
+  modelId: string;
+  projectId: string;
+}) => {
+  const utils = api.useUtils();
+  const mut = api.models.delete.useMutation({
+    onSuccess: () => {
+      void utils.models.invalidate();
+    },
+  });
+
+  const hasAccess = useHasAccess({
+    projectId,
+    scope: "models:CUD",
+  });
+
+  if (!hasAccess) {
+    return null;
+  }
+
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      onClick={() => {
+        mut
+          .mutateAsync({
+            projectId,
+            modelId,
+          })
+          .catch((error) => {
+            console.error(error);
+          });
+      }}
+    >
+      <Trash size={14} />
+    </Button>
+  );
+};
