@@ -12,12 +12,15 @@ import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
-export type Option = Record<"value" | "label", string> & Record<string, string>;
+export type AutoCompleteOption = {
+  value: string;
+  label: string;
+};
 
 type AutoCompleteProps = {
-  options: Option[];
-  value: Option;
-  onValueChange?: (value: Option) => void;
+  options: AutoCompleteOption[];
+  value: AutoCompleteOption;
+  onValueChange?: (value: AutoCompleteOption) => void;
   disabled?: boolean;
   placeholder?: string;
 };
@@ -31,7 +34,7 @@ export const AutoComplete = ({
 }: AutoCompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setOpen] = useState(false);
-  const [selected, setSelected] = useState<Option>(value);
+  const [selected, setSelected] = useState<AutoCompleteOption>(value);
   const [inputValue, setInputValue] = useState<string>(value.label || "");
 
   const handleKeyDown = useCallback(
@@ -71,7 +74,7 @@ export const AutoComplete = ({
   }, [selected]);
 
   const handleSelectOption = useCallback(
-    (selectedOption: Option) => {
+    (selectedOption: AutoCompleteOption) => {
       setInputValue(selectedOption.label);
 
       setSelected(selectedOption);
@@ -156,7 +159,7 @@ const CommandItemCreate = ({
   onMouseDown,
 }: {
   inputValue: string;
-  options: Option[];
+  options: AutoCompleteOption[];
   onSelect: () => void;
   onMouseDown: (event: React.MouseEvent<HTMLElement>) => void;
 }) => {
