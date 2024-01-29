@@ -5,6 +5,7 @@ docs: |
 
   - username: Langfuse Public Key
   - password: Langfuse Secret Key
+
 error-discrimination:
   strategy: status-code
 auth: basic

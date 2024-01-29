@@ -26,6 +26,7 @@ describe("Token Count Functions", () => {
   describe("token count for strings", () => {
     [
       { model: "gpt-3.5-turbo", tokenizer: "openai", tokens: 114 },
+      { model: "text-embedding-ada-002", tokenizer: "openai", tokens: 114 },
       { model: "gpt-4-1106-preview", tokenizer: "openai", tokens: 114 },
       { model: "gpt-4-vision-preview", tokenizer: "openai", tokens: 114 },
       { model: "claude", tokenizer: "claude", tokens: 118 },
@@ -48,6 +49,50 @@ describe("Token Count Functions", () => {
         text: "Hello, World!",
       });
       expect(result).toBeUndefined();
+    });
+
+    it("check extensive openai chat message", () => {
+      const result = tokenCount({
+        model: generateModel("gpt-3.5-turbo", "openai"),
+        text: [
+          {
+            role: "system",
+            content: "some test",
+            id: "some-id",
+            isPersisted: true,
+          },
+          {
+            id: "some-id",
+            content: "some test",
+            role: "user",
+            timestamp: "2024-01-00:00:00.488Z",
+            isPersisted: true,
+          },
+          {
+            id: "some id",
+            content:
+              "Hey Simon! 😊 How's your day going? Have you been up to anything interesting lately?",
+            role: "user",
+            timestamp: "2024-01-24T10:00:00.929Z",
+            isPersisted: true,
+          },
+          {
+            content: true,
+            role: "user",
+            id: "some id",
+          },
+          {
+            role: "system",
+            content: "This is some content",
+          },
+          {
+            id: "another id",
+            role: "assistant",
+            content: "This is some content",
+          },
+        ],
+      });
+      expect(result).toBe(155);
     });
 
     it("should return for invalid text type", () => {

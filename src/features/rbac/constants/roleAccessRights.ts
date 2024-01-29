@@ -25,6 +25,8 @@ const scopes = [
 
   "prompts:CUD",
   "prompts:read",
+
+  "models:CUD",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -49,6 +51,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "models:CUD",
   ],
   ADMIN: [
     "project:update",
@@ -66,6 +69,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "models:CUD",
   ],
   MEMBER: [
     "members:read",

@@ -78,6 +78,12 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."metadata"',
   },
   {
+    name: "scores_avg",
+    id: "scores_avg",
+    type: "numberObject",
+    internal: "scores_avg",
+  },
+  {
     name: "version",
     id: "version",
     type: "string",
@@ -91,6 +97,7 @@ export type ObservationOptions = {
   model: Array<OptionsDefinition>;
   name: Array<OptionsDefinition>;
   traceName: Array<OptionsDefinition>;
+  scores_avg: Array<string>;
 };
 
 export function observationsTableColsWithOptions(
@@ -105,6 +112,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.name === "traceName") {
       return { ...col, options: options?.traceName ?? [] };
+    }
+    if (col.name === "scores_avg") {
+      return { ...col, keyOptions: options?.scores_avg ?? [] };
     }
     return col;
   });

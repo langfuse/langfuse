@@ -1,7 +1,7 @@
 // Description: This script is used to match observations with their internal model. This is needed
 // to be able to calculate the cost of the observation.
 // See docs: https://langfuse.com/docs/deployment/self-host#updating-the-application
-// Execute: `npm run model:match`
+// Execute: `npm run models:migrate`
 
 import "dotenv/config";
 

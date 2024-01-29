@@ -163,7 +163,7 @@ enum MembershipRole {
 }
 
 model TraceSession {
-    id         String   @id @default(cuid())
+    id         String   @default(cuid())
     createdAt  DateTime @default(now()) @map("created_at")
     updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
     projectId  String   @map("project_id")
@@ -172,7 +172,7 @@ model TraceSession {
     public     Boolean  @default(false)
     traces     Trace[]
 
-    @@unique([id, projectId])
+    @@id([id, projectId])
     @@index([projectId])
     @@index([createdAt])
     @@map("trace_sessions")
@@ -195,7 +195,7 @@ model Trace {
     input      Json?
     output     Json?
     sessionId  String?       @map("session_id")
-    session    TraceSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+    session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
 
     scores Score[]
 
