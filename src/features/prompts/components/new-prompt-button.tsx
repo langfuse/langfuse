@@ -28,7 +28,7 @@ import { extractVariables } from "@/src/utils/string";
 import { Badge } from "@/src/components/ui/badge";
 import router from "next/router";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
-import { type Option } from "@/src/features/prompts/components/auto-complete";
+import { type AutoCompleteOption } from "@/src/features/prompts/components/auto-complete";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -175,7 +175,7 @@ export const NewPromptForm = (props: {
           control={form.control}
           name="name"
           render={({ field }) => {
-            const setNameValue = (value: Option) => {
+            const setNameValue = (value: AutoCompleteOption) => {
               field.onChange(value.value);
             };
 
