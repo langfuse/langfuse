@@ -202,15 +202,15 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
     projectId: props.projectId,
   });
 
-  if (prompt.isLoading) return null;
+  if (prompt.isLoading || !prompt.data) return null;
   return (
     <Link
-      href={`/project/${props.projectId}/prompts/${prompt.data?.name}?version=${prompt.data?.version}`}
+      href={`/project/${props.projectId}/prompts/${prompt.data.name}?version=${prompt.data.version}`}
     >
       <Badge>
-        Prompt: {prompt.data?.name}
-        {" - "}
-        {prompt.data?.version}
+        Prompt: {prompt.data.name}
+        {" - v"}
+        {prompt.data.version}
       </Badge>
     </Link>
   );
