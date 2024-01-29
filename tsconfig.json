@@ -16,6 +16,7 @@
     "jsx": "preserve",
     "incremental": true,
     "noUncheckedIndexedAccess": true,
+    "noErrorTruncation": true,
     "baseUrl": ".",
     "types": ["jest", "node"],
     "paths": {
@@ -29,7 +30,8 @@
     "**/*.tsx",
     "**/*.cjs",
     "**/*.mjs",
-    "src/features/navigate-detail-pages"
+    "src/features/navigate-detail-pages",
+    "types/global.d.ts"
   ],
   "exclude": ["node_modules", "sdk"]
 }

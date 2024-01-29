@@ -10,9 +10,11 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { NewDatasetButton } from "@/src/features/datasets/components/NewDatasetButton";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical, Trash } from "lucide-react";
+import { useEffect } from "react";
 
 type RowData = {
   key: {
@@ -26,6 +28,7 @@ type RowData = {
 };
 
 export function DatasetsTable(props: { projectId: string }) {
+  const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
@@ -33,6 +36,15 @@ export function DatasetsTable(props: { projectId: string }) {
   const mutDelete = api.datasets.deleteDataset.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
+    useEffect(() => {
+    if (datasets.isSuccess) {
+      setDetailPageList(
+        "datasets",
+        datasets.data.map((t) => t.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasets.isSuccess, datasets.data]);
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {

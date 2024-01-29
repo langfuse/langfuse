@@ -25,6 +25,15 @@ import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
+import * as Sentry from "@sentry/nextjs";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "3mb",
+    },
+  },
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -298,6 +307,9 @@ export const handleBatchResult = (
         error: error.error.message,
       });
     } else {
+      if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+        Sentry.captureException(error.error);
+      }
       returnedErrors.push({
         id: error.id,
         status: 500,

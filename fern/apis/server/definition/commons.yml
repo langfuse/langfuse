@@ -67,6 +67,9 @@ types:
       output: optional<integer>
       total: optional<integer>
       unit: optional<ModelUsageUnit>
+      inputCost: optional<double>
+      outputCost: optional<double>
+      totalCost: optional<double>
   Score:
     properties:
       id: string
@@ -130,6 +133,7 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
+      - optional<list<string>>
   DatasetStatus:
     enum:
       - ACTIVE

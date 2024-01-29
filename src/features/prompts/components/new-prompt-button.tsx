@@ -155,7 +155,7 @@ export const NewPromptForm = (props: {
         // go to the following page after creating the prompt
         if (newPrompt) {
           void router.push(
-            `/project/${props.projectId}/prompts/${newPrompt.id}`,
+            `/project/${props.projectId}/prompts/${newPrompt.name}`,
           );
         }
       })

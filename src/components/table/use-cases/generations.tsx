@@ -1,4 +1,5 @@
 import { api, directApi } from "@/src/utils/api";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -26,7 +27,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type ObservationLevel } from "@prisma/client";
+import { type Score, type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -34,6 +35,7 @@ import {
   exportOptions,
   type ExportFileFormats,
 } from "@/src/server/api/interfaces/exportTypes";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 
 export type GenerationsTableRow = {
   id: string;
@@ -49,6 +51,7 @@ export type GenerationsTableRow = {
   output?: unknown;
   traceName?: string;
   metadata?: string;
+  scores: Score[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -82,18 +85,34 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     },
   ]);
 
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "startTime",
+    order: "DESC",
+  });
+
   const generations = api.generations.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
+    orderBy: orderByState,
     searchQuery,
   });
-  const totalCount = generations.data?.slice(1)[0]?.totalCount ?? 0;
 
-  const filterOptions = api.generations.filterOptions.useQuery({
-    projectId,
-  });
+  const totalCount = generations.data?.totalCount ?? 0;
+
+  const filterOptions = api.generations.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const handleExport = async (fileFormat: ExportFileFormats) => {
     if (isExporting) return;
@@ -143,6 +162,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
   const columns: LangfuseColumnDef<GenerationsTableRow>[] = [
     {
       accessorKey: "id",
+      id: "id",
       header: "ID",
       cell: ({ row }) => {
         const observationId = row.getValue("id");
@@ -155,13 +175,17 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           />
         ) : null;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "name",
+      id: "name",
       header: "name",
+      enableSorting: true,
     },
     {
       accessorKey: "traceId",
+      id: "traceId",
       header: "Trace ID",
       cell: ({ row }) => {
         const value = row.getValue("traceId");
@@ -172,19 +196,35 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "traceName",
+      id: "traceName",
       header: "Trace Name",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "startTime",
+      id: "startTime",
       header: "Start Time",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "scores",
+      id: "scores",
+      header: "Scores",
+      cell: ({ row }) => {
+        const values: Score[] = row.getValue("scores");
+        return <GroupedScoreBadges scores={values} variant="headings" />;
+      },
       enableHiding: true,
     },
     {
       accessorKey: "latency",
+      id: "latency",
       header: "Latency",
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latency");
@@ -193,6 +233,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         ) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "cost",
@@ -208,6 +249,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     },
     {
       accessorKey: "level",
+      id: "level",
       header: "Level",
       enableHiding: true,
       cell({ row }) {
@@ -224,6 +266,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           </span>
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "statusMessage",
@@ -233,8 +276,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     },
     {
       accessorKey: "model",
+      id: "model",
       header: "Model",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "usage",
@@ -288,8 +333,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     },
     {
       accessorKey: "version",
+      id: "version",
       header: "Version",
       enableHiding: true,
+      enableSorting: true,
     },
   ];
   const [columnVisibility, setColumnVisibility] =
@@ -299,7 +346,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     );
 
   const rows: GenerationsTableRow[] = generations.isSuccess
-    ? generations.data.map((generation) => {
+    ? generations.data.generations.map((generation) => {
         return {
           id: generation.id,
           traceId: generation.traceId,
@@ -307,11 +354,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           startTime: generation.startTime.toLocaleString(),
           endTime: generation.endTime?.toLocaleString() ?? undefined,
           latency: generation.latency === null ? undefined : generation.latency,
-          cost: generation.cost,
+          cost: generation.calculatedTotalCost,
           name: generation.name ?? undefined,
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
+          scores: generation.scores,
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata
@@ -380,7 +428,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }
-            : generations.isError
+            : generations.error
               ? {
                   isLoading: false,
                   isError: true,
@@ -397,6 +445,8 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        setOrderBy={setOrderByState}
+        orderBy={orderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />

@@ -7,6 +7,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
 import { api } from "@/src/utils/api";
 import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
@@ -63,12 +64,19 @@ export default function SessionsTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "createdAt",
+    order: "DESC",
+  });
+
   const sessions = api.sessions.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
+    orderBy: orderByState,
   });
+
   const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
     if (sessions.isSuccess) {
@@ -96,6 +104,7 @@ export default function SessionsTable({
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
     {
       accessorKey: "bookmarked",
+      id: "bookmarked",
       header: undefined,
       cell: ({ row }) => {
         const bookmarked = row.getValue("bookmarked");
@@ -111,27 +120,33 @@ export default function SessionsTable({
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "id",
+      id: "id",
       header: "ID",
       cell: ({ row }) => {
         const value = row.getValue("id");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/sessions/${value}`}
+            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "createdAt",
+      id: "createdAt",
       header: "Created At",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "sessionDuration",
+      id: "sessionDuration",
       header: "Duration",
       enableHiding: true,
       cell: ({ row }) => {
@@ -140,6 +155,7 @@ export default function SessionsTable({
           ? formatInterval(value)
           : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "userIds",
@@ -153,7 +169,7 @@ export default function SessionsTable({
             {(value as string[]).map((user) => (
               <TableLink
                 key={user}
-                path={`/project/${projectId}/users/${user}`}
+                path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
                 value={user}
                 truncateAt={40}
               />
@@ -164,8 +180,10 @@ export default function SessionsTable({
     },
     {
       accessorKey: "countTraces",
+      id: "countTraces",
       header: "Traces",
       enableHiding: true,
+      enableSorting: true,
     },
   ];
 
@@ -204,6 +222,8 @@ export default function SessionsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        setOrderBy={setOrderByState}
+        orderBy={orderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         help={{

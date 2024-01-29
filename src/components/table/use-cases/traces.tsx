@@ -6,6 +6,7 @@ import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-m
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { TagTracePopver } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { JSONView } from "@/src/components/ui/code";
@@ -29,6 +30,8 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import type Decimal from "decimal.js";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -50,6 +53,7 @@ export type TracesTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
+  cost?: Decimal;
 };
 
 export type TracesTableProps = {
@@ -100,21 +104,22 @@ export default function TracesTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
-  const traces = api.traces.all.useQuery({
+  const tracesAllQueryFilter = {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
-  });
-  const totalCount = traces.data?.slice(1)[0]?.totalCount ?? 0;
+  };
+  const traces = api.traces.all.useQuery(tracesAllQueryFilter);
+
+  const totalCount = traces.data?.totalCount ?? 0;
   useEffect(() => {
     if (traces.isSuccess) {
       setDetailPageList(
         "traces",
-        traces.data.map((t) => t.id),
+        traces.data.traces.map((t) => t.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,9 +140,8 @@ export default function TracesTable({
       },
     },
   );
-
   const convertToTableRow = (
-    trace: RouterOutput["traces"]["all"][0],
+    trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
     return {
       bookmarked: trace.bookmarked,
@@ -159,6 +163,7 @@ export default function TracesTable({
         completionTokens: trace.completionTokens,
         totalTokens: trace.totalTokens,
       },
+      cost: trace.calculatedTotalCost ?? undefined,
     };
   };
 
@@ -198,10 +203,10 @@ export default function TracesTable({
       cell: ({ row }) => {
         const bookmarked = row.getValue("bookmarked");
         const traceId = row.getValue("id");
-
         return typeof traceId === "string" &&
           typeof bookmarked === "boolean" ? (
           <StarTraceToggle
+            tracesFilter={tracesAllQueryFilter}
             traceId={traceId}
             projectId={projectId}
             value={bookmarked}
@@ -247,7 +252,7 @@ export default function TracesTable({
         const value = row.getValue("userId");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/users/${value}`}
+            path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
             value={value}
             truncateAt={40}
           />
@@ -264,7 +269,7 @@ export default function TracesTable({
         const value = row.getValue("sessionId");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/sessions/${value}`}
+            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
             truncateAt={40}
           />
@@ -304,6 +309,25 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
+    },
+    {
+      accessorKey: "cost",
+      id: "cost",
+      header: "Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("cost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>Not Available</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "scores",
@@ -363,6 +387,21 @@ export default function TracesTable({
       accessorKey: "tags",
       id: "tags",
       header: "Tags",
+      cell: ({ row }) => {
+        const tags: string[] = row.getValue("tags");
+        const traceId: string = row.getValue("id");
+        const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+        const allTags = filterOptionTags.map((t) => t.value);
+        return (
+          <TagTracePopver
+            tags={tags}
+            availableTags={allTags}
+            projectId={projectId}
+            traceId={traceId}
+            tracesFilter={tracesAllQueryFilter}
+          />
+        );
+      },
       enableHiding: true,
     },
     {
@@ -410,7 +449,8 @@ export default function TracesTable({
           <TraceTableMultiSelectAction
             // Exclude traces that are not in the current page
             selectedTraceIds={Object.keys(selectedRows).filter(
-              (traceId) => traces.data?.map((t) => t.id).includes(traceId),
+              (traceId) =>
+                traces.data?.traces.map((t) => t.id).includes(traceId),
             )}
             projectId={projectId}
             onDeleteSuccess={() => {
@@ -435,11 +475,11 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: traces.data.map((t) => convertToTableRow(t)),
+                  data: traces.data.traces.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}

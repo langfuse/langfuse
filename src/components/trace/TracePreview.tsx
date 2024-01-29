@@ -71,10 +71,6 @@ export const TracePreview = ({
           title="Metadata"
           json={trace.metadata}
         />
-        {trace.tags.length !== 0 && (
-          <JSONView key={trace.id + "-tags"} title="Tags" json={trace.tags} />
-        )}
-
         <div className="mt-5 flex flex-col gap-2">
           <Header
             title="Scores"

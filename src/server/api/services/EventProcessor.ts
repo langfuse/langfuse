@@ -22,7 +22,8 @@ import {
   type Trace,
   type Observation,
   type Score,
-  type Prisma,
+  Prisma,
+  type Model,
 } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
@@ -33,6 +34,66 @@ export interface EventProcessor {
     apiScope: ApiAccessScope,
   ): Promise<Trace | Observation | Score> | undefined;
 }
+
+export const findModel = async (
+  projectId: string,
+  model?: string,
+  unit?: string,
+  startTime?: string,
+  existingObservation?: Observation,
+) => {
+  // either get the model from the existing observation
+  // or match pattern on the user provided model name
+  const modelCondition = model
+    ? Prisma.sql`AND ${model} ~ match_pattern`
+    : existingObservation?.internalModel
+      ? Prisma.sql`AND model_name = ${existingObservation.internalModel}`
+      : undefined;
+
+  // usage either from existing generation or from the current event
+  const mergedUnit = unit ?? existingObservation?.unit;
+
+  const unitCondition = mergedUnit
+    ? Prisma.sql`AND unit = ${mergedUnit}`
+    : Prisma.empty;
+
+  if (!modelCondition) {
+    return;
+  } else {
+    const sql = Prisma.sql`
+        SELECT
+          id,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt",
+          project_id AS "projectId",
+          model_name AS "modelName",
+          match_pattern AS "matchPattern",
+          start_date AS "startDate",
+          input_price AS "inputPrice",
+          output_price AS "outputPrice",
+          total_price AS "totalPrice",
+          unit, 
+          tokenizer_id AS "tokenizerId",
+          tokenizer_config AS "tokenizerConfig"
+        FROM
+          models
+        WHERE (project_id = ${projectId}
+          OR project_id IS NULL)
+        ${modelCondition}
+        ${unitCondition}
+        AND (start_date IS NULL OR start_date <= ${
+          startTime ? new Date(startTime) : new Date()
+        }::timestamp with time zone at time zone 'UTC')
+      ORDER BY
+        project_id ASC,
+        start_date DESC
+      LIMIT 1;`;
+
+    const foundModels = await prisma.$queryRaw<Array<Model>>(sql);
+
+    return foundModels[0] ?? undefined;
+  }
+};
 
 export class ObservationProcessor implements EventProcessor {
   event:
@@ -57,10 +118,13 @@ export class ObservationProcessor implements EventProcessor {
     this.event = event;
   }
 
-  async convertToObservation(apiScope: ApiAccessScope): Promise<{
+  async convertToObservation(
+    apiScope: ApiAccessScope,
+    existingObservation: Observation | null,
+  ): Promise<{
     id: string;
-    create: Prisma.ObservationCreateInput;
-    update: Prisma.ObservationUpdateInput;
+    create: Prisma.ObservationUncheckedCreateInput;
+    update: Prisma.ObservationUncheckedUpdateInput;
   }> {
     const { body } = this.event;
 
@@ -85,18 +149,25 @@ export class ObservationProcessor implements EventProcessor {
 
     const { id, traceId, name, startTime, metadata } = body;
 
-    const existingObservation = id
-      ? await prisma.observation.findUnique({
-          where: { id, projectId: apiScope.projectId },
-        })
-      : null;
-
     if (
       this.event.type === eventTypes.OBSERVATION_UPDATE &&
       !existingObservation
     ) {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
     }
+
+    // we need to get the matching model on each generation
+    // to be able to calculate the token counts
+    const internalModel: Model | undefined =
+      type === "GENERATION"
+        ? await findModel(
+            apiScope.projectId,
+            "model" in body ? body.model ?? undefined : undefined,
+            "usage" in body ? body.usage?.unit ?? undefined : undefined,
+            startTime ?? undefined,
+            existingObservation ?? undefined,
+          )
+        : undefined;
 
     const finalTraceId =
       !traceId && !existingObservation
@@ -113,7 +184,11 @@ export class ObservationProcessor implements EventProcessor {
 
     const [newInputCount, newOutputCount] =
       "usage" in body
-        ? this.calculateTokenCounts(body, existingObservation ?? undefined)
+        ? this.calculateTokenCounts(
+            body,
+            internalModel,
+            existingObservation ?? undefined,
+          )
         : [undefined, undefined];
 
     // merge metadata from existingObservation.metadata and metadata
@@ -124,21 +199,28 @@ export class ObservationProcessor implements EventProcessor {
       metadata ?? undefined,
     );
 
-    const prompts =
+    const prompt =
       "promptName" in this.event.body &&
       typeof this.event.body.promptName === "string" &&
       "promptVersion" in this.event.body &&
       typeof this.event.body.promptVersion === "number"
-        ? await prisma.prompt.findMany({
+        ? await prisma.prompt.findUnique({
             where: {
-              projectId: apiScope.projectId,
-              name: this.event.body.promptName,
-              version: this.event.body.promptVersion,
+              projectId_name_version: {
+                projectId: apiScope.projectId,
+                name: this.event.body.promptName,
+                version: this.event.body.promptVersion,
+              },
             },
           })
         : undefined;
 
+    // Only null if promptName and promptVersion are set but prompt is not found
+    if (prompt === null)
+      console.warn("Prompt not found for observation", this.event.body);
+
     const observationId = id ?? v4();
+
     return {
       id: observationId,
       create: {
@@ -169,15 +251,22 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in body
             ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined,
-        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        unit:
+          "usage" in body
+            ? body.usage?.unit ?? internalModel?.unit
+            : internalModel?.unit,
         level: body.level ?? undefined,
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
-        ...(prompts && prompts.length === 1
-          ? { prompt: { connect: { id: prompts[0]?.id } } }
+        projectId: apiScope.projectId,
+        promptId: prompt ? prompt.id : undefined,
+        ...(internalModel
+          ? { internalModel: internalModel.modelName }
           : undefined),
+        inputCost: "usage" in body ? body.usage?.inputCost : undefined,
+        outputCost: "usage" in body ? body.usage?.outputCost : undefined,
+        totalCost: "usage" in body ? body.usage?.totalCost : undefined,
       },
       update: {
         name,
@@ -204,14 +293,21 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in body
             ? body.usage?.total ?? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined,
-        unit: "usage" in body ? body.usage?.unit ?? undefined : undefined,
+        unit:
+          "usage" in body
+            ? body.usage?.unit ?? internalModel?.unit
+            : internalModel?.unit,
         level: body.level ?? undefined,
         statusMessage: body.statusMessage ?? undefined,
         parentObservationId: body.parentObservationId ?? undefined,
         version: body.version ?? undefined,
-        ...(prompts && prompts.length === 1
-          ? { prompt: { connect: { id: prompts[0]?.id } } }
+        promptId: prompt ? prompt.id : undefined,
+        ...(internalModel
+          ? { internalModel: internalModel.modelName }
           : undefined),
+        inputCost: "usage" in body ? body.usage?.inputCost : undefined,
+        outputCost: "usage" in body ? body.usage?.outputCost : undefined,
+        totalCost: "usage" in body ? body.usage?.totalCost : undefined,
       },
     };
   }
@@ -220,27 +316,29 @@ export class ObservationProcessor implements EventProcessor {
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
+    model?: Model,
     existingObservation?: Observation,
   ) {
-    const mergedModel = body.model ?? existingObservation?.model;
-
     const newPromptTokens =
       body.usage?.input ??
-      ((body.input || existingObservation?.input) && mergedModel
+      ((body.input || existingObservation?.input) && model && model.tokenizerId
         ? tokenCount({
-            model: mergedModel,
+            model: model,
             text: body.input ?? existingObservation?.input,
           })
         : undefined);
 
     const newCompletionTokens =
       body.usage?.output ??
-      ((body.output || existingObservation?.output) && mergedModel
+      ((body.output || existingObservation?.output) &&
+      model &&
+      model.tokenizerId
         ? tokenCount({
-            model: mergedModel,
+            model: model,
             text: body.output ?? existingObservation?.output,
           })
         : undefined);
+
     return [newPromptTokens, newCompletionTokens];
   }
 
@@ -250,14 +348,28 @@ export class ObservationProcessor implements EventProcessor {
     if (apiScope.accessLevel !== "all")
       throw new AuthenticationError("Access denied for observation creation");
 
-    const obs = await this.convertToObservation(apiScope);
+    const existingObservation = this.event.body.id
+      ? await prisma.observation.findFirst({
+          where: { id: this.event.body.id },
+        })
+      : null;
 
+    if (
+      existingObservation &&
+      existingObservation.projectId !== apiScope.projectId
+    ) {
+      throw new AuthenticationError(
+        `Access denied for observation creation ${existingObservation.projectId} `,
+      );
+    }
+
+    const obs = await this.convertToObservation(apiScope, existingObservation);
+
+    // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
+    // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
     return await prisma.observation.upsert({
       where: {
-        id_projectId: {
-          id: obs.id,
-          projectId: apiScope.projectId,
-        },
+        id: obs.id,
       },
       create: obs.create,
       update: obs.update,
@@ -277,7 +389,9 @@ export class TraceProcessor implements EventProcessor {
     const { body } = this.event;
 
     if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError("Access denied for trace creation");
+      throw new AuthenticationError(
+        `Access denied for trace creation, ${apiScope.accessLevel}`,
+      );
 
     const internalId = body.id ?? v4();
 
@@ -288,11 +402,17 @@ export class TraceProcessor implements EventProcessor {
       body,
     );
 
-    const existingTrace = await prisma.trace.findUnique({
+    const existingTrace = await prisma.trace.findFirst({
       where: {
         id: internalId,
       },
     });
+
+    if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
+      throw new AuthenticationError(
+        `Access denied for trace creation ${existingTrace.projectId} `,
+      );
+    }
 
     const mergedMetadata = mergeJson(
       existingTrace?.metadata
@@ -301,10 +421,27 @@ export class TraceProcessor implements EventProcessor {
       body.metadata ?? undefined,
     );
 
+    if (body.sessionId) {
+      await prisma.traceSession.upsert({
+        where: {
+          id_projectId: {
+            id: body.sessionId,
+            projectId: apiScope.projectId,
+          },
+        },
+        create: {
+          id: body.sessionId,
+          projectId: apiScope.projectId,
+        },
+        update: {},
+      });
+    }
+
+    // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
+    // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
     const upsertedTrace = await prisma.trace.upsert({
       where: {
         id: internalId,
-        projectId: apiScope.projectId,
       },
       create: {
         id: internalId,
@@ -315,16 +452,9 @@ export class TraceProcessor implements EventProcessor {
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
-        session: body.sessionId
-          ? {
-              connectOrCreate: {
-                where: { id: body.sessionId, projectId: apiScope.projectId },
-                create: { id: body.sessionId, projectId: apiScope.projectId },
-              },
-            }
-          : undefined,
+        sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
-        project: { connect: { id: apiScope.projectId } },
+        projectId: apiScope.projectId,
         tags: body.tags ?? undefined,
       },
       update: {
@@ -335,14 +465,7 @@ export class TraceProcessor implements EventProcessor {
         metadata: mergedMetadata ?? body.metadata ?? undefined,
         release: body.release ?? undefined,
         version: body.version ?? undefined,
-        session: body.sessionId
-          ? {
-              connectOrCreate: {
-                where: { id: body.sessionId, projectId: apiScope.projectId },
-                create: { id: body.sessionId, projectId: apiScope.projectId },
-              },
-            }
-          : undefined,
+        sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
         tags: body.tags ?? undefined,
       },

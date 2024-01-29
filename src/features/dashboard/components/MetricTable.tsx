@@ -1,11 +1,11 @@
-import { api } from "@/src/utils/api";
-import { type FilterState } from "@/src/features/filters/types";
-import { TotalMetric } from "./TotalMetric";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
+import { type FilterState } from "@/src/features/filters/types";
+import { api } from "@/src/utils/api";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { TotalMetric } from "./TotalMetric";
 
 export const MetricTable = ({
   className,
@@ -16,23 +16,20 @@ export const MetricTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
-  const localFilters = globalFilterState.map((f) => ({
-    ...f,
-    column: "timestamp",
-  }));
-
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observations",
+      from: "observations",
       select: [
-        { column: "totalTokenCost" },
+        { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },
         { column: "model" },
       ],
-      filter: localFilters,
+      filter: globalFilterState,
       groupBy: [{ type: "string", column: "model" }],
-      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
     },
     {
       trpc: {
@@ -43,9 +40,12 @@ export const MetricTable = ({
     },
   );
 
-  const totalTokens = metrics.data?.reduce(
+  const totalTokenCost = metrics.data?.reduce(
     (acc, curr) =>
-      acc + (curr.totalTokenCost ? (curr.totalTokenCost as number) : 0),
+      acc +
+      (curr.sumCalculatedTotalCost
+        ? (curr.sumCalculatedTotalCost as number)
+        : 0),
     0,
   );
 
@@ -54,14 +54,14 @@ export const MetricTable = ({
         .filter((item) => item.model !== null)
         .map((item, i) => [
           item.model as string,
-          <RightAlignedCell key={i}>
+          <RightAlignedCell key={`${i}-tokens`}>
             {item.sumTotalTokens
               ? compactNumberFormatter(item.sumTotalTokens as number)
               : "0"}
           </RightAlignedCell>,
-          <RightAlignedCell key={i}>
-            {item.totalTokenCost
-              ? usdFormatter(item.totalTokenCost as number)
+          <RightAlignedCell key={`${i}-cost`}>
+            {item.sumCalculatedTotalCost
+              ? usdFormatter(item.sumCalculatedTotalCost as number, 2, 2)
               : "$0"}
           </RightAlignedCell>,
         ])
@@ -76,14 +76,14 @@ export const MetricTable = ({
       <DashboardTable
         headers={[
           "Model",
-          <RightAlignedCell key={0}>Tokens</RightAlignedCell>,
-          <RightAlignedCell key={0}>USD</RightAlignedCell>,
+          <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
+          <RightAlignedCell key="cost">USD</RightAlignedCell>,
         ]}
         rows={metricsData}
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
-          metric={totalTokens ? usdFormatter(totalTokens) : "$0"}
+          metric={totalTokenCost ? usdFormatter(totalTokenCost, 2, 2) : "$0"}
           description="Total cost"
         >
           <DocPopup

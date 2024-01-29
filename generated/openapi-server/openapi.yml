@@ -884,6 +884,14 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: orderBy
+          in: query
+          description: >-
+            Format of the string sort_by=timestamp.asc (id, timestamp, name,
+            userId, release, version, public, bookmarked, sessionId)
+          required: true
+          schema:
+            type: string
         - name: tags
           in: query
           description: Only traces that include all of these tags will be returned.
@@ -1111,6 +1119,18 @@ components:
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
           nullable: true
+        inputCost:
+          type: number
+          format: double
+          nullable: true
+        outputCost:
+          type: number
+          format: double
+          nullable: true
+        totalCost:
+          type: number
+          format: double
+          nullable: true
     Score:
       title: Score
       type: object
@@ -1277,6 +1297,10 @@ components:
         - type: integer
           nullable: true
         - type: boolean
+          nullable: true
+        - type: array
+          items:
+            type: string
           nullable: true
     DatasetStatus:
       title: DatasetStatus
@@ -2002,6 +2026,14 @@ components:
       required:
         - data
         - meta
+    Sort:
+      title: Sort
+      type: object
+      properties:
+        id:
+          type: string
+      required:
+        - id
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object
