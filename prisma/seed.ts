@@ -122,6 +122,117 @@ async function main() {
       update: {},
     });
 
+    const promptIds: string[] = [];
+
+    const prompts = [
+      {
+        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
+        projectId: project2.id,
+        createdBy: "user-1",
+        prompt: "Prompt 1 content",
+        name: "Prompt 1",
+        version: 1,
+        isActive: true,
+      },
+      {
+        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
+        projectId: project2.id,
+        createdBy: "user-1",
+        prompt: "Prompt 2 content",
+        name: "Prompt 2",
+        version: 1,
+        isActive: true,
+      },
+      {
+        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
+        projectId: project2.id,
+        createdBy: "API",
+        prompt: "Prompt 3 content",
+        name: "Prompt 3 by API",
+        version: 1,
+        isActive: true,
+      },
+    ];
+
+    for (const prompt of prompts) {
+      await prisma.prompt.create({
+        data: {
+          id: prompt.id,
+          projectId: prompt.projectId,
+          createdBy: prompt.createdBy,
+          prompt: prompt.prompt,
+          name: prompt.name,
+          version: prompt.version,
+          isActive: prompt.isActive,
+        },
+      });
+      promptIds.push(prompt.id);
+    }
+
+    const promptVersionsWithVariables = [
+      {
+        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
+        projectId: project2.id,
+        createdBy: "user-1",
+        prompt: "Prompt 4 version 1 content with {{variable}}",
+        name: "Prompt 4 with variable",
+        version: 1,
+        isActive: false,
+      },
+      {
+        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
+        projectId: project2.id,
+        createdBy: "user-1",
+        prompt: "Prompt 4 version 2 content with {{variable}}",
+        name: "Prompt 4 with variable",
+        version: 2,
+        isActive: true,
+      },
+      {
+        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
+        projectId: project2.id,
+        createdBy: "user-1",
+        prompt: "Prompt 4 version 3 content with {{variable}}",
+        name: "Prompt 4 with variable",
+        version: 3,
+        isActive: false,
+      },
+    ];
+
+    for (const version of promptVersionsWithVariables) {
+      await prisma.prompt.create({
+        data: {
+          id: version.id,
+          projectId: version.projectId,
+          createdBy: version.createdBy,
+          prompt: version.prompt,
+          name: version.name,
+          version: version.version,
+          isActive: version.isActive,
+        },
+      });
+      promptIds.push(version.id);
+    }
+    const promptName = "Prompt with Longer Name";
+    const projectId = project2.id;
+    const createdBy = "user-1";
+
+    for (let i = 1; i <= 20; i++) {
+      const promptId = `prompt-${Math.floor(Math.random() * 1000000000)}`;
+      await prisma.prompt.create({
+        data: {
+          id: promptId,
+          projectId: projectId,
+          createdBy: createdBy,
+          prompt: `${promptName} version ${i} content`,
+          name: promptName,
+          version: i,
+          isActive: i === 20,
+        },
+      });
+      promptIds.push(promptId);
+    }
+
     const generationIds: string[] = [];
     const envTags = [null, "development", "staging", "production"];
     const colorTags = [null, "red", "blue", "yellow"];
@@ -282,7 +393,8 @@ async function main() {
           ];
 
           const model = models[Math.floor(Math.random() * models.length)];
-
+          const promptId =
+            promptIds[Math.floor(Math.random() * promptIds.length)];
           const generation = await prisma.observation.create({
             data: {
               type: "GENERATION",
@@ -291,6 +403,7 @@ async function main() {
               endTime: generationTsEnd,
               name: `generation-${i}-${j}-${k}`,
               project: { connect: { id: trace.projectId } },
+              prompt: { connect: { id: promptId } },
               input:
                 Math.random() > 0.5
                   ? [
