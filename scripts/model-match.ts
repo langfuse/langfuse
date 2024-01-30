@@ -5,9 +5,14 @@
 
 import "dotenv/config";
 
-import { findModel } from "@/src/server/api/services/EventProcessor";
+import {
+  ObservationProcessor,
+  findModel,
+} from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@/src/server/db";
 import lodash from "lodash";
+import { tokenCount } from "@/src/features/ingest/lib/usage";
+import { type Prisma } from "@prisma/client";
 
 async function main() {
   return await modelMatch();
@@ -35,6 +40,11 @@ export async function modelMatch() {
       projectId: string;
       startTime: Date;
       unit: string | null;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      input: Prisma.JsonValue;
+      output: Prisma.JsonValue;
     };
 
     const observations = await prisma.observation.findMany({
@@ -44,6 +54,11 @@ export async function modelMatch() {
         model: true,
         unit: true,
         projectId: true,
+        promptTokens: true,
+        completionTokens: true,
+        totalTokens: true,
+        input: true,
+        output: true,
       },
       orderBy: {
         startTime: "desc",
@@ -59,6 +74,13 @@ export async function modelMatch() {
 
     console.log(`Found ${observations.length} observations to migrate`);
 
+    type Config = {
+      startTime: Date;
+      model: string;
+      unit: string;
+      projectId: string | null;
+    };
+
     interface GroupedObservations {
       [key: string]: ObservationSelect[];
     }
@@ -66,9 +88,14 @@ export async function modelMatch() {
     const groupedObservations = observations.reduce<GroupedObservations>(
       (acc, observation) => {
         // TODO: observation.model can include _ characters
-        const key = `${observation.startTime.toISOString().slice(0, 10)}_${
-          observation.model
-        }_${observation.unit}_${observation.projectId}`;
+        const config = {
+          startTime: observation.startTime,
+          model: observation.model,
+          unit: observation.unit,
+          projectId: observation.projectId,
+        };
+
+        const key = JSON.stringify(config);
 
         // Ensure the array is initialized before using it
         acc[key] = acc[key] ?? [];
@@ -85,17 +112,16 @@ export async function modelMatch() {
     for (const [key, observationsGroup] of Object.entries(
       groupedObservations,
     )) {
-      // Split the key into its components
-      const [date, model, unit, projectId] = key.split("_");
+      const { startTime, model, unit, projectId } = JSON.parse(key) as Config;
 
-      console.log("Execute key: ", date, model, unit, projectId);
+      console.log("Execute key: ", startTime, model, unit, projectId);
 
       if (!projectId) {
         throw new Error("No project id");
       }
 
       const foundModel = await findModel({
-        event: { projectId, model, unit, startTime: date },
+        event: { projectId, model, unit, startTime: startTime.toISOString() },
       });
 
       console.log(
@@ -108,9 +134,52 @@ export async function modelMatch() {
       );
 
       if (foundModel) {
-        // Push the promise for updating observations into the array
+        // find all the observations with all tokens 0 and tokenize them individually
+        const observationsWithAllTokensZero = observationsGroup.filter(
+          (observation) =>
+            observation.promptTokens === 0 &&
+            observation.completionTokens === 0 &&
+            observation.totalTokens === 0,
+        );
 
-        lodash.chunk(observationsGroup, 32000).map((chunk) => {
+        for (const observation of observationsWithAllTokensZero) {
+          const newInputCount = tokenCount({
+            model: foundModel,
+            text: observation.input,
+          });
+          const newOutputCount = tokenCount({
+            model: foundModel,
+            text: observation.output,
+          });
+
+          updatePromises.push(
+            prisma.observation.update({
+              where: {
+                id: observation.id,
+              },
+              data: {
+                promptTokens: newInputCount,
+                completionTokens: newOutputCount,
+                totalTokens:
+                  newInputCount && newOutputCount
+                    ? newInputCount + newOutputCount
+                    : 0,
+                internalModel: foundModel.modelName,
+              },
+            }),
+          );
+        }
+
+        // for all remaining observations, batch update them with the model id
+        const observationsWithTokens = observationsGroup.filter(
+          (observation) =>
+            observation.promptTokens !== 0 ||
+            observation.completionTokens !== 0 ||
+            observation.totalTokens !== 0,
+        );
+
+        // Push the promise for updating observations into the array
+        lodash.chunk(observationsWithTokens, 32000).map((chunk) => {
           updatePromises.push(
             prisma.observation.updateMany({
               where: {
