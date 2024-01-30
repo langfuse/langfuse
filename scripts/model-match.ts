@@ -24,8 +24,7 @@ export async function modelMatch() {
   console.log("Starting model match");
   const start = Date.now();
 
-  // while observations are not null, get the next 50_000 observations
-  const BATCH_SIZE = 50_000;
+  const BATCH_SIZE = 10_000;
   let continueLoop = true;
   let index = 0;
   let totalObservations = 0;
@@ -67,7 +66,6 @@ export async function modelMatch() {
       take: BATCH_SIZE,
       skip: index * BATCH_SIZE,
     });
-    console.log("Observations: ", observations[0]?.id);
 
     console.log(`Found ${observations.length} observations to migrate`);
 
