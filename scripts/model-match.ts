@@ -158,10 +158,7 @@ export async function modelMatch() {
               data: {
                 promptTokens: newInputCount,
                 completionTokens: newOutputCount,
-                totalTokens:
-                  newInputCount && newOutputCount
-                    ? newInputCount + newOutputCount
-                    : 0,
+                totalTokens: (newInputCount ?? 0) + (newOutputCount ?? 0),
                 internalModel: foundModel.modelName,
               },
             }),
