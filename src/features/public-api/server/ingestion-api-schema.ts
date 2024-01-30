@@ -7,7 +7,7 @@ export const Usage = z.object({
   input: z.number().int().nullish(),
   output: z.number().int().nullish(),
   total: z.number().int().nullish(),
-  unit: z.enum(["TOKENS", "CHARACTERS"]).nullable(),
+  unit: z.enum(["TOKENS", "CHARACTERS"]).nullish(),
   inputCost: z.number().nullish(),
   outputCost: z.number().nullish(),
   totalCost: z.number().nullish(),
