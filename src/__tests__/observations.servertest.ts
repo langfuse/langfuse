@@ -59,6 +59,7 @@ describe("/api/public/observations API Endpoint", () => {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
         internalModel: "gpt-3.5-turbo",
+        unit: "TOKENS",
       },
     });
 
@@ -71,7 +72,10 @@ describe("/api/public/observations API Endpoint", () => {
     expect(fetchedObservations.status).toBe(200);
 
     if (!isObservationList(fetchedObservations.body)) {
-      throw new Error("Expected body to be an array of observations");
+      throw new Error(
+        "Expected body to be an array of observations" +
+          JSON.stringify(fetchedObservations.body),
+      );
     }
 
     expect(fetchedObservations.body.data.length).toBe(1);
