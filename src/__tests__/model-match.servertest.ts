@@ -43,6 +43,7 @@ describe("model match", () => {
     await prisma.observation.createMany({
       data: [
         {
+          id: "observation-1",
           type: "GENERATION",
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           model: "gpt-3.5-turbo",
@@ -77,6 +78,12 @@ describe("model match", () => {
     await modelMatch();
 
     const observations = await prisma.observation.findMany();
+
+    // check that tokens from observation-1 are not changed
+    const observation1 = observations.find((o) => o.id === "observation-1");
+    expect(observation1?.promptTokens).toEqual(200);
+    expect(observation1?.completionTokens).toEqual(3000);
+    expect(observation1?.totalTokens).toEqual(0);
 
     expect(observations.length).toEqual(3);
     observations.forEach((observation) => {
