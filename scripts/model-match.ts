@@ -24,7 +24,6 @@ export async function modelMatch() {
   console.log("Starting model match");
   const start = Date.now();
 
-  // while observations are not null, get the next 50_000 observations
   const BATCH_SIZE = 10_000;
   let continueLoop = true;
   let index = 0;
