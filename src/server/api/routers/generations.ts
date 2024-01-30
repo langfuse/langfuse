@@ -101,6 +101,29 @@ export const generationsRouter = createTRPCRouter({
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             ${datetimeFilter}
+          ),
+          -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
           )
           SELECT
             o.id,
@@ -130,11 +153,12 @@ export const generationsRouter = createTRPCRouter({
             o.calculated_total_cost as "calculatedTotalCost"
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
           WHERE
             t.project_id = ${input.projectId}
             ${searchCondition}
             ${filterCondition}
-          ${orderByCondition}
+            ${orderByCondition}
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
         `,
@@ -152,11 +176,35 @@ export const generationsRouter = createTRPCRouter({
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             ${datetimeFilter}
+          ),
+          -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
           )
           SELECT
             count(*)
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
           WHERE
             t.project_id = ${input.projectId}
             ${searchCondition}
@@ -164,10 +212,28 @@ export const generationsRouter = createTRPCRouter({
         `,
       );
 
+      const scores = await ctx.prisma.score.findMany({
+        where: {
+          trace: {
+            projectId: input.projectId,
+          },
+          observationId: {
+            in: generations.map((gen) => gen.id),
+          },
+        },
+      });
       const count = totalGenerations[0]?.count;
       return {
         totalCount: count ? Number(count) : undefined,
-        generations: generations,
+        generations: generations.map((generation) => {
+          const filteredScores = scores.filter(
+            (s) => s.observationId === generation.id,
+          );
+          return {
+            ...generation,
+            scores: filteredScores,
+          };
+        }),
       };
     }),
 
@@ -198,6 +264,29 @@ export const generationsRouter = createTRPCRouter({
         >
       >(
         Prisma.sql`
+        -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
+          )
           SELECT
             o.id,
             o.name,
@@ -223,6 +312,7 @@ export const generationsRouter = createTRPCRouter({
             o.calculated_total_cost as "calculatedTotalCost"
           FROM observations_view o
           JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
           WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             AND t.project_id = ${input.projectId}
@@ -390,6 +480,15 @@ export const generationsRouter = createTRPCRouter({
         type: "GENERATION",
       } as const;
 
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          observation: {
+            projectId: input.projectId,
+          },
+        },
+        by: ["name"],
+      });
+
       const model = await ctx.prisma.observation.groupBy({
         by: ["model"],
         where: queryFilter,
@@ -437,6 +536,7 @@ export const generationsRouter = createTRPCRouter({
             value: i.traceName as string,
             count: i.count,
           })),
+        scores_avg: scores.map((score) => score.name),
       };
       return res;
     }),
