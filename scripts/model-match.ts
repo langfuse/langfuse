@@ -85,7 +85,7 @@ export async function modelMatch() {
     const groupedObservations = observations.reduce<GroupedObservations>(
       (acc, observation) => {
         const config = {
-          startTime: observation.startTime,
+          startTime: observation.startTime.toISOString().slice(0, 10),
           model: observation.model,
           unit: observation.unit,
           projectId: observation.projectId,
@@ -103,6 +103,7 @@ export async function modelMatch() {
     );
 
     let updatedObservations = 0;
+    const dbPromises = [];
 
     for (const [key, observationsGroup] of Object.entries(
       groupedObservations,
@@ -148,17 +149,19 @@ export async function modelMatch() {
             text: observation.output,
           });
 
-          await prisma.observation.update({
-            where: {
-              id: observation.id,
-            },
-            data: {
-              promptTokens: newInputCount,
-              completionTokens: newOutputCount,
-              totalTokens: (newInputCount ?? 0) + (newOutputCount ?? 0),
-              internalModel: foundModel.modelName,
-            },
-          });
+          dbPromises.push(
+            prisma.observation.update({
+              where: {
+                id: observation.id,
+              },
+              data: {
+                promptTokens: newInputCount,
+                completionTokens: newOutputCount,
+                totalTokens: (newInputCount ?? 0) + (newOutputCount ?? 0),
+                internalModel: foundModel.modelName,
+              },
+            }),
+          );
         }
 
         // for all remaining observations, batch update them with the model id
@@ -170,10 +173,9 @@ export async function modelMatch() {
         );
 
         // Push the promise for updating observations into the array
-        const promises = lodash
-          .chunk(observationsWithTokens, 32000)
-          .map(async (chunk) => {
-            await prisma.observation.updateMany({
+        lodash.chunk(observationsWithTokens, 32000).map((chunk) => {
+          dbPromises.push(
+            prisma.observation.updateMany({
               where: {
                 id: {
                   in: chunk.map((observation) => observation.id),
@@ -182,15 +184,15 @@ export async function modelMatch() {
               data: {
                 internalModel: foundModel.modelName,
               },
-            });
-          });
-        await Promise.all(promises);
+            }),
+          );
+        });
+
         updatedObservations += observationsGroup.length;
       } else {
-        const promises = lodash
-          .chunk(observationsGroup, 32000)
-          .map(async (chunk) => {
-            await prisma.observation.updateMany({
+        lodash.chunk(observationsGroup, 32000).map((chunk) => {
+          dbPromises.push(
+            prisma.observation.updateMany({
               where: {
                 id: {
                   in: chunk.map((observation) => observation.id),
@@ -199,16 +201,22 @@ export async function modelMatch() {
               data: {
                 internalModel: "LANGFUSETMPNOMODEL",
               },
-            });
-          });
-        await Promise.all(promises);
-
+            }),
+          );
+        });
+        console.log(dbPromises.length);
         updatedObservations += observationsGroup.length;
       }
     }
 
     totalObservations += updatedObservations;
     // Wait for all update operations to complete
+    const promiseChunk = lodash.chunk(dbPromises, 10);
+
+    for (const promises of promiseChunk) {
+      console.log("Waiting for promises to complete", promises.length);
+      await Promise.all(promises);
+    }
 
     console.log(
       "Updated observations count: ",
