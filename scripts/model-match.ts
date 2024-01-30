@@ -28,7 +28,7 @@ export async function modelMatch() {
   let totalObservations = 0;
 
   while (continueLoop) {
-    type SelectedType = {
+    type ObservationSelect = {
       model: string | null;
       id: string;
       projectId: string;
@@ -50,20 +50,16 @@ export async function modelMatch() {
       where: {
         internalModel: null,
         type: "GENERATION",
-        // TODO: remove start time filter
-        startTime: {
-          lt: new Date("2020-01-24"),
-        },
       },
-      take: 100_000,
-      skip: index * 100_000,
+      take: 50_000,
+      skip: index * 50_000,
     });
     console.log("Observations: ", observations[0]?.id);
 
     console.log(`Found ${observations.length} observations to migrate`);
 
     interface GroupedObservations {
-      [key: string]: SelectedType[];
+      [key: string]: ObservationSelect[];
     }
 
     const groupedObservations = observations.reduce<GroupedObservations>(
