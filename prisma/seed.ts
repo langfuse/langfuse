@@ -12,7 +12,7 @@ const options = {
 
 const prisma = new PrismaClient();
 
-const TRACE_VOLUME = 100_000;
+const TRACE_VOLUME = 100;
 
 async function main() {
   const environment = parseArgs({
@@ -463,7 +463,7 @@ async function main() {
               Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
               },
               model: model,
-              // internalModel: model,
+              internalModel: model,
               modelParameters: {
                 temperature:
                   Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
