@@ -59,17 +59,17 @@ export default function RenameProject(props: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900 dark:text-white">
+      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
         Project Name
       </h2>
-      <Card className="mb-4 p-4 ">
-        {form.getValues().newName !== "" ? (
-          <p className="mb-4 text-sm text-gray-700 dark:text-white">
+      <Card className="mb-4 p-4">
+        {form.getValues().name !== "" ? (
+          <p className="mb-4 text-sm text-gray-700">
             Your Project will be renamed to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p className="mb-4 text-sm text-gray-700 dark:text-white" data-testid="project-name">
+          <p className="mb-4 text-sm text-gray-700" data-testid="project-name">
             Your Project is currently named &quot;<b>{projectName}</b>
             &quot;.
           </p>
