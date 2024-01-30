@@ -84,7 +84,6 @@ export async function modelMatch() {
 
     const groupedObservations = observations.reduce<GroupedObservations>(
       (acc, observation) => {
-        // TODO: observation.model can include _ characters
         const config = {
           startTime: observation.startTime,
           model: observation.model,
