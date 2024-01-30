@@ -1,6 +1,6 @@
-// Description: This script is used to match observations with their internal model. This is needed
-// to be able to calculate the cost of the observation.
-// See docs: https://langfuse.com/docs/deployment/self-host#updating-the-application
+// Description: New model definitions in Langfuse are automatically applied to new observations.
+// You can optionally run this script to apply new model definitions to existing observations.
+// See docs: https://langfuse.com/docs/deployment/self-host#migrate-models
 // Execute: `npm run models:migrate`
 
 import "dotenv/config";
@@ -22,18 +22,18 @@ export async function modelMatch() {
   console.log("Starting model match");
   const start = Date.now();
 
-  // while observations are not null, get the next 10000 observations
+  // while observations are not null, get the next 100_000 observations
   let continueLoop = true;
   let index = 0;
   let totalObservations = 0;
 
   while (continueLoop) {
-    type selectedType = {
+    type SelectedType = {
       model: string | null;
       id: string;
       projectId: string;
       startTime: Date;
-      unit: string;
+      unit: string | null;
     };
 
     const observations = await prisma.observation.findMany({
@@ -50,6 +50,7 @@ export async function modelMatch() {
       where: {
         internalModel: null,
         type: "GENERATION",
+        // TODO: remove start time filter
         startTime: {
           lt: new Date("2020-01-24"),
         },
@@ -62,11 +63,12 @@ export async function modelMatch() {
     console.log(`Found ${observations.length} observations to migrate`);
 
     interface GroupedObservations {
-      [key: string]: selectedType[];
+      [key: string]: SelectedType[];
     }
 
     const groupedObservations = observations.reduce<GroupedObservations>(
       (acc, observation) => {
+        // TODO: observation.model can include _ characters
         const key = `${observation.startTime.toISOString().slice(0, 10)}_${
           observation.model
         }_${observation.unit}_${observation.projectId}`;
@@ -95,14 +97,9 @@ export async function modelMatch() {
         throw new Error("No project id");
       }
 
-      // Note: The findModel function is assumed to be asynchronous.
-      const foundModel = await findModel(
-        projectId,
-        model,
-        unit,
-        date,
-        undefined,
-      );
+      const foundModel = await findModel({
+        event: { projectId, model, unit, startTime: date },
+      });
 
       console.log(
         "Found model: ",
@@ -142,7 +139,7 @@ export async function modelMatch() {
                 },
               },
               data: {
-                internalModel: "none",
+                internalModel: "LANGFUSETMPNOMODEL",
               },
             }),
           );
@@ -176,7 +173,7 @@ export async function modelMatch() {
 
   await prisma.observation.updateMany({
     where: {
-      internalModel: "none",
+      internalModel: "LANGFUSETMPNOMODEL",
     },
     data: {
       internalModel: null,
