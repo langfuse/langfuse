@@ -43,7 +43,7 @@ export const usage = MixedUsage.nullish()
         unit: "TOKENS",
       };
     }
-    // if we get the new generic format, we do not set a defualt
+    // if we get the new generic format, we do not set a default
     if ("input" in v || "output" in v || "total" in v || "unit" in v) {
       const unit = v.unit;
       return { ...v, unit };
