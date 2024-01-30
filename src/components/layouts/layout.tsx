@@ -287,7 +287,10 @@ export default function Layout(props: PropsWithChildren) {
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
           <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7 dark:bg-slate-950 dark:text-white">
-            <LangfuseLogo version size="xl" className="mb-2 px-6" />
+            <div className="flex">
+              <LangfuseLogo version size="xl" className="mb-2 px-6" />
+              <ModeToggle />
+            </div>
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
               <ul role="list" className="flex h-full flex-col gap-y-4">
                 <MainNavigation nav={navigation} />
@@ -369,7 +372,6 @@ export default function Layout(props: PropsWithChildren) {
                   aria-hidden="true"
                 />
               </Menu.Button>
-              <ModeToggle />
               <Transition
                 as={Fragment}
                 enter="transition ease-out duration-100"

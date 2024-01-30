@@ -30,7 +30,7 @@ VALUES
   ('clruwnahl00050al796ck3p44', NULL, 'gpt-4-0125-preview', '(?i)^(gpt-4-0125-preview)$', NULL, 0.00001, 0.00003, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1, "tokenizerModel": "gpt-4" }'),
   ('clruwnahl00060al74fcfehas', NULL, 'gpt-4-turbo-preview', '(?i)^(gpt-4-turbo-preview)$', NULL, 0.00003, 0.00006, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1, "tokenizerModel": "gpt-4" }'),
 
-  -- fix tokenizer for vertx
+  -- fix tokenizer for vertex
   ('clrp1wopz000808l09nwy32xh', NULL, 'codechat-bison-32k', '(?i)^(codechat-bison-32k)$', NULL, 0.0000005, 0.0000025, NULL, 'TOKENS', NULL, NULL),
   ('clrp1wopz000408l05xcycki1', NULL, 'chat-bison-32k', '(?i)^(chat-bison-32k)$', NULL, 0.0000005, 0.0000025, NULL, 'TOKENS', NULL, NULL),
 
