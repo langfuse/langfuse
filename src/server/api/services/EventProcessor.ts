@@ -40,7 +40,7 @@ export async function findModel(p: {
     projectId: string;
     model?: string;
     unit?: string;
-    startTime?: string;
+    startTime?: Date;
   };
   existingDbObservation?: Observation;
 }): Promise<Model | null> {
@@ -160,7 +160,9 @@ export class ObservationProcessor implements EventProcessor {
                 "usage" in this.event.body
                   ? this.event.body.usage?.unit ?? undefined
                   : undefined,
-              startTime: this.event.body.startTime ?? undefined,
+              startTime: this.event.body.startTime
+                ? new Date(this.event.body.startTime)
+                : undefined,
             },
             existingDbObservation: existingObservation ?? undefined,
           })
