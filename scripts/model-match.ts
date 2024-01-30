@@ -5,10 +5,7 @@
 
 import "dotenv/config";
 
-import {
-  ObservationProcessor,
-  findModel,
-} from "@/src/server/api/services/EventProcessor";
+import { findModel } from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@/src/server/db";
 import lodash from "lodash";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
@@ -121,7 +118,7 @@ export async function modelMatch() {
       }
 
       const foundModel = await findModel({
-        event: { projectId, model, unit, startTime: startTime.toISOString() },
+        event: { projectId, model, unit, startTime: startTime },
       });
 
       console.log(
