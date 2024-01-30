@@ -204,7 +204,7 @@ export async function modelMatch() {
             }),
           );
         });
-        console.log(dbPromises.length);
+
         updatedObservations += observationsGroup.length;
       }
     }
