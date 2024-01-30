@@ -79,7 +79,7 @@
     "date-fns": "^3.3.1",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.1",
-    "js-tiktoken": "^1.0.8",
+    "js-tiktoken": "^1.0.10",
     "lodash": "^4.17.21",
     "lucide-react": "^0.316.0",
     "next": "^14.1.0",
