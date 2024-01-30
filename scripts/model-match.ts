@@ -140,6 +140,7 @@ export async function modelMatch() {
         );
 
         for (const observation of observationsWithAllTokensZero) {
+          console.log("Tokenizing observation: ", observation.id);
           const newInputCount = tokenCount({
             model: foundModel,
             text: observation.input,
@@ -215,7 +216,7 @@ export async function modelMatch() {
     totalObservations += updatedObservations;
     // Wait for all update operations to complete
     await Promise.all(updatePromises);
-    console.warn(
+    console.log(
       "Updated observations count: ",
       updatedObservations,
       " in total: ",
