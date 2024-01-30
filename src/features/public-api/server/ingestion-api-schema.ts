@@ -34,6 +34,7 @@ export const usage = MixedUsage.nullish()
     if (!v) {
       return null;
     }
+    // if we get the openai format, we default to TOKENS unit
     if ("promptTokens" in v || "completionTokens" in v || "totalTokens" in v) {
       return {
         input: v.promptTokens,
@@ -42,17 +43,19 @@ export const usage = MixedUsage.nullish()
         unit: "TOKENS",
       };
     }
+    // if we get the new generic format, we do not set a defualt
     if ("input" in v || "output" in v || "total" in v || "unit" in v) {
-      const unit = v.unit ?? "TOKENS";
+      const unit = v.unit;
       return { ...v, unit };
     }
 
+    // if the object is empty, we return undefined
     if (lodash.isEmpty(v)) {
-      return { unit: "TOKENS" };
+      return undefined;
     }
   })
   // ensure output is always of new usage model
-  .pipe(Usage.nullable());
+  .pipe(Usage.nullish());
 
 export const TraceBody = z.object({
   id: z.string().nullish(),
