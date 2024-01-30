@@ -226,7 +226,7 @@ describe("cost retrieval tests", () => {
       });
 
       // calculated cost fields
-      expect(view?.model_id).toBe(input.expectedModelId);
+      expect(view?.modelId).toBe(input.expectedModelId);
       expect(view?.calculatedInputCost?.toString()).toBe(
         input.expectedInputCost,
       );
@@ -298,7 +298,7 @@ describe("cost retrieval tests", () => {
     console.log(view);
 
     // calculated cost fields
-    expect(view?.model_id).toBe("model-2");
+    expect(view?.modelId).toBe("model-2");
     expect(view?.calculatedInputCost?.toString()).toBe("0.0004");
     expect(view?.calculatedOutputCost?.toString()).toBe("0.012");
     expect(view?.calculatedTotalCost?.toString()).toBe("0.0124");
@@ -364,7 +364,7 @@ describe("cost retrieval tests", () => {
     console.log(view);
 
     // calculated cost fields
-    expect(view?.model_id).toBe("model-2");
+    expect(view?.modelId).toBe("model-2");
     expect(view?.calculatedInputCost?.toString()).toBe("0.0004");
     expect(view?.calculatedOutputCost?.toString()).toBe("0.012");
     expect(view?.calculatedTotalCost?.toString()).toBe("0.0124");
@@ -433,7 +433,7 @@ describe("cost retrieval tests", () => {
     console.log(view);
 
     // calculated cost fields
-    expect(view?.model_id).toBe("model-2");
+    expect(view?.modelId).toBe("model-2");
     expect(view?.calculatedInputCost?.toString()).toBe("1");
     expect(view?.calculatedOutputCost?.toString()).toBe("2");
     expect(view?.calculatedTotalCost?.toString()).toBe("3");
