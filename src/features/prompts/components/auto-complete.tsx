@@ -23,6 +23,7 @@ type AutoCompleteProps = {
   onValueChange?: (value: AutoCompleteOption) => void;
   disabled?: boolean;
   placeholder?: string;
+  createLabel: string;
 };
 
 export const AutoComplete = ({
@@ -31,6 +32,7 @@ export const AutoComplete = ({
   value,
   onValueChange,
   disabled,
+  createLabel,
 }: AutoCompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setOpen] = useState(false);
@@ -138,6 +140,7 @@ export const AutoComplete = ({
                 onSelect={() =>
                   handleSelectOption({ value: inputValue, label: inputValue })
                 }
+                createLabel={createLabel}
                 {...{ inputValue, options }}
               />
             </CommandList>
@@ -151,11 +154,13 @@ export const AutoComplete = ({
 const CommandItemCreate = ({
   inputValue,
   options,
+  createLabel,
   onSelect,
   onMouseDown,
 }: {
   inputValue: string;
   options: AutoCompleteOption[];
+  createLabel: string;
   onSelect: () => void;
   onMouseDown: (event: React.MouseEvent<HTMLElement>) => void;
 }) => {
@@ -176,7 +181,7 @@ const CommandItemCreate = ({
       onMouseDown={onMouseDown}
     >
       <div className={cn("m-2 h-4 w-4")} />
-      Create new prompt name: &quot;{inputValue}&quot;
+      {createLabel}: &quot;{inputValue}&quot;
     </CommandItem>
   );
 };
