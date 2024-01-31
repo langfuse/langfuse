@@ -104,7 +104,7 @@
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
-    "@mermaid-js/mermaid-cli": "^10.6.1",
+    "@mermaid-js/mermaid-cli": "^10.7.0",
     "@playwright/test": "^1.41.1",
     "@release-it/bumper": "^6.0.1",
     "@testing-library/jest-dom": "^6.2.1",
