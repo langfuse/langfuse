@@ -1,5 +1,4 @@
 import React from "react";
-import { cn } from "@/src/utils/tailwind";
 import { CommandItem } from "cmdk";
 
 type TagItemCreateProps = {
@@ -25,10 +24,9 @@ const TagItemCreate = ({
     <CommandItem
       key={inputValue}
       value={inputValue}
-      className="flex cursor-pointer items-center rounded-sm px-1 py-2 text-muted-foreground hover:bg-secondary/80"
+      className="flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/80"
       onSelect={onSelect}
     >
-      <div className={cn("mr-2 h-4 w-4")} />
       Create new tag: &quot;{inputValue}&quot;
     </CommandItem>
   );

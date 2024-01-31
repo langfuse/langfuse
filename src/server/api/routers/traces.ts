@@ -5,9 +5,7 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Observation, Prisma, type Trace } from "@prisma/client";
-import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
-import Decimal from "decimal.js";
+import { Prisma, type Trace, type ObservationView } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -24,6 +22,7 @@ import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { type Sql } from "@prisma/client/runtime/library";
 import { instrumentAsync } from "@/src/utils/instrumentation";
+import type Decimal from "decimal.js";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -33,9 +32,12 @@ const TraceFilterOptions = z.object({
   ...paginationZod,
 });
 
-export type ObservationReturnType = Omit<Observation, "input" | "output"> & {
+export type ObservationReturnType = Omit<
+  ObservationView,
+  "input" | "output"
+> & {
   traceId: string;
-} & { price?: Decimal };
+};
 
 export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -81,7 +83,10 @@ export const traceRouter = createTRPCRouter({
           COALESCE(u."promptTokens", 0)::int AS "promptTokens",
           COALESCE(u."completionTokens", 0)::int AS "completionTokens",
           COALESCE(u."totalTokens", 0)::int AS "totalTokens",
-          tl.latency AS "latency"`,
+          tl.latency AS "latency",
+          COALESCE(u."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost"
+          `,
+
         input.projectId,
         observationTimeseriesFilter,
         input.page,
@@ -102,6 +107,7 @@ export const traceRouter = createTRPCRouter({
                 totalTokens: number;
                 totalCount: number;
                 latency: number | null;
+                calculatedTotalCost: Decimal | null;
               }
             >
           >(tracesQuery),
@@ -118,11 +124,8 @@ export const traceRouter = createTRPCRouter({
         Prisma.empty,
       );
 
-      const totalTraces = await instrumentAsync(
-        { name: "get-total-traces" },
-        async () =>
-          await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery),
-      );
+      const totalTraces =
+        await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery);
 
       // get scores for each trace individually to increase
       // performance of the query above
@@ -204,7 +207,7 @@ export const traceRouter = createTRPCRouter({
           scores: true,
         },
       });
-      const observations = await ctx.prisma.observation.findMany({
+      const observations = await ctx.prisma.observationView.findMany({
         where: {
           traceId: {
             equals: input.traceId,
@@ -212,7 +215,6 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-      const pricings = await ctx.prisma.pricing.findMany();
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -232,28 +234,14 @@ export const traceRouter = createTRPCRouter({
               : undefined
           : undefined;
 
-      const enrichedObservations = observations.map(
-        ({ input, output, ...rest }) => {
-          return {
-            ...rest,
-            price: rest.model
-              ? calculateTokenCost(pricings, {
-                  model: rest.model,
-                  totalTokens: new Decimal(rest.totalTokens),
-                  promptTokens: new Decimal(rest.promptTokens),
-                  completionTokens: new Decimal(rest.completionTokens),
-                  input: input,
-                  output: output,
-                })
-              : undefined,
-          };
-        },
-      );
-
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        observations: enrichedObservations as ObservationReturnType[],
+        observations: observations.map(
+          ({ input: _input, output: _output, ...rest }) => {
+            return { ...rest };
+          },
+        ) as ObservationReturnType[],
       };
     }),
   deleteMany: protectedProjectProcedure
@@ -422,9 +410,10 @@ function createTracesQuery(
       trace_id,
       sum(prompt_tokens) AS "promptTokens",
       sum(completion_tokens) AS "completionTokens",
-      sum(total_tokens) AS "totalTokens"
+      sum(total_tokens) AS "totalTokens",
+      sum(calculated_total_cost) AS "calculatedTotalCost"
     FROM
-      "observations"
+      "observations_view"
     WHERE
       "trace_id" IS NOT NULL
       AND "type" = 'GENERATION'

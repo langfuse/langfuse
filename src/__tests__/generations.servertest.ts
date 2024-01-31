@@ -34,7 +34,7 @@ describe("/api/public/generations API Endpoint", () => {
       usage: {
         total: 100,
       },
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
@@ -64,21 +64,21 @@ describe("/api/public/generations API Endpoint", () => {
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: {},
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
   ].forEach((testConfig) => {
     it(`should create generation after trace 1 ${JSON.stringify(

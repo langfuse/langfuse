@@ -97,9 +97,11 @@ export const ObservationPreview = (props: {
             {preloadedObservation.model ? (
               <Badge variant="outline">{preloadedObservation.model}</Badge>
             ) : null}
-            {preloadedObservation.price ? (
+            {preloadedObservation.calculatedTotalCost ? (
               <Badge variant="outline">
-                {usdFormatter(preloadedObservation.price.toNumber())}
+                {usdFormatter(
+                  preloadedObservation.calculatedTotalCost.toNumber(),
+                )}
               </Badge>
             ) : undefined}
 
@@ -200,14 +202,15 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
     projectId: props.projectId,
   });
 
-  if (prompt.isLoading) return null;
-
+  if (prompt.isLoading || !prompt.data) return null;
   return (
-    <Link href={`/project/${props.projectId}/prompts/${props.promptId}`}>
+    <Link
+      href={`/project/${props.projectId}/prompts/${prompt.data.name}?version=${prompt.data.version}`}
+    >
       <Badge>
-        Prompt: {prompt.data?.name}
-        {" - "}
-        {prompt.data?.version}
+        Prompt: {prompt.data.name}
+        {" - v"}
+        {prompt.data.version}
       </Badge>
     </Link>
   );

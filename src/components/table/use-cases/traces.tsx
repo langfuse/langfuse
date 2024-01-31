@@ -29,6 +29,8 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import type Decimal from "decimal.js";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -50,6 +52,7 @@ export type TracesTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
+  cost?: Decimal;
 };
 
 export type TracesTableProps = {
@@ -159,6 +162,7 @@ export default function TracesTable({
         completionTokens: trace.completionTokens,
         totalTokens: trace.totalTokens,
       },
+      cost: trace.calculatedTotalCost ?? undefined,
     };
   };
 
@@ -247,7 +251,7 @@ export default function TracesTable({
         const value = row.getValue("userId");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/users/${value}`}
+            path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
             value={value}
             truncateAt={40}
           />
@@ -264,7 +268,7 @@ export default function TracesTable({
         const value = row.getValue("sessionId");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/sessions/${value}`}
+            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
             truncateAt={40}
           />
@@ -304,6 +308,25 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
+    },
+    {
+      accessorKey: "cost",
+      id: "cost",
+      header: "Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("cost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>Not Available</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "scores",
