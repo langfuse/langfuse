@@ -171,7 +171,7 @@ export const NewModelForm = (props: {
                   onValueChange={(option) => field.onChange(option.value)}
                   value={{ value: field.value, label: field.value }}
                   disabled={false}
-                  type="model"
+                  createLabel="Create a new model name"
                 />
               </FormControl>
               <FormDescription>

@@ -191,7 +191,7 @@ export const NewPromptForm = (props: {
                       onValueChange={setNameValue}
                       value={{ value: field.value, label: field.value }}
                       disabled={false}
-                      type="prompt"
+                      createLabel="Create a new prompt name"
                     />
                   </FormControl>
                   <FormMessage />
