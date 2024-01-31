@@ -1,6 +1,6 @@
 {
   "name": "langfuse-core",
-  "version": "1.34.1",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
@@ -119,7 +119,7 @@
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/eslint-plugin": "^6.20.0",
     "@typescript-eslint/parser": "^6.19.1",
     "autoprefixer": "^10.4.17",
     "dotenv-cli": "^7.3.0",

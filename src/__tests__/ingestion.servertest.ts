@@ -38,7 +38,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       usage: {
         total: 100,
       },
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
@@ -68,21 +68,21 @@ describe("/api/public/ingestion API Endpoint", () => {
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: {},
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
