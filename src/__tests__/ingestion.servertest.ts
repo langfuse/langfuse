@@ -363,9 +363,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       models: [
         {
           modelName: "ft:gpt-3.5-turbo-1106",
-          // Note that using double backslashes here is important, otherwise the linter will remove single backslash
-          matchPattern:
-            "(?i)^(ft:)(gpt-3.5-turbo-1106:)([\\w-]+)(:)([\\w-]*)(:)([\\w-]+)$",
+          matchPattern: "(?i)^(ft:)(gpt-3.5-turbo-1106:)(.+)(:)(.*)(:)(.+)$",
           startDate: new Date("2022-01-01T00:00:00.000Z"),
           unit: "TOKENS",
           tokenizerId: "openai",
@@ -373,7 +371,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     },
     {
-      observationExternalModel: "ft:babbage-002:my-org:custom_suffix:id",
+      observationExternalModel: "ft:babbage-002:my-org#2:custom_suffix-2:id",
       observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
       modelUnit: "TOKENS",
       expectedInternalModel: "ft:babbage-002",
@@ -382,9 +380,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       models: [
         {
           modelName: "ft:babbage-002",
-          matchPattern:
-            // Note that using double backslashes here is important, otherwise the linter will remove single backslash
-            "(?i)^(ft:)(babbage-002:)([\\w-]+)(:)([\\w-]*)(:)([\\w-]+)$",
+          matchPattern: "(?i)^(ft:)(babbage-002:)(.+)(:)(.*)(:)(.+)$",
           startDate: new Date("2022-01-01T00:00:00.000Z"),
           unit: "TOKENS",
           tokenizerId: "openai",
