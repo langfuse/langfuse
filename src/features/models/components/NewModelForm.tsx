@@ -24,8 +24,8 @@ import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
 import { DatePicker } from "@/src/components/date-picker";
 import Header from "@/src/components/layouts/header";
-import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import JsonView from "react18-json-view";
+import { AutoComplete } from "@/src/components/auto-complete";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
@@ -171,6 +171,7 @@ export const NewModelForm = (props: {
                   onValueChange={(option) => field.onChange(option.value)}
                   value={{ value: field.value, label: field.value }}
                   disabled={false}
+                  createLabel="Create a new model name"
                 />
               </FormControl>
               <FormDescription>

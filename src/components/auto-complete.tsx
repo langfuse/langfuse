@@ -23,6 +23,7 @@ type AutoCompleteProps = {
   onValueChange?: (value: AutoCompleteOption) => void;
   disabled?: boolean;
   placeholder?: string;
+  createLabel: string;
 };
 
 export const AutoComplete = ({
@@ -31,6 +32,7 @@ export const AutoComplete = ({
   value,
   onValueChange,
   disabled,
+  createLabel,
 }: AutoCompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setOpen] = useState(false);
@@ -142,6 +144,7 @@ export const AutoComplete = ({
                     label: inputValue.toLowerCase(),
                   })
                 }
+                createLabel={createLabel}
                 {...{ inputValue, options }}
               />
             </CommandList>
@@ -155,11 +158,13 @@ export const AutoComplete = ({
 const CommandItemCreate = ({
   inputValue,
   options,
+  createLabel,
   onSelect,
   onMouseDown,
 }: {
   inputValue: string;
   options: AutoCompleteOption[];
+  createLabel: string;
   onSelect: () => void;
   onMouseDown: (event: React.MouseEvent<HTMLElement>) => void;
 }) => {
@@ -179,8 +184,8 @@ const CommandItemCreate = ({
       onSelect={onSelect}
       onMouseDown={onMouseDown}
     >
-      <div className="m-2 h-4 w-4" />
-      Create: &quot;{inputValue.toLowerCase()}&quot;
+      <div className={cn("m-2 h-4 w-4")} />
+      {createLabel}: &quot;{inputValue}&quot;
     </CommandItem>
   );
 };

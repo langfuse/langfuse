@@ -507,11 +507,7 @@ async function main() {
                   ? { prompt: { connect: { id: prompt.id } } }
                   : {}),
               },
-              unit: model
-                ? model.includes("claude")
-                  ? "CHARACTERS"
-                  : "TOKENS"
-                : undefined,
+              unit: "TOKENS",
             },
           });
           if (Math.random() > 0.6)

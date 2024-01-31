@@ -25,7 +25,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Award, LockIcon, Plus, Trash } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
-import { AutoComplete, type Option } from "@/src/components/auto-complete";
+import { AutoComplete } from "@/src/components/auto-complete";
 import { Textarea } from "@/src/components/ui/textarea";
 
 const formSchema = z.object({
@@ -213,11 +213,12 @@ export function ExpertScoreButton({
                               ) ?? []),
                             ]}
                             placeholder="Score name"
-                            onValueChange={(value: Option) => {
+                            onValueChange={(value) => {
                               field.onChange(value.value);
                             }}
                             value={{ value: field.value, label: field.value }}
                             disabled={false}
+                            createLabel="Create a new score"
                           />
                         </FormControl>
                         <FormMessage />
