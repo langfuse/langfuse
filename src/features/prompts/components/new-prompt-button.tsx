@@ -191,6 +191,7 @@ export const NewPromptForm = (props: {
                       onValueChange={setNameValue}
                       value={{ value: field.value, label: field.value }}
                       disabled={false}
+                      type="prompt"
                     />
                   </FormControl>
                   <FormMessage />
