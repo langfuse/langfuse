@@ -292,22 +292,23 @@ function FilterBuilderForm({
                   ) : filter.type === "number" ||
                     filter.type === "numberObject" ? (
                     <Input
-                      value={filter.value?.toString() ?? ""}
+                      value={filter.value?.toString().replaceAll(",", ".") ?? ""}
                       type="number"
                       step="0.01"
-                      onChange={(e) =>
+                      lang="en_EN"
+                      onChange={(e) => {
+                        const { value } = e.target;
                         handleFilterChange(
                           {
                             ...filter,
                             value:
-                              isNaN(Number(e.target.value)) ||
-                              e.target.value.endsWith(".")
-                                ? e.target.value
-                                : Number(e.target.value),
+                              isNaN(Number(value)) || /^[.0]+$/.test(value)
+                                ? value
+                                : Number(value),
                           },
                           i,
-                        )
-                      }
+                        );
+                      }}
                     />
                   ) : filter.type === "datetime" ? (
                     <DatePicker
