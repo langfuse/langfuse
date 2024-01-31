@@ -234,10 +234,10 @@ model Observation {
     promptTokens        Int               @default(0) @map("prompt_tokens")
     completionTokens    Int               @default(0) @map("completion_tokens")
     totalTokens         Int               @default(0) @map("total_tokens")
+    unit                String?
     inputCost           Decimal?          @map("input_cost")
     outputCost          Decimal?          @map("output_cost")
     totalCost           Decimal?          @map("total_cost")
-    unit                String            @default("TOKENS")
     completionStartTime DateTime?         @map("completion_start_time")
     scores              Score[]
     project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -440,7 +440,7 @@ model Model {
     inputPrice      Decimal?  @map("input_price")
     outputPrice     Decimal?  @map("output_price")
     totalPrice      Decimal?  @map("total_price")
-    unit            String    @default("TOKENS")
+    unit            String // TOKENS or CHARACTERS
     tokenizerId     String?   @map("tokenizer_id")
     tokenizerConfig Json?     @map("tokenizer_config")
 
@@ -449,7 +449,7 @@ model Model {
     @@map("models")
 }
 
-// This view is a mix of the obsevation and model. Once prisma supports
+// This view is a mix of the observation and model. Once prisma supports
 // inheritance, we should remove code duplication here.
 view ObservationView {
     id                  String           @id @default(cuid())
@@ -474,7 +474,7 @@ view ObservationView {
     promptTokens        Int       @default(0) @map("prompt_tokens")
     completionTokens    Int       @default(0) @map("completion_tokens")
     totalTokens         Int       @default(0) @map("total_tokens")
-    unit                String    @default("TOKENS")
+    unit                String?
     completionStartTime DateTime? @map("completion_start_time")
 
     promptId String? @map("prompt_id")
