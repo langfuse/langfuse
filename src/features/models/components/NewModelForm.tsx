@@ -191,8 +191,8 @@ export const NewModelForm = (props: {
               <FormDescription>
                 Enter a POSIX regular expression to match the model on
                 generations. If you need an exact, case-insensitive match, use
-                (?i)^yourmodel$, substituting 'yourmodel' with the specific name
-                of your internal model.
+                (?i)^yourmodel$, substituting &apos;yourmodel&apos; with the
+                specific name of your internal model.
               </FormDescription>
               <FormMessage />
             </FormItem>
