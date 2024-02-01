@@ -29,12 +29,7 @@ import JsonView from "react18-json-view";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
-  exactMatchPattern: z
-    .string()
-    .regex(
-      /^[a-zA-Z0-9_.-]+$/,
-      "Match pattern must be alphanumeric and may contain _.-",
-    ), // risk of invalid regex injection that would break the db join,
+  exactMatchPattern: z.string(),
   startDate: z.date().optional(),
   inputPrice: z
     .string()
