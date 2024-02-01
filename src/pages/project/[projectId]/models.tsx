@@ -23,9 +23,11 @@ export default function ModelsPage() {
         }}
         actionButtons={
           <Button disabled={!hasWriteAccess} asChild>
-            <Link href={`/project/${projectId}/models/new`}>
+            <Link
+              href={hasWriteAccess ? `/project/${projectId}/models/new` : "#"}
+            >
               {!hasWriteAccess && <Lock size={16} className="mr-2" />}
-              Add model definition{" "}
+              Add model definition
             </Link>
           </Button>
         }
