@@ -7,11 +7,11 @@ import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 
 const cspHeader = `
-    default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline';
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data:;
-    font-src 'self';
+    default-src 'self' https://ph.langfuse.com https://*.posthog.com wss://client.relay.crisp.chat https://client.crisp.chat;
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://client.crisp.chat;
+    style-src 'self' 'unsafe-inline' https://client.crisp.chat;
+    img-src 'self' https://*.crisp.chat blob: data:;
+    font-src 'self' https://client.crisp.chat;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
@@ -47,7 +47,7 @@ const nextConfig = {
         ],
       },
       {
-        source: '/(.*)',
+        source: '/:path((?!api).*)*',
         headers: [
           {
             key: 'Content-Security-Policy',
