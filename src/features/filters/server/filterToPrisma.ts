@@ -58,7 +58,7 @@ export function filterToPrismaSql(
         break;
       case "number":
       case "numberObject":
-        valuePrisma = Prisma.sql`${filter.value.toFixed(6)}::DOUBLE PRECISION`;
+        valuePrisma = Prisma.sql`${filter.value.toString()}::DOUBLE PRECISION`;
         break;
       case "string":
       case "stringObject":
