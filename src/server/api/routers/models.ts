@@ -6,6 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Prisma } from "@prisma/client";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
@@ -39,9 +40,6 @@ export const modelRouter = createTRPCRouter({
           OR: [{ projectId: input.projectId }, { projectId: null }],
         },
       });
-
-      console.log("models", models);
-
       return {
         models,
         totalCount: totalAmount,
@@ -90,12 +88,7 @@ export const modelRouter = createTRPCRouter({
         .object({
           projectId: z.string(),
           modelName: z.string(),
-          exactMatchPattern: z
-            .string()
-            .regex(
-              /^[a-zA-Z0-9_.-]+$/,
-              "Match pattern must be alphanumeric and may contain _.-",
-            ), // risk of invalid regex injection that would break the db join
+          exactMatchPattern: z.string(),
           startDate: z.date().optional(),
           inputPrice: z.number().positive().optional(),
           outputPrice: z.number().positive().optional(),
@@ -121,6 +114,22 @@ export const modelRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "models:CUD",
       });
+      try {
+        // Todo: find a better way to sanitize the regex
+        const safePattern: string = input.exactMatchPattern.replace(
+          /\\/g,
+          "\\\\",
+        );
+        const safePattern2 = "(?i)^(" + safePattern + ")$";
+        const isValid = await ctx.prisma.$queryRaw<
+          Array<Record<string, boolean>>
+        >(Prisma.sql`SELECT ${input.modelName} ~ ${safePattern2}`);
+        if (isValid[0] && isValid[0]["?column?"] === false) {
+          throw new Error("Invalid match pattern");
+        }
+      } catch (error) {
+        throw new Error("Invalid regex");
+      }
       return ctx.prisma.model.create({
         data: {
           projectId: input.projectId,
