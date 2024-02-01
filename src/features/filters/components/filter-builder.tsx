@@ -292,17 +292,17 @@ function FilterBuilderForm({
                   ) : filter.type === "number" ||
                     filter.type === "numberObject" ? (
                     <Input
-                      value={filter.value?.toString().replaceAll(",", ".") ?? ""}
+                      value={filter.value?.toString() ?? ""}
                       type="number"
                       step="0.01"
-                      lang="en_EN"
+                      lang="en"
                       onChange={(e) => {
                         const { value } = e.target;
                         handleFilterChange(
                           {
                             ...filter,
                             value:
-                              isNaN(Number(value)) || /^[.0]+$/.test(value)
+                              isNaN(Number(value)) || /^\d+\.0*$/.test(value)
                                 ? value
                                 : Number(value),
                           },
