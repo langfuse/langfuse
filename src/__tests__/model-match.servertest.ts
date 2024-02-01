@@ -2,6 +2,7 @@
 
 import { modelMatch } from "@/scripts/model-match";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
+import { findModel } from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@/src/server/db";
 
 describe("model match", () => {
@@ -92,4 +93,26 @@ describe("model match", () => {
       expect(observation.completionTokens).toBeGreaterThan(0);
     });
   });
+
+  it("should prevent ReDos attacks and finish within 100ms", async () => {
+    await prisma.model.create({
+      data: {
+        id: "model-1",
+        modelName: "redos",
+        inputPrice: "0.0000010",
+        outputPrice: "0.0000020",
+        totalPrice: "0.1",
+        matchPattern: "(a+)+$", // problematic regex
+        projectId: null,
+        unit: "TOKENS",
+      },
+    });
+
+    await findModel({
+      event: {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        model: "a".repeat(1e8) + "!", // very long string
+      },
+    });
+  }, 100);
 });
