@@ -7,6 +7,7 @@ import {
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Prisma } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
@@ -115,26 +116,20 @@ export const modelRouter = createTRPCRouter({
         scope: "models:CUD",
       });
       try {
-        // Todo: find a better way to sanitize the regex
-        const safePattern: string = input.exactMatchPattern.replace(
-          /\\/g,
-          "\\\\",
+        await ctx.prisma.$queryRaw<Array<Record<string, boolean>>>(
+          Prisma.sql`SELECT 'fakestring' ~ ${input.exactMatchPattern}`,
         );
-        const safePattern2 = "(?i)^(" + safePattern + ")$";
-        const isValid = await ctx.prisma.$queryRaw<
-          Array<Record<string, boolean>>
-        >(Prisma.sql`SELECT ${input.modelName} ~ ${safePattern2}`);
-        if (isValid[0] && isValid[0]["?column?"] === false) {
-          throw new Error("Invalid match pattern");
-        }
       } catch (error) {
-        throw new Error("Invalid regex");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid regex",
+        });
       }
       return ctx.prisma.model.create({
         data: {
           projectId: input.projectId,
           modelName: input.modelName,
-          matchPattern: `(?i)^(${input.exactMatchPattern})$`,
+          matchPattern: input.exactMatchPattern,
           startDate: input.startDate,
           inputPrice: input.inputPrice,
           outputPrice: input.outputPrice,
