@@ -94,7 +94,8 @@ describe("model match", () => {
     });
   });
 
-  it("should prevent ReDos attacks and finish within 100ms", async () => {
+  it("should prevent ReDos attacks by timing out on complex model matches", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
     await prisma.model.create({
       data: {
         id: "model-1",
@@ -114,5 +115,11 @@ describe("model match", () => {
         model: "a".repeat(1e8) + "!", // very long string
       },
     });
-  }, 100);
+
+    expect(console.error).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("Error finding model"),
+      expect.stringContaining("canceling statement due to statement timeout"),
+    );
+  });
 });
