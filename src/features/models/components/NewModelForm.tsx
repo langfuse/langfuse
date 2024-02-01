@@ -29,7 +29,7 @@ import JsonView from "react18-json-view";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
-  exactMatchPattern: z.string(),
+  matchPattern: z.string(),
   startDate: z.date().optional(),
   inputPrice: z
     .string()
@@ -76,7 +76,7 @@ export const NewModelForm = (props: {
     resolver: zodResolver(formSchema),
     defaultValues: {
       modelName: "",
-      exactMatchPattern: "",
+      matchPattern: "",
       startDate: undefined,
       inputPrice: "",
       outputPrice: "",
@@ -103,7 +103,7 @@ export const NewModelForm = (props: {
       .mutateAsync({
         projectId: props.projectId,
         modelName: values.modelName,
-        exactMatchPattern: values.exactMatchPattern,
+        matchPattern: values.matchPattern,
         inputPrice: !!values.inputPrice
           ? parseFloat(values.inputPrice)
           : undefined,
@@ -181,7 +181,7 @@ export const NewModelForm = (props: {
         <Header level="h3" title="Scope" />
         <FormField
           control={form.control}
-          name="exactMatchPattern"
+          name="matchPattern"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Match pattern</FormLabel>
@@ -189,10 +189,9 @@ export const NewModelForm = (props: {
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                Enter a POSIX regular expression to match the model on
-                generations. If you need an exact, case-insensitive match, use
-                (?i)^yourmodel$, substituting &apos;yourmodel&apos; with the
-                specific name of your internal model.
+                Regular expression (POSIX) to match ingested generations (model
+                attribute) to this model definition. If you need an exact,
+                case-insensitive match, use: (?i)^modelname$
               </FormDescription>
               <FormMessage />
             </FormItem>

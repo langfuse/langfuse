@@ -89,7 +89,7 @@ export const modelRouter = createTRPCRouter({
         .object({
           projectId: z.string(),
           modelName: z.string(),
-          exactMatchPattern: z.string(),
+          matchPattern: z.string(),
           startDate: z.date().optional(),
           inputPrice: z.number().positive().optional(),
           outputPrice: z.number().positive().optional(),
@@ -115,21 +115,25 @@ export const modelRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "models:CUD",
       });
+
+      // Check if regex is valid POSIX regex
+      // Use DB to check, because JS regex is not POSIX compliant
       try {
         await ctx.prisma.$queryRaw(
-          Prisma.sql`SELECT 'fakestring' ~ ${input.exactMatchPattern}`,
+          Prisma.sql`SELECT 'test_string' ~ ${input.matchPattern}`,
         );
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Invalid regex",
+          message: "Invalid regex, needs to be POSIX compliant",
         });
       }
+
       return ctx.prisma.model.create({
         data: {
           projectId: input.projectId,
           modelName: input.modelName,
-          matchPattern: input.exactMatchPattern,
+          matchPattern: input.matchPattern,
           startDate: input.startDate,
           inputPrice: input.inputPrice,
           outputPrice: input.outputPrice,
