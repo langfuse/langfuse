@@ -22,7 +22,7 @@ import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { usdFormatter } from "@/src/utils/numbers";
-import type Decimal from "decimal.js";
+import Decimal from "decimal.js";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -134,16 +134,8 @@ export function TracePage({ traceId }: { traceId: string }) {
   const filterOptionTags = traceFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
 
-  const totalCost: Decimal | undefined = trace.data?.observations.reduce(
-    (prev: Decimal | undefined, curr: ObservationReturnType) => {
-      if (!curr.calculatedTotalCost) return prev;
+  const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
 
-      return prev
-        ? prev.plus(curr.calculatedTotalCost)
-        : curr.calculatedTotalCost;
-    },
-    undefined,
-  );
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
   return (
@@ -232,3 +224,42 @@ export function TracePage({ traceId }: { traceId: string }) {
     </div>
   );
 }
+
+export const calculateDisplayTotalCost = (
+  observations: ObservationReturnType[],
+) => {
+  return observations.reduce(
+    (prev: Decimal | undefined, curr: ObservationReturnType) => {
+      // if we don't have any calculated costs, we can't do anything
+      if (
+        !curr.calculatedTotalCost &&
+        !curr.calculatedInputCost &&
+        !curr.calculatedOutputCost
+      )
+        return prev;
+
+      // if we have either input or output cost, but not total cost, we can use that
+      if (
+        !curr.calculatedTotalCost &&
+        (curr.calculatedInputCost || curr.calculatedOutputCost)
+      ) {
+        return prev
+          ? prev.plus(
+              curr.calculatedInputCost ??
+                new Decimal(0).plus(
+                  curr.calculatedOutputCost ?? new Decimal(0),
+                ),
+            )
+          : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
+      }
+
+      if (!curr.calculatedTotalCost) return prev;
+
+      // if we have total cost, we can use that
+      return prev
+        ? prev.plus(curr.calculatedTotalCost)
+        : curr.calculatedTotalCost;
+    },
+    undefined,
+  );
+};

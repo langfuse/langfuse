@@ -24,6 +24,7 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
 import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
+import { calculateDisplayTotalCost } from "@/src/components/trace";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -39,6 +40,10 @@ export const ObservationPreview = (props: {
 
   const preloadedObservation = props.observations.find(
     (o) => o.id === props.currentObservationId,
+  );
+
+  const totalCost = calculateDisplayTotalCost(
+    preloadedObservation ? [preloadedObservation] : [],
   );
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
@@ -97,11 +102,9 @@ export const ObservationPreview = (props: {
             {preloadedObservation.model ? (
               <Badge variant="outline">{preloadedObservation.model}</Badge>
             ) : null}
-            {preloadedObservation.calculatedTotalCost ? (
+            {totalCost ? (
               <Badge variant="outline">
-                {usdFormatter(
-                  preloadedObservation.calculatedTotalCost.toNumber(),
-                )}
+                {usdFormatter(totalCost.toNumber())}
               </Badge>
             ) : undefined}
 
