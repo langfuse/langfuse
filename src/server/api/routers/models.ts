@@ -116,7 +116,7 @@ export const modelRouter = createTRPCRouter({
         scope: "models:CUD",
       });
       try {
-        await ctx.prisma.$queryRaw<Array<Record<string, boolean>>>(
+        await ctx.prisma.$queryRaw(
           Prisma.sql`SELECT 'fakestring' ~ ${input.exactMatchPattern}`,
         );
       } catch (error) {
