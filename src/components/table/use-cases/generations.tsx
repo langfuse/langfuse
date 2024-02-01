@@ -125,6 +125,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         fileFormat,
         filter: filterState,
         searchQuery,
+        orderBy: orderByState,
       });
 
       let url: string;
