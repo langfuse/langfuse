@@ -91,9 +91,18 @@ export async function findModel(p: {
     LIMIT 1
   `;
 
-  const foundModels = await prisma.$queryRaw<Array<Model>>(sql);
-
-  return foundModels[0] ?? null;
+  try {
+    const foundModels = (
+      await prisma.$transaction([
+        prisma.$executeRaw`SET LOCAL statement_timeout to 1`, // in ms
+        prisma.$queryRaw<Array<Model>>(sql),
+      ])
+    )[1];
+    return foundModels[0] ?? null;
+  } catch (e) {
+    console.error("Error finding model", e);
+    return null;
+  }
 }
 
 type ObservationEvent =
