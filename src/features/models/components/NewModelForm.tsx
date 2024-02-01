@@ -29,12 +29,7 @@ import JsonView from "react18-json-view";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
-  exactMatchPattern: z
-    .string()
-    .regex(
-      /^[a-zA-Z0-9_.-]+$/,
-      "Match pattern must be alphanumeric and may contain _.-",
-    ), // risk of invalid regex injection that would break the db join,
+  matchPattern: z.string(),
   startDate: z.date().optional(),
   inputPrice: z
     .string()
@@ -81,7 +76,7 @@ export const NewModelForm = (props: {
     resolver: zodResolver(formSchema),
     defaultValues: {
       modelName: "",
-      exactMatchPattern: "",
+      matchPattern: "",
       startDate: undefined,
       inputPrice: "",
       outputPrice: "",
@@ -108,7 +103,7 @@ export const NewModelForm = (props: {
       .mutateAsync({
         projectId: props.projectId,
         modelName: values.modelName,
-        exactMatchPattern: values.exactMatchPattern,
+        matchPattern: values.matchPattern,
         inputPrice: !!values.inputPrice
           ? parseFloat(values.inputPrice)
           : undefined,
@@ -171,6 +166,7 @@ export const NewModelForm = (props: {
                   onValueChange={(option) => field.onChange(option.value)}
                   value={{ value: field.value, label: field.value }}
                   disabled={false}
+                  createLabel="Create a new model name"
                 />
               </FormControl>
               <FormDescription>
@@ -185,7 +181,7 @@ export const NewModelForm = (props: {
         <Header level="h3" title="Scope" />
         <FormField
           control={form.control}
-          name="exactMatchPattern"
+          name="matchPattern"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Match pattern</FormLabel>
@@ -193,8 +189,10 @@ export const NewModelForm = (props: {
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                `model` on generations that should match this model,
-                case-insensitive.
+                Regular expression (POSIX) to match ingested generations (model
+                attribute) to this model definition. For an exact,
+                case-insensitive match to a model name, use the expression:
+                (~*)^modelname$
               </FormDescription>
               <FormMessage />
             </FormItem>

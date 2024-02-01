@@ -354,6 +354,40 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     },
     {
+      observationExternalModel: "ft:gpt-3.5-turbo-1106:my-org:custom_suffix:id",
+      observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "ft:gpt-3.5-turbo-1106",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      models: [
+        {
+          modelName: "ft:gpt-3.5-turbo-1106",
+          matchPattern: "(?i)^(ft:)(gpt-3.5-turbo-1106:)(.+)(:)(.*)(:)(.+)$",
+          startDate: new Date("2022-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "ft:babbage-002:my-org#2:custom_suffix-2:id",
+      observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "ft:babbage-002",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      models: [
+        {
+          modelName: "ft:babbage-002",
+          matchPattern: "(?i)^(ft:)(babbage-002:)(.+)(:)(.*)(:)(.+)$",
+          startDate: new Date("2022-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
       observationExternalModel: "GPT-4",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: "TOKENS",

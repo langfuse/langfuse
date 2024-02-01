@@ -19,7 +19,7 @@ export default function ModelsPage() {
         help={{
           description:
             "A model represents a LLM model. It is used to calculate tokens and cost.",
-          href: "https://langfuse.com/docs/token-usage",
+          href: "https://langfuse.com/docs/model-usage-and-cost",
         }}
         actionButtons={
           <Button disabled={!hasWriteAccess} asChild>
