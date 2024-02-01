@@ -243,7 +243,7 @@ export const calculateDisplayTotalCost = (
         !curr.calculatedTotalCost &&
         (curr.calculatedInputCost || curr.calculatedOutputCost)
       ) {
-        const a = prev
+        return prev
           ? prev.plus(
               curr.calculatedInputCost ??
                 new Decimal(0).plus(
@@ -251,7 +251,6 @@ export const calculateDisplayTotalCost = (
                 ),
             )
           : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
-        return a;
       }
 
       if (!curr.calculatedTotalCost) return prev;
