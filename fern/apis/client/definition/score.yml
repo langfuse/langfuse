@@ -17,6 +17,7 @@ types:
       id: optional<string>
       traceId: string
       name: string
+      type: optional<ScoreType>
       value: double
       observationId: optional<string>
       comment: optional<string>
@@ -25,7 +26,14 @@ types:
       id: string
       traceId: string
       name: string
+      type: ScoreType
       value: double
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
+  ScoreType:
+    enum:
+      - USER
+      - EXPERT
+      - EVAL
+      - DEFAULT

@@ -6,7 +6,7 @@ import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
+import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
@@ -120,15 +120,15 @@ export const SessionPage: React.FC<{
                 {trace.timestamp.toLocaleString()}
               </div>
               <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
-              <div className="flex flex-wrap content-start items-start gap-1">
+              <div className="group/scores flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
+                <ExpertScoreButton
+                  projectId={projectId}
+                  traceId={trace.id}
+                  scores={trace.scores}
+                  variant="badge"
+                />
               </div>
-              <ManualScoreButton
-                projectId={projectId}
-                traceId={trace.id}
-                scores={trace.scores}
-                variant="badge"
-              />
             </div>
           </Card>
         ))}

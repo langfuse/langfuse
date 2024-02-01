@@ -537,6 +537,7 @@ export class ScoreProcessor implements EventProcessor {
         timestamp: new Date(),
         value: body.value,
         name: body.name,
+        type: body.type ?? undefined,
         comment: body.comment,
         ...(body.observationId && {
           observation: { connect: { id: body.observationId } },
@@ -546,6 +547,7 @@ export class ScoreProcessor implements EventProcessor {
         timestamp: new Date(),
         value: body.value,
         name: body.name,
+        type: body.type ?? undefined,
         comment: body.comment,
         ...(body.observationId && {
           observation: { connect: { id: body.observationId } },

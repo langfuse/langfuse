@@ -64,6 +64,7 @@ export const AutoComplete = ({
 
       if (event.key === "Escape") {
         input.blur();
+        event.stopPropagation();
       }
     },
     [isOpen, options, onValueChange],
@@ -104,8 +105,8 @@ export const AutoComplete = ({
         />
       </div>
       <div className="relative mt-1">
-        {isOpen ? (
-          <div className="absolute top-0 z-10 w-full rounded-xl bg-stone-50 outline-none animate-in fade-in-0 zoom-in-95">
+        {isOpen && (options.length > 0 || inputValue !== "") ? (
+          <div className="absolute top-0 z-10 w-full rounded-lg bg-stone-50 outline-none animate-in fade-in-0 zoom-in-95">
             <CommandList className="rounded-lg ring-1 ring-slate-200">
               {options.length > 0 ? (
                 <CommandGroup>
@@ -138,7 +139,10 @@ export const AutoComplete = ({
                   event.stopPropagation();
                 }}
                 onSelect={() =>
-                  handleSelectOption({ value: inputValue, label: inputValue })
+                  handleSelectOption({
+                    value: inputValue.toLowerCase(),
+                    label: inputValue.toLowerCase(),
+                  })
                 }
                 createLabel={createLabel}
                 {...{ inputValue, options }}
@@ -174,8 +178,8 @@ const CommandItemCreate = ({
 
   return (
     <CommandItem
-      key={inputValue}
-      value={inputValue}
+      key={inputValue.toLowerCase()}
+      value={inputValue.toLowerCase()}
       className="text-muted-foreground"
       onSelect={onSelect}
       onMouseDown={onMouseDown}

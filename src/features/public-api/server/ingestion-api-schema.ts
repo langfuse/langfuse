@@ -152,6 +152,7 @@ export const ScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  type: z.enum(["USER", "EXPERT", "EVAL", "DEFAULT"]).nullish(),
 });
 
 // LEGACY, only required for backwards compatibility

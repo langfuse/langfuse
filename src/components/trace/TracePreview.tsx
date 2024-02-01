@@ -17,21 +17,24 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
+import { ExpertScoreButton } from "@/src/features/expert-scoring/components";
+import Header from "@/src/components/layouts/header";
 
 export const TracePreview = ({
   trace,
   observations,
-  scores,
+  ...props
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: Score[];
 }) => {
+  const scores = props.scores.filter((s) => s.observationId === null);
+
   return (
     <Card className="flex-1">
       <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
@@ -56,11 +59,6 @@ export const TracePreview = ({
             )}
           </div>
         </div>
-        <ManualScoreButton
-          projectId={trace.projectId}
-          traceId={trace.id}
-          scores={scores}
-        />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <IOPreview
@@ -73,37 +71,53 @@ export const TracePreview = ({
           title="Metadata"
           json={trace.metadata}
         />
-        {scores.find((s) => s.observationId === null) ? (
-          <div className="mt-5 flex flex-col gap-2">
-            <h3>Scores</h3>
-            <Table>
-              <TableHeader>
+        <div className="mt-5 flex flex-col gap-2">
+          <Header
+            title="Scores"
+            level="h3"
+            actionButtons={
+              <ExpertScoreButton
+                projectId={trace.projectId}
+                traceId={trace.id}
+                scores={scores}
+              />
+            }
+          />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">Timestamp</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Value</TableHead>
+                <TableHead>Comment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {scores.length > 0 ? (
+                scores.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-xs">
+                      {s.timestamp.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-xs">{s.name}</TableCell>
+                    <TableCell className="text-xs">{s.type}</TableCell>
+                    <TableCell className="text-right text-xs">
+                      {s.value}
+                    </TableCell>
+                    <TableCell className="text-xs">{s.comment}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
-                  <TableHead className="w-[100px]">Timestamp</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead>Comment</TableHead>
+                  <TableCell colSpan={5} className="text-center text-xs">
+                    No scores
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {scores
-                  .filter((s) => s.observationId === null)
-                  .map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="text-xs">
-                        {s.timestamp.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.name}</TableCell>
-                      <TableCell className="text-right text-xs">
-                        {s.value}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.comment}</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : null}
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
       <CardFooter></CardFooter>
     </Card>

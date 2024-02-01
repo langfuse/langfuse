@@ -27,8 +27,7 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import { extractVariables } from "@/src/utils/string";
 import { Badge } from "@/src/components/ui/badge";
 import router from "next/router";
-import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
-import { type AutoCompleteOption } from "@/src/features/prompts/components/auto-complete";
+import { AutoComplete } from "@/src/components/auto-complete";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -175,10 +174,6 @@ export const NewPromptForm = (props: {
           control={form.control}
           name="name"
           render={({ field }) => {
-            const setNameValue = (value: AutoCompleteOption) => {
-              field.onChange(value.value);
-            };
-
             return (
               <div>
                 <FormItem>
@@ -188,7 +183,7 @@ export const NewPromptForm = (props: {
                       {...field}
                       options={matchingOptions}
                       placeholder="Select a prompt name"
-                      onValueChange={setNameValue}
+                      onValueChange={(option) => field.onChange(option.value)}
                       value={{ value: field.value, label: field.value }}
                       disabled={false}
                       createLabel="Create a new prompt name"
