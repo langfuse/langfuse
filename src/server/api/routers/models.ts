@@ -6,6 +6,8 @@ import {
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Prisma } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
@@ -39,9 +41,6 @@ export const modelRouter = createTRPCRouter({
           OR: [{ projectId: input.projectId }, { projectId: null }],
         },
       });
-
-      console.log("models", models);
-
       return {
         models,
         totalCount: totalAmount,
@@ -86,34 +85,18 @@ export const modelRouter = createTRPCRouter({
     }),
   create: protectedProjectProcedure
     .input(
-      z
-        .object({
-          projectId: z.string(),
-          modelName: z.string(),
-          exactMatchPattern: z
-            .string()
-            .regex(
-              /^[a-zA-Z0-9_.-]+$/,
-              "Match pattern must be alphanumeric and may contain _.-",
-            ), // risk of invalid regex injection that would break the db join
-          startDate: z.date().optional(),
-          inputPrice: z.number().positive().optional(),
-          outputPrice: z.number().positive().optional(),
-          totalPrice: z.number().positive().optional(),
-          unit: z.enum(["TOKENS", "CHARACTERS"]),
-          tokenizerId: z.enum(["openai", "claude"]).optional(),
-          tokenizerConfig: z
-            .record(z.union([z.string(), z.number()]))
-            .optional(),
-        })
-        .refine(
-          ({ inputPrice, outputPrice, totalPrice }) =>
-            (!!inputPrice && !!outputPrice) || !!totalPrice,
-          {
-            message:
-              "Either inputPrice and outputPrice or totalPrice needs to be set",
-          },
-        ),
+      z.object({
+        projectId: z.string(),
+        modelName: z.string(),
+        matchPattern: z.string(),
+        startDate: z.date().optional(),
+        inputPrice: z.number().nonnegative().optional(),
+        outputPrice: z.number().nonnegative().optional(),
+        totalPrice: z.number().nonnegative().optional(),
+        unit: z.enum(["TOKENS", "CHARACTERS"]),
+        tokenizerId: z.enum(["openai", "claude"]).optional(),
+        tokenizerConfig: z.record(z.union([z.string(), z.number()])).optional(),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
@@ -121,11 +104,25 @@ export const modelRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "models:CUD",
       });
+
+      // Check if regex is valid POSIX regex
+      // Use DB to check, because JS regex is not POSIX compliant
+      try {
+        await ctx.prisma.$queryRaw(
+          Prisma.sql`SELECT 'test_string' ~ ${input.matchPattern}`,
+        );
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid regex, needs to be Postgres syntax",
+        });
+      }
+
       return ctx.prisma.model.create({
         data: {
           projectId: input.projectId,
           modelName: input.modelName,
-          matchPattern: `(?i)^(${input.exactMatchPattern})$`,
+          matchPattern: input.matchPattern,
           startDate: input.startDate,
           inputPrice: input.inputPrice,
           outputPrice: input.outputPrice,
