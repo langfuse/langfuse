@@ -305,8 +305,8 @@ function FilterBuilderForm({
                               : Number(e.target.value),
                           },
                           i,
-                        );
-                      }}
+                        )
+                      }
                     />
                   ) : filter.type === "datetime" ? (
                     <DatePicker
