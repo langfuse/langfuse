@@ -85,29 +85,18 @@ export const modelRouter = createTRPCRouter({
     }),
   create: protectedProjectProcedure
     .input(
-      z
-        .object({
-          projectId: z.string(),
-          modelName: z.string(),
-          matchPattern: z.string(),
-          startDate: z.date().optional(),
-          inputPrice: z.number().positive().optional(),
-          outputPrice: z.number().positive().optional(),
-          totalPrice: z.number().positive().optional(),
-          unit: z.enum(["TOKENS", "CHARACTERS"]),
-          tokenizerId: z.enum(["openai", "claude"]).optional(),
-          tokenizerConfig: z
-            .record(z.union([z.string(), z.number()]))
-            .optional(),
-        })
-        .refine(
-          ({ inputPrice, outputPrice, totalPrice }) =>
-            (!!inputPrice && !!outputPrice) || !!totalPrice,
-          {
-            message:
-              "Either inputPrice and outputPrice or totalPrice needs to be set",
-          },
-        ),
+      z.object({
+        projectId: z.string(),
+        modelName: z.string(),
+        matchPattern: z.string(),
+        startDate: z.date().optional(),
+        inputPrice: z.number().positive().optional(),
+        outputPrice: z.number().positive().optional(),
+        totalPrice: z.number().positive().optional(),
+        unit: z.enum(["TOKENS", "CHARACTERS"]),
+        tokenizerId: z.enum(["openai", "claude"]).optional(),
+        tokenizerConfig: z.record(z.union([z.string(), z.number()])).optional(),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
