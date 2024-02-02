@@ -47,7 +47,6 @@ const publishablePaths: string[] = [
 ];
 
 export default function Layout(props: PropsWithChildren) {
-  console.log("Rerender");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const session = useSession();
