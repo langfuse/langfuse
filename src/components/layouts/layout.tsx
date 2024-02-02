@@ -3,7 +3,6 @@ import {
   Fragment,
   type PropsWithChildren,
   useState,
-  useEffect,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -78,21 +77,23 @@ const checkNotification = (
   notification: Notification[],
   setNotification: Dispatch<SetStateAction<Notification[]>>,
 ) => {
-  console.log("checkNotification");
-  const lastSeenId = localStorage.getItem("lastSeenNotificationId") ?? "0";
+  console.log("checkNotification", JSON.stringify(notification));
+  // const lastSeenId = localStorage.getItem("lastSeenNotificationId") ?? "0";
   notification.reverse().forEach((n) => {
-    if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
-      toast(n.message, {
-        duration: Infinity,
-        action: {
-          label: "Dismiss",
-          onClick: () => {
-            setNotification((prev) => prev.filter((item) => item.id !== n.id));
-            //localStorage.setItem("lastSeenNotificationId", n.id.toString());
-          },
+    //   if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
+
+    toast(n.message, {
+      id: n.id.toString(),
+      duration: Infinity,
+      action: {
+        label: "Dismiss",
+        onClick: () => {
+          setNotification((prev) => prev.filter((item) => item.id !== n.id));
+          // localStorage.setItem("lastSeenNotificationId", n.id.toString());
         },
-      });
-    }
+      },
+    });
+    //   }
   });
 };
 
@@ -104,10 +105,11 @@ export default function Layout(props: PropsWithChildren) {
   const router = useRouter();
   const session = useSession();
 
-  useEffect(() => {
-    console.log("useEffect");
-    checkNotification(notification, setNotification);
-  }, [notification]);
+  checkNotification(notification, setNotification);
+  // useEffect(() => {
+  //   console.log("useEffect");
+  //   checkNotification(notification, setNotification);
+  // }, [notification]);
 
   const enableExperimentalFeatures =
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
@@ -210,6 +212,23 @@ export default function Layout(props: PropsWithChildren) {
         <title>
           {currentPathName ? `${currentPathName} | Langfuse` : "Langfuse"}
         </title>
+        {/* <Button
+          asChild
+          onClick={() =>
+            toast("n.message", {
+              duration: Infinity,
+              action: {
+                label: "Dismiss",
+                onClick: () => {
+                  // setNotification((prev) => prev.filter((item) => item.id !== n.id));
+                  // localStorage.setItem("lastSeenNotificationId", n.id.toString());
+                },
+              },
+            })
+          }
+        >
+          huhu
+        </Button> */}
         <link
           rel="apple-touch-icon"
           sizes="180x180"
