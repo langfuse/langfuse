@@ -13,7 +13,7 @@ export function orderByToPrismaSql(
   tableColumns: ColumnDefinition[],
 ): Prisma.Sql {
   if (!orderBy) {
-    return Prisma.sql([`ORDER BY t.timestamp DESC`]);
+    return Prisma.sql`ORDER BY t.timestamp DESC`;
   }
   // Get column definition to map column to internal name, e.g. "t.id"
   const col = tableColumns.find(
@@ -26,5 +26,5 @@ export function orderByToPrismaSql(
     throw new Error("Invalid filter column: " + orderBy.column);
   }
 
-  return Prisma.sql([`ORDER BY ${col.internal} ${orderBy.order}`]);
+  return Prisma.sql`ORDER BY ${col.internal} ${orderBy.order}`;
 }
