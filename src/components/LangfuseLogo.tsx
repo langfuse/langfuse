@@ -1,5 +1,7 @@
 import { VERSION } from "@/src/constants/VERSION";
+import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import { AlertTriangle } from "lucide-react";
 
 export const LangfuseIcon = ({
   size = 32,
@@ -22,31 +24,54 @@ export const LangfuseLogo = ({
   className,
   size = "sm",
   version = false,
+  showEnvLabel = false,
 }: {
   size?: "sm" | "xl";
   className?: string;
   version?: boolean;
+  showEnvLabel?: boolean;
 }) => (
-  <div className={cn("flex items-center", className)}>
-    <LangfuseIcon size={size === "sm" ? 16 : 20} />
-    <span
-      className={cn(
-        "font-mono font-semibold",
-        size === "sm" ? "ml-2 text-sm" : "ml-3 text-xl",
-      )}
-    >
-      Langfuse
-    </span>
-    {version && (
-      <a
-        href="https://github.com/langfuse/langfuse/releases"
-        target="_blank"
-        rel="noopener"
-        title="View releases on GitHub"
-        className="ml-2 text-xs text-gray-400"
+  <div className={cn("flex gap-4 xl:flex-col xl:items-start", className)}>
+    {/* Environment Labeling for Langfuse Maintainers */}
+    {showEnvLabel && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
+      <div
+        className={cn(
+          "flex items-center gap-2 self-stretch rounded-md  px-3 py-1  ring-1  xl:-mx-2",
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
+            ? "bg-blue-100 text-blue-500 ring-blue-500"
+            : "bg-red-100 text-red-500 ring-red-500",
+        )}
       >
-        {VERSION}
-      </a>
+        <AlertTriangle size={16} />
+        <span className="whitespace-nowrap">
+          {["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+            ? `PRODUCTION-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
+            : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
+        </span>
+      </div>
     )}
+    {/* Langfuse Logo */}
+    <div className="flex items-center">
+      <LangfuseIcon size={size === "sm" ? 16 : 20} />
+      <span
+        className={cn(
+          "font-mono font-semibold",
+          size === "sm" ? "ml-2 text-sm" : "ml-3 text-xl",
+        )}
+      >
+        Langfuse
+      </span>
+      {version && (
+        <a
+          href="https://github.com/langfuse/langfuse/releases"
+          target="_blank"
+          rel="noopener"
+          title="View releases on GitHub"
+          className="ml-2 text-xs text-gray-400"
+        >
+          {VERSION}
+        </a>
+      )}
+    </div>
   </div>
 );
