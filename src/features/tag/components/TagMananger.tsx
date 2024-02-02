@@ -61,7 +61,7 @@ const TagManager = ({
             setSelectedTags={setSelectedTags}
           />
           <CommandList
-            className={availableTags.length > 0 ? "mt-2" : undefined}
+            className={`overflow-auto ${availableTags.length > 0 ? "mt-2" : ""}`}
           >
             <CommandGroup>
               {availableTags.slice(0, 5).map((value: string) => (
