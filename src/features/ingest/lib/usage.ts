@@ -95,7 +95,11 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
 }
 
 function claudeTokenCount(text: unknown) {
-  return isString(text) ? countTokens(text) : countTokens(JSON.stringify(text));
+  const cleanedText = isString(text)
+    ? unicodeToBytesInString(text)
+    : unicodeToBytesInString(JSON.stringify(text));
+
+  return countTokens(cleanedText);
 }
 
 function openAiChatTokenCount(params: {
@@ -197,6 +201,7 @@ function unicodeToBytesInString(input: string): string {
   }
   return result;
 }
+
 function unicodeToBytes(input: string): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(input);
