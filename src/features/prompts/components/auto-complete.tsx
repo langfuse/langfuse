@@ -12,14 +12,18 @@ import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
-export type Option = Record<"value" | "label", string> & Record<string, string>;
+export type AutoCompleteOption = {
+  value: string;
+  label: string;
+};
 
 type AutoCompleteProps = {
-  options: Option[];
-  value: Option;
-  onValueChange?: (value: Option) => void;
+  options: AutoCompleteOption[];
+  value: AutoCompleteOption;
+  onValueChange?: (value: AutoCompleteOption) => void;
   disabled?: boolean;
   placeholder?: string;
+  createLabel: string;
 };
 
 export const AutoComplete = ({
@@ -28,10 +32,11 @@ export const AutoComplete = ({
   value,
   onValueChange,
   disabled,
+  createLabel,
 }: AutoCompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setOpen] = useState(false);
-  const [selected, setSelected] = useState<Option>(value);
+  const [selected, setSelected] = useState<AutoCompleteOption>(value);
   const [inputValue, setInputValue] = useState<string>(value.label || "");
 
   const handleKeyDown = useCallback(
@@ -70,7 +75,7 @@ export const AutoComplete = ({
   }, [selected]);
 
   const handleSelectOption = useCallback(
-    (selectedOption: Option) => {
+    (selectedOption: AutoCompleteOption) => {
       setInputValue(selectedOption.label);
 
       setSelected(selectedOption);
@@ -96,7 +101,6 @@ export const AutoComplete = ({
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className="text-base"
         />
       </div>
       <div className="relative mt-1">
@@ -136,6 +140,7 @@ export const AutoComplete = ({
                 onSelect={() =>
                   handleSelectOption({ value: inputValue, label: inputValue })
                 }
+                createLabel={createLabel}
                 {...{ inputValue, options }}
               />
             </CommandList>
@@ -149,11 +154,13 @@ export const AutoComplete = ({
 const CommandItemCreate = ({
   inputValue,
   options,
+  createLabel,
   onSelect,
   onMouseDown,
 }: {
   inputValue: string;
-  options: Option[];
+  options: AutoCompleteOption[];
+  createLabel: string;
   onSelect: () => void;
   onMouseDown: (event: React.MouseEvent<HTMLElement>) => void;
 }) => {
@@ -174,7 +181,7 @@ const CommandItemCreate = ({
       onMouseDown={onMouseDown}
     >
       <div className={cn("m-2 h-4 w-4")} />
-      Create new prompt name: &quot;{inputValue}&quot;
+      {createLabel}: &quot;{inputValue}&quot;
     </CommandItem>
   );
 };

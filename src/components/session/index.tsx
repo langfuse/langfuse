@@ -68,15 +68,22 @@ export const SessionPage: React.FC<{
           />,
           <DetailPageNav
             key="nav"
-            currentId={sessionId}
-            path={(id) => `/project/${projectId}/sessions/${id}`}
+            currentId={encodeURIComponent(sessionId)}
+            path={(id) =>
+              `/project/${projectId}/sessions/${encodeURIComponent(id)}`
+            }
             listKey="sessions"
           />,
         ]}
       />
       <div className="flex flex-wrap gap-2">
-        {session.data?.users.map((userId) => (
-          <Link key={userId} href={`/project/${projectId}/users/${userId}`}>
+        {session.data?.users.filter(Boolean).map((userId) => (
+          <Link
+            key={userId}
+            href={`/project/${projectId}/users/${encodeURIComponent(
+              userId ?? "",
+            )}`}
+          >
             <Badge>User ID: {userId}</Badge>
           </Link>
         ))}

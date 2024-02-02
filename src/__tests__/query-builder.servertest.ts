@@ -22,7 +22,7 @@ describe("Build valid SQL queries", () => {
         table: "traces_observations",
         values: ["project-id", "project-id"],
         strings: [
-          ' FROM  traces t LEFT JOIN observations o ON t.id = o.trace_id  WHERE  t."project_id" = ',
+          ' FROM  traces t LEFT JOIN observations_view o ON t.id = o.trace_id  WHERE  t."project_id" = ',
           '  AND o."project_id" = ',
           " ;",
         ],
@@ -30,7 +30,7 @@ describe("Build valid SQL queries", () => {
       {
         table: "observations",
         values: ["project-id"],
-        strings: [' FROM  observations o  WHERE  o."project_id" = ', " ;"],
+        strings: [' FROM  observations_view o  WHERE  o."project_id" = ', " ;"],
       } as const,
       {
         table: "traces_scores",

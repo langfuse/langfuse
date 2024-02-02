@@ -16,23 +16,20 @@ export const MetricTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
-  const localFilters = globalFilterState.map((f) => ({
-    ...f,
-    column: "timestamp",
-  }));
-
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observations",
+      from: "observations",
       select: [
-        { column: "totalTokenCost" },
+        { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },
         { column: "model" },
       ],
-      filter: localFilters,
+      filter: globalFilterState,
       groupBy: [{ type: "string", column: "model" }],
-      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
     },
     {
       trpc: {
@@ -43,9 +40,12 @@ export const MetricTable = ({
     },
   );
 
-  const totalTokens = metrics.data?.reduce(
+  const totalTokenCost = metrics.data?.reduce(
     (acc, curr) =>
-      acc + (curr.totalTokenCost ? (curr.totalTokenCost as number) : 0),
+      acc +
+      (curr.sumCalculatedTotalCost
+        ? (curr.sumCalculatedTotalCost as number)
+        : 0),
     0,
   );
 
@@ -60,8 +60,8 @@ export const MetricTable = ({
               : "0"}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-cost`}>
-            {item.totalTokenCost
-              ? usdFormatter(item.totalTokenCost as number, 2, 2)
+            {item.sumCalculatedTotalCost
+              ? usdFormatter(item.sumCalculatedTotalCost as number, 2, 2)
               : "$0"}
           </RightAlignedCell>,
         ])
@@ -83,12 +83,12 @@ export const MetricTable = ({
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
-          metric={totalTokens ? usdFormatter(totalTokens, 2, 2) : "$0"}
+          metric={totalTokenCost ? usdFormatter(totalTokenCost, 2, 2) : "$0"}
           description="Total cost"
         >
           <DocPopup
             description="Calculated multiplying the number of tokens with cost per token for each model."
-            href="https://langfuse.com/docs/token-usage"
+            href="https://langfuse.com/docs/model-usage-and-cost"
           />
         </TotalMetric>
       </DashboardTable>

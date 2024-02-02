@@ -15,6 +15,9 @@ describe("/api/public/ingestion API Endpoint", () => {
         output: 200,
         total: 100,
         unit: "CHARACTERS",
+        inputCost: 123,
+        outputCost: 456,
+        totalCost: 789,
       },
       expectedUnit: "CHARACTERS",
       expectedPromptTokens: 100,
@@ -35,7 +38,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       usage: {
         total: 100,
       },
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
@@ -65,24 +68,24 @@ describe("/api/public/ingestion API Endpoint", () => {
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: {},
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
   ].forEach((testConfig) => {
-    it(`should create trace and generation ${JSON.stringify(
+    it(`should create trace, generation and score without matching models ${JSON.stringify(
       testConfig,
     )}`, async () => {
       const traceId = v4();
@@ -208,6 +211,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbGeneration?.input).toEqual({ key: "value" });
       expect(dbGeneration?.metadata).toEqual({ key: "value" });
       expect(dbGeneration?.version).toBe("2.0.0");
+      expect(dbGeneration?.internalModel).toBeNull();
       expect(dbGeneration?.promptTokens).toEqual(
         testConfig.expectedPromptTokens,
       );
@@ -245,6 +249,265 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbScore?.name).toBe("score-name");
       expect(dbScore?.value).toBe(100.5);
       expect(dbScore?.observationId).toBeNull();
+    });
+  });
+
+  [
+    {
+      observationExternalModel: "gpt-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "gpt-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: null,
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3.5",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+        {
+          modelName: "gpt-3.5-turbo-new",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T10:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3.5",
+      observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "gpt-3.5-turbo",
+      expectedPromptTokens: 5,
+      expectedCompletionTokens: 7,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo-new",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T10:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+          tokenizerModel: "gpt-3.5-turbo",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "ft:gpt-3.5-turbo-1106:my-org:custom_suffix:id",
+      observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "ft:gpt-3.5-turbo-1106",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      models: [
+        {
+          modelName: "ft:gpt-3.5-turbo-1106",
+          matchPattern: "(?i)^(ft:)(gpt-3.5-turbo-1106:)(.+)(:)(.*)(:)(.+)$",
+          startDate: new Date("2022-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "ft:babbage-002:my-org#2:custom_suffix-2:id",
+      observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: "ft:babbage-002",
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      models: [
+        {
+          modelName: "ft:babbage-002",
+          matchPattern: "(?i)^(ft:)(babbage-002:)(.+)(:)(.*)(:)(.+)$",
+          startDate: new Date("2022-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-4",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "TOKENS",
+      expectedInternalModel: null,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+    {
+      observationExternalModel: "GPT-3",
+      observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
+      modelUnit: "CHARACTERS",
+      expectedInternalModel: null,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      models: [
+        {
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: "TOKENS",
+          tokenizerId: "openai",
+        },
+      ],
+    },
+  ].forEach((testConfig) => {
+    it(`should match observations to internal models ${JSON.stringify(
+      testConfig,
+    )}`, async () => {
+      const traceId = v4();
+      const generationId = v4();
+
+      await Promise.all(
+        testConfig.models.map(async (model) =>
+          prisma.model.create({
+            data: {
+              modelName: model.modelName,
+              matchPattern: model.matchPattern,
+              startDate: model.startDate,
+              unit: model.unit,
+              tokenizerId: model.tokenizerId,
+              tokenizerConfig: {
+                tokensPerMessage: 3,
+                tokensPerName: 1,
+                tokenizerModel:
+                  "tokenizerModel" in model
+                    ? model.tokenizerModel
+                    : model.modelName,
+              },
+            },
+          }),
+        ),
+      );
+
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        metadata: {
+          sdk_verion: "1.0.0",
+          sdk_name: "python",
+        },
+        batch: [
+          {
+            id: v4(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: traceId,
+              name: "trace-name",
+            },
+          },
+          {
+            id: v4(),
+            type: "observation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              type: "GENERATION",
+              name: "generation-name",
+              startTime: testConfig.observationStartTime.toISOString(),
+              model: testConfig.observationExternalModel,
+              usage: {
+                unit: testConfig.modelUnit,
+              },
+              input: "This is a great prompt",
+              output: "This is a great gpt output",
+            },
+          },
+        ],
+      });
+
+      expect(response.status).toBe(207);
+
+      console.log("response body", response.body);
+
+      const dbGeneration = await prisma.observation.findUnique({
+        where: {
+          id: generationId,
+        },
+      });
+
+      expect(dbGeneration?.id).toBe(generationId);
+      expect(dbGeneration?.traceId).toBe(traceId);
+      expect(dbGeneration?.name).toBe("generation-name");
+      expect(dbGeneration?.startTime).toEqual(testConfig.observationStartTime);
+      expect(dbGeneration?.model).toBe(testConfig.observationExternalModel);
+      expect(dbGeneration?.promptTokens).toBe(testConfig.expectedPromptTokens);
+      expect(dbGeneration?.completionTokens).toBe(
+        testConfig.expectedCompletionTokens,
+      );
+      expect(dbGeneration?.internalModel).toBe(
+        testConfig.expectedInternalModel,
+      );
     });
   });
 
@@ -618,6 +881,21 @@ describe("/api/public/ingestion API Endpoint", () => {
     const traceId = v4();
     const generationId = v4();
 
+    await prisma.model.create({
+      data: {
+        modelName: "gpt-3.5",
+        matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+        startDate: new Date("2021-01-01T00:00:00.000Z"),
+        unit: "TOKENS",
+        tokenizerId: "openai",
+        tokenizerConfig: {
+          tokensPerMessage: 3,
+          tokensPerName: 1,
+          tokenizerModel: "gpt-3.5-turbo",
+        },
+      },
+    });
+
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
         {
@@ -684,6 +962,21 @@ describe("/api/public/ingestion API Endpoint", () => {
   it("should update all token counts if update does not contain model name and events come in wrong order", async () => {
     const traceId = v4();
     const generationId = v4();
+
+    await prisma.model.create({
+      data: {
+        modelName: "gpt-3.5",
+        matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
+        startDate: new Date("2021-01-01T00:00:00.000Z"),
+        unit: "TOKENS",
+        tokenizerId: "openai",
+        tokenizerConfig: {
+          tokensPerMessage: 3,
+          tokensPerName: 1,
+          tokenizerModel: "gpt-3.5-turbo",
+        },
+      },
+    });
 
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
