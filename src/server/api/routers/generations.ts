@@ -476,7 +476,6 @@ export const generationsRouter = createTRPCRouter({
             Key: fileName,
             Body: output,
             ContentType: exportOptions[input.fileFormat].fileType,
-            Expires: new Date(Date.now() + 60 * 60 * 1000), // in 1 hour, file will be deleted
           }),
         );
         const signedUrl = await getSignedUrl(
