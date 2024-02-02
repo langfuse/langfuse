@@ -208,6 +208,36 @@ export const traceRouter = createTRPCRouter({
         },
       });
       const observations = await ctx.prisma.observationView.findMany({
+        select: {
+          id: true,
+          traceId: true,
+          projectId: true,
+          type: true,
+          startTime: true,
+          endTime: true,
+          name: true,
+          metadata: true,
+          parentObservationId: true,
+          level: true,
+          statusMessage: true,
+          version: true,
+          createdAt: true,
+          model: true,
+          modelParameters: true,
+          promptTokens: true,
+          completionTokens: true,
+          totalTokens: true,
+          unit: true,
+          completionStartTime: true,
+          promptId: true,
+          modelId: true,
+          inputPrice: true,
+          outputPrice: true,
+          totalPrice: true,
+          calculatedInputCost: true,
+          calculatedOutputCost: true,
+          calculatedTotalCost: true,
+        },
         where: {
           traceId: {
             equals: input.traceId,
@@ -237,11 +267,7 @@ export const traceRouter = createTRPCRouter({
       return {
         ...trace,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        observations: observations.map(
-          ({ input: _input, output: _output, ...rest }) => {
-            return { ...rest };
-          },
-        ) as ObservationReturnType[],
+        observations: observations as ObservationReturnType[],
       };
     }),
   deleteMany: protectedProjectProcedure
