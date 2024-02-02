@@ -108,7 +108,7 @@
     "@playwright/test": "^1.41.1",
     "@release-it/bumper": "^6.0.1",
     "@testing-library/jest-dom": "^6.4.1",
-    "@testing-library/react": "^14.1.2",
+    "@testing-library/react": "^14.2.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/eslint": "^8.56.2",
