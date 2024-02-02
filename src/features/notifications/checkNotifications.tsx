@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { toast } from "sonner";
 
 export interface Notification {
   id: number;
@@ -29,3 +30,21 @@ export const NOTIFICATIONS: Notification[] = [
     message: "Langfuse 2.2 just released 🚀 check it out",
   },
 ];
+
+export const checkNotification = (notification: Notification[]) => {
+  const lastSeenId = localStorage.getItem("lastSeenNotificationId") ?? "0";
+  notification.reverse().forEach((n) => {
+    if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
+      toast(n.message, {
+        description: n.description ?? "",
+        duration: Infinity,
+        action: {
+          label: "Dismiss",
+          onClick: () => {
+            localStorage.setItem("lastSeenNotificationId", n.id.toString());
+          },
+        },
+      });
+    }
+  });
+};

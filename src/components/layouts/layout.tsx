@@ -31,8 +31,10 @@ import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Toaster } from "@/src/components/ui/sonner";
-import { toast } from "sonner";
-import { NOTIFICATIONS } from "@/src/constants/NOTIFICATIONS";
+import {
+  NOTIFICATIONS,
+  checkNotification,
+} from "@/src/features/notifications/checkNotifications";
 
 const userNavigation = [
   {
@@ -50,64 +52,18 @@ const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
 ];
-type Notification = {
-  id: number;
-  releaseDate: string;
-  message: string;
-};
-
-/* const checkVersionAndUpdateNotification = (notification: Notification[]) => {
-  const lastSeenId = localStorage.getItem("lastSeenId") ?? "0";
-
-  for (const n of notification.reverse()) {
-    if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
-      toast(n.message, {
-        duration: Infinity,
-        action: {
-          label: "Dismiss",
-          onClick: () => {
-            console.log("Dismissed");
-            localStorage.setItem("lastSeenId", n.id.toString());
-          },
-        },
-      });
-    }
-  }
-}; */
-const checkNotification = (
-  notification: Notification[],
-  setNotification: Dispatch<SetStateAction<Notification[]>>,
-) => {
-  console.log("checkNotification");
-  const lastSeenId = localStorage.getItem("lastSeenNotificationId") ?? "0";
-  notification.reverse().forEach((n) => {
-    if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
-      toast(n.message, {
-        duration: Infinity,
-        action: {
-          label: "Dismiss",
-          onClick: () => {
-            setNotification((prev) => prev.filter((item) => item.id !== n.id));
-            //localStorage.setItem("lastSeenNotificationId", n.id.toString());
-          },
-        },
-      });
-    }
-  });
-};
 
 export default function Layout(props: PropsWithChildren) {
   console.log("Rerender");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notification, setNotification] =
-    useState<Notification[]>(NOTIFICATIONS);
   const router = useRouter();
   const session = useSession();
 
   useEffect(() => {
-    console.log("useEffect");
-    checkNotification(notification, setNotification);
-  }, [notification]);
+    setTimeout(() => {
+      checkNotification(NOTIFICATIONS);
+    }, 1500);
+  }, []);
 
   const enableExperimentalFeatures =
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
