@@ -1,6 +1,7 @@
 import { type OrderByState } from "@/src/features/orderBy/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 
 /**
  * Convert orderBy to SQL ORDER BY clause
@@ -21,10 +22,20 @@ export function orderByToPrismaSql(
     // It's less error-prone & decouples data fetching from the human-readable UI labels
     (c) => c.name === orderBy.column || c.id === orderBy.column,
   );
+
   if (!col) {
     console.log("Invalid filter column", orderBy.column);
     throw new Error("Invalid filter column: " + orderBy.column);
   }
 
-  return Prisma.sql`ORDER BY ${col.internal} ${orderBy.order}`;
+  // Assert that orderBy.order is either "asc" or "desc"
+  const orderByOrder = z.enum(["asc", "desc", "ASC", "DESC"]);
+  const order = orderByOrder.safeParse(orderBy.order);
+  if (!order.success) {
+    console.log("Invalid order", orderBy.order);
+    throw new Error("Invalid order: " + orderBy.order);
+  }
+
+  // Both column and order are safe, can use raw SQL
+  return Prisma.raw(`ORDER BY ${col.internal} ${order.data}`);
 }
