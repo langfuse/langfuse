@@ -1,5 +1,12 @@
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
-import { Fragment, type PropsWithChildren, useState } from "react";
+import {
+  Fragment,
+  type PropsWithChildren,
+  useState,
+  useEffect,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
@@ -8,7 +15,6 @@ import { useRouter } from "next/router";
 import clsx from "clsx";
 import { Code, MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
 import {
   Avatar,
@@ -24,6 +30,9 @@ import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Toaster } from "@/src/components/ui/sonner";
+import { toast } from "sonner";
+import { NOTIFICATIONS } from "@/src/constants/NOTIFICATIONS";
 
 const userNavigation = [
   {
@@ -41,11 +50,65 @@ const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
 ];
+type Notification = {
+  id: number;
+  releaseDate: string;
+  message: string;
+};
+
+/* const checkVersionAndUpdateNotification = (notification: Notification[]) => {
+  const lastSeenId = localStorage.getItem("lastSeenId") ?? "0";
+
+  for (const n of notification.reverse()) {
+    if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
+      toast(n.message, {
+        duration: Infinity,
+        action: {
+          label: "Dismiss",
+          onClick: () => {
+            console.log("Dismissed");
+            localStorage.setItem("lastSeenId", n.id.toString());
+          },
+        },
+      });
+    }
+  }
+}; */
+const checkNotification = (
+  notification: Notification[],
+  setNotification: Dispatch<SetStateAction<Notification[]>>,
+) => {
+  console.log("checkNotification");
+  const lastSeenId = localStorage.getItem("lastSeenNotificationId") ?? "0";
+  notification.reverse().forEach((n) => {
+    if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
+      toast(n.message, {
+        duration: Infinity,
+        action: {
+          label: "Dismiss",
+          onClick: () => {
+            setNotification((prev) => prev.filter((item) => item.id !== n.id));
+            //localStorage.setItem("lastSeenNotificationId", n.id.toString());
+          },
+        },
+      });
+    }
+  });
+};
 
 export default function Layout(props: PropsWithChildren) {
+  console.log("Rerender");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notification, setNotification] =
+    useState<Notification[]>(NOTIFICATIONS);
   const router = useRouter();
   const session = useSession();
+
+  useEffect(() => {
+    console.log("useEffect");
+    checkNotification(notification, setNotification);
+  }, [notification]);
+
   const enableExperimentalFeatures =
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
 
@@ -344,7 +407,6 @@ export default function Layout(props: PropsWithChildren) {
                 </li>
               </ul>
             </nav>
-
             <Menu as="div" className="relative left-1">
               <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                 <span className="sr-only">Open user menu</span>
@@ -363,10 +425,6 @@ export default function Layout(props: PropsWithChildren) {
                 <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
                   {session.data?.user?.name}
                 </span>
-                <ChevronDownIcon
-                  className="h-5 w-5 text-gray-400"
-                  aria-hidden="true"
-                />
               </Menu.Button>
               <Transition
                 as={Fragment}
@@ -486,6 +544,7 @@ export default function Layout(props: PropsWithChildren) {
             </div>
           ) : null}
           <main className="p-4">{props.children}</main>
+          <Toaster />
         </div>
       </div>
     </>
