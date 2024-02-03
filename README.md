@@ -13,6 +13,14 @@
    </div>
    </br>
    <div>
+       <a href="https://cloud.langfuse.com">
+         <strong>Langfuse Cloud »</strong>
+      </a>
+               </br>
+      <a href="https://langfuse.com/docs/deployment/self-host">
+         <strong>Self Host Langfuse »</strong>
+      </a>
+         </br>
       <a href="https://discord.gg/7NXusRtqYU">
          <strong>Join the Langfuse Discord »</strong>
       </a>
@@ -26,9 +34,10 @@
       <a href="https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+">
          <strong>Report Bug</strong>
       </a> ·
-      <a href="https://github.com/langfuse/langfuse/issues/new?assignees=&labels=%E2%9C%A8+enhancement&projects=&template=feature_request.yml&title=feat%3A+">
+      <a href="https://github.com/orgs/langfuse/discussions/new?category=ideas">
          <strong>Feature Request</strong>
       </a>
+         </br>
    </div>
    </br>
    <div>
