@@ -29,7 +29,7 @@ export function orderByToPrismaSql(
   }
 
   // Assert that orderBy.order is either "asc" or "desc"
-  const orderByOrder = z.enum(["asc", "desc", "ASC", "DESC"]);
+  const orderByOrder = z.enum(["ASC", "DESC"]);
   const order = orderByOrder.safeParse(orderBy.order);
   if (!order.success) {
     console.log("Invalid order", orderBy.order);

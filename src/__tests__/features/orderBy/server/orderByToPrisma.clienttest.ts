@@ -33,4 +33,16 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
       ),
     ).toThrow(/Invalid filter column: InvalidCol/);
   });
+
+  test("orderByToPrisma throws error for orderBy order that is not valid", () => {
+    expect(() =>
+      orderByToPrismaSql(
+        {
+          column: "latency",
+          order: "test" as "ASC" | "DESC",
+        },
+        tracesTableCols,
+      ),
+    ).toThrow(/Invalid order: test/);
+  });
 });
