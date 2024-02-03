@@ -37,7 +37,6 @@
       <a href="https://github.com/orgs/langfuse/discussions/new?category=ideas">
          <strong>Feature Request</strong>
       </a>
-         </br>
    </div>
    </br>
    </br>
