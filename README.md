@@ -40,6 +40,7 @@
          </br>
    </div>
    </br>
+   </br>
    <div>
       <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
       <a href="https://discord.gg/7NXusRtqYU"><img src="https://img.shields.io/discord/1111061815649124414?style=flat-square&logo=Discord&logoColor=white&label=Discord&color=%23434EE4" alt="Discord"></a>
