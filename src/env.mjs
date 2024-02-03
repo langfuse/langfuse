@@ -118,4 +118,10 @@ export const env = createEnv({
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_REGION: process.env.S3_REGION,
   },
+  skipValidation:
+    process.env.DATABASE_URL ===
+      "postgresql://postgres:postgres@localhost:5432/postgres" ||
+    process.env.NEXTAUTH_URL === "http://localhost:3030" ||
+    process.env.SALT === "salt" ||
+    process.env.NEXTAUTH_SECRET === "secret",
 });
