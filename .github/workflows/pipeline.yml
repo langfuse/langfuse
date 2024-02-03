@@ -33,6 +33,10 @@ jobs:
   test-docker-build:
     runs-on: ubuntu-latest
     env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      NEXTAUTH_SECRET: "secret"
+      SALT: "salt"
+      NEXTAUTH_URL: "http://localhost:3030"
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
 
