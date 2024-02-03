@@ -13,6 +13,14 @@
    </div>
    </br>
    <div>
+       <a href="https://cloud.langfuse.com">
+         <strong>Langfuse Cloud »</strong>
+      </a>
+               </br>
+      <a href="https://langfuse.com/docs/deployment/self-host">
+         <strong>Self Host Langfuse »</strong>
+      </a>
+         </br>
       <a href="https://discord.gg/7NXusRtqYU">
          <strong>Join the Langfuse Discord »</strong>
       </a>
@@ -30,13 +38,6 @@
          <strong>Feature Request</strong>
       </a>
          </br>
-      <a href="https://cloud.langfuse.com">
-         <strong>Langfuse Cloud »</strong>
-      </a>
-               </br>
-      <a href="https://langfuse.com/docs/deployment/self-host">
-         <strong>Self Host Langfuse »</strong>
-      </a>
    </div>
    </br>
    <div>
