@@ -220,7 +220,13 @@ export default function Layout(props: PropsWithChildren) {
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
                   <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4">
-                    <LangfuseLogo version size="xl" />
+                    <LangfuseLogo
+                      version
+                      size="xl"
+                      showEnvLabel={session.data?.user?.email?.endsWith(
+                        "@langfuse.com",
+                      )}
+                    />
                     <nav className="flex flex-1 flex-col">
                       <ul role="list" className="flex flex-1 flex-col gap-y-7">
                         <MainNavigation nav={navigation} />
@@ -286,7 +292,14 @@ export default function Layout(props: PropsWithChildren) {
         <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
           <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7">
-            <LangfuseLogo version size="xl" className="mb-2 px-6" />
+            <LangfuseLogo
+              version
+              size="xl"
+              className="mb-2 px-6"
+              showEnvLabel={session.data?.user?.email?.endsWith(
+                "@langfuse.com",
+              )}
+            />
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
               <ul role="list" className="flex h-full flex-col gap-y-4">
                 <MainNavigation nav={navigation} />
@@ -408,7 +421,11 @@ export default function Layout(props: PropsWithChildren) {
             <span className="sr-only">Open sidebar</span>
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
-          <LangfuseLogo version className="flex-1" />
+          <LangfuseLogo
+            version
+            className="flex-1"
+            showEnvLabel={session.data?.user?.email?.endsWith("@langfuse.com")}
+          />
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
               <span className="sr-only">Open user menu</span>

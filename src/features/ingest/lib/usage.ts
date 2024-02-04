@@ -197,6 +197,7 @@ function unicodeToBytesInString(input: string): string {
   }
   return result;
 }
+
 function unicodeToBytes(input: string): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(input);
