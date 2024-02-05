@@ -28,6 +28,7 @@ import {
   NOTIFICATIONS,
   useCheckNotification,
 } from "@/src/features/notifications/checkNotifications";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
 
 const userNavigation = [
   {
@@ -364,6 +365,7 @@ export default function Layout(props: PropsWithChildren) {
                 </li>
               </ul>
             </nav>
+
             <Menu as="div" className="relative left-1">
               <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                 <span className="sr-only">Open user menu</span>
@@ -382,6 +384,10 @@ export default function Layout(props: PropsWithChildren) {
                 <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
                   {session.data?.user?.name}
                 </span>
+                <ChevronDownIcon
+                  className="h-5 w-5 text-gray-400"
+                  aria-hidden="true"
+                />
               </Menu.Button>
               <Transition
                 as={Fragment}
