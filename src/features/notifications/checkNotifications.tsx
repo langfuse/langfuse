@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 export interface Notification {
   id: number;
@@ -31,20 +33,30 @@ export const NOTIFICATIONS: Notification[] = [
   },
 ];
 
-export const checkNotification = (notification: Notification[]) => {
-  const lastSeenId = localStorage.getItem("lastSeenNotificationId") ?? "0";
-  notification.reverse().forEach((n) => {
-    if (new Date(n.releaseDate) <= new Date() && n.id > parseInt(lastSeenId)) {
-      toast(n.message, {
-        description: n.description ?? "",
-        duration: Infinity,
-        action: {
-          label: "Dismiss",
-          onClick: () => {
-            localStorage.setItem("lastSeenNotificationId", n.id.toString());
-          },
-        },
+export const useCheckNotification = (notification: Notification[]) => {
+  const [lastSeenId, setLastSeenId] = useLocalStorage<number>(
+    "lastSeenNotificationId",
+    0,
+  );
+  useEffect(() => {
+    // We delay the notification to ensure that the Toaster component (in layout.tsx L491) is mounted before we call the toast function
+    const timeoutId = setTimeout(() => {
+      notification.reverse().forEach((n) => {
+        if (new Date(n.releaseDate) <= new Date() && n.id > lastSeenId) {
+          toast(n.message, {
+            id: n.id,
+            description: n.description ?? "",
+            duration: Infinity,
+            action: {
+              label: "Dismiss",
+              onClick: () => {
+                setLastSeenId(n.id);
+              },
+            },
+          });
+        }
       });
-    }
-  });
+    }, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [lastSeenId, notification, setLastSeenId]);
 };
