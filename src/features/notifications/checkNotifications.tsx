@@ -33,14 +33,21 @@ export const NOTIFICATIONS: Notification[] = [
   },
 ];
 
-export const useCheckNotification = (notification: Notification[]) => {
+export const useCheckNotification = (
+  notification: Notification[],
+  authenticated: boolean,
+) => {
   const [lastSeenId, setLastSeenId] = useLocalStorage<number>(
     "lastSeenNotificationId",
     0,
   );
   useEffect(() => {
+    if (!authenticated) {
+      return;
+    }
     // We delay the notification to ensure that the Toaster component (in layout.tsx L491) is mounted before we call the toast function
     const timeoutId = setTimeout(() => {
+      console.log("Notification useEffect");
       notification.reverse().forEach((n) => {
         if (new Date(n.releaseDate) <= new Date() && n.id > lastSeenId) {
           toast(n.message, {
@@ -56,7 +63,7 @@ export const useCheckNotification = (notification: Notification[]) => {
           });
         }
       });
-    }, 1000);
+    }, 1500);
     return () => clearTimeout(timeoutId);
-  }, [lastSeenId, notification, setLastSeenId]);
+  }, [lastSeenId, notification, setLastSeenId, authenticated]);
 };

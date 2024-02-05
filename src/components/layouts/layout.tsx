@@ -51,7 +51,7 @@ export default function Layout(props: PropsWithChildren) {
   const router = useRouter();
   const session = useSession();
 
-  useCheckNotification(NOTIFICATIONS);
+  useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
 
   const enableExperimentalFeatures =
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
