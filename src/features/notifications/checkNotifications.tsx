@@ -57,7 +57,7 @@ export const useCheckNotification = (
             action: {
               label: "Dismiss",
               onClick: () => {
-                setLastSeenId(n.id);
+                setLastSeenId((prevId) => Math.max(prevId, n.id));
               },
             },
           });
