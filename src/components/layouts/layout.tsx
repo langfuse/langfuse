@@ -29,6 +29,7 @@ import {
   useCheckNotification,
 } from "@/src/features/notifications/checkNotifications";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 const userNavigation = [
   {
@@ -531,29 +532,11 @@ const MainNavigation: React.FC<{
   nav: NavigationItem[];
   onNavitemClick?: () => void;
 }> = ({ nav, onNavitemClick }) => {
-  const STORAGE_KEY = "sidebar-tracing-default-open";
-  const getDefaultOpen = () => {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    if (savedState !== null) {
-      try {
-        return JSON.parse(savedState) as boolean;
-      } catch (e) {
-        console.error("Error parsing saved state: ", e);
-      }
-    }
-    return false;
-  };
+  const [isOpen, setIsOpen] = useLocalStorage(
+    "sidebar-tracing-default-open",
+    false,
+  );
 
-  const handleDropDownClick = () => {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    const isOpen =
-      savedState !== null ? (JSON.parse(savedState) as boolean) : false;
-    const newState = !isOpen;
-    localStorage.setItem(
-      "sidebar-tracing-default-open",
-      JSON.stringify(newState),
-    );
-  };
   return (
     <li>
       <ul role="list" className="-mx-2 space-y-1">
@@ -599,15 +582,14 @@ const MainNavigation: React.FC<{
               <Disclosure
                 as="div"
                 defaultOpen={
-                  item.children.some((child) => child.current) ||
-                  getDefaultOpen()
+                  item.children.some((child) => child.current) || isOpen
                 }
               >
                 {({ open }) => (
                   <>
                     <Disclosure.Button
                       className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
-                      onClick={handleDropDownClick}
+                      onClick={() => setIsOpen(!isOpen)}
                     >
                       {item.icon && (
                         <item.icon
