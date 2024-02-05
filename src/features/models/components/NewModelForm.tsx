@@ -189,10 +189,10 @@ export const NewModelForm = (props: {
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                Regular expression (POSIX) to match ingested generations (model
-                attribute) to this model definition. For an exact,
-                case-insensitive match to a model name, use the expression:
-                (~*)^modelname$
+                Regular expression (Postgres syntax) to match ingested
+                generations (model attribute) to this model definition. For an
+                exact, case-insensitive match to a model name, use the
+                expression: (?i)^modelname$
               </FormDescription>
               <FormMessage />
             </FormItem>

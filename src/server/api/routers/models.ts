@@ -114,7 +114,7 @@ export const modelRouter = createTRPCRouter({
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Invalid regex, needs to be POSIX compliant",
+          message: "Invalid regex, needs to be Postgres syntax",
         });
       }
 
