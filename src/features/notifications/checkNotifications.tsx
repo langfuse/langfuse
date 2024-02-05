@@ -47,7 +47,6 @@ export const useCheckNotification = (
     }
     // We delay the notification to ensure that the Toaster component (in layout.tsx L491) is mounted before we call the toast function
     const timeoutId = setTimeout(() => {
-      console.log("Notification useEffect");
       notification.reverse().forEach((n) => {
         if (new Date(n.releaseDate) <= new Date() && n.id > lastSeenId) {
           toast(n.message, {
