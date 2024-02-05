@@ -1,5 +1,3 @@
-name:
-description: Suggest new features or potential improvements
 body:
 - type: textarea
     attributes:
