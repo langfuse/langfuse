@@ -1,5 +1,5 @@
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
-import { Fragment, type PropsWithChildren, useState, useEffect } from "react";
+import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
@@ -26,7 +26,7 @@ import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Toaster } from "@/src/components/ui/sonner";
 import {
   NOTIFICATIONS,
-  checkNotification,
+  useCheckNotification,
 } from "@/src/features/notifications/checkNotifications";
 
 const userNavigation = [
@@ -51,11 +51,7 @@ export default function Layout(props: PropsWithChildren) {
   const router = useRouter();
   const session = useSession();
 
-  useEffect(() => {
-    setTimeout(() => {
-      checkNotification(NOTIFICATIONS);
-    }, 1500);
-  }, []);
+  useCheckNotification(NOTIFICATIONS);
 
   const enableExperimentalFeatures =
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
