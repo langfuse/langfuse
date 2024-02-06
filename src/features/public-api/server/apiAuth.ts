@@ -91,7 +91,9 @@ export async function verifyAuthHeaderAndReturnScope(
     console.error("Error verifying auth header: ", error);
     return {
       validKey: false,
-      error: error instanceof Error ? error.message : "Authorization error",
+      error:
+        (error instanceof Error ? error.message : "Authorization error") +
+        ". Confirm that you've configured the correct host.",
     };
   }
   return {
