@@ -12,7 +12,7 @@
     "lint:fix": "next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:e2e": "playwright test",
