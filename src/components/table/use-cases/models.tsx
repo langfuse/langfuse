@@ -35,7 +35,7 @@ const modelConfigDescriptions = {
   outputPrice: "Price per unit of output",
   totalPrice:
     "Price per unit, for models that don't have input/output specific prices",
-  unit: "Unit of measurement for model, can be TOKENS or CHARACTERS.",
+  unit: "Unit of measurement for generative model, can be TOKENS, CHARACTERS, SECONDS, MILLISECONDS, or IMAGES.",
   tokenizerId:
     "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
   config:
