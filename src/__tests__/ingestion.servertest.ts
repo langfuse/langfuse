@@ -39,6 +39,38 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       usage: {
         total: 100,
+        unit: ModelUsageUnit.Milliseconds,
+      },
+      expectedUnit: ModelUsageUnit.Milliseconds,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        input: 1,
+        output: 2,
+        unit: ModelUsageUnit.Images,
+      },
+      expectedUnit: ModelUsageUnit.Images,
+      expectedPromptTokens: 1,
+      expectedCompletionTokens: 2,
+      expectedTotalTokens: 3,
+    },
+    {
+      usage: {
+        input: 30,
+        output: 10,
+        unit: ModelUsageUnit.Seconds,
+      },
+      expectedUnit: ModelUsageUnit.Seconds,
+      expectedPromptTokens: 30,
+      expectedCompletionTokens: 10,
+      expectedTotalTokens: 40,
+    },
+    {
+      usage: {
+        total: 100,
       },
       expectedUnit: null,
       expectedPromptTokens: 0,
