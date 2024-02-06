@@ -1,4 +1,4 @@
-export const VERSION = "v2.1.2";
+export { VERSION } from "./VERSION";
 
 export enum ModelUsageUnit {
   Characters = "CHARACTERS",
