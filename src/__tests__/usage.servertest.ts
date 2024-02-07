@@ -1,3 +1,4 @@
+import { ModelUsageUnit } from "@/src/constants";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 
 describe("Token Count Functions", () => {
@@ -19,7 +20,7 @@ describe("Token Count Functions", () => {
       inputPrice: null,
       outputPrice: null,
       totalPrice: null,
-      unit: "TOKENS",
+      unit: ModelUsageUnit.Tokens,
     };
   };
 

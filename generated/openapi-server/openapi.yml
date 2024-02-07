@@ -1311,6 +1311,9 @@ components:
       enum:
         - CHARACTERS
         - TOKENS
+        - MILLISECONDS
+        - SECONDS
+        - IMAGES
     ObservationLevel:
       title: ObservationLevel
       type: string

@@ -2,6 +2,7 @@
 
 import { modelMatch } from "@/scripts/model-match";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
+import { ModelUsageUnit } from "@/src/constants";
 import { prisma } from "@/src/server/db";
 
 describe("model match", () => {
@@ -17,7 +18,7 @@ describe("model match", () => {
         totalPrice: "0.1",
         matchPattern: "(.*)(gpt-3.5-turbo)?(.*)",
         projectId: null,
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         tokenizerConfig: {
           tokensPerMessage: 3,
           tokensPerName: 1,
@@ -35,7 +36,7 @@ describe("model match", () => {
         totalPrice: "0.1",
         matchPattern: "(.*)(claude-1.3)?(.*)",
         projectId: null,
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         tokenizerId: "claude",
       },
     });
@@ -48,7 +49,7 @@ describe("model match", () => {
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           model: "gpt-3.5-turbo",
           startTime: new Date("2024-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           promptTokens: 200,
           completionTokens: 3000,
           input: "I am a prompt",
@@ -59,7 +60,7 @@ describe("model match", () => {
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           model: "claude-1.3",
           startTime: new Date("2024-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           input: "I am a prompt",
           output: "I am a completion",
         },
@@ -68,7 +69,7 @@ describe("model match", () => {
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           model: "claude-1.3",
           startTime: new Date("2024-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           input: "I am a prompt",
           output: "I am a completion",
         },

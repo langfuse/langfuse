@@ -1,7 +1,8 @@
-import { VERSION } from "@/src/constants/VERSION";
+import { AlertTriangle } from "lucide-react";
+
+import { VERSION } from "@/src/constants";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
-import { AlertTriangle } from "lucide-react";
 
 export const LangfuseIcon = ({
   size = 32,
