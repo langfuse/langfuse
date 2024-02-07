@@ -108,6 +108,8 @@ Links: [Create account](https://cloud.langfuse.com), [learn more](https://cloud.
 
 #### Localhost
 
+TESTESTETS
+
 Requirements: docker, docker compose (e.g. using Docker Desktop)
 
 ```bash
