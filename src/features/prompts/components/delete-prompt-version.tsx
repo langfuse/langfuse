@@ -12,12 +12,10 @@ import {
 export function DeletePromptVersion({
   promptId,
   projectId,
-  promptName,
   version,
 }: {
   promptId: string;
   projectId: string;
-  promptName: string;
   version: number;
 }) {
   const utils = api.useUtils();
