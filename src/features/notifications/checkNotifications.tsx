@@ -26,9 +26,10 @@ export const NOTIFICATIONS: TNotification[] = [
         </ul>
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined && (
           <p className="mt-2">
-            Since you self-host Langfuse, this includes a breaking change and
-            you need to run a migration script to get usage and cost for
-            existing traces. See post for details.
+            Self-hosted: The upgrade to v2 includes a breaking change. After
+            upgrading, you must run a migration script to ensure accurate usage
+            and cost calculation for previously ingested traces. Please refer to
+            the post for details.
           </p>
         )}
         <Button size="sm" variant="secondary" className="mt-3">
