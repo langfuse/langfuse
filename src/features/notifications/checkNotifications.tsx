@@ -22,9 +22,10 @@ export const NOTIFICATIONS: TNotification[] = [
         </p>
         <ul className="ms-4 list-outside list-disc">
           <li>Ingest your calculated cost via the SKDs</li>
-          <li>Define custom Models with own model names and prices</li>
+          <li>Define custom models with own names and prices</li>
           <li>
             Choose among a variety of usage units like{" "}
+            <span className="inline">Tokens</span>,{" "}
             <span className="inline">Seconds</span> or{" "}
             <span className="inline">Characters</span>
           </li>
