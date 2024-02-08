@@ -6,6 +6,7 @@ import Notification, {
   type TNotification,
 } from "@/src/features/notifications/Notification";
 import { Button } from "@/src/components/ui/button";
+import { env } from "@/src/env.mjs";
 
 export const NOTIFICATIONS: TNotification[] = [
   {
@@ -15,17 +16,21 @@ export const NOTIFICATIONS: TNotification[] = [
     description: (
       <div>
         <p>
-          Langfuse now supports any LLM model for usage cost tracking. The
+          Langfuse now supports any LLM model for usage and cost tracking. The
           highlights:
         </p>
         <ul className="ms-4 mt-2 list-outside list-disc">
-          <li>Create custom model definitions to define your own pricing.</li>
-          <li>Ingest cost per generation via the SDK/API.</li>
-          <li>
-            Choose among a variety of usage units like Tokens, Seconds or
-            Characters
-          </li>
+          <li>Define your model definitions (price, usage).</li>
+          <li>Optionally, ingest cost via the API/SDK</li>
+          <li>Support for usage in tokens, seconds and characters</li>
         </ul>
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined && (
+          <p className="mt-2">
+            Since you self-host Langfuse, this includes a breaking change and
+            you need to run a migration script to get usage and cost for
+            existing traces. See post for details.
+          </p>
+        )}
         <Button size="sm" variant="secondary" className="mt-3">
           <Link href="https://langfuse.com/changelog/2024-01-29-custom-model-prices">
             Changelog post
