@@ -48,7 +48,7 @@
 </br>
 
 
-## Langfuse is an open source platform to develop, monitor and test LLM apps
+## Overview
 
 ### Develop
 - **Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
