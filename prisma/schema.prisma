@@ -440,7 +440,7 @@ model Model {
     inputPrice      Decimal?  @map("input_price")
     outputPrice     Decimal?  @map("output_price")
     totalPrice      Decimal?  @map("total_price")
-    unit            String // TOKENS or CHARACTERS
+    unit            String // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, or IMAGES
     tokenizerId     String?   @map("tokenizer_id")
     tokenizerConfig Json?     @map("tokenizer_config")
 

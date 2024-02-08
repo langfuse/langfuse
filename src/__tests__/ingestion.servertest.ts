@@ -1,9 +1,11 @@
 /** @jest-environment node */
 
+import { v4 } from "uuid";
+
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { ModelUsageUnit } from "@/src/constants";
 import { cleanEvent } from "@/src/pages/api/public/ingestion";
 import { prisma } from "@/src/server/db";
-import { v4 } from "uuid";
 
 describe("/api/public/ingestion API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -14,12 +16,12 @@ describe("/api/public/ingestion API Endpoint", () => {
         input: 100,
         output: 200,
         total: 100,
-        unit: "CHARACTERS",
+        unit: ModelUsageUnit.Characters,
         inputCost: 123,
         outputCost: 456,
         totalCost: 789,
       },
-      expectedUnit: "CHARACTERS",
+      expectedUnit: ModelUsageUnit.Characters,
       expectedPromptTokens: 100,
       expectedCompletionTokens: 200,
       expectedTotalTokens: 100,
@@ -27,12 +29,44 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       usage: {
         total: 100,
-        unit: "CHARACTERS",
+        unit: ModelUsageUnit.Characters,
       },
-      expectedUnit: "CHARACTERS",
+      expectedUnit: ModelUsageUnit.Characters,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        total: 100,
+        unit: ModelUsageUnit.Milliseconds,
+      },
+      expectedUnit: ModelUsageUnit.Milliseconds,
+      expectedPromptTokens: 0,
+      expectedCompletionTokens: 0,
+      expectedTotalTokens: 100,
+    },
+    {
+      usage: {
+        input: 1,
+        output: 2,
+        unit: ModelUsageUnit.Images,
+      },
+      expectedUnit: ModelUsageUnit.Images,
+      expectedPromptTokens: 1,
+      expectedCompletionTokens: 2,
+      expectedTotalTokens: 3,
+    },
+    {
+      usage: {
+        input: 30,
+        output: 10,
+        unit: ModelUsageUnit.Seconds,
+      },
+      expectedUnit: ModelUsageUnit.Seconds,
+      expectedPromptTokens: 30,
+      expectedCompletionTokens: 10,
+      expectedTotalTokens: 40,
     },
     {
       usage: {
@@ -52,7 +86,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expectedPromptTokens: 100,
       expectedCompletionTokens: 200,
       expectedTotalTokens: 100,
-      expectedUnit: "TOKENS",
+      expectedUnit: ModelUsageUnit.Tokens,
     },
     {
       usage: {
@@ -61,7 +95,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
-      expectedUnit: "TOKENS",
+      expectedUnit: ModelUsageUnit.Tokens,
     },
     {
       usage: undefined,
@@ -256,7 +290,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "gpt-3.5",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: "gpt-3.5-turbo",
       expectedPromptTokens: 5,
       expectedCompletionTokens: 7,
@@ -265,7 +299,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -273,7 +307,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "gpt-3.5",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: "gpt-3.5-turbo",
       expectedPromptTokens: 5,
       expectedCompletionTokens: 7,
@@ -282,7 +316,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: null,
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -290,7 +324,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "GPT-3.5",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: "gpt-3.5-turbo",
       expectedPromptTokens: 5,
       expectedCompletionTokens: 7,
@@ -299,7 +333,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -307,7 +341,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "GPT-3.5",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: "gpt-3.5-turbo",
       expectedPromptTokens: 5,
       expectedCompletionTokens: 7,
@@ -316,14 +350,14 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
         {
           modelName: "gpt-3.5-turbo-new",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T10:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -331,7 +365,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "GPT-3.5",
       observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: "gpt-3.5-turbo",
       expectedPromptTokens: 5,
       expectedCompletionTokens: 7,
@@ -340,14 +374,14 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "gpt-3.5-turbo-new",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
         {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T10:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
           tokenizerModel: "gpt-3.5-turbo",
         },
@@ -356,7 +390,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "ft:gpt-3.5-turbo-1106:my-org:custom_suffix:id",
       observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: "ft:gpt-3.5-turbo-1106",
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
@@ -365,7 +399,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "ft:gpt-3.5-turbo-1106",
           matchPattern: "(?i)^(ft:)(gpt-3.5-turbo-1106:)(.+)(:)(.*)(:)(.+)$",
           startDate: new Date("2022-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -373,7 +407,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "ft:babbage-002:my-org#2:custom_suffix-2:id",
       observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: "ft:babbage-002",
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
@@ -382,7 +416,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "ft:babbage-002",
           matchPattern: "(?i)^(ft:)(babbage-002:)(.+)(:)(.*)(:)(.+)$",
           startDate: new Date("2022-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -390,7 +424,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "GPT-4",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
-      modelUnit: "TOKENS",
+      modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModel: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
@@ -399,7 +433,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -407,7 +441,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     {
       observationExternalModel: "GPT-3",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
-      modelUnit: "CHARACTERS",
+      modelUnit: ModelUsageUnit.Characters,
       expectedInternalModel: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
@@ -416,7 +450,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           modelName: "gpt-3.5-turbo",
           matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
           startDate: new Date("2021-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           tokenizerId: "openai",
         },
       ],
@@ -886,7 +920,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         modelName: "gpt-3.5",
         matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
         startDate: new Date("2021-01-01T00:00:00.000Z"),
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         tokenizerId: "openai",
         tokenizerConfig: {
           tokensPerMessage: 3,
@@ -968,7 +1002,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         modelName: "gpt-3.5",
         matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
         startDate: new Date("2021-01-01T00:00:00.000Z"),
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         tokenizerId: "openai",
         tokenizerConfig: {
           tokensPerMessage: 3,

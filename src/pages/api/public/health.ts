@@ -1,4 +1,4 @@
-import { VERSION } from "@/src/constants/VERSION";
+import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
 import { prisma } from "@/src/server/db";
