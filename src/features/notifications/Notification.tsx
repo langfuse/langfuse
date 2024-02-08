@@ -1,4 +1,4 @@
-import { CloseIcon } from "@/src/features/notifications/CloseIcon";
+import { X } from "lucide-react";
 
 export interface TNotification {
   id: number;
@@ -40,7 +40,7 @@ const Notification: React.FC<NotificationProps> = ({
       }}
       aria-label="Close"
     >
-      <CloseIcon />
+      <X size={14} />
     </button>
   </div>
 );
