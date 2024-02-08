@@ -8,7 +8,6 @@ import { useRouter } from "next/router";
 import clsx from "clsx";
 import { Code, MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { cn } from "@/src/utils/tailwind";
 import {
   Avatar,
@@ -24,6 +23,13 @@ import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Toaster } from "@/src/components/ui/sonner";
+import {
+  NOTIFICATIONS,
+  useCheckNotification,
+} from "@/src/features/notifications/checkNotifications";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 const userNavigation = [
   {
@@ -46,6 +52,9 @@ export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const session = useSession();
+
+  useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
+
   const enableExperimentalFeatures =
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
 
@@ -503,6 +512,7 @@ export default function Layout(props: PropsWithChildren) {
             </div>
           ) : null}
           <main className="p-4">{props.children}</main>
+          <Toaster visibleToasts={1} />
         </div>
       </div>
     </>
@@ -522,29 +532,11 @@ const MainNavigation: React.FC<{
   nav: NavigationItem[];
   onNavitemClick?: () => void;
 }> = ({ nav, onNavitemClick }) => {
-  const STORAGE_KEY = "sidebar-tracing-default-open";
-  const getDefaultOpen = () => {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    if (savedState !== null) {
-      try {
-        return JSON.parse(savedState) as boolean;
-      } catch (e) {
-        console.error("Error parsing saved state: ", e);
-      }
-    }
-    return false;
-  };
+  const [isOpen, setIsOpen] = useLocalStorage(
+    "sidebar-tracing-default-open",
+    false,
+  );
 
-  const handleDropDownClick = () => {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    const isOpen =
-      savedState !== null ? (JSON.parse(savedState) as boolean) : false;
-    const newState = !isOpen;
-    localStorage.setItem(
-      "sidebar-tracing-default-open",
-      JSON.stringify(newState),
-    );
-  };
   return (
     <li>
       <ul role="list" className="-mx-2 space-y-1">
@@ -590,15 +582,14 @@ const MainNavigation: React.FC<{
               <Disclosure
                 as="div"
                 defaultOpen={
-                  item.children.some((child) => child.current) ||
-                  getDefaultOpen()
+                  item.children.some((child) => child.current) || isOpen
                 }
               >
                 {({ open }) => (
                   <>
                     <Disclosure.Button
                       className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
-                      onClick={handleDropDownClick}
+                      onClick={() => setIsOpen(!isOpen)}
                     >
                       {item.icon && (
                         <item.icon
