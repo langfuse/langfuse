@@ -33,30 +33,6 @@ export const NOTIFICATIONS: TNotification[] = [
       </Link>
     ),
   },
-  // {
-  //   id: 2,
-  //   releaseDate: "05/02/2024",
-  //   message:
-  //     "Langfuse 2.1 just released 🚀 check the very long announcement notification out",
-  //   description: (
-  //     <Link
-  //       href={"https://www.langfuse.com/changelog"}
-  //       className="my-2 rounded-md border border-gray-800 px-2 py-1 text-gray-800"
-  //     >
-  //       View changes
-  //     </Link>
-  //   ),
-  // },
-  // {
-  //   id: 3,
-  //   releaseDate: "06/02/2024",
-  //   message: "We got nominated for the Kitty Awards 🏆",
-  //   description: (
-  //     <Link href={"https://www.langfuse.com/changelog"}>
-  //       Vote for us and get a chance to win a lifetime subscription
-  //     </Link>
-  //   ),
-  // },
 ];
 
 export const useCheckNotification = (
