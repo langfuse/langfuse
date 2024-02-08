@@ -51,21 +51,23 @@
 ## Langfuse is an open source platform to develop, monitor and test LLM apps
 
 ### Develop
-- Instrument your app and start ingesting traces to Langfuse
-- Inspect and debug complex logs in the Langfuse UI
-- Manage, version and deploy prompts from within Langfuse
+- **Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
+- **Langfuse UI:** Inspect and debug complex logs ([Demo](https://langfuse.com/docs/demo), [Tracing](https://langfuse.com/docs/tracing))
+- **Prompts:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts))
 
-### Monitor & test
-- Track metrics (cost, latency, quality) and gain insights from dashboards & data exports
-- Collect and calculate scores for your LLM completions
-   - Run model-based evaluations
-   - Collect user feedback
-   - Manually score observations in Langfuse
-- Test
-   - Datasets let you test expected in and output pairs and benchmark performance before deployiong
-   - Track versions and releases in your application
+### Monitor
+- **Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
+- **Evals:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
+   - Run model-based evaluations ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals))
+   - Collect user feedback ([User Feedback](https://langfuse.com/docs/scores/user-feedback))
+   - Manually score observations in Langfuse ([Manual Scores](https://langfuse-docs-git-new-menu-langfuse.vercel.app/docs/scores/manually))
 
+ ### Test
+- **Experiments:** Track and test app behaviour before deploying a new version
+   - Datasets let you test expected in and output pairs and benchmark performance before deployiong ([Datasets](https://langfuse.com/docs/datasets))
+   - Track versions and releases in your application ([Experimentation](https://langfuse.com/docs/experimentation), [Prompt Management](https://langfuse.com/docs/prompts))
 
+### Video: Langfuse in two minutes
 https://github.com/langfuse/langfuse/assets/2834609/6041347a-b517-4a11-8737-93ef8f8af49f
 
 _Muted by default, enable sound for voice-over_
@@ -92,24 +94,27 @@ docker compose up -d
 
 ### Self-host (docker)
 
+Langfuse is simple to self-host and keep updated. It currently requires only a single docker container. 
 [→ Self Hosting Instructions](https://langfuse.com/docs/deployment/self-host)
 
-[Deploy on Railway, GCP Cloud Run, AWS Fargate, Kubernetes and others](https://langfuse.com/docs/deployment/self-host#platform-specific-information)
+Templated deployments: [Railway, GCP Cloud Run, AWS Fargate, Kubernetes and others](https://langfuse.com/docs/deployment/self-host#platform-specific-information)
 
 
-## Data Ingestion · instrumenting your application
+## Get Started 
 
-We recommend using our fully async, typed SDKs that allow you to instrument any LLM application using any model. 
+### API Keys
 
-They are available in Python & JS/TS. The SDKs will always be the most fully featured and stable way to ingest data into Langfuse.
+You require a Langfuse public and secret key to get started. Sign up [here](https://cloud.langfuse.com) and find them in your project settings.
 
-You may want to use another integration to get started quickly or implement a use case that we do not yet support. However, we recommend to migrate to the Langfuse SDKs over time to ensure the best possible experience.
+### Ingesting Data · Instrumenting Your Application
 
-[→ Quickstart](https://langfuse.com/docs/get-started)
+Note: We recommend using our fully async, typed [SDKs](https://langfuse.com/docs/sdk) that allow you to instrument any LLM application with any underlying model. They are available in [Python](https://langfuse.com/docs/sdk/python) & [JS/TS](https://langfuse.com/docs/sdk/typescript). The SDKs will always be the most fully featured and stable way to ingest data into Langfuse.
+
+You may want to use another integration to get started quickly or implement a use case that we do not yet support. However, we recommend to migrate to the Langfuse SDKs over time to ensure performance and stability.
+
+See our the [→ Quickstart](https://langfuse.com/docs/get-started) to get started in integrating Langfuse.
 
 ### Integrations
-
-There are currently four main ways to integrate with Langfuse:
 
 | Integration                  | Supports      | Description                                                                     |
 | ---------------------------- | ------------- | ------------------------------------------------------------------------------- |
@@ -118,7 +123,7 @@ There are currently four main ways to integrate with Langfuse:
 | [Langchain](https://langfuse.com/docs/langchain) | Python, JS/TS | Automated instrumentation by passing callback handler to Langchain application. |
 | [API](https://langfuse.com/docs/api)             |               | Directly call the public API. OpenAPI spec available.                           |
 
-In addition, Langfuse is natively integrated with the following projects/packages:
+External projects/packages that integrate with Langfuse:
 
 | Name                       | Description                                                                                                                                      |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -137,14 +142,14 @@ In addition, Langfuse is natively integrated with the following projects/package
 In order of preference the best way to communicate with us:
 
 - [GitHub Discussions](https://github.com/orgs/langfuse/discussions): Contribute [ideas](https://langfuse.com/idea) [support requests](https://github.com/orgs/langfuse/discussions/categories/support) and [report bugs](https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+) (preferred as we create a permanent, indexed artifact for other community members)
-- - [Discord](https://langfuse.com/discord): For community support and to chat directly with maintainers
+- [Discord](https://langfuse.com/discord): For community support and to chat directly with maintainers
 - Privately: Email contact at langfuse dot com 
 
 ## Contributing to Langfuse
 
 - Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas)
 - Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues)
-- Open a PR -- see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
+- Open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
 
 ## License
 
@@ -154,8 +159,7 @@ This repository is MIT licensed, except for the `ee/` folder. See [LICENSE](LICE
 
 ### GET API to export your data
 
-[**API reference**](https://langfuse.com/docs/integrations/api)
-GET routes to use data in downstream applications (e.g. embedded analytics)
+[**GET routes**](https://langfuse.com/docs/integrations/api) to use data in downstream applications (e.g. embedded analytics)
 
 ### Run Langfuse in CI for integration tests
 
