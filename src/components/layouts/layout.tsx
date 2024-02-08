@@ -512,7 +512,7 @@ export default function Layout(props: PropsWithChildren) {
             </div>
           ) : null}
           <main className="p-4">{props.children}</main>
-          <Toaster />
+          <Toaster visibleToasts={1} />
         </div>
       </div>
     </>

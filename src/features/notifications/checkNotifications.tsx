@@ -9,38 +9,53 @@ import Notification, {
 export const NOTIFICATIONS: TNotification[] = [
   {
     id: 1,
-    releaseDate: "03/02/2024",
-    message: "Langfuse 2.0 just released 🚀 check it out",
-    description: (
-      <Link href={"https://www.langfuse.com/changelog"}>
-        Click to check out the new features and improvements
-      </Link>
-    ),
-  },
-  {
-    id: 2,
-    releaseDate: "05/02/2024",
-    message:
-      "Langfuse 2.1 just released 🚀 check the very long announcement notification out",
+    releaseDate: new Date("2024-01-01"),
+    message: "🚢 Custom models and pricings",
     description: (
       <Link
-        href={"https://www.langfuse.com/changelog"}
-        className="my-2 rounded-md border border-gray-800 px-2 py-1 text-gray-800"
+        href={"https://langfuse.com/changelog/2024-01-29-custom-model-prices"}
       >
-        View changes
+        <p>
+          Click to check out revamped models and pricings:
+          <br />
+          <br />
+        </p>
+        <ul className="ms-4 list-outside list-disc">
+          <li>Ingest your calculated cost via the SKDs</li>
+          <li>Define custom Models with own model names and prices</li>
+          <li>
+            Choose among a variety of usage units like{" "}
+            <span className="inline">Seconds</span> or{" "}
+            <span className="inline">Characters</span>
+          </li>
+        </ul>
       </Link>
     ),
   },
-  {
-    id: 3,
-    releaseDate: "06/02/2024",
-    message: "We got nominated for the Kitty Awards 🏆",
-    description: (
-      <Link href={"https://www.langfuse.com/changelog"}>
-        Vote for us and get a chance to win a lifetime subscription
-      </Link>
-    ),
-  },
+  // {
+  //   id: 2,
+  //   releaseDate: "05/02/2024",
+  //   message:
+  //     "Langfuse 2.1 just released 🚀 check the very long announcement notification out",
+  //   description: (
+  //     <Link
+  //       href={"https://www.langfuse.com/changelog"}
+  //       className="my-2 rounded-md border border-gray-800 px-2 py-1 text-gray-800"
+  //     >
+  //       View changes
+  //     </Link>
+  //   ),
+  // },
+  // {
+  //   id: 3,
+  //   releaseDate: "06/02/2024",
+  //   message: "We got nominated for the Kitty Awards 🏆",
+  //   description: (
+  //     <Link href={"https://www.langfuse.com/changelog"}>
+  //       Vote for us and get a chance to win a lifetime subscription
+  //     </Link>
+  //   ),
+  // },
 ];
 
 export const useCheckNotification = (
@@ -57,7 +72,7 @@ export const useCheckNotification = (
     }
     const timeoutId = setTimeout(() => {
       notification.reverse().forEach((n) => {
-        if (new Date(n.releaseDate) >= new Date() && n.id > lastSeenId) {
+        if (n.id > lastSeenId) {
           toast.custom(
             (t) => (
               <Notification
@@ -68,6 +83,7 @@ export const useCheckNotification = (
               />
             ),
             {
+              // needed to upsert toasts in case it is rendered multiple times
               id: n.id.toString(),
               duration: 99999,
               style: {

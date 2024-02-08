@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 export interface TNotification {
   id: number;
   // MM/DD/YYYY
-  releaseDate: string;
+  releaseDate: Date;
   message: string | JSX.Element;
   description?: JSX.Element | string;
 }
