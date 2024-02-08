@@ -8,12 +8,13 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@prisma/client";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { PromptHistoryNode } from "./prompt-history";
 import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { useQueryParam, NumberParam } from "use-query-params";
 import router from "next/router";
+import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 
 export type PromptDetailProps = {
   projectId: string;
@@ -77,6 +78,12 @@ export const PromptDetail = (props: PromptDetailProps) => {
                     <Pencil className="h-5 w-5" />
                   </Button>
                 </CreatePromptDialog>
+                <DeletePromptVersion
+                  projectId={props.projectId}
+                  promptId={prompt.id}
+                  promptName={prompt.name}
+                  version={prompt.version}
+                />
                 <DetailPageNav
                   key="nav"
                   currentId={prompt.name}
