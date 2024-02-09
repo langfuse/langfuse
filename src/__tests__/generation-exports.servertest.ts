@@ -12,6 +12,9 @@ describe("observations.export RPC", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   beforeAll(async () => {
+    // Disable S3 upload
+    process.env.S3_ENDPOINT = "";
+
     await pruneDatabase();
     const traceId = "trace-1";
 
