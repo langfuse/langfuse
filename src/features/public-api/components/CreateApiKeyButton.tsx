@@ -12,6 +12,12 @@ import { CodeView } from "@/src/components/ui/code";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
 import { env } from "@/src/env.mjs";
+import {
+  Tabs,
+  TabsList,
+  TabsContent,
+  TabsTrigger,
+} from "@/src/components/ui/tabs";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -66,7 +72,10 @@ export function CreateApiKeyButton(props: { projectId: string }) {
           Create new API keys
         </Button>
       </DialogTrigger>
-      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        className="max-w-xl"
+      >
         {hostname ? (
           <>
             <DialogTitle>Hostname</DialogTitle>
@@ -78,7 +87,6 @@ export function CreateApiKeyButton(props: { projectId: string }) {
             </div>
           </>
         ) : null}
-
         <DialogTitle>API Keys</DialogTitle>
         <div className="mb-2">
           <div className="text-md font-semibold">Secret Key</div>
@@ -95,6 +103,29 @@ export function CreateApiKeyButton(props: { projectId: string }) {
           <div className="text-md mb-2 font-semibold">Public Key</div>
           <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
         </div>
+        {generatedKeys?.publicKey && generatedKeys.secretKey && (
+          <div className="mb-2">
+            <div className="text-md my-2 font-semibold">Usage</div>
+            <Tabs defaultValue="javaScript">
+              <TabsList>
+                <TabsTrigger value="javaScript">JS/TS</TabsTrigger>
+                <TabsTrigger value="python">Python</TabsTrigger>
+              </TabsList>
+              <TabsContent value="javaScript">
+                <CodeView
+                  className="bg-blue-50"
+                  content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${generatedKeys.secretKey}",\n  publicKey: "${generatedKeys.publicKey}",\n  ${hostname ? `baseUrl: "${hostname}"` : '//baseUrl: defaults to "https://cloud.langfuse.com"'}\n});`}
+                />
+              </TabsContent>
+              <TabsContent value="python">
+                <CodeView
+                  className="bg-red-50"
+                  content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${generatedKeys.secretKey}",\n  public_key="${generatedKeys.publicKey}",\n  ${hostname ? `host="${hostname}"` : 'host="https://cloud.langfuse.com"'}\n)`}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
