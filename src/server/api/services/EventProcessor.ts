@@ -28,11 +28,13 @@ import {
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
+import { sendToSlack } from "@/src/features/slack/server/slack-webhook";
+import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 
 export interface EventProcessor {
   process(
     apiScope: ApiAccessScope,
-  ): Promise<Trace | Observation | Score> | undefined;
+  ): Promise<Trace | Observation | Score> | void;
 }
 
 export async function findModel(p: {
@@ -562,7 +564,15 @@ export class SdkLogProcessor implements EventProcessor {
     this.event = event;
   }
 
-  process() {
-    return undefined;
+  process(apiScope: ApiAccessScope) {
+    try {
+      void sendToBetterstack({
+        type: "sdk-log",
+        event: this.event,
+        projectId: apiScope.projectId,
+      });
+    } catch (error) {
+      return;
+    }
   }
 }
