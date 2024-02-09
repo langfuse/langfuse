@@ -11,7 +11,6 @@ import {
 import { CodeView } from "@/src/components/ui/code";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
-import { env } from "@/src/env.mjs";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
