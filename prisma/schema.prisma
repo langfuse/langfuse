@@ -419,6 +419,7 @@ model Prompt {
     name        String
     version     Int
     isActive    Boolean       @map("is_active")
+    config      Json          @default("{}")
     Observation Observation[]
 
     @@unique([projectId, name, version])
