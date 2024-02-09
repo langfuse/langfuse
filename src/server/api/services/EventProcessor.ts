@@ -28,6 +28,7 @@ import {
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
+import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 
 export interface EventProcessor {
   process(
@@ -562,7 +563,16 @@ export class SdkLogProcessor implements EventProcessor {
     this.event = event;
   }
 
-  process() {
-    return undefined;
+  process(apiScope: ApiAccessScope) {
+    try {
+      void sendToBetterstack({
+        type: "sdk-log",
+        event: this.event,
+        projectId: apiScope.projectId,
+      });
+      return undefined;
+    } catch (error) {
+      return undefined;
+    }
   }
 }
