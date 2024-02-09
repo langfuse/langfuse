@@ -162,7 +162,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       header: () => {
         return (
           <>
-            Total Price<span className="text-xs text-gray-400">/ 1k units</span>
+            Total Price{" "}
+            <span className="text-xs text-gray-400">/ 1k units</span>
           </>
         );
       },
