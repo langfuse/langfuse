@@ -274,7 +274,7 @@ export const generationsRouter = createTRPCRouter({
             )
           : Prisma.empty;
 
-      const generations = await ctx.prisma.$queryRaw<
+      const allGenerations = await ctx.prisma.$queryRaw<
         Array<
           ObservationView & {
             traceId: string;
@@ -355,106 +355,28 @@ export const generationsRouter = createTRPCRouter({
 
       let output: string = "";
 
-      // create file
+      // Create file string
       switch (input.fileFormat) {
         case "CSV":
-          output = [
-            [
-              "traceId",
-              "name",
-              "model",
-              "startTime",
-              "endTime",
-              "cost",
-              "prompt",
-              "completion",
-              "metadata",
-            ],
-          ]
-            .concat(
-              generations.map((generation) =>
-                [
-                  generation.traceId,
-                  generation.name ?? "",
-                  generation.model ?? "",
-                  generation.startTime.toISOString(),
-                  generation.endTime?.toISOString() ?? "",
-                  generation.calculatedTotalCost
-                    ? usdFormatter(
-                        generation.calculatedTotalCost.toNumber(),
-                        2,
-                        8,
-                      )
-                    : "",
-                  JSON.stringify(generation.input),
-                  JSON.stringify(generation.output),
-                  JSON.stringify(generation.metadata),
-                ].map((field) => {
-                  const str = typeof field === "string" ? field : String(field);
-                  return `"${str.replace(/"/g, '""')}"`;
-                }),
-              ),
-            )
-            .map((row) => row.join(","))
-            .join("\n");
+          output = mutateGenerationsInPlaceToCSV(allGenerations);
           break;
         case "JSON":
-          output = JSON.stringify(generations);
+          // This operation is not yet memory optimized to mutate the generations in place
+          output = JSON.stringify(allGenerations);
           break;
         case "OPENAI-JSONL":
-          const inputSchemaOpenAI = z.array(
-            z.object({
-              role: z.enum(["system", "user", "assistant"]),
-              content: z.string(),
-            }),
-          );
-          const outputSchema = z
-            .object({
-              completion: jsonSchema,
-            })
-            .or(jsonSchema);
-          output = generations
-            .map((generation) => ({
-              parsedInput: inputSchemaOpenAI.safeParse(generation.input),
-              parsedOutput: outputSchema.safeParse(generation.output),
-            }))
-            .filter((generation) => generation.parsedInput.success)
-            .map((generation) =>
-              generation.parsedInput.success // check for typescript validation, is always true due to previous filter
-                ? generation.parsedInput.data.concat(
-                    generation.parsedOutput.success
-                      ? [
-                          {
-                            role: "assistant",
-                            content:
-                              typeof generation.parsedOutput.data ===
-                                "object" &&
-                              "completion" in generation.parsedOutput.data
-                                ? JSON.stringify(
-                                    generation.parsedOutput.data.completion,
-                                  )
-                                : JSON.stringify(generation.parsedOutput.data),
-                          },
-                        ]
-                      : [],
-                  )
-                : [],
-            )
-            // to jsonl
-            .map((row) => JSON.stringify(row))
-            .join("\n");
+          output = mutateGenerationsInPlaceToJSONL(allGenerations);
 
           break;
         default:
           throw new Error("Invalid export file format");
       }
 
-      const fileName = `lf-export-${
-        input.projectId
-      }-${new Date().toISOString()}.${
-        exportOptions[input.fileFormat].extension
-      }`;
+      const fileDate = new Date().toISOString();
+      const fileExtension = exportOptions[input.fileFormat].extension;
+      const fileName = `lf-export-${input.projectId}-${fileDate}.${fileExtension}`;
 
+      // Upload to S3 if credentials are provided
       if (
         env.S3_BUCKET_NAME &&
         env.S3_ACCESS_KEY_ID &&
@@ -470,6 +392,7 @@ export const generationsRouter = createTRPCRouter({
           endpoint: env.S3_ENDPOINT,
           region: env.S3_REGION,
         });
+
         await client.send(
           new PutObjectCommand({
             Bucket: env.S3_BUCKET_NAME,
@@ -478,6 +401,7 @@ export const generationsRouter = createTRPCRouter({
             ContentType: exportOptions[input.fileFormat].fileType,
           }),
         );
+
         const signedUrl = await getSignedUrl(
           client,
           new GetObjectCommand({
@@ -489,19 +413,22 @@ export const generationsRouter = createTRPCRouter({
             expiresIn: 60 * 60, // in 1 hour, signed url will expire
           },
         );
+
         return {
           type: "s3",
           url: signedUrl,
           fileName,
         } as const;
-      } else {
-        return {
-          type: "data",
-          data: output,
-          fileName,
-        } as const;
       }
+
+      // Fallback to returning the file as a data in HTTP response
+      return {
+        type: "data",
+        data: output,
+        fileName,
+      } as const;
     }),
+
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -571,3 +498,124 @@ export const generationsRouter = createTRPCRouter({
       return res;
     }),
 });
+
+/**
+ * WARNING: Mutates the allGenerations array in place.
+ * Converts an array of ObservationView objects to a CSV string.
+ * The array is mutated in place to avoid memory issues with large datasets.
+ *
+ * @param allGenerations - An array of ObservationView objects.
+ * @returns The CSV string representation of the observations.
+ * @sideEffects Mutates the allGenerations array in place to an `undefined[]`.
+ * @throws Error if the input is invalid.
+ */
+function mutateGenerationsInPlaceToCSV(
+  allGenerations: (ObservationView | undefined)[] | string,
+): string {
+  if (typeof allGenerations === "string") {
+    throw Error("Invalid input");
+  }
+
+  const csvHeader = [
+    "traceId",
+    "name",
+    "model",
+    "startTime",
+    "endTime",
+    "cost",
+    "prompt",
+    "completion",
+    "metadata",
+  ];
+
+  let output = csvHeader.join(",");
+
+  allGenerations.forEach((generation, index, allGenerations) => {
+    if (!generation) {
+      return;
+    }
+
+    const csvRow = [
+      generation.traceId,
+      generation.name ?? "",
+      generation.model ?? "",
+      generation.startTime.toISOString(),
+      generation.endTime?.toISOString() ?? "",
+      generation.calculatedTotalCost
+        ? usdFormatter(generation.calculatedTotalCost.toNumber(), 2, 8)
+        : "",
+      JSON.stringify(generation.input),
+      JSON.stringify(generation.output),
+      JSON.stringify(generation.metadata),
+    ].map((field) => {
+      const str = typeof field === "string" ? field : String(field);
+      return `"${str.replace(/"/g, '""')}"`;
+    });
+
+    output += "\n" + csvRow.join(",");
+    allGenerations[index] = undefined;
+  });
+
+  return output;
+}
+
+/**
+ * WARNING: Mutates the allGenerations array in place.
+ * Converts an array of ObservationView objects to a JSONL string.
+ * The array is mutated in place to avoid memory issues with large datasets.
+ *
+ * @param allGenerations - An array of ObservationView objects.
+ * @returns The JSONL string representation of the observations.
+ * @sideEffects Mutates the allGenerations array in place to an `undefined[]`.
+ * @throws Error if the input is invalid.
+ */
+function mutateGenerationsInPlaceToJSONL(
+  allGenerations: (ObservationView | undefined)[] | string,
+): string {
+  if (typeof allGenerations === "string") {
+    throw Error("Invalid input");
+  }
+
+  const inputSchemaOpenAI = z.array(
+    z.object({
+      role: z.enum(["system", "user", "assistant"]),
+      content: z.string(),
+    }),
+  );
+
+  const outputSchema = z
+    .object({
+      completion: jsonSchema,
+    })
+    .or(jsonSchema);
+
+  let output: string = "";
+
+  allGenerations.forEach((generation, index, allGenerations) => {
+    if (!generation) {
+      return;
+    }
+
+    const parsedInput = inputSchemaOpenAI.safeParse(generation.input);
+    const parsedOutput = outputSchema.safeParse(generation.output);
+
+    if (parsedInput.success && parsedOutput.success) {
+      output +=
+        JSON.stringify([
+          ...parsedInput.data,
+          {
+            role: "assistant",
+            content:
+              typeof parsedOutput.data === "object" &&
+              "completion" in parsedOutput.data
+                ? JSON.stringify(parsedOutput.data.completion)
+                : JSON.stringify(parsedOutput.data),
+          },
+        ]) + "\n";
+    }
+
+    allGenerations[index] = undefined;
+  });
+
+  return output;
+}
