@@ -25,6 +25,9 @@ import {
 import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
 import { usePostHog } from "posthog-js/react";
+import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { type FilterState } from "@/src/features/filters/types";
+import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 
 export type DashboardDateRange = {
   from: Date;
@@ -50,6 +53,7 @@ export default function Start() {
     to: ToParam,
     select: SelectParam,
   });
+  const [traceNameFilter, setTraceNameFilter] = useState<FilterState>([]);
 
   const dateRange =
     urlParams.from && urlParams.to
@@ -72,6 +76,30 @@ export default function Start() {
     });
   };
 
+  // To Do: trace names fetch route
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  const values = traceFilterOptions.data?.name || [];
+
+  const traceName: ColumnDefinition[] = [
+    {
+      name: "traceName",
+      type: "stringOptions" as const,
+      options: values,
+      internal: "internalValue",
+    },
+  ];
+
   const globalFilterState = dateRange
     ? [
         {
@@ -89,21 +117,46 @@ export default function Start() {
       ]
     : [];
 
+  const wipGlobalFilterState = dateRange
+    ? [
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: ">" as const,
+          value: dateRange.from,
+        },
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: "<" as const,
+          value: dateRange.to,
+        },
+        ...traceNameFilter,
+      ]
+    : [];
+
   return (
     <div className="md:container">
       <Header title={project?.name ?? "Dashboard"} />
-      <DatePickerWithRange
-        dateRange={dateRange}
-        setAgg={setAgg}
-        setDateRangeAndOption={setDateRangeAndOption}
-        selectedOption={selectedOption}
-        className=" max-w-full overflow-x-auto"
-      />
+      <div className="flex items-center justify-between">
+        <DatePickerWithRange
+          dateRange={dateRange}
+          setAgg={setAgg}
+          setDateRangeAndOption={setDateRangeAndOption}
+          selectedOption={selectedOption}
+          className=" max-w-full overflow-x-auto"
+        />
+        <FilterBuilder
+          columns={traceName}
+          filterState={traceNameFilter}
+          onChange={setTraceNameFilter}
+        />
+      </div>
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
           className="col-span-1 xl:col-span-2 "
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={wipGlobalFilterState}
         />
 
         <MetricTable

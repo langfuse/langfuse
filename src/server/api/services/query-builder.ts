@@ -29,9 +29,7 @@ export const executeQuery = async (
   unsafeQuery: z.TypeOf<typeof sqlInterface>,
 ) => {
   const query = sqlInterface.parse(unsafeQuery);
-
   const sql = enrichAndCreateQuery(projectId, query);
-
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
@@ -236,9 +234,21 @@ const prepareFilterString = (
     // raw manfatory for column defs and operator
     // non raw for value, which will go into parameterised string
     if (filter.type === "datetime") {
+      const date = new Date(filter.value);
+      const formattedValue = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}.${String(date.getUTCMilliseconds()).padStart(3, "0")}`;
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
-      )} ${filter.value}::timestamp with time zone at time zone 'UTC'`;
+      )} ${Prisma.sql`${formattedValue}`}::timestamp with time zone at time zone 'UTC'`;
+    } else if (filter.type === "stringOptions") {
+      if (filter.operator === "any of" && Array.isArray(filter.value)) {
+        return Prisma.sql`${getInternalSql(column)} IN (${Prisma.raw(filter.value.map((x) => `'${x}'`).join(", "))})`;
+      } else {
+        return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
+          filter.operator,
+        )} ${filter.value}::${Prisma.raw(
+          `"${tableDefinitions[table]!.table}_${column.name}"`,
+        )}`;
+      }
     } else {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
@@ -369,6 +379,8 @@ const getColumnDefinition = (
 const getInternalSql = (colDef: ColumnDefinition): Sql =>
   // raw required here, everything is typed
   Prisma.raw(colDef.internal);
+
+const getInternalSql2 = (colDef: ColumnDefinition): string => colDef.internal;
 
 const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
   return output.map((row) => {
