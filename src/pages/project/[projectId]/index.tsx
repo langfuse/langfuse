@@ -26,7 +26,7 @@ import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
 import { usePostHog } from "posthog-js/react";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
-import { LayoutDashboard, MessageSquarePlus } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
 export type DashboardDateRange = {
