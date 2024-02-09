@@ -56,11 +56,6 @@ export default async function handler(
         message: authCheck.error,
       });
 
-    if (authCheck.scope.accessLevel !== "all")
-      return res.status(403).json({
-        message: "Access denied",
-      });
-
     const batchType = z.object({
       batch: z.array(z.unknown()),
       metadata: jsonSchema.nullish(),
@@ -244,6 +239,12 @@ const handleSingleEvent = async (
     }
     case eventTypes.SDK_LOG:
       processor = new SdkLogProcessor(cleanedEvent);
+  }
+
+  // Deny access to non-score events if the access level is not "all"
+  // This is an additional safeguard to auth checks in EventProcessor
+  if (apiScope.accessLevel !== "all" && type !== eventTypes.SCORE_CREATE) {
+    throw new AuthenticationError("Access denied. Event type not allowed.");
   }
 
   return await processor.process(apiScope);
