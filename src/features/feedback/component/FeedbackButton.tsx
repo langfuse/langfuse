@@ -18,17 +18,28 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { type PropsWithChildren, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Textarea } from "@/src/components/ui/textarea";
 
+interface FeedbackDialogProps {
+  className?: string;
+  children: React.ReactNode;
+  title: string;
+  description: string;
+  apiEndpoint: string;
+}
 const formSchema = z.object({
   feedback: z.string().min(3, "Must have at least 3 characters"),
 });
 
-export function FeedbackButtonWrapper(
-  props: PropsWithChildren<{ className?: string }>,
-) {
+export function FeedbackButtonWrapper({
+  className,
+  children,
+  title,
+  description,
+  apiEndpoint,
+}: FeedbackDialogProps) {
   const [open, setOpen] = useState(false);
   const session = useSession();
 
@@ -51,7 +62,7 @@ export function FeedbackButtonWrapper(
       });
     }
     try {
-      const res = await fetch("https://cloud.langfuse.com/api/feedback", {
+      const res = await fetch(apiEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -84,12 +95,12 @@ export function FeedbackButtonWrapper(
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={props.className} asChild>
-        {props.children}
+      <DialogTrigger className={className} asChild>
+        {children}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="mb-5">Provide feedback</DialogTitle>
+          <DialogTitle className="mb-5">{title}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form
@@ -102,9 +113,7 @@ export function FeedbackButtonWrapper(
               name="feedback"
               render={({ field }) => (
                 <FormItem>
-                  <FormDescription>
-                    What do you think about this project? What can be improved?
-                  </FormDescription>
+                  <FormDescription>{description}</FormDescription>
                   <FormControl>
                     <Textarea {...field} />
                   </FormControl>
