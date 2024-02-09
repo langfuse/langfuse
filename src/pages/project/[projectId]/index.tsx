@@ -25,6 +25,9 @@ import {
 import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
 import { usePostHog } from "posthog-js/react";
+import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
+import { LayoutDashboard, MessageSquarePlus } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 
 export type DashboardDateRange = {
   from: Date;
@@ -92,13 +95,35 @@ export default function Start() {
   return (
     <div className="md:container">
       <Header title={project?.name ?? "Dashboard"} />
-      <DatePickerWithRange
-        dateRange={dateRange}
-        setAgg={setAgg}
-        setDateRangeAndOption={setDateRangeAndOption}
-        selectedOption={selectedOption}
-        className=" max-w-full overflow-x-auto"
-      />
+      <div className="flex items-center justify-between">
+        <DatePickerWithRange
+          dateRange={dateRange}
+          setAgg={setAgg}
+          setDateRangeAndOption={setDateRangeAndOption}
+          selectedOption={selectedOption}
+          className=" max-w-full overflow-x-auto"
+        />
+        <FeedbackButtonWrapper
+          className="border-box"
+          title="Request dashboard"
+          description="Your feedback matters! Let us know what additional data or metrics you'd like to see in your dashboard."
+          apiEndpoint="https://cloud.langfuse.com/api/feedback"
+        >
+          <Button
+            id="date"
+            variant={"outline"}
+            className={
+              "group justify-start gap-x-3 text-left font-semibold text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
+            }
+          >
+            <LayoutDashboard
+              className="h-6 w-6 shrink-0 text-gray-700 group-hover:text-indigo-600"
+              aria-hidden="true"
+            />
+            Request dashboard
+          </Button>
+        </FeedbackButtonWrapper>
+      </div>
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
           className="col-span-1 xl:col-span-2 "
