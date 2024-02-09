@@ -647,7 +647,12 @@ const MainNavigation: React.FC<{
             ) : null}
           </li>
         ))}
-        <FeedbackButtonWrapper className="w-full">
+        <FeedbackButtonWrapper
+          className="w-full"
+          title="Provide feedback"
+          description="What do you think about this project? What can be improved?"
+          type="feedback"
+        >
           <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
             <MessageSquarePlus
               className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
