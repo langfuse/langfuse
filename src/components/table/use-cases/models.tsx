@@ -107,7 +107,14 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "inputPrice",
       id: "inputPrice",
-      header: "Input Price",
+      header: () => {
+        return (
+          <>
+            Input Price{" "}
+            <span className="text-xs text-gray-400">/ 1k units</span>
+          </>
+        );
+      },
       headerTooltip: {
         description: modelConfigDescriptions.inputPrice,
       },
@@ -129,7 +136,14 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.outputPrice,
       },
-      header: "Output Price",
+      header: () => {
+        return (
+          <>
+            Output Price{" "}
+            <span className="text-xs text-gray-400">/ 1k units</span>
+          </>
+        );
+      },
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputPrice");
 
@@ -145,7 +159,13 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "totalPrice",
       id: "totalPrice",
-      header: "Total Price",
+      header: () => {
+        return (
+          <>
+            Total Price<span className="text-xs text-gray-400">/ 1k units</span>
+          </>
+        );
+      },
       headerTooltip: {
         description: modelConfigDescriptions.totalPrice,
       },
