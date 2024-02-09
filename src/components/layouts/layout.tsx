@@ -651,7 +651,7 @@ const MainNavigation: React.FC<{
           className="w-full"
           title="Provide feedback"
           description="What do you think about this project? What can be improved?"
-          apiEndpoint="https://cloud.langfuse.com/api/feedback"
+          type="feedback"
         >
           <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
             <MessageSquarePlus

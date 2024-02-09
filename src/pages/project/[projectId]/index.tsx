@@ -107,7 +107,7 @@ export default function Start() {
           className="border-box"
           title="Request dashboard"
           description="Your feedback matters! Let us know what additional data or metrics you'd like to see in your dashboard."
-          apiEndpoint="https://cloud.langfuse.com/api/feedback"
+          type="dashboard"
         >
           <Button
             id="date"

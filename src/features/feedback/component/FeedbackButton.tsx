@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -27,7 +26,7 @@ interface FeedbackDialogProps {
   children: React.ReactNode;
   title: string;
   description: string;
-  apiEndpoint: string;
+  type: "feedback" | "dashboard";
 }
 const formSchema = z.object({
   feedback: z.string().min(3, "Must have at least 3 characters"),
@@ -38,7 +37,7 @@ export function FeedbackButtonWrapper({
   children,
   title,
   description,
-  apiEndpoint,
+  type,
 }: FeedbackDialogProps) {
   const [open, setOpen] = useState(false);
   const session = useSession();
@@ -51,23 +50,14 @@ export function FeedbackButtonWrapper({
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    // Add to sentry
-    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-      const eventId = Sentry.captureMessage(`User submitted feedback`);
-      Sentry.captureUserFeedback({
-        event_id: eventId,
-        email: session.data?.user?.email ?? "",
-        name: session.data?.user?.name ?? "",
-        comments: values.feedback,
-      });
-    }
     try {
-      const res = await fetch(apiEndpoint, {
+      const res = await fetch("https://cloud.langfuse.com/api/feedback", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          type,
           ...values,
           url: window.location.href,
           user: session.data?.user,
