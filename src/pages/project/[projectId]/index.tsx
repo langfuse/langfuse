@@ -26,7 +26,7 @@ import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
 import { usePostHog } from "posthog-js/react";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
-import { LayoutDashboard } from "lucide-react";
+import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
 export type DashboardDateRange = {
@@ -105,7 +105,7 @@ export default function Start() {
         />
         <FeedbackButtonWrapper
           className="border-box"
-          title="Request dashboard"
+          title="Request Chart"
           description="Your feedback matters! Let us know what additional data or metrics you'd like to see in your dashboard."
           type="dashboard"
         >
@@ -116,11 +116,11 @@ export default function Start() {
               "group justify-start gap-x-3 text-left font-semibold text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
             }
           >
-            <LayoutDashboard
+            <BarChart2
               className="h-6 w-6 shrink-0 text-gray-700 group-hover:text-indigo-600"
               aria-hidden="true"
             />
-            Request dashboard
+            Request Chart
           </Button>
         </FeedbackButtonWrapper>
       </div>
