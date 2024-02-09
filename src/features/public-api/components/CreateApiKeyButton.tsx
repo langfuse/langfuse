@@ -103,49 +103,55 @@ export function CreateApiKeyButton(props: { projectId: string }) {
           <div className="text-md mb-2 font-semibold">Public Key</div>
           <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
         </div>
-        {generatedKeys?.publicKey && generatedKeys.secretKey && (
-          <div className="mb-2">
-            <div className="text-md my-2 font-semibold">Usage</div>
-            <Tabs defaultValue="javaScript">
-              <TabsList>
-                <TabsTrigger value="javaScript">JS/TS</TabsTrigger>
-                <TabsTrigger value="python">Python</TabsTrigger>
-              </TabsList>
-              <TabsContent value="javaScript">
-                <CodeView
-                  className="bg-blue-50"
-                  content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${generatedKeys.secretKey}",\n  publicKey: "${generatedKeys.publicKey}",\n  ${hostname ? `baseUrl: "${hostname}"` : '//baseUrl: defaults to "https://cloud.langfuse.com"'}\n});`}
-                />
-                <p className="mt-3 text-xs text-gray-600">
-                  See{" "}
-                  <a
-                    href="https://langfuse.com/docs/sdk/typescript"
-                    className="underline"
-                  >
-                    documentation
-                  </a>{" "}
-                  for details.
-                </p>
-              </TabsContent>
-              <TabsContent value="python">
-                <CodeView
-                  className="bg-blue-50"
-                  content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${generatedKeys.secretKey}",\n  public_key="${generatedKeys.publicKey}",\n  ${hostname ? `host="${hostname}"` : 'host="https://cloud.langfuse.com"'}\n)`}
-                />
-                <p className="mt-3 text-xs text-gray-600">
-                  See{" "}
-                  <a
-                    href="https://langfuse.com/docs/sdk/python"
-                    className="underline"
-                  >
-                    documentation
-                  </a>{" "}
-                  for details.
-                </p>
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
+        <div className="mb-2">
+          <div className="text-md my-2 font-semibold">Usage</div>
+          <Tabs defaultValue="javaScript">
+            <TabsList>
+              <TabsTrigger value="javaScript">JS/TS</TabsTrigger>
+              <TabsTrigger value="python">Python</TabsTrigger>
+            </TabsList>
+            <TabsContent value="javaScript">
+              <CodeView
+                className="bg-blue-50"
+                content={
+                  generatedKeys?.publicKey && generatedKeys.secretKey
+                    ? `import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${generatedKeys.secretKey}",\n  publicKey: "${generatedKeys.publicKey}",\n  ${hostname ? `baseUrl: "${hostname}"` : '//baseUrl: defaults to "https://cloud.langfuse.com"'}\n});`
+                    : "Loading ..."
+                }
+              />
+              <p className="mt-3 text-xs text-gray-600">
+                See{" "}
+                <a
+                  href="https://langfuse.com/docs/sdk/typescript"
+                  className="underline"
+                >
+                  documentation
+                </a>{" "}
+                for details.
+              </p>
+            </TabsContent>
+            <TabsContent value="python">
+              <CodeView
+                className="bg-blue-50"
+                content={
+                  generatedKeys?.publicKey && generatedKeys.secretKey
+                    ? `from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${generatedKeys.secretKey}",\n  public_key="${generatedKeys.publicKey}",\n  ${hostname ? `host="${hostname}"` : 'host="https://cloud.langfuse.com"'}\n)`
+                    : "Loading ..."
+                }
+              />
+              <p className="mt-3 text-xs text-gray-600">
+                See{" "}
+                <a
+                  href="https://langfuse.com/docs/sdk/python"
+                  className="underline"
+                >
+                  documentation
+                </a>{" "}
+                for details.
+              </p>
+            </TabsContent>
+          </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );
