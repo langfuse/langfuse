@@ -1536,6 +1536,8 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
     const generationId = v4();
     const spanId = v4();
 
+    const anotherTraceId = "another_trace_id";
+
     // Seed db with a trace to be scored
     await prisma.trace.create({
       data: {
@@ -1559,7 +1561,7 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
             type: "trace-create",
             timestamp: new Date().toISOString(),
             body: {
-              id: traceId,
+              id: anotherTraceId,
               name: "trace-name",
               userId: "user-1",
               metadata: { key: "value" },
@@ -1639,6 +1641,10 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
       },
     });
 
+    expect(await prisma.trace.count()).toBe(1);
+    expect(await prisma.trace.count({ where: { id: traceId } })).toBe(1);
+    expect(await prisma.observation.count()).toBe(0);
+
     expect(dbScore?.id).toBe(scoreId);
     expect(dbScore?.traceId).toBe(traceId);
     expect(dbScore?.name).toBe(scoreName);
@@ -1693,13 +1699,14 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
         bearerAuth,
       );
 
-      console.log(JSON.stringify(response, null, 2));
-
       expect(response.status).toBe(207);
       expect(response.body.successes.length).toBe(0);
       expect(response.body).toHaveProperty("errors");
       expect(response.body.errors.length).toEqual(1);
       expect(response.body.errors[0]?.id).toEqual(scoreEventId);
+
+      expect(await prisma.trace.count()).toBe(1);
+      expect(await prisma.trace.count({ where: { id: traceId } })).toBe(1);
 
       const dbScore = await prisma.score.findUnique({
         where: {
@@ -1747,6 +1754,8 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
     expect(response.body.successes.length).toBe(0);
     expect(response.body.errors.length).toBe(1);
     expect(response.body.errors[0]?.id).toBe(scoreEventId);
+
+    expect(await prisma.trace.count()).toBe(0);
 
     const dbScore = await prisma.score.findUnique({
       where: {
