@@ -31,10 +31,10 @@ const modelConfigDescriptions = {
     "Regex pattern to match `model` parameter of generations to model pricing",
   startDate:
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
-  inputPrice: "Price per unit of input",
-  outputPrice: "Price per unit of output",
+  inputPrice: "Price per 1000 units of input",
+  outputPrice: "Price per 1000 units of output",
   totalPrice:
-    "Price per unit, for models that don't have input/output specific prices",
+    "Price per 1000 units, for models that don't have input/output specific prices",
   unit: "Unit of measurement for generative model, can be TOKENS, CHARACTERS, SECONDS, MILLISECONDS, or IMAGES.",
   tokenizerId:
     "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
@@ -116,7 +116,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 
         return value ? (
           <span className="text-xs">
-            {usdFormatter(value.toNumber(), 2, 8)}
+            {usdFormatter(value.toNumber() * 1000, 2, 8)}
           </span>
         ) : (
           <span className="text-xs">-</span>
@@ -135,7 +135,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 
         return value ? (
           <span className="text-xs">
-            {usdFormatter(value.toNumber(), 2, 8)}
+            {usdFormatter(value.toNumber() * 1000, 2, 8)}
           </span>
         ) : (
           <span className="text-xs">-</span>
@@ -154,7 +154,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 
         return value ? (
           <span className="text-xs">
-            {usdFormatter(value.toNumber(), 2, 8)}
+            {usdFormatter(value.toNumber() * 1000, 2, 8)}
           </span>
         ) : (
           <span className="text-xs">-</span>
