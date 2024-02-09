@@ -9,6 +9,7 @@ import {
   PopoverContent,
 } from "@/src/components/ui/popover";
 import { Command, CommandList, CommandGroup } from "cmdk";
+import { cn } from "@/src/utils/tailwind";
 
 type TagManagerProps = {
   tags: string[];
@@ -61,7 +62,7 @@ const TagManager = ({
             setSelectedTags={setSelectedTags}
           />
           <CommandList
-            className={availableTags.length > 0 ? "mt-2" : undefined}
+            className={cn("overflow-auto", availableTags.length > 0 && "mt-2")}
           >
             <CommandGroup>
               {availableTags.slice(0, 5).map((value: string) => (
