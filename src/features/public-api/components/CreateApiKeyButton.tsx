@@ -119,7 +119,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
               </TabsContent>
               <TabsContent value="python">
                 <CodeView
-                  className="bg-red-50"
+                  className="bg-blue-50"
                   content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${generatedKeys.secretKey}",\n  public_key="${generatedKeys.publicKey}",\n  ${hostname ? `host="${hostname}"` : 'host="https://cloud.langfuse.com"'}\n)`}
                 />
               </TabsContent>
