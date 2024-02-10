@@ -1,4 +1,5 @@
 /** @jest-environment node */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "@/src/constants";
@@ -89,7 +90,7 @@ describe("observations.export RPC", () => {
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   it("should return a CSV file", async () => {
-    const { data, fileName } = await caller.generations.export({
+    const result = await caller.generations.export({
       fileFormat: "CSV",
       orderBy: { column: "id", order: "ASC" },
       filter: [
@@ -104,16 +105,20 @@ describe("observations.export RPC", () => {
       searchQuery: null,
     });
 
+    if (result.type !== "data")
+      throw new Error("No data returned. Is S3 accidentally enabled?");
+    const { data, fileName } = result;
+
     const fileExtension = fileName.split(".").pop();
     expect(fileName).toContain(`lf-export-${projectId}`);
     expect(fileExtension).toBe("csv");
-    expect(data?.split("\n").filter(Boolean).length).toBe(
+    expect(data.split("\n").filter(Boolean).length).toBe(
       numberOfGenerations + 1,
     );
   });
 
   it("should return a JSON file", async () => {
-    const { data, fileName } = await caller.generations.export({
+    const result = await caller.generations.export({
       fileFormat: "JSON",
       orderBy: { column: "id", order: "ASC" },
       filter: [
@@ -128,16 +133,19 @@ describe("observations.export RPC", () => {
       searchQuery: null,
     });
 
+    if (result.type !== "data")
+      throw new Error("No data returned. Is S3 accidentally enabled?");
+    const { data, fileName } = result;
+
     const fileExtension = fileName.split(".").pop();
     expect(fileName).toContain(`lf-export-${projectId}`);
     expect(fileExtension).toBe("json");
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(JSON.parse(data ?? "").length).toBe(numberOfGenerations);
+    expect(JSON.parse(data).length).toBe(numberOfGenerations);
   });
 
   it("should return a OPENAI-JSONL file", async () => {
-    const { data, fileName } = await caller.generations.export({
+    const result = await caller.generations.export({
       fileFormat: "OPENAI-JSONL",
       orderBy: { column: "id", order: "ASC" },
       filter: [
@@ -152,12 +160,15 @@ describe("observations.export RPC", () => {
       searchQuery: null,
     });
 
+    if (result.type !== "data")
+      throw new Error("No data returned. Is S3 accidentally enabled?");
+    const { data, fileName } = result;
+
     const fileExtension = fileName.split(".").pop();
     expect(fileName).toContain(`lf-export-${projectId}`);
     expect(fileExtension).toBe("jsonl");
 
-    console.log(data);
-    expect(data?.split("\n").filter(Boolean).length).toBe(numberOfGenerations);
+    expect(data.split("\n").filter(Boolean).length).toBe(numberOfGenerations);
   });
 
   it("should throw on unsupported file formats", async () => {
