@@ -95,19 +95,19 @@ export default function Start() {
   return (
     <div className="md:container">
       <Header title={project?.name ?? "Dashboard"} />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between">
         <DatePickerWithRange
           dateRange={dateRange}
           setAgg={setAgg}
           setDateRangeAndOption={setDateRangeAndOption}
           selectedOption={selectedOption}
-          className=" max-w-full overflow-x-auto"
+          className="max-w-full overflow-x-auto"
         />
         <FeedbackButtonWrapper
-          className="border-box"
           title="Request Chart"
-          description="Your feedback matters! Let us know what additional data or metrics you'd like to see in your dashboard."
+          description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
           type="dashboard"
+          className="hidden md:flex"
         >
           <Button
             id="date"
@@ -117,7 +117,7 @@ export default function Start() {
             }
           >
             <BarChart2
-              className="h-6 w-6 shrink-0 text-gray-700 group-hover:text-indigo-600"
+              className="hidden h-6 w-6 shrink-0 text-gray-700 group-hover:text-indigo-600 lg:block"
               aria-hidden="true"
             />
             Request Chart
