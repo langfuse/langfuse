@@ -1,0 +1,287 @@
+import { z } from "zod";
+
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+
+import { Prisma, type ObservationView } from "@prisma/client";
+import { paginationZod } from "@/src/utils/zod";
+import {
+  datetimeFilterToPrismaSql,
+  filterToPrismaSql,
+} from "@/src/features/filters/server/filterToPrisma";
+import {
+  type ObservationOptions,
+  observationsTableCols,
+} from "@/src/server/api/definitions/observationsTable";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { generationsExportQuery } from "@/src/server/api/routers/generations/exportQuery";
+import { GenerationTableOptions } from "./utils/GenerationTableOptions";
+
+const ListInputs = GenerationTableOptions.extend({
+  ...paginationZod,
+});
+
+export const generationsRouter = createTRPCRouter({
+  all: protectedProjectProcedure
+    .input(ListInputs)
+    .query(async ({ input, ctx }) => {
+      // ATTENTION: When making changes to this query, make sure to also update the export query
+      const searchCondition = input.searchQuery
+        ? Prisma.sql`AND (
+        o."id" ILIKE ${`%${input.searchQuery}%`} OR
+        o."name" ILIKE ${`%${input.searchQuery}%`} OR
+        o."model" ILIKE ${`%${input.searchQuery}%`} OR
+        t."name" ILIKE ${`%${input.searchQuery}%`}
+      )`
+        : Prisma.empty;
+
+      const filterCondition = filterToPrismaSql(
+        input.filter,
+        observationsTableCols,
+      );
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        observationsTableCols,
+      );
+
+      // to improve query performance, add timeseries filter to observation queries as well
+      const startTimeFilter = input.filter.find(
+        (f) => f.column === "start_time" && f.type === "datetime",
+      );
+      const datetimeFilter =
+        startTimeFilter && startTimeFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "start_time",
+              startTimeFilter.operator,
+              startTimeFilter.value,
+            )
+          : Prisma.empty;
+
+      const generations = await ctx.prisma.$queryRaw<
+        Array<
+          ObservationView & {
+            traceId: string;
+            traceName: string;
+            latency: number | null;
+          }
+        >
+      >(
+        Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations_view o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          ),
+          -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
+          )
+          SELECT
+            o.id,
+            o.name,
+            o.model,
+            o.start_time as "startTime",
+            o.end_time as "endTime",
+            o.latency,
+            o.input,
+            o.output,
+            o.metadata,
+            o.trace_id as "traceId",
+            t.name as "traceName",
+            o.completion_start_time as "completionStartTime",
+            o.prompt_tokens as "promptTokens",
+            o.completion_tokens as "completionTokens",
+            o.total_tokens as "totalTokens",
+            o.level,
+            o.status_message as "statusMessage",
+            o.version,
+            o.model_id as "modelId",
+            o.input_price as "inputPrice",
+            o.output_price as "outputPrice",
+            o.total_price as "totalPrice",
+            o.calculated_input_cost as "calculatedInputCost",
+            o.calculated_output_cost as "calculatedOutputCost",
+            o.calculated_total_cost as "calculatedTotalCost"
+          FROM observations_with_latency o
+          JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
+          WHERE
+            t.project_id = ${input.projectId}
+            ${searchCondition}
+            ${filterCondition}
+            ${orderByCondition}
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.limit}
+        `,
+      );
+
+      const totalGenerations = await ctx.prisma.$queryRaw<
+        Array<{ count: bigint }>
+      >(
+        Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations_view o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          ),
+          -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
+          )
+          SELECT
+            count(*)
+          FROM observations_with_latency o
+          JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
+          WHERE
+            t.project_id = ${input.projectId}
+            ${searchCondition}
+            ${filterCondition}
+        `,
+      );
+
+      const scores = await ctx.prisma.score.findMany({
+        where: {
+          trace: {
+            projectId: input.projectId,
+          },
+          observationId: {
+            in: generations.map((gen) => gen.id),
+          },
+        },
+      });
+      const count = totalGenerations[0]?.count;
+      return {
+        totalCount: count ? Number(count) : undefined,
+        generations: generations.map((generation) => {
+          const filteredScores = scores.filter(
+            (s) => s.observationId === generation.id,
+          );
+          return {
+            ...generation,
+            scores: filteredScores,
+          };
+        }),
+      };
+    }),
+
+  export: generationsExportQuery,
+
+  filterOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const queryFilter = {
+        projectId: input.projectId,
+        type: "GENERATION",
+      } as const;
+
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          observation: {
+            projectId: input.projectId,
+          },
+        },
+        by: ["name"],
+      });
+
+      const model = await ctx.prisma.observation.groupBy({
+        by: ["model"],
+        where: queryFilter,
+        _count: { _all: true },
+      });
+      const name = await ctx.prisma.observation.groupBy({
+        by: ["name"],
+        where: queryFilter,
+        _count: { _all: true },
+      });
+      const traceName = await ctx.prisma.$queryRaw<
+        Array<{
+          traceName: string | null;
+          count: number;
+        }>
+      >(Prisma.sql`
+        SELECT
+          t.name "traceName",
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+        GROUP BY 1
+      `);
+
+      // typecheck filter options, needs to include all columns with options
+      const res: ObservationOptions = {
+        model: model
+          .filter((i) => i.model !== null)
+          .map((i) => ({
+            value: i.model as string,
+            count: i._count._all,
+          })),
+        name: name
+          .filter((i) => i.name !== null)
+          .map((i) => ({
+            value: i.name as string,
+            count: i._count._all,
+          })),
+        traceName: traceName
+          .filter((i) => i.traceName !== null)
+          .map((i) => ({
+            value: i.traceName as string,
+            count: i.count,
+          })),
+        scores_avg: scores.map((score) => score.name),
+      };
+      return res;
+    }),
+});
