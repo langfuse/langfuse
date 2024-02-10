@@ -25,6 +25,15 @@ import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
+import * as Sentry from "@sentry/nextjs";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "4.5mb",
+    },
+  },
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -45,11 +54,6 @@ export default async function handler(
     if (!authCheck.validKey)
       return res.status(401).json({
         message: authCheck.error,
-      });
-
-    if (authCheck.scope.accessLevel !== "all")
-      return res.status(403).json({
-        message: "Access denied",
       });
 
     const batchType = z.object({
@@ -237,6 +241,12 @@ const handleSingleEvent = async (
       processor = new SdkLogProcessor(cleanedEvent);
   }
 
+  // Deny access to non-score events if the access level is not "all"
+  // This is an additional safeguard to auth checks in EventProcessor
+  if (apiScope.accessLevel !== "all" && type !== eventTypes.SCORE_CREATE) {
+    throw new AuthenticationError("Access denied. Event type not allowed.");
+  }
+
   return await processor.process(apiScope);
 };
 
@@ -298,6 +308,9 @@ export const handleBatchResult = (
         error: error.error.message,
       });
     } else {
+      if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+        Sentry.captureException(error.error);
+      }
       returnedErrors.push({
         id: error.id,
         status: 500,

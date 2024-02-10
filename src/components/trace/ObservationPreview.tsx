@@ -23,6 +23,8 @@ import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatInterval } from "@/src/utils/dates";
 import Link from "next/link";
+import { usdFormatter } from "@/src/utils/numbers";
+import { calculateDisplayTotalCost } from "@/src/components/trace";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -38,6 +40,10 @@ export const ObservationPreview = (props: {
 
   const preloadedObservation = props.observations.find(
     (o) => o.id === props.currentObservationId,
+  );
+
+  const totalCost = calculateDisplayTotalCost(
+    preloadedObservation ? [preloadedObservation] : [],
   );
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
@@ -61,8 +67,19 @@ export const ObservationPreview = (props: {
                 projectId={preloadedObservation.projectId}
               />
             ) : undefined}
+            {preloadedObservation.completionStartTime ? (
+              <Badge variant="outline">
+                Time to first token:{" "}
+                {formatInterval(
+                  (preloadedObservation.completionStartTime.getTime() -
+                    preloadedObservation.startTime.getTime()) /
+                    1000,
+                )}
+              </Badge>
+            ) : null}
             {preloadedObservation.endTime ? (
               <Badge variant="outline">
+                Latency:{" "}
                 {formatInterval(
                   (preloadedObservation.endTime.getTime() -
                     preloadedObservation.startTime.getTime()) /
@@ -85,9 +102,9 @@ export const ObservationPreview = (props: {
             {preloadedObservation.model ? (
               <Badge variant="outline">{preloadedObservation.model}</Badge>
             ) : null}
-            {preloadedObservation.price ? (
+            {totalCost ? (
               <Badge variant="outline">
-                {preloadedObservation.price.toString()} USD
+                {usdFormatter(totalCost.toNumber())}
               </Badge>
             ) : undefined}
 
@@ -188,14 +205,15 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
     projectId: props.projectId,
   });
 
-  if (prompt.isLoading) return null;
-
+  if (prompt.isLoading || !prompt.data) return null;
   return (
-    <Link href={`/project/${props.projectId}/prompts/${props.promptId}`}>
+    <Link
+      href={`/project/${props.projectId}/prompts/${prompt.data.name}?version=${prompt.data.version}`}
+    >
       <Badge>
-        Prompt: {prompt.data?.name}
-        {" - "}
-        {prompt.data?.version}
+        Prompt: {prompt.data.name}
+        {" - v"}
+        {prompt.data.version}
       </Badge>
     </Link>
   );

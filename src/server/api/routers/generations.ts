@@ -5,8 +5,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 
-import { type Observation, Prisma } from "@prisma/client";
-import { paginationZod } from "@/src/utils/zod";
+import { Prisma, type ObservationView } from "@prisma/client";
+import { jsonSchema, paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
   datetimeFilterToPrismaSql,
@@ -16,8 +16,6 @@ import {
   type ObservationOptions,
   observationsTableCols,
 } from "@/src/server/api/definitions/observationsTable";
-import { calculateTokenCost } from "@/src/features/ingest/lib/usage";
-import Decimal from "decimal.js";
 import { usdFormatter } from "@/src/utils/numbers";
 import { env } from "@/src/env.mjs";
 import {
@@ -30,19 +28,22 @@ import {
   exportFileFormats,
   exportOptions,
 } from "@/src/server/api/interfaces/exportTypes";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
-const GenerationFilterOptions = z.object({
+const GenerationTableOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
   searchQuery: z.string().nullable(),
+  orderBy: orderBy,
 });
 
-const ListInputs = GenerationFilterOptions.extend({
+const ListInputs = GenerationTableOptions.extend({
   ...paginationZod,
 });
 
 // extend generationfilteroptions with export options
-const ExportInputs = GenerationFilterOptions.extend({
+const ExportInputs = GenerationTableOptions.extend({
   fileFormat: z.enum(exportFileFormats),
 });
 
@@ -50,6 +51,7 @@ export const generationsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ListInputs)
     .query(async ({ input, ctx }) => {
+      // ATTENTION: When making changes to this query, make sure to also update the export query
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
         o."id" ILIKE ${`%${input.searchQuery}%`} OR
@@ -61,6 +63,11 @@ export const generationsRouter = createTRPCRouter({
 
       const filterCondition = filterToPrismaSql(
         input.filter,
+        observationsTableCols,
+      );
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
         observationsTableCols,
       );
 
@@ -79,10 +86,9 @@ export const generationsRouter = createTRPCRouter({
 
       const generations = await ctx.prisma.$queryRaw<
         Array<
-          Observation & {
+          ObservationView & {
             traceId: string;
             traceName: string;
-            totalCount: number;
             latency: number | null;
           }
         >
@@ -92,10 +98,33 @@ export const generationsRouter = createTRPCRouter({
             SELECT
               o.*,
               CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-            FROM observations o
+            FROM observations_view o
             WHERE o.type = 'GENERATION'
             AND o.project_id = ${input.projectId}
             ${datetimeFilter}
+          ),
+          -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
           )
           SELECT
             o.id,
@@ -116,43 +145,103 @@ export const generationsRouter = createTRPCRouter({
             o.level,
             o.status_message as "statusMessage",
             o.version,
-            (count(*) OVER())::int AS "totalCount"
+            o.model_id as "modelId",
+            o.input_price as "inputPrice",
+            o.output_price as "outputPrice",
+            o.total_price as "totalPrice",
+            o.calculated_input_cost as "calculatedInputCost",
+            o.calculated_output_cost as "calculatedOutputCost",
+            o.calculated_total_cost as "calculatedTotalCost"
           FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
           WHERE
             t.project_id = ${input.projectId}
             ${searchCondition}
             ${filterCondition}
-          ORDER BY o.start_time DESC
+            ${orderByCondition}
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
         `,
       );
 
-      const pricings = await ctx.prisma.pricing.findMany();
+      const totalGenerations = await ctx.prisma.$queryRaw<
+        Array<{ count: bigint }>
+      >(
+        Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations_view o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          ),
+          -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
+          )
+          SELECT
+            count(*)
+          FROM observations_with_latency o
+          JOIN traces t ON t.id = o.trace_id
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
+          WHERE
+            t.project_id = ${input.projectId}
+            ${searchCondition}
+            ${filterCondition}
+        `,
+      );
 
-      return generations.map(({ input, output, ...rest }) => {
-        return {
-          ...rest,
-          input,
-          output,
-          cost: rest.model
-            ? calculateTokenCost(pricings, {
-                model: rest.model,
-                totalTokens: new Decimal(rest.totalTokens),
-                promptTokens: new Decimal(rest.promptTokens),
-                completionTokens: new Decimal(rest.completionTokens),
-                input: input,
-                output: output,
-              })
-            : undefined,
-        };
+      const scores = await ctx.prisma.score.findMany({
+        where: {
+          trace: {
+            projectId: input.projectId,
+          },
+          observationId: {
+            in: generations.map((gen) => gen.id),
+          },
+        },
       });
+      const count = totalGenerations[0]?.count;
+      return {
+        totalCount: count ? Number(count) : undefined,
+        generations: generations.map((generation) => {
+          const filteredScores = scores.filter(
+            (s) => s.observationId === generation.id,
+          );
+          return {
+            ...generation,
+            scores: filteredScores,
+          };
+        }),
+      };
     }),
 
   export: protectedProjectProcedure
     .input(ExportInputs)
     .query(async ({ input, ctx }) => {
+      // ATTENTION: When making changes to this query, make sure to also update the all query
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
         o."id" ILIKE ${`%${input.searchQuery}%`} OR
@@ -166,23 +255,74 @@ export const generationsRouter = createTRPCRouter({
         input.filter,
         observationsTableCols,
       );
-      console.log("filters: ", filterCondition);
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        observationsTableCols,
+      );
+
+      // to improve query performance, add timeseries filter to observation queries as well
+      const startTimeFilter = input.filter.find(
+        (f) => f.column === "start_time" && f.type === "datetime",
+      );
+      const datetimeFilter =
+        startTimeFilter && startTimeFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "start_time",
+              startTimeFilter.operator,
+              startTimeFilter.value,
+            )
+          : Prisma.empty;
 
       const generations = await ctx.prisma.$queryRaw<
         Array<
-          Observation & {
+          ObservationView & {
             traceId: string;
             traceName: string;
+            latency: number | null;
           }
         >
       >(
         Prisma.sql`
+          WITH observations_with_latency AS (
+            SELECT
+              o.*,
+              CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
+            FROM observations_view o
+            WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            ${datetimeFilter}
+          ),
+          -- used for filtering
+          scores_avg AS (
+            SELECT
+              trace_id,
+              observation_id,
+              jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+            FROM (
+              SELECT
+                trace_id,
+                observation_id,
+                name,
+                avg(value) avg_value
+              FROM
+                scores
+              GROUP BY
+                1,
+                2,
+                3
+              ORDER BY
+                1) tmp
+            GROUP BY
+              1, 2
+          )
           SELECT
             o.id,
             o.name,
             o.model,
             o.start_time as "startTime",
             o.end_time as "endTime",
+            o.latency,
             o.input,
             o.output,
             o.metadata,
@@ -192,38 +332,25 @@ export const generationsRouter = createTRPCRouter({
             o.prompt_tokens as "promptTokens",
             o.completion_tokens as "completionTokens",
             o.total_tokens as "totalTokens",
-            o.version
-          FROM observations o
+            o.level,
+            o.status_message as "statusMessage",
+            o.version,
+            o.model_id as "modelId",
+            o.input_price as "inputPrice",
+            o.output_price as "outputPrice",
+            o.total_price as "totalPrice",
+            o.calculated_input_cost as "calculatedInputCost",
+            o.calculated_output_cost as "calculatedOutputCost",
+            o.calculated_total_cost as "calculatedTotalCost"
+          FROM observations_with_latency o
           JOIN traces t ON t.id = o.trace_id
-          WHERE o.type = 'GENERATION'
-            AND o.project_id = ${input.projectId}
-            AND t.project_id = ${input.projectId}
+          LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
+          WHERE
+            t.project_id = ${input.projectId}
             ${searchCondition}
             ${filterCondition}
-          ORDER BY o.start_time DESC
+            ${orderByCondition}
         `,
-      );
-
-      const pricings = await ctx.prisma.pricing.findMany();
-
-      const enrichedGenerations = generations.map(
-        ({ input, output, ...rest }) => {
-          return {
-            ...rest,
-            input,
-            output,
-            cost: rest.model
-              ? calculateTokenCost(pricings, {
-                  model: rest.model,
-                  totalTokens: new Decimal(rest.totalTokens),
-                  promptTokens: new Decimal(rest.promptTokens),
-                  completionTokens: new Decimal(rest.completionTokens),
-                  input: input,
-                  output: output,
-                })
-              : undefined,
-          };
-        },
       );
 
       let output: string = "";
@@ -245,15 +372,19 @@ export const generationsRouter = createTRPCRouter({
             ],
           ]
             .concat(
-              enrichedGenerations.map((generation) =>
+              generations.map((generation) =>
                 [
                   generation.traceId,
                   generation.name ?? "",
                   generation.model ?? "",
                   generation.startTime.toISOString(),
                   generation.endTime?.toISOString() ?? "",
-                  generation.cost
-                    ? usdFormatter(generation.cost.toNumber())
+                  generation.calculatedTotalCost
+                    ? usdFormatter(
+                        generation.calculatedTotalCost.toNumber(),
+                        2,
+                        8,
+                      )
                     : "",
                   JSON.stringify(generation.input),
                   JSON.stringify(generation.output),
@@ -268,7 +399,7 @@ export const generationsRouter = createTRPCRouter({
             .join("\n");
           break;
         case "JSON":
-          output = JSON.stringify(enrichedGenerations);
+          output = JSON.stringify(generations);
           break;
         case "OPENAI-JSONL":
           const inputSchemaOpenAI = z.array(
@@ -277,10 +408,12 @@ export const generationsRouter = createTRPCRouter({
               content: z.string(),
             }),
           );
-          const outputSchema = z.object({
-            completion: z.string(),
-          });
-          output = enrichedGenerations
+          const outputSchema = z
+            .object({
+              completion: jsonSchema,
+            })
+            .or(jsonSchema);
+          output = generations
             .map((generation) => ({
               parsedInput: inputSchemaOpenAI.safeParse(generation.input),
               parsedOutput: outputSchema.safeParse(generation.output),
@@ -293,7 +426,14 @@ export const generationsRouter = createTRPCRouter({
                       ? [
                           {
                             role: "assistant",
-                            content: generation.parsedOutput.data.completion,
+                            content:
+                              typeof generation.parsedOutput.data ===
+                                "object" &&
+                              "completion" in generation.parsedOutput.data
+                                ? JSON.stringify(
+                                    generation.parsedOutput.data.completion,
+                                  )
+                                : JSON.stringify(generation.parsedOutput.data),
                           },
                         ]
                       : [],
@@ -303,6 +443,7 @@ export const generationsRouter = createTRPCRouter({
             // to jsonl
             .map((row) => JSON.stringify(row))
             .join("\n");
+
           break;
         default:
           throw new Error("Invalid export file format");
@@ -335,7 +476,6 @@ export const generationsRouter = createTRPCRouter({
             Key: fileName,
             Body: output,
             ContentType: exportOptions[input.fileFormat].fileType,
-            Expires: new Date(Date.now() + 60 * 60 * 1000), // in 1 hour, file will be deleted
           }),
         );
         const signedUrl = await getSignedUrl(
@@ -369,6 +509,15 @@ export const generationsRouter = createTRPCRouter({
         projectId: input.projectId,
         type: "GENERATION",
       } as const;
+
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          observation: {
+            projectId: input.projectId,
+          },
+        },
+        by: ["name"],
+      });
 
       const model = await ctx.prisma.observation.groupBy({
         by: ["model"],
@@ -417,6 +566,7 @@ export const generationsRouter = createTRPCRouter({
             value: i.traceName as string,
             count: i.count,
           })),
+        scores_avg: scores.map((score) => score.name),
       };
       return res;
     }),

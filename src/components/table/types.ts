@@ -9,4 +9,10 @@ export type TableRowOptions = {
 export type LangfuseColumnDef<
   TData extends RowData,
   TValue = unknown,
-> = ColumnDef<TData, TValue> & { defaultHidden?: boolean };
+> = ColumnDef<TData, TValue> & {
+  defaultHidden?: boolean;
+  headerTooltip?: {
+    description: string;
+    href?: string;
+  };
+};

@@ -13,6 +13,7 @@ import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageM
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/prompt-router";
+import { modelRouter } from "@/src/server/api/routers/models";
 
 /**
  * This is the primary router for your server.
@@ -34,6 +35,7 @@ export const appRouter = createTRPCRouter({
   usageMetering: usageMeteringRouter,
   observations: observationsRouter,
   prompts: promptRouter,
+  models: modelRouter,
 });
 
 // export type definition of API

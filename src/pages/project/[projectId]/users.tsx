@@ -47,7 +47,7 @@ export default function UsersPage() {
       console.log("setting detail page list");
       setDetailPageList(
         "users",
-        users.data.map((u) => u.userId),
+        users.data.map((u) => encodeURIComponent(u.userId)),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,7 +63,7 @@ export default function UsersPage() {
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/users/${value}`}
+              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
               truncateAt={40}
             />

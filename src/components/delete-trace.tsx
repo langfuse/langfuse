@@ -52,7 +52,7 @@ export function DeleteTrace({
             <TrashIcon className="h-4 w-4" />
           </Button>
         ) : (
-          <Button variant="outline" type="button" size="sm">
+          <Button variant="outline" type="button" size="icon">
             <TrashIcon className="h-4 w-4" />
           </Button>
         )}

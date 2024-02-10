@@ -7,6 +7,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
 import { NoData } from "@/src/features/dashboard/components/NoData";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 export const TracesBarListChart = ({
   className,
@@ -80,7 +81,9 @@ export const TracesBarListChart = ({
     >
       <>
         <TotalMetric
-          metric={totalTraces.data?.[0]?.countTraceId as number}
+          metric={compactNumberFormatter(
+            totalTraces.data?.[0]?.countTraceId as number,
+          )}
           description={"Total traces tracked"}
         />
         {adjustedData.length > 0 ? (

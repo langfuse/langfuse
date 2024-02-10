@@ -16,6 +16,7 @@
     "jsx": "preserve",
     "incremental": true,
     "noUncheckedIndexedAccess": true,
+    "noErrorTruncation": true,
     "baseUrl": ".",
     "types": ["jest", "node"],
     "paths": {

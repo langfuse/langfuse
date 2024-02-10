@@ -14,6 +14,7 @@ export const pruneDatabase = async () => {
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();
   await prisma.events.deleteMany();
+  await prisma.model.deleteMany();
 };
 
 export function createBasicAuthHeader(
@@ -26,21 +27,38 @@ export function createBasicAuthHeader(
   return `Basic ${base64Credentials}`;
 }
 
+export type IngestionAPIResponse = {
+  errors: ErrorIngestion[];
+  successes: SuccessfulIngestion[];
+};
+
+export type SuccessfulIngestion = {
+  id: string;
+  status: number;
+};
+
+export type ErrorIngestion = {
+  id: string;
+  status: number;
+  message: string;
+  error: string;
+};
+
 export async function makeAPICall(
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
   body?: unknown,
+  auth?: string,
 ) {
   const finalUrl = `http://localhost:3000/${url}`;
+  const authorization =
+    auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
   const options = {
     method: method,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json;charset=UTF-8",
-      Authorization: createBasicAuthHeader(
-        "pk-lf-1234567890",
-        "sk-lf-1234567890",
-      ),
+      Authorization: authorization,
     },
     // Conditionally include the body property if the method is not "GET"
     ...(method !== "GET" &&
@@ -49,7 +67,7 @@ export async function makeAPICall(
   const a = await fetch(finalUrl, options);
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  return { body: await a.json(), status: a.status };
+  return { body: (await a.json()) as IngestionAPIResponse, status: a.status };
 }
 
 export const setupUserAndProject = async () => {

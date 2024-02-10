@@ -13,7 +13,7 @@ export default function Header({
   title: string;
   breadcrumb?: { name: string; href?: string }[];
   status?: Status;
-  help?: { description: string; href: string };
+  help?: { description: string; href?: string };
   actionButtons?: React.ReactNode;
   level?: "h2" | "h3";
 }) {
@@ -40,7 +40,7 @@ export default function Header({
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
 
   return (
-    <div className={cn(level === "h2" ? "mb-8" : "mb-1")}>
+    <div className={cn(level === "h2" ? "mb-4" : "mb-1")}>
       <div>
         {backHref ? (
           <nav className="sm:hidden" aria-label="Back">

@@ -54,7 +54,9 @@ export default function GetStartedPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="flex-1">
           <CardHeader>
-            <CardTitle>Create new project</CardTitle>
+            <CardTitle data-testid="create-new-project-title">
+              Create new project
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p>

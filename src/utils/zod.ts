@@ -48,3 +48,6 @@ export const paginationZod = {
     z.coerce.number().lte(100).default(50),
   ),
 };
+
+export const noHtmlRegex = /<[^>]*>/;
+export const noHtmlCheck = (value: string) => !noHtmlRegex.test(value);

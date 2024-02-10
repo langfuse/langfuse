@@ -39,6 +39,12 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: "tl.latency",
   },
   {
+    name: "Cost ($)",
+    id: "cost",
+    type: "number",
+    internal: '"calculatedTotalCost"',
+  },
+  {
     name: "version",
     id: "version",
     type: "string",

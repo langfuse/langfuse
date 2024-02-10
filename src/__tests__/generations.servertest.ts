@@ -1,8 +1,10 @@
 /** @jest-environment node */
 
-import { prisma } from "@/src/server/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+
+import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { ModelUsageUnit } from "@/src/constants";
+import { prisma } from "@/src/server/db";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -13,9 +15,9 @@ describe("/api/public/generations API Endpoint", () => {
         input: 100,
         output: 200,
         total: 100,
-        unit: "CHARACTERS",
+        unit: ModelUsageUnit.Characters,
       },
-      expectedUnit: "CHARACTERS",
+      expectedUnit: ModelUsageUnit.Characters,
       expectedPromptTokens: 100,
       expectedCompletionTokens: 200,
       expectedTotalTokens: 100,
@@ -23,9 +25,9 @@ describe("/api/public/generations API Endpoint", () => {
     {
       usage: {
         total: 100,
-        unit: "CHARACTERS",
+        unit: ModelUsageUnit.Characters,
       },
-      expectedUnit: "CHARACTERS",
+      expectedUnit: ModelUsageUnit.Characters,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
@@ -34,7 +36,7 @@ describe("/api/public/generations API Endpoint", () => {
       usage: {
         total: 100,
       },
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
@@ -48,7 +50,7 @@ describe("/api/public/generations API Endpoint", () => {
       expectedPromptTokens: 100,
       expectedCompletionTokens: 200,
       expectedTotalTokens: 100,
-      expectedUnit: "TOKENS",
+      expectedUnit: ModelUsageUnit.Tokens,
     },
     {
       usage: {
@@ -57,28 +59,28 @@ describe("/api/public/generations API Endpoint", () => {
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 100,
-      expectedUnit: "TOKENS",
+      expectedUnit: ModelUsageUnit.Tokens,
     },
     {
       usage: undefined,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: null,
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
     {
       usage: {},
       expectedPromptTokens: 0,
       expectedCompletionTokens: 0,
       expectedTotalTokens: 0,
-      expectedUnit: "TOKENS",
+      expectedUnit: null,
     },
   ].forEach((testConfig) => {
     it(`should create generation after trace 1 ${JSON.stringify(

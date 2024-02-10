@@ -11,6 +11,7 @@ const scopes = [
 
   "objects:publish",
   "objects:bookmark",
+  "objects:tag",
 
   "traces:delete",
 
@@ -24,6 +25,8 @@ const scopes = [
 
   "prompts:CUD",
   "prompts:read",
+
+  "models:CUD",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -39,6 +42,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:delete",
     "objects:publish",
     "objects:bookmark",
+    "objects:tag",
     "traces:delete",
     "scores:CUD",
     "project:delete",
@@ -47,6 +51,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "models:CUD",
   ],
   ADMIN: [
     "project:update",
@@ -58,16 +63,19 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "apiKeys:delete",
     "objects:publish",
     "objects:bookmark",
+    "objects:tag",
     "traces:delete",
     "scores:CUD",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "models:CUD",
   ],
   MEMBER: [
     "members:read",
     "objects:publish",
     "objects:bookmark",
+    "objects:tag",
     "scores:CUD",
     "datasets:CUD",
     "prompts:CUD",

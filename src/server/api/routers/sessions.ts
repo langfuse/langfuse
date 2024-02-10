@@ -12,10 +12,13 @@ import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
+  orderBy: orderBy,
   ...paginationZod,
 });
 
@@ -26,6 +29,10 @@ export const sessionRouter = createTRPCRouter({
       try {
         const filterCondition = filterToPrismaSql(
           input.filter ?? [],
+          sessionsViewCols,
+        );
+        const orderByCondition = orderByToPrismaSql(
+          input.orderBy,
           sessionsViewCols,
         );
 
@@ -79,7 +86,7 @@ export const sessionRouter = createTRPCRouter({
       WHERE
         s."project_id" = ${input.projectId}
         ${filterCondition}
-      ORDER BY 2 desc
+      ${orderByCondition}
       LIMIT ${input.limit}
       OFFSET ${input.page * input.limit}
     `);
@@ -156,8 +163,10 @@ export const sessionRouter = createTRPCRouter({
 
         const session = await ctx.prisma.traceSession.update({
           where: {
-            id: input.sessionId,
-            projectId: input.projectId,
+            id_projectId: {
+              id: input.sessionId,
+              projectId: input.projectId,
+            },
           },
           data: {
             bookmarked: input.bookmarked,
@@ -198,8 +207,10 @@ export const sessionRouter = createTRPCRouter({
         });
         return ctx.prisma.traceSession.update({
           where: {
-            id: input.sessionId,
-            projectId: input.projectId,
+            id_projectId: {
+              id: input.sessionId,
+              projectId: input.projectId,
+            },
           },
           data: {
             public: input.public,

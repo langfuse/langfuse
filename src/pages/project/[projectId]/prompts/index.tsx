@@ -7,7 +7,7 @@ export default function Prompts() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div>
+    <div className="xl:container">
       <Header
         title="Prompts"
         help={{

@@ -6,7 +6,6 @@ import { TracePreview } from "./TracePreview";
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import Decimal from "decimal.js";
 import { StringParam, useQueryParam } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -17,10 +16,13 @@ import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
+import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { usdFormatter } from "@/src/utils/numbers";
+import Decimal from "decimal.js";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -114,18 +116,28 @@ export function TracePage({ traceId }: { traceId: string }) {
       },
     },
   );
-  const totalCost = trace.data?.observations.reduce(
-    (acc, o) => {
-      if (!o.price) return acc;
 
-      return acc ? acc.plus(o.price) : new Decimal(0).plus(o.price);
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId: trace.data?.projectId ?? "",
     },
-    undefined as Decimal | undefined,
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      enabled: !!trace.data?.projectId && trace.isSuccess,
+    },
   );
+
+  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
+
+  const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
 
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
-
   return (
     <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-2rem)]">
       <Header
@@ -166,18 +178,18 @@ export function TracePage({ traceId }: { traceId: string }) {
       <div className="flex flex-wrap gap-2">
         {trace.data.sessionId ? (
           <Link
-            href={`/project/${router.query.projectId as string}/sessions/${
-              trace.data.sessionId
-            }`}
+            href={`/project/${
+              router.query.projectId as string
+            }/sessions/${encodeURIComponent(trace.data.sessionId)}`}
           >
             <Badge>Session: {trace.data.sessionId}</Badge>
           </Link>
         ) : null}
         {trace.data.userId ? (
           <Link
-            href={`/project/${router.query.projectId as string}/users/${
-              trace.data.userId
-            }`}
+            href={`/project/${
+              router.query.projectId as string
+            }/users/${encodeURIComponent(trace.data.userId)}`}
           >
             <Badge>User ID: {trace.data.userId}</Badge>
           </Link>
@@ -185,9 +197,20 @@ export function TracePage({ traceId }: { traceId: string }) {
         <TraceAggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
           <Badge variant="outline">
-            Total cost: {totalCost.toString()} USD
+            Total cost: {usdFormatter(totalCost.toNumber())}
           </Badge>
         ) : undefined}
+      </div>
+      <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
+        <div className="flex flex-row items-center gap-3 p-2.5">
+          Tags
+          <TagTraceDetailsPopover
+            tags={trace.data.tags}
+            availableTags={allTags}
+            traceId={trace.data.id}
+            projectId={trace.data.projectId}
+          />
+        </div>
       </div>
       <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
         <Trace
@@ -201,3 +224,42 @@ export function TracePage({ traceId }: { traceId: string }) {
     </div>
   );
 }
+
+export const calculateDisplayTotalCost = (
+  observations: ObservationReturnType[],
+) => {
+  return observations.reduce(
+    (prev: Decimal | undefined, curr: ObservationReturnType) => {
+      // if we don't have any calculated costs, we can't do anything
+      if (
+        !curr.calculatedTotalCost &&
+        !curr.calculatedInputCost &&
+        !curr.calculatedOutputCost
+      )
+        return prev;
+
+      // if we have either input or output cost, but not total cost, we can use that
+      if (
+        !curr.calculatedTotalCost &&
+        (curr.calculatedInputCost || curr.calculatedOutputCost)
+      ) {
+        return prev
+          ? prev.plus(
+              curr.calculatedInputCost ??
+                new Decimal(0).plus(
+                  curr.calculatedOutputCost ?? new Decimal(0),
+                ),
+            )
+          : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
+      }
+
+      if (!curr.calculatedTotalCost) return prev;
+
+      // if we have total cost, we can use that
+      return prev
+        ? prev.plus(curr.calculatedTotalCost)
+        : curr.calculatedTotalCost;
+    },
+    undefined,
+  );
+};

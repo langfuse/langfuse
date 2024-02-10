@@ -9,77 +9,113 @@ import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@prisma/client";
 import { Pencil } from "lucide-react";
+import { PromptHistoryNode } from "./prompt-history";
+import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
+import { ScrollArea } from "@radix-ui/react-scroll-area";
+import { useQueryParam, NumberParam } from "use-query-params";
 import router from "next/router";
 
 export type PromptDetailProps = {
   projectId: string;
-  promptId: string;
+  promptName: string;
 };
 
 export const PromptDetail = (props: PromptDetailProps) => {
-  const prompt = api.prompts.byId.useQuery({
-    id: props.promptId,
+  const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
+    "version",
+    NumberParam,
+  );
+  const promptHistory = api.prompts.allVersions.useQuery({
+    name: props.promptName,
     projectId: props.projectId,
   });
+  const prompt = currentPromptVersion
+    ? promptHistory.data?.find(
+        (prompt) => prompt.version === currentPromptVersion,
+      )
+    : promptHistory.data?.[0];
+  const extractedVariables = prompt ? extractVariables(prompt.prompt) : [];
 
-  const extractedVariables = prompt.data
-    ? extractVariables(prompt.data.prompt)
-    : [];
-
-  if (!prompt.data) {
+  if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
   }
 
   return (
-    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-100px)] xl:h-[calc(100vh-40px)]">
-      <Header
-        title={`${prompt.data.name} (v${prompt.data.version})`}
-        status={prompt.data.isActive ? "production" : "disabled"}
-        breadcrumb={[
-          {
-            name: "Prompts",
-            href: `/project/${props.projectId}/prompts/`,
-          },
-          { name: `${prompt.data.name} (v${prompt.data.version})` },
-        ]}
-        actionButtons={
-          <>
-            <CreatePromptDialog
-              projectId={props.projectId}
-              title="Update Prompt"
-              subtitle="We do not update prompts, instead we create a new version of the prompt."
-              promptName={prompt.data.name}
-              promptText={prompt.data.prompt}
-            >
-              <Button variant="outline" size="icon">
-                <Pencil className="h-5 w-5" />
-              </Button>
-            </CreatePromptDialog>
-            <DetailPageNav
-              key="nav"
-              currentId={props.promptId}
-              path={(id) =>
-                `/project/${router.query.projectId as string}/prompts/${id}`
-              }
-              listKey="prompts"
-            />
-          </>
-        }
-      />
-
-      <CodeView content={prompt.data.prompt} title="Prompt" />
-      <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7 text-gray-700">
-        <div className="border-b px-3 py-1 text-xs font-medium">Variables</div>
-        <div className="flex flex-wrap gap-2 p-3">
-          {extractedVariables.length > 0 ? (
-            extractedVariables.map((variable) => (
-              <Badge key={variable} variant="outline">
-                {variable}
-              </Badge>
-            ))
-          ) : (
-            <span className="text-xs">No variables</span>
-          )}
+    <div className="flex flex-col xl:container md:h-[calc(100vh-2rem)]">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-3">
+          <Header
+            title={prompt.name}
+            breadcrumb={[
+              {
+                name: "Prompts",
+                href: `/project/${props.projectId}/prompts/`,
+              },
+              {
+                name: prompt.name,
+                href: `/project/${props.projectId}/prompts/${prompt.name}`,
+              },
+              { name: `Version ${prompt.version}` },
+            ]}
+            actionButtons={
+              <>
+                <PromotePrompt
+                  projectId={props.projectId}
+                  promptId={prompt.id}
+                  promptName={prompt.name}
+                  disabled={prompt.isActive}
+                  variant="outline"
+                />
+                <CreatePromptDialog
+                  projectId={props.projectId}
+                  title="Update Prompt"
+                  subtitle="We do not update prompts, instead we create a new version of the prompt."
+                  promptName={prompt.name}
+                  promptText={prompt.prompt}
+                >
+                  <Button variant="outline" size="icon">
+                    <Pencil className="h-5 w-5" />
+                  </Button>
+                </CreatePromptDialog>
+                <DetailPageNav
+                  key="nav"
+                  currentId={prompt.name}
+                  path={(name) => `/project/${props.projectId}/prompts/${name}`}
+                  listKey="prompts"
+                />
+              </>
+            }
+          />
+        </div>
+        <div className="col-span-2 md:h-full">
+          <CodeView content={prompt.prompt} title="Prompt" />
+          <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7 text-gray-700">
+            <div className="border-b px-3 py-1 text-xs font-medium">
+              Variables
+            </div>
+            <div className="flex flex-wrap gap-2 p-3">
+              {extractedVariables.length > 0 ? (
+                extractedVariables.map((variable) => (
+                  <Badge key={variable} variant="outline">
+                    {variable}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs">No variables</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex h-screen flex-col">
+          <div className="text-m px-3 font-medium">
+            <ScrollArea className="flex border-l pl-2">
+              <PromptHistoryNode
+                prompts={promptHistory.data}
+                currentPromptVersion={prompt.version}
+                setCurrentPromptVersion={setCurrentPromptVersion}
+              />
+            </ScrollArea>
+          </div>
         </div>
       </div>
     </div>

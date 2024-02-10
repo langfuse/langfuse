@@ -15,21 +15,21 @@ export function PromotePrompt({
   projectId,
   promptName,
   disabled,
+  variant,
 }: {
   promptId: string;
   projectId: string;
   promptName: string;
   disabled: boolean;
+  variant?: "ghost" | "outline";
 }) {
-  const [isPromoted, setIsPromoted] = useState(false);
   const utils = api.useUtils();
   const posthog = usePostHog();
-
+  const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
 
   const mutPromotePrompt = api.prompts.promote.useMutation({
     onSuccess: () => {
-      setIsPromoted(true);
       void utils.prompts.invalidate();
     },
   });
@@ -39,9 +39,19 @@ export function PromotePrompt({
   }
 
   return (
-    <Popover key={promptId}>
+    <Popover
+      key={promptId}
+      open={isOpen}
+      onOpenChange={() => setIsOpen(!isOpen)}
+    >
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="xs" disabled={disabled}>
+        <Button
+          variant={variant ?? "ghost"}
+          size={variant ? "icon" : "xs"}
+          disabled={disabled}
+          aria-label="Promote Prompt to production"
+          title="Promote Prompt to production"
+        >
           <PlayIcon className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
@@ -59,13 +69,14 @@ export function PromotePrompt({
           <Button
             type="button"
             variant="destructive"
-            loading={mutPromotePrompt.isLoading || isPromoted}
+            loading={mutPromotePrompt.isLoading}
             onClick={() => {
               void mutPromotePrompt.mutateAsync({
                 promptId,
                 projectId,
               });
               posthog.capture("prompt:promote");
+              setIsOpen(false);
             }}
           >
             Promote to production

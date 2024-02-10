@@ -3,6 +3,7 @@
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
   Table,
   TableBody,
@@ -100,8 +101,9 @@ export function DataTable<TData extends object, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
-                    const sortingEnabled =
-                      header.column.columnDef.enableSorting;
+                    const columnDef = header.column
+                      .columnDef as LangfuseColumnDef<ModelTableRow>;
+                    const sortingEnabled = columnDef.enableSorting;
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
@@ -113,22 +115,22 @@ export function DataTable<TData extends object, TValue>({
                         onClick={(event) => {
                           event.preventDefault(); // Add this line
 
-                          if (
-                            !setOrderBy ||
-                            !header.column.columnDef.id ||
-                            !sortingEnabled
-                          ) {
+                          if (!setOrderBy || !columnDef.id || !sortingEnabled) {
                             return;
                           }
 
-                          if (orderBy?.column === header.column.columnDef.id) {
-                            setOrderBy({
-                              column: header.column.columnDef.id,
-                              order: orderBy.order === "ASC" ? "DESC" : "ASC",
-                            });
+                          if (orderBy?.column === columnDef.id) {
+                            if (orderBy.order === "DESC") {
+                              setOrderBy({
+                                column: columnDef.id,
+                                order: "ASC",
+                              });
+                            } else {
+                              setOrderBy(null);
+                            }
                           } else {
                             setOrderBy({
-                              column: header.column.columnDef.id,
+                              column: columnDef.id,
                               order: "DESC",
                             });
                           }
@@ -142,7 +144,17 @@ export function DataTable<TData extends object, TValue>({
                                 header.getContext(),
                               )}
 
-                              {orderBy?.column === header.column.columnDef.id
+                              {columnDef.headerTooltip && (
+                                <DocPopup
+                                  description={
+                                    columnDef.headerTooltip.description
+                                  }
+                                  href={columnDef.headerTooltip.href}
+                                  size="xs"
+                                />
+                              )}
+
+                              {orderBy?.column === columnDef.id
                                 ? renderOrderingIndicator(orderBy)
                                 : null}
                             </div>

@@ -4,6 +4,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 
 export default function Dataset() {
   const router = useRouter();
@@ -23,6 +24,13 @@ export default function Dataset() {
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           { name: dataset.data?.name ?? datasetId },
         ]}
+        actionButtons={
+          <DetailPageNav
+            currentId={datasetId}
+            path={(id) => `/project/${projectId}/datasets/${id}`}
+            listKey="datasets"
+          />
+        }
       />
       <Tabs value="runs" className="mb-3">
         <TabsList>

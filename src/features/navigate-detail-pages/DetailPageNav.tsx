@@ -50,7 +50,7 @@ export const DetailPageNav = (props: {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [previousPageId, nextPageId, router, props]);
 
-  if (ids.length > 0)
+  if (ids.length > 1)
     return (
       <div>
         <Tooltip>

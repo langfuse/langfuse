@@ -32,7 +32,7 @@ export const UserChart = ({
       projectId,
       from: "traces_observations",
       select: [
-        { column: "totalTokenCost" },
+        { column: "calculatedTotalCost", agg: "SUM" },
         { column: "user" },
         { column: "traceId", agg: "COUNT" },
       ],
@@ -43,7 +43,9 @@ export const UserChart = ({
           column: "user",
         },
       ],
-      orderBy: [{ column: "totalTokenCost", direction: "DESC" }],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
     },
     {
       trpc: {
@@ -97,13 +99,15 @@ export const UserChart = ({
         .map((item) => {
           return {
             name: (item.user as string | null | undefined) ?? "Unknown",
-            value: item.totalTokenCost ? (item.totalTokenCost as number) : 0,
+            value: item.sumCalculatedTotalCost
+              ? (item.sumCalculatedTotalCost as number)
+              : 0,
           };
         })
     : [];
 
   const totalCost = user.data?.reduce(
-    (acc, curr) => acc + (curr.totalTokenCost as number),
+    (acc, curr) => acc + (curr.sumCalculatedTotalCost as number),
     0,
   );
 
@@ -114,15 +118,17 @@ export const UserChart = ({
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
+  const localUsdFormatter = (value: number) => usdFormatter(value, 2, 2);
+
   const data = [
     {
       tabTitle: "Token cost",
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCost ? usdFormatter(totalCost) : usdFormatter(0),
+      totalMetric: totalCost ? usdFormatter(totalCost, 2, 2) : usdFormatter(0),
       metricDescription: "Total cost",
-      formatter: usdFormatter,
+      formatter: localUsdFormatter,
     },
     {
       tabTitle: "Count of Traces",
