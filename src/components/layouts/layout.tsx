@@ -492,21 +492,21 @@ export default function Layout(props: PropsWithChildren) {
                   <Info className="h-4 w-4" />
                   <span className="font-semibold">DEMO (view-only)</span>
                 </div>
-                <div>Live data from the Langfuse Q&A Chatbot.</div>
+                <div>Use demo RAG chat to see live data in this project.</div>
               </div>
 
               <Button size="sm" asChild className="ml-2">
                 <Link
                   href={
                     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                      ? "https://langfuse.com/docs/qa-chatbot"
-                      : "https://docs-staging.langfuse.com/docs/qa-chatbot"
+                      ? "https://langfuse.com/docs/demo"
+                      : "https://docs-staging.langfuse.com/docs/demo"
                   }
                   target="_blank"
                 >
                   {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                    ? "Q&A Chatbot ↗"
-                    : "Q&A Chatbot (staging) ↗"}
+                    ? "Use Chat ↗"
+                    : "Use Chat (staging) ↗"}
                 </Link>
               </Button>
             </div>
