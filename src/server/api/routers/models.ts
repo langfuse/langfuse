@@ -1,11 +1,12 @@
 import { z } from "zod";
 
+import { ModelUsageUnit } from "@/src/constants";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
@@ -93,7 +94,7 @@ export const modelRouter = createTRPCRouter({
         inputPrice: z.number().nonnegative().optional(),
         outputPrice: z.number().nonnegative().optional(),
         totalPrice: z.number().nonnegative().optional(),
-        unit: z.enum(["TOKENS", "CHARACTERS"]),
+        unit: z.nativeEnum(ModelUsageUnit),
         tokenizerId: z.enum(["openai", "claude"]).optional(),
         tokenizerConfig: z.record(z.union([z.string(), z.number()])).optional(),
       }),

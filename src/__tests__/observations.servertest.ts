@@ -1,8 +1,10 @@
 /** @jest-environment node */
 
-import { prisma } from "@/src/server/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+
+import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { ModelUsageUnit } from "@/src/constants";
+import { prisma } from "@/src/server/db";
 import { type ObservationView } from "@prisma/client";
 
 describe("/api/public/observations API Endpoint", () => {
@@ -35,7 +37,7 @@ describe("/api/public/observations API Endpoint", () => {
         totalPrice: "0.1",
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         projectId: null,
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
 
@@ -59,7 +61,7 @@ describe("/api/public/observations API Endpoint", () => {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
         internalModel: "gpt-3.5-turbo",
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
 
@@ -120,7 +122,7 @@ describe("/api/public/observations API Endpoint", () => {
         totalPrice: "0.1",
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         projectId: null,
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
 
@@ -140,7 +142,7 @@ describe("/api/public/observations API Endpoint", () => {
         completionTokens: 20,
         totalTokens: 30,
         version: "2.0.0",
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         type: "GENERATION",
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },

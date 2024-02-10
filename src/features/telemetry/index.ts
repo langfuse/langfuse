@@ -1,4 +1,4 @@
-import { VERSION } from "@/src/constants/VERSION";
+import { VERSION } from "@/src/constants";
 import { prisma } from "@/src/server/db";
 import { Prisma } from "@prisma/client";
 import { PostHog } from "posthog-node";

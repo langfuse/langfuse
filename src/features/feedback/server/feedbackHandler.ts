@@ -1,5 +1,5 @@
-import { env } from "@/src/env.mjs";
 import { runFeedbackCorsMiddleware } from "@/src/features/feedback/server/corsMiddleware";
+import { sendToSlack } from "@/src/features/slack/server/slack-webhook";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 // Collects feedack from users that do not use the cloud version of the app
@@ -10,17 +10,7 @@ export default async function feedbackApiHandler(
   await runFeedbackCorsMiddleware(req, res);
 
   try {
-    if (!env.LANGFUSE_TEAM_SLACK_WEBHOOK)
-      throw new Error("LANGFUSE_TEAM_SLACK_WEBHOOK is not set");
-
-    const slackResponse = await fetch(env.LANGFUSE_TEAM_SLACK_WEBHOOK, {
-      method: "POST",
-      body: JSON.stringify({ rawBody: JSON.stringify(req.body, null, 2) }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
+    const slackResponse = await sendToSlack(req);
     if (slackResponse.status === 200) {
       res.status(200).json({ status: "OK" });
     } else {
