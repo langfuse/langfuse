@@ -6,8 +6,9 @@ import { Fragment } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
 import { formatInterval } from "@/src/utils/dates";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { MinusCircle, MinusIcon, PlusCircleIcon, PlusIcon } from "lucide-react";
 import { Toggle } from "@/src/components/ui/toggle";
+import { Button } from "@/src/components/ui/button";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -74,16 +75,22 @@ const ObservationTreeTraceNode = (props: {
     <div className="flex gap-2">
       <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>TRACE</span>
       <span className="flex-1 text-sm">{props.trace.name}</span>
-      <Toggle onPressedChange={props.expandAll} size="xs" title="Expand all">
-        <ChevronsUpDown className="h-4 w-4" />
-      </Toggle>
-      <Toggle
-        onPressedChange={props.collapseAll}
+      <Button
+        onClick={(ev) => (ev.stopPropagation(), props.expandAll())}
         size="xs"
+        variant="ghost"
+        title="Expand all"
+      >
+        <PlusCircleIcon className="h-4 w-4" />
+      </Button>
+      <Button
+        onClick={(ev) => (ev.stopPropagation(), props.collapseAll())}
+        size="xs"
+        variant="ghost"
         title="Collapse all"
       >
-        <ChevronsDownUp className="h-4 w-4" />
-      </Toggle>
+        <MinusCircle className="h-4 w-4" />
+      </Button>
     </div>
 
     {props.showMetrics && props.trace.latency ? (
@@ -144,16 +151,18 @@ const ObservationTreeNode = (props: {
                   </span>
                   {observation.children.length === 0 ? null : (
                     <Toggle
-                      onPressedChange={() =>
+                      onClick={(ev) => (
+                        ev.stopPropagation(),
                         props.toggleCollapsedObservation(observation.id)
-                      }
+                      )}
+                      variant={collapsed ? "default" : "outline"}
                       size="xs"
-                      title="Toggle collapsed"
+                      title="Toggle children"
                     >
                       {collapsed ? (
-                        <ChevronsUpDown className="h-4 w-4" />
+                        <PlusIcon className="h-4 w-4" />
                       ) : (
-                        <ChevronsDownUp className="h-4 w-4" />
+                        <MinusIcon className="h-4 w-4" />
                       )}
                     </Toggle>
                   )}
