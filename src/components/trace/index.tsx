@@ -58,10 +58,32 @@ export function Trace(props: {
   );
 
   const collapseAll = useCallback(() => {
+    // loop through observations to find all parents until the list of parents does not change anymore
+    let excludeParentObservations = new Set<string>();
+    let newExcludeParentObservations = new Set<string>();
+    do {
+      // combine both sets
+      excludeParentObservations = new Set<string>([
+        ...excludeParentObservations,
+        ...newExcludeParentObservations,
+      ]);
+      newExcludeParentObservations = new Set<string>(
+        props.observations
+          .filter(
+            (o) =>
+              o.parentObservationId !== null &&
+              (o.id === currentObservationId ||
+                excludeParentObservations.has(o.id)),
+          )
+          .map((o) => o.parentObservationId as string)
+          .filter((id) => !excludeParentObservations.has(id)),
+      );
+    } while (newExcludeParentObservations.size > 0);
+
     setCollapsedObservations(
       props.observations
         .map((o) => o.id)
-        .filter((id) => id !== currentObservationId),
+        .filter((id) => !excludeParentObservations.has(id)),
     );
   }, [props.observations, currentObservationId]);
 
