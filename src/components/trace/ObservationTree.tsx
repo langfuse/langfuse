@@ -245,9 +245,9 @@ const ColorCodedObservationType = (props: {
   observationType: $Enums.ObservationType;
 }) => {
   const colors: Record<$Enums.ObservationType, string> = {
-    [$Enums.ObservationType.SPAN]: "bg-blue-200",
-    [$Enums.ObservationType.GENERATION]: "bg-orange-200",
-    [$Enums.ObservationType.EVENT]: "bg-green-200",
+    [$Enums.ObservationType.SPAN]: "bg-blue-100",
+    [$Enums.ObservationType.GENERATION]: "bg-orange-100",
+    [$Enums.ObservationType.EVENT]: "bg-green-100",
   };
 
   return (
