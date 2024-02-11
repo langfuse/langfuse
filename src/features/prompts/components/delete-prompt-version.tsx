@@ -8,23 +8,39 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { useRouter } from "next/router";
 
 export function DeletePromptVersion({
-  promptId,
+  promptVersionId,
   projectId,
   version,
+  countVersions,
 }: {
-  promptId: string;
+  promptVersionId: string;
   projectId: string;
   version: number;
+  countVersions: number;
 }) {
   const utils = api.useUtils();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
 
   const mutDeletePromptVersion = api.prompts.deleteVersion.useMutation({
     onSuccess: () => {
       void utils.prompts.invalidate();
+      if (countVersions > 1) {
+        void router.replace(
+          {
+            pathname: router.pathname,
+            query: { ...router.query, version: undefined },
+          },
+          undefined,
+          { shallow: true },
+        );
+      } else {
+        void router.push(`/project/${projectId}/prompts`);
+      }
     },
   });
 
@@ -34,24 +50,23 @@ export function DeletePromptVersion({
 
   return (
     <Popover
-      key={promptId}
+      key={promptVersionId}
       open={isOpen}
       onOpenChange={() => setIsOpen(!isOpen)}
     >
       <PopoverTrigger asChild>
-        <Button variant="destructive" size="icon">
+        <Button variant="outline" type="button" size="icon">
           <Trash2 className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action deletes the prompt version. SDKs requesting a prompt
-          version{" "}
+          This action deletes the prompt version. Requests of version{" "}
           <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
             {version}
           </code>
-          will not be able to receive this prompt.
+          of this prompt will return an error.
         </p>
         <div className="flex justify-end space-x-4">
           <Button
@@ -60,9 +75,8 @@ export function DeletePromptVersion({
             loading={mutDeletePromptVersion.isLoading}
             onClick={() => {
               void mutDeletePromptVersion.mutateAsync({
-                promptId,
+                promptVersionId,
                 projectId,
-                version,
               });
               setIsOpen(false);
             }}

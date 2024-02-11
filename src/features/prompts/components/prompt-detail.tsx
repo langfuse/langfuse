@@ -80,8 +80,9 @@ export const PromptDetail = (props: PromptDetailProps) => {
                 </CreatePromptDialog>
                 <DeletePromptVersion
                   projectId={props.projectId}
-                  promptId={prompt.id}
+                  promptVersionId={prompt.id}
                   version={prompt.version}
+                  countVersions={promptHistory.data.length}
                 />
                 <DetailPageNav
                   key="nav"

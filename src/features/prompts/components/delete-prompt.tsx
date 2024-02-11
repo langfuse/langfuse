@@ -33,18 +33,19 @@ export function DeletePrompt({
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
-        <Button variant="destructive" size="icon">
-          <Trash2 className="h-5 w-5" />
+        <Button variant="ghost" size="xs">
+          <Trash2 className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action deletes the prompt . SDKs requesting a prompt
+          This action permanently deletes this prompt. All requests to fetch
+          prompt{" "}
           <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
             {promptName}
-          </code>
-          will not be able to receive this prompt.
+          </code>{" "}
+          will error.
         </p>
         <div className="flex justify-end space-x-4">
           <Button

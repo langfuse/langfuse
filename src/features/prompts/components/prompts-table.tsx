@@ -73,8 +73,8 @@ export function PromptTable(props: { projectId: string }) {
       },
     },
     {
-      accessorKey: "deleteButton",
-      header: "Delete",
+      accessorKey: "actions",
+      header: "Actions",
       cell: ({ row }) => {
         return (
           <DeletePrompt

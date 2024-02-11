@@ -100,7 +100,6 @@ export const promptRouter = createTRPCRouter({
 
         await ctx.prisma.prompt.deleteMany({
           where: {
-            // id: input.promptId,
             projectId: input.projectId,
             name: input.promptName,
           },
@@ -113,9 +112,8 @@ export const promptRouter = createTRPCRouter({
   deleteVersion: protectedProjectProcedure
     .input(
       z.object({
-        promptId: z.string(),
+        promptVersionId: z.string(),
         projectId: z.string(),
-        version: z.number(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -128,8 +126,7 @@ export const promptRouter = createTRPCRouter({
 
         await ctx.prisma.prompt.delete({
           where: {
-            id: input.promptId,
-            version: input.version,
+            id: input.promptVersionId,
             projectId: input.projectId,
           },
         });
