@@ -5,6 +5,7 @@ import {
 } from "@/src/features/public-api/lib/apiKeys";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
+import { ModelUsageUnit } from "@/src/constants";
 
 const options = {
   environment: { type: "string" },
@@ -487,11 +488,7 @@ async function main() {
                   ? { prompt: { connect: { id: prompt.id } } }
                   : {}),
               },
-              unit: model
-                ? model.includes("claude")
-                  ? "CHARACTERS"
-                  : "TOKENS"
-                : undefined,
+              unit: ModelUsageUnit.Tokens,
             },
           });
           if (Math.random() > 0.6)

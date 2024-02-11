@@ -1,6 +1,7 @@
 /** @jest-environment node */
 
 import { pruneDatabase } from "@/src/__tests__/test-utils";
+import { ModelUsageUnit } from "@/src/constants";
 import { prisma } from "@/src/server/db";
 
 describe("cost retrieval tests", () => {
@@ -111,7 +112,7 @@ describe("cost retrieval tests", () => {
           projectId: null,
           startDate: new Date("2023-12-01"),
           tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
         },
       });
 
@@ -130,7 +131,7 @@ describe("cost retrieval tests", () => {
           model: "gpt-3.5-turbo",
           internalModel: "gpt-3.5-turbo",
           startTime: new Date("2024-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           promptTokens: input.promptTokens,
           completionTokens: input.completionTokens,
           totalTokens: input.totalTokens,
@@ -181,7 +182,7 @@ describe("cost retrieval tests", () => {
           projectId: null,
           startDate: new Date("2023-12-01"),
           tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
         },
       });
       await prisma.model.create({
@@ -194,7 +195,7 @@ describe("cost retrieval tests", () => {
           matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
           startDate: new Date("2023-12-01"),
           tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
         },
       });
@@ -214,7 +215,7 @@ describe("cost retrieval tests", () => {
           model: "gpt-3.5-turbo",
           internalModel: "gpt-3.5-turbo",
           startTime: new Date("2024-01-01T00:00:00.000Z"),
-          unit: "TOKENS",
+          unit: ModelUsageUnit.Tokens,
           promptTokens: 200,
           completionTokens: 3000,
           totalTokens: undefined,
@@ -226,7 +227,7 @@ describe("cost retrieval tests", () => {
       });
 
       // calculated cost fields
-      expect(view?.model_id).toBe(input.expectedModelId);
+      expect(view?.modelId).toBe(input.expectedModelId);
       expect(view?.calculatedInputCost?.toString()).toBe(
         input.expectedInputCost,
       );
@@ -252,7 +253,7 @@ describe("cost retrieval tests", () => {
         projectId: null,
         startDate: new Date("2023-12-01"),
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
     await prisma.model.create({
@@ -265,7 +266,7 @@ describe("cost retrieval tests", () => {
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         startDate: new Date("2023-12-02"),
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
 
@@ -284,7 +285,7 @@ describe("cost retrieval tests", () => {
         model: "gpt-3.5-turbo",
         internalModel: "gpt-3.5-turbo",
         startTime: new Date("2024-01-01T00:00:00.000Z"),
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         promptTokens: 200,
         completionTokens: 3000,
         totalTokens: undefined,
@@ -298,7 +299,7 @@ describe("cost retrieval tests", () => {
     console.log(view);
 
     // calculated cost fields
-    expect(view?.model_id).toBe("model-2");
+    expect(view?.modelId).toBe("model-2");
     expect(view?.calculatedInputCost?.toString()).toBe("0.0004");
     expect(view?.calculatedOutputCost?.toString()).toBe("0.012");
     expect(view?.calculatedTotalCost?.toString()).toBe("0.0124");
@@ -317,7 +318,7 @@ describe("cost retrieval tests", () => {
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         startDate: new Date("2023-12-02"),
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
     await prisma.model.create({
@@ -331,7 +332,7 @@ describe("cost retrieval tests", () => {
         startDate: new Date("2023-12-01"),
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
         project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
 
@@ -350,7 +351,7 @@ describe("cost retrieval tests", () => {
         model: "gpt-3.5-turbo",
         internalModel: "gpt-3.5-turbo",
         startTime: new Date("2024-01-01T00:00:00.000Z"),
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         promptTokens: 200,
         completionTokens: 3000,
         totalTokens: undefined,
@@ -364,7 +365,7 @@ describe("cost retrieval tests", () => {
     console.log(view);
 
     // calculated cost fields
-    expect(view?.model_id).toBe("model-2");
+    expect(view?.modelId).toBe("model-2");
     expect(view?.calculatedInputCost?.toString()).toBe("0.0004");
     expect(view?.calculatedOutputCost?.toString()).toBe("0.012");
     expect(view?.calculatedTotalCost?.toString()).toBe("0.0124");
@@ -383,7 +384,7 @@ describe("cost retrieval tests", () => {
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         startDate: new Date("2023-12-02"),
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
     await prisma.model.create({
@@ -397,7 +398,7 @@ describe("cost retrieval tests", () => {
         startDate: new Date("2023-12-01"),
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
         project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       },
     });
 
@@ -416,7 +417,7 @@ describe("cost retrieval tests", () => {
         model: "gpt-3.5-turbo",
         internalModel: "gpt-3.5-turbo",
         startTime: new Date("2024-01-01T00:00:00.000Z"),
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
         promptTokens: 200,
         completionTokens: 3000,
         totalTokens: undefined,
@@ -433,7 +434,7 @@ describe("cost retrieval tests", () => {
     console.log(view);
 
     // calculated cost fields
-    expect(view?.model_id).toBe("model-2");
+    expect(view?.modelId).toBe("model-2");
     expect(view?.calculatedInputCost?.toString()).toBe("1");
     expect(view?.calculatedOutputCost?.toString()).toBe("2");
     expect(view?.calculatedTotalCost?.toString()).toBe("3");

@@ -60,7 +60,7 @@ export default async function handler(
       });
     }
 
-    const observations = await prisma.observation.findMany({
+    const observations = await prisma.observationView.findMany({
       where: {
         traceId: traceId,
         projectId: authCheck.scope.projectId,

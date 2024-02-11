@@ -22,7 +22,8 @@ import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { usdFormatter } from "@/src/utils/numbers";
-import type Decimal from "decimal.js";
+import Decimal from "decimal.js";
+import { useCallback, useState } from "react";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -41,9 +42,57 @@ export function Trace(props: {
     true,
   );
 
+  const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
+    [],
+  );
+
+  const toggleCollapsedObservation = useCallback(
+    (id: string) => {
+      if (collapsedObservations.includes(id)) {
+        setCollapsedObservations(collapsedObservations.filter((i) => i !== id));
+      } else {
+        setCollapsedObservations([...collapsedObservations, id]);
+      }
+    },
+    [collapsedObservations],
+  );
+
+  const collapseAll = useCallback(() => {
+    // exclude all parents of the current observation
+    let excludeParentObservations = new Set<string>();
+    let newExcludeParentObservations = new Set<string>();
+    do {
+      excludeParentObservations = new Set<string>([
+        ...excludeParentObservations,
+        ...newExcludeParentObservations,
+      ]);
+      newExcludeParentObservations = new Set<string>(
+        props.observations
+          .filter(
+            (o) =>
+              o.parentObservationId !== null &&
+              (o.id === currentObservationId ||
+                excludeParentObservations.has(o.id)),
+          )
+          .map((o) => o.parentObservationId as string)
+          .filter((id) => !excludeParentObservations.has(id)),
+      );
+    } while (newExcludeParentObservations.size > 0);
+
+    setCollapsedObservations(
+      props.observations
+        .map((o) => o.id)
+        .filter((id) => !excludeParentObservations.has(id)),
+    );
+  }, [props.observations, currentObservationId]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedObservations([]);
+  }, [setCollapsedObservations]);
+
   return (
-    <div className="grid gap-4 md:h-full md:grid-cols-3">
-      <ScrollArea className="md:col-span-2 md:h-full">
+    <div className="grid gap-4 md:h-full md:grid-cols-5">
+      <ScrollArea className="md:col-span-3 md:h-full">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -62,7 +111,7 @@ export function Trace(props: {
           />
         )}
       </ScrollArea>
-      <div className="md:flex md:h-full md:flex-col md:overflow-hidden">
+      <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
         <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
           <Toggle
             pressed={scoresOnObservationTree}
@@ -92,6 +141,10 @@ export function Trace(props: {
         <ScrollArea className="flex flex-grow">
           <ObservationTree
             observations={props.observations}
+            collapsedObservations={collapsedObservations}
+            toggleCollapsedObservation={toggleCollapsedObservation}
+            collapseAll={collapseAll}
+            expandAll={expandAll}
             trace={props.trace}
             scores={props.scores}
             currentObservationId={currentObservationId ?? undefined}
@@ -134,16 +187,8 @@ export function TracePage({ traceId }: { traceId: string }) {
   const filterOptionTags = traceFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
 
-  const totalCost: Decimal | undefined = trace.data?.observations.reduce(
-    (prev: Decimal | undefined, curr: ObservationReturnType) => {
-      if (!curr.calculatedTotalCost) return prev;
+  const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
 
-      return prev
-        ? prev.plus(curr.calculatedTotalCost)
-        : curr.calculatedTotalCost;
-    },
-    undefined,
-  );
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
   return (
@@ -232,3 +277,42 @@ export function TracePage({ traceId }: { traceId: string }) {
     </div>
   );
 }
+
+export const calculateDisplayTotalCost = (
+  observations: ObservationReturnType[],
+) => {
+  return observations.reduce(
+    (prev: Decimal | undefined, curr: ObservationReturnType) => {
+      // if we don't have any calculated costs, we can't do anything
+      if (
+        !curr.calculatedTotalCost &&
+        !curr.calculatedInputCost &&
+        !curr.calculatedOutputCost
+      )
+        return prev;
+
+      // if we have either input or output cost, but not total cost, we can use that
+      if (
+        !curr.calculatedTotalCost &&
+        (curr.calculatedInputCost || curr.calculatedOutputCost)
+      ) {
+        return prev
+          ? prev.plus(
+              curr.calculatedInputCost ??
+                new Decimal(0).plus(
+                  curr.calculatedOutputCost ?? new Decimal(0),
+                ),
+            )
+          : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
+      }
+
+      if (!curr.calculatedTotalCost) return prev;
+
+      // if we have total cost, we can use that
+      return prev
+        ? prev.plus(curr.calculatedTotalCost)
+        : curr.calculatedTotalCost;
+    },
+    undefined,
+  );
+};

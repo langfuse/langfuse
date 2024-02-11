@@ -43,10 +43,7 @@ export function tokenCount(p: {
       text: p.text,
     });
   } else if (p.model.tokenizerId === "claude") {
-    return claudeTokenCount({
-      internalModel: p.model.modelName,
-      text: p.text,
-    });
+    return claudeTokenCount(p.text);
   } else {
     console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
     return undefined;
@@ -97,10 +94,8 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   return result;
 }
 
-function claudeTokenCount(p: { internalModel: string; text: unknown }) {
-  return isString(p.text)
-    ? countTokens(p.text)
-    : countTokens(JSON.stringify(p.text));
+function claudeTokenCount(text: unknown) {
+  return isString(text) ? countTokens(text) : countTokens(JSON.stringify(text));
 }
 
 function openAiChatTokenCount(params: {
@@ -202,6 +197,7 @@ function unicodeToBytesInString(input: string): string {
   }
   return result;
 }
+
 function unicodeToBytes(input: string): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(input);
