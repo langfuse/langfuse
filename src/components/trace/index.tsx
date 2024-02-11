@@ -58,7 +58,7 @@ export function Trace(props: {
   );
 
   const collapseAll = useCallback(() => {
-    // exlude all parents of the current observation
+    // exclude all parents of the current observation
     let excludeParentObservations = new Set<string>();
     let newExcludeParentObservations = new Set<string>();
     do {
