@@ -83,6 +83,58 @@ export const promptRouter = createTRPCRouter({
         throw e;
       }
     }),
+  delete: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        promptName: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "prompts:CUD",
+        });
+
+        await ctx.prisma.prompt.deleteMany({
+          where: {
+            projectId: input.projectId,
+            name: input.promptName,
+          },
+        });
+      } catch (e) {
+        console.log(e);
+        throw e;
+      }
+    }),
+  deleteVersion: protectedProjectProcedure
+    .input(
+      z.object({
+        promptVersionId: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "prompts:CUD",
+        });
+
+        await ctx.prisma.prompt.delete({
+          where: {
+            id: input.promptVersionId,
+            projectId: input.projectId,
+          },
+        });
+      } catch (e) {
+        console.log(e);
+        throw e;
+      }
+    }),
   promote: protectedProjectProcedure
     .input(z.object({ promptId: z.string(), projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
