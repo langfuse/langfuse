@@ -155,9 +155,13 @@ const ObservationTreeNode = (props: {
                         ev.stopPropagation(),
                         props.toggleCollapsedObservation(observation.id)
                       )}
-                      variant={collapsed ? "default" : "outline"}
+                      variant="default"
+                      pressed={collapsed}
                       size="xs"
-                      title="Toggle children"
+                      className="w-7"
+                      title={
+                        collapsed ? "Expand children" : "Collapse children"
+                      }
                     >
                       {collapsed ? (
                         <PlusIcon className="h-4 w-4" />
@@ -248,9 +252,10 @@ const ColorCodedObservationType = (props: {
 
   return (
     <span
-      className={`${
-        colors[props.observationType]
-      } self-start rounded-sm p-1 text-xs`}
+      className={cn(
+        "self-start rounded-sm p-1 text-xs",
+        colors[props.observationType],
+      )}
     >
       {props.observationType}
     </span>
