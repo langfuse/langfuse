@@ -92,5 +92,9 @@ describe("model match", () => {
       expect(observation.promptTokens).toBeGreaterThan(0);
       expect(observation.completionTokens).toBeGreaterThan(0);
     });
+
+    // temporary fix: wait for 5 additional seconds to ensure that the model match is complete
+    // had issue with the test failing because the model match was not complete and logged to console
+    await new Promise((resolve) => setTimeout(resolve, 5000));
   });
 });
