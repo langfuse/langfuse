@@ -11,7 +11,7 @@ import {
 import { CodeView } from "@/src/components/ui/code";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
-import { env } from "@/src/env.mjs";
+import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -21,8 +21,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
     scope: "apiKeys:create",
   });
 
-  const hostname =
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "EU" ? window.origin : undefined;
+  const hostname = window.origin;
 
   const mutCreateApiKey = api.apiKeys.create.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
@@ -66,28 +65,15 @@ export function CreateApiKeyButton(props: { projectId: string }) {
           Create new API keys
         </Button>
       </DialogTrigger>
-      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
-        {hostname ? (
-          <>
-            <DialogTitle>Hostname</DialogTitle>
-            <div className="mb-6">
-              <div className="my-2">
-                When connecting to Langfuse, use this hostname / baseurl.
-              </div>
-              <CodeView content={hostname} />
-            </div>
-          </>
-        ) : null}
-
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        className="max-w-full md:max-w-xl"
+      >
         <DialogTitle>API Keys</DialogTitle>
         <div className="mb-2">
           <div className="text-md font-semibold">Secret Key</div>
           <div className="my-2">
-            Please save this secret key.{" "}
-            <span className="font-semibold">
-              You will not be able to view it again
-            </span>
-            . If you lose it, you will need to generate a new one.
+            This key can only be viewed once. You can always generate a new key.
           </div>
           <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
         </div>
@@ -95,6 +81,20 @@ export function CreateApiKeyButton(props: { projectId: string }) {
           <div className="text-md mb-2 font-semibold">Public Key</div>
           <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
         </div>
+        <div>
+          <div className="text-md mb-2 font-semibold">Host</div>
+          <CodeView content={hostname} />
+        </div>
+        {generatedKeys && (
+          <div className="mb-2">
+            <div className="text-md my-2 font-semibold">Usage</div>
+            <QuickstartExamples
+              secretKey={generatedKeys.secretKey}
+              publicKey={generatedKeys.publicKey}
+              host={hostname}
+            />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
