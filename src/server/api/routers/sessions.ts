@@ -14,6 +14,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -161,6 +162,14 @@ export const sessionRouter = createTRPCRouter({
           scope: "objects:bookmark",
         });
 
+        await auditLog({
+          session: ctx.session,
+          resourceType: "session",
+          resourceId: input.sessionId,
+          action: "bookmark",
+          after: input.bookmarked,
+        });
+
         const session = await ctx.prisma.traceSession.update({
           where: {
             id_projectId: {
@@ -204,6 +213,13 @@ export const sessionRouter = createTRPCRouter({
           session: ctx.session,
           projectId: input.projectId,
           scope: "objects:publish",
+        });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "session",
+          resourceId: input.sessionId,
+          action: "publish",
+          after: input.public,
         });
         return ctx.prisma.traceSession.update({
           where: {

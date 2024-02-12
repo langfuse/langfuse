@@ -1,3 +1,4 @@
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
@@ -5,6 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { MembershipRole } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 
 export const projectMembersRouter = createTRPCRouter({
@@ -75,13 +77,32 @@ export const projectMembersRouter = createTRPCRouter({
       if (input.userId === ctx.session.user.id)
         throw new Error("You cannot remove yourself from a project");
 
-      // use deleteMany to protect against deleting owner with where clause
-      return ctx.prisma.membership.deleteMany({
+      const membership = await ctx.prisma.membership.findFirst({
         where: {
           projectId: input.projectId,
           userId: input.userId,
           role: {
             not: MembershipRole.OWNER,
+          },
+        },
+      });
+
+      if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "membership",
+        resourceId: membership.projectId + "--" + membership.userId,
+        action: "delete",
+        before: membership,
+      });
+
+      // use ids from membership to make sure owners cannot delete themselves
+      return await ctx.prisma.membership.delete({
+        where: {
+          projectId_userId: {
+            projectId: membership.projectId,
+            userId: membership.userId,
           },
         },
       });
@@ -98,6 +119,13 @@ export const projectMembersRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "members:delete",
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "membershipInvitation",
+        resourceId: input.id,
+        action: "delete",
       });
 
       return await ctx.prisma.membershipInvitation.delete({
@@ -132,13 +160,21 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
       if (user) {
-        return await ctx.prisma.membership.create({
+        const membership = await ctx.prisma.membership.create({
           data: {
             userId: user.id,
             projectId: input.projectId,
             role: input.role,
           },
         });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "membership",
+          resourceId: input.projectId + "--" + user.id,
+          action: "create",
+          after: membership,
+        });
+        return membership;
       } else {
         const invitation = await ctx.prisma.membershipInvitation.create({
           data: {
@@ -147,6 +183,13 @@ export const projectMembersRouter = createTRPCRouter({
             role: input.role,
             senderId: ctx.session.user.id,
           },
+        });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "membershipInvitation",
+          resourceId: invitation.id,
+          action: "create",
+          after: invitation,
         });
 
         const project = await ctx.prisma.project.findFirst({

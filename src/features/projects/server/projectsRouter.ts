@@ -1,8 +1,13 @@
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import * as z from "zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -66,6 +71,15 @@ export const projectsRouter = createTRPCRouter({
           },
         },
       });
+      await auditLog({
+        resourceType: "project",
+        resourceId: project.id,
+        action: "create",
+        userId: ctx.session.user.id,
+        projectId: project.id,
+        userProjectRole: "OWNER",
+        after: project,
+      });
 
       return {
         id: project.id,
@@ -74,7 +88,7 @@ export const projectsRouter = createTRPCRouter({
       };
     }),
 
-  update: protectedProcedure
+  update: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -88,7 +102,7 @@ export const projectsRouter = createTRPCRouter({
         scope: "project:update",
       });
 
-      await ctx.prisma.project.update({
+      const project = await ctx.prisma.project.update({
         where: {
           id: input.projectId,
         },
@@ -96,10 +110,17 @@ export const projectsRouter = createTRPCRouter({
           name: input.newName,
         },
       });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "project",
+        resourceId: input.projectId,
+        action: "update",
+        after: project,
+      });
       return true;
     }),
 
-  delete: protectedProcedure
+  delete: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -111,6 +132,12 @@ export const projectsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "project:delete",
       });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "project",
+        resourceId: input.projectId,
+        action: "delete",
+      });
 
       await ctx.prisma.project.delete({
         where: {
@@ -121,7 +148,7 @@ export const projectsRouter = createTRPCRouter({
       return true;
     }),
 
-  transfer: protectedProcedure
+  transfer: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -144,6 +171,14 @@ export const projectsRouter = createTRPCRouter({
       if (!newOwner) throw new Error("User not found");
       if (newOwner.id === ctx.session.user.id)
         throw new Error("You cannot transfer project to yourself");
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "project",
+        resourceId: input.projectId,
+        action: "transfer",
+        after: { ownerId: newOwner.id },
+      });
 
       return ctx.prisma.$transaction([
         // Add new owner, upsert to update role if already exists
