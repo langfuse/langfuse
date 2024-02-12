@@ -1,7 +1,12 @@
-import { Button } from "@/src/components/ui/button";
-import * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { usePostHog } from "posthog-js/react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import JsonView from "react18-json-view";
+import * as z from "zod";
+
+import { DatePicker } from "@/src/components/date-picker";
+import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/ui/button";
 import {
   Form,
   FormControl,
@@ -11,6 +16,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
+import { Input } from "@/src/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -18,14 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { api } from "@/src/utils/api";
-import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
-import { Input } from "@/src/components/ui/input";
-import { DatePicker } from "@/src/components/date-picker";
-import Header from "@/src/components/layouts/header";
+import { ModelUsageUnit } from "@/src/constants";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
-import JsonView from "react18-json-view";
+import { api } from "@/src/utils/api";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
@@ -49,7 +51,7 @@ const formSchema = z.object({
       message: "Price needs to be numeric",
     })
     .optional(),
-  unit: z.enum(["TOKENS", "CHARACTERS"]),
+  unit: z.nativeEnum(ModelUsageUnit),
   tokenizerId: z.enum(["openai", "claude", "None"]),
   tokenizerConfig: z.string().refine(
     (value) => {
@@ -81,7 +83,7 @@ export const NewModelForm = (props: {
       inputPrice: "",
       outputPrice: "",
       totalPrice: "",
-      unit: "TOKENS",
+      unit: ModelUsageUnit.Tokens,
       tokenizerId: "None",
       tokenizerConfig: "{}",
     },
@@ -189,10 +191,10 @@ export const NewModelForm = (props: {
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                Regular expression (POSIX) to match ingested generations (model
-                attribute) to this model definition. For an exact,
-                case-insensitive match to a model name, use the expression:
-                (~*)^modelname$
+                Regular expression (Postgres syntax) to match ingested
+                generations (model attribute) to this model definition. For an
+                exact, case-insensitive match to a model name, use the
+                expression: (?i)^modelname$
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -233,7 +235,7 @@ export const NewModelForm = (props: {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {["TOKENS", "CHARACTERS"].map((unit) => (
+                  {Object.values(ModelUsageUnit).map((unit) => (
                     <SelectItem value={unit} key={unit}>
                       {unit}
                     </SelectItem>

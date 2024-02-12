@@ -1,0 +1,90 @@
+import { Button } from "@/src/components/ui/button";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { api } from "@/src/utils/api";
+import { Trash2 } from "lucide-react";
+import { useState } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { useRouter } from "next/router";
+
+export function DeletePromptVersion({
+  promptVersionId,
+  projectId,
+  version,
+  countVersions,
+}: {
+  promptVersionId: string;
+  projectId: string;
+  version: number;
+  countVersions: number;
+}) {
+  const utils = api.useUtils();
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
+  const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
+
+  const mutDeletePromptVersion = api.prompts.deleteVersion.useMutation({
+    onSuccess: () => {
+      void utils.prompts.invalidate();
+      if (countVersions > 1) {
+        void router.replace(
+          {
+            pathname: router.pathname,
+            query: { ...router.query, version: undefined },
+          },
+          undefined,
+          { shallow: true },
+        );
+      } else {
+        void router.push(`/project/${projectId}/prompts`);
+      }
+    },
+  });
+
+  if (!hasAccess) {
+    return null;
+  }
+
+  return (
+    <Popover
+      key={promptVersionId}
+      open={isOpen}
+      onOpenChange={() => setIsOpen(!isOpen)}
+    >
+      <PopoverTrigger asChild>
+        <Button variant="outline" type="button" size="icon">
+          <Trash2 className="h-5 w-5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent>
+        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <p className="mb-3 text-sm">
+          This action deletes the prompt version. Requests of version{" "}
+          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+            {version}
+          </code>
+          of this prompt will return an error.
+        </p>
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            variant="destructive"
+            loading={mutDeletePromptVersion.isLoading}
+            onClick={() => {
+              void mutDeletePromptVersion.mutateAsync({
+                promptVersionId,
+                projectId,
+              });
+              setIsOpen(false);
+            }}
+          >
+            Delete Prompt Version
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}

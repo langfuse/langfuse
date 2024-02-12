@@ -11,9 +11,11 @@ export function extractVariables(mustacheString: string): string[] {
 
   // Iterate over all matches
   while ((match = regex.exec(mustacheString)) !== null) {
-    // Push each variable to the array
+    // Push each variable to the array if it's not already present
     const variable = match[1];
-    if (variable) variables.push(variable);
+    if (variable && !variables.includes(variable)) {
+      variables.push(variable);
+    }
   }
 
   return variables;

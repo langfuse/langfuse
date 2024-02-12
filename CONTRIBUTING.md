@@ -2,22 +2,30 @@
 
 First off, thanks for taking the time to contribute! ❤️
 
-Langfuse is an open-source observability and analytics solution for LLM-based applications. We welcome contributions through GitHub pull requests. This document outlines our conventions regarding development workflow, commit message formatting, contact points, and other resources. Our goal is to simplify the process and ensure that your contributions are easily accepted.
+The best ways to contribute to Langfuse:
 
-We gratefully welcome improvements to documentation as well as to code.
+- Submit and vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas)
+- Create and comment on [Issues](https://github.com/langfuse/langfuse/issues)
+- Open a PR.
+
+We welcome contributions through GitHub pull requests. This document outlines our conventions regarding development workflow, commit message formatting, contact points, and other resources. Our goal is to simplify the process and ensure that your contributions are easily accepted.
+
+We gratefully welcome improvements to documentation ([docs repo](https://github.com/langfuse/langfuse-docs)), the core application (this repo) and the SDKs ([Python](https://github.com/langfuse/langfuse-python), [JS](https://github.com/langfuse/langfuse-js)).
 
 The maintainers are available on [Discord](https://langfuse.com/discord) in case you have any questions.
 
-> And if you like the project, but just don't have time to contribute, that's fine. There are other easy ways to support the project and show your appreciation, which we would also be very happy about:
+> And if you like the project, but just don't have time to contribute code, that's fine. There are other easy ways to support the project and show your appreciation, which we would also be very happy about:
 >
 > - Star the project;
 > - Tweet about it;
 > - Refer to this project in your project's readme;
+> - Submit and vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas);
+> - Create and comment on [Issues](https://github.com/langfuse/langfuse/issues);
 > - Mention the project at local meetups and tell your friends/colleagues.
 
 ## Making a change
 
-_Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone.
+_Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Large changes that were not discussed in an issue may be rejected.
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
 

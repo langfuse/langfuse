@@ -1,13 +1,15 @@
-import { ObservationLevel } from "@prisma/client";
-import { jsonSchema } from "@/src/utils/zod";
-import { z } from "zod";
 import lodash from "lodash";
+import { z } from "zod";
+
+import { ModelUsageUnit } from "@/src/constants";
+import { jsonSchema } from "@/src/utils/zod";
+import { ObservationLevel } from "@prisma/client";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
   output: z.number().int().nullish(),
   total: z.number().int().nullish(),
-  unit: z.enum(["TOKENS", "CHARACTERS"]).nullish(),
+  unit: z.nativeEnum(ModelUsageUnit).nullish(),
   inputCost: z.number().nullish(),
   outputCost: z.number().nullish(),
   totalCost: z.number().nullish(),
@@ -17,7 +19,7 @@ const MixedUsage = z.object({
   input: z.number().int().nullish(),
   output: z.number().int().nullish(),
   total: z.number().int().nullish(),
-  unit: z.enum(["TOKENS", "CHARACTERS"]).nullish(),
+  unit: z.nativeEnum(ModelUsageUnit).nullish(),
   promptTokens: z.number().int().nullish(),
   completionTokens: z.number().int().nullish(),
   totalTokens: z.number().int().nullish(),
@@ -40,7 +42,7 @@ export const usage = MixedUsage.nullish()
         input: v.promptTokens,
         output: v.completionTokens,
         total: v.totalTokens,
-        unit: "TOKENS",
+        unit: ModelUsageUnit.Tokens,
       };
     }
     // if we get the new generic format, we do not set a default

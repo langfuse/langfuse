@@ -132,6 +132,9 @@ types:
     enum:
       - CHARACTERS
       - TOKENS
+      - MILLISECONDS
+      - SECONDS
+      - IMAGES
   ObservationLevel:
     enum:
       - DEBUG
