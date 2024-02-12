@@ -38,10 +38,11 @@ export const generationsExportQuery = protectedProjectProcedure
   .input(generationsExportInput)
   .query<GenerationsExportResult>(async ({ input, ctx }) => {
     const rawSqlQuery = getSqlQueryFromInput(input);
+    const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
     const dbReadStream = new DatabaseReadStream<ObservationView>(
       ctx.prisma,
       rawSqlQuery,
-      1000,
+      queryPageSize,
     );
 
     const streamTransformations: Record<
