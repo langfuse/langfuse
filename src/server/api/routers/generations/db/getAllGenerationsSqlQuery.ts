@@ -4,18 +4,29 @@ import {
 } from "@/src/features/filters/server/filterToPrisma";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
-import { type GenerationsExportInput } from "@/src/server/api/routers/generations/exportQuery";
 import { Prisma } from "@prisma/client";
 
-export function getSqlQueryFromInput(input: GenerationsExportInput) {
-  // ATTENTION: When making changes to this query, make sure to also update the all query
+import { type GenerationsExportInput } from "../exportQuery";
+import { type GetAllGenerationsInput } from "../getAllQuery";
+
+type GetSqlFromInputParams =
+  | {
+      input: GenerationsExportInput;
+      type: "export";
+    }
+  | { input: GetAllGenerationsInput; type: "paginate" };
+
+export function getAllGenerationsSqlQuery({
+  input,
+  type,
+}: GetSqlFromInputParams) {
   const searchCondition = input.searchQuery
     ? Prisma.sql`AND (
-    o."id" ILIKE ${`%${input.searchQuery}%`} OR
-    o."name" ILIKE ${`%${input.searchQuery}%`} OR
-    o."model" ILIKE ${`%${input.searchQuery}%`} OR
-    t."name" ILIKE ${`%${input.searchQuery}%`}
-  )`
+        o."id" ILIKE ${`%${input.searchQuery}%`} OR
+        o."name" ILIKE ${`%${input.searchQuery}%`} OR
+        o."model" ILIKE ${`%${input.searchQuery}%`} OR
+        t."name" ILIKE ${`%${input.searchQuery}%`}
+      )`
     : Prisma.empty;
 
   const filterCondition = filterToPrismaSql(
@@ -41,15 +52,19 @@ export function getSqlQueryFromInput(input: GenerationsExportInput) {
         )
       : Prisma.empty;
 
-  // Use a date cutoff filter to ignore ingested rows after export query started
-  // Attention: only to be set for export feature, not in the generation.all route as real-time data is needed there
-  const dateCutoffFilter = datetimeFilterToPrismaSql(
-    "start_time",
-    "<",
-    new Date(),
-  );
+  // For exports: use a date cutoff filter to ignore ingested rows
+  const dateCutoffFilter =
+    type === "export"
+      ? datetimeFilterToPrismaSql("start_time", "<", new Date())
+      : Prisma.empty;
 
-  return Prisma.sql`
+  // For UI pagination: set LIMIT and OFFSET
+  const pagination =
+    type === "paginate"
+      ? Prisma.sql`LIMIT ${input.limit} OFFSET ${input.page * input.limit}`
+      : Prisma.empty;
+
+  const rawSqlQuery = Prisma.sql`
       WITH observations_with_latency AS (
         SELECT
           o.*,
@@ -117,5 +132,8 @@ export function getSqlQueryFromInput(input: GenerationsExportInput) {
         ${searchCondition}
         ${filterCondition}
         ${orderByCondition}
+        ${pagination}
     `;
+
+  return { rawSqlQuery, datetimeFilter, searchCondition, filterCondition };
 }

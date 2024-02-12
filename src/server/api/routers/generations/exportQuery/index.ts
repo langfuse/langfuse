@@ -6,17 +6,16 @@ import {
   exportFileFormats,
   exportOptions,
 } from "@/src/server/api/interfaces/exportTypes";
+import { S3StorageService } from "@/src/server/api/services/S3StorageService";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { type ObservationView } from "@prisma/client";
 
+import { DatabaseReadStream } from "../db/DatabaseReadStream";
+import { getAllGenerationsSqlQuery } from "../db/getAllGenerationsSqlQuery";
 import { GenerationTableOptions } from "../utils/GenerationTableOptions";
-import { DatabaseReadStream } from "./db/DatabaseReadStream";
-import { getIsS3BucketConfigured } from "./config/getIsS3BucketConfigured";
-import { getSqlQueryFromInput } from "./db/getSqlQueryFromInput";
 import { transformStreamToCsv } from "./transforms/transformStreamToCsv";
 import { transformStreamToJson } from "./transforms/transformStreamToJson";
 import { transformStreamToJsonLines } from "./transforms/transformStreamToJsonLines";
-import { uploadToS3 } from "./storage/uploadToS3";
 
 const generationsExportInput = GenerationTableOptions.extend({
   fileFormat: z.enum(exportFileFormats),
@@ -37,7 +36,10 @@ export type GenerationsExportResult =
 export const generationsExportQuery = protectedProjectProcedure
   .input(generationsExportInput)
   .query<GenerationsExportResult>(async ({ input, ctx }) => {
-    const rawSqlQuery = getSqlQueryFromInput(input);
+    const { rawSqlQuery } = getAllGenerationsSqlQuery({
+      input,
+      type: "export",
+    });
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
     const dbReadStream = new DatabaseReadStream<ObservationView>(
       ctx.prisma,
@@ -60,8 +62,8 @@ export const generationsExportQuery = protectedProjectProcedure
     const fileExtension = exportOptions[input.fileFormat].extension;
     const fileName = `lf-export-${input.projectId}-${fileDate}.${fileExtension}`;
 
-    if (getIsS3BucketConfigured(env)) {
-      const { signedUrl } = await uploadToS3({
+    if (S3StorageService.getIsS3StorageConfigured(env)) {
+      const { signedUrl } = await new S3StorageService().uploadFile({
         fileName,
         fileType: exportOptions[input.fileFormat].fileType,
         data: fileStream,
@@ -75,7 +77,7 @@ export const generationsExportQuery = protectedProjectProcedure
     }
 
     // Fall back to returning the data directly. This might fail for large exports due to memory constraints.
-    // Self-hosted instances should always have S3 configured to avoid this.
+    // Self-hosted instances should always run with sufficient memory or have S3 configured to avoid this.
     let fileOutputString = "";
     for await (const chunk of fileStream) {
       fileOutputString += chunk;
