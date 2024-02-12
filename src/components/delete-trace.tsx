@@ -30,13 +30,11 @@ export function DeleteTrace({
   const mutDeleteTraces = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       setIsDeleted(true);
-      if (!isTableAction) {
-        void router
-          .push(`/project/${projectId}/traces`)
-          .then(() => utils.traces.invalidate());
-      } else {
-        void utils.traces.invalidate();
-      }
+      void utils.traces.invalidate().then(() => {
+        if (!isTableAction) {
+          void router.push(`/project/${projectId}/traces`);
+        }
+      });
     },
   });
 
