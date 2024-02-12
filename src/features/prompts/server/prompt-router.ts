@@ -6,6 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type Prompt, type PrismaClient } from "@prisma/client";
+import webhook from "@/src/features/webhook/server/custom-webhook";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -70,7 +71,7 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        return await createPrompt({
+        const newPrompt = await createPrompt({
           projectId: input.projectId,
           name: input.name,
           prompt: input.prompt,
@@ -78,6 +79,8 @@ export const promptRouter = createTRPCRouter({
           createdBy: ctx.session.user.id,
           prisma: ctx.prisma,
         });
+        await webhook(newPrompt);
+        return newPrompt;
       } catch (e) {
         console.log(e);
         throw e;

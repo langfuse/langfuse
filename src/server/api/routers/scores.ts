@@ -14,6 +14,7 @@ import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
+import webhook from "@/src/features/webhook/server/custom-webhook";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -128,7 +129,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      return ctx.prisma.score.create({
+      const newScore = ctx.prisma.score.create({
         data: {
           trace: {
             connect: {
@@ -149,6 +150,8 @@ export const scoresRouter = createTRPCRouter({
           comment: input.comment,
         },
       });
+      await webhook(newScore);
+      return newScore;
     }),
   update: protectedProcedure
     .input(
