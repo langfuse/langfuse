@@ -6,6 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { type DatasetRuns, Prisma, type Dataset } from "@prisma/client";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import webhook from "@/src/features/webhook/server/custom-webhook";
 
 export const datasetRouter = createTRPCRouter({
   allDatasets: protectedProjectProcedure
@@ -235,12 +236,14 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      return ctx.prisma.dataset.create({
+      const newDataset = await ctx.prisma.dataset.create({
         data: {
           name: input.name,
           projectId: input.projectId,
         },
       });
+      await webhook("Dataset",newDataset)
+      return newDataset
     }),
   deleteDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))

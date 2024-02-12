@@ -79,7 +79,7 @@ export const promptRouter = createTRPCRouter({
           createdBy: ctx.session.user.id,
           prisma: ctx.prisma,
         });
-        await webhook(newPrompt);
+        await webhook("Promp", newPrompt);
         return newPrompt;
       } catch (e) {
         console.log(e);

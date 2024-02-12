@@ -129,7 +129,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const newScore = ctx.prisma.score.create({
+      const newScore = await ctx.prisma.score.create({
         data: {
           trace: {
             connect: {
@@ -150,7 +150,7 @@ export const scoresRouter = createTRPCRouter({
           comment: input.comment,
         },
       });
-      await webhook(newScore);
+      await webhook("Score", newScore);
       return newScore;
     }),
   update: protectedProcedure
