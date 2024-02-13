@@ -15,6 +15,7 @@ import {
   FormControl,
   FormMessage,
   Form,
+  FormDescription,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +30,9 @@ import { Badge } from "@/src/components/ui/badge";
 import router from "next/router";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { type AutoCompleteOption } from "@/src/features/prompts/components/auto-complete";
+import JsonView from "react18-json-view";
+import { type JsonValue } from "@prisma/client/runtime/library";
+import { jsonSchema } from "@/src/utils/zod";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -36,6 +40,7 @@ export const CreatePromptDialog = (props: {
   promptName?: string;
   promptText?: string;
   subtitle?: string;
+  promptConfig?: JsonValue;
   children?: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
@@ -61,6 +66,7 @@ export const CreatePromptDialog = (props: {
           projectId={props.projectId}
           promptName={props.promptName}
           promptText={props.promptText}
+          promptConfig={props.promptConfig}
           onFormSuccess={() => setOpen(false)}
         />
       </DialogContent>
@@ -87,6 +93,7 @@ const formSchema = z.object({
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
+  config: jsonSchema,
 });
 
 export const NewPromptForm = (props: {
@@ -94,6 +101,7 @@ export const NewPromptForm = (props: {
   onFormSuccess?: () => void;
   promptName?: string;
   promptText?: string;
+  promptConfig?: JsonValue;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -105,6 +113,7 @@ export const NewPromptForm = (props: {
       isActive: false,
       name: props.promptName ?? "",
       prompt: props.promptText ?? "",
+      config: jsonSchema.parse(props.promptConfig ?? {}),
     },
   });
 
@@ -148,6 +157,7 @@ export const NewPromptForm = (props: {
         name: values.name,
         prompt: values.prompt,
         isActive: values.isActive,
+        config: values.config,
       })
       .then((newPrompt) => {
         props.onFormSuccess?.();
@@ -229,6 +239,30 @@ export const NewPromptForm = (props: {
                 ))}
               </div>
             </>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="config"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Config</FormLabel>
+              <JsonView
+                src={field.value}
+                onEdit={(edit) => {
+                  field.onChange(edit.src);
+                }}
+                editable
+                className="rounded-md border border-gray-200 p-2 text-sm"
+              />
+              <FormDescription>
+                This input field allows you to customize your AI prompt
+                interactions through a detailed JSON configuration. Define the
+                AI model parameters, function calls, and additional settings to
+                tailor responses to your specific needs.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
           )}
         />
         <FormField
