@@ -1,3 +1,4 @@
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateKeySet } from "@/src/features/public-api/lib/apiKeys";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
@@ -64,6 +65,13 @@ export const apiKeysRouter = createTRPCRouter({
         },
       });
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: apiKey.id,
+        action: "create",
+      });
+
       return {
         id: apiKey.id,
         createdAt: apiKey.createdAt,
@@ -85,6 +93,12 @@ export const apiKeysRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "apiKeys:delete",
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.id,
+        action: "delete",
       });
 
       // Make sure the API key exists and belongs to the project the user has access to

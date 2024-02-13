@@ -6,6 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type Prompt, type PrismaClient } from "@prisma/client";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -70,7 +71,7 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        return await createPrompt({
+        const prompt = await createPrompt({
           projectId: input.projectId,
           name: input.name,
           prompt: input.prompt,
@@ -78,6 +79,23 @@ export const promptRouter = createTRPCRouter({
           createdBy: ctx.session.user.id,
           prisma: ctx.prisma,
         });
+
+        if (!prompt) {
+          throw new Error("Failed to create prompt");
+        }
+
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "prompt",
+            resourceId: prompt.id,
+            action: "create",
+            after: prompt,
+          },
+          ctx.prisma,
+        );
+
+        return prompt;
       } catch (e) {
         console.log(e);
         throw e;
@@ -98,10 +116,33 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        await ctx.prisma.prompt.deleteMany({
+        // fetch prompts before deletion to enable audit logging
+        const prompts = await ctx.prisma.prompt.findMany({
           where: {
             projectId: input.projectId,
             name: input.promptName,
+          },
+        });
+
+        for (const prompt of prompts) {
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "prompt",
+              resourceId: prompt.id,
+              action: "delete",
+              before: prompt,
+            },
+            ctx.prisma,
+          );
+        }
+
+        await ctx.prisma.prompt.deleteMany({
+          where: {
+            projectId: input.projectId,
+            id: {
+              in: prompts.map((p) => p.id),
+            },
           },
         });
       } catch (e) {
@@ -123,6 +164,24 @@ export const promptRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "prompts:CUD",
         });
+
+        const promptVersion = await ctx.prisma.prompt.findFirstOrThrow({
+          where: {
+            id: input.promptVersionId,
+            projectId: input.projectId,
+          },
+        });
+
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "prompt",
+            resourceId: input.promptVersionId,
+            action: "delete",
+            before: promptVersion,
+          },
+          ctx.prisma,
+        );
 
         await ctx.prisma.prompt.delete({
           where: {
@@ -150,6 +209,20 @@ export const promptRouter = createTRPCRouter({
             id: input.promptId,
           },
         });
+
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "prompt",
+            resourceId: toBePromotedPrompt.id,
+            action: "promote",
+            after: {
+              ...toBePromotedPrompt,
+              isActive: true,
+            },
+          },
+          ctx.prisma,
+        );
 
         const latestActivePrompt = await ctx.prisma.prompt.findFirst({
           where: {
