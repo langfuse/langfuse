@@ -125,4 +125,7 @@ export const env = createEnv({
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
   },
+  // Skip validation in Docker builds
+  // DOCKER_BUILD is set in Dockerfile
+  skipValidation: process.env.DOCKER_BUILD === "1",
 });

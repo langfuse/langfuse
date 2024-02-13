@@ -8,7 +8,6 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
       - NEXTAUTH_SECRET=mysecret
       - SALT=mysalt
