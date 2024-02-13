@@ -125,10 +125,7 @@ export const env = createEnv({
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
   },
-  skipValidation:
-    process.env.DATABASE_URL ===
-      "postgresql://postgres:postgres@localhost:5432/postgres" ||
-    process.env.NEXTAUTH_URL === "http://localhost:3030" ||
-    process.env.SALT === "salt" ||
-    process.env.NEXTAUTH_SECRET === "secret",
+  // Skip validation in Docker builds
+  // DOCKER_BUILD is set in Dockerfile
+  skipValidation: process.env.DOCKER_BUILD === "1",
 });
