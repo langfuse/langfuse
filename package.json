@@ -1,6 +1,6 @@
 {
   "name": "langfuse-core",
-  "version": "2.3.0",
+  "version": "2.4.1",
   "private": true,
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
@@ -31,6 +31,7 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@aws-sdk/client-s3": "^3.507.0",
+    "@aws-sdk/lib-storage": "^3.511.0",
     "@aws-sdk/s3-request-presigner": "^3.507.0",
     "@headlessui/react": "^1.7.18",
     "@heroicons/react": "^2.1.1",
@@ -71,7 +72,6 @@
     "@trpc/next": "^10.45.0",
     "@trpc/react-query": "^10.45.0",
     "@trpc/server": "^10.45.0",
-    "@vercel/edge-config": "^0.4.1",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -83,7 +83,7 @@
     "exponential-backoff": "^3.1.1",
     "js-tiktoken": "^1.0.10",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.323.0",
+    "lucide-react": "^0.330.0",
     "next": "^14.1.0",
     "next-auth": "^4.24.5",
     "next-query-params": "^5.0.0",
