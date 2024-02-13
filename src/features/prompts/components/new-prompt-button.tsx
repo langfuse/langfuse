@@ -163,11 +163,9 @@ export const NewPromptForm = (props: {
         props.onFormSuccess?.();
         form.reset();
         // go to the following page after creating the prompt
-        if (newPrompt) {
-          void router.push(
-            `/project/${props.projectId}/prompts/${newPrompt.name}`,
-          );
-        }
+        void router.push(
+          `/project/${props.projectId}/prompts/${newPrompt.name}`,
+        );
       })
       .catch((error) => {
         console.error(error);

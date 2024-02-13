@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -18,17 +17,28 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { type PropsWithChildren, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Textarea } from "@/src/components/ui/textarea";
 
+interface FeedbackDialogProps {
+  className?: string;
+  children: React.ReactNode;
+  title: string;
+  description: string;
+  type: "feedback" | "dashboard";
+}
 const formSchema = z.object({
   feedback: z.string().min(3, "Must have at least 3 characters"),
 });
 
-export function FeedbackButtonWrapper(
-  props: PropsWithChildren<{ className?: string }>,
-) {
+export function FeedbackButtonWrapper({
+  className,
+  children,
+  title,
+  description,
+  type,
+}: FeedbackDialogProps) {
   const [open, setOpen] = useState(false);
   const session = useSession();
 
@@ -40,16 +50,6 @@ export function FeedbackButtonWrapper(
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    // Add to sentry
-    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-      const eventId = Sentry.captureMessage(`User submitted feedback`);
-      Sentry.captureUserFeedback({
-        event_id: eventId,
-        email: session.data?.user?.email ?? "",
-        name: session.data?.user?.name ?? "",
-        comments: values.feedback,
-      });
-    }
     try {
       const res = await fetch("https://cloud.langfuse.com/api/feedback", {
         method: "POST",
@@ -57,6 +57,7 @@ export function FeedbackButtonWrapper(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          type,
           ...values,
           url: window.location.href,
           user: session.data?.user,
@@ -84,27 +85,25 @@ export function FeedbackButtonWrapper(
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={props.className} asChild>
-        {props.children}
+      <DialogTrigger className={className} asChild>
+        {children}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="mb-5">Provide feedback</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-8"
+            className="space-y-4"
           >
             <FormField
               control={form.control}
               name="feedback"
               render={({ field }) => (
                 <FormItem>
-                  <FormDescription>
-                    What do you think about this project? What can be improved?
-                  </FormDescription>
+                  <FormDescription>{description}</FormDescription>
                   <FormControl>
                     <Textarea {...field} />
                   </FormControl>

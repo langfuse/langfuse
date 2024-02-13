@@ -15,6 +15,7 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { useQueryParam, NumberParam } from "use-query-params";
 import router from "next/router";
 import { JSONView } from "@/src/components/ui/code";
+import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 
 export type PromptDetailProps = {
   projectId: string;
@@ -79,6 +80,12 @@ export const PromptDetail = (props: PromptDetailProps) => {
                     <Pencil className="h-5 w-5" />
                   </Button>
                 </CreatePromptDialog>
+                <DeletePromptVersion
+                  projectId={props.projectId}
+                  promptVersionId={prompt.id}
+                  version={prompt.version}
+                  countVersions={promptHistory.data.length}
+                />
                 <DetailPageNav
                   key="nav"
                   currentId={prompt.name}
