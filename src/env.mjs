@@ -58,6 +58,8 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: z.string().optional(),
     S3_BUCKET_NAME: z.string().optional(),
     S3_REGION: z.string().optional(),
+    // Database exports
+    DB_EXPORT_PAGE_SIZE: z.number().optional(),
   },
 
   /**
@@ -120,5 +122,10 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_REGION: process.env.S3_REGION,
+    // Database exports
+    DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
   },
+  // Skip validation in Docker builds
+  // DOCKER_BUILD is set in Dockerfile
+  skipValidation: process.env.DOCKER_BUILD === "1",
 });

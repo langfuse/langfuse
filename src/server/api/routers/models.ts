@@ -9,6 +9,7 @@ import {
 import { paginationZod } from "@/src/utils/zod";
 import { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
@@ -77,12 +78,23 @@ export const modelRouter = createTRPCRouter({
         scope: "models:CUD",
       });
 
-      return ctx.prisma.model.delete({
+      const deletedModel = await ctx.prisma.model.delete({
         where: {
           id: input.modelId,
           projectId: input.projectId,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "model",
+        resourceId: input.modelId,
+        projectId: input.projectId,
+        action: "delete",
+        before: deletedModel,
+      });
+
+      return deletedModel;
     }),
   create: protectedProjectProcedure
     .input(
@@ -119,7 +131,7 @@ export const modelRouter = createTRPCRouter({
         });
       }
 
-      return ctx.prisma.model.create({
+      const createdModel = await ctx.prisma.model.create({
         data: {
           projectId: input.projectId,
           modelName: input.modelName,
@@ -133,5 +145,16 @@ export const modelRouter = createTRPCRouter({
           tokenizerConfig: input.tokenizerConfig,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "model",
+        resourceId: createdModel.id,
+        projectId: input.projectId,
+        action: "create",
+        after: createdModel,
+      });
+
+      return createdModel;
     }),
 });
