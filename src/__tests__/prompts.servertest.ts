@@ -18,6 +18,9 @@ describe("/api/public/prompts API Endpoint", () => {
         prompt: "prompt",
         isActive: true,
         version: 1,
+        config: {
+          temperature: 0.1,
+        },
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
@@ -43,6 +46,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
+    expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
   });
 
   it("should fetch active prompt only if no prompt version is given", async () => {
@@ -55,6 +59,9 @@ describe("/api/public/prompts API Endpoint", () => {
         prompt: "prompt",
         isActive: false,
         version: 1,
+        config: {
+          temperature: 0.1,
+        },
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
@@ -82,6 +89,9 @@ describe("/api/public/prompts API Endpoint", () => {
         prompt: "prompt-one",
         isActive: false,
         version: 1,
+        config: {
+          temperature: 0.1,
+        },
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
@@ -96,6 +106,9 @@ describe("/api/public/prompts API Endpoint", () => {
         prompt: "prompt",
         isActive: true,
         version: 2,
+        config: {
+          temperature: 0.2,
+        },
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
@@ -121,6 +134,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(false);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
+    expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
   });
 
   it("should fetch active prompt when multiple exist", async () => {
@@ -134,6 +148,9 @@ describe("/api/public/prompts API Endpoint", () => {
         prompt: "prompt",
         isActive: false,
         version: 1,
+        config: {
+          temperature: 0.1,
+        },
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
@@ -148,6 +165,9 @@ describe("/api/public/prompts API Endpoint", () => {
         prompt: "prompt",
         isActive: true,
         version: 2,
+        config: {
+          temperature: 0.2,
+        },
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
         },
@@ -173,14 +193,20 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.version).toBe(2);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
+    expect(fetchedObservations.body.config).toEqual({ temperature: 0.2 });
   });
 
   it("should create and fetch a prompt", async () => {
+    const promptId = uuidv4();
     await makeAPICall("POST", "/api/public/prompts", {
+      id: promptId,
       name: "prompt-name",
       prompt: "prompt",
       isActive: true,
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      config: {
+        temperature: 0.1,
+      },
     });
 
     const fetchedObservations = await makeAPICall(
@@ -200,6 +226,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("API");
+    expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
   });
 
   it("should relate generation to prompt", async () => {
@@ -327,6 +354,36 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(dbGeneration).toBeNull();
   });
+
+  it("should create empty object if no config is provided", async () => {
+    const promptId = uuidv4();
+    await makeAPICall("POST", "/api/public/prompts", {
+      id: promptId,
+      name: "prompt-name",
+      prompt: "prompt",
+      isActive: true,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    });
+
+    const fetchedObservations = await makeAPICall(
+      "GET",
+      "/api/public/prompts?name=prompt-name&version=1",
+      undefined,
+    );
+
+    expect(fetchedObservations.status).toBe(200);
+
+    if (!isPrompt(fetchedObservations.body)) {
+      throw new Error("Expected body to be an array of observations");
+    }
+
+    expect(fetchedObservations.body.name).toBe("prompt-name");
+    expect(fetchedObservations.body.prompt).toBe("prompt");
+    expect(fetchedObservations.body.version).toBe(1);
+    expect(fetchedObservations.body.isActive).toBe(true);
+    expect(fetchedObservations.body.createdBy).toBe("API");
+    expect(fetchedObservations.body.config).toEqual({});
+  });
 });
 
 const isPrompt = (x: unknown): x is Prompt => {
@@ -339,6 +396,7 @@ const isPrompt = (x: unknown): x is Prompt => {
     typeof prompt.prompt === "string" &&
     typeof prompt.isActive === "boolean" &&
     typeof prompt.projectId === "string" &&
-    typeof prompt.createdBy === "string"
+    typeof prompt.createdBy === "string" &&
+    typeof prompt.config === "object"
   );
 };
