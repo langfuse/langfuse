@@ -6,6 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { type DatasetRuns, Prisma, type Dataset } from "@prisma/client";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const datasetRouter = createTRPCRouter({
   allDatasets: protectedProjectProcedure
@@ -203,7 +204,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      return ctx.prisma.datasetItem.update({
+      const datasetItem = await ctx.prisma.datasetItem.update({
         where: {
           id: input.datasetItemId,
           datasetId: input.datasetId,
@@ -226,6 +227,15 @@ export const datasetRouter = createTRPCRouter({
           status: input.status,
         },
       });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "datasetItem",
+        resourceId: input.datasetItemId,
+        projectId: input.projectId,
+        action: "update",
+        after: datasetItem,
+      });
+      return datasetItem;
     }),
   createDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), name: z.string() }))
@@ -235,12 +245,23 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      return ctx.prisma.dataset.create({
+      const dataset = await ctx.prisma.dataset.create({
         data: {
           name: input.name,
           projectId: input.projectId,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: dataset.id,
+        projectId: input.projectId,
+        action: "create",
+        after: dataset,
+      });
+
+      return dataset;
     }),
   deleteDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
@@ -250,12 +271,21 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      return ctx.prisma.dataset.delete({
+      const deletedDataset = await ctx.prisma.dataset.delete({
         where: {
           id: input.datasetId,
           projectId: input.projectId,
         },
       });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: deletedDataset.id,
+        projectId: input.projectId,
+        action: "delete",
+        before: deletedDataset,
+      });
+      return deletedDataset;
     }),
   createDatasetItem: protectedProjectProcedure
     .input(
@@ -283,7 +313,7 @@ export const datasetRouter = createTRPCRouter({
         throw new Error("Dataset not found");
       }
 
-      return ctx.prisma.datasetItem.create({
+      const datasetItem = await ctx.prisma.datasetItem.create({
         data: {
           input: JSON.parse(input.input) as Prisma.InputJsonObject,
           expectedOutput:
@@ -296,6 +326,15 @@ export const datasetRouter = createTRPCRouter({
           sourceObservationId: input.sourceObservationId,
         },
       });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "datasetItem",
+        resourceId: datasetItem.id,
+        projectId: input.projectId,
+        action: "create",
+        after: datasetItem,
+      });
+      return datasetItem;
     }),
   runitemsByRunIdOrItemId: protectedProjectProcedure
     .input(
