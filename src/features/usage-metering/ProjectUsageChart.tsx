@@ -61,40 +61,43 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
         ) : null}
       </Card>
       <div className="mt-4 flex flex-row items-center gap-2">
-        <Dialog
-          onOpenChange={(open) => {
-            if (open) {
-              posthog.capture("project_settings:pricing_dialog_opened");
-            }
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button variant="secondary">Change plans</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <Header
-                title="Select plan"
-                level="h3"
-                actionButtons={
-                  <Button variant="secondary" asChild>
-                    <Link href="https://langfuse.com/pricing">
-                      Pricing page ↗
-                    </Link>
-                  </Button>
-                }
-              />
-            </DialogHeader>
-            <p>
-              All plans offer a 7-day free trial. For more information about the
-              plans, please visit our pricing page or reach out to us via the
-              chat.
-            </p>
-            <PricingPage className="mb-5 mt-10 " />
-          </DialogContent>
-        </Dialog>
+        {plan === "Hobby" ? (
+          <Dialog
+            onOpenChange={(open) => {
+              if (open) {
+                posthog.capture("project_settings:pricing_dialog_opened");
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="secondary">Change plan</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <Header
+                  title="Select plan"
+                  level="h3"
+                  actionButtons={
+                    <Button variant="secondary" asChild>
+                      <Link href="https://langfuse.com/pricing">
+                        Pricing page ↗
+                      </Link>
+                    </Button>
+                  }
+                />
+              </DialogHeader>
+              <PricingPage className="mb-5 mt-5" />
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <Button variant="secondary">
+            <Link href="https://billing.stripe.com/p/login/6oE9BXd4u8PR2aYaEE">
+              Billing settings
+            </Link>
+          </Button>
+        )}
         <div className="inline-block text-sm text-gray-500">
-          Currently: {plan}
+          Current plan: {plan}
         </div>
       </div>
     </div>
