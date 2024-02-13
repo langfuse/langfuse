@@ -10,7 +10,7 @@ export default async function feedbackApiHandler(
   await runFeedbackCorsMiddleware(req, res);
 
   try {
-    const slackResponse = await sendToSlack(req);
+    const slackResponse = await sendToSlack(req.body);
     if (slackResponse.status === 200) {
       res.status(200).json({ status: "OK" });
     } else {
