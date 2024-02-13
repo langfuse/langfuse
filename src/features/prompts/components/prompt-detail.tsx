@@ -14,6 +14,7 @@ import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt"
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { useQueryParam, NumberParam } from "use-query-params";
 import router from "next/router";
+import { JSONView } from "@/src/components/ui/code";
 
 export type PromptDetailProps = {
   projectId: string;
@@ -72,6 +73,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
                   subtitle="We do not update prompts, instead we create a new version of the prompt."
                   promptName={prompt.name}
                   promptText={prompt.prompt}
+                  promptConfig={prompt.config}
                 >
                   <Button variant="outline" size="icon">
                     <Pencil className="h-5 w-5" />
@@ -89,7 +91,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
         </div>
         <div className="col-span-2 md:h-full">
           <CodeView content={prompt.prompt} title="Prompt" />
-          <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7 text-gray-700">
+          <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7">
             <div className="border-b px-3 py-1 text-xs font-medium">
               Variables
             </div>
@@ -105,6 +107,10 @@ export const PromptDetail = (props: PromptDetailProps) => {
               )}
             </div>
           </div>
+
+          {prompt.config && Object.keys(prompt.config).length > 0 && (
+            <JSONView className="mt-5" json={prompt.config} title="Config" />
+          )}
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">
