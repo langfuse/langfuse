@@ -53,7 +53,7 @@ WORKDIR /app
 ENV NODE_ENV production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 ENV NEXT_TELEMETRY_DISABLED 1
-# Needed to reenable validation of environment variables during runtime
+# Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
 
 RUN addgroup --system --gid 1001 nodejs
