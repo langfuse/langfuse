@@ -23,6 +23,7 @@ import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrism
 import { type Sql } from "@prisma/client/runtime/library";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -284,6 +285,15 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
+      for (const traceId of input.traceIds) {
+        await auditLog({
+          resourceType: "trace",
+          resourceId: traceId,
+          action: "delete",
+          session: ctx.session,
+        });
+      }
+
       return ctx.prisma.$transaction([
         ctx.prisma.trace.deleteMany({
           where: {
@@ -318,6 +328,13 @@ export const traceRouter = createTRPCRouter({
         scope: "objects:bookmark",
       });
       try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "trace",
+          resourceId: input.traceId,
+          action: "bookmark",
+          after: input.bookmarked,
+        });
         const trace = await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -360,6 +377,13 @@ export const traceRouter = createTRPCRouter({
         scope: "objects:publish",
       });
       try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "trace",
+          resourceId: input.traceId,
+          action: "publish",
+          after: input.public,
+        });
         const trace = await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -412,6 +436,13 @@ export const traceRouter = createTRPCRouter({
               set: input.tags,
             },
           },
+        });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "trace",
+          resourceId: input.traceId,
+          action: "updateTags",
+          after: input.tags,
         });
         return trace;
       } catch (error) {

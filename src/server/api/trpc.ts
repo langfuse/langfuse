@@ -175,6 +175,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
           user: ctx.session.user,
           projectRole:
             ctx.session.user.admin === true ? "ADMIN" : sessionProject!.role,
+          projectId: projectId,
         },
       },
     });

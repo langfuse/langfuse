@@ -72,6 +72,7 @@ model User {
     createdAt     DateTime               @default(now()) @map("created_at")
     updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
     featureFlags  String[]               @default([]) @map("feature_flags")
+    AuditLog      AuditLog[]
 
     @@map("users")
 }
@@ -101,6 +102,7 @@ model Project {
     sessions     TraceSession[]
     Prompt       Prompt[]
     Model        Model[]
+    AuditLog     AuditLog[]
 
     @@map("projects")
 }
@@ -491,4 +493,24 @@ view ObservationView {
     calculatedTotalCost  Decimal? @map("calculated_total_cost")
 
     @@map("observations_view")
+}
+
+model AuditLog {
+    id              String         @id @default(cuid())
+    createdAt       DateTime       @default(now()) @map("created_at")
+    updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at")
+    userId          String         @map("user_id")
+    user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+    projectId       String         @map("project_id")
+    project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userProjectRole MembershipRole @map("user_project_role")
+    resourceType    String         @map("resource_type")
+    resourceId      String         @map("resource_id")
+    action          String
+    before          String? //stringified JSON
+    after           String? // stringified JSON
+
+    @@index([projectId])
+    @@index([createdAt])
+    @@map("audit_logs")
 }
