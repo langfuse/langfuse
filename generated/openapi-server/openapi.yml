@@ -1993,6 +1993,8 @@ components:
           type: boolean
         prompt:
           type: string
+        config:
+          nullable: true
       required:
         - name
         - isActive
@@ -2007,10 +2009,12 @@ components:
           type: integer
         prompt:
           type: string
+        config: {}
       required:
         - name
         - version
         - prompt
+        - config
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
