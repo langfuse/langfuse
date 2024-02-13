@@ -492,21 +492,21 @@ export default function Layout(props: PropsWithChildren) {
                   <Info className="h-4 w-4" />
                   <span className="font-semibold">DEMO (view-only)</span>
                 </div>
-                <div>Live data from the Langfuse Q&A Chatbot.</div>
+                <div>Use demo RAG chat to see live data in this project.</div>
               </div>
 
               <Button size="sm" asChild className="ml-2">
                 <Link
                   href={
                     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                      ? "https://langfuse.com/docs/qa-chatbot"
-                      : "https://docs-staging.langfuse.com/docs/qa-chatbot"
+                      ? "https://langfuse.com/docs/demo"
+                      : "https://docs-staging.langfuse.com/docs/demo"
                   }
                   target="_blank"
                 >
                   {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                    ? "Q&A Chatbot ↗"
-                    : "Q&A Chatbot (staging) ↗"}
+                    ? "Use Chat ↗"
+                    : "Use Chat (staging) ↗"}
                 </Link>
               </Button>
             </div>
@@ -647,7 +647,12 @@ const MainNavigation: React.FC<{
             ) : null}
           </li>
         ))}
-        <FeedbackButtonWrapper className="w-full">
+        <FeedbackButtonWrapper
+          className="w-full"
+          title="Provide feedback"
+          description="What do you think about this project? What can be improved?"
+          type="feedback"
+        >
           <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
             <MessageSquarePlus
               className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
