@@ -13,7 +13,7 @@ import { NewDatasetButton } from "@/src/features/datasets/components/NewDatasetB
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { MoreVertical, Trash } from "lucide-react";
+import { Edit, MoreVertical, Trash } from "lucide-react";
 import { useEffect } from "react";
 
 type RowData = {
@@ -36,7 +36,10 @@ export function DatasetsTable(props: { projectId: string }) {
   const mutDelete = api.datasets.deleteDataset.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
-    useEffect(() => {
+  const mutRename = api.datasets.renameDataset.useMutation({
+    onSuccess: () => utils.datasets.invalidate(),
+  });
+  useEffect(() => {
     if (datasets.isSuccess) {
       setDetailPageList(
         "datasets",
@@ -91,6 +94,18 @@ export function DatasetsTable(props: { projectId: string }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() =>
+                  mutRename.mutate({
+                    projectId: props.projectId,
+                    datasetId: key.id,
+                    name: `${key.name} (copy)`,
+                  })
+                }
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Rename
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() =>
                   mutDelete.mutate({
