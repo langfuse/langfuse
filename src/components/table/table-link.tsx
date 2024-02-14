@@ -6,16 +6,18 @@ export type TableLinkProps = {
   path: string;
   value: string;
   truncateAt?: number;
+  truncate?: boolean;
 };
 
 export default function TableLink({
   path,
   value,
   truncateAt = 7,
+  truncate = true,
 }: TableLinkProps) {
   const [isHovered, setIsHovered] = useState(false);
   const truncatedValue =
-    value.length - truncateAt > 0
+    truncate && value.length - truncateAt > 3
       ? `...${value.substring(value.length - truncateAt)}`
       : value;
   const isTruncated = value !== truncatedValue;
