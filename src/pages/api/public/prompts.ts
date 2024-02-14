@@ -15,7 +15,7 @@ const PromptCreateSchema = z.object({
   name: z.string(),
   prompt: z.string(),
   isActive: z.boolean(),
-  config: jsonSchema.optional(),
+  config: jsonSchema.optional().nullable().default({}),
 });
 
 export default async function handler(
@@ -113,9 +113,10 @@ export default async function handler(
         prompt: input.prompt,
         isActive: input.isActive,
         createdBy: "API",
-        config: input.config ?? {},
+        config: input.config,
         prisma: prisma,
       });
+      console.log("created prompt", prompt);
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
