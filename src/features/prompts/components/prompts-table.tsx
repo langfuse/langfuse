@@ -5,6 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
 
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -69,6 +70,18 @@ export function PromptTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const createdAt: Date = row.getValue("createdAt");
         return createdAt.toLocaleString();
+      },
+    },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        return (
+          <DeletePrompt
+            projectId={props.projectId}
+            promptName={row.getValue("name")}
+          />
+        );
       },
     },
   ];
