@@ -18,7 +18,7 @@ import { usePostHog } from "posthog-js/react";
 export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   projectId,
 }) => {
-  const usage = api.usageMetering.currentMonth.useQuery({
+  const usage = api.usageMetering.last30d.useQuery({
     projectId,
   });
   const posthog = usePostHog();
@@ -38,27 +38,31 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
         Usage
       </h2>
       <Card className="p-4 lg:w-1/2">
-        {usage.data !== undefined ? (
+        {usage.data !== undefined && (
           <>
             <Text>Observations / month</Text>
             <Metric>{usage.data}</Metric>
-            <Flex className="mt-4">
-              <Text>
-                {`${currentMonth}: ${usage.data} (${(
-                  (usage.data / planLimit) *
-                  100
-                ).toLocaleString(undefined, {
-                  maximumFractionDigits: 2,
-                })}%)`}
-              </Text>
-              <Text>Plan limit: {simplifyNumber(planLimit)}</Text>
-            </Flex>
-            <MarkerBar
-              value={Math.min((usage.data / planLimit) * 100, 100)}
-              className="mt-3"
-            />
+            {plan === "Hobby" && (
+              <>
+                <Flex className="mt-4">
+                  <Text>
+                    {`${currentMonth}: ${usage.data} (${(
+                      (usage.data / planLimit) *
+                      100
+                    ).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}%)`}
+                  </Text>
+                  <Text>Plan limit: {simplifyNumber(planLimit)}</Text>
+                </Flex>
+                <MarkerBar
+                  value={Math.min((usage.data / planLimit) * 100, 100)}
+                  className="mt-3"
+                />
+              </>
+            )}
           </>
-        ) : null}
+        )}
       </Card>
       <div className="mt-4 flex flex-row items-center gap-2">
         {plan === "Hobby" ? (
