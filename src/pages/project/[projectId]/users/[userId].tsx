@@ -174,6 +174,7 @@ function DetailsTab({ userId, projectId }: TabProps) {
                         : `/project/${projectId}/traces/${user.data.lastScore.traceId}`
                     }
                     value={user.data.lastScore.traceId}
+                    truncate={false}
                   />
                   <GroupedScoreBadges scores={[user.data.lastScore]} />
                 </div>
