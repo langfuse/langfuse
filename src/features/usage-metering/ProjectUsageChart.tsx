@@ -24,7 +24,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   const posthog = usePostHog();
   const project = api.projects.byId.useQuery({ projectId });
   const planLimit =
-    project.data?.cloudConfig?.monthlyObservationLimit ?? 100_000;
+    project.data?.cloudConfig?.monthlyObservationLimit ?? 50_000;
   const plan = project.data?.cloudConfig?.plan ?? "Hobby";
   const currentMonth = new Date().toLocaleDateString("en-US", {
     month: "short",
