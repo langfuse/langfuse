@@ -77,13 +77,13 @@ const formSchema = z.object({
       const variables = extractVariables(val);
       const matches = variables.map((variable) => {
         // check regex here
-        if (variable.match(/^[A-Za-z]+$/)) {
+        if (variable.match(/^[A-Za-z_]+$/)) {
           return true;
         }
         return false;
       });
       return !matches.includes(false);
-    }, "Variables must only contain letters"),
+    }, "Variables must only contain letters and underscores (_)"),
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
