@@ -425,6 +425,8 @@ model Prompt {
 
     @@unique([projectId, name, version])
     @@index([projectId, name, version])
+    @@index([projectId, id])
+    @@index([projectId])
     @@map("prompts")
 }
 
