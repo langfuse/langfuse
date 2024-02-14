@@ -28,6 +28,7 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
+
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
         SELECT id, name, version, project_id as "projectId", prompt, updated_at as "updatedAt", created_at AS "createdAt", is_active AS "isActive"
         FROM prompts
