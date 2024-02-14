@@ -22,6 +22,10 @@ const ScoresGetSchema = z.object({
   name: z.string().nullish(),
 });
 
+const ScoresDeleteSchema = z.object({
+  scoreId: z.string(),
+});
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -133,6 +137,24 @@ export default async function handler(
         message: "Invalid request data",
         error: errorMessage,
       });
+    }
+  } else if (req.method === "DELETE") {
+    try {
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message:
+            "Access denied - need to use basic auth with secret key to GET scores",
+        });
+      }
+      const scoreId = ScoresDeleteSchema.parse(req.query);
+
+      await prisma.$queryRaw(
+        Prisma.sql`DELETE from scores WHERE id=${scoreId}`,
+      );
+
+      return res.status(200).send(`Score with ID-${scoreId} deleted.`);
+    } catch (error: unknown) {
+      console.log(error);
     }
   } else {
     return res.status(405).json({ message: "Method not allowed" });
