@@ -118,7 +118,9 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void router.replace("/auth/sign-in");
+    const targetURL = window.location.pathname + "/123";
+    void router.replace(`/auth/sign-in?target=${targetURL}`);
+    console.log(targetURL);
     return <Spinner message="Redirecting" />;
   }
 

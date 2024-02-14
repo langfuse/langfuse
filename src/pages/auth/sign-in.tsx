@@ -26,6 +26,7 @@ import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
+import { useRouter } from "next/router";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -129,6 +130,8 @@ export default function SignIn({ authProviders }: PageProps) {
   >(null);
 
   const posthog = usePostHog();
+  const router = useRouter();
+  const target = router.query;
 
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
@@ -143,10 +146,11 @@ export default function SignIn({ authProviders }: PageProps) {
   ) {
     setCredentialsFormError(null);
     posthog.capture("sign_in:credentials_form_submit");
+    console.log("signing in");
     const result = await signIn("credentials", {
       email: values.email,
       password: values.password,
-      callbackUrl: "/",
+      callbackUrl: target.target ? `${target.target}` : "/",
       redirect: false,
     });
     if (result?.error) {
