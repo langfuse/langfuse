@@ -32,7 +32,6 @@ import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { type AutoCompleteOption } from "@/src/features/prompts/components/auto-complete";
 import JsonView from "react18-json-view";
 import { type JsonValue } from "@prisma/client/runtime/library";
-import { jsonSchema } from "@/src/utils/zod";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -93,7 +92,19 @@ const formSchema = z.object({
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
-  config: jsonSchema,
+  config: z.string().refine(
+    (value) => {
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+    {
+      message: "Config needs to be valid JSON",
+    },
+  ),
 });
 
 export const NewPromptForm = (props: {
@@ -113,7 +124,7 @@ export const NewPromptForm = (props: {
       isActive: false,
       name: props.promptName ?? "",
       prompt: props.promptText ?? "",
-      config: jsonSchema.parse(props.promptConfig ?? {}),
+      config: props.promptConfig ? JSON.stringify(props.promptConfig) : "{}",
     },
   });
 
@@ -246,9 +257,9 @@ export const NewPromptForm = (props: {
             <FormItem>
               <FormLabel>Config</FormLabel>
               <JsonView
-                src={field.value}
+                src={JSON.parse(field.value) as unknown}
                 onEdit={(edit) => {
-                  field.onChange(edit.src);
+                  field.onChange(JSON.stringify(edit.src));
                 }}
                 editable
                 className="rounded-md border border-gray-200 p-2 text-sm"
