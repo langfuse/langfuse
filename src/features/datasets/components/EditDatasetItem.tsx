@@ -3,6 +3,7 @@ import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
+import JsonView from "react18-json-view";
 import {
   Form,
   FormControl,
@@ -66,7 +67,7 @@ export const EditDatasetItem = ({
   useEffect(() => {
     form.setValue(
       "input",
-      item.data?.input ? JSON.stringify(item.data.input, null, 2) : "",
+      JSON.stringify(item.data?.input ? item.data.input : "", null, 2),
     );
     form.setValue(
       "expectedOutput",
@@ -80,7 +81,7 @@ export const EditDatasetItem = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      input: "",
+      input: JSON.stringify(""),
       expectedOutput: "",
     },
   });
@@ -117,13 +118,14 @@ export const EditDatasetItem = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Input</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
-                    />
-                  </FormControl>
+                  <JsonView
+                    src={JSON.parse(field.value) as unknown}
+                    onEdit={(edit) => {
+                      field.onChange(JSON.stringify(edit.src));
+                    }}
+                    editable
+                    className="rounded-md border border-gray-200 p-2 text-sm"
+                  />
                   <FormMessage />
                 </FormItem>
               )}
