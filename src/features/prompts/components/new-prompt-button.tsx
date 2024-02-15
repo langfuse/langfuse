@@ -265,10 +265,8 @@ export const NewPromptForm = (props: {
                 className="rounded-md border border-gray-200 p-2 text-sm"
               />
               <FormDescription>
-                This input field allows you to customize your AI prompt
-                interactions through a detailed JSON configuration. Define the
-                AI model parameters, function calls, and additional settings to
-                tailor responses to your specific needs.
+                Track configs for LLM API calls such as function definitions or
+                LLM parameters.
               </FormDescription>
               <FormMessage />
             </FormItem>
