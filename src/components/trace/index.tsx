@@ -20,7 +20,6 @@ import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDe
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
@@ -91,8 +90,8 @@ export function Trace(props: {
   }, [setCollapsedObservations]);
 
   return (
-    <div className="grid gap-4 md:h-full md:grid-cols-5">
-      <ScrollArea className="md:col-span-3 md:h-full">
+    <div className="grid gap-4 md:h-full md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+      <div className="overflow-y-auto md:col-span-3 md:h-full lg:col-span-4 xl:col-span-5">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -110,7 +109,7 @@ export function Trace(props: {
             traceId={props.trace.id}
           />
         )}
-      </ScrollArea>
+      </div>
       <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
         <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
           <Toggle
@@ -138,21 +137,21 @@ export function Trace(props: {
             )}
           </Toggle>
         </div>
-        <ScrollArea className="flex flex-grow">
-          <ObservationTree
-            observations={props.observations}
-            collapsedObservations={collapsedObservations}
-            toggleCollapsedObservation={toggleCollapsedObservation}
-            collapseAll={collapseAll}
-            expandAll={expandAll}
-            trace={props.trace}
-            scores={props.scores}
-            currentObservationId={currentObservationId ?? undefined}
-            setCurrentObservationId={setCurrentObservationId}
-            showMetrics={metricsOnObservationTree}
-            showScores={scoresOnObservationTree}
-          />
-        </ScrollArea>
+
+        <ObservationTree
+          observations={props.observations}
+          collapsedObservations={collapsedObservations}
+          toggleCollapsedObservation={toggleCollapsedObservation}
+          collapseAll={collapseAll}
+          expandAll={expandAll}
+          trace={props.trace}
+          scores={props.scores}
+          currentObservationId={currentObservationId ?? undefined}
+          setCurrentObservationId={setCurrentObservationId}
+          showMetrics={metricsOnObservationTree}
+          showScores={scoresOnObservationTree}
+          className="flex w-full flex-col overflow-y-auto"
+        />
       </div>
     </div>
   );
@@ -192,7 +191,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
   if (!trace.data) return <div>loading...</div>;
   return (
-    <div className="flex flex-col overflow-hidden xl:container md:h-[calc(100vh-2rem)]">
+    <div className="flex flex-col overflow-hidden 2xl:container md:h-[calc(100vh-2rem)]">
       <Header
         title="Trace Detail"
         breadcrumb={[

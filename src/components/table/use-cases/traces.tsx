@@ -185,6 +185,7 @@ export default function TracesTable({
             }
           }}
           aria-label="Select all"
+          className="opacity-60"
         />
       ),
       cell: ({ row }) => (
@@ -192,6 +193,7 @@ export default function TracesTable({
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
+          className="opacity-60"
         />
       ),
     },
@@ -439,9 +441,8 @@ export default function TracesTable({
         actionButtons={
           <TraceTableMultiSelectAction
             // Exclude traces that are not in the current page
-            selectedTraceIds={Object.keys(selectedRows).filter(
-              (traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
+            selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
+              traces.data?.traces.map((t) => t.id).includes(traceId),
             )}
             projectId={projectId}
             onDeleteSuccess={() => {
