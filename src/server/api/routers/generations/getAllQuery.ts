@@ -30,17 +30,7 @@ export const getAllQuery = protectedProjectProcedure
       Array<{ count: bigint }>
     >(
       Prisma.sql`
-      WITH observations_with_latency AS (
-        SELECT
-          o.*,
-          CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-        FROM observations_view o
-        WHERE o.type = 'GENERATION'
-        AND o.project_id = ${input.projectId}
-        ${datetimeFilter}
-      ),
-      -- used for filtering
-      scores_avg AS (
+      WITH scores_avg AS (
         SELECT
           trace_id,
           observation_id,
@@ -64,11 +54,14 @@ export const getAllQuery = protectedProjectProcedure
       )
       SELECT
         count(*)
-      FROM observations_with_latency o
-      JOIN traces t ON t.id = o.trace_id
+      FROM observations_view o
+      JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
       WHERE
         t.project_id = ${input.projectId}
+        AND o.type = 'GENERATION'
+        AND o.project_id = ${input.projectId}
+        ${datetimeFilter}
         ${searchCondition}
         ${filterCondition}
     `,
