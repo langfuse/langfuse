@@ -61,14 +61,13 @@ export default async function handler(
         });
       }
 
-      await prisma.score.delete({
+      const deletedScore = await prisma.score.delete({
         where: {
           id: scoreId,
         },
       });
 
-      // return with status code 204 and no response body upon successful deletion
-      return res.status(204).json({});
+      return res.status(200).json({ ...deletedScore });
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
