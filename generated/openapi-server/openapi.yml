@@ -1134,6 +1134,10 @@ components:
           type: number
           format: double
           nullable: true
+        latency:
+          type: number
+          format: double
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/Observation'
     Usage:
