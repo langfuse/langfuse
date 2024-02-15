@@ -140,6 +140,7 @@ export default async function handler(
     }
   } else if (req.method === "DELETE") {
     try {
+      console.log("deleting score......");
       console.log(authCheck.scope.accessLevel);
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
@@ -148,14 +149,14 @@ export default async function handler(
         });
       }
 
-      const scoreId = ScoresDeleteSchema.parse(req.query);
+      const scoreId = ScoresDeleteSchema.parse(req.query.scoreId);
 
       const result = await prisma.$queryRaw(
         Prisma.sql`DELETE from scores WHERE id=${scoreId}`,
       );
       res.status(200).send(result);
     } catch (error) {
-      console.log(error);
+      console.log("Error ", error);
     }
   } else {
     return res.status(405).json({ message: "Method not allowed" });
