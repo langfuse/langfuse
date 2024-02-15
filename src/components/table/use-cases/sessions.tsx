@@ -11,6 +11,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
 import { api } from "@/src/utils/api";
 import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
+import { usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -22,6 +23,7 @@ export type SessionTableRow = {
   countTraces: number;
   bookmarked: boolean;
   sessionDuration: number | null;
+  totalCost: number | undefined;
 };
 
 export type SessionTableProps = {
@@ -98,6 +100,7 @@ export default function SessionsTable({
       countTraces: session.countTraces,
       bookmarked: session.bookmarked,
       sessionDuration: session.sessionDuration,
+      totalCost: session.totalCost,
     };
   };
 
@@ -184,6 +187,20 @@ export default function SessionsTable({
       header: "Traces",
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: "Total Cost",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("totalCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value, 2, 2)}</span>
+        ) : undefined;
+      },
     },
   ];
 

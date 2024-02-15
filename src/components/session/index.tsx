@@ -10,6 +10,7 @@ import { ManualScoreButton } from "@/src/features/manual-scoring/components/Manu
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
+import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
 import { useEffect } from "react";
 
@@ -88,6 +89,9 @@ export const SessionPage: React.FC<{
           </Link>
         ))}
         <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
+        <Badge variant="outline">
+          Total cost: {usdFormatter(session.data?.totalCost ?? 0, 2, 2)}
+        </Badge>
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.map((trace) => (
