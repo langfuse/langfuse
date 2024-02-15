@@ -16,13 +16,13 @@ export function JSONView(props: {
   const parsedJson = deepParseJson(props.json);
 
   return (
-    <div className={cn("max-w-full rounded-md border ", props.className)}>
+    <div className={cn("rounded-md border", props.className)}>
       {props.title ? (
         <div className="border-b px-3 py-1 text-xs font-medium">
           {props.title}
         </div>
       ) : undefined}
-      <div className="flex gap-2 whitespace-pre-wrap p-3 text-xs">
+      <div className="flex gap-2 whitespace-pre-wrap break-words p-3 text-xs">
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : (
@@ -34,6 +34,7 @@ export function JSONView(props: {
             displaySize={"collapsed"}
             matchesURL={true}
             customizeCopy={(node) => stringifyJsonNode(node)}
+            className="w-full"
           />
         )}
       </div>
