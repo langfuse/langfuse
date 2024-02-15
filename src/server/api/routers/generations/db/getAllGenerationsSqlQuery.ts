@@ -52,6 +52,12 @@ export function getAllGenerationsSqlQuery({
         )
       : Prisma.empty;
 
+  // For exports: use a date cutoff filter to ignore newly ingested rows
+  const dateCutoffFilter =
+    type === "export"
+      ? datetimeFilterToPrismaSql("start_time", "<", new Date())
+      : Prisma.empty;
+
   // For UI pagination: set LIMIT and OFFSET
   const pagination =
     type === "paginate"
@@ -112,7 +118,10 @@ export function getAllGenerationsSqlQuery({
       JOIN traces t ON t.id = o.trace_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
       WHERE
-        t.project_id = ${input.projectId}
+        o.project_id = ${input.projectId}
+        AND t.project_id = ${input.projectId}
+        ${datetimeFilter}
+        ${dateCutoffFilter}
         ${searchCondition}
         ${filterCondition}
         ${orderByCondition}
