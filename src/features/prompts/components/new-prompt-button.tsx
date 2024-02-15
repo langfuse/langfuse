@@ -52,7 +52,7 @@ export const CreatePromptDialog = (props: {
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{props.children}</DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="max-h-screen overflow-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="mb-5">
             {props.title}
