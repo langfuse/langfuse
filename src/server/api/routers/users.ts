@@ -56,7 +56,6 @@ export const userRouter = createTRPCRouter({
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
       `;
-
       if (users.length === 0) {
         return [];
       }
@@ -96,8 +95,31 @@ export const userRouter = createTRPCRouter({
         WHERE rn = 1
       `;
 
+      const totalCosts = await ctx.prisma.$queryRaw<
+        Array<{
+          userId: string;
+          totalCost: number;
+        }>
+      >`
+      SELECT 
+        t.user_id AS "userId",
+        SUM(v.calculated_total_cost) AS "totalCost"
+      FROM 
+        traces t
+      LEFT JOIN 
+        observations_view v ON v.trace_id = t.id
+      WHERE 
+        t.user_id IS NOT NULL
+      GROUP BY 
+        t.user_id
+      ORDER BY 
+        t.user_id;
+    `;
+
       return users.map((user) => ({
         ...user,
+        totalCost: totalCosts.find((cost) => cost.userId === user.userId)
+          ?.totalCost,
         lastScore: lastScoresOfUsers.find(
           (score) => score.userId === user.userId,
         ),
@@ -182,6 +204,28 @@ export const userRouter = createTRPCRouter({
         WHERE rn = 1
       `;
 
+      const totalCost = await ctx.prisma.$queryRaw<
+        Array<{
+          userId: string;
+          totalCost: number;
+        }>
+      >`
+      SELECT 
+        t.user_id AS "userId",
+        SUM(v.calculated_total_cost) AS "totalCost"
+      FROM 
+        traces t
+      LEFT JOIN 
+        observations_view v ON v.trace_id = t.id
+      WHERE 
+        t.user_id IS NOT NULL
+       AND t.user_id = ${input.userId}
+      GROUP BY 
+        t.user_id
+      ORDER BY 
+        t.user_id;
+    `;
+
       return {
         userId: input.userId,
         firstTrace: agg[0]?.firstTrace,
@@ -194,6 +238,7 @@ export const userRouter = createTRPCRouter({
         lastObservation: agg[0]?.lastObservation,
         totalObservations: agg[0]?.totalObservations ?? 0,
         lastScore: lastScoresOfUsers[0],
+        totalCost: totalCost[0]?.totalCost ?? 0,
       };
     }),
 });
