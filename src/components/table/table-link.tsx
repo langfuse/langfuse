@@ -3,14 +3,12 @@ import Link from "next/link";
 export type TableLinkProps = {
   path: string;
   value: string;
-  truncate?: boolean;
   truncateAt?: number;
 };
 
 export default function TableLink({
   path,
   value,
-  truncate = true,
   truncateAt = 7,
 }: TableLinkProps) {
   return (
@@ -19,7 +17,7 @@ export default function TableLink({
       href={path}
       title={value}
     >
-      {truncate && value.length - truncateAt > 3
+      {value.length - truncateAt > 3
         ? `...${value.substring(value.length - truncateAt)}`
         : value}
     </Link>
