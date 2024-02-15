@@ -197,9 +197,7 @@ describe("/api/public/prompts API Endpoint", () => {
   });
 
   it("should create and fetch a prompt", async () => {
-    const promptId = uuidv4();
     await makeAPICall("POST", "/api/public/prompts", {
-      id: promptId,
       name: "prompt-name",
       prompt: "prompt",
       isActive: true,
@@ -356,9 +354,7 @@ describe("/api/public/prompts API Endpoint", () => {
   });
 
   it("should create empty object if no config is provided", async () => {
-    const promptId = uuidv4();
     await makeAPICall("POST", "/api/public/prompts", {
-      id: promptId,
       name: "prompt-name",
       prompt: "prompt",
       isActive: true,
