@@ -1,4 +1,3 @@
--- This is an empty migration.
 CREATE OR REPLACE VIEW "observations_view" AS
 SELECT
     o.*,
@@ -45,7 +44,7 @@ LEFT JOIN models m ON m.id = (
     AND (start_date < o.start_time OR start_date is NULL)
     AND o.unit::TEXT = unit
     ORDER BY
-        project_id ASC, -- in postgres, NULLs are sorted first
-        start_date DESC
+        project_id ASC, -- in postgres, NULLs are sorted last when ordering ASC
+        start_date DESC NULLS LAST -- now, NULLs are sorted last when ordering DESC as well
     LIMIT 1
 )
