@@ -30,7 +30,8 @@ SELECT
             END
         ELSE
             o.total_cost
-    END AS "calculated_total_cost"
+    END AS "calculated_total_cost",
+    CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
 FROM
     observations o
 LEFT JOIN models m ON m.id = (
