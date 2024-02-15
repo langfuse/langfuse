@@ -327,7 +327,7 @@ export const createPrompt = async ({
   prompt: string;
   isActive?: boolean;
   createdBy: string;
-  config: JsonValue;
+  config: z.infer<typeof jsonSchema>;
   prisma: PrismaClient;
 }) => {
   const latestPrompt = await prisma.prompt.findFirst({
