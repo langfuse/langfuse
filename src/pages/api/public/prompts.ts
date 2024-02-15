@@ -15,7 +15,7 @@ const PromptCreateSchema = z.object({
   name: z.string(),
   prompt: z.string(),
   isActive: z.boolean(),
-  config: jsonSchema.optional().nullable().default({}),
+  config: jsonSchema.nullable().default({}),
 });
 
 export default async function handler(
