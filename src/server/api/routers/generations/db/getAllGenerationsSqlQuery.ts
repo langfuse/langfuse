@@ -65,16 +65,6 @@ export function getAllGenerationsSqlQuery({
       : Prisma.empty;
 
   const rawSqlQuery = Prisma.sql`
-      WITH observations_with_latency AS (
-        SELECT
-          o.*,
-          CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-        FROM observations_view o
-        WHERE o.type = 'GENERATION'
-        AND o.project_id = ${input.projectId}
-        ${datetimeFilter}
-        ${dateCutoffFilter}
-      ),
       -- used for filtering
       scores_avg AS (
         SELECT
@@ -123,8 +113,9 @@ export function getAllGenerationsSqlQuery({
         o.total_price as "totalPrice",
         o.calculated_input_cost as "calculatedInputCost",
         o.calculated_output_cost as "calculatedOutputCost",
-        o.calculated_total_cost as "calculatedTotalCost"
-      FROM observations_with_latency o
+        o.calculated_total_cost as "calculatedTotalCost",
+        o."latency"
+      FROM observations_view o
       JOIN traces t ON t.id = o.trace_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
       WHERE

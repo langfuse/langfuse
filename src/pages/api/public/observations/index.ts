@@ -138,7 +138,8 @@ const getObservation = async (
         o."total_price" as "totalPrice",
         o."calculated_input_cost" as "calculatedInputCost",
         o."calculated_output_cost" as "calculatedOutputCost",
-        o."calculated_total_cost" as "calculatedTotalCost"
+        o."calculated_total_cost" as "calculatedTotalCost",
+        o."latency",
       FROM observations_view o LEFT JOIN traces ON o."trace_id" = traces."id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${nameCondition}
