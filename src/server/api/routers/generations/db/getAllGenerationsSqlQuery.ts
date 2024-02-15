@@ -120,6 +120,7 @@ export function getAllGenerationsSqlQuery({
       WHERE
         o.project_id = ${input.projectId}
         AND t.project_id = ${input.projectId}
+        AND o.type = 'GENERATION'
         ${datetimeFilter}
         ${dateCutoffFilter}
         ${searchCondition}
