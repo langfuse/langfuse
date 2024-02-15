@@ -52,12 +52,6 @@ export function getAllGenerationsSqlQuery({
         )
       : Prisma.empty;
 
-  // For exports: use a date cutoff filter to ignore ingested rows
-  const dateCutoffFilter =
-    type === "export"
-      ? datetimeFilterToPrismaSql("start_time", "<", new Date())
-      : Prisma.empty;
-
   // For UI pagination: set LIMIT and OFFSET
   const pagination =
     type === "paginate"
@@ -65,7 +59,6 @@ export function getAllGenerationsSqlQuery({
       : Prisma.empty;
 
   const rawSqlQuery = Prisma.sql`
-      -- used for filtering
       scores_avg AS (
         SELECT
           trace_id,
