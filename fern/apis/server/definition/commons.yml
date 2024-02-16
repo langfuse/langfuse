@@ -72,6 +72,7 @@ types:
       calculatedInputCost: optional<double>
       calculatedOutputCost: optional<double>
       calculatedTotalCost: optional<double>
+      latency: optional<double>
 
   Usage:
     properties:

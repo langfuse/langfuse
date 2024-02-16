@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -74,6 +74,10 @@ export default function UsersPage() {
     {
       accessorKey: "firstEvent",
       header: "First Event",
+    },
+    {
+      accessorKey: "totalCost",
+      header: "Total Cost",
     },
     {
       accessorKey: "lastEvent",
@@ -151,6 +155,7 @@ export default function UsersPage() {
                       ),
                       totalTokens: compactNumberFormatter(t.totalTokens),
                       lastScore: t.lastScore,
+                      totalCost: usdFormatter(t.sumCalculatedTotalCost, 2, 2),
                     };
                   }),
                 }
