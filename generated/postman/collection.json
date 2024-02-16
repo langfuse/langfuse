@@ -623,6 +623,38 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a score",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scores/:scoreId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores",
+                ":scoreId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "scoreId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
