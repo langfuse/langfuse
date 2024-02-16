@@ -1,5 +1,5 @@
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
-import { Fragment, type PropsWithChildren, useState } from "react";
+import { Fragment, type PropsWithChildren, useState, useEffect } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
@@ -50,6 +50,7 @@ const publishablePaths: string[] = [
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [deeplink, setDeepLink] = useState("");
   const router = useRouter();
   const session = useSession();
 
@@ -59,6 +60,12 @@ export default function Layout(props: PropsWithChildren) {
     api.environment.enableExperimentalFeatures.useQuery().data ?? false;
 
   const projectId = router.query.projectId as string | undefined;
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setDeepLink(window.location.pathname);
+    }
+  }, []);
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
@@ -127,7 +134,7 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void router.replace("/auth/sign-in");
+    void router.replace(`/auth/sign-in`);
     return <Spinner message="Redirecting" />;
   }
 
@@ -136,6 +143,11 @@ export default function Layout(props: PropsWithChildren) {
     unauthenticatedPaths.includes(router.pathname)
   ) {
     void router.replace("/");
+    if (deeplink) {
+      void router.replace(`${deeplink}`);
+    } else {
+      void router.replace("/");
+    }
     return <Spinner message="Redirecting" />;
   }
 
