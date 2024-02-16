@@ -211,7 +211,7 @@ const prepareOrderByString = (
     return Prisma.sql`${createAggregatedColumn(
       safeColumn,
       safeAgg,
-    )} ${Prisma.raw(orderBy.direction)}`;
+    )} ${Prisma.raw(orderBy.direction)} ${Prisma.raw(orderBy.direction === "DESC" ? "NULLS LAST" : "NULLS FIRST")}`;
   });
   const addedCte = hasCte
     ? [Prisma.sql`date_series."date" ASC`, ...orderBys]

@@ -37,5 +37,7 @@ export function orderByToPrismaSql(
   }
 
   // Both column and order are safe, can use raw SQL
-  return Prisma.raw(`ORDER BY ${col.internal} ${order.data} NULLS LAST`);
+  return Prisma.raw(
+    `ORDER BY ${col.internal} ${order.data} ${orderBy.order === "DESC" ? "NULLS LAST" : "NULLS FIRST"}`,
+  );
 }
