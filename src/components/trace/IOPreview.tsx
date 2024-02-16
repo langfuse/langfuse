@@ -35,12 +35,16 @@ export const IOPreview: React.FC<{
   if (!inOpenAiMessageArray.success) {
     // check if input is an array of length 1 including an array of OpenAiMessageSchema
     // this is the case for some integrations
+    // e.g. [[OpenAiMessageSchema, ...]]
     const inputArray = z.array(OpenAiMessageArraySchema).safeParse(input);
     if (inputArray.success && inputArray.data.length === 1) {
       inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(
         inputArray.data[0],
       );
     } else {
+      // check if input is an object with a messages key
+      // this is the case for some integrations
+      // e.g. { messages: [OpenAiMessageSchema, ...] }
       const inputObject = z
         .object({
           messages: OpenAiMessageArraySchema,
