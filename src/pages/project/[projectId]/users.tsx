@@ -155,7 +155,7 @@ export default function UsersPage() {
                       ),
                       totalTokens: compactNumberFormatter(t.totalTokens),
                       lastScore: t.lastScore,
-                      totalCost: usdFormatter(t.totalCost ?? 0, 2, 2),
+                      totalCost: usdFormatter(t.sumCalculatedTotalCost, 2, 2),
                     };
                   }),
                 }

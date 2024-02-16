@@ -32,6 +32,7 @@ export const userRouter = createTRPCRouter({
           lastObservation: Date | null;
           totalObservations: number;
           totalCount: number;
+          sumCalculatedTotalCost: number;
         }[]
       >`
         SELECT 
@@ -45,9 +46,10 @@ export const userRouter = createTRPCRouter({
           MIN(o.start_time) "firstObservation",
           MAX(o.start_time) "lastObservation",
           COUNT(distinct o.id)::int "totalObservations",
-          (count(*) OVER())::int AS "totalCount"
+          (count(*) OVER())::int AS "totalCount",
+          SUM(COALESCE(o.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
         FROM traces t
-        LEFT JOIN observations o on o.trace_id = t.id
+        LEFT JOIN observations_view o on o.trace_id = t.id
         WHERE t.user_id is not null
         AND t.project_id = ${input.projectId}
         AND o.project_id = ${input.projectId}
@@ -95,31 +97,8 @@ export const userRouter = createTRPCRouter({
         WHERE rn = 1
       `;
 
-      const totalCosts = await ctx.prisma.$queryRaw<
-        Array<{
-          userId: string;
-          totalCost: number;
-        }>
-      >`
-      SELECT 
-        t.user_id AS "userId",
-        SUM(v.calculated_total_cost) AS "totalCost"
-      FROM 
-        traces t
-      LEFT JOIN 
-        observations_view v ON v.trace_id = t.id
-      WHERE 
-        t.user_id IS NOT NULL
-      GROUP BY 
-        t.user_id
-      ORDER BY 
-        t.user_id;
-    `;
-
       return users.map((user) => ({
         ...user,
-        totalCost: totalCosts.find((cost) => cost.userId === user.userId)
-          ?.totalCost,
         lastScore: lastScoresOfUsers.find(
           (score) => score.userId === user.userId,
         ),
@@ -146,6 +125,7 @@ export const userRouter = createTRPCRouter({
           firstObservation: Date;
           lastObservation: Date;
           totalObservations: number;
+          sumCalculatedTotalCost: number;
         }[]
       >`
         SELECT 
@@ -158,9 +138,10 @@ export const userRouter = createTRPCRouter({
           COALESCE(SUM(o.total_tokens),0)::int "totalTokens",
           MIN(o.start_time) "firstObservation",
           MAX(o.start_time) "lastObservation",
-          COUNT(distinct o.id)::int "totalObservations"
+          COUNT(distinct o.id)::int "totalObservations",
+          SUM(COALESCE(o.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
         FROM traces t
-        LEFT JOIN observations o on o.trace_id = t.id
+        LEFT JOIN observations_view o on o.trace_id = t.id
         WHERE t.user_id is not null
         AND t.project_id = ${input.projectId}
         AND o.project_id = ${input.projectId}
@@ -204,28 +185,6 @@ export const userRouter = createTRPCRouter({
         WHERE rn = 1
       `;
 
-      const totalCost = await ctx.prisma.$queryRaw<
-        Array<{
-          userId: string;
-          totalCost: number;
-        }>
-      >`
-      SELECT 
-        t.user_id AS "userId",
-        SUM(v.calculated_total_cost) AS "totalCost"
-      FROM 
-        traces t
-      LEFT JOIN 
-        observations_view v ON v.trace_id = t.id
-      WHERE 
-        t.user_id IS NOT NULL
-       AND t.user_id = ${input.userId}
-      GROUP BY 
-        t.user_id
-      ORDER BY 
-        t.user_id;
-    `;
-
       return {
         userId: input.userId,
         firstTrace: agg[0]?.firstTrace,
@@ -238,7 +197,7 @@ export const userRouter = createTRPCRouter({
         lastObservation: agg[0]?.lastObservation,
         totalObservations: agg[0]?.totalObservations ?? 0,
         lastScore: lastScoresOfUsers[0],
-        totalCost: totalCost[0]?.totalCost ?? 0,
+        sumCalculatedTotalCost: agg[0]?.sumCalculatedTotalCost ?? 0,
       };
     }),
 });
