@@ -1724,6 +1724,10 @@ components:
         id:
           type: string
           nullable: true
+        timestamp:
+          type: string
+          format: date-time
+          nullable: true
         name:
           type: string
           nullable: true
