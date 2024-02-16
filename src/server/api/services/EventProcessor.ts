@@ -469,6 +469,9 @@ export class TraceProcessor implements EventProcessor {
       },
       create: {
         id: internalId,
+        timestamp: this.event.body.timestamp
+          ? new Date(this.event.body.timestamp)
+          : undefined,
         name: body.name ?? undefined,
         userId: body.userId ?? undefined,
         input: body.input ?? undefined,
@@ -483,6 +486,9 @@ export class TraceProcessor implements EventProcessor {
       },
       update: {
         name: body.name ?? undefined,
+        timestamp: this.event.body.timestamp
+          ? new Date(this.event.body.timestamp)
+          : undefined,
         userId: body.userId ?? undefined,
         input: body.input ?? undefined,
         output: body.output ?? undefined,

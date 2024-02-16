@@ -5,20 +5,24 @@ import {
 import { type MembershipRole } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
-import { useSession, type SessionContextValue } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 type HasAccessParams =
   | {
       role: MembershipRole;
       scope: Scope;
+      admin?: boolean; // prop user.admin
     }
   | {
-      session: SessionContextValue | Session;
+      session: null | Session;
       projectId: string;
       scope: Scope;
     };
 
-// For use in TRPC routes
+/**
+ * Check if user has access to the given scope, for use in TRPC resolvers
+ * @throws TRPCError("UNAUTHORIZED") if user does not have access
+ */
 export const throwIfNoAccess = (p: HasAccessParams) => {
   if (!hasAccess(p))
     throw new TRPCError({
@@ -28,27 +32,26 @@ export const throwIfNoAccess = (p: HasAccessParams) => {
     });
 };
 
-// For use in UI components as react hook
+/**
+ * React hook to check if user has access to the given scope
+ * @returns true if user has access, false otherwise or while loading
+ */
 export const useHasAccess = (p: { projectId: string; scope: Scope }) => {
   const session = useSession();
-  return hasAccess({ session, ...p });
+  return hasAccess({ session: session.data, ...p });
 };
 
 // For use in UI components as function, if session is already available
 export function hasAccess(p: HasAccessParams): boolean {
-  const role: MembershipRole | undefined =
-    "role" in p
-      ? // MembershipRole
-        p.role
-      : "data" in p.session
-        ? // SessionContextValue
-          p.session.data?.user?.projects.find(
-            (project) => project.id === p.projectId,
-          )?.role
-        : // Session
-          p.session.user?.projects.find((project) => project.id === p.projectId)
-            ?.role;
-  if (role === undefined) return false;
+  const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
+  if (isAdmin && p.scope.endsWith(":read")) return true;
 
-  return roleAccessRights[role].includes(p.scope);
+  const projectRole: MembershipRole | undefined =
+    "role" in p
+      ? p.role
+      : p.session?.user?.projects.find((project) => project.id === p.projectId)
+          ?.role;
+  if (projectRole === undefined) return false;
+
+  return roleAccessRights[projectRole].includes(p.scope);
 }
