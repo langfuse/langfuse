@@ -761,6 +761,48 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/scores/{scoreId}:
+    delete:
+      description: Delete a score
+      operationId: score_delete
+      tags:
+        - Score
+      parameters:
+        - name: scoreId
+          in: path
+          description: The unique langfuse identifier of a score
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/sessions/{sessionId}:
     get:
       description: Get a session
