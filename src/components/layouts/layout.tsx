@@ -77,7 +77,12 @@ export default function Layout(props: PropsWithChildren) {
     // RBAC
     if (
       route.rbacScope !== undefined &&
-      (!projectId || !hasAccess({ projectId, scope: route.rbacScope, session }))
+      (!projectId ||
+        !hasAccess({
+          projectId,
+          scope: route.rbacScope,
+          session: session.data,
+        }))
     )
       return null;
 
