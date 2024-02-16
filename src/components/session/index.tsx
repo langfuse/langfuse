@@ -89,9 +89,11 @@ export const SessionPage: React.FC<{
           </Link>
         ))}
         <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
-        <Badge variant="outline">
-          Total cost: {usdFormatter(session.data?.totalCost ?? 0, 2, 2)}
-        </Badge>
+        {session.data && (
+          <Badge variant="outline">
+            Total cost: {usdFormatter(session.data.totalCost, 2, 2)}
+          </Badge>
+        )}
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.map((trace) => (

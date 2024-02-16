@@ -23,7 +23,7 @@ export type SessionTableRow = {
   countTraces: number;
   bookmarked: boolean;
   sessionDuration: number | null;
-  totalCost: number | undefined;
+  totalCost: number;
 };
 
 export type SessionTableProps = {

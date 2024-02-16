@@ -54,7 +54,7 @@ export const sessionRouter = createTRPCRouter({
         SELECT
           t.session_id,
           EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"), MAX(t.timestamp))) - EXTRACT(EPOCH FROM COALESCE(MIN(o."start_time"), MIN(t.timestamp)))::double precision AS "sessionDuration",
-          SUM(o."calculated_total_cost") AS "totalCost"
+          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
         FROM traces t
         LEFT JOIN observations_view o ON o.trace_id = t.id
         WHERE
@@ -135,7 +135,7 @@ export const sessionRouter = createTRPCRouter({
 
         const totalCostQuery = Prisma.sql`
         SELECT
-          COALESCE(SUM(o."calculated_total_cost"), 0) AS "totalCost"
+          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
         FROM observations_view o
         JOIN traces t ON t.id = o.trace_id
         WHERE
@@ -143,9 +143,10 @@ export const sessionRouter = createTRPCRouter({
           AND t."project_id" = ${input.projectId}
       `;
 
-        const [costData] = await ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(
-          totalCostQuery
-        );
+        const [costData] =
+          await ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(
+            totalCostQuery,
+          );
 
         return {
           ...session,
