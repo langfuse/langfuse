@@ -4,6 +4,7 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
@@ -49,11 +50,17 @@ export default function ScoresTable({
       ])
     : userFilterState;
 
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "timestamp",
+    order: "DESC",
+  });
+
   const scores = api.scores.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
+    orderBy: orderByState,
   });
   const totalCount = scores.data?.slice(1)[0]?.totalCount ?? 0;
 
@@ -162,6 +169,8 @@ export default function ScoresTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />
