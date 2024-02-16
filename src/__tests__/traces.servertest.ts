@@ -65,6 +65,7 @@ describe("/api/public/traces API Endpoint", () => {
     await makeAPICall("POST", "/api/public/traces", {
       id: "trace-id",
       metadata: { key: "value" },
+      timestamp: "2021-01-01T00:00:00.000Z",
       release: "1.0.0",
       version: "5.0.0",
       public: false,
@@ -84,6 +85,7 @@ describe("/api/public/traces API Endpoint", () => {
       version: "5.0.0",
       public: false,
       userId: "user-1",
+      timestamp: new Date("2021-01-01T00:00:00.000Z"),
     });
   });
 
