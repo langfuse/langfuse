@@ -1,18 +1,16 @@
 import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { type ControllerRenderProps, useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import JsonView from "react18-json-view";
 import {
   Form,
-  FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
@@ -67,7 +65,7 @@ export const EditDatasetItem = ({
   useEffect(() => {
     form.setValue(
       "input",
-      JSON.stringify(item.data?.input ? item.data.input : "", null, 2),
+      item.data?.input ? JSON.stringify(item.data.input, null, 2) : "",
     );
     form.setValue(
       "expectedOutput",
@@ -81,7 +79,7 @@ export const EditDatasetItem = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      input: JSON.stringify(""),
+      input: "",
       expectedOutput: "",
     },
   });
@@ -101,6 +99,14 @@ export const EditDatasetItem = ({
     });
     setHasChanges(false);
   }
+  const setFieldValue =
+    <T extends keyof z.infer<typeof formSchema>>({
+      onChange,
+    }: ControllerRenderProps<z.infer<typeof formSchema>, T>) =>
+    ({ src }: { src: object }) => {
+      setHasChanges(true);
+      onChange(Object.keys(src).length ? JSON.stringify(src) : "");
+    };
 
   return (
     <div>
@@ -109,7 +115,6 @@ export const EditDatasetItem = ({
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-4"
-          onChange={() => setHasChanges(true)}
         >
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
@@ -119,10 +124,9 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Input</FormLabel>
                   <JsonView
-                    src={JSON.parse(field.value) as unknown}
-                    onEdit={(edit) => {
-                      field.onChange(JSON.stringify(edit.src));
-                    }}
+                    src={JSON.parse(field.value || "{}") as unknown}
+                    onEdit={setFieldValue(field)}
+                    onDelete={setFieldValue(field)}
                     editable
                     className="rounded-md border border-gray-200 p-2 text-sm"
                   />
@@ -136,13 +140,13 @@ export const EditDatasetItem = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Expected output (optional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
-                    />
-                  </FormControl>
+                  <JsonView
+                    src={JSON.parse(field.value || "{}") as unknown}
+                    onEdit={setFieldValue(field)}
+                    onDelete={setFieldValue(field)}
+                    editable
+                    className="rounded-md border border-gray-200 p-2 text-sm"
+                  />
                   <FormMessage />
                 </FormItem>
               )}
