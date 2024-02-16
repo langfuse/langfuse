@@ -150,7 +150,6 @@ export default function Layout(props: PropsWithChildren) {
     }
     return <Spinner message="Redirecting" />;
   }
-
   const hideNavigation =
     session.status === "unauthenticated" ||
     projects.length === 0 ||
