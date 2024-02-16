@@ -14,11 +14,14 @@ import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
+  orderBy: orderBy,
 });
 
 const ScoreAllOptions = ScoreFilterOptions.extend({
@@ -31,6 +34,11 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const filterCondition = filterToPrismaSql(input.filter, scoresTableCols);
       console.log("filters: ", filterCondition);
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        scoresTableCols,
+      );
 
       const scores = await ctx.prisma.$queryRaw<
         Array<Score & { traceName: string; totalCount: number }>
@@ -49,7 +57,7 @@ export const scoresRouter = createTRPCRouter({
           JOIN traces t ON t.id = s.trace_id
           WHERE t.project_id = ${input.projectId}
           ${filterCondition}
-          ORDER BY s.timestamp DESC
+          ${orderByCondition}
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
       `);
