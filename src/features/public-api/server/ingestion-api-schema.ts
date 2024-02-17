@@ -61,6 +61,7 @@ export const usage = MixedUsage.nullish()
 
 export const TraceBody = z.object({
   id: z.string().nullish(),
+  timestamp: stringDate,
   name: z.string().nullish(),
   externalId: z.string().nullish(),
   input: jsonSchema.nullish(),
