@@ -143,6 +143,11 @@ const createOutputColumnName = (
       capitalizeFirstLetter(columnDefinition.name),
     )}`;
   }
+  if (safeAgg === "75thPercentile") {
+    return Prisma.sql`percentile75${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
   if (safeAgg === "90thPercentile") {
     return Prisma.sql`percentile90${Prisma.raw(
       capitalizeFirstLetter(columnDefinition.name),
@@ -182,6 +187,10 @@ const createAggregatedColumn = (
       return Prisma.sql`percentile_disc(0.5) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
+    case "75thPercentile":
+      return Prisma.sql`percentile_disc(0.75) within group (order by ${getInternalSql(
+        columnDefinition,
+      )})`;
     case "90thPercentile":
       return Prisma.sql`percentile_disc(0.9) within group (order by ${getInternalSql(
         columnDefinition,
@@ -211,7 +220,7 @@ const prepareOrderByString = (
     return Prisma.sql`${createAggregatedColumn(
       safeColumn,
       safeAgg,
-    )} ${Prisma.raw(orderBy.direction)}`;
+    )} ${Prisma.raw(orderBy.direction)} ${Prisma.raw(orderBy.direction === "DESC" ? "NULLS LAST" : "NULLS FIRST")}`;
   });
   const addedCte = hasCte
     ? [Prisma.sql`date_series."date" ASC`, ...orderBys]

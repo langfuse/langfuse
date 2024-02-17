@@ -24,6 +24,14 @@ service:
           userId: optional<string>
           name: optional<string>
       response: Scores
+    delete:
+      docs: Delete a score
+      method: DELETE
+      path: /scores/{scoreId}
+      path-parameters:
+        scoreId:
+          type: string
+          docs: The unique langfuse identifier of a score
 types:
   CreateScoreRequest:
     properties:

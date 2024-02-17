@@ -436,6 +436,8 @@ model Prompt {
 
     @@unique([projectId, name, version])
     @@index([projectId, name, version])
+    @@index([projectId, id])
+    @@index([projectId])
     @@map("prompts")
 }
 
@@ -502,6 +504,7 @@ view ObservationView {
     calculatedInputCost  Decimal? @map("calculated_input_cost")
     calculatedOutputCost Decimal? @map("calculated_output_cost")
     calculatedTotalCost  Decimal? @map("calculated_total_cost")
+    latency              Decimal? @map("latency")
 
     @@map("observations_view")
 }
