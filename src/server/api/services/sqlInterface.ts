@@ -18,6 +18,7 @@ export const aggregations = z
     "MAX",
     "MIN",
     "50thPercentile",
+    "75thPercentile",
     "90thPercentile",
     "95thPercentile",
     "99thPercentile",
