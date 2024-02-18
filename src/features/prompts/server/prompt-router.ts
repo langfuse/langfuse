@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Prompt, type PrismaClient, Prisma } from "@prisma/client";
+import { type Prompt, type PrismaClient } from "@prisma/client";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const CreatePrompt = z.object({
@@ -28,23 +28,19 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
-
-      const a = ctx.DB.selectFrom("prompts")
-        .where("project_id", "=", input.projectId)
-        .where(
-          ["name", "version"],
-          "in",
-          ctx.DB.selectFrom("prompts")
-            .select(["name", "id"])
-            .where("project_id", "=", input.projectId)
-            .groupBy("name")
-            .orderBy("name", "asc"),
+      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
+        SELECT id, name, version, project_id as "projectId", prompt, updated_at as "updatedAt", created_at AS "createdAt", is_active AS "isActive"
+        FROM prompts
+        WHERE (name, version) IN (
+          SELECT name, MAX(version)
+          FROM prompts
+          WHERE "project_id" = ${input.projectId}
+          GROUP BY name
         )
-        .orderBy("name", "asc");
-
-        const compiled = a.compile();
-
-      const prompts = await ctx.prisma.$queryRaw(Prisma.sql`${compiled.sql}`, ...compiled.parameters)
+        AND "project_id" = ${input.projectId}
+        ORDER BY name ASC`;
+      return prompts;
+    }),
   byId: protectedProjectProcedure
     .input(
       z.object({
