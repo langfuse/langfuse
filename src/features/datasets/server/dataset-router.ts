@@ -7,6 +7,7 @@ import {
 import { type DatasetRuns, Prisma, type Dataset } from "@prisma/client";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { DB } from "@/src/server/db";
 
 export const datasetRouter = createTRPCRouter({
   allDatasets: protectedProjectProcedure
@@ -16,6 +17,38 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+
+      const a = DB.selectFrom("datasets")
+        .leftJoin("dataset_items", "datasets.id", "dataset_items.dataset_id")
+        .leftJoin("dataset_runs", "datasets.id", "dataset_runs.dataset_id")
+          .select(({eb})=>[
+            "datasets.id", "datasets.name", "datasets.created_at", "datasets.updated_at",
+            eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
+            eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
+            eb.fn.max("dataset_runs.created_at").as("lastRunAt")
+          ])
+          .where("datasets.project_id","=", input.projectId)
+          .groupBy(["datasets.id", "datasets.name", "datasets.created_at", "datasets.updated_at"])
+          .orderBy("created_at", "desc")
+
+
+
+      const b = a.compile()
+      console.log(b.sql, ...b.parameters)
+      
+      const c = await ctx.prisma.$queryRaw<
+          Array<
+            Dataset & {
+              countDatasetItems: number;
+              countDatasetRuns: number;
+              lastRunAt: Date | null;
+            }
+          >
+        >(Prisma.sql([b.sql], ...b.parameters));
+
+      console.log(c)
+
+
       return ctx.prisma.$queryRaw<
         Array<
           Dataset & {

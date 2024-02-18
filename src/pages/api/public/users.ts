@@ -1,10 +1,10 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { DB, prisma } from "@/src/server/db";
+import {  prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@/src/utils/zod";
-import { Prisma } from "@prisma/client";
+
 
 const GetUsersSchema = z.object({
   ...paginationZod,
