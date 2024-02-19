@@ -40,6 +40,7 @@ export const generationsExportQuery = protectedProjectProcedure
       input,
       type: "export",
     });
+
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
     const dbReadStream = new DatabaseReadStream<ObservationView>(
       ctx.prisma,

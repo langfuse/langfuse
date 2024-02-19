@@ -19,7 +19,7 @@ export const MetricTable = ({
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "observations",
+      from: "traces_observations",
       select: [
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },

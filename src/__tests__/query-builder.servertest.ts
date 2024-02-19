@@ -16,28 +16,28 @@ describe("Build valid SQL queries", () => {
       {
         table: "traces",
         values: ["project-id"],
-        strings: [' FROM  traces t  WHERE  t."project_id" = ', " ;"],
+        strings: [' FROM  traces t  WHERE  t."project_id" = ', ";"],
       } as const,
       {
         table: "traces_observations",
         values: ["project-id", "project-id"],
         strings: [
           ' FROM  traces t LEFT JOIN observations_view o ON t.id = o.trace_id  WHERE  t."project_id" = ',
-          '  AND o."project_id" = ',
-          " ;",
+          ' AND o."project_id" = ',
+          ";",
         ],
       } as const,
       {
         table: "observations",
         values: ["project-id"],
-        strings: [' FROM  observations_view o  WHERE  o."project_id" = ', " ;"],
+        strings: [' FROM  observations_view o  WHERE  o."project_id" = ', ";"],
       } as const,
       {
         table: "traces_scores",
         values: ["project-id"],
         strings: [
           ' FROM  traces t JOIN scores s ON t.id = s.trace_id  WHERE  t."project_id" = ',
-          " ;",
+          ";",
         ],
       } as const,
     ].forEach((prop) => {
@@ -133,7 +133,7 @@ describe("Build valid SQL queries", () => {
           ],
           select: [],
         }),
-      ).toThrow("Column unknown not found");
+      ).toThrow("Invalid filter column: unknown");
     });
 
     it("should not select an unknown column", () => {

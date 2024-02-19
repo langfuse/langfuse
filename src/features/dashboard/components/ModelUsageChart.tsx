@@ -33,7 +33,7 @@ export const ModelUsageChart = ({
   const tokens = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "observations",
+      from: "traces_observations",
       select: [
         { column: "totalTokens", agg: "SUM" },
         { column: "calculatedTotalCost", agg: "SUM" },

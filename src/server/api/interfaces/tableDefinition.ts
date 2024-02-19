@@ -32,6 +32,17 @@ export type ColumnDefinition =
       keyOptions?: Array<string>;
     };
 
+export const tableNames = [
+  "traces",
+  "traces_observations",
+  "observations",
+  "traces_scores",
+  "traces_parent_observation_scores",
+  "sessions",
+] as const;
+
+export type TableNames = (typeof tableNames)[number];
+
 export type TableDefinitions = {
   [tableName: string]: {
     table: string;
