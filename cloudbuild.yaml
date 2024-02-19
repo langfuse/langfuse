@@ -27,3 +27,5 @@ steps:
       ]
 images:
   - europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest
+options:
+  logging: CLOUD_LOGGING_ONLY
