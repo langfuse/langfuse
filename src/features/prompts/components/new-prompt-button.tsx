@@ -31,7 +31,6 @@ import router from "next/router";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { type AutoCompleteOption } from "@/src/features/prompts/components/auto-complete";
 import JsonView from "react18-json-view";
-import { type JsonValue } from "@prisma/client/runtime/library";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -39,7 +38,7 @@ export const CreatePromptDialog = (props: {
   promptName?: string;
   promptText?: string;
   subtitle?: string;
-  promptConfig?: JsonValue;
+  promptConfig?: { [x: string]: unknown };
   children?: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
@@ -92,10 +91,10 @@ const formSchema = z.object({
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
-  config: z.string().refine(
+  config: z.record(z.unknown()).refine(
     (value) => {
       try {
-        JSON.parse(value);
+        JSON.stringify(value);
         return true;
       } catch (e) {
         return false;
@@ -112,7 +111,7 @@ export const NewPromptForm = (props: {
   onFormSuccess?: () => void;
   promptName?: string;
   promptText?: string;
-  promptConfig?: JsonValue;
+  promptConfig?: { [x: string]: unknown };
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -124,7 +123,7 @@ export const NewPromptForm = (props: {
       isActive: false,
       name: props.promptName ?? "",
       prompt: props.promptText ?? "",
-      config: props.promptConfig ? JSON.stringify(props.promptConfig) : "{}",
+      config: props.promptConfig ?? {},
     },
   });
 
@@ -257,9 +256,9 @@ export const NewPromptForm = (props: {
             <FormItem>
               <FormLabel>Config</FormLabel>
               <JsonView
-                src={JSON.parse(field.value) as unknown}
+                src={field.value}
                 onEdit={(edit) => {
-                  field.onChange(JSON.stringify(edit.src));
+                  field.onChange(edit.src);
                 }}
                 editable
                 className="rounded-md border border-gray-200 p-2 text-sm"
