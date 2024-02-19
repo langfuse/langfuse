@@ -74,7 +74,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
                   subtitle="We do not update prompts, instead we create a new version of the prompt."
                   promptName={prompt.name}
                   promptText={prompt.prompt}
-                  promptConfig={prompt.config}
+                  promptConfig={prompt.config as { [x: string]: unknown }}
                 >
                   <Button variant="outline" size="icon">
                     <Pencil className="h-5 w-5" />
