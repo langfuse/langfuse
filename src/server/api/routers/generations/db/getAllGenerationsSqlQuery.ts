@@ -35,6 +35,7 @@ export function getAllGenerationsSqlQuery({
     "observations",
   );
 
+  console.log("filterCondition", filterCondition);
   const orderByCondition = orderByToPrismaSql(
     input.orderBy,
     observationsTableCols,

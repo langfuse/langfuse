@@ -33,7 +33,7 @@ export function tableColumnsToSqlFilterAndPrefix(
   if (sql === Prisma.empty) {
     return Prisma.empty;
   }
-  return Prisma.join([Prisma.raw("AND ")], "");
+  return Prisma.join([Prisma.raw("AND "), sql], "");
 }
 
 export function tableColumnsToSqlFilter(
