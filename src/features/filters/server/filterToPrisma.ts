@@ -24,6 +24,17 @@ const arrayOperatorReplacements = {
   "none of": "&&",
 };
 
+export function tableColumnsToSqlFilterAndPrefix(
+  filters: FilterState,
+  tableColumns: ColumnDefinition[],
+  table: TableName,
+): Prisma.Sql {
+  return Prisma.join(
+    [Prisma.raw("AND "), tableColumnsToSqlFilter(filters, tableColumns, table)],
+    "",
+  );
+}
+
 export function tableColumnsToSqlFilter(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
@@ -141,10 +152,7 @@ export function filterToPrisma(
     return Prisma.empty;
   }
 
-  return Prisma.join(
-    [Prisma.raw("AND "), Prisma.join(statements, " AND ")],
-    "",
-  );
+  return Prisma.join(statements, " AND ");
 }
 
 const castValueToPostgresTypes = (

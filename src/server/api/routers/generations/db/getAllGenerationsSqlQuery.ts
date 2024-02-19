@@ -1,6 +1,6 @@
 import {
   datetimeFilterToPrismaSql,
-  tableColumnsToSqlFilter,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@/src/features/filters/server/filterToPrisma";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
@@ -29,7 +29,7 @@ export function getAllGenerationsSqlQuery({
       )`
     : Prisma.empty;
 
-  const filterCondition = tableColumnsToSqlFilter(
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
     input.filter,
     observationsTableCols,
     "observations",

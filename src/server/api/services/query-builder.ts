@@ -110,11 +110,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
     query.filter && query.filter.length > 0
       ? Prisma.sql` ${
           cte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
-        } ${prepareFilterString(
-          query.from,
-          query.filter,
-          tableDefinitions[query.from]!.columns,
-        )}`
+        } ${tableColumnsToSqlFilter(query.filter, tableDefinitions[query.from]!.columns, query.from)}`
       : Prisma.empty;
 
   const limitString = query.limit
@@ -228,20 +224,6 @@ const prepareOrderByString = (
   return addedCte.length > 0
     ? Prisma.sql` ORDER BY ${Prisma.join(addedCte, ", ")}`
     : Prisma.empty;
-};
-
-const prepareFilterString = (
-  table: z.infer<typeof sqlInterface>["from"],
-  filter: z.infer<typeof filterInterface>,
-  columnDefinitions: ColumnDefinition[],
-): Prisma.Sql => {
-  const filtersWithPrefix = tableColumnsToSqlFilter(
-    filter,
-    columnDefinitions,
-    table,
-  );
-  // add 1=1 to avoid having to remove the first AND
-  return Prisma.sql`1=1 ${filtersWithPrefix}`;
 };
 
 const prepareGroupBy = (

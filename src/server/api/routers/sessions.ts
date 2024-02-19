@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
-import { tableColumnsToSqlFilter } from "@/src/features/filters/server/filterToPrisma";
+import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -28,7 +28,7 @@ export const sessionRouter = createTRPCRouter({
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
-        const filterCondition = tableColumnsToSqlFilter(
+        const filterCondition = tableColumnsToSqlFilterAndPrefix(
           input.filter ?? [],
           sessionsViewCols,
           "sessions",

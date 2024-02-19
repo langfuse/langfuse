@@ -32,11 +32,10 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
-      const filterCondition = tableColumnsToSqlFilter(
-        input.filter,
-        scoresTableCols,
-        "traces_scores",
-      );
+      const filterCondition = Prisma.join([
+        Prisma.raw(" AND "),
+        tableColumnsToSqlFilter(input.filter, scoresTableCols, "traces_scores"),
+      ]);
 
       const orderByCondition = orderByToPrismaSql(
         input.orderBy,
