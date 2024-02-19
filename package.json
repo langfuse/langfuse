@@ -22,6 +22,7 @@
     "db:reset": "npx prisma migrate reset",
     "db:seed": "npx prisma db seed",
     "db:seed:examples": "npx prisma db seed -- --environment examples",
+    "db:createdefaultuser": "npx prisma db seed -- --environment createdefaultuser",
     "release": "release-it",
     "models:migrate": "tsx scripts/model-match.ts"
   },
