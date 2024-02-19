@@ -135,7 +135,7 @@ export function filterToPrisma(
         ? [Prisma.raw("NOT ("), Prisma.raw(")")]
         : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueCast(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
+    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castValueToPostgresTypes(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
@@ -147,7 +147,10 @@ export function filterToPrisma(
   );
 }
 
-const valueCast = (column: ColumnDefinition, table: TableName) => {
+const castValueToPostgresTypes = (
+  column: ColumnDefinition,
+  table: TableName,
+) => {
   return column.name === "type" &&
     (table === "observations" ||
       table === "traces_observations" ||
