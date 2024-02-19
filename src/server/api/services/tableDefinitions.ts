@@ -121,6 +121,7 @@ export const tableDefinitions: TableDefinitions = {
       traceTimestamp,
       traceUser,
       startTime,
+      traceName,
     ],
   },
   observations: {
@@ -161,6 +162,7 @@ export const tableDefinitions: TableDefinitions = {
       scoreName,
       traceUser,
       tracesProjectId,
+      traceName,
     ],
   },
   traces_parent_observation_scores: {

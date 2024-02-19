@@ -31,7 +31,7 @@ import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import { isValidOption } from "@/src/utils/types";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 
-export const DEFAULT_DATE_RANGE_SELECTION = "Select date range" as const;
+export const DEFAULT_DATE_RANGE_SELECTION = "Date range" as const;
 export type AvailableDateRangeSelections =
   | typeof DEFAULT_DATE_RANGE_SELECTION
   | DateTimeAggregationOption;
@@ -163,7 +163,7 @@ export function DatePickerWithRange({
             id="date"
             variant={"outline"}
             className={cn(
-              "w-[350px] justify-start text-left font-normal",
+              "w-[330px] justify-start text-left font-normal",
               !internalDateRange && "text-muted-foreground",
             )}
           >
@@ -171,8 +171,8 @@ export function DatePickerWithRange({
             {internalDateRange?.from ? (
               internalDateRange.to ? (
                 <>
-                  {format(internalDateRange.from, "LLL dd, y : hh:mm")} -{" "}
-                  {format(internalDateRange.to, "LLL dd, y : hh:mm")}
+                  {format(internalDateRange.from, "LLL dd, yy : hh:mm")} -{" "}
+                  {format(internalDateRange.to, "LLL dd, yy : hh:mm")}
                 </>
               ) : (
                 format(internalDateRange.from, "LLL dd, y")
@@ -194,7 +194,7 @@ export function DatePickerWithRange({
         </PopoverContent>
       </Popover>
       <Select value={selectedOption} onValueChange={onDropDownSelection}>
-        <SelectTrigger className="w-40 hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
+        <SelectTrigger className="w-[120px]  hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent position="popper" defaultValue={60}>
