@@ -98,6 +98,8 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
+      console.log("tracesQuery", tracesQuery);
+
       const traces = await instrumentAsync(
         { name: "get-all-traces" },
         async () =>
@@ -462,6 +464,7 @@ function createTracesQuery(
   filterCondition: Sql,
   orderByCondition: Sql,
 ) {
+  console.log("createTracesQuery", filterCondition);
   return Prisma.sql`
   WITH usage AS (
     SELECT

@@ -29,10 +29,11 @@ export function tableColumnsToSqlFilterAndPrefix(
   tableColumns: ColumnDefinition[],
   table: TableName,
 ): Prisma.Sql {
-  return Prisma.join(
-    [Prisma.raw("AND "), tableColumnsToSqlFilter(filters, tableColumns, table)],
-    "",
-  );
+  const sql = tableColumnsToSqlFilter(filters, tableColumns, table);
+  if (sql === Prisma.empty) {
+    return Prisma.empty;
+  }
+  return Prisma.join([Prisma.raw("AND ")], "");
 }
 
 export function tableColumnsToSqlFilter(
