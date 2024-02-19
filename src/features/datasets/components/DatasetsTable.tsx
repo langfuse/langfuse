@@ -9,11 +9,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { NewDatasetButton } from "@/src/features/datasets/components/NewDatasetButton";
+import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { Edit, MoreVertical, Trash } from "lucide-react";
+import { MoreVertical, Trash } from "lucide-react";
 import { useEffect } from "react";
 
 type RowData = {
@@ -36,9 +36,7 @@ export function DatasetsTable(props: { projectId: string }) {
   const mutDelete = api.datasets.deleteDataset.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
-  const mutRename = api.datasets.renameDataset.useMutation({
-    onSuccess: () => utils.datasets.invalidate(),
-  });
+
   useEffect(() => {
     if (datasets.isSuccess) {
       setDetailPageList(
@@ -94,18 +92,12 @@ export function DatasetsTable(props: { projectId: string }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() =>
-                  mutRename.mutate({
-                    projectId: props.projectId,
-                    datasetId: key.id,
-                    name: `${key.name} (copy)`,
-                  })
-                }
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Rename
-              </DropdownMenuItem>
+              <DatasetActionButton
+                mode="rename"
+                projectId={props.projectId}
+                datasetId={key.id}
+                datasetName={key.name}
+              />
               <DropdownMenuItem
                 onClick={() =>
                   mutDelete.mutate({
@@ -156,7 +148,11 @@ export function DatasetsTable(props: { projectId: string }) {
                 }
         }
       />
-      <NewDatasetButton projectId={props.projectId} className="mt-4" />
+      <DatasetActionButton
+        projectId={props.projectId}
+        className="mt-4"
+        mode="create"
+      />
     </div>
   );
 }
