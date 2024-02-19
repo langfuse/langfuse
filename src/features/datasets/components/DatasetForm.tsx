@@ -111,7 +111,8 @@ export const DatasetForm = (props: DatasetFormProps) => {
     <div>
       <Form {...form}>
         <form
-          onSubmit={() => form.handleSubmit(onSubmit)}
+          // eslint-disable-next-line @typescript-eslint/no-misused-promises
+          onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-8"
         >
           <FormField
