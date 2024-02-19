@@ -37,7 +37,6 @@ export const scoresRouter = createTRPCRouter({
         scoresTableCols,
         "traces_scores",
       );
-      console.log("filters: ", filterCondition);
 
       const orderByCondition = orderByToPrismaSql(
         input.orderBy,
