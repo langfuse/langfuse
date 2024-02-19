@@ -35,11 +35,27 @@ export const IOPreview: React.FC<{
   if (!inOpenAiMessageArray.success) {
     // check if input is an array of length 1 including an array of OpenAiMessageSchema
     // this is the case for some integrations
+    // e.g. [[OpenAiMessageSchema, ...]]
     const inputArray = z.array(OpenAiMessageArraySchema).safeParse(input);
     if (inputArray.success && inputArray.data.length === 1) {
       inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(
         inputArray.data[0],
       );
+    } else {
+      // check if input is an object with a messages key
+      // this is the case for some integrations
+      // e.g. { messages: [OpenAiMessageSchema, ...] }
+      const inputObject = z
+        .object({
+          messages: OpenAiMessageArraySchema,
+        })
+        .safeParse(input);
+
+      if (inputObject.success) {
+        inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(
+          inputObject.data.messages,
+        );
+      }
     }
   }
   const outOpenAiMessage = OpenAiMessageSchema.safeParse(output);
@@ -102,9 +118,15 @@ export const IOPreview: React.FC<{
 
 const OpenAiMessageSchema = z
   .object({
-    role: z.enum(["system", "user", "assistant"]).optional(),
+    role: z.enum(["system", "user", "assistant", "function"]).optional(),
     name: z.string().optional(),
-    content: z.union([z.record(z.any()), z.string()]).nullable(),
+    content: z.union([z.record(z.any()).array(), z.string()]).nullable(),
+    function_call: z
+      .object({
+        name: z.string(),
+        arguments: z.record(z.any()),
+      })
+      .optional(),
   })
   .strict() // no additional properties
   .refine((value) => value.content !== null || value.role !== undefined);
@@ -131,7 +153,7 @@ const OpenAiMessageView: React.FC<{
           <Fragment key={index}>
             <JSONView
               title={message.name ?? message.role}
-              json={message.content}
+              json={message.function_call ?? message.content}
               className={cn(
                 message.role === "system" && "bg-gray-100",
                 message.role === "assistant" && "bg-green-50",

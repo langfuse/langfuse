@@ -47,17 +47,19 @@ export const sessionRouter = createTRPCRouter({
             userIds: (string | null)[] | null;
             totalCount: number;
             sessionDuration: number | null;
+            totalCost: number;
           }>
         >(Prisma.sql`
       WITH observation_metrics AS (
         SELECT
           t.session_id,
-          EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"), MAX(t.timestamp))) - EXTRACT(EPOCH FROM COALESCE(MIN(o."start_time"), MIN(t.timestamp)))::double precision AS "sessionDuration"
+          EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"), MAX(t.timestamp))) - EXTRACT(EPOCH FROM COALESCE(MIN(o."start_time"), MIN(t.timestamp)))::double precision AS "sessionDuration",
+          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
         FROM traces t
-        LEFT JOIN observations o ON o.trace_id = t.id
+        LEFT JOIN observations_view o ON o.trace_id = t.id
         WHERE
           t."project_id" = ${input.projectId}
-          AND session_id IS NOT NULL
+          AND t.session_id IS NOT NULL
         GROUP BY 1
       ),
       trace_metrics AS (
@@ -68,7 +70,7 @@ export const sessionRouter = createTRPCRouter({
         FROM traces t
         WHERE
           t."project_id" = ${input.projectId}
-          AND session_id IS NOT NULL
+          AND t.session_id IS NOT NULL
         GROUP BY 1
       )
 
@@ -80,6 +82,7 @@ export const sessionRouter = createTRPCRouter({
         t."userIds",
         t."countTraces",
         o."sessionDuration",
+        o."totalCost",
         (count(*) OVER ())::int AS "totalCount"
       FROM trace_sessions s
       LEFT JOIN trace_metrics t ON t.session_id = s.id
@@ -130,8 +133,24 @@ export const sessionRouter = createTRPCRouter({
           });
         }
 
+        const totalCostQuery = Prisma.sql`
+        SELECT
+          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
+        FROM observations_view o
+        JOIN traces t ON t.id = o.trace_id
+        WHERE
+          t."session_id" = ${input.sessionId}
+          AND t."project_id" = ${input.projectId}
+      `;
+
+        const [costData] =
+          await ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(
+            totalCostQuery,
+          );
+
         return {
           ...session,
+          totalCost: costData?.totalCost ?? 0,
           users: [
             ...new Set(
               session.traces.map((t) => t.userId).filter((t) => t !== null),
