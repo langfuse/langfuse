@@ -50,14 +50,15 @@ describe("/api/public/metrics/daily API Endpoint", () => {
     });
 
     // Retrieve the daily metrics
-    const dailyMetricsResponse = await makeAPICall(
-      "GET",
-      `/api/public/metrics/daily`,
-    );
+    const dailyMetricsResponse = await makeAPICall<{
+      data: Array<Record<string, unknown>>;
+    }>("GET", `/api/public/metrics/daily`);
     const dailyMetricsData = dailyMetricsResponse.body.data;
 
     // Check if the daily metrics are calculated correctly
     expect(dailyMetricsData).toHaveLength(2); // Two days of data
+    if (!dailyMetricsData[0])
+      throw new Error("dailyMetricsData[0] is undefined");
     expect(dailyMetricsData[0].date).toBe("2021-01-02"); // Latest date first
     expect(dailyMetricsData[0].count_traces).toBe(1);
     expect(dailyMetricsData[0].total_cost).toEqual(1024.22);
@@ -75,6 +76,9 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         usage_total: 1443,
       },
     ]);
+
+    if (!dailyMetricsData[1])
+      throw new Error("dailyMetricsData[1] is undefined");
     expect(dailyMetricsData[1].date).toBe("2021-01-01");
     expect(dailyMetricsData[1].count_traces).toBe(1);
     expect(dailyMetricsData[1].total_cost).toEqual(0);
