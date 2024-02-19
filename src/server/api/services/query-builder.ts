@@ -362,8 +362,6 @@ const getInternalSql = (colDef: ColumnDefinition): Sql =>
   // raw required here, everything is typed
   Prisma.raw(colDef.internal);
 
-const getInternalSql2 = (colDef: ColumnDefinition): string => colDef.internal;
-
 const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
   return output.map((row) => {
     const newRow: DatabaseRow = {};

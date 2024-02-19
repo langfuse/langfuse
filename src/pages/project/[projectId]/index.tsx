@@ -31,6 +31,7 @@ import { Button } from "@/src/components/ui/button";
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type FilterState } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 
 export type DashboardDateRange = {
   from: Date;
@@ -103,7 +104,9 @@ export default function Start() {
     },
   ];
 
-  const globalFilterState = dateRange
+  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
+
+  const timeFilter = dateRange
     ? [
         {
           type: "datetime" as const,
@@ -117,33 +120,34 @@ export default function Start() {
           operator: "<" as const,
           value: dateRange.to,
         },
-        ...traceNameFilter,
       ]
     : [];
+
+  const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
   return (
     <div className="md:container">
       <Header title={project?.name ?? "Dashboard"} />
-      <div className="flex flex-wrap items-center justify-between">
-        <div className="flex gap-2">
+      <div className="my-3 flex flex-wrap items-center justify-between gap-2">
+        <div className=" flex flex-col gap-2  lg:flex-row">
           <DatePickerWithRange
             dateRange={dateRange}
             setAgg={setAgg}
             setDateRangeAndOption={setDateRangeAndOption}
             selectedOption={selectedOption}
-            className="max-w-full overflow-x-auto"
+            className="my-0 max-w-full overflow-x-auto"
           />
           <FilterBuilder
             columns={traceName}
-            filterState={traceNameFilter}
-            onChange={setTraceNameFilter}
+            filterState={userFilterState}
+            onChange={setUserFilterState}
           />
         </div>
         <FeedbackButtonWrapper
           title="Request Chart"
           description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
           type="dashboard"
-          className="hidden md:flex"
+          className="hidden lg:flex"
         >
           <Button
             id="date"
@@ -164,47 +168,47 @@ export default function Start() {
         <TracesBarListChart
           className="col-span-1 xl:col-span-2 "
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
         />
         <MetricTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
         />
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
         />
         <TracesTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
           agg={agg}
         />
         <ModelUsageChart
           className="col-span-1  min-h-24 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
           agg={agg}
         />
         <UserChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
           agg={agg}
         />
         <ChartScores
           className="col-span-1 xl:col-span-3"
           agg={agg}
           projectId={projectId}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
         />
         <LatencyChart
           className="col-span-1 flex-auto justify-between xl:col-span-full"
           projectId={projectId}
           agg={agg}
-          globalFilterState={globalFilterState}
+          globalFilterState={mergedFilterState}
         />
       </div>
     </div>
