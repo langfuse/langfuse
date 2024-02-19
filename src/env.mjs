@@ -42,6 +42,7 @@ export const env = createEnv({
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
+    AUTH_GOOGLE_ALLOWED_DOMAINS: z.string().optional(),
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
@@ -105,6 +106,7 @@ export const env = createEnv({
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: process.env.AUTH_GOOGLE_CLIENT_ID,
     AUTH_GOOGLE_CLIENT_SECRET: process.env.AUTH_GOOGLE_CLIENT_SECRET,
+    AUTH_GOOGLE_ALLOWED_DOMAINS: process.env.AUTH_GOOGLE_ALLOWED_DOMAINS,
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
