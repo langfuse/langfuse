@@ -10,7 +10,7 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { useState } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoData } from "@/src/features/dashboard/components/NoData";
-import { createTracesTimeFilter } from "@/src/pages/project/[projectId]/dashboard-utils";
+import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 
 type BarChartDataPoint = {
   name: string;

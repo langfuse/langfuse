@@ -7,7 +7,7 @@ import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";
 import { TotalMetric } from "./TotalMetric";
-import { createTracesTimeFilter } from "@/src/pages/project/[projectId]/dashboard-utils";
+import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 
 export const ScoresTable = ({
   className,

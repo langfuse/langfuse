@@ -13,7 +13,7 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { createTracesTimeFilter } from "@/src/pages/project/[projectId]/dashboard-utils";
+import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 
 export function ChartScores(props: {
   className?: string;
@@ -26,7 +26,6 @@ export function ChartScores(props: {
       projectId: props.projectId,
       from: "traces_scores",
       select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
-
       filter: createTracesTimeFilter(props.globalFilterState),
       groupBy: [
         {
