@@ -31,7 +31,7 @@ export const sessionRouter = createTRPCRouter({
         const filterCondition = tableColumnsToSqlFilter(
           input.filter ?? [],
           sessionsViewCols,
-          "session",
+          "sessions",
         );
 
         const orderByCondition = orderByToPrismaSql(

@@ -57,7 +57,7 @@ export function filterToPrisma(
     condition: FilterCondition;
     internalColumn: Prisma.Sql;
     column: ColumnDefinition;
-    table: string;
+    table: TableName;
   }[],
 ): Prisma.Sql {
   const statements = internalFilters.map((filterAndColumn) => {
@@ -147,8 +147,7 @@ export function filterToPrisma(
   );
 }
 
-const valueCast = (column: ColumnDefinition, table: string) => {
-  console.log("valueCast: ", column, "table: ", table);
+const valueCast = (column: ColumnDefinition, table: TableName) => {
   return column.name === "type" &&
     (table === "observations" ||
       table === "traces_observations" ||
