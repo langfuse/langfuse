@@ -17,31 +17,38 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-
       const query = DB.selectFrom("datasets")
         .leftJoin("dataset_items", "datasets.id", "dataset_items.dataset_id")
         .leftJoin("dataset_runs", "datasets.id", "dataset_runs.dataset_id")
-          .select(({eb})=>[
-            "datasets.id", "datasets.name", "datasets.created_at", "datasets.updated_at",
-            eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
-            eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
-            eb.fn.max("dataset_runs.created_at").as("lastRunAt")
-          ])
-          .where("datasets.project_id","=", input.projectId)
-          .groupBy(["datasets.id", "datasets.name", "datasets.created_at", "datasets.updated_at"])
-          .orderBy("created_at", "desc")
+        .select(({ eb }) => [
+          "datasets.id",
+          "datasets.name",
+          "datasets.created_at",
+          "datasets.updated_at",
+          eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
+          eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
+          eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
+        ])
+        .where("datasets.project_id", "=", input.projectId)
+        .groupBy([
+          "datasets.id",
+          "datasets.name",
+          "datasets.created_at",
+          "datasets.updated_at",
+        ])
+        .orderBy("created_at", "desc");
 
-      const compiledQuery = query.compile()
+      const compiledQuery = query.compile();
 
-      return await ctx.prisma.$queryRawUnsafe<
-          Array<
-            Dataset & {
-              countDatasetItems: number;
-              countDatasetRuns: number;
-              lastRunAt: Date | null;
-            }
-          >
-        >(compiledQuery.sql, ...compiledQuery.parameters);
+      return await ctx.prisma.$queryRaw<
+        Array<
+          Dataset & {
+            countDatasetItems: number;
+            countDatasetRuns: number;
+            lastRunAt: Date | null;
+          }
+        >
+      >(Prisma.sql`${compiledQuery.sql}`, ...compiledQuery.parameters);
     }),
   byId: protectedProjectProcedure
     .input(
