@@ -406,16 +406,16 @@ paths:
           schema:
             type: integer
             nullable: true
-        - name: trace_name
+        - name: traceName
           in: query
           description: Optional filter by the name of the trace
           required: false
           schema:
             type: string
             nullable: true
-        - name: user_id
+        - name: userId
           in: query
-          description: Optional filter by the user_id associated with the trace
+          description: Optional filter by the userId associated with the trace
           required: false
           schema:
             type: string
@@ -2095,9 +2095,9 @@ components:
       properties:
         date:
           type: string
-        count_traces:
+        countTraces:
           type: integer
-        total_cost:
+        totalCost:
           type: number
           format: double
         usage:
@@ -2106,8 +2106,8 @@ components:
             $ref: '#/components/schemas/UsageByModel'
       required:
         - date
-        - count_traces
-        - total_cost
+        - countTraces
+        - totalCost
         - usage
     UsageByModel:
       title: UsageByModel
@@ -2118,17 +2118,17 @@ components:
       properties:
         model:
           type: string
-        usage_input:
+        inputUsage:
           type: integer
-        usage_output:
+        outputUsage:
           type: integer
-        usage_total:
+        totalUsage:
           type: integer
       required:
         - model
-        - usage_input
-        - usage_output
-        - usage_total
+        - inputUsage
+        - outputUsage
+        - totalUsage
     Observations:
       title: Observations
       type: object

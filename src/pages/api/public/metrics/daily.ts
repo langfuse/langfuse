@@ -8,8 +8,8 @@ import { paginationZod } from "@/src/utils/zod";
 
 const GetUsageSchema = z.object({
   ...paginationZod,
-  trace_name: z.string().nullish(),
-  user_id: z.string().nullish(),
+  traceName: z.string().nullish(),
+  userId: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 
@@ -39,11 +39,11 @@ export default async function handler(
       }
       const obj = GetUsageSchema.parse(req.query); // uses query and not body
 
-      const traceNameCondition = obj.trace_name
-        ? Prisma.sql`AND t.name = ${obj.trace_name}`
+      const traceNameCondition = obj.traceName
+        ? Prisma.sql`AND t.name = ${obj.traceName}`
         : Prisma.empty;
-      const userCondition = obj.user_id
-        ? Prisma.sql`AND t."user_id" = ${obj.user_id}`
+      const userCondition = obj.userId
+        ? Prisma.sql`AND t."user_id" = ${obj.userId}`
         : Prisma.empty;
       const tagsCondition = obj.tags
         ? Prisma.sql`AND ARRAY[${Prisma.join(
@@ -60,9 +60,9 @@ export default async function handler(
             DATE_TRUNC('DAY',
               o.start_time) "date",
             o.model,
-            SUM(o.prompt_tokens) usage_input,
-            SUM(o.completion_tokens) usage_output,
-            SUM(o.total_tokens) usage_total
+            SUM(o.prompt_tokens) inputUsage,
+            SUM(o.completion_tokens) outputUsage,
+            SUM(o.total_tokens) totalUsage
           FROM
             traces t
           LEFT JOIN observations o ON o.trace_id = t.id AND o.project_id = t.project_id
@@ -83,12 +83,12 @@ export default async function handler(
             "date",
             json_agg(json_build_object('model',
                 model,
-                'usage_input',
-                usage_input,
-                'usage_output',
-                usage_output,
-                'usage_total',
-                usage_total)) daily_usage_json
+                'inputUsage',
+                inputUsage,
+                'outputUsage',
+                outputUsage,
+                'totalUsage',
+                totalUsage)) daily_usage_json
           FROM
             model_usage
           GROUP BY
@@ -109,8 +109,8 @@ export default async function handler(
         )
         SELECT
           TO_CHAR(COALESCE(ds.date, daily_model_usage.date), 'YYYY-MM-DD') AS "date",
-          COALESCE(count_traces, 0) count_traces,
-          COALESCE(total_cost, 0) total_cost,
+          COALESCE(count_traces, 0) "countTraces",
+          COALESCE(total_cost, 0) "totalCost",
           COALESCE(daily_usage_json, '[]'::JSON) usage
         FROM
           daily_stats ds

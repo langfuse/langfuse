@@ -60,34 +60,34 @@ describe("/api/public/metrics/daily API Endpoint", () => {
     if (!dailyMetricsData[0])
       throw new Error("dailyMetricsData[0] is undefined");
     expect(dailyMetricsData[0].date).toBe("2021-01-02"); // Latest date first
-    expect(dailyMetricsData[0].count_traces).toBe(1);
-    expect(dailyMetricsData[0].total_cost).toEqual(1024.22);
+    expect(dailyMetricsData[0].countTraces).toBe(1);
+    expect(dailyMetricsData[0].totalCost).toEqual(1024.22);
     expect(dailyMetricsData[0].usage).toEqual([
       {
         model: "modelB",
-        usage_input: 333,
-        usage_output: 0,
-        usage_total: 333,
+        inputUsage: 333,
+        outputUsage: 0,
+        totalUsage: 333,
       },
       {
         model: "modelC",
-        usage_input: 666,
-        usage_output: 777,
-        usage_total: 1443,
+        inputUsage: 666,
+        outputUsage: 777,
+        totalUsage: 1443,
       },
     ]);
 
     if (!dailyMetricsData[1])
       throw new Error("dailyMetricsData[1] is undefined");
     expect(dailyMetricsData[1].date).toBe("2021-01-01");
-    expect(dailyMetricsData[1].count_traces).toBe(1);
-    expect(dailyMetricsData[1].total_cost).toEqual(0);
+    expect(dailyMetricsData[1].countTraces).toBe(1);
+    expect(dailyMetricsData[1].totalCost).toEqual(0);
     expect(dailyMetricsData[1].usage).toEqual([
       {
         model: "modelA",
-        usage_input: 100,
-        usage_output: 200,
-        usage_total: 300,
+        inputUsage: 100,
+        outputUsage: 200,
+        totalUsage: 300,
       },
     ]);
   });

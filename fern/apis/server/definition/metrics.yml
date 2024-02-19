@@ -15,12 +15,12 @@ service:
         query-parameters:
           page: optional<integer>
           limit: optional<integer>
-          trace_name:
+          traceName:
             type: optional<string>
             docs: Optional filter by the name of the trace
-          user_id:
+          userId:
             type: optional<string>
-            docs: Optional filter by the user_id associated with the trace
+            docs: Optional filter by the userId associated with the trace
           tags:
             type: optional<string>
             allow-multiple: true
@@ -36,13 +36,13 @@ types:
   DailyMetricsDetails:
     properties:
       date: date
-      count_traces: integer
-      total_cost: double
+      countTraces: integer
+      totalCost: double
       usage: list<UsageByModel>
   UsageByModel:
     docs: Daily usage of a given model. Usage corresponds to the unit set for the specific model (e.g. tokens).
     properties:
       model: string
-      usage_input: integer
-      usage_output: integer
-      usage_total: integer
+      inputUsage: integer
+      outputUsage: integer
+      totalUsage: integer

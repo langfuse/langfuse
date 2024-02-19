@@ -343,7 +343,7 @@
           "request": {
             "description": "Get daily metrics of the Langfuse project",
             "url": {
-              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&trace_name=&user_id=&tags=",
+              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -365,14 +365,14 @@
                   "description": null
                 },
                 {
-                  "key": "trace_name",
+                  "key": "traceName",
                   "value": "",
                   "description": "Optional filter by the name of the trace"
                 },
                 {
-                  "key": "user_id",
+                  "key": "userId",
                   "value": "",
-                  "description": "Optional filter by the user_id associated with the trace"
+                  "description": "Optional filter by the userId associated with the trace"
                 },
                 {
                   "key": "tags",
