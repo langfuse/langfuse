@@ -114,6 +114,7 @@ export default async function handler(
       >(Prisma.sql`
           SELECT
             t.id,
+            CONCAT('/project/', t.project_id,'/traces/',t.id) as "htmlPath",
             t.timestamp,
             t.name,
             t.project_id as "projectId",
@@ -123,10 +124,12 @@ export default async function handler(
             t.release,
             t.version,
             t.tags,
+            SUM(o.calculated_total_cost)::DOUBLE PRECISION AS "totalCost",
+            EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"))) - EXTRACT(EPOCH FROM MIN(o."start_time"))::double precision AS "latency",
             array_remove(array_agg(o.id), NULL) AS "observations",
             array_remove(array_agg(s.id), NULL) AS "scores"
           FROM "traces" AS t
-          LEFT JOIN "observations" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
+          LEFT JOIN "observations_view" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
           LEFT JOIN "scores" AS s ON t.id = s.trace_id
           WHERE t.project_id = ${authCheck.scope.projectId}
           ${userCondition}
