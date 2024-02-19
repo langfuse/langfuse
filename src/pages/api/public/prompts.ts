@@ -113,7 +113,7 @@ export default async function handler(
         prompt: input.prompt,
         isActive: input.isActive,
         createdBy: "API",
-        config: input.config,
+        config: input.config ?? {},
         prisma: prisma,
       });
       console.log("created prompt", prompt);
