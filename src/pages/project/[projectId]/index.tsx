@@ -28,6 +28,9 @@ import { usePostHog } from "posthog-js/react";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { type FilterState } from "@/src/features/filters/types";
+import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 
 export type DashboardDateRange = {
   from: Date;
@@ -114,23 +117,6 @@ export default function Start() {
           operator: "<" as const,
           value: dateRange.to,
         },
-      ]
-    : [];
-
-  const wipGlobalFilterState = dateRange
-    ? [
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: ">" as const,
-          value: dateRange.from,
-        },
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: "<" as const,
-          value: dateRange.to,
-        },
         ...traceNameFilter,
       ]
     : [];
@@ -139,13 +125,20 @@ export default function Start() {
     <div className="md:container">
       <Header title={project?.name ?? "Dashboard"} />
       <div className="flex flex-wrap items-center justify-between">
-        <DatePickerWithRange
-          dateRange={dateRange}
-          setAgg={setAgg}
-          setDateRangeAndOption={setDateRangeAndOption}
-          selectedOption={selectedOption}
-          className="max-w-full overflow-x-auto"
-        />
+        <div className="flex gap-2">
+          <DatePickerWithRange
+            dateRange={dateRange}
+            setAgg={setAgg}
+            setDateRangeAndOption={setDateRangeAndOption}
+            selectedOption={selectedOption}
+            className="max-w-full overflow-x-auto"
+          />
+          <FilterBuilder
+            columns={traceName}
+            filterState={traceNameFilter}
+            onChange={setTraceNameFilter}
+          />
+        </div>
         <FeedbackButtonWrapper
           title="Request Chart"
           description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
@@ -171,9 +164,8 @@ export default function Start() {
         <TracesBarListChart
           className="col-span-1 xl:col-span-2 "
           projectId={projectId}
-          globalFilterState={wipGlobalFilterState}
+          globalFilterState={globalFilterState}
         />
-
         <MetricTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}

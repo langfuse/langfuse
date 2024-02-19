@@ -14,7 +14,7 @@ import {
 } from "@/src/server/api/definitions/tracesTable";
 import {
   datetimeFilterToPrismaSql,
-  filterToPrismaSql,
+  tableColumnsToSqlFilter,
 } from "@/src/features/filters/server/filterToPrisma";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
@@ -44,9 +44,10 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const filterCondition = filterToPrismaSql(
+      const filterCondition = tableColumnsToSqlFilter(
         input.filter ?? [],
         tracesTableCols,
+        "traces",
       );
       const orderByCondition = orderByToPrismaSql(
         input.orderBy,

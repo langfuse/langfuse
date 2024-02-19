@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";
 import { TotalMetric } from "./TotalMetric";
+import { createTracesTimeFilter } from "@/src/pages/project/[projectId]/dashboard-utils";
 
 export const ScoresTable = ({
   className,
@@ -17,11 +18,7 @@ export const ScoresTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
-  const localFilters = globalFilterState.map((f) => ({
-    ...f,
-    column: "timestamp",
-  }));
-
+  const localFilters = createTracesTimeFilter(globalFilterState);
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,

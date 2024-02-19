@@ -14,6 +14,7 @@ import {
   filterInterface,
 } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
+import { tableColumnsToSqlFilter } from "@/src/features/filters/server/filterToPrisma";
 
 export type InternalDatabaseRow = {
   [key: string]: bigint | number | Decimal | string | Date;
@@ -234,41 +235,13 @@ const prepareFilterString = (
   filter: z.infer<typeof filterInterface>,
   columnDefinitions: ColumnDefinition[],
 ): Prisma.Sql => {
-  const filters = filter.map((filter) => {
-    const column = columnDefinitions.find((x) => x.name === filter.column);
-    if (!column) {
-      console.error(`Column ${filter.column} not found`);
-      throw new Error(`Column ${filter.column} not found`);
-    }
-    // raw manfatory for column defs and operator
-    // non raw for value, which will go into parameterised string
-    if (filter.type === "datetime") {
-      const date = new Date(filter.value);
-      const formattedValue = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}.${String(date.getUTCMilliseconds()).padStart(3, "0")}`;
-      return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-        filter.operator,
-      )} ${Prisma.sql`${formattedValue}`}::timestamp with time zone at time zone 'UTC'`;
-    } else if (filter.type === "stringOptions") {
-      if (filter.operator === "any of" && Array.isArray(filter.value)) {
-        return Prisma.sql`${getInternalSql(column)} IN (${Prisma.raw(filter.value.map((x) => `'${x}'`).join(", "))})`;
-      } else {
-        return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-          filter.operator,
-        )} ${filter.value}::${Prisma.raw(
-          `"${tableDefinitions[table]!.table}_${column.name}"`,
-        )}`;
-      }
-    } else {
-      return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-        filter.operator,
-      )} ${filter.value} ${
-        column.name === "type" && table === "observations"
-          ? Prisma.sql`::"ObservationType"`
-          : Prisma.empty
-      }`;
-    }
-  });
-  return Prisma.join(filters, " AND ");
+  const filtersWithPrefix = tableColumnsToSqlFilter(
+    filter,
+    columnDefinitions,
+    table,
+  );
+  // add 1=1 to avoid having to remove the first AND
+  return Prisma.sql`1=1 ${filtersWithPrefix}`;
 };
 
 const prepareGroupBy = (

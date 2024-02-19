@@ -1,4 +1,7 @@
-import { type FilterState } from "@/src/features/filters/types";
+import {
+  type FilterCondition,
+  type FilterState,
+} from "@/src/features/filters/types";
 import { filterOperators } from "@/src/server/api/interfaces/filters";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma } from "@prisma/client";
@@ -18,11 +21,12 @@ const arrayOperatorReplacements = {
   "none of": "&&",
 };
 
-export function filterToPrismaSql(
+export function tableColumnsToSqlFilter(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
+  table: string,
 ): Prisma.Sql {
-  const statements = filters.map((filter) => {
+  const internalFilters = filters.map((filter) => {
     // Get column definition to map column to internal name, e.g. "t.id"
     const col = tableColumns.find(
       (c) =>
@@ -33,8 +37,28 @@ export function filterToPrismaSql(
       console.error("Invalid filter column", filter.column);
       throw new Error("Invalid filter column: " + filter.column);
     }
-
     const colPrisma = Prisma.raw(col.internal);
+    return {
+      condition: filter,
+      internalColumn: colPrisma,
+      column: col,
+      table: table,
+    };
+  });
+
+  return filterToPrisma(internalFilters);
+}
+
+export function filterToPrisma(
+  internalFilters: {
+    condition: FilterCondition;
+    internalColumn: Prisma.Sql;
+    column: ColumnDefinition;
+    table: string;
+  }[],
+): Prisma.Sql {
+  const statements = internalFilters.map((filterAndColumn) => {
+    const filter = filterAndColumn.condition;
     const operatorPrisma =
       filter.type === "arrayOptions"
         ? Prisma.raw(
@@ -108,7 +132,7 @@ export function filterToPrismaSql(
         ? [Prisma.raw("NOT ("), Prisma.raw(")")]
         : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${funcPrisma1}${cast1}${colPrisma}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueSuffix}${funcPrisma2}`;
+    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${valueCast(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
@@ -119,6 +143,16 @@ export function filterToPrismaSql(
     "",
   );
 }
+
+const valueCast = (column: ColumnDefinition, table: string) => {
+  console.log("valueCast: ", column, "table: ", table);
+  return column.name === "type" &&
+    (table === "observations" ||
+      table === "traces_observations" ||
+      table === "traces_parent_observation_scores")
+    ? Prisma.sql`::"ObservationType"`
+    : Prisma.empty;
+};
 
 const dateOperators = filterOperators["datetime"];
 
