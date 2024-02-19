@@ -133,7 +133,7 @@ describe("Build valid SQL queries", () => {
           ],
           select: [],
         }),
-      ).toThrow("Invalid filter column: unknow");
+      ).toThrow("Invalid filter column: unknown");
     });
 
     it("should not select an unknown column", () => {
