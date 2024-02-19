@@ -108,7 +108,7 @@ export default async function handler(
           GROUP BY 1
         )
         SELECT
-          COALESCE(ds.date, daily_model_usage.date)  "date",
+          TO_CHAR(COALESCE(ds.date, daily_model_usage.date), 'YYYY-MM-DD') AS "date",
           COALESCE(count_traces, 0) count_traces,
           COALESCE(total_cost, 0) total_cost,
           COALESCE(daily_usage_json, '[]'::JSON) usage

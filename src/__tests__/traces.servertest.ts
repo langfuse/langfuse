@@ -2,6 +2,7 @@
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@/src/server/db";
+import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/traces API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -137,5 +138,46 @@ describe("/api/public/traces API Endpoint", () => {
     const traceIds4 = traces4.body.data.map((t: { id: string }) => t.id);
     // check for equality ok as ordered by timestamp
     expect(traceIds4).toEqual(["trace-3", "trace-2", "trace-1"]);
+  });
+
+  it("should handle totalCost and latency correctly", async () => {
+    await pruneDatabase();
+
+    // Create a trace with some observations that have costs and latencies
+    const traceId = uuidv4();
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-with-costs",
+      userId: "user-costs",
+      projectId: "project-costs",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+    console.log(traceId);
+
+    // Simulate observations with costs and latencies
+    await makeAPICall("POST", "/api/public/generations", {
+      traceId: traceId,
+      usage: { totalCost: 10.5 },
+      startTime: "2021-01-01T00:00:00.000Z",
+      endTime: "2021-01-01T00:10:00.000Z",
+    });
+    await makeAPICall("POST", "/api/public/generations", {
+      traceId: traceId,
+      usage: { totalCost: 5.25 },
+      startTime: "2021-01-01T00:10:00.000Z",
+      endTime: "2021-01-01T00:20:00.000Z",
+    });
+
+    // Retrieve the trace with totalCost and latency
+    const traces = await makeAPICall("GET", `/api/public/traces`);
+    // eslint-disable-next-line
+    const traceData = (traces.body as any).data[0];
+    console.log(traceData);
+
+    // Check if the totalCost and latency are calculated correctly
+    expect(traceData.totalCost).toBeCloseTo(15.75); // Sum of costs
+    expect(traceData.latency).toBeCloseTo(1200); // Difference in seconds between min startTime and max endTime
   });
 });
