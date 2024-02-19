@@ -35,7 +35,7 @@ export const scoresRouter = createTRPCRouter({
       const filterCondition = tableColumnsToSqlFilter(
         input.filter,
         scoresTableCols,
-        "session",
+        "traces_scores",
       );
       console.log("filters: ", filterCondition);
 

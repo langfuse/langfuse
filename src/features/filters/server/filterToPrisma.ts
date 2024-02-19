@@ -3,7 +3,10 @@ import {
   type FilterState,
 } from "@/src/features/filters/types";
 import { filterOperators } from "@/src/server/api/interfaces/filters";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import {
+  type TableNames as TableName,
+  type ColumnDefinition,
+} from "@/src/server/api/interfaces/tableDefinition";
 import { Prisma } from "@prisma/client";
 
 const operatorReplacements = {
@@ -24,7 +27,7 @@ const arrayOperatorReplacements = {
 export function tableColumnsToSqlFilter(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
-  table: string,
+  table: TableName,
 ): Prisma.Sql {
   const internalFilters = filters.map((filter) => {
     // Get column definition to map column to internal name, e.g. "t.id"
