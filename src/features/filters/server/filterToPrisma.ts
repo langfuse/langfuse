@@ -1,7 +1,4 @@
-import {
-  type FilterCondition,
-  type FilterState,
-} from "@/src/features/filters/types";
+import { type FilterState } from "@/src/features/filters/types";
 import { filterOperators } from "@/src/server/api/interfaces/filters";
 import {
   type TableNames as TableName,
