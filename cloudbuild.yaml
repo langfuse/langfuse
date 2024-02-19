@@ -1,0 +1,29 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t",
+        "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
+        ".",
+      ]
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "push",
+        "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
+      ]
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "gcloud"
+    args:
+      [
+        "run",
+        "deploy",
+        "langfuse",
+        "--image",
+        "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
+        "--region",
+        "europe-west1",
+      ]
+images:
+  - europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest
