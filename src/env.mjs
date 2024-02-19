@@ -26,6 +26,7 @@ export const env = createEnv({
     ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.string().url().optional(),
+    LANGFUSE_TEAM_BETTERSTACK_TOKEN: z.string().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
@@ -57,6 +58,8 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: z.string().optional(),
     S3_BUCKET_NAME: z.string().optional(),
     S3_REGION: z.string().optional(),
+    // Database exports
+    DB_EXPORT_PAGE_SIZE: z.number().optional(),
   },
 
   /**
@@ -91,6 +94,8 @@ export const env = createEnv({
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
+    LANGFUSE_TEAM_BETTERSTACK_TOKEN:
+      process.env.LANGFUSE_TEAM_BETTERSTACK_TOKEN,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
@@ -117,5 +122,10 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_REGION: process.env.S3_REGION,
+    // Database exports
+    DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
   },
+  // Skip validation in Docker builds
+  // DOCKER_BUILD is set in Dockerfile
+  skipValidation: process.env.DOCKER_BUILD === "1",
 });

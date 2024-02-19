@@ -77,13 +77,13 @@ const formSchema = z.object({
       const variables = extractVariables(val);
       const matches = variables.map((variable) => {
         // check regex here
-        if (variable.match(/^[A-Za-z]+$/)) {
+        if (variable.match(/^[A-Za-z_]+$/)) {
           return true;
         }
         return false;
       });
       return !matches.includes(false);
-    }, "Variables must only contain letters"),
+    }, "Variables must only contain letters and underscores (_)"),
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
@@ -153,11 +153,9 @@ export const NewPromptForm = (props: {
         props.onFormSuccess?.();
         form.reset();
         // go to the following page after creating the prompt
-        if (newPrompt) {
-          void router.push(
-            `/project/${props.projectId}/prompts/${newPrompt.name}`,
-          );
-        }
+        void router.push(
+          `/project/${props.projectId}/prompts/${newPrompt.name}`,
+        );
       })
       .catch((error) => {
         console.error(error);

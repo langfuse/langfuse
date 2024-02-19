@@ -6,7 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { Prisma, type Score } from "@prisma/client";
+import { type MembershipRole, Prisma, type Score } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
@@ -14,10 +14,14 @@ import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
+  orderBy: orderBy,
 });
 
 const ScoreAllOptions = ScoreFilterOptions.extend({
@@ -30,6 +34,11 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const filterCondition = filterToPrismaSql(input.filter, scoresTableCols);
       console.log("filters: ", filterCondition);
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        scoresTableCols,
+      );
 
       const scores = await ctx.prisma.$queryRaw<
         Array<Score & { traceName: string; totalCount: number }>
@@ -48,7 +57,7 @@ export const scoresRouter = createTRPCRouter({
           JOIN traces t ON t.id = s.trace_id
           WHERE t.project_id = ${input.projectId}
           ${filterCondition}
-          ORDER BY s.timestamp DESC
+          ${orderByCondition}
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
       `);
@@ -128,7 +137,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      return ctx.prisma.score.create({
+      const score = await ctx.prisma.score.create({
         data: {
           trace: {
             connect: {
@@ -149,6 +158,18 @@ export const scoresRouter = createTRPCRouter({
           comment: input.comment,
         },
       });
+      await auditLog({
+        projectId: trace.projectId,
+        userId: ctx.session.user.id,
+        userProjectRole: ctx.session.user.projects.find(
+          (p) => p.id === trace.projectId,
+        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+        resourceType: "score",
+        resourceId: score.id,
+        action: "create",
+        after: score,
+      });
+      return score;
     }),
   update: protectedProcedure
     .input(
@@ -184,6 +205,21 @@ export const scoresRouter = createTRPCRouter({
         session: ctx.session,
         projectId: score.trace.projectId,
         scope: "scores:CUD",
+      });
+
+      // exclude trace object from audit log
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { trace, ...pureScore } = score;
+      await auditLog({
+        projectId: trace.projectId,
+        userId: ctx.session.user.id,
+        userProjectRole: ctx.session.user.projects.find(
+          (p) => p.id === trace.projectId,
+        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+        resourceType: "score",
+        resourceId: score.id,
+        action: "update",
+        after: pureScore,
       });
 
       return ctx.prisma.score.update({
@@ -224,6 +260,18 @@ export const scoresRouter = createTRPCRouter({
         session: ctx.session,
         projectId: score.trace.projectId,
         scope: "scores:CUD",
+      });
+      const { trace, ...pureScore } = score;
+      await auditLog({
+        projectId: trace.projectId,
+        userId: ctx.session.user.id,
+        userProjectRole: ctx.session.user.projects.find(
+          (p) => p.id === trace.projectId,
+        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+        resourceType: "score",
+        resourceId: score.id,
+        action: "delete",
+        before: pureScore,
       });
 
       return ctx.prisma.score.delete({
