@@ -44,12 +44,12 @@ export type ErrorIngestion = {
   error: string;
 };
 
-export async function makeAPICall(
+export async function makeAPICall<T = IngestionAPIResponse>(
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
   body?: unknown,
   auth?: string,
-) {
+): Promise<{ body: T; status: number }> {
   const finalUrl = `http://localhost:3000/${url}`;
   const authorization =
     auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
@@ -60,14 +60,12 @@ export async function makeAPICall(
       "Content-Type": "application/json;charset=UTF-8",
       Authorization: authorization,
     },
-    // Conditionally include the body property if the method is not "GET"
     ...(method !== "GET" &&
       body !== undefined && { body: JSON.stringify(body) }),
   };
-  const a = await fetch(finalUrl, options);
-
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  return { body: (await a.json()) as IngestionAPIResponse, status: a.status };
+  const response = await fetch(finalUrl, options);
+  const responseBody = (await response.json()) as T;
+  return { body: responseBody, status: response.status };
 }
 
 export const setupUserAndProject = async () => {
