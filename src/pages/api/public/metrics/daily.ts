@@ -9,7 +9,7 @@ import { paginationZod } from "@/src/utils/zod";
 const GetUsageSchema = z.object({
   ...paginationZod,
   trace_name: z.string().nullish(),
-  userId: z.string().nullish(),
+  user_id: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 
@@ -42,8 +42,8 @@ export default async function handler(
       const traceNameCondition = obj.trace_name
         ? Prisma.sql`AND t.name = ${obj.trace_name}`
         : Prisma.empty;
-      const userCondition = obj.userId
-        ? Prisma.sql`AND t."user_id" = ${obj.userId}`
+      const userCondition = obj.user_id
+        ? Prisma.sql`AND t."user_id" = ${obj.user_id}`
         : Prisma.empty;
       const tagsCondition = obj.tags
         ? Prisma.sql`AND ARRAY[${Prisma.join(

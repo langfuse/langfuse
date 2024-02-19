@@ -387,6 +387,81 @@ paths:
                     $ref: '#/components/schemas/IngestionEvent'
               required:
                 - batch
+  /api/public/metrics/daily:
+    get:
+      description: Get daily metrics of the Langfuse project
+      operationId: metrics_daily
+      tags:
+        - Metrics
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: trace_name
+          in: query
+          description: Optional filter by the name of the trace
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: user_id
+          in: query
+          description: Optional filter by the user_id associated with the trace
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: tags
+          in: query
+          description: Optional filter for metrics where traces include all of these tags
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMetrics'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/observations/{observationId}:
     get:
       description: Get a specific observation
@@ -2000,6 +2075,60 @@ components:
       required:
         - successes
         - errors
+    DailyMetrics:
+      title: DailyMetrics
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyMetricsDetails'
+          description: A list of daily metrics, only days with ingested data are included.
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    DailyMetricsDetails:
+      title: DailyMetricsDetails
+      type: object
+      properties:
+        date:
+          type: string
+        count_traces:
+          type: integer
+        total_cost:
+          type: number
+          format: double
+        usage:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageByModel'
+      required:
+        - date
+        - count_traces
+        - total_cost
+        - usage
+    UsageByModel:
+      title: UsageByModel
+      type: object
+      description: >-
+        Daily usage of a given model. Usage corresponds to the unit set for the
+        specific model (e.g. tokens).
+      properties:
+        model:
+          type: string
+        usage_input:
+          type: integer
+        usage_output:
+          type: integer
+        usage_total:
+          type: integer
+      required:
+        - model
+        - usage_input
+        - usage_output
+        - usage_total
     Observations:
       title: Observations
       type: object

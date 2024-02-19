@@ -335,6 +335,65 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Metrics",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Daily",
+          "request": {
+            "description": "Get daily metrics of the Langfuse project",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&trace_name=&user_id=&tags=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "metrics",
+                "daily"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "trace_name",
+                  "value": "",
+                  "description": "Optional filter by the name of the trace"
+                },
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": "Optional filter by the user_id associated with the trace"
+                },
+                {
+                  "key": "tags",
+                  "value": "",
+                  "description": "Optional filter for metrics where traces include all of these tags"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Observations",
       "item": [
         {
