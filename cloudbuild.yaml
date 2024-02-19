@@ -1,24 +1,28 @@
 steps:
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "build",
-        "-t",
-        "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
-        ".",
-      ]
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "push",
-        "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
-      ]
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+  # - id: Build new Langfuse image from source
+  #   name: "gcr.io/cloud-builders/docker"
+  #   args:
+  #     [
+  #       "build",
+  #       "-t",
+  #       "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
+  #       ".",
+  #     ]
+  # - id: Push new langfuse image to artifact repository
+  #   name: "gcr.io/cloud-builders/docker"
+  #   args:
+  #     [
+  #       "push",
+  #       "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
+  #     ]
+  - id: Update Cloud Run deployment with new image
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "gcloud"
     args:
       [
         "run",
-        "deploy",
+        "services",
+        "update",
         "langfuse",
         "--image",
         "europe-west1-docker.pkg.dev/langfuse-test/langfuse/langfuse:latest",
