@@ -57,7 +57,6 @@ export default function Start() {
     to: ToParam,
     select: SelectParam,
   });
-  const [traceNameFilter, setTraceNameFilter] = useState<FilterState>([]);
 
   const dateRange =
     urlParams.from && urlParams.to
@@ -80,7 +79,6 @@ export default function Start() {
     });
   };
 
-  // To Do: trace names fetch route
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
