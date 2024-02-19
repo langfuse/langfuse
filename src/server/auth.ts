@@ -16,7 +16,7 @@ import { type Adapter } from "next-auth/adapters";
 // Providers
 import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
+import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import AzureADProvider from "next-auth/providers/azure-ad";
 
@@ -205,6 +205,20 @@ export const authOptions: NextAuthOptions = {
               }
             : null,
       };
+    },
+    async signIn({ account, profile }): Promise<boolean> {
+      const allowedDomains =
+        env.AUTH_GOOGLE_ALLOWED_DOMAINS?.split(",").map((domain) =>
+          domain.trim(),
+        ) ?? [];
+      if (
+        account?.provider === "google" &&
+        allowedDomains.length > 0 &&
+        !allowedDomains.includes((profile as GoogleProfile).hd)
+      ) {
+        return await Promise.resolve(false);
+      }
+      return await Promise.resolve(true);
     },
   },
   adapter: extendedPrismaAdapter,
