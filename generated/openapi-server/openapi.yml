@@ -1025,6 +1025,17 @@ components:
       title: TraceWithDetails
       type: object
       properties:
+        htmlPath:
+          type: string
+          description: Path of trace in Langfuse UI
+        latency:
+          type: number
+          format: double
+          description: Latency of trace in seconds
+        totalCost:
+          type: number
+          format: double
+          description: Cost of trace in USD.
         observations:
           type: array
           items:
@@ -1036,6 +1047,9 @@ components:
             type: string
           description: List of score ids
       required:
+        - htmlPath
+        - latency
+        - totalCost
         - observations
         - scores
       allOf:
