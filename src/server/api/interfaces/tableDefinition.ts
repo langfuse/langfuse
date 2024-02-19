@@ -44,7 +44,7 @@ export const tableNames = [
 export type TableNames = (typeof tableNames)[number];
 
 export type TableDefinitions = {
-  [tableName in TableNames]: {
+  [tableName: string]: {
     table: string;
     columns: ColumnDefinition[];
   };
