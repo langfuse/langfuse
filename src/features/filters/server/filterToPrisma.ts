@@ -61,17 +61,6 @@ export function tableColumnsToSqlFilter(
     };
   });
 
-  return filterToPrisma(internalFilters);
-}
-
-export function filterToPrisma(
-  internalFilters: {
-    condition: FilterCondition;
-    internalColumn: Prisma.Sql;
-    column: ColumnDefinition;
-    table: TableName;
-  }[],
-): Prisma.Sql {
   const statements = internalFilters.map((filterAndColumn) => {
     const filter = filterAndColumn.condition;
     const operatorPrisma =
