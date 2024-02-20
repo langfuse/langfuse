@@ -1110,7 +1110,7 @@ components:
         totalCost:
           type: number
           format: double
-          description: Cost of trace in USD.
+          description: Cost of trace in USD
         observations:
           type: array
           items:
@@ -1133,6 +1133,13 @@ components:
       title: TraceWithFullDetails
       type: object
       properties:
+        htmlPath:
+          type: string
+          description: Path of trace in Langfuse UI
+        totalCost:
+          type: number
+          format: double
+          description: Cost of trace in USD
         observations:
           type: array
           items:
@@ -1142,6 +1149,8 @@ components:
           items:
             $ref: '#/components/schemas/Score'
       required:
+        - htmlPath
+        - totalCost
         - observations
         - scores
       allOf:

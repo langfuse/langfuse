@@ -4,7 +4,7 @@ import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@/src/server/db";
 import { v4 as uuidv4 } from "uuid";
 
-interface TraceAPIResponse {
+interface GetTracesAPIResponse {
   data: Array<{
     id: string;
     [key: string]: unknown;
@@ -116,7 +116,7 @@ describe("/api/public/traces API Endpoint", () => {
     });
 
     // multiple tags
-    const traces = await makeAPICall<TraceAPIResponse>(
+    const traces = await makeAPICall<GetTracesAPIResponse>(
       "GET",
       "/api/public/traces?tags=tag-2&tags=tag-3",
     );
@@ -125,7 +125,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traceIds).toEqual(["trace-3", "trace-1"]);
 
     // single tag
-    const traces2 = await makeAPICall<TraceAPIResponse>(
+    const traces2 = await makeAPICall<GetTracesAPIResponse>(
       "GET",
       "/api/public/traces?tags=tag-1",
     );
@@ -134,7 +134,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traceIds2).toEqual(["trace-2", "trace-1"]);
 
     // wrong tag
-    const traces3 = await makeAPICall<TraceAPIResponse>(
+    const traces3 = await makeAPICall<GetTracesAPIResponse>(
       "GET",
       "/api/public/traces?tags=tag-10",
     );
@@ -143,7 +143,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traceIds3).toEqual([]);
 
     // no tag
-    const traces4 = await makeAPICall<TraceAPIResponse>(
+    const traces4 = await makeAPICall<GetTracesAPIResponse>(
       "GET",
       "/api/public/traces?tags=",
     );
@@ -152,7 +152,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traceIds4).toEqual(["trace-3", "trace-2", "trace-1"]);
   });
 
-  it("should handle totalCost and latency correctly", async () => {
+  it("should handle metrics correctly on GET traces and GET trace", async () => {
     await pruneDatabase();
 
     // Create a trace with some observations that have costs and latencies
@@ -182,8 +182,9 @@ describe("/api/public/traces API Endpoint", () => {
       endTime: "2021-01-01T00:20:00.000Z",
     });
 
+    // GET traces
     // Retrieve the trace with totalCost and latency
-    const traces = await makeAPICall<TraceAPIResponse>(
+    const traces = await makeAPICall<GetTracesAPIResponse>(
       "GET",
       `/api/public/traces`,
     );
@@ -193,5 +194,22 @@ describe("/api/public/traces API Endpoint", () => {
     // Check if the totalCost and latency are calculated correctly
     expect(traceData.totalCost).toBeCloseTo(15.75); // Sum of costs
     expect(traceData.latency).toBeCloseTo(1200); // Difference in seconds between min startTime and max endTime
+    expect(traceData.id).toBe(traceId);
+    expect(traceData.htmlPath).toContain(`/traces/${traceId}`);
+    expect(traceData.htmlPath).toContain(`/project/`); // do not know the projectId
+
+    // GET trace
+    // Retrieve the trace with total
+    const trace = await makeAPICall<{
+      id: string;
+      totalCost: number;
+      htmlPath: string;
+    }>("GET", `/api/public/traces/${traceId}`);
+    console.log(trace.body);
+    expect(trace.body.totalCost).toBeCloseTo(15.75);
+    expect(trace.body.id).toBe(traceId);
+    expect(trace.body.id).toBe(traceId);
+    expect(trace.body.htmlPath).toContain(`/traces/${traceId}`);
+    expect(trace.body.htmlPath).toContain(`/project/`); // do not know the projectId
   });
 });
