@@ -2,6 +2,7 @@ import { createPrompt } from "@/src/features/prompts/server/prompt-router";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
+import { jsonSchema } from "@/src/utils/zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -14,6 +15,7 @@ const PromptCreateSchema = z.object({
   name: z.string(),
   prompt: z.string(),
   isActive: z.boolean(),
+  config: jsonSchema.nullable().default({}),
 });
 
 export default async function handler(
@@ -56,7 +58,7 @@ export default async function handler(
           name: searchParams.name,
           version: searchParams.version ?? undefined,
           // if no version is given, we take the latest active prompt
-          // if no prompt is active, there will no prompt be available
+          // if no prompt is active, there will be no prompt available
           isActive: !searchParams.version ? true : undefined,
         },
       });
@@ -111,8 +113,10 @@ export default async function handler(
         prompt: input.prompt,
         isActive: input.isActive,
         createdBy: "API",
+        config: input.config ?? {},
         prisma: prisma,
       });
+      console.log("created prompt", prompt);
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
