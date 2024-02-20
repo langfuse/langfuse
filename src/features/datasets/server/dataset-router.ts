@@ -263,7 +263,7 @@ export const datasetRouter = createTRPCRouter({
 
       return dataset;
     }),
-  renameDataset: protectedProjectProcedure
+  updateDataset: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
