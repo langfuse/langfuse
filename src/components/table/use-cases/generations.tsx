@@ -44,7 +44,9 @@ export type GenerationsTableRow = {
   level?: ObservationLevel;
   statusMessage?: string;
   endTime?: string;
+  timeToFirstToken?: string;
   latency?: number;
+  latencyPerToken?: number;
   name?: string;
   model?: string;
   input?: unknown;
@@ -57,6 +59,9 @@ export type GenerationsTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
+  promptId?: string;
+  promptName?: string;
+  promptVersion?: string;
 };
 
 export type GenerationsTableProps = {
@@ -181,7 +186,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     {
       accessorKey: "name",
       id: "name",
-      header: "name",
+      header: "Name",
       enableSorting: true,
     },
     {
@@ -214,6 +219,27 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableSorting: true,
     },
     {
+      accessorKey: "endTime",
+      id: "endTime",
+      header: "End Time",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "timeToFirstToken",
+      id: "timeToFirstToken",
+      header: "Time to First Token",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const startTime: number = row.getValue("startTime");
+        const value: number | undefined = row.getValue("timeToFirstToken");
+
+        return value !== undefined ? (
+          <span>{value - startTime}</span>
+        ) : undefined;
+      },
+    },
+    {
       accessorKey: "scores",
       id: "scores",
       header: "Scores",
@@ -237,10 +263,54 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableSorting: true,
     },
     {
-      accessorKey: "cost",
-      header: "Cost",
+      accessorKey: "latencyPerToken",
+      id: "latencyPerToken",
+      header: "Latency per Token",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("cost");
+        const latency: number | undefined = row.getValue("latency");
+        const usage: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return latency !== undefined ? (
+          <span>{formatInterval(latency / usage.completionTokens)}</span>
+        ) : undefined;
+      },
+      defaultHidden: true,
+      enableHiding: true,
+    },
+    {
+      accessorKey: "inputCost",
+      header: "Input Cost",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("inputCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "outputCost",
+      header: "Output Cost",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("outputCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "totalCost",
+      header: "Total Cost",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
           <span>{usdFormatter(value)}</span>
@@ -339,6 +409,25 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
       enableSorting: true,
     },
+    {
+      accessorKey: "promptId",
+      id: "promptId",
+      header: "Prompt ID",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value = row.getValue("promptId");
+        const promptName = row.original.promptName;
+        const promptVersion = row.original.promptVersion;
+
+        return typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/prompts/${promptName}?version=${promptVersion}`}
+            value={value}
+          />
+        ) : undefined;
+      },
+    },
   ];
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<GenerationsTableRow>(
@@ -354,8 +443,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           traceName: generation.traceName,
           startTime: generation.startTime.toLocaleString(),
           endTime: generation.endTime?.toLocaleString() ?? undefined,
+          timeToFirstToken:
+            generation.completionStartTime?.toLocaleString() ?? undefined,
           latency: generation.latency === null ? undefined : generation.latency,
-          cost: generation.calculatedTotalCost,
+          totalCost: generation.calculatedTotalCost,
+          inputCost: generation.calculatedInputCost,
+          outputCost: generation.calculatedOutputCost,
           name: generation.name ?? undefined,
           version: generation.version ?? "",
           model: generation.model ?? "",
@@ -372,6 +465,9 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
             completionTokens: generation.completionTokens,
             totalTokens: generation.totalTokens,
           },
+          promptId: generation.promptId ?? undefined,
+          promptName: generation.promptName ?? undefined,
+          promptVersion: generation.promptVersion ?? undefined,
         };
       })
     : [];
