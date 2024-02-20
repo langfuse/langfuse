@@ -10,6 +10,7 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { useState } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoData } from "@/src/features/dashboard/components/NoData";
+import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 
 type BarChartDataPoint = {
   name: string;
@@ -61,10 +62,7 @@ export const UserChart = ({
       projectId,
       from: "traces",
       select: [{ column: "user" }, { column: "traceId", agg: "COUNT" }],
-      filter: globalFilterState.map((f) => ({
-        ...f,
-        column: "timestamp",
-      })),
+      filter: createTracesTimeFilter(globalFilterState),
       groupBy: [
         {
           type: "string",

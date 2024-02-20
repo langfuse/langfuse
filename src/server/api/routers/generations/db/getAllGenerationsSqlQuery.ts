@@ -1,6 +1,6 @@
 import {
   datetimeFilterToPrismaSql,
-  filterToPrismaSql,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@/src/features/filters/server/filterToPrisma";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
@@ -29,9 +29,10 @@ export function getAllGenerationsSqlQuery({
       )`
     : Prisma.empty;
 
-  const filterCondition = filterToPrismaSql(
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
     input.filter,
     observationsTableCols,
+    "observations",
   );
 
   const orderByCondition = orderByToPrismaSql(
@@ -52,7 +53,7 @@ export function getAllGenerationsSqlQuery({
         )
       : Prisma.empty;
 
-  // For exports: use a date cutoff filter to ignore ingested rows
+  // For exports: use a date cutoff filter to ignore newly ingested rows
   const dateCutoffFilter =
     type === "export"
       ? datetimeFilterToPrismaSql("start_time", "<", new Date())
@@ -65,18 +66,7 @@ export function getAllGenerationsSqlQuery({
       : Prisma.empty;
 
   const rawSqlQuery = Prisma.sql`
-      WITH observations_with_latency AS (
-        SELECT
-          o.*,
-          CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
-        FROM observations_view o
-        WHERE o.type = 'GENERATION'
-        AND o.project_id = ${input.projectId}
-        ${datetimeFilter}
-        ${dateCutoffFilter}
-      ),
-      -- used for filtering
-      scores_avg AS (
+      WITH scores_avg AS (
         SELECT
           trace_id,
           observation_id,
@@ -123,12 +113,17 @@ export function getAllGenerationsSqlQuery({
         o.total_price as "totalPrice",
         o.calculated_input_cost as "calculatedInputCost",
         o.calculated_output_cost as "calculatedOutputCost",
-        o.calculated_total_cost as "calculatedTotalCost"
-      FROM observations_with_latency o
-      JOIN traces t ON t.id = o.trace_id
+        o.calculated_total_cost as "calculatedTotalCost",
+        o."latency"
+      FROM observations_view o
+      JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
       WHERE
-        t.project_id = ${input.projectId}
+        o.project_id = ${input.projectId}
+        AND t.project_id = ${input.projectId}
+        AND o.type = 'GENERATION'
+        ${datetimeFilter}
+        ${dateCutoffFilter}
         ${searchCondition}
         ${filterCondition}
         ${orderByCondition}

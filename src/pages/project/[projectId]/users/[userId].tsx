@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import TableLink from "@/src/components/table/table-link";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
@@ -137,6 +137,10 @@ function DetailsTab({ userId, projectId }: TabProps) {
           label: "Total Tokens",
           value: compactNumberFormatter(user.data.totalTokens),
         },
+        {
+          label: "Total Cost",
+          value: usdFormatter(user.data.sumCalculatedTotalCost, 2, 2),
+        },
       ]
     : [];
 
@@ -174,6 +178,7 @@ function DetailsTab({ userId, projectId }: TabProps) {
                         : `/project/${projectId}/traces/${user.data.lastScore.traceId}`
                     }
                     value={user.data.lastScore.traceId}
+                    truncateAt={40}
                   />
                   <GroupedScoreBadges scores={[user.data.lastScore]} />
                 </div>

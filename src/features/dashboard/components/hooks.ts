@@ -10,7 +10,7 @@ export const getAllModels = (
   const allModels = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "observations",
+      from: "traces_observations",
       select: [{ column: "model" }],
       filter: [
         ...globalFilterState,

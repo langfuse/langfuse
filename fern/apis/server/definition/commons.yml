@@ -18,18 +18,33 @@ types:
       public:
         type: optional<boolean>
         docs: Public traces are accessible via url without login
-  TraceWithDetails:
+  TraceWithDetails: # GET /traces
     extends: Trace
     properties:
+      htmlPath:
+        type: string
+        docs: Path of trace in Langfuse UI
+      latency:
+        type: double
+        docs: Latency of trace in seconds
+      totalCost:
+        type: double
+        docs: Cost of trace in USD
       observations:
         type: list<string>
         docs: List of observation ids
       scores:
         type: list<string>
         docs: List of score ids
-  TraceWithFullDetails:
+  TraceWithFullDetails: # GET traces/[traceID]
     extends: Trace
     properties:
+      htmlPath:
+        type: string
+        docs: Path of trace in Langfuse UI
+      totalCost:
+        type: double
+        docs: Cost of trace in USD
       observations: list<ObservationsView>
       scores: list<Score>
   Session:
@@ -72,6 +87,7 @@ types:
       calculatedInputCost: optional<double>
       calculatedOutputCost: optional<double>
       calculatedTotalCost: optional<double>
+      latency: optional<double>
 
   Usage:
     properties:

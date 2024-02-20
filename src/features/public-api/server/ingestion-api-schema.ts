@@ -45,22 +45,20 @@ export const usage = MixedUsage.nullish()
         unit: ModelUsageUnit.Tokens,
       };
     }
-    // if we get the new generic format, we do not set a default
-    if ("input" in v || "output" in v || "total" in v || "unit" in v) {
-      const unit = v.unit;
-      return { ...v, unit };
-    }
 
     // if the object is empty, we return undefined
     if (lodash.isEmpty(v)) {
       return undefined;
     }
+
+    return v;
   })
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
 export const TraceBody = z.object({
   id: z.string().nullish(),
+  timestamp: stringDate,
   name: z.string().nullish(),
   externalId: z.string().nullish(),
   input: jsonSchema.nullish(),
