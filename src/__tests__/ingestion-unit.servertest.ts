@@ -27,7 +27,7 @@ Server has closed the connection.
 /*
 ERROR	Error verifying auth header:  PrismaClientKnownRequestError: 
 Invalid `prisma.apiKey.findUnique()` invocation:
-Timed out fetching a new connection from the connection pool. More info: http://pris.ly/d/connection-pool (Current connection pool timeout: 10, connection limit: 1)
+Timed out fetching a new connection from the connection pool. More info:  (Current connection pool timeout: 10, connection limit: 1)
     at ai.handleRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6775)
     at ai.handleAndLogRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6109)
     at ai.request (/var/task/node_modules/@prisma/client/runtime/library.js:126:5817)
@@ -54,7 +54,7 @@ jest.mock("../server/db.ts", () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(() => {
         throw new Prisma.PrismaClientKnownRequestError(
-          "Timed out fetching a new connection from the connection pool. More info: http://pris.ly/d/connection-pool (Current connection pool timeout: 10, connection limit: 1)",
+          "Timed out fetching a new connection from the connection pool. More info: (Current connection pool timeout: 10, connection limit: 1)",
           {
             code: "P2024",
             clientVersion: "5.9.1",
