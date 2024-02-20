@@ -104,7 +104,7 @@ export default async function handler(
       authCheck,
     );
 
-    handleBatchResult(errors, [], res);
+    handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =
