@@ -6,7 +6,6 @@ import {
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { Prisma } from "@prisma/client";
 
 export type AuthHeaderVerificationResult =
   | {
