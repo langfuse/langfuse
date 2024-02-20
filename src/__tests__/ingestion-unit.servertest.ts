@@ -25,7 +25,7 @@ Server has closed the connection.
   meta: { modelName: 'ApiKey' }
 */
 /*
-2024-02-13T15:20:28.679Z	3524c8bd-25a7-4429-846c-02564a7ae7c4	ERROR	Error verifying auth header:  PrismaClientKnownRequestError: 
+ERROR	Error verifying auth header:  PrismaClientKnownRequestError: 
 Invalid `prisma.apiKey.findUnique()` invocation:
 Timed out fetching a new connection from the connection pool. More info: http://pris.ly/d/connection-pool (Current connection pool timeout: 10, connection limit: 1)
     at ai.handleRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6775)
