@@ -116,7 +116,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
             </div>
           </div>
 
-          {prompt.config && Object.keys(prompt.config).length > 0 && (
+          {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
         </div>
