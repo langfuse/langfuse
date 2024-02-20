@@ -64,7 +64,13 @@ export default async function handler(
       handleBatchResultLegacy(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError ||
+        error instanceof Prisma.PrismaClientUnknownRequestError ||
+        error instanceof Prisma.PrismaClientRustPanicError ||
+        error instanceof Prisma.PrismaClientInitializationError ||
+        error instanceof Prisma.PrismaClientValidationError
+      ) {
         return res.status(500).json({
           message: "Error processing events",
           error: "Internal Server Error",
