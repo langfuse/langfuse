@@ -3,7 +3,7 @@
 import { createMocks } from "node-mocks-http";
 import handler from "@/src/pages/api/public/ingestion";
 import { type NextApiResponse, type NextApiRequest } from "next";
-import { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 /*
 
@@ -23,7 +23,24 @@ Server has closed the connection.
   code: 'P1017',
   clientVersion: '5.9.1',
   meta: { modelName: 'ApiKey' }
-
+*/
+/*
+2024-02-13T15:20:28.679Z	3524c8bd-25a7-4429-846c-02564a7ae7c4	ERROR	Error verifying auth header:  PrismaClientKnownRequestError: 
+Invalid `prisma.apiKey.findUnique()` invocation:
+Timed out fetching a new connection from the connection pool. More info: http://pris.ly/d/connection-pool (Current connection pool timeout: 10, connection limit: 1)
+    at ai.handleRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6775)
+    at ai.handleAndLogRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6109)
+    at ai.request (/var/task/node_modules/@prisma/client/runtime/library.js:126:5817)
+    at async l (/var/task/node_modules/@prisma/client/runtime/library.js:131:9709)
+    at async l (/var/task/.next/server/chunks/5811.js:1:9768)
+    at async y (/var/task/.next/server/pages/api/public/spans.js:1:1018)
+    at async /var/task/node_modules/@sentry/nextjs/cjs/common/wrapApiHandlerWithSentry.js:136:41
+    at async K (/var/task/node_modules/next/dist/compiled/next-server/pages-api.runtime.prod.js:20:16545)
+    at async U.render (/var/task/node_modules/next/dist/compiled/next-server/pages-api.runtime.prod.js:20:16981)
+    at async r3.runApi (/var/task/node_modules/next/dist/compiled/next-server/server.runtime.prod.js:17:41752) {
+  code: 'P2024',
+  clientVersion: '5.9.1',
+  meta: { modelName: 'ApiKey', connection_limit: 1, timeout: 10 }
 */
 
 jest.mock("../server/db.ts", () => {
@@ -37,14 +54,26 @@ jest.mock("../server/db.ts", () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(() => {
         throw new Prisma.PrismaClientKnownRequestError(
-          "Server has closed the connection.",
+          "Timed out fetching a new connection from the connection pool. More info: http://pris.ly/d/connection-pool (Current connection pool timeout: 10, connection limit: 1)",
           {
-            code: "P1017",
+            code: "P2024",
             clientVersion: "5.9.1",
-            meta: { modelName: "ApiKey" },
+            meta: { modelName: "ApiKey", connection_limit: 1, timeout: 10 },
           },
         );
       }),
+      findUniqueOrThrow: jest.fn(),
+      findFirstOrThrow: jest.fn(),
+      create: jest.fn(),
+      createMany: jest.fn(),
+      delete: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
+      count: jest.fn(),
+      aggregate: jest.fn(),
+      groupBy: jest.fn(),
     },
   };
 
@@ -57,9 +86,7 @@ jest.mock("../server/db.ts", () => {
 });
 
 describe("/api/public/ingestion API Endpoint", () => {
-  // beforeEach(async () => await pruneDatabase());
-
-  it("should fail for prisma exception", async () => {
+  it(`should return 500 for prisma exception`, async () => {
     const { req, res } = createMocks({
       method: "POST",
       headers: {
