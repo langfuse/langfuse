@@ -3,7 +3,7 @@
 import { createMocks } from "node-mocks-http";
 import handler from "@/src/pages/api/public/ingestion";
 import { type NextApiResponse, type NextApiRequest } from "next";
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 /*
 
@@ -92,9 +92,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       headers: {
         authorization: "Bearer mock-token",
       },
-      body: {
-        // ... your mock request body
-      },
+      body: {},
     });
 
     // Extend the req object to include the missing env property
