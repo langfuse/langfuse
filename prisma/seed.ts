@@ -267,6 +267,7 @@ async function main() {
           ] as string,
           metadata: {
             user: `user-${i}@langfuse.com`,
+            more: "1,2,3;4?6",
           },
           tags: tags as string[],
           project: {
