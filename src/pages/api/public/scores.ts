@@ -135,7 +135,7 @@ export default async function handler(
     } catch (error: unknown) {
       console.error(error);
       if (isPrismaException(error)) {
-        return res.status(500).json({
+        return res.status(400).json({
           message: "Error processing events",
           error: "Internal Server Error",
         });

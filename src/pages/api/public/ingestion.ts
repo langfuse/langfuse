@@ -117,7 +117,7 @@ export default async function handler(
     console.error(error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(500).json({
+    res.status(400).json({
       message: "Invalid request data",
       errors: [errorMessage],
     });

@@ -14,7 +14,6 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-prisma.apiKey.fields;
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
