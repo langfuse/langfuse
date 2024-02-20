@@ -25,7 +25,6 @@ import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
-import { Redis } from "ioredis";
 import * as Sentry from "@sentry/nextjs";
 
 export const config = {
@@ -35,11 +34,6 @@ export const config = {
     },
   },
 };
-
-const redis = new Redis({
-  host: "127.0.0.1",
-  port: 6379,
-});
 
 export default async function handler(
   req: NextApiRequest,
@@ -102,19 +96,13 @@ export default async function handler(
 
     await telemetry();
 
-    const publishPriomises = filteredBatch.map(async (event) => {
-      console.log("event", JSON.stringify(event, null, 2));
-      return await redis.publish("ingestion", JSON.stringify(event));
-    });
-
-    await Promise.all(publishPriomises);
-
-    // const result = await handleBatch(
-    //   sortedBatch,
-    //   parsedSchema.data.metadata,
-    //   req,
-    //   authCheck,
-    // );
+    const sortedBatch = sortBatch(filteredBatch);
+    const result = await handleBatch(
+      sortedBatch,
+      parsedSchema.data.metadata,
+      req,
+      authCheck,
+    );
 
     handleBatchResult(errors, [], res);
   } catch (error: unknown) {
@@ -127,6 +115,22 @@ export default async function handler(
     });
   }
 }
+
+const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
+  // keep the order of events as they are. Order events in a way that types containing updates come last
+  // Filter out OBSERVATION_UPDATE events
+  const updates = batch.filter(
+    (event) => event.type === eventTypes.OBSERVATION_UPDATE,
+  );
+
+  // Keep all other events in their original order
+  const others = batch.filter(
+    (event) => event.type !== eventTypes.OBSERVATION_UPDATE,
+  );
+
+  // Return the array with non-update events first, followed by update events
+  return [...others, ...updates];
+};
 
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
