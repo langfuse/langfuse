@@ -252,6 +252,7 @@ export type Prompt = {
     name: string;
     version: number;
     is_active: boolean;
+    config: Generated<unknown>;
 };
 export type Score = {
     id: string;

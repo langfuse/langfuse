@@ -23,8 +23,8 @@ export const datasetRouter = createTRPCRouter({
         .select(({ eb }) => [
           "datasets.id",
           "datasets.name",
-          "datasets.created_at",
-          "datasets.updated_at",
+          "datasets.created_at as createdAt",
+          "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
           eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
           eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
@@ -36,11 +36,11 @@ export const datasetRouter = createTRPCRouter({
           "datasets.created_at",
           "datasets.updated_at",
         ])
-        .orderBy("created_at", "desc");
+        .orderBy("datasets.created_at", "desc");
 
       const compiledQuery = query.compile();
 
-      return await ctx.prisma.$queryRaw<
+      return await ctx.prisma.$queryRawUnsafe<
         Array<
           Dataset & {
             countDatasetItems: number;
@@ -48,7 +48,7 @@ export const datasetRouter = createTRPCRouter({
             lastRunAt: Date | null;
           }
         >
-      >(Prisma.sql`${compiledQuery.sql}`, ...compiledQuery.parameters);
+      >(compiledQuery.sql, ...compiledQuery.parameters);
     }),
   byId: protectedProjectProcedure
     .input(
