@@ -23,6 +23,8 @@ export const getAllQuery = protectedProjectProcedure
         traceId: string;
         traceName: string;
         latency: number | null;
+        promptName: string | null;
+        promptVersion: string | null;
       })[]
     >(rawSqlQuery);
 
