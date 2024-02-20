@@ -29,8 +29,11 @@ types:
       name: string
       isActive: boolean
       prompt: string
+      config: optional<unknown>
+
   Prompt:
     properties:
       name: string
       version: integer
       prompt: string
+      config: unknown
