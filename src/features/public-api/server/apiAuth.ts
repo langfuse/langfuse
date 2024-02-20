@@ -5,6 +5,8 @@ import {
 } from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
+import { Prisma } from "@prisma/client";
+import { type NextApiResponse } from "next";
 
 export type AuthHeaderVerificationResult =
   | {
@@ -18,6 +20,7 @@ export type AuthHeaderVerificationResult =
 
 export async function verifyAuthHeaderAndReturnScope(
   authHeader: string | undefined,
+  res: NextApiResponse,
 ): Promise<AuthHeaderVerificationResult> {
   if (!authHeader) {
     console.error("No authorization header");
@@ -89,6 +92,11 @@ export async function verifyAuthHeaderAndReturnScope(
     }
   } catch (error: unknown) {
     console.error("Error verifying auth header: ", error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      throw error;
+    }
+
     return {
       validKey: false,
       error:

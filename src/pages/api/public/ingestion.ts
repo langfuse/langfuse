@@ -26,6 +26,7 @@ import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
+import { Prisma } from "@prisma/client";
 
 export const config = {
   api: {
@@ -49,6 +50,7 @@ export default async function handler(
     // CHECK AUTH FOR ALL EVENTS
     const authCheck = await verifyAuthHeaderAndReturnScope(
       req.headers.authorization,
+      res,
     );
 
     if (!authCheck.validKey)
@@ -106,10 +108,17 @@ export default async function handler(
 
     handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(500).json({
+        message: "Error processing events",
+        error: "Internal Server Error",
+      });
+    }
+
     console.error(error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(400).json({
+    res.status(500).json({
       message: "Invalid request data",
       errors: [errorMessage],
     });

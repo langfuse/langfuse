@@ -4,6 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
+import { Prisma } from "@prisma/client";
 
 const GetObservationSchema = z.object({
   observationId: z.string(),
@@ -20,17 +21,17 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  // CHECK AUTH
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  // END CHECK AUTH
-
   try {
+    // CHECK AUTH
+    const authCheck = await verifyAuthHeaderAndReturnScope(
+      req.headers.authorization,
+      res,
+    );
+    if (!authCheck.validKey)
+      return res.status(401).json({
+        message: authCheck.error,
+      });
+    // END CHECK AUTH
     console.log("Trying to get observation:", req.body, req.query);
 
     const { observationId } = GetObservationSchema.parse(req.query);
@@ -58,6 +59,12 @@ export default async function handler(
     return res.status(200).json(mapUsageOutput(observation));
   } catch (error: unknown) {
     console.error(error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(500).json({
+        message: "Error processing events",
+        error: "Internal Server Error",
+      });
+    }
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({

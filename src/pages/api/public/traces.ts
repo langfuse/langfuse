@@ -44,6 +44,7 @@ export default async function handler(
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
     req.headers.authorization,
+    res,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -162,6 +163,12 @@ export default async function handler(
     }
   } catch (error: unknown) {
     console.error(error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(500).json({
+        message: "Error processing events",
+        errors: ["Internal Server Error"],
+      });
+    }
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({

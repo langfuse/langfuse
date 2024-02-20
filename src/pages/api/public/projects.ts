@@ -1,6 +1,7 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
+import { Prisma } from "@prisma/client";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -13,6 +14,7 @@ export default async function handler(
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
     req.headers.authorization,
+    res,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -36,6 +38,12 @@ export default async function handler(
       });
     } catch (error) {
       console.error(error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        return res.status(500).json({
+          message: "Error processing events",
+          error: "Internal Server Error",
+        });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   } else {

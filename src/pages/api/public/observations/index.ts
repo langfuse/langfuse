@@ -31,17 +31,17 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  // CHECK AUTH
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  // END CHECK AUTH
-
   try {
+    // CHECK AUTH
+    const authCheck = await verifyAuthHeaderAndReturnScope(
+      req.headers.authorization,
+      res,
+    );
+    if (!authCheck.validKey)
+      return res.status(401).json({
+        message: authCheck.error,
+      });
+    // END CHECK AUTH
     console.log(
       "trying to get observations, project ",
       authCheck.scope.projectId,
@@ -75,6 +75,12 @@ export default async function handler(
     });
   } catch (error: unknown) {
     console.error(error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(500).json({
+        message: "Error processing events",
+        error: "Internal Server Error",
+      });
+    }
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({

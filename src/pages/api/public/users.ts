@@ -4,6 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@/src/utils/zod";
+import { Prisma } from "@prisma/client";
 
 const GetUsersSchema = z.object({
   ...paginationZod,
@@ -18,6 +19,7 @@ export default async function handler(
   // CHECK AUTH
   const authCheck = await verifyAuthHeaderAndReturnScope(
     req.headers.authorization,
+    res,
   );
   if (!authCheck.validKey)
     return res.status(401).json({
@@ -118,10 +120,16 @@ export default async function handler(
       return res.status(405).json({ message: "Method not allowed" });
     }
   } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(500).json({
+        message: "Error processing events",
+        errors: ["Internal Server Error"],
+      });
+    }
     console.error(error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(400).json({
+    res.status(500).json({
       message: "Invalid request data",
       error: errorMessage,
     });

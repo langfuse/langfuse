@@ -3,6 +3,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { jsonSchema } from "@/src/utils/zod";
+import { Prisma } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -28,6 +29,7 @@ export default async function handler(
     // CHECK AUTH
     const authCheck = await verifyAuthHeaderAndReturnScope(
       req.headers.authorization,
+      res,
     );
     if (!authCheck.validKey)
       return res.status(401).json({
@@ -72,6 +74,12 @@ export default async function handler(
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        return res.status(500).json({
+          message: "Error processing events",
+          error: "Internal Server Error",
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
@@ -83,6 +91,7 @@ export default async function handler(
     // CHECK AUTH
     const authCheck = await verifyAuthHeaderAndReturnScope(
       req.headers.authorization,
+      res,
     );
     if (!authCheck.validKey)
       return res.status(401).json({
@@ -120,9 +129,15 @@ export default async function handler(
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        return res.status(500).json({
+          message: "Error processing events",
+          error: "Internal Server Error",
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(400).json({
+      res.status(500).json({
         message: "Invalid request data",
         error: errorMessage,
       });
