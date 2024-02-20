@@ -19,6 +19,7 @@ interface BaseDatasetFormProps {
   mode: "create" | "rename";
   projectId: string;
   onFormSuccess?: () => void;
+  className?: string;
 }
 
 interface CreateDatasetFormProps extends BaseDatasetFormProps {
@@ -27,7 +28,7 @@ interface CreateDatasetFormProps extends BaseDatasetFormProps {
 
 interface RenameDatasetFormProps extends BaseDatasetFormProps {
   mode: "rename";
-  datasetId: string; // Make datasetId non-optional for 'rename' mode
+  datasetId: string;
   datasetName: string;
 }
 
@@ -37,9 +38,6 @@ const formSchema = z.object({
   name: z
     .string()
     .min(1, { message: "Input is required" })
-    .refine((name) => name.trim() === name, {
-      message: "Input should not have leading or trailing whitespace",
-    })
     .refine((name) => name.trim().length > 0, {
       message: "Input should not be only whitespace",
     }),
@@ -56,52 +54,45 @@ export const DatasetForm = (props: DatasetFormProps) => {
   });
 
   const utils = api.useUtils();
-  const createMutation = api.datasets.createDataset.useMutation({
-    onSuccess: () => {
-      void utils.datasets.invalidate();
-      props.onFormSuccess?.();
-      form.reset();
-    },
-    onError: (error) => setFormError(error.message),
-  });
-
-  const renameMutation = api.datasets.renameDataset.useMutation({
-    onSuccess: () => {
-      void utils.datasets.invalidate();
-      props.onFormSuccess?.();
-      form.reset();
-    },
-    onError: (error) => setFormError(error.message),
-  });
+  const createMutation = api.datasets.createDataset.useMutation();
+  const renameMutation = api.datasets.updateDataset.useMutation();
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const trimmedValues = {
+      ...values,
+      name: values.name.trim(),
+    };
     if (props.mode === "create") {
       posthog.capture("datasets:new_dataset_form_submit");
       createMutation
         .mutateAsync({
-          ...values,
+          ...trimmedValues,
           projectId: props.projectId,
         })
         .then(() => {
+          void utils.datasets.invalidate();
           props.onFormSuccess?.();
           form.reset();
         })
         .catch((error: Error) => {
+          setFormError(error.message);
           console.error(error);
         });
     } else if (props.datasetId) {
       posthog.capture("datasets:rename_dataset_form_submit");
       renameMutation
         .mutateAsync({
-          ...values,
+          ...trimmedValues,
           projectId: props.projectId,
           datasetId: props.datasetId,
         })
         .then(() => {
+          void utils.datasets.invalidate();
           props.onFormSuccess?.();
           form.reset();
         })
         .catch((error: Error) => {
+          setFormError(error.message);
           console.error(error);
         });
     }
