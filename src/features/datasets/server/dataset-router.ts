@@ -7,6 +7,7 @@ import {
 import { type DatasetRuns, Prisma, type Dataset } from "@prisma/client";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { DB } from "@/src/server/db";
 
 export const datasetRouter = createTRPCRouter({
   allDatasets: protectedProjectProcedure
@@ -16,7 +17,30 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.$queryRaw<
+      const query = DB.selectFrom("datasets")
+        .leftJoin("dataset_items", "datasets.id", "dataset_items.dataset_id")
+        .leftJoin("dataset_runs", "datasets.id", "dataset_runs.dataset_id")
+        .select(({ eb }) => [
+          "datasets.id",
+          "datasets.name",
+          "datasets.created_at as createdAt",
+          "datasets.updated_at as updatedAt",
+          eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
+          eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
+          eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
+        ])
+        .where("datasets.project_id", "=", input.projectId)
+        .groupBy([
+          "datasets.id",
+          "datasets.name",
+          "datasets.created_at",
+          "datasets.updated_at",
+        ])
+        .orderBy("datasets.created_at", "desc");
+
+      const compiledQuery = query.compile();
+
+      return await ctx.prisma.$queryRawUnsafe<
         Array<
           Dataset & {
             countDatasetItems: number;
@@ -24,22 +48,7 @@ export const datasetRouter = createTRPCRouter({
             lastRunAt: Date | null;
           }
         >
-      >(Prisma.sql`
-        SELECT
-          d.id,
-          d.name,
-          d.created_at "createdAt",
-          d.updated_at "updatedAt",
-          count(distinct di.id)::int "countDatasetItems",
-          count(distinct dr.id)::int "countDatasetRuns",
-          max(dr.created_at) "lastRunAt"
-        FROM datasets d
-        LEFT JOIN dataset_items di ON di.dataset_id = d.id
-        LEFT JOIN dataset_runs dr ON dr.dataset_id = d.id
-        WHERE d.project_id = ${input.projectId}
-        GROUP BY 1,2,3,4
-        ORDER BY d.created_at DESC
-      `);
+      >(compiledQuery.sql, ...compiledQuery.parameters);
     }),
   byId: protectedProjectProcedure
     .input(

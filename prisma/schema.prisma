@@ -21,6 +21,17 @@ generator erd {
     output       = "database.svg"
 }
 
+generator kysely {
+    provider = "prisma-kysely"
+
+    // Optionally provide a destination directory for the generated file
+    // and a filename of your choice
+    // output = "../src/db"
+    // fileName = "types.ts"
+    // Optionally generate runtime enums to a separate file
+    // enumFileName = "enums.ts"
+}
+
 model Example {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now()) @map("created_at")
@@ -421,6 +432,7 @@ model Prompt {
     name        String
     version     Int
     isActive    Boolean       @map("is_active")
+    config      Json          @default("{}")
     Observation Observation[]
 
     @@unique([projectId, name, version])

@@ -15,6 +15,7 @@ import {
   FormControl,
   FormMessage,
   Form,
+  FormDescription,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +30,8 @@ import { Badge } from "@/src/components/ui/badge";
 import router from "next/router";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { type AutoCompleteOption } from "@/src/features/prompts/components/auto-complete";
+import JsonView from "react18-json-view";
+import { jsonSchema } from "@/src/utils/zod";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -36,6 +39,7 @@ export const CreatePromptDialog = (props: {
   promptName?: string;
   promptText?: string;
   subtitle?: string;
+  promptConfig?: z.infer<typeof jsonSchema>;
   children?: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
@@ -48,7 +52,7 @@ export const CreatePromptDialog = (props: {
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{props.children}</DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="max-h-screen overflow-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="mb-5">
             {props.title}
@@ -61,6 +65,7 @@ export const CreatePromptDialog = (props: {
           projectId={props.projectId}
           promptName={props.promptName}
           promptText={props.promptText}
+          promptConfig={props.promptConfig}
           onFormSuccess={() => setOpen(false)}
         />
       </DialogContent>
@@ -87,6 +92,20 @@ const formSchema = z.object({
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
+  // string as we keep the state in string to avoid recursive zod parsing issues
+  config: z.string().refine(
+    (value) => {
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+    {
+      message: "Config needs to be valid JSON",
+    },
+  ),
 });
 
 export const NewPromptForm = (props: {
@@ -94,6 +113,7 @@ export const NewPromptForm = (props: {
   onFormSuccess?: () => void;
   promptName?: string;
   promptText?: string;
+  promptConfig?: z.infer<typeof jsonSchema>;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -105,6 +125,7 @@ export const NewPromptForm = (props: {
       isActive: false,
       name: props.promptName ?? "",
       prompt: props.promptText ?? "",
+      config: props.promptConfig ? JSON.stringify(props.promptConfig) : "{}",
     },
   });
 
@@ -148,6 +169,9 @@ export const NewPromptForm = (props: {
         name: values.name,
         prompt: values.prompt,
         isActive: values.isActive,
+        // we keep the config in state as string. need to convert it to JSON before sending it to the API
+        // zod parsing necessary to align with TRPC schema
+        config: jsonSchema.parse(JSON.parse(values.config)),
       })
       .then((newPrompt) => {
         props.onFormSuccess?.();
@@ -227,6 +251,30 @@ export const NewPromptForm = (props: {
                 ))}
               </div>
             </>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="config"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Config</FormLabel>
+              <JsonView
+                // need to convert string in state to JSON for the JSONView component
+                src={jsonSchema.parse(JSON.parse(field.value))}
+                onEdit={(edit) => {
+                  // need to put string back into the state
+                  field.onChange(JSON.stringify(edit.src));
+                }}
+                editable
+                className="rounded-md border border-gray-200 p-2 text-sm"
+              />
+              <FormDescription>
+                Track configs for LLM API calls such as function definitions or
+                LLM parameters.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
           )}
         />
         <FormField
