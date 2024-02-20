@@ -1,0 +1,81 @@
+/** @jest-environment node */
+
+import { createMocks } from "node-mocks-http";
+import handler from "@/src/pages/api/public/ingestion";
+import { type NextApiResponse, type NextApiRequest } from "next";
+import { Prisma } from "@prisma/client";
+
+/*
+
+ERROR	Error verifying auth header:  PrismaClientKnownRequestError: 
+Invalid `prisma.apiKey.findUnique()` invocation:
+Server has closed the connection.
+    at ai.handleRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6775)
+    at ai.handleAndLogRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6109)
+    at ai.request (/var/task/node_modules/@prisma/client/runtime/library.js:126:5817)
+    at async l (/var/task/node_modules/@prisma/client/runtime/library.js:131:9709)
+    at async d (/var/task/.next/server/chunks/5811.js:1:9768)
+    at async f (/var/task/.next/server/pages/api/public/generations.js:1:1026)
+    at async /var/task/node_modules/@sentry/nextjs/cjs/common/wrapApiHandlerWithSentry.js:136:41
+    at async K (/var/task/node_modules/next/dist/compiled/next-server/pages-api.runtime.prod.js:20:16545)
+    at async U.render (/var/task/node_modules/next/dist/compiled/next-server/pages-api.runtime.prod.js:20:16981)
+    at async r3.runApi (/var/task/node_modules/next/dist/compiled/next-server/server.runtime.prod.js:17:41752) {
+  code: 'P1017',
+  clientVersion: '5.9.1',
+  meta: { modelName: 'ApiKey' }
+
+*/
+
+jest.mock("../server/db.ts", () => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const originalModule = jest.requireActual("../server/db.ts");
+
+  // Create a mock for PrismaClient
+  const mockPrismaClient = {
+    apiKey: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(() => {
+        throw new Prisma.PrismaClientKnownRequestError(
+          "Server has closed the connection.",
+          {
+            code: "P1017",
+            clientVersion: "5.9.1",
+            meta: { modelName: "ApiKey" },
+          },
+        );
+      }),
+    },
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return {
+    __esModule: true,
+    ...originalModule,
+    prisma: mockPrismaClient,
+  };
+});
+
+describe("/api/public/ingestion API Endpoint", () => {
+  // beforeEach(async () => await pruneDatabase());
+
+  it("should fail for prisma exception", async () => {
+    const { req, res } = createMocks({
+      method: "POST",
+      headers: {
+        authorization: "Bearer mock-token",
+      },
+      body: {
+        // ... your mock request body
+      },
+    });
+
+    // Extend the req object to include the missing env property
+    const extendedReq = req as unknown as NextApiRequest;
+    // Cast the res object to NextApiResponse to satisfy the type requirement
+    const extendedRes = res as unknown as NextApiResponse;
+
+    await handler(extendedReq, extendedRes);
+    expect(res._getStatusCode()).toBe(500);
+  });
+});
