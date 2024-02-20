@@ -12,7 +12,7 @@ import {
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
-import { Prisma } from "@prisma/client";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 export default async function handler(
   req: NextApiRequest,
@@ -67,7 +67,7 @@ export default async function handler(
     handleBatchResultLegacy(result.errors, result.results, res);
   } catch (error: unknown) {
     console.error(error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaException(error)) {
       return res.status(500).json({
         message: "Error processing events",
         error: "Internal Server Error",

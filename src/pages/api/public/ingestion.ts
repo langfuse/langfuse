@@ -26,7 +26,7 @@ import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
-import { Prisma } from "@prisma/client";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 export const config = {
   api: {
@@ -107,7 +107,7 @@ export default async function handler(
 
     handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaException(error)) {
       return res.status(500).json({
         message: "Error processing events",
         error: "Internal Server Error",

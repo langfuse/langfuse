@@ -18,6 +18,7 @@ import { telemetry } from "@/src/features/telemetry";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
 import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
@@ -162,7 +163,7 @@ export default async function handler(
     }
   } catch (error: unknown) {
     console.error(error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaException(error)) {
       return res.status(500).json({
         message: "Error processing events",
         errors: ["Internal Server Error"],

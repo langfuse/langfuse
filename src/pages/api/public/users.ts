@@ -4,7 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@/src/utils/zod";
-import { Prisma } from "@prisma/client";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetUsersSchema = z.object({
   ...paginationZod,
@@ -119,7 +119,7 @@ export default async function handler(
       return res.status(405).json({ message: "Method not allowed" });
     }
   } catch (error: unknown) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaException(error)) {
       return res.status(500).json({
         message: "Error processing events",
         errors: ["Internal Server Error"],

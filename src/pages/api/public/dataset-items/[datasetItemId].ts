@@ -3,7 +3,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { Prisma } from "@prisma/client";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetDatasetItemQuerySchema = z.object({
   datasetItemId: z.string(),
@@ -66,7 +66,7 @@ export default async function handler(
     }
   } catch (error: unknown) {
     console.error(error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaException(error)) {
       return res.status(500).json({
         message: "Error processing events",
         error: "Internal Server Error",

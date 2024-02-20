@@ -3,7 +3,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { jsonSchema } from "@/src/utils/zod";
-import { Prisma } from "@prisma/client";
+import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -73,7 +73,7 @@ export default async function handler(
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (isPrismaException(error)) {
         return res.status(500).json({
           message: "Error processing events",
           error: "Internal Server Error",
@@ -127,7 +127,7 @@ export default async function handler(
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (isPrismaException(error)) {
         return res.status(500).json({
           message: "Error processing events",
           error: "Internal Server Error",

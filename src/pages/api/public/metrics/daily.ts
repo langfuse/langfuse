@@ -5,6 +5,7 @@ import { prisma } from "@/src/server/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetUsageSchema = z.object({
   ...paginationZod,
@@ -149,7 +150,7 @@ export default async function handler(
     }
   } catch (error: unknown) {
     console.error(error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaException(error)) {
       return res.status(500).json({
         message: "Error processing events",
         error: "Internal Server Error",

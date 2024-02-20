@@ -15,6 +15,7 @@ import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 const ScoresGetSchema = z.object({
   ...paginationZod,
@@ -139,7 +140,7 @@ export default async function handler(
       });
     } catch (error: unknown) {
       console.error(error);
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (isPrismaException(error)) {
         return res.status(500).json({
           message: "Error processing events",
           error: "Internal Server Error",
