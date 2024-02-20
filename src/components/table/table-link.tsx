@@ -17,7 +17,7 @@ export default function TableLink({
       href={path}
       title={value}
     >
-      {value.length > truncateAt
+      {value.length - truncateAt > 3
         ? `...${value.substring(value.length - truncateAt)}`
         : value}
     </Link>

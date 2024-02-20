@@ -387,6 +387,81 @@ paths:
                     $ref: '#/components/schemas/IngestionEvent'
               required:
                 - batch
+  /api/public/metrics/daily:
+    get:
+      description: Get daily metrics of the Langfuse project
+      operationId: metrics_daily
+      tags:
+        - Metrics
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: traceName
+          in: query
+          description: Optional filter by the name of the trace
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: userId
+          in: query
+          description: Optional filter by the userId associated with the trace
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: tags
+          in: query
+          description: Optional filter for metrics where traces include all of these tags
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMetrics'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/observations/{observationId}:
     get:
       description: Get a specific observation
@@ -1035,7 +1110,7 @@ components:
         totalCost:
           type: number
           format: double
-          description: Cost of trace in USD.
+          description: Cost of trace in USD
         observations:
           type: array
           items:
@@ -1058,6 +1133,13 @@ components:
       title: TraceWithFullDetails
       type: object
       properties:
+        htmlPath:
+          type: string
+          description: Path of trace in Langfuse UI
+        totalCost:
+          type: number
+          format: double
+          description: Cost of trace in USD
         observations:
           type: array
           items:
@@ -1067,6 +1149,8 @@ components:
           items:
             $ref: '#/components/schemas/Score'
       required:
+        - htmlPath
+        - totalCost
         - observations
         - scores
       allOf:
@@ -2000,6 +2084,60 @@ components:
       required:
         - successes
         - errors
+    DailyMetrics:
+      title: DailyMetrics
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyMetricsDetails'
+          description: A list of daily metrics, only days with ingested data are included.
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    DailyMetricsDetails:
+      title: DailyMetricsDetails
+      type: object
+      properties:
+        date:
+          type: string
+        countTraces:
+          type: integer
+        totalCost:
+          type: number
+          format: double
+        usage:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageByModel'
+      required:
+        - date
+        - countTraces
+        - totalCost
+        - usage
+    UsageByModel:
+      title: UsageByModel
+      type: object
+      description: >-
+        Daily usage of a given model. Usage corresponds to the unit set for the
+        specific model (e.g. tokens).
+      properties:
+        model:
+          type: string
+        inputUsage:
+          type: integer
+        outputUsage:
+          type: integer
+        totalUsage:
+          type: integer
+      required:
+        - model
+        - inputUsage
+        - outputUsage
+        - totalUsage
     Observations:
       title: Observations
       type: object
