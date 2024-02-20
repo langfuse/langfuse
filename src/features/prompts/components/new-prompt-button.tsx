@@ -31,6 +31,7 @@ import router from "next/router";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { type AutoCompleteOption } from "@/src/features/prompts/components/auto-complete";
 import JsonView from "react18-json-view";
+import { jsonSchema } from "@/src/utils/zod";
 
 export const CreatePromptDialog = (props: {
   projectId: string;
@@ -38,7 +39,7 @@ export const CreatePromptDialog = (props: {
   promptName?: string;
   promptText?: string;
   subtitle?: string;
-  promptConfig?: { [x: string]: unknown };
+  promptConfig?: z.infer<typeof jsonSchema>;
   children?: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
@@ -91,10 +92,11 @@ const formSchema = z.object({
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
-  config: z.record(z.unknown()).refine(
+  // string as we keep the state in string to avoid recursive zod parsing issues
+  config: z.string().refine(
     (value) => {
       try {
-        JSON.stringify(value);
+        JSON.parse(value);
         return true;
       } catch (e) {
         return false;
@@ -111,7 +113,7 @@ export const NewPromptForm = (props: {
   onFormSuccess?: () => void;
   promptName?: string;
   promptText?: string;
-  promptConfig?: { [x: string]: unknown };
+  promptConfig?: z.infer<typeof jsonSchema>;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -123,7 +125,7 @@ export const NewPromptForm = (props: {
       isActive: false,
       name: props.promptName ?? "",
       prompt: props.promptText ?? "",
-      config: props.promptConfig ?? {},
+      config: props.promptConfig ? JSON.stringify(props.promptConfig) : "{}",
     },
   });
 
@@ -167,7 +169,9 @@ export const NewPromptForm = (props: {
         name: values.name,
         prompt: values.prompt,
         isActive: values.isActive,
-        config: values.config,
+        // we keep the conig in state as string. need to convert it to JSON before sending it to the API
+        // zod parsing necessary to align with TRPC schema
+        config: jsonSchema.parse(JSON.parse(values.config)),
       })
       .then((newPrompt) => {
         props.onFormSuccess?.();
@@ -256,9 +260,11 @@ export const NewPromptForm = (props: {
             <FormItem>
               <FormLabel>Config</FormLabel>
               <JsonView
-                src={field.value}
+                // need to convert string in state to JSON for the JSONView component
+                src={jsonSchema.parse(JSON.parse(field.value))}
                 onEdit={(edit) => {
-                  field.onChange(edit.src);
+                  // need to put string back into the state
+                  field.onChange(JSON.stringify(edit.src));
                 }}
                 editable
                 className="rounded-md border border-gray-200 p-2 text-sm"

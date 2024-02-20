@@ -16,6 +16,7 @@ import { useQueryParam, NumberParam } from "use-query-params";
 import router from "next/router";
 import { JSONView } from "@/src/components/ui/code";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
+import { jsonSchema } from "@/src/utils/zod";
 
 export type PromptDetailProps = {
   projectId: string;
@@ -74,7 +75,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
                   subtitle="We do not update prompts, instead we create a new version of the prompt."
                   promptName={prompt.name}
                   promptText={prompt.prompt}
-                  promptConfig={prompt.config as { [x: string]: unknown }}
+                  promptConfig={jsonSchema.parse(prompt.config)}
                 >
                   <Button variant="outline" size="icon">
                     <Pencil className="h-5 w-5" />

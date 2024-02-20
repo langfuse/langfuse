@@ -14,19 +14,7 @@ export const CreatePrompt = z.object({
   name: z.string(),
   isActive: z.boolean(),
   prompt: z.string(),
-  config: z.record(z.unknown()).refine(
-    (value) => {
-      try {
-        JSON.stringify(value);
-        return true;
-      } catch (e) {
-        return false;
-      }
-    },
-    {
-      message: "Config needs to be a valid object",
-    },
-  ),
+  config: jsonSchema,
 });
 
 export const promptRouter = createTRPCRouter({
