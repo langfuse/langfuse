@@ -67,9 +67,17 @@ export default async function handler(
       },
     });
 
-    return res
-      .status(200)
-      .json({ ...trace, observations: observations.map(mapUsageOutput) });
+    const outObservations = observations.map(mapUsageOutput);
+
+    return res.status(200).json({
+      ...trace,
+      htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
+      totalCost: outObservations.reduce(
+        (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
+        0,
+      ),
+      observations: outObservations,
+    });
   } catch (error: unknown) {
     console.error(error);
     const errorMessage =

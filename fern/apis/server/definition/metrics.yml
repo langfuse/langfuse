@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    daily:
+      docs: Get daily metrics of the Langfuse project
+      method: GET
+      path: /metrics/daily
+      request:
+        name: GetDailyMetricsRequest
+        query-parameters:
+          page: optional<integer>
+          limit: optional<integer>
+          traceName:
+            type: optional<string>
+            docs: Optional filter by the name of the trace
+          userId:
+            type: optional<string>
+            docs: Optional filter by the userId associated with the trace
+          tags:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for metrics where traces include all of these tags
+      response: DailyMetrics
+types:
+  DailyMetrics:
+    properties:
+      data:
+        type: list<DailyMetricsDetails>
+        docs: A list of daily metrics, only days with ingested data are included.
+      meta: pagination.MetaResponse
+  DailyMetricsDetails:
+    properties:
+      date: date
+      countTraces: integer
+      totalCost: double
+      usage: list<UsageByModel>
+  UsageByModel:
+    docs: Daily usage of a given model. Usage corresponds to the unit set for the specific model (e.g. tokens).
+    properties:
+      model: string
+      inputUsage: integer
+      outputUsage: integer
+      totalUsage: integer
