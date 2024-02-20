@@ -6,6 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type Prompt, type PrismaClient } from "@prisma/client";
+import { jsonSchema } from "@/src/utils/zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const CreatePrompt = z.object({
@@ -13,6 +14,7 @@ export const CreatePrompt = z.object({
   name: z.string(),
   isActive: z.boolean(),
   prompt: z.string(),
+  config: jsonSchema,
 });
 
 export const promptRouter = createTRPCRouter({
@@ -77,6 +79,7 @@ export const promptRouter = createTRPCRouter({
           prompt: input.prompt,
           isActive: input.isActive,
           createdBy: ctx.session.user.id,
+          config: jsonSchema.parse(input.config),
           prisma: ctx.prisma,
         });
 
@@ -315,6 +318,7 @@ export const createPrompt = async ({
   prompt,
   isActive = true,
   createdBy,
+  config,
   prisma,
 }: {
   projectId: string;
@@ -322,6 +326,7 @@ export const createPrompt = async ({
   prompt: string;
   isActive?: boolean;
   createdBy: string;
+  config: z.infer<typeof jsonSchema>;
   prisma: PrismaClient;
 }) => {
   const latestPrompt = await prisma.prompt.findFirst({
@@ -350,6 +355,7 @@ export const createPrompt = async ({
         isActive: isActive,
         project: { connect: { id: projectId } },
         createdBy: createdBy,
+        config: jsonSchema.parse(config),
       },
     }),
   ];
