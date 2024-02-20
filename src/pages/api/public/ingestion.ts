@@ -50,7 +50,6 @@ export default async function handler(
     // CHECK AUTH FOR ALL EVENTS
     const authCheck = await verifyAuthHeaderAndReturnScope(
       req.headers.authorization,
-      res,
     );
 
     if (!authCheck.validKey)

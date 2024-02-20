@@ -6,7 +6,6 @@ import {
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { Prisma } from "@prisma/client";
-import { type NextApiResponse } from "next";
 
 export type AuthHeaderVerificationResult =
   | {
@@ -20,7 +19,6 @@ export type AuthHeaderVerificationResult =
 
 export async function verifyAuthHeaderAndReturnScope(
   authHeader: string | undefined,
-  res: NextApiResponse,
 ): Promise<AuthHeaderVerificationResult> {
   if (!authHeader) {
     console.error("No authorization header");
