@@ -169,7 +169,7 @@ export const NewPromptForm = (props: {
         name: values.name,
         prompt: values.prompt,
         isActive: values.isActive,
-        // we keep the conig in state as string. need to convert it to JSON before sending it to the API
+        // we keep the config in state as string. need to convert it to JSON before sending it to the API
         // zod parsing necessary to align with TRPC schema
         config: jsonSchema.parse(JSON.parse(values.config)),
       })
