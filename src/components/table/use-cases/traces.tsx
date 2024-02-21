@@ -419,7 +419,6 @@ export default function TracesTable({
             invalidateFunc={() => void utils.traces.invalidate()}
             type="trace"
             isTableAction={true}
-            redirectUrl={`/project/${projectId}/traces`}
           />
         ) : undefined;
       },
