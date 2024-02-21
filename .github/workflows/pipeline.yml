@@ -14,6 +14,9 @@ on:
 
 jobs:
   lint:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -31,6 +34,9 @@ jobs:
         run: npm run lint
 
   test-docker-build:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io
@@ -52,6 +58,9 @@ jobs:
           push: false
 
   tests:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -93,6 +102,9 @@ jobs:
         run: npm run test
 
   e2e-tests:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
