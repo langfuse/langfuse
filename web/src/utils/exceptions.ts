@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 export class ResourceNotFoundError extends Error {
   id: string;
   constructor(type: string, id: string) {
@@ -5,4 +7,14 @@ export class ResourceNotFoundError extends Error {
     this.name = "ResourceNotFoundError";
     this.id = id;
   }
+}
+
+export function isPrismaException(e: unknown) {
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError ||
+    e instanceof Prisma.PrismaClientUnknownRequestError ||
+    e instanceof Prisma.PrismaClientRustPanicError ||
+    e instanceof Prisma.PrismaClientInitializationError ||
+    e instanceof Prisma.PrismaClientValidationError
+  );
 }

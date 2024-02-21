@@ -14,6 +14,7 @@ import {
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 export default async function handler(
   req: NextApiRequest,
@@ -21,18 +22,17 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  // CHECK AUTH
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  // END CHECK AUTH
-
   if (req.method === "POST") {
     try {
+      // CHECK AUTH
+      const authCheck = await verifyAuthHeaderAndReturnScope(
+        req.headers.authorization,
+      );
+      if (!authCheck.validKey)
+        return res.status(401).json({
+          message: authCheck.error,
+        });
+      // END CHECK AUTH
       console.log(
         "trying to create observation for generation, project ",
         authCheck.scope.projectId,
@@ -70,6 +70,11 @@ export default async function handler(
       handleBatchResultLegacy(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
+      if (isPrismaException(error)) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
@@ -79,6 +84,15 @@ export default async function handler(
     }
   } else if (req.method === "PATCH") {
     try {
+      // CHECK AUTH
+      const authCheck = await verifyAuthHeaderAndReturnScope(
+        req.headers.authorization,
+      );
+      if (!authCheck.validKey)
+        return res.status(401).json({
+          message: authCheck.error,
+        });
+      // END CHECK AUTH
       console.log(
         "trying to update observation for generation, project ",
         authCheck.scope.projectId,
@@ -115,6 +129,11 @@ export default async function handler(
       handleBatchResultLegacy(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
+      if (isPrismaException(error)) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+        });
+      }
 
       if (error instanceof ResourceNotFoundError) {
         return res.status(404).json({

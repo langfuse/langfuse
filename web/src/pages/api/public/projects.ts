@@ -1,6 +1,7 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -36,6 +37,11 @@ export default async function handler(
       });
     } catch (error) {
       console.error(error);
+      if (isPrismaException(error)) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+        });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   } else {
