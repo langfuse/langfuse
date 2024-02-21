@@ -66,7 +66,6 @@ export default async function handler(
 
     if (isPrismaException(error)) {
       return res.status(500).json({
-        message: "Error processing events",
         error: "Internal Server Error",
       });
     }

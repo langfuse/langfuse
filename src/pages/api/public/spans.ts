@@ -67,7 +67,6 @@ export default async function handler(
     } catch (error: unknown) {
       if (isPrismaException(error)) {
         return res.status(500).json({
-          message: "Error processing events",
           error: "Internal Server Error",
         });
       }
@@ -118,7 +117,6 @@ export default async function handler(
 
       if (isPrismaException(error)) {
         return res.status(500).json({
-          message: "Error processing events",
           error: "Internal Server Error",
         });
       }

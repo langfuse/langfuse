@@ -109,7 +109,6 @@ export default async function handler(
   } catch (error: unknown) {
     if (isPrismaException(error)) {
       return res.status(500).json({
-        message: "Error processing events",
         error: "Internal Server Error",
       });
     }
@@ -322,7 +321,6 @@ export const handleBatchResult = (
       returnedErrors.push({
         id: error.id,
         status: 500,
-        message: "Error processing events",
         error: "Internal Server Error",
       });
     }
@@ -369,7 +367,6 @@ export const handleBatchResultLegacy = (
   if (errors.length > 0) {
     console.log("Error processing events", unknownErrors);
     return res.status(500).json({
-      message: "Error processing events",
       errors: ["Internal Server Error"],
     });
   }
