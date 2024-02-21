@@ -100,7 +100,7 @@ jobs:
 
       - name: Seed DB
         run: |
-          npx --yes prisma migrate reset --force --skip-generate
+          dotenv -e ../.env -- npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
         run: npm run build
@@ -141,7 +141,7 @@ jobs:
 
       - name: Seed DB
         run: |
-          npx --yes prisma migrate reset --force --skip-generate
+          dotenv -e ../.env -- npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
         run: npm run build
