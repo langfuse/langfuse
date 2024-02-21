@@ -5,11 +5,14 @@ import { useRouter } from "next/router";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { DeleteButton } from "@/src/components/deleteButton";
 
 export default function Dataset() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
+  const utils = api.useUtils();
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -25,11 +28,29 @@ export default function Dataset() {
           { name: dataset.data?.name ?? datasetId },
         ]}
         actionButtons={
-          <DetailPageNav
-            currentId={datasetId}
-            path={(id) => `/project/${projectId}/datasets/${id}`}
-            listKey="datasets"
-          />
+          <>
+            <DetailPageNav
+              currentId={datasetId}
+              path={(id) => `/project/${projectId}/datasets/${id}`}
+              listKey="datasets"
+            />
+            <DatasetActionButton
+              mode="rename"
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetName={dataset.data?.name ?? ""}
+              icon
+            />
+            <DeleteButton
+              itemId={datasetId}
+              projectId={projectId}
+              isTableAction={false}
+              scope="datasets:CUD"
+              invalidateFunc={() => void utils.datasets.invalidate()}
+              type="dataset"
+              redirectUrl={`/project/${projectId}/datasets`}
+            />
+          </>
         }
       />
       <Tabs value="runs" className="mb-3">
