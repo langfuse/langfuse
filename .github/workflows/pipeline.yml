@@ -99,7 +99,7 @@ jobs:
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
-          npx --yes prisma migrate reset --force --skip-generate
+          npx --yes prisma migrate reset --force --skip-generate --schema=web/prisma/schema.prisma
 
       - name: Build
         run: npm run build
@@ -138,7 +138,7 @@ jobs:
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
-          npx --yes prisma migrate reset --force --skip-generate
+          npx --yes prisma migrate reset --force --skip-generate --schema=web/prisma/schema.prisma
 
       - name: Build
         run: npm run build
