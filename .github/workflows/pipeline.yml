@@ -94,12 +94,16 @@ jobs:
           cp .env.dev.example .env
           cp .env.dev.example web/.env
 
-      - name: Run, migrate, seed DB
+      - name: Run + migrate
         working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
-          npx --yes prisma migrate reset --force --skip-generate --schema=web/prisma/schema.prisma
+
+      - name: Seed DB
+        working-directory: .
+        run: |
+          npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
         run: npm run build
