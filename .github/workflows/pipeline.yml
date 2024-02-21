@@ -30,9 +30,10 @@ jobs:
         run: |
           npm ci
       - name: Load default env
+        working-directory: .
         run: |
-          cp ../.env.dev.example .env
-          cp ../.env.dev.example ../.env
+          cp .env.dev.example .env
+          cp .env.dev.example ../.env
       - name: lint
         run: npm run lint
 
@@ -88,11 +89,13 @@ jobs:
           npm ci
 
       - name: Load default env
+        working-directory: .
         run: |
-          cp ../.env.dev.example .env
-          cp ../.env.dev.example ../.env
+          cp .env.dev.example .env
+          cp .env.dev.example ../.env
 
       - name: Run, migrate, seed DB
+        working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
@@ -125,11 +128,13 @@ jobs:
           npm ci
 
       - name: Load default env
+        working-directory: .
         run: |
-          cp ../.env.dev.example .env
-          cp ../.env.dev.example ../.env
+          cp .env.dev.example .env
+          cp .env.dev.example ../.env
 
       - name: Run, migrate, seed DB
+        working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
