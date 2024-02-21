@@ -12,14 +12,11 @@ on:
     branches:
       - "main"
 
-defaults:
-  run:
-    working-directory: web
 jobs:
   lint:
-    # defaults:
-    #   run:
-    #     working-directory: ./web
+    defaults:
+      run:
+        working-directory: ./web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
