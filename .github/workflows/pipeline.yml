@@ -31,7 +31,7 @@ jobs:
           npm ci
       - name: Load default env
         run: |
-          cp .env.dev.example .env
+          cp ../.env.dev.example .env
       - name: lint
         run: npm run lint
 
