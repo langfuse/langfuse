@@ -26,6 +26,7 @@ import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 export const config = {
   api: {
@@ -106,6 +107,12 @@ export default async function handler(
 
     handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
+    if (isPrismaException(error)) {
+      return res.status(500).json({
+        error: "Internal Server Error",
+      });
+    }
+
     console.error(error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
@@ -314,7 +321,6 @@ export const handleBatchResult = (
       returnedErrors.push({
         id: error.id,
         status: 500,
-        message: "Error processing events",
         error: "Internal Server Error",
       });
     }
@@ -361,7 +367,6 @@ export const handleBatchResultLegacy = (
   if (errors.length > 0) {
     console.log("Error processing events", unknownErrors);
     return res.status(500).json({
-      message: "Error processing events",
       errors: ["Internal Server Error"],
     });
   }

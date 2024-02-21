@@ -3,6 +3,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 const DatasetRunsGetSchema = z.object({
   name: z.string(),
@@ -15,25 +16,24 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  // CHECK AUTH
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  // END CHECK AUTH
-
-  if (authCheck.scope.accessLevel !== "all") {
-    return res.status(401).json({
-      message:
-        "Access denied - need to use basic auth with secret key to GET dataset runs",
-    });
-  }
-
   if (req.method === "GET") {
     try {
+      // CHECK AUTH
+      const authCheck = await verifyAuthHeaderAndReturnScope(
+        req.headers.authorization,
+      );
+      if (!authCheck.validKey)
+        return res.status(401).json({
+          message: authCheck.error,
+        });
+      // END CHECK AUTH
+
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message:
+            "Access denied - need to use basic auth with secret key to GET dataset runs",
+        });
+      }
       console.log(
         "trying to get dataset runs, project ",
         authCheck.scope.projectId,
@@ -78,6 +78,11 @@ export default async function handler(
       return res.status(200).json(datasetRuns[0]);
     } catch (error: unknown) {
       console.error(error);
+      if (isPrismaException(error)) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({

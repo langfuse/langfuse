@@ -5,6 +5,7 @@ import {
 } from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 export type AuthHeaderVerificationResult =
   | {
@@ -89,6 +90,11 @@ export async function verifyAuthHeaderAndReturnScope(
     }
   } catch (error: unknown) {
     console.error("Error verifying auth header: ", error);
+
+    if (isPrismaException(error)) {
+      throw error;
+    }
+
     return {
       validKey: false,
       error:

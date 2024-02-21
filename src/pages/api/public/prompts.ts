@@ -3,6 +3,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@/src/server/db";
 import { jsonSchema } from "@/src/utils/zod";
+import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -72,6 +73,11 @@ export default async function handler(
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
+      if (isPrismaException(error)) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
@@ -120,6 +126,11 @@ export default async function handler(
       return res.status(200).json(prompt);
     } catch (error: unknown) {
       console.error(error);
+      if (isPrismaException(error)) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(400).json({
