@@ -33,7 +33,6 @@ jobs:
         working-directory: .
         run: |
           cp .env.dev.example .env
-          cp .env.dev.example web/.env
       - name: lint
         run: npm run lint
 
@@ -92,7 +91,6 @@ jobs:
         working-directory: .
         run: |
           cp .env.dev.example .env
-          cp .env.dev.example web/.env
 
       - name: Run + migrate
         working-directory: .
@@ -134,7 +132,6 @@ jobs:
         working-directory: .
         run: |
           cp .env.dev.example .env
-          cp .env.dev.example web/.env
 
       - name: Run + migrate
         working-directory: .

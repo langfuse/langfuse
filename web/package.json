@@ -18,15 +18,15 @@
     "test:e2e": "dotenv -e ../.env playwright test",
     "infra:dev:up": "docker-compose  -f ../docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ../docker-compose.dev.yml down",
-    "db:migrate": "dotenv -e ../.env DISABLE_ERD=false npx prisma migrate dev",
+    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env npx prisma migrate dev",
     "db:reset": "dotenv -e ../.env npx prisma migrate reset",
     "db:seed": "dotenv -e ../.env npx prisma db seed",
-    "db:seed:examples": "dotenv -e ../.env npx prisma db seed -- --environment examples",
+    "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
     "release": "dotenv -e ../.env release-it",
     "models:migrate": "dotenv -e ../.env tsx scripts/model-match.ts"
   },
   "prisma": {
-    "seed": "ts-node -r tsconfig-paths/register --compiler-options {\"module\":\"CommonJS\"} dotenv -e ../.env prisma/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
