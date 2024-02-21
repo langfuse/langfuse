@@ -65,7 +65,6 @@ export function DeleteButton({
           size={isTableAction ? "xs" : "icon"}
         >
           <TrashIcon className="h-4 w-4" />
-          {isTableAction && type === "dataset" && "Delete"}
         </Button>
       </PopoverTrigger>
       <PopoverContent>
