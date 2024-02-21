@@ -16,7 +16,7 @@ import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
 
 interface BaseDatasetFormProps {
-  mode: "create" | "rename";
+  mode: "create" | "rename" | "delete";
   projectId: string;
   onFormSuccess?: () => void;
   className?: string;
@@ -26,13 +26,21 @@ interface CreateDatasetFormProps extends BaseDatasetFormProps {
   mode: "create";
 }
 
+interface DeleteDatasetFormProps extends BaseDatasetFormProps {
+  mode: "delete";
+  datasetId: string;
+}
+
 interface RenameDatasetFormProps extends BaseDatasetFormProps {
   mode: "rename";
   datasetId: string;
   datasetName: string;
 }
 
-type DatasetFormProps = CreateDatasetFormProps | RenameDatasetFormProps;
+type DatasetFormProps =
+  | CreateDatasetFormProps
+  | RenameDatasetFormProps
+  | DeleteDatasetFormProps;
 
 const formSchema = z.object({
   name: z
@@ -56,6 +64,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const utils = api.useUtils();
   const createMutation = api.datasets.createDataset.useMutation();
   const renameMutation = api.datasets.updateDataset.useMutation();
+  const deleteMutation = api.datasets.deleteDataset.useMutation();
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const trimmedValues = {
@@ -78,7 +87,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
           setFormError(error.message);
           console.error(error);
         });
-    } else if (props.datasetId) {
+    } else if (props.mode === "rename") {
       posthog.capture("datasets:rename_dataset_form_submit");
       renameMutation
         .mutateAsync({
@@ -98,38 +107,66 @@ export const DatasetForm = (props: DatasetFormProps) => {
     }
   }
 
+  const handleDelete = () => {
+    if (props.mode !== "delete") return;
+    posthog.capture("datasets:delete_dataset_form_submit");
+    deleteMutation
+      .mutateAsync({
+        projectId: props.projectId,
+        datasetId: props.datasetId,
+      })
+      .then(() => {
+        void utils.datasets.invalidate();
+        props.onFormSuccess?.();
+        form.reset();
+      })
+      .catch((error: Error) => {
+        setFormError(error.message);
+        console.error(error);
+      });
+  };
+
   return (
     <div>
       <Form {...form}>
         <form
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={
+            props.mode === "delete" ? handleDelete : form.handleSubmit(onSubmit)
+          }
           className="space-y-8"
         >
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Name</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder={
-                      props.mode === "rename" ? props.datasetName : ""
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {props.mode !== "delete" && (
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder={
+                        props.mode === "rename" ? props.datasetName : ""
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
           <Button
             type="submit"
+            variant={props.mode === "delete" ? "destructive" : "default"}
             loading={props.mode === "create" && createMutation.isLoading}
             className="w-full"
           >
-            {props.mode === "create" ? "Create dataset" : "Rename dataset"}
+            {props.mode === "create"
+              ? "Create dataset"
+              : props.mode === "delete"
+                ? "Delete Dataset"
+                : "Rename dataset"}
           </Button>
         </form>
       </Form>
