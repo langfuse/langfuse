@@ -74,7 +74,7 @@ const ObservationTreeTraceNode = (props: {
   >
     <div className="flex gap-2">
       <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>TRACE</span>
-      <span className="flex-1 text-sm">{props.trace.name}</span>
+      <span className="flex-1 break-all text-sm">{props.trace.name}</span>
       <Button
         onClick={(ev) => (ev.stopPropagation(), props.expandAll())}
         size="xs"
@@ -146,7 +146,7 @@ const ObservationTreeNode = (props: {
                   <ColorCodedObservationType
                     observationType={observation.type}
                   />
-                  <span className="line-clamp-1 flex-1 text-sm">
+                  <span className="flex-1 break-all text-sm">
                     {observation.name}
                   </span>
                   {observation.children.length === 0 ? null : (
