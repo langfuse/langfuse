@@ -159,6 +159,8 @@ jobs:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: ubuntu-latest
     needs: [lint, tests, e2e-tests, test-docker-build]
+    run:
+      working-directory: web
     if: always()
     steps:
       - name: Successful deploy
