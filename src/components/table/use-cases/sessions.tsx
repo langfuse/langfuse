@@ -135,6 +135,7 @@ export default function SessionsTable({
           <TableLink
             path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
+            truncateAt={40}
           />
         ) : undefined;
       },

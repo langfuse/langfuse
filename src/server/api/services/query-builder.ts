@@ -14,6 +14,7 @@ import {
   filterInterface,
 } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
+import { tableColumnsToSqlFilter } from "@/src/features/filters/server/filterToPrisma";
 
 export type InternalDatabaseRow = {
   [key: string]: bigint | number | Decimal | string | Date;
@@ -29,9 +30,7 @@ export const executeQuery = async (
   unsafeQuery: z.TypeOf<typeof sqlInterface>,
 ) => {
   const query = sqlInterface.parse(unsafeQuery);
-
   const sql = enrichAndCreateQuery(projectId, query);
-
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
@@ -111,11 +110,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
     query.filter && query.filter.length > 0
       ? Prisma.sql` ${
           cte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
-        } ${prepareFilterString(
-          query.from,
-          query.filter,
-          tableDefinitions[query.from]!.columns,
-        )}`
+        } ${tableColumnsToSqlFilter(query.filter, tableDefinitions[query.from]!.columns, query.from)}`
       : Prisma.empty;
 
   const limitString = query.limit
@@ -140,6 +135,11 @@ const createOutputColumnName = (
 
   if (safeAgg === "50thPercentile") {
     return Prisma.sql`percentile50${Prisma.raw(
+      capitalizeFirstLetter(columnDefinition.name),
+    )}`;
+  }
+  if (safeAgg === "75thPercentile") {
+    return Prisma.sql`percentile75${Prisma.raw(
       capitalizeFirstLetter(columnDefinition.name),
     )}`;
   }
@@ -182,6 +182,10 @@ const createAggregatedColumn = (
       return Prisma.sql`percentile_disc(0.5) within group (order by ${getInternalSql(
         columnDefinition,
       )})`;
+    case "75thPercentile":
+      return Prisma.sql`percentile_disc(0.75) within group (order by ${getInternalSql(
+        columnDefinition,
+      )})`;
     case "90thPercentile":
       return Prisma.sql`percentile_disc(0.9) within group (order by ${getInternalSql(
         columnDefinition,
@@ -220,36 +224,6 @@ const prepareOrderByString = (
   return addedCte.length > 0
     ? Prisma.sql` ORDER BY ${Prisma.join(addedCte, ", ")}`
     : Prisma.empty;
-};
-
-const prepareFilterString = (
-  table: z.infer<typeof sqlInterface>["from"],
-  filter: z.infer<typeof filterInterface>,
-  columnDefinitions: ColumnDefinition[],
-): Prisma.Sql => {
-  const filters = filter.map((filter) => {
-    const column = columnDefinitions.find((x) => x.name === filter.column);
-    if (!column) {
-      console.error(`Column ${filter.column} not found`);
-      throw new Error(`Column ${filter.column} not found`);
-    }
-    // raw manfatory for column defs and operator
-    // non raw for value, which will go into parameterised string
-    if (filter.type === "datetime") {
-      return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-        filter.operator,
-      )} ${filter.value}::timestamp with time zone at time zone 'UTC'`;
-    } else {
-      return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-        filter.operator,
-      )} ${filter.value} ${
-        column.name === "type" && table === "observations"
-          ? Prisma.sql`::"ObservationType"`
-          : Prisma.empty
-      }`;
-    }
-  });
-  return Prisma.join(filters, " AND ");
 };
 
 const prepareGroupBy = (

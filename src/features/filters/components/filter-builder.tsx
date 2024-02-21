@@ -97,7 +97,9 @@ export function FilterBuilder({
                         ? new Date(filter.value).toLocaleDateString()
                         : filter.type === "stringOptions" ||
                             filter.type === "arrayOptions"
-                          ? filter.value.join(", ")
+                          ? filter.value.length > 2
+                            ? `${filter.value.length} selected`
+                            : filter.value.join(", ")
                           : filter.type === "number" ||
                               filter.type === "numberObject"
                             ? filter.value

@@ -176,7 +176,10 @@ async function main() {
         projectId: project2.id,
         createdBy: "user-1",
         prompt: "Prompt 4 version 1 content with {{variable}}",
-        name: "Prompt 4 with variable",
+        name: "Prompt 4 with variable and config",
+        config: {
+          temperature: 0.7,
+        },
         version: 1,
         isActive: false,
       },
@@ -185,7 +188,11 @@ async function main() {
         projectId: project2.id,
         createdBy: "user-1",
         prompt: "Prompt 4 version 2 content with {{variable}}",
-        name: "Prompt 4 with variable",
+        name: "Prompt 4 with variable and config",
+        config: {
+          temperature: 0.7,
+          topP: 0.9,
+        },
         version: 2,
         isActive: true,
       },
@@ -194,7 +201,12 @@ async function main() {
         projectId: project2.id,
         createdBy: "user-1",
         prompt: "Prompt 4 version 3 content with {{variable}}",
-        name: "Prompt 4 with variable",
+        name: "Prompt 4 with variable and config",
+        config: {
+          temperature: 0.7,
+          topP: 0.9,
+          frequencyPenalty: 0.5,
+        },
         version: 3,
         isActive: false,
       },
@@ -208,13 +220,14 @@ async function main() {
           createdBy: version.createdBy,
           prompt: version.prompt,
           name: version.name,
+          config: version.config,
           version: version.version,
           isActive: version.isActive,
         },
       });
       promptIds.push(version.id);
     }
-    const promptName = "Prompt with Longer Name";
+    const promptName = "Prompt with many versions";
     const projectId = project2.id;
     const createdBy = "user-1";
 
@@ -267,6 +280,7 @@ async function main() {
           ] as string,
           metadata: {
             user: `user-${i}@langfuse.com`,
+            more: "1,2,3;4?6",
           },
           tags: tags as string[],
           project: {

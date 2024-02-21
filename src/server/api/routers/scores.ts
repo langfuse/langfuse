@@ -9,7 +9,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type MembershipRole, Prisma, type Score } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { filterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
+import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
 import {
   type ScoreOptions,
   scoresTableCols,
@@ -32,8 +32,11 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
-      const filterCondition = filterToPrismaSql(input.filter, scoresTableCols);
-      console.log("filters: ", filterCondition);
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        scoresTableCols,
+        "traces_scores",
+      );
 
       const orderByCondition = orderByToPrismaSql(
         input.orderBy,

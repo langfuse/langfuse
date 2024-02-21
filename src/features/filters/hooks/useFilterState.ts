@@ -19,15 +19,15 @@ const CommaArrayParam = {
       value.map((f) => {
         const stringified = `${f.column};${f.type};${
           f.type === "numberObject" || f.type === "stringObject" ? f.key : ""
-        };${f.operator};${
+        };${f.operator};${encodeURIComponent(
           f.type === "datetime"
             ? f.value.toISOString()
             : f.type === "stringOptions"
               ? f.value.join("|")
               : f.type === "arrayOptions"
                 ? f.value.join("|")
-                : f.value
-        }`;
+                : f.value,
+        )}`;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
         return stringified;
@@ -43,20 +43,21 @@ const CommaArrayParam = {
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
+        const decodedValue = value ? decodeURIComponent(value) : undefined;
         const parsedValue =
-          value === undefined || type === undefined
+          decodedValue === undefined || type === undefined
             ? undefined
             : type === "datetime"
-              ? new Date(value)
+              ? new Date(decodedValue)
               : type === "number" || type === "numberObject"
-                ? Number(value)
+                ? Number(decodedValue)
                 : type === "stringOptions"
-                  ? value.split("|")
+                  ? decodedValue.split("|")
                   : type === "arrayOptions"
-                    ? value.split("|")
+                    ? decodedValue.split("|")
                     : type === "boolean"
-                      ? value === "true"
-                      : value;
+                      ? decodedValue === "true"
+                      : decodedValue;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
