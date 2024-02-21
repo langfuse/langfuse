@@ -8,7 +8,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import {  type DB as Database } from "@/prisma/generated/types";
+import { type DB as Database } from "@/prisma/generated/types";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

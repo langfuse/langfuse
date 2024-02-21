@@ -12,6 +12,7 @@ import {
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import { type z } from "zod";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 export default async function handler(
   req: NextApiRequest,
@@ -66,6 +67,11 @@ export default async function handler(
     handleBatchResultLegacy(result.errors, result.results, res);
   } catch (error: unknown) {
     console.error(error);
+    if (isPrismaException(error)) {
+      return res.status(500).json({
+        error: "Internal Server Error",
+      });
+    }
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({

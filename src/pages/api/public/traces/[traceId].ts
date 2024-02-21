@@ -2,6 +2,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@/src/server/db";
+import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -20,17 +21,16 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  // CHECK AUTH
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  // END CHECK AUTH
-
   try {
+    // CHECK AUTH
+    const authCheck = await verifyAuthHeaderAndReturnScope(
+      req.headers.authorization,
+    );
+    if (!authCheck.validKey)
+      return res.status(401).json({
+        message: authCheck.error,
+      });
+    // END CHECK AUTH
     console.log("Trying to get trace:", req.body, req.query);
 
     const { traceId } = GetTraceSchema.parse(req.query);
@@ -80,6 +80,11 @@ export default async function handler(
     });
   } catch (error: unknown) {
     console.error(error);
+    if (isPrismaException(error)) {
+      return res.status(500).json({
+        error: "Internal Server Error",
+      });
+    }
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     res.status(400).json({
