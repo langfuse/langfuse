@@ -101,7 +101,6 @@ jobs:
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
-        working-directory: .
         run: |
           npx --yes prisma migrate reset --force --skip-generate
 
@@ -144,7 +143,6 @@ jobs:
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
-        working-directory: .
         run: |
           npx --yes prisma migrate reset --force --skip-generate
 
