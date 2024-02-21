@@ -12,11 +12,12 @@ on:
     branches:
       - "main"
 
+defaults:
+  run:
+    working-directory: web
+
 jobs:
   lint:
-    defaults:
-      run:
-        working-directory: ./web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -24,6 +25,7 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
       - name: install dependencies
         run: |
           npm ci
@@ -47,6 +49,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
+          cache-dependency-path: "**/package-lock.json"
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -77,6 +80,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
 
       - name: install dependencies
         run: |
@@ -112,6 +116,7 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
 
       - name: install dependencies
         run: |
@@ -166,6 +171,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
+          cache-dependency-path: "**/package-lock.json"
 
       - name: Checkout
         uses: actions/checkout@v3
