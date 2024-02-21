@@ -5,7 +5,6 @@ import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
@@ -13,7 +12,7 @@ import { DatasetActionButton } from "@/src/features/datasets/components/DatasetA
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { MoreVertical, Trash } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
 
 type RowData = {
@@ -29,12 +28,8 @@ type RowData = {
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
-  const utils = api.useUtils();
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
-  });
-  const mutDelete = api.datasets.deleteDataset.useMutation({
-    onSuccess: () => utils.datasets.invalidate(),
   });
 
   useEffect(() => {
@@ -98,17 +93,11 @@ export function DatasetsTable(props: { projectId: string }) {
                 datasetId={key.id}
                 datasetName={key.name}
               />
-              <DropdownMenuItem
-                onClick={() =>
-                  mutDelete.mutate({
-                    projectId: props.projectId,
-                    datasetId: key.id,
-                  })
-                }
-              >
-                <Trash className="mr-2 h-4 w-4" />
-                Delete permanently
-              </DropdownMenuItem>
+              <DatasetActionButton
+                mode="delete"
+                projectId={props.projectId}
+                datasetId={key.id}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         );
