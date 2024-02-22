@@ -19,10 +19,10 @@
     "infra:dev:up": "docker-compose  -f ../docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ../docker-compose.dev.yml down",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev",
-    "db:reset": "dotenv -e ../.env npx prisma migrate reset",
-    "db:seed": "dotenv -e ../.env npx prisma db seed",
-    "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
-    "release": "dotenv -e ../.env release-it",
+    "db:reset": "dotenv -e ../.env npx -- prisma migrate reset",
+    "db:seed": "dotenv -e ../.env -- npx prisma db seed",
+    "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed --environment examples",
+    "release": "dotenv -e ../.env -- release-it",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
   },
   "prisma": {
