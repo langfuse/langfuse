@@ -25,8 +25,8 @@ ENV NODE_ENV production
 # Copy the built application from the builder stage
 COPY --from=builder /app/dist ./dist
 
-EXPOSE 3000
+EXPOSE 8000
 
-ENV ADDRESS=0.0.0.0 PORT=3000
+ENV ADDRESS=0.0.0.0 PORT=8000
 
 CMD ["npm", "start"]
