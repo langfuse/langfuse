@@ -1,7 +1,7 @@
 version: "3.5"
 
 services:
-  langfuse-server:
+  server:
     build:
       dockerfile: ./Dockerfile
       context: ./web
@@ -22,14 +22,14 @@ services:
       - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
     restart: always
 
-  langfuse-worker:
+  worker:
     build:
       dockerfile: ./Dockerfile
       context: ./worker
     depends_on:
       - db
       - redis
-      - langfuse-server
+      - server
     ports:
       - "3030:3030"
     environment:
