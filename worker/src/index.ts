@@ -8,7 +8,10 @@ const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
 });
 
-fastify.register(redis, { host: process.env.REDIS_URL });
+fastify.register(redis, {
+  host: process.env.REDIS_URL,
+  port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
+});
 fastify.register(consumer);
 
 const start = async () => {
