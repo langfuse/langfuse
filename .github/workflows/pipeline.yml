@@ -66,7 +66,7 @@ jobs:
         with:
           context: worker
           push: false
-  
+
   tests:
     defaults:
       run:

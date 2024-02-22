@@ -11,6 +11,8 @@ RUN \
   else echo "Lockfile not found." && exit 1; \
   fi
 
+
+
 FROM base AS builder
 
 # Copying the entire context to /app including package.json
