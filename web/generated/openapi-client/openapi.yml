@@ -1,0 +1,104 @@
+openapi: 3.0.1
+info:
+  title: langfuse
+  version: ''
+paths:
+  /api/public/scores:
+    post:
+      description: Add a score to the database, upserts on id
+      operationId: score_create
+      tags:
+        - Score
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Score'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScoreRequest'
+components:
+  schemas:
+    CreateScoreRequest:
+      title: CreateScoreRequest
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+        observationId:
+          type: string
+        comment:
+          type: string
+      required:
+        - traceId
+        - name
+        - value
+    Score:
+      title: Score
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+        observationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        comment:
+          type: string
+      required:
+        - id
+        - traceId
+        - name
+        - value
+        - timestamp
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
