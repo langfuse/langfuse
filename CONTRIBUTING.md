@@ -120,28 +120,28 @@ Requirements
 **Steps**
 
 1. Fork the the repository and clone it locally
-2. CD into the web directory
-
-   ```bash
-   cd web
-   ```
-
-3. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-4. Run the development database
+2. Run the development database
 
    ```bash
    docker-compose -f docker-compose.dev.yml up -d
    ```
 
-5. Create an env file
+3. Create an env file
 
    ```bash
     cp .env.dev.example .env
+   ```
+
+4. CD into the web directory
+
+   ```bash
+   cd web
+   ```
+
+5. Install dependencies
+
+   ```bash
+   npm install
    ```
 
 6. Run the migrations
