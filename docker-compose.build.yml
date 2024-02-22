@@ -19,6 +19,7 @@ services:
       - NEXT_PUBLIC_SIGN_UP_DISABLED=${NEXT_PUBLIC_SIGN_UP_DISABLED:-false}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
       - REDIS_URL=${REDIS_URL:-redis}
+      - REDIS_AUTH=${REDIS_AUTH:-my-secret}
     restart: always
 
   langfuse-worker:
@@ -37,7 +38,8 @@ services:
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
       - REDIS_URL=${REDIS_URL:-redis}
-      - PORT=${REDIS_URL:-3030}
+      - PORT=${PORT:-3030}
+      - REDIS_AUTH=${REDIS_AUTH:-my-secret}
     restart: always
 
   redis:
