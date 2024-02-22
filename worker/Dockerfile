@@ -12,7 +12,6 @@ RUN \
   fi
 
 
-
 FROM base AS builder
 
 # Copying the entire context to /app including package.json
