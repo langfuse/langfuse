@@ -67,6 +67,20 @@ test("Signup input validation", async ({ page }) => {
   await expect(page).not.toHaveURL("/?getStarted=1");
 });
 
+test("Successfully redirect to initial URL after signIn", async ({ page }) => {
+  await page.goto("/project/clso3711d0001thzb98coivhz/traces/trace-445665765");
+  await page.waitForTimeout(2000);
+  await page.click("button:has-text('Sign In')");
+  await expect(page).toHaveURL("/auth/sign-in");
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[type="submit"]');
+  await page.waitForTimeout(3000);
+  await expect(page).toHaveURL(
+    "/project/clso3711d0001thzb98coivhz/traces/trace-445665765",
+  );
+});
+
 // random email address to be used in tests
 const randomEmailAddress = () =>
   Math.random().toString(36).substring(2, 11) + "@example.com";
