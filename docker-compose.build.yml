@@ -19,7 +19,7 @@ services:
       - NEXT_PUBLIC_SIGN_UP_DISABLED=${NEXT_PUBLIC_SIGN_UP_DISABLED:-false}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
       - REDIS_URL=${REDIS_URL:-redis}
-      - REDIS_AUTH=${REDIS_AUTH:-my-secret}
+      - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
     restart: always
 
   langfuse-worker:
@@ -39,11 +39,13 @@ services:
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
       - REDIS_URL=${REDIS_URL:-redis}
       - PORT=${PORT:-3030}
-      - REDIS_AUTH=${REDIS_AUTH:-my-secret}
+      - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
     restart: always
 
   redis:
     image: redis
+    command: >
+      --requirepass ${REDIS_AUTH:-myredissecret}
     restart: always
     ports:
       - 6379:6379
