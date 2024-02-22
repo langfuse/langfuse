@@ -7,13 +7,13 @@ import redis from "@fastify/redis";
 const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
 });
-
-fastify.register(redis, { host: "127.0.0.1" });
+fastify.register(redis, { host: process.env.REDIS_URL });
 fastify.register(consumer);
 
 const start = async () => {
   try {
-    await fastify.listen({ port: 8000 });
+    // listen to 0.0.0.0 is required for docker
+    await fastify.listen({ port: 3030, host: "0.0.0.0" });
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
