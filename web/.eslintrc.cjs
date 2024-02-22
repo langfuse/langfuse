@@ -1,15 +1,40 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const baseConfig = require('../.eslintrc.cjs');
-
-// Check if baseConfig.extends is an array before spreading it
-const extendsArray = Array.isArray(baseConfig.extends) ? baseConfig.extends : [];
+const path = require("path");
 
 /** @type {import("eslint").Linter.Config} */
 const config = {
-  ...baseConfig,
-  extends: [...extendsArray, "next/core-web-vitals"],
+  overrides: [
+    {
+      extends: [
+        "plugin:@typescript-eslint/recommended",
+        "plugin:@typescript-eslint/strict-type-checked",
+      ],
+      files: ["*.ts", "*.tsx"],
+      parserOptions: {
+        project: path.join(__dirname, "tsconfig.json"),
+      },
+      rules: {
+        "@typescript-eslint/no-non-null-assertion": "off",
+        "@typescript-eslint/no-confusing-void-expression": "off",
+      },
+    },
+  ],
+  parser: "@typescript-eslint/parser",
+  parserOptions: {
+    project: path.join(__dirname, "tsconfig.json"),
+  },
+  plugins: ["@typescript-eslint"],
+  extends: ["next/core-web-vitals"],
+  ignorePatterns: ["generated/**/*"],
   rules: {
-    ...baseConfig.rules,
+    "@typescript-eslint/consistent-type-imports": [
+      "warn",
+      {
+        prefer: "type-imports",
+        fixStyle: "inline-type-imports",
+      },
+    ],
+    "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     "react/jsx-key": [
       "error",
       {
@@ -17,7 +42,6 @@ const config = {
       },
     ],
   },
-  plugins: ["@typescript-eslint"],
 };
 
 module.exports = config;
