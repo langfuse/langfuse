@@ -13,7 +13,10 @@ fastify.register(consumer);
 const start = async () => {
   try {
     // listen to 0.0.0.0 is required for docker
-    await fastify.listen({ port: 3030, host: "0.0.0.0" });
+    await fastify.listen({
+      port: process.env.PORT ? parseInt(process.env.PORT) : 3030,
+      host: "0.0.0.0",
+    });
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

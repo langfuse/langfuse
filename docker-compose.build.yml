@@ -37,6 +37,7 @@ services:
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
       - REDIS_URL=${REDIS_URL:-redis}
+      - PORT=${REDIS_URL:-3030}
     restart: always
 
   redis:
