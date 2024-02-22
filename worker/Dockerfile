@@ -1,12 +1,29 @@
-FROM node:20-alpine
+FROM node:20-alpine AS base
 
 WORKDIR /app
 
-COPY package.json .
+# Install dependencies based on the preferred package manager
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
+RUN \
+  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
+  elif [ -f package-lock.json ]; then npm ci; \
+  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile; \
+  else echo "Lockfile not found." && exit 1; \
+  fi
 
-RUN npm install
+FROM base AS builder
 
-COPY . .
+# Copying the entire context to /app including package.json
+COPY . /app
+
+RUN npm run build
+
+FROM base AS runner
+
+ENV NODE_ENV production
+
+# Copy the built application from the builder stage
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
