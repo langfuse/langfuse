@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import consumer from "./redis-consumer";
 
 import { getLogger } from "./logger";
 import redis from "@fastify/redis";
@@ -8,7 +9,7 @@ const fastify = Fastify({
 });
 
 fastify.register(redis, { host: "127.0.0.1" });
-fastify.register(require("./redis-consumer"));
+fastify.register(consumer);
 
 const start = async () => {
   try {
