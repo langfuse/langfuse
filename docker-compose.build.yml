@@ -3,7 +3,7 @@ version: "3.5"
 services:
   langfuse-server:
     build:
-      dockerfile: Dockerfile
+      dockerfile: ./Dockerfile
       context: ./web
     depends_on:
       - db
@@ -21,10 +21,11 @@ services:
 
   langfuse-worker:
     build:
-      dockerfile: Dockerfile
+      dockerfile: ./Dockerfile
       context: ./worker
     depends_on:
       - db
+      - langfuse-server
     ports:
       - "8000:8000"
     environment:
