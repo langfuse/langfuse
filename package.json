@@ -6,5 +6,5 @@
     "infra:dev:down": "docker-compose -f ../docker-compose.dev.yml down"
   },
   "author": "",
-  "license": "ISC"
+  "license": "MIT"
 }
