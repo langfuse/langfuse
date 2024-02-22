@@ -1,6 +1,7 @@
 version: "3.5"
 
 services:
+
   langfuse-server:
     image: ghcr.io/langfuse/langfuse:latest
     depends_on:
@@ -16,6 +17,12 @@ services:
       - NEXT_PUBLIC_SIGN_UP_DISABLED=${NEXT_PUBLIC_SIGN_UP_DISABLED:-false}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
 
+  redis:
+    image: redis
+    restart: always
+    ports:
+      - 6379:6379
+  
   db:
     image: postgres
     restart: always
