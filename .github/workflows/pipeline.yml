@@ -165,45 +165,6 @@ jobs:
         run: exit 1
         working-directory: .
 
-  deploy-worker:
-    needs: all-ci-passed
-    # if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-    # environment: "protected branches"
-    runs-on: ubuntu-latest
-    env:
-      IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_APP_NAME }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - id: "auth"
-        uses: "google-github-actions/auth@v1"
-        with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-
-      - name: Configure Docker
-        run: gcloud auth configure-docker --quiet
-
-      - name: Build Docker image
-        run: docker build . -f ./apps/api/Dockerfile -t $IMAGE_NAME
-
-      - name: Push Docker image
-        run: docker push $IMAGE_NAME
-
-      - name: Deploy Docker image
-        run: gcloud run deploy ${{ secrets.GCP_PROJECT_ID }}
-          --image $IMAGE_NAME
-          --region europe-west3
-          --platform managed
-          --add-cloudsql-instances=finto-backend:europe-west3:finto-backend-development
-          --update-secrets=JWT_SECRET=JWT_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_SECRET=GOOGLE_SECRET:latest,POSTMARK_API_KEY=POSTMARK_API_KEY:latest,OAUTH_CALLBACK_URL=OAUTH_CALLBACK_URL:latest,JWT_EXPIRATION=JWT_EXPIRATION:latest,DATABASE_URL=DATABASE_URL:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest
-          --update-env-vars FRONT_END_HOST=https://beta.finto.app
-          --update-env-vars COOKIE_DOMAIN=.finto.app
-          --update-env-vars SET_PRODUCTION_COOKIE=true
-          --allow-unauthenticated
-          --max-instances 2
-          --min-instances 1
-
   push-docker-image:
     needs: all-ci-passed
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
