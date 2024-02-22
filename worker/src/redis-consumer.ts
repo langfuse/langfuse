@@ -1,4 +1,4 @@
-import fastify, { FastifyInstance, FastifyPluginOptions } from "fastify";
+import { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fp from "fastify-plugin";
 
 async function routes(fastify: FastifyInstance, options: FastifyPluginOptions) {
