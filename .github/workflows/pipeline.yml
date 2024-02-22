@@ -91,6 +91,7 @@ jobs:
         working-directory: .
         run: |
           cp .env.dev.example .env
+          cp .env.dev.example web/.env
 
       - name: Run + migrate
         working-directory: .
@@ -100,7 +101,7 @@ jobs:
 
       - name: Seed DB
         run: |
-          dotenv -e ../.env -- npx --yes prisma migrate reset --force --skip-generate
+          npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
         run: npm run build
@@ -132,6 +133,7 @@ jobs:
         working-directory: .
         run: |
           cp .env.dev.example .env
+          cp .env.dev.example web/.env
 
       - name: Run + migrate
         working-directory: .
@@ -141,7 +143,7 @@ jobs:
 
       - name: Seed DB
         run: |
-          dotenv -e ../.env -- npx --yes prisma migrate reset --force --skip-generate
+          npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
         run: npm run build
