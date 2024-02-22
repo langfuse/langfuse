@@ -41,27 +41,17 @@ jobs:
       run:
         working-directory: web
     runs-on: ubuntu-latest
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
-
     steps:
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-          cache-dependency-path: "**/package-lock.json"
-
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Docker image
+      - name: Build Web Docker image
         uses: docker/build-push-action@v4
         with:
           context: web
           push: false
 
-      - name: Build Docker image
+      - name: Build Worker Docker image
         uses: docker/build-push-action@v4
         with:
           context: worker
