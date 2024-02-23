@@ -188,12 +188,10 @@ export const traceRouter = createTRPCRouter({
       `;
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
-        name: names
-          .filter((n) => n.name !== null)
-          .map((name) => ({
-            value: name.name ?? "undefined",
-            count: name._count.id,
-          })),
+        name: names.map((name) => ({
+          value: name.name ?? "[no-trace-name]",
+          count: name._count.id,
+        })),
         tags: tags,
       };
       return res;

@@ -60,7 +60,7 @@ export const TracesBarListChart = ({
   const transformedTraces = traces.data
     ? traces.data.map((item) => {
         return {
-          name: item.traceName ? (item.traceName as string) : "Unknown",
+          name: item.traceName ? (item.traceName as string) : "[no-trace-name]",
           value: item.countTraceId as number,
         };
       })

@@ -146,7 +146,7 @@ export default function TracesTable({
       bookmarked: trace.bookmarked,
       id: trace.id,
       timestamp: trace.timestamp.toLocaleString(),
-      name: trace.name ?? "",
+      name: trace.name ?? "[no-trace-name]",
       metadata: JSON.stringify(trace.metadata),
       release: trace.release ?? undefined,
       version: trace.version ?? undefined,
@@ -423,7 +423,6 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
-
   return (
     <div>
       <DataTableToolbar

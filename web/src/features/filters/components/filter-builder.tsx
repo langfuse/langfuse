@@ -205,7 +205,10 @@ function FilterBuilderForm({
                     </SelectTrigger>
                     <SelectContent>
                       {columns.map((option) => (
-                        <SelectItem key={option.name} value={option.name}>
+                        <SelectItem
+                          key={option.name}
+                          value={option.name ? option.name : "[no-trace-name]"}
+                        >
                           {option.name}
                         </SelectItem>
                       ))}
