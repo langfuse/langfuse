@@ -2,8 +2,8 @@
   "name": "langfuse",
   "version": "2.7.0",
   "scripts": {
-    "infra:dev:up": "docker-compose  -f ../docker-compose.dev.yml up -d",
-    "infra:dev:down": "docker-compose -f ../docker-compose.dev.yml down"
+    "infra:dev:up": "docker-compose  -f docker-compose.dev.yml up -d",
+    "infra:dev:down": "docker-compose -f docker-compose.dev.yml down"
   },
   "author": "",
   "license": "MIT",
