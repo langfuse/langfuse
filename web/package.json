@@ -16,12 +16,13 @@
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev",
+    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev && npm run db:worker",
     "db:reset": "dotenv -e ../.env npx -- prisma migrate reset",
     "db:seed": "dotenv -e ../.env -- npx prisma db seed",
     "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
     "release": "dotenv -e ../.env -- release-it",
-    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
+    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
+    "db:worker": "cp -r prisma/generated ../worker"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
