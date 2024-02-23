@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type ControllerRenderProps, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import JsonView from "react18-json-view";
 import {
   Form,
@@ -22,6 +22,7 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { type Prisma } from "@prisma/client";
+import { jsonSchema } from "@/src/utils/zod";
 
 const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
@@ -106,14 +107,6 @@ export const NewDatasetItemForm = (props: {
       });
   }
 
-  const setFieldValue =
-    <T extends keyof z.infer<typeof formSchema>>({
-      onChange,
-    }: ControllerRenderProps<z.infer<typeof formSchema>, T>) =>
-    ({ src }: { src: object }) => {
-      onChange(Object.keys(src).length ? JSON.stringify(src) : "");
-    };
-
   return (
     <Form {...form}>
       <form
@@ -153,9 +146,13 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Input</FormLabel>
                 <JsonView
-                  src={JSON.parse(field.value || "{}") as unknown}
-                  onEdit={setFieldValue(field)}
-                  onDelete={setFieldValue(field)}
+                  src={jsonSchema.parse(JSON.parse(field.value || "{}"))}
+                  onEdit={(edit) => {
+                    field.onChange(JSON.stringify(edit.src));
+                  }}
+                  onDelete={(edit) => {
+                    field.onChange(JSON.stringify(edit.src));
+                  }}
                   editable
                   className="rounded-md border border-gray-200 p-2 text-sm"
                 />
@@ -170,9 +167,13 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Expected output</FormLabel>
                 <JsonView
-                  src={JSON.parse(field.value || "{}") as unknown}
-                  onEdit={setFieldValue(field)}
-                  onDelete={setFieldValue(field)}
+                  src={jsonSchema.parse(JSON.parse(field.value || "{}"))}
+                  onEdit={(edit) => {
+                    field.onChange(JSON.stringify(edit.src));
+                  }}
+                  onDelete={(edit) => {
+                    field.onChange(JSON.stringify(edit.src));
+                  }}
                   editable
                   className="rounded-md border border-gray-200 p-2 text-sm"
                 />

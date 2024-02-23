@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type ControllerRenderProps, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import JsonView from "react18-json-view";
 import {
@@ -99,14 +99,6 @@ export const EditDatasetItem = ({
     });
     setHasChanges(false);
   }
-  const setFieldValue =
-    <T extends keyof z.infer<typeof formSchema>>({
-      onChange,
-    }: ControllerRenderProps<z.infer<typeof formSchema>, T>) =>
-    ({ src }: { src: object }) => {
-      setHasChanges(true);
-      onChange(Object.keys(src).length ? JSON.stringify(src) : "");
-    };
 
   return (
     <div>
@@ -125,8 +117,14 @@ export const EditDatasetItem = ({
                   <FormLabel>Input</FormLabel>
                   <JsonView
                     src={JSON.parse(field.value || "{}") as unknown}
-                    onEdit={setFieldValue(field)}
-                    onDelete={setFieldValue(field)}
+                    onEdit={(edit) => {
+                      field.onChange(JSON.stringify(edit.src));
+                      setHasChanges(true);
+                    }}
+                    onDelete={(edit) => {
+                      field.onChange(JSON.stringify(edit.src));
+                      setHasChanges(true);
+                    }}
                     editable
                     className="rounded-md border border-gray-200 p-2 text-sm"
                   />
@@ -142,8 +140,14 @@ export const EditDatasetItem = ({
                   <FormLabel>Expected output (optional)</FormLabel>
                   <JsonView
                     src={JSON.parse(field.value || "{}") as unknown}
-                    onEdit={setFieldValue(field)}
-                    onDelete={setFieldValue(field)}
+                    onEdit={(edit) => {
+                      field.onChange(JSON.stringify(edit.src));
+                      setHasChanges(true);
+                    }}
+                    onDelete={(edit) => {
+                      field.onChange(JSON.stringify(edit.src));
+                      setHasChanges(true);
+                    }}
                     editable
                     className="rounded-md border border-gray-200 p-2 text-sm"
                   />
