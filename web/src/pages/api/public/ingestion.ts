@@ -27,7 +27,6 @@ import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
-import Redis from "ioredis";
 
 export const config = {
   api: {
@@ -36,12 +35,6 @@ export const config = {
     },
   },
 };
-
-const redisClient = new Redis({
-  host: "127.0.0.1",
-  port: 6379,
-  password: "myredissecret",
-});
 
 export default async function handler(
   req: NextApiRequest,
@@ -232,8 +225,6 @@ const handleSingleEvent = async (
     cleanedEvent,
     metadata,
   );
-
-  await redisClient.publish("ingestion", JSON.stringify(cleanedEvent));
 
   let processor: EventProcessor;
   switch (type) {

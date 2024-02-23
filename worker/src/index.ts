@@ -35,8 +35,5 @@ const start = async () => {
 start();
 
 fastify.get("/", async (request, reply) => {
-  const users = await db.selectFrom("users").selectAll().execute();
-
-  console.log(users);
-  return { hello: users };
+  return { hello: "world" };
 });
