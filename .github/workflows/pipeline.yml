@@ -20,7 +20,7 @@ jobs:
   lint:
     defaults:
       run:
-        working-directory: web
+        working-directory: .
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
