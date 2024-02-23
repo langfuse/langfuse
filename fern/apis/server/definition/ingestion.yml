@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     batch:
-      docs: Ingest multiple events to Langfuse
+      docs: Batched ingestion for Langfuse Tracing
       method: POST
       path: /ingestion
       request:
@@ -31,8 +31,12 @@ types:
       sdk-log: SDKLogEvent
 
       # both are legacy
-      observation-create: CreateObservationEvent
-      observation-update: UpdateObservationEvent
+      observation-create:
+        type: CreateObservationEvent
+        docs: Deprecated event type
+      observation-update:
+        type: UpdateObservationEvent
+        docs: Deprecated event type
 
   ObservationType:
     enum:
@@ -47,6 +51,7 @@ types:
       - OpenAIUsage
 
   OpenAIUsage:
+    docs: Usage interface of OpenAI for improved compatibility.
     properties:
       promptTokens: optional<integer>
       completionTokens: optional<integer>
