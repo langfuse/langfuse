@@ -207,7 +207,6 @@ export const authOptions: NextAuthOptions = {
       };
     },
     async signIn({ account, profile, user, credentials }): Promise<boolean> {
-      console.log(account, profile, user, credentials);
       const allowedDomains =
         env.AUTH_ALLOWED_DOMAINS?.split(",").map((domain) => domain.trim()) ??
         [];
@@ -220,9 +219,10 @@ export const authOptions: NextAuthOptions = {
         } else {
           const email =
             profile?.email ?? user.email ?? credentials?.email?.value;
-          const emailSections = email?.split("@");
-          if (emailSections?.length !== 2) return await Promise.resolve(false);
-          const emailDomain = emailSections[1];
+          const emailSubstrings = email?.split("@");
+          if (emailSubstrings?.length !== 2)
+            return await Promise.resolve(false);
+          const emailDomain = emailSubstrings[1];
           return await Promise.resolve(
             emailDomain !== undefined && allowedDomains.includes(emailDomain),
           );
