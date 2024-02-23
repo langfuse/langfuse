@@ -206,17 +206,27 @@ export const authOptions: NextAuthOptions = {
             : null,
       };
     },
-    async signIn({ account, profile }): Promise<boolean> {
+    async signIn({ account, profile, user, credentials }): Promise<boolean> {
+      console.log(account, profile, user, credentials);
       const allowedDomains =
-        env.AUTH_GOOGLE_ALLOWED_DOMAINS?.split(",").map((domain) =>
-          domain.trim(),
-        ) ?? [];
-      if (
-        account?.provider === "google" &&
-        allowedDomains.length > 0 &&
-        !allowedDomains.includes((profile as GoogleProfile).hd)
-      ) {
-        return await Promise.resolve(false);
+        env.AUTH_ALLOWED_DOMAINS?.split(",").map((domain) => domain.trim()) ??
+        [];
+      if (allowedDomains.length > 0) {
+        if (account?.provider === "google") {
+          console.log("Google profile", profile);
+          return await Promise.resolve(
+            allowedDomains.includes((profile as GoogleProfile).hd),
+          ); // use hd (hosted domain) for Google as it's more secure than relying on the email's domain
+        } else {
+          const email =
+            profile?.email ?? user.email ?? credentials?.email?.value;
+          const emailSections = email?.split("@");
+          if (emailSections?.length !== 2) return await Promise.resolve(false);
+          const emailDomain = emailSections[1];
+          return await Promise.resolve(
+            emailDomain !== undefined && allowedDomains.includes(emailDomain),
+          );
+        }
       }
       return await Promise.resolve(true);
     },
