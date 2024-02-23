@@ -18,6 +18,9 @@ defaults:
 
 jobs:
   lint:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -30,10 +33,13 @@ jobs:
         run: |
           npm ci
       - name: Load default env
-        working-directory: .
         run: |
           cp .env.dev.example .env
-      - name: lint
+      - name: lint web
+        working-directory: ./web
+        run: npm run lint
+      - name: lint worker
+        working-directory: ./worker
         run: npm run lint
 
   test-docker-build:
