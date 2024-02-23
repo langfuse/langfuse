@@ -3,6 +3,7 @@ import consumer from "./redis-consumer";
 
 import { getLogger } from "./logger";
 import redis from "@fastify/redis";
+import { db } from "./database";
 
 const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
@@ -34,9 +35,8 @@ const start = async () => {
 start();
 
 fastify.get("/", async (request, reply) => {
-  console.log("Hello world!");
-  // const { redis } = fastify;
-  // redis.set("mykey", "value");
-  // console.log(await redis.get("mykey"));
-  return { hello: "world" };
+  const users = await db.selectFrom("users").selectAll().execute();
+
+  console.log(users);
+  return { hello: users };
 });

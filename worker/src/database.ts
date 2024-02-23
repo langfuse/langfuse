@@ -1,11 +1,11 @@
-// import { Kysely, PostgresDialect } from "kysely";
-// import { DB } from "../../web/prisma/generated/types";
-// import { Pool } from "pg";
+import { Kysely, PostgresDialect } from "kysely";
+import { Pool } from "pg";
+import { DB } from "../generated/types";
 
-// export const db = new Kysely<DB>({
-//   dialect: new PostgresDialect({
-//     pool: new Pool({
-//       connectionString: "postgres://postgres:password@localhost:5432/postgres",
-//     }),
-//   }),
-// });
+export const db = new Kysely<DB>({
+  dialect: new PostgresDialect({
+    pool: new Pool({
+      connectionString: "postgres://postgres:postgres@localhost:5432/postgres",
+    }),
+  }),
+});
