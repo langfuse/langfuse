@@ -123,7 +123,7 @@ Requirements
 2. Run the development database
 
    ```bash
-   docker-compose -f docker-compose.dev.yml up -d
+   npm run infra:dev:up
    ```
 
 3. Create an env file
