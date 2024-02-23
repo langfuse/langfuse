@@ -11,7 +11,7 @@ const fastify = Fastify({
 console.log(
   "trying to connect to redis",
   process.env.REDIS_URL,
-  process.env.REDIS_PORT
+  process.env.REDIS_PORT,
 );
 fastify.register(redis, {
   host: process.env.REDIS_URL,
