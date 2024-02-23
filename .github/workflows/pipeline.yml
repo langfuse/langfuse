@@ -12,6 +12,10 @@ on:
     branches:
       - "main"
 
+defaults:
+  run:
+    working-directory: web
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -21,37 +25,42 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
       - name: install dependencies
         run: |
           npm ci
       - name: Load default env
+        working-directory: .
         run: |
           cp .env.dev.example .env
       - name: lint
         run: npm run lint
 
   test-docker-build:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
-
     steps:
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Docker image
+      - name: Build Web Docker image
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: web
+          push: false
+
+      - name: Build Worker Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: worker
           push: false
 
   tests:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -68,19 +77,26 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
 
       - name: install dependencies
         run: |
           npm ci
 
       - name: Load default env
+        working-directory: .
         run: |
           cp .env.dev.example .env
+          cp .env.dev.example web/.env
 
-      - name: Run, migrate, seed DB
+      - name: Run + migrate
+        working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
+
+      - name: Seed DB
+        run: |
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
@@ -93,6 +109,9 @@ jobs:
         run: npm run test
 
   e2e-tests:
+    defaults:
+      run:
+        working-directory: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -100,19 +119,26 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
 
       - name: install dependencies
         run: |
           npm ci
 
       - name: Load default env
+        working-directory: .
         run: |
           cp .env.dev.example .env
+          cp .env.dev.example web/.env
 
-      - name: Run, migrate, seed DB
+      - name: Run + migrate
+        working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
+
+      - name: Seed DB
+        run: |
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
@@ -133,9 +159,11 @@ jobs:
       - name: Successful deploy
         if: ${{ !(contains(needs.*.result, 'failure')) }}
         run: exit 0
+        working-directory: .
       - name: Failing deploy
         if: ${{ contains(needs.*.result, 'failure') }}
         run: exit 1
+        working-directory: .
 
   push-docker-image:
     needs: all-ci-passed
@@ -154,6 +182,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
+          cache-dependency-path: "**/package-lock.json"
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -181,7 +210,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: web
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
