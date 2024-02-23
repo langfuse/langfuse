@@ -93,7 +93,7 @@ The diagram below may not show all relationships if the foreign key is not defin
 
 Full database schema: [prisma/schema.prisma](prisma/schema.prisma)
 
-<img src="./prisma/database.svg">
+<img src="./web/prisma/database.svg">
 
 ### Infrastructure & Network Overview
 
