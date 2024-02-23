@@ -28,6 +28,7 @@ const start = async () => {
     process.exit(1);
   }
 };
+
 start();
 
 fastify.get("/", async (request, reply) => {
