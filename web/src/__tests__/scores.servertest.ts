@@ -270,4 +270,47 @@ describe("/api/public/scores API Endpoint", () => {
     });
     expect(deletedScore).toBeNull();
   });
+
+  it("should GET a score", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+    });
+    const generationId = uuidv4();
+    await makeAPICall("POST", "/api/public/generations", {
+      id: generationId,
+    });
+
+    const scoreId = uuidv4();
+    await makeAPICall("POST", "/api/public/scores", {
+      id: scoreId,
+      observationId: generationId,
+      name: "score-name",
+      value: 100.5,
+      traceId: traceId,
+      comment: "comment",
+    });
+
+    const getScore = await makeAPICall<{
+      id: string;
+      name: string;
+      value: number;
+      comment: string;
+      traceId: string;
+      observationId: string;
+    }>("GET", `/api/public/scores/${scoreId}`);
+
+    expect(getScore.status).toBe(200);
+    expect(getScore.body).toMatchObject({
+      id: scoreId,
+      name: "score-name",
+      value: 100.5,
+      comment: "comment",
+      traceId,
+      observationId: generationId,
+    });
+  });
 });
