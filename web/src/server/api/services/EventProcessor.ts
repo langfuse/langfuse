@@ -15,7 +15,7 @@ import {
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
-import { prisma } from "@/src/server/db";
+import { DB, prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
 import {
@@ -445,61 +445,42 @@ export class TraceProcessor implements EventProcessor {
       body.metadata ?? undefined,
     );
 
-    if (body.sessionId) {
-      await prisma.traceSession.upsert({
-        where: {
-          id_projectId: {
-            id: body.sessionId,
-            projectId: apiScope.projectId,
-          },
-        },
-        create: {
+    if (body.sessionId)
+      await DB.insertInto("trace_sessions")
+        .values({
           id: body.sessionId,
-          projectId: apiScope.projectId,
-        },
-        update: {},
-      });
-    }
+          project_id: apiScope.projectId,
+        })
+        .onConflict((oc) => oc.doNothing())
+        .execute();
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    const upsertedTrace = await prisma.trace.upsert({
-      where: {
+    const traceBody = {
+      name: body.name ?? undefined,
+      timestamp: this.event.body.timestamp
+        ? new Date(this.event.body.timestamp)
+        : undefined,
+      user_id: body.userId ?? undefined,
+      input: body.input ?? undefined,
+      output: body.output ?? undefined,
+      metadata: mergedMetadata ?? body.metadata ?? undefined,
+      release: body.release ?? undefined,
+      version: body.version ?? undefined,
+      session_id: body.sessionId ?? undefined,
+      public: body.public ?? undefined,
+      tags: body.tags ?? undefined,
+    };
+    const upsertedTrace = await DB.insertInto("traces")
+      .values({
         id: internalId,
-      },
-      create: {
-        id: internalId,
-        timestamp: this.event.body.timestamp
-          ? new Date(this.event.body.timestamp)
-          : undefined,
-        name: body.name ?? undefined,
-        userId: body.userId ?? undefined,
-        input: body.input ?? undefined,
-        output: body.output ?? undefined,
-        metadata: mergedMetadata ?? body.metadata ?? undefined,
-        release: body.release ?? undefined,
-        version: body.version ?? undefined,
-        sessionId: body.sessionId ?? undefined,
-        public: body.public ?? undefined,
-        projectId: apiScope.projectId,
-        tags: body.tags ?? undefined,
-      },
-      update: {
-        name: body.name ?? undefined,
-        timestamp: this.event.body.timestamp
-          ? new Date(this.event.body.timestamp)
-          : undefined,
-        userId: body.userId ?? undefined,
-        input: body.input ?? undefined,
-        output: body.output ?? undefined,
-        metadata: mergedMetadata ?? body.metadata ?? undefined,
-        release: body.release ?? undefined,
-        version: body.version ?? undefined,
-        sessionId: body.sessionId ?? undefined,
-        public: body.public ?? undefined,
-        tags: body.tags ?? undefined,
-      },
-    });
+        project_id: apiScope.projectId,
+        ...traceBody,
+      })
+      .onConflict((oc) =>
+        oc.columns(["id", "project_id"]).doUpdateSet(traceBody),
+      )
+      .execute();
     return upsertedTrace;
   }
 }
