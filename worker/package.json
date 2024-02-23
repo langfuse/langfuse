@@ -1,0 +1,36 @@
+{
+  "name": "worker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/redis": "^6.1.1",
+    "backoff": "^2.5.0",
+    "fastify": "^4.26.1",
+    "kysely": "^0.27.2",
+    "node": "^21.6.2",
+    "pg": "^8.11.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.2",
+    "@typescript-eslint/parser": "^7.0.2",
+    "eslint": "^8.56.0",
+    "kysely-codegen": "^0.11.0",
+    "nodemon": "^3.0.3",
+    "pino-pretty": "^10.3.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
