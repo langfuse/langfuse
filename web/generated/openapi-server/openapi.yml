@@ -774,7 +774,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateScoreRequest'
     get:
-      description: Get scores
+      description: Get a list of scores
       operationId: score_get
       tags:
         - Score
@@ -837,6 +837,51 @@ paths:
               schema: {}
       security: *ref_0
   /api/public/scores/{scoreId}:
+    get:
+      description: Get a score
+      operationId: score_get-by-id
+      tags:
+        - Score
+      parameters:
+        - name: scoreId
+          in: path
+          description: The unique langfuse identifier of a score
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Score'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
     delete:
       description: Delete a score
       operationId: score_delete

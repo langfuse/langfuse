@@ -641,7 +641,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get scores",
+            "description": "Get a list of scores",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=",
               "host": [
@@ -675,6 +675,38 @@
                 }
               ],
               "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get By Id",
+          "request": {
+            "description": "Get a score",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scores/:scoreId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores",
+                ":scoreId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "scoreId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score"
+                }
+              ]
             },
             "header": [],
             "method": "GET",
