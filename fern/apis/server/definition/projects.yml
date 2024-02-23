@@ -7,6 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     get:
+      docs: Get Project associated with API key
       method: GET
       path: /projects
       response: Projects
