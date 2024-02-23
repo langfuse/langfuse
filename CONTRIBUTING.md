@@ -93,7 +93,7 @@ The diagram below may not show all relationships if the foreign key is not defin
 
 Full database schema: [prisma/schema.prisma](prisma/schema.prisma)
 
-<img src="./prisma/database.svg">
+<img src="./web/prisma/database.svg">
 
 ### Infrastructure & Network Overview
 
@@ -123,7 +123,7 @@ Requirements
 2. Run the development database
 
    ```bash
-   docker-compose -f docker-compose.dev.yml up -d
+   npm run infra:dev:up
    ```
 
 3. Create an env file
