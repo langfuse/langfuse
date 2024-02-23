@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     create:
-      docs: Add a score to the database, upserts on id
+      docs: Create a score
       method: POST
       path: /scores
       request: CreateScoreRequest

@@ -16,7 +16,7 @@ info:
 paths:
   /api/public/dataset-items:
     post:
-      description: Create a dataset item, upserts on id
+      description: Create a dataset item
       operationId: datasetItems_create
       tags:
         - DatasetItems
@@ -63,7 +63,7 @@ paths:
               $ref: '#/components/schemas/CreateDatasetItemRequest'
   /api/public/dataset-items/{id}:
     get:
-      description: Get a specific dataset item
+      description: Get a dataset item
       operationId: datasetItems_get
       tags:
         - DatasetItems
@@ -336,7 +336,7 @@ paths:
           description: ''
   /api/public/ingestion:
     post:
-      description: Ingest multiple events to Langfuse
+      description: Batched ingestion for Langfuse Tracing
       operationId: ingestion_batch
       tags:
         - Ingestion
@@ -464,7 +464,7 @@ paths:
       security: *ref_0
   /api/public/observations/{observationId}:
     get:
-      description: Get a specific observation
+      description: Get a observation
       operationId: observations_get
       tags:
         - Observations
@@ -594,6 +594,7 @@ paths:
       security: *ref_0
   /api/public/projects:
     get:
+      description: Get Project associated with API key
       operationId: projects_get
       tags:
         - Projects
@@ -633,7 +634,7 @@ paths:
       security: *ref_0
   /api/public/prompts:
     get:
-      description: Get a specific prompt
+      description: Get a prompt
       operationId: prompts_get
       tags:
         - Prompts
@@ -683,7 +684,7 @@ paths:
               schema: {}
       security: *ref_0
     post:
-      description: Create a specific prompt
+      description: Create a prompt
       operationId: prompts_create
       tags:
         - Prompts
@@ -729,7 +730,7 @@ paths:
               $ref: '#/components/schemas/CreatePromptRequest'
   /api/public/scores:
     post:
-      description: Add a score to the database, upserts on id
+      description: Create a score
       operationId: score_create
       tags:
         - Score
@@ -1328,16 +1329,20 @@ components:
     Usage:
       title: Usage
       type: object
+      description: Standard interface for usage and cost
       properties:
         input:
           type: integer
           nullable: true
+          description: Number of input units (e.g. tokens)
         output:
           type: integer
           nullable: true
+          description: Number of output units (e.g. tokens)
         total:
           type: integer
           nullable: true
+          description: Defaults to input+output if not set
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
           nullable: true
@@ -1345,14 +1350,17 @@ components:
           type: number
           format: double
           nullable: true
+          description: USD input cost
         outputCost:
           type: number
           format: double
           nullable: true
+          description: USD output cost
         totalCost:
           type: number
           format: double
           nullable: true
+          description: USD total cost, defaults to input+output
     Score:
       title: Score
       type: object
@@ -1503,6 +1511,7 @@ components:
         - MILLISECONDS
         - SECONDS
         - IMAGES
+      description: Unit of usage in Langfuse
     ObservationLevel:
       title: ObservationLevel
       type: string
@@ -1542,6 +1551,7 @@ components:
         id:
           type: string
           nullable: true
+          description: Dataset items are upserted on their id
       required:
         - datasetName
         - input
@@ -1709,6 +1719,7 @@ components:
     OpenAIUsage:
       title: OpenAIUsage
       type: object
+      description: Usage interface of OpenAI for improved compatibility.
       properties:
         promptTokens:
           type: integer
@@ -2238,6 +2249,7 @@ components:
           type: string
         isActive:
           type: boolean
+          description: Should the prompt be promoted to production immediately?
         prompt:
           type: string
         config:

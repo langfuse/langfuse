@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     get:
-      docs: Get a specific observation
+      docs: Get a observation
       method: GET
       path: /observations/{observationId}
       path-parameters:
