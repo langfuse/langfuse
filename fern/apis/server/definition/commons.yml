@@ -90,14 +90,28 @@ types:
       latency: optional<double>
 
   Usage:
+    docs: Standard interface for usage and cost
     properties:
-      input: optional<integer>
-      output: optional<integer>
-      total: optional<integer>
+      input:
+        docs: Number of input units (e.g. tokens)
+        type: optional<integer>
+      output:
+        docs: Number of output units (e.g. tokens)
+        type: optional<integer>
+      total:
+        docs: Defaults to input+output if not set
+        type: optional<integer>
       unit: optional<ModelUsageUnit>
-      inputCost: optional<double>
-      outputCost: optional<double>
-      totalCost: optional<double>
+      inputCost:
+        docs: USD input cost
+        type: optional<double>
+      outputCost:
+        docs: USD output cost
+        type: optional<double>
+      totalCost:
+        docs: USD total cost, defaults to input+output
+        type: optional<double>
+
   Score:
     properties:
       id: string
@@ -145,6 +159,7 @@ types:
 
   # Utilities
   ModelUsageUnit:
+    docs: Unit of usage in Langfuse
     enum:
       - CHARACTERS
       - TOKENS
