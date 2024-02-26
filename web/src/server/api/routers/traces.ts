@@ -482,7 +482,7 @@ function createTracesQuery(
         ${observationTimeseriesFilter}
     GROUP BY
       trace_id
-  ) AS usage ON TRUE
+  ) AS u ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
@@ -494,7 +494,7 @@ function createTracesQuery(
        ${observationTimeseriesFilter}
     GROUP BY
       trace_id
-  ) AS latency ON TRUE
+  ) AS tl ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
