@@ -36,15 +36,15 @@ FROM
     observations o
 LEFT JOIN LATERAL (
     SELECT
-        m1.*
+        models.*
     FROM
-        models m1
-    WHERE (m1.project_id = o.project_id OR m1.project_id IS NULL)
-    AND m1.model_name = o.internal_model
-    AND (m1.start_date < o.start_time OR m1.start_date IS NULL)
-    AND o.unit::TEXT = m1.unit
+        models
+    WHERE (models.project_id = o.project_id OR models.project_id IS NULL)
+    AND models.model_name = o.internal_model
+    AND (models.start_date < o.start_time OR models.start_date IS NULL)
+    AND o.unit::TEXT = models.unit
     ORDER BY
-        m1.project_id ASC, -- in postgres, NULLs are sorted last when ordering ASC
-        m1.start_date DESC NULLS LAST -- now, NULLs are sorted last when ordering DESC as well
+        models.project_id ASC, -- in postgres, NULLs are sorted last when ordering ASC
+        models.start_date DESC NULLS LAST -- now, NULLs are sorted last when ordering DESC as well
     LIMIT 1
 ) m ON TRUE
