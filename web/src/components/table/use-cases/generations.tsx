@@ -27,7 +27,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type Score, type ObservationLevel } from "@prisma/client";
+import { type Score, type ObservationLevel, Prisma } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -45,12 +45,15 @@ export type GenerationsTableRow = {
   statusMessage?: string;
   endTime?: string;
   timeToFirstToken?: string;
-  latency?: number;
-  latencyPerToken?: number;
+  latency?: Prisma.Decimal;
+  latencyPerToken?: Prisma.Decimal;
   name?: string;
   model?: string;
   input?: unknown;
   output?: unknown;
+  inputCost?: Prisma.Decimal;
+  outputCost?: Prisma.Decimal;
+  totalCost?: Prisma.Decimal;
   traceName?: string;
   metadata?: string;
   scores: Score[];
@@ -254,9 +257,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "latency",
       header: "Latency",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("latency");
-        return value !== undefined ? (
-          <span>{formatInterval(value)}</span>
+        const latency: Prisma.Decimal | undefined = row.getValue("latency");
+        const castedLatency: number | undefined = latency
+          ? Number(latency)
+          : undefined;
+        return castedLatency !== undefined ? (
+          <span>{formatInterval(castedLatency)}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -267,14 +273,17 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "latencyPerToken",
       header: "Latency per Token",
       cell: ({ row }) => {
-        const latency: number | undefined = row.getValue("latency");
+        const latency: Prisma.Decimal | undefined = row.getValue("latency");
+        const castedLatency: number | undefined = latency
+          ? Number(latency)
+          : undefined;
         const usage: {
           promptTokens: number;
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return latency !== undefined ? (
-          <span>{formatInterval(latency / usage.completionTokens)}</span>
+        return castedLatency !== undefined && usage.completionTokens !== 0 ? (
+          <span>{formatInterval(castedLatency / usage.completionTokens)}</span>
         ) : undefined;
       },
       defaultHidden: true,
@@ -410,22 +419,26 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableSorting: true,
     },
     {
-      accessorKey: "promptId",
-      id: "promptId",
-      header: "Prompt ID",
+      accessorKey: "prompt",
+      id: "prompt",
+      header: "Prompt",
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value = row.getValue("promptId");
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
-
-        return typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/prompts/${promptName}?version=${promptVersion}`}
-            value={value}
-          />
-        ) : undefined;
+        const value = `${promptName} (v${promptVersion})`;
+        promptName?.replace(" ", "-");
+        return (
+          promptName &&
+          promptVersion && (
+            <TableLink
+              path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}?version=${promptVersion}`}
+              value={value}
+              truncateAt={40}
+            />
+          )
+        );
       },
     },
   ];
@@ -445,10 +458,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           endTime: generation.endTime?.toLocaleString() ?? undefined,
           timeToFirstToken:
             generation.completionStartTime?.toLocaleString() ?? undefined,
-          latency: generation.latency === null ? undefined : generation.latency,
-          totalCost: generation.calculatedTotalCost,
-          inputCost: generation.calculatedInputCost,
-          outputCost: generation.calculatedOutputCost,
+          latency: generation.latency ?? undefined,
+          totalCost: generation.calculatedTotalCost ?? undefined,
+          inputCost: generation.calculatedInputCost ?? undefined,
+          outputCost: generation.calculatedOutputCost ?? undefined,
           name: generation.name ?? undefined,
           version: generation.version ?? "",
           model: generation.model ?? "",
