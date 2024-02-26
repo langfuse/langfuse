@@ -119,15 +119,21 @@ export default async function handler(
       return res.status(405).json({ message: "Method not allowed" });
     }
   } catch (error: unknown) {
+    console.error(error);
     if (isPrismaException(error)) {
       return res.status(500).json({
         errors: ["Internal Server Error"],
       });
     }
-    console.error(error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Invalid request data",
+        error: error.errors,
+      });
+    }
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(400).json({
+    res.status(500).json({
       message: "Invalid request data",
       error: errorMessage,
     });
