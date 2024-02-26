@@ -28,8 +28,9 @@ export const PromptDetail = (props: PromptDetailProps) => {
     "version",
     NumberParam,
   );
+  const name = props.promptName.replaceAll("-", " ");
   const promptHistory = api.prompts.allVersions.useQuery({
-    name: props.promptName,
+    name: name,
     projectId: props.projectId,
   });
   const prompt = currentPromptVersion
@@ -56,7 +57,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
               },
               {
                 name: prompt.name,
-                href: `/project/${props.projectId}/prompts/${prompt.name}`,
+                href: `/project/${props.projectId}/prompts/${props.promptName}`,
               },
               { name: `Version ${prompt.version}` },
             ]}
@@ -89,7 +90,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
                 />
                 <DetailPageNav
                   key="nav"
-                  currentId={prompt.name}
+                  currentId={props.promptName}
                   path={(name) => `/project/${props.projectId}/prompts/${name}`}
                   listKey="prompts"
                 />
