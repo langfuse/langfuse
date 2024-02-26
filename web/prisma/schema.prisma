@@ -262,6 +262,8 @@ model Observation {
 
     @@unique([id, projectId])
     @@index([projectId, internalModel, startTime, unit])
+    @@index([traceId, projectId, type, startTime])
+    @@index([traceId, projectId, startTime])
     @@index([traceId])
     @@index([type])
     @@index(startTime)
