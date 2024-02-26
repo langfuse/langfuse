@@ -498,7 +498,7 @@ view ObservationView {
 
     promptId String? @map("prompt_id")
 
-    // Model
+    // model fields
     modelId     String?  @map("model_id")
     inputPrice  Decimal? @map("input_price")
     outputPrice Decimal? @map("output_price")
