@@ -18,6 +18,7 @@
     "test:e2e": "dotenv -e ../.env -- playwright test",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev && npm run db:worker",
     "db:reset": "dotenv -e ../.env npx -- prisma migrate reset",
+    "db:deploy": "dotenv -e ../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../.env -- npx prisma db seed",
     "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
     "release": "dotenv -e ../.env -- release-it",
