@@ -47,4 +47,4 @@ LEFT JOIN LATERAL (
         project_id ASC, -- in postgres, NULLs are sorted last when ordering ASC
         start_date DESC NULLS LAST -- now, NULLs are sorted last when ordering DESC as well
     LIMIT 1
-)
+) models on true
