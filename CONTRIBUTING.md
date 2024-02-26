@@ -153,6 +153,8 @@ Requirements
 
 6. Run the migrations
 
+   The `schema.prisma` file is in the `web` directory and hence, migrations are applied from there.
+
    ```bash
    npm run db:migrate
 
