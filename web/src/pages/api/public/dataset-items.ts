@@ -85,6 +85,12 @@ export default async function handler(
       });
     }
   } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Invalid request data",
+        error: error.errors,
+      });
+    }
     console.error(error);
     if (isPrismaException(error)) {
       return res.status(500).json({
@@ -93,7 +99,7 @@ export default async function handler(
     }
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(400).json({
+    res.status(500).json({
       message: "Invalid request data",
       error: errorMessage,
     });
