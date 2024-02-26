@@ -27,7 +27,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type Score, type ObservationLevel, Prisma } from "@prisma/client";
+import { type Score, type ObservationLevel, type Prisma } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
