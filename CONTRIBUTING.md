@@ -93,7 +93,7 @@ The diagram below may not show all relationships if the foreign key is not defin
 
 Full database schema: [prisma/schema.prisma](prisma/schema.prisma)
 
-<img src="./prisma/database.svg">
+<img src="./web/prisma/database.svg">
 
 ### Infrastructure & Network Overview
 
@@ -110,7 +110,14 @@ flowchart LR
    App --- DB
 ```
 
-## Development Setup
+## Repository Structure
+
+This repository contains the following packages:
+
+- `web`: is the main application package providing Frontend and Backend APIs for Langfuse
+- `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
+
+## Development Setup (web package only)
 
 Requirements
 
@@ -120,25 +127,33 @@ Requirements
 **Steps**
 
 1. Fork the the repository and clone it locally
-2. Install dependencies
+2. Run the development database
 
    ```bash
-   npm install
+   npm run infra:dev:up
    ```
 
-3. Run the development database
-
-   ```bash
-   docker-compose -f docker-compose.dev.yml up -d
-   ```
-
-4. Create an env file
+3. Create an env file
 
    ```bash
     cp .env.dev.example .env
    ```
 
-5. Run the migrations
+4. CD into the web directory
+
+   ```bash
+   cd web
+   ```
+
+5. Install dependencies
+
+   ```bash
+   npm install
+   ```
+
+6. Run the migrations
+
+   The `schema.prisma` file is in the `web` directory and hence, migrations are applied from there.
 
    ```bash
    npm run db:migrate
@@ -148,7 +163,7 @@ Requirements
    # npm run db:seed:examples
    ```
 
-6. Start the development server
+7. Start the development server
 
    ```bash
     npm run dev

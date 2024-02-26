@@ -7,12 +7,12 @@ service:
   endpoints:
     create:
       method: POST
-      docs: Create a dataset item, upserts on id
+      docs: Create a dataset item
       path: /dataset-items
       request: CreateDatasetItemRequest
       response: commons.DatasetItem
     get:
-      docs: Get a specific dataset item
+      docs: Get a dataset item
       method: GET
       path: /dataset-items/{id}
       path-parameters:
@@ -26,4 +26,6 @@ types:
       datasetName: string
       input: unknown
       expectedOutput: optional<unknown>
-      id: optional<string>
+      id:
+        type: optional<string>
+        docs: Dataset items are upserted on their id
