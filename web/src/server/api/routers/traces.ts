@@ -463,12 +463,9 @@ function createTracesQuery(
   orderByCondition: Sql,
 ) {
   return Prisma.sql`
-  SELECT
-    ${select}
-  FROM
-    "traces" AS t
-  LEFT JOIN LATERAL (
+  WITH usage AS (
     SELECT
+      trace_id,
       sum(prompt_tokens) AS "promptTokens",
       sum(completion_tokens) AS "completionTokens",
       sum(total_tokens) AS "totalTokens",
@@ -476,47 +473,59 @@ function createTracesQuery(
     FROM
       "observations_view"
     WHERE
-      "trace_id" = t.id
+      "trace_id" IS NOT NULL
       AND "type" = 'GENERATION'
       AND "project_id" = ${projectId}
-        ${observationTimeseriesFilter}
+      ${observationTimeseriesFilter}
     GROUP BY
       trace_id
-  ) AS u ON TRUE
-  LEFT JOIN LATERAL (
+  ),
+  trace_latency AS (
     SELECT
+      trace_id,
       EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
     FROM
       "observations"
     WHERE
-      "trace_id" = t.id
+      "trace_id" IS NOT NULL
       AND "project_id" = ${projectId}
-       ${observationTimeseriesFilter}
+      ${observationTimeseriesFilter}
     GROUP BY
       trace_id
-  ) AS tl ON TRUE
-  LEFT JOIN LATERAL (
+  ),
+  -- used for filtering
+  scores_avg AS (
     SELECT
+      trace_id,
       jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
     FROM (
       SELECT
+        trace_id,
         name,
         avg(value) avg_value
       FROM
         scores
-      WHERE
-        trace_id = t.id
       GROUP BY
-        name
+        1,
+        2
       ORDER BY
-        name
-    ) AS tmp
-  ) AS s_avg ON TRUE
-  WHERE
+        1) tmp
+    GROUP BY
+      1
+  )
+  SELECT
+      ${select}
+  FROM
+    "traces" AS t
+    LEFT JOIN usage AS u ON u.trace_id = t.id
+    -- used for filtering
+    LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
+    LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
+  WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
     ${filterCondition}
-    ${orderByCondition}
+  ${orderByCondition}
   LIMIT ${limit}
   OFFSET ${page * limit}
 `;
