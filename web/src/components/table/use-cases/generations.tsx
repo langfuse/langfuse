@@ -27,7 +27,7 @@ import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type Score, type ObservationLevel, Prisma } from "@prisma/client";
+import { type ObservationLevel, type Prisma } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -39,7 +39,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 
 export type GenerationsTableRow = {
   id: string;
-  traceId: string;
+  traceId?: string;
   startTime: string;
   level?: ObservationLevel;
   statusMessage?: string;
@@ -56,7 +56,7 @@ export type GenerationsTableRow = {
   totalCost?: Prisma.Decimal;
   traceName?: string;
   metadata?: string;
-  scores: Score[];
+  scores?: Record<string, number>;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -247,8 +247,16 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "scores",
       header: "Scores",
       cell: ({ row }) => {
-        const values: Score[] = row.getValue("scores");
-        return <GroupedScoreBadges scores={values} variant="headings" />;
+        const values: Record<string, number> = row.getValue("scores");
+        return (
+          <GroupedScoreBadges
+            scores={Object.entries(values).map(([k, v]) => ({
+              name: k,
+              value: v,
+            }))}
+            variant="headings"
+          />
+        );
       },
       enableHiding: true,
     },
@@ -452,8 +460,8 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     ? generations.data.generations.map((generation) => {
         return {
           id: generation.id,
-          traceId: generation.traceId,
-          traceName: generation.traceName,
+          traceId: generation.traceId ?? undefined,
+          traceName: generation.traceName ?? "",
           startTime: generation.startTime.toLocaleString(),
           endTime: generation.endTime?.toLocaleString() ?? undefined,
           timeToFirstToken:
@@ -466,7 +474,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
-          scores: generation.scores,
+          scores: generation.scores ?? {},
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata
