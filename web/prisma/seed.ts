@@ -143,20 +143,14 @@ async function main() {
       });
     }
 
-    const promptIds: string[] = await generatePromptsForProject(project2);
+    const promptIds = await generatePromptsForProject([project1, project2]);
 
     const envTags = [null, "development", "staging", "production"];
     const colorTags = [null, "red", "blue", "yellow"];
 
-    // if ((i + 1) % 10 === 0 || i === TRACE_VOLUME - 1) {
-    //   process.stdout.clearLine(0);
-    //   process.stdout.cursorTo(0);
-    //   process.stdout.write(`Seeding ${i + 1} of ${TRACE_VOLUME}`);
-    // }
+    const traceVolume = environment === "load" ? 10_000 : 100;
 
-    const traceVolume = environment === "load" ? 100_000 : 100;
-
-    const { generationIds, traces, observations, scores, sessions } =
+    const { generationIds, traces, observations, scores, sessions, events } =
       createObjects(
         traceVolume,
         envTags,
@@ -164,17 +158,13 @@ async function main() {
         project1,
         project2,
         promptIds,
-        prompt,
       );
 
     console.log(
-      "Seeding traces, observations, and scores",
-      traces.length,
-      observations.length,
-      scores.length,
+      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`,
     );
 
-    await uploadObjects(traces, observations, scores, sessions);
+    await uploadObjects(traces, observations, scores, sessions, events);
 
     for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
       const dataset = await prisma.dataset.create({
@@ -243,10 +233,11 @@ async function uploadObjects(
   observations: Prisma.ObservationCreateManyInput[],
   scores: Prisma.ScoreCreateManyInput[],
   sessions: Prisma.TraceSessionCreateManyInput[],
+  events: Prisma.ObservationCreateManyInput[],
 ) {
-  let promises: Prisma.PrismaPromise<any>[] = [];
+  let promises: Prisma.PrismaPromise<unknown>[] = [];
 
-  const chunkSize = 1000;
+  const chunkSize = 10_000;
 
   chunk(sessions, 1).forEach((chunk) => {
     promises.push(
@@ -259,8 +250,14 @@ async function uploadObjects(
       }),
     );
   });
-  for (const promise of promises) {
-    await promise;
+
+  for (let i = 0; i < promises.length; i++) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write(
+      `Seeding of Sessions ${(i / promises.length) * 100}% complete`,
+    );
+    await promises[i];
   }
 
   promises = [];
@@ -272,8 +269,13 @@ async function uploadObjects(
       }),
     );
   });
-  for (const promise of promises) {
-    await promise;
+  for (let i = 0; i < promises.length; i++) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write(
+      `Seeding of Traces ${(i / promises.length) * 100}% complete`,
+    );
+    await promises[i];
   }
 
   promises = [];
@@ -284,8 +286,32 @@ async function uploadObjects(
       }),
     );
   });
-  for (const promise of promises) {
-    await promise;
+
+  for (let i = 0; i < promises.length; i++) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write(
+      `Seeding of Observations ${(i / promises.length) * 100}% complete`,
+    );
+    await promises[i];
+  }
+
+  promises = [];
+  chunk(events, chunkSize).forEach((chunk) => {
+    promises.push(
+      prisma.observation.createMany({
+        data: chunk,
+      }),
+    );
+  });
+
+  for (let i = 0; i < promises.length; i++) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write(
+      `Seeding of Events ${(i / promises.length) * 100}% complete`,
+    );
+    await promises[i];
   }
 
   promises = [];
@@ -296,8 +322,13 @@ async function uploadObjects(
       }),
     );
   });
-  for (const promise of promises) {
-    await promise;
+  for (let i = 0; i < promises.length; i++) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write(
+      `Seeding of Scores ${(i / promises.length) * 100}% complete`,
+    );
+    await promises[i];
   }
 }
 
@@ -307,14 +338,14 @@ function createObjects(
   colorTags: (string | null)[],
   project1: Project,
   project2: Project,
-  promptIds: string[],
-  prompt: Prompt,
+  promptIds: Map<string, string[]>,
 ) {
   const traces: Prisma.TraceCreateManyInput[] = [];
   const observations: Prisma.ObservationCreateManyInput[] = [];
   const scores: Prisma.ScoreCreateManyInput[] = [];
   const sessions: Prisma.TraceSessionCreateManyInput[] = [];
   const generationIds: string[] = [];
+  const events: Prisma.ObservationCreateManyInput[] = [];
 
   for (let i = 0; i < traceVolume; i++) {
     // print progress to console with a progress bar that refreshes every 10 iterations
@@ -461,7 +492,9 @@ function createObjects(
 
         const model = models[Math.floor(Math.random() * models.length)];
         const promptId =
-          promptIds[Math.floor(Math.random() * promptIds.length)];
+          promptIds.get(projectId)![
+            Math.floor(Math.random() * promptIds.get(projectId)!.length)
+          ];
 
         const generation = {
           type: ObservationType.GENERATION,
@@ -549,9 +582,7 @@ function createObjects(
           parentObservationId: span.id,
           traceId: trace.id,
           ...{
-            ...(Math.random() > 0.5 && trace.projectId === prompt.projectId
-              ? { promptId: prompt.id }
-              : {}),
+            ...(Math.random() > 0.5 ? { promptId: promptId } : {}),
           },
           unit: ModelUsageUnit.Tokens,
         };
@@ -584,7 +615,7 @@ function createObjects(
               ),
           );
 
-          observations.push({
+          events.push({
             type: ObservationType.EVENT,
             id: `event-${v4()}`,
             startTime: eventTs,
@@ -611,16 +642,28 @@ function createObjects(
     observations,
     scores,
     sessions: uniqueSessions,
+    events,
   };
 }
 
-async function generatePromptsForProject(project2: Project) {
-  const promptIds: string[] = [];
+async function generatePromptsForProject(projects: Project[]) {
+  const promptIds = new Map<string, string[]>();
 
+  await Promise.all(
+    projects.map(async (project) => {
+      const promptIdsForProject = await generatePrompts(project);
+      promptIds.set(project.id, promptIdsForProject);
+    }),
+  );
+  return promptIds;
+}
+
+async function generatePrompts(project: Project) {
+  const promptIds = [];
   const prompts = [
     {
       id: `prompt-${v4()}`,
-      projectId: project2.id,
+      projectId: project.id,
       createdBy: "user-1",
       prompt: "Prompt 1 content",
       name: "Prompt 1",
@@ -629,7 +672,7 @@ async function generatePromptsForProject(project2: Project) {
     },
     {
       id: `prompt-${v4()}`,
-      projectId: project2.id,
+      projectId: project.id,
       createdBy: "user-1",
       prompt: "Prompt 2 content",
       name: "Prompt 2",
@@ -638,7 +681,7 @@ async function generatePromptsForProject(project2: Project) {
     },
     {
       id: `prompt-${v4()}`,
-      projectId: project2.id,
+      projectId: project.id,
       createdBy: "API",
       prompt: "Prompt 3 content",
       name: "Prompt 3 by API",
@@ -648,8 +691,15 @@ async function generatePromptsForProject(project2: Project) {
   ];
 
   for (const prompt of prompts) {
-    await prisma.prompt.create({
-      data: {
+    await prisma.prompt.upsert({
+      where: {
+        projectId_name_version: {
+          projectId: prompt.projectId,
+          name: prompt.name,
+          version: prompt.version,
+        },
+      },
+      create: {
         id: prompt.id,
         projectId: prompt.projectId,
         createdBy: prompt.createdBy,
@@ -658,6 +708,9 @@ async function generatePromptsForProject(project2: Project) {
         version: prompt.version,
         isActive: prompt.isActive,
       },
+      update: {
+        id: prompt.id,
+      },
     });
     promptIds.push(prompt.id);
   }
@@ -665,7 +718,7 @@ async function generatePromptsForProject(project2: Project) {
   const promptVersionsWithVariables = [
     {
       id: `prompt-${v4()}`,
-      projectId: project2.id,
+      projectId: project.id,
       createdBy: "user-1",
       prompt: "Prompt 4 version 1 content with {{variable}}",
       name: "Prompt 4 with variable and config",
@@ -677,7 +730,7 @@ async function generatePromptsForProject(project2: Project) {
     },
     {
       id: `prompt-${v4()}`,
-      projectId: project2.id,
+      projectId: project.id,
       createdBy: "user-1",
       prompt: "Prompt 4 version 2 content with {{variable}}",
       name: "Prompt 4 with variable and config",
@@ -690,7 +743,7 @@ async function generatePromptsForProject(project2: Project) {
     },
     {
       id: `prompt-${v4()}`,
-      projectId: project2.id,
+      projectId: project.id,
       createdBy: "user-1",
       prompt: "Prompt 4 version 3 content with {{variable}}",
       name: "Prompt 4 with variable and config",
@@ -705,8 +758,15 @@ async function generatePromptsForProject(project2: Project) {
   ];
 
   for (const version of promptVersionsWithVariables) {
-    await prisma.prompt.create({
-      data: {
+    await prisma.prompt.upsert({
+      where: {
+        projectId_name_version: {
+          projectId: version.projectId,
+          name: version.name,
+          version: version.version,
+        },
+      },
+      create: {
         id: version.id,
         projectId: version.projectId,
         createdBy: version.createdBy,
@@ -716,17 +776,27 @@ async function generatePromptsForProject(project2: Project) {
         version: version.version,
         isActive: version.isActive,
       },
+      update: {
+        id: version.id,
+      },
     });
     promptIds.push(version.id);
   }
   const promptName = "Prompt with many versions";
-  const projectId = project2.id;
+  const projectId = project.id;
   const createdBy = "user-1";
 
   for (let i = 1; i <= 20; i++) {
     const promptId = `prompt-${v4()}`;
-    await prisma.prompt.create({
-      data: {
+    await prisma.prompt.upsert({
+      where: {
+        projectId_name_version: {
+          projectId: projectId,
+          name: promptName,
+          version: i,
+        },
+      },
+      create: {
         id: promptId,
         projectId: projectId,
         createdBy: createdBy,
@@ -734,6 +804,9 @@ async function generatePromptsForProject(project2: Project) {
         name: promptName,
         version: i,
         isActive: i === 20,
+      },
+      update: {
+        id: promptId,
       },
     });
     promptIds.push(promptId);
