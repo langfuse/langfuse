@@ -252,6 +252,7 @@ async function posthogTelemetry({
       event: "telemetry",
       properties: {
         langfuseVersion: VERSION,
+        userDomains: domains,
         totalProjects: totalProjects,
         traces: countTraces,
         scores: countScores,

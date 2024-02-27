@@ -23,7 +23,7 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
-import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -36,6 +36,7 @@ import {
   type ExportFileFormats,
 } from "@/src/server/api/interfaces/exportTypes";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import type Decimal from "decimal.js";
 
 export type GenerationsTableRow = {
   id: string;
@@ -45,15 +46,14 @@ export type GenerationsTableRow = {
   statusMessage?: string;
   endTime?: string;
   timeToFirstToken?: string;
-  latency?: Prisma.Decimal;
-  latencyPerToken?: Prisma.Decimal;
+  latency?: number;
   name?: string;
   model?: string;
   input?: unknown;
   output?: unknown;
-  inputCost?: Prisma.Decimal;
-  outputCost?: Prisma.Decimal;
-  totalCost?: Prisma.Decimal;
+  inputCost?: Decimal;
+  outputCost?: Decimal;
+  totalCost?: Decimal;
   traceName?: string;
   metadata?: string;
   scores?: Record<string, number>;
@@ -127,6 +127,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
 
     setIsExporting(true);
     posthog.capture("generations:export", { file_format: fileFormat });
+    if (fileFormat === "OPENAI-JSONL")
+      alert(
+        "When exporting in OpenAI-JSONL, only generations that exactly match the `ChatML` format will be exported. For any questions, reach out to support.",
+      );
     try {
       const fileData = await directApi.generations.export.query({
         projectId,
@@ -234,12 +238,19 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Time to First Token",
       enableHiding: true,
       cell: ({ row }) => {
-        const startTime: number = row.getValue("startTime");
-        const value: number | undefined = row.getValue("timeToFirstToken");
+        const startTime: string = row.getValue("startTime");
+        const timeToFirstToken: string | undefined =
+          row.getValue("timeToFirstToken");
 
-        return value !== undefined ? (
-          <span>{value - startTime}</span>
-        ) : undefined;
+        if (!timeToFirstToken) {
+          return undefined;
+        }
+
+        const latencyInMs =
+          new Date(timeToFirstToken).getTime() - new Date(startTime).getTime();
+        const latencyInSeconds = latencyInMs / 1000;
+
+        return <span>{formatIntervalSeconds(latencyInSeconds)}</span>;
       },
     },
     {
@@ -265,33 +276,32 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "latency",
       header: "Latency",
       cell: ({ row }) => {
-        const latency: Prisma.Decimal | undefined = row.getValue("latency");
-        const castedLatency: number | undefined = latency
-          ? Number(latency)
-          : undefined;
-        return castedLatency !== undefined ? (
-          <span>{formatInterval(castedLatency)}</span>
+        const latency: number | undefined = row.getValue("latency");
+        return latency !== undefined ? (
+          <span>{formatIntervalSeconds(latency)}</span>
         ) : undefined;
       },
       enableHiding: true,
       enableSorting: true,
     },
     {
-      accessorKey: "latencyPerToken",
-      id: "latencyPerToken",
-      header: "Latency per Token",
+      accessorKey: "timePerOutputToken",
+      id: "timePerOutputToken",
+      header: "Time per Output Token",
       cell: ({ row }) => {
-        const latency: Prisma.Decimal | undefined = row.getValue("latency");
-        const castedLatency: number | undefined = latency
-          ? Number(latency)
-          : undefined;
+        const latency: number | undefined = row.getValue("latency");
         const usage: {
           promptTokens: number;
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return castedLatency !== undefined && usage.completionTokens !== 0 ? (
-          <span>{formatInterval(castedLatency / usage.completionTokens)}</span>
+        return latency !== undefined &&
+          (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
+          <span>
+            {usage.completionTokens
+              ? formatIntervalSeconds(latency / usage.completionTokens)
+              : formatIntervalSeconds(latency / usage.totalTokens)}
+          </span>
         ) : undefined;
       },
       defaultHidden: true,
@@ -301,10 +311,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "inputCost",
       header: "Input Cost",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("inputCost");
+        const value: Decimal | undefined = row.getValue("inputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
+          <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -314,10 +324,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "outputCost",
       header: "Output Cost",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("outputCost");
+        const value: Decimal | undefined = row.getValue("outputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
+          <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -327,10 +337,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "totalCost",
       header: "Total Cost",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
+        const value: Decimal | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
+          <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -436,7 +446,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
         const value = `${promptName} (v${promptVersion})`;
-        promptName?.replace(" ", "-");
         return (
           promptName &&
           promptVersion && (
