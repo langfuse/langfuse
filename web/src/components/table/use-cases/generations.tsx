@@ -266,7 +266,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Latency",
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
-        console.log(latency, typeof latency, "latency");
         return latency !== undefined ? (
           <span>{formatIntervalSeconds(latency)}</span>
         ) : undefined;
@@ -458,7 +457,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
 
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.generations.map((generation) => {
-        console.log("latency", generation.latency, typeof generation.latency);
         return {
           id: generation.id,
           traceId: generation.traceId,
