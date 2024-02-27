@@ -1,4 +1,21 @@
 CREATE OR REPLACE VIEW "observations_view" AS
+WITH model_data AS (
+    SELECT
+        models.*,
+        observations.id AS obs_id
+    FROM
+        models
+    JOIN observations ON (models.project_id = observations.project_id OR models.project_id IS NULL)
+    AND models.model_name = observations.internal_model
+    AND (models.start_date < observations.start_time OR models.start_date IS NULL)
+    AND observations.unit::TEXT = models.unit
+)
+, ranked_models AS (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (PARTITION BY obs_id ORDER BY project_id ASC, start_date DESC NULLS LAST) as rn
+    FROM model_data
+)
 SELECT
     o.*,
     m.id AS "model_id",
@@ -34,17 +51,4 @@ SELECT
     CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
 FROM
     observations o
-LEFT JOIN LATERAL (
-    SELECT
-        models.*
-    FROM
-        models
-    WHERE (models.project_id = o.project_id OR models.project_id IS NULL)
-    AND models.model_name = o.internal_model
-    AND (models.start_date < o.start_time OR models.start_date IS NULL)
-    AND o.unit::TEXT = models.unit
-    ORDER BY
-        models.project_id ASC, -- in postgres, NULLs are sorted last when ordering ASC
-        models.start_date DESC NULLS LAST -- now, NULLs are sorted last when ordering DESC as well
-    LIMIT 1
-) m ON TRUE
+LEFT JOIN ranked_models m ON o.id = m.obs_id AND m.rn = 1
