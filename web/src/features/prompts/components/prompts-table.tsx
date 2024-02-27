@@ -47,7 +47,7 @@ export function PromptTable(props: { projectId: string }) {
       header: "Name",
       cell: ({ row }) => {
         const name: string = row.getValue("name");
-        return name ? (
+        return name && typeof name === "string" ? (
           <TableLink
             path={`/project/${props.projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
