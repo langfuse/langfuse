@@ -19,7 +19,7 @@ import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesT
 import { api } from "@/src/utils/api";
 import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@prisma/client";
+import { type ObservationLevel, type Score } from "@prisma/client";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
@@ -47,12 +47,16 @@ export type TracesTableRow = {
   sessionId?: string;
   scores: Score[];
   tags: string[];
+  level: ObservationLevel;
   usage: {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
   };
-  cost?: Decimal;
+  inputCost?: Decimal;
+  outputCost?: Decimal;
+  totalCost?: Decimal;
+  traceDuration?: number;
 };
 
 export type TracesTableProps = {
@@ -156,13 +160,17 @@ export default function TracesTable({
       input: trace.input,
       output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
+      level: trace.level,
       tags: trace.tags,
       usage: {
         promptTokens: trace.promptTokens,
         completionTokens: trace.completionTokens,
         totalTokens: trace.totalTokens,
       },
-      cost: trace.calculatedTotalCost ?? undefined,
+      traceDuration: trace.traceDuration ?? undefined,
+      inputCost: trace.calculatedInputCost ?? undefined,
+      outputCost: trace.calculatedOutputCost ?? undefined,
+      totalCost: trace.calculatedTotalCost ?? undefined,
     };
   };
 
@@ -291,6 +299,36 @@ export default function TracesTable({
       enableSorting: true,
     },
     {
+      accessorKey: "inputTokens",
+      id: "inputTokens",
+      header: "Input Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.promptTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "outputTokens",
+      id: "outputTokens",
+      header: "Output Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.completionTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
@@ -312,11 +350,51 @@ export default function TracesTable({
       enableHiding: true,
     },
     {
-      accessorKey: "cost",
-      id: "cost",
-      header: "Cost",
+      accessorKey: "inputCost",
+      id: "inputCost",
+      header: "Input Cost",
       cell: ({ row }) => {
-        const cost: Decimal | undefined = row.getValue("cost");
+        const cost: Decimal | undefined = row.getValue("inputCost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>Not Available</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "outputCost",
+      id: "outputCost",
+      header: "Output Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("outputCost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>Not Available</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: "Total Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("totalCost");
         return (
           <div>
             {cost ? (
@@ -383,6 +461,24 @@ export default function TracesTable({
       header: "Release",
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "level",
+      id: "level",
+      header: "Level",
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "traceDuration",
+      id: "traceDuration",
+      header: "Duration",
+      cell: ({ row }) => {
+        const value = row.getValue("traceDuration");
+        return value && typeof value === "number"
+          ? formatInterval(value)
+          : undefined;
+      },
     },
     {
       accessorKey: "tags",
