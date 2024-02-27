@@ -1,8 +1,5 @@
 import { Transform, type TransformCallback } from "stream";
 
-import { usdFormatter } from "@/src/utils/numbers";
-
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
 
 export function transformStreamToCsv(): Transform {
@@ -26,11 +23,11 @@ export function transformStreamToCsv(): Transform {
           "endTime",
           "timeToFirstToken",
           "scores",
-          "latency",
-          "latencyPerToken",
-          "inputCost",
-          "outputCost",
-          "totalCost",
+          "latencyInMilliSeconds",
+          "latencyPerTokenInMilliSeconds",
+          "inputCostInUSD",
+          "outputCostInUSD",
+          "totalCostInUSD",
           "level",
           "statusMessage",
           "model",
@@ -48,7 +45,6 @@ export function transformStreamToCsv(): Transform {
 
         isFirstChunk = false;
       }
-
       // Convert the generation object to a CSV line and push it
       const csvRow = [
         row.id,
@@ -63,20 +59,14 @@ export function transformStreamToCsv(): Transform {
             new Date(row.completionStartTime).getTime()
           : "",
         row.scores ? JSON.stringify(row.scores) : "",
-        row.latency ? formatIntervalSeconds(row.latency) : "",
+        row.latency ? row.latency : "",
         // latency per token
         row.latency && row.completionTokens !== 0
-          ? formatIntervalSeconds(row.latency / row.completionTokens)
+          ? row.latency / row.completionTokens
           : "",
-        row.calculatedInputCost
-          ? usdFormatter(row.calculatedInputCost.toNumber(), 2, 8)
-          : "",
-        row.calculatedOutputCost
-          ? usdFormatter(row.calculatedOutputCost.toNumber(), 2, 8)
-          : "",
-        row.calculatedTotalCost
-          ? usdFormatter(row.calculatedTotalCost.toNumber(), 2, 8)
-          : "",
+        row.calculatedInputCost ? row.calculatedInputCost.toNumber() : "",
+        row.calculatedOutputCost ? row.calculatedOutputCost.toNumber() : "",
+        row.calculatedTotalCost ? row.calculatedTotalCost.toNumber() : "",
         row.level,
         row.statusMessage ?? "",
         row.model ?? "",
