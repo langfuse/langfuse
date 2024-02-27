@@ -21,7 +21,7 @@ import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/com
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
-import { formatInterval } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace";
@@ -70,7 +70,7 @@ export const ObservationPreview = (props: {
             {preloadedObservation.completionStartTime ? (
               <Badge variant="outline">
                 Time to first token:{" "}
-                {formatInterval(
+                {formatIntervalSeconds(
                   (preloadedObservation.completionStartTime.getTime() -
                     preloadedObservation.startTime.getTime()) /
                     1000,
@@ -80,7 +80,7 @@ export const ObservationPreview = (props: {
             {preloadedObservation.endTime ? (
               <Badge variant="outline">
                 Latency:{" "}
-                {formatInterval(
+                {formatIntervalSeconds(
                   (preloadedObservation.endTime.getTime() -
                     preloadedObservation.startTime.getTime()) /
                     1000,

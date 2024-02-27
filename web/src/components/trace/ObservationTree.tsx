@@ -5,7 +5,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
-import { formatInterval } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { MinusCircle, MinusIcon, PlusCircleIcon, PlusIcon } from "lucide-react";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Button } from "@/src/components/ui/button";
@@ -96,7 +96,7 @@ const ObservationTreeTraceNode = (props: {
     {props.showMetrics && props.trace.latency ? (
       <div className="flex gap-2">
         <span className="text-xs text-gray-500">
-          {formatInterval(props.trace.latency)}
+          {formatIntervalSeconds(props.trace.latency)}
         </span>
       </div>
     ) : null}
@@ -179,7 +179,7 @@ const ObservationTreeNode = (props: {
                     <div className="flex gap-2">
                       {observation.endTime ? (
                         <span className="text-xs text-gray-500">
-                          {formatInterval(
+                          {formatIntervalSeconds(
                             (observation.endTime.getTime() -
                               observation.startTime.getTime()) /
                               1000,

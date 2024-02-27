@@ -4,7 +4,7 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
-import { formatInterval } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
 
@@ -65,7 +65,7 @@ export function DatasetRunsTable(props: {
       header: "Latency (avg)",
       cell: ({ row }) => {
         const avgLatency: RowData["avgLatency"] = row.getValue("avgLatency");
-        return <>{formatInterval(avgLatency)}</>;
+        return <>{formatIntervalSeconds(avgLatency)}</>;
       },
     },
     {

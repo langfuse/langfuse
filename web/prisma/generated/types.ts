@@ -225,7 +225,7 @@ export type ObservationView = {
     calculated_input_cost: string | null;
     calculated_output_cost: string | null;
     calculated_total_cost: string | null;
-    latency: string | null;
+    latency: number | null;
 };
 export type Pricing = {
     id: string;

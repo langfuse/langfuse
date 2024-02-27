@@ -114,10 +114,14 @@ export function getAllGenerationsSqlQuery({
         o.calculated_input_cost as "calculatedInputCost",
         o.calculated_output_cost as "calculatedOutputCost",
         o.calculated_total_cost as "calculatedTotalCost",
-        o."latency"
+        o."latency",
+        o.prompt_id as "promptId",
+        p.name as "promptName",
+        p.version as "promptVersion"
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
+      LEFT JOIN prompts p ON p.id = o.prompt_id
       WHERE
         o.project_id = ${input.projectId}
         AND t.project_id = ${input.projectId}
