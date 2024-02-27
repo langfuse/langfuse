@@ -1,6 +1,12 @@
 import { Transform, type TransformCallback } from "stream";
 
-import type { ObservationView } from "@prisma/client";
+import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
+import { formatInterval } from "@/src/utils/dates";
+
+type ExportedObservations = ObservationViewWithScores & {
+  timeToFirstToken?: string | null;
+  latencyPerToken?: number | null;
+};
 
 export function transformStreamToJson(): Transform {
   let isFirstElement = true;
@@ -9,7 +15,7 @@ export function transformStreamToJson(): Transform {
     objectMode: true,
 
     transform(
-      row: ObservationView,
+      row: ObservationViewWithScores,
       encoding: BufferEncoding,
       callback: TransformCallback,
     ): void {
@@ -19,8 +25,25 @@ export function transformStreamToJson(): Transform {
       } else {
         this.push(","); // For subsequent elements, prepend a comma
       }
+      let rowToPush: ExportedObservations = { ...row };
 
-      this.push(JSON.stringify(row)); // Push the current row as a JSON string
+      if (row.completionStartTime) {
+        const timeToFirstToken = formatInterval(
+          new Date(row.startTime).getTime() -
+            new Date(row.completionStartTime).getTime(),
+        );
+        rowToPush = { ...rowToPush, timeToFirstToken: timeToFirstToken };
+      } else {
+        rowToPush = { ...rowToPush, timeToFirstToken: null };
+      }
+      if (row.latency && row.totalTokens !== 0) {
+        const latencyPerToken = Number(row.latency) / row.totalTokens;
+        rowToPush = { ...rowToPush, latencyPerToken: latencyPerToken };
+      } else {
+        rowToPush = { ...rowToPush, latencyPerToken: null };
+      }
+
+      this.push(JSON.stringify(rowToPush)); // Push the current row as a JSON string
 
       callback();
     },
