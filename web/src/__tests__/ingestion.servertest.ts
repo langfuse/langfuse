@@ -1763,4 +1763,47 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
 
     expect(dbScore).toBeNull();
   });
+
+  it("should error on wrong input", async () => {
+    const traceId = "trace_id";
+    const bearerAuth = "Bearer pk-lf-1234567890";
+
+    const scoreId = "score_id";
+    const scoreEventId = "score_event_id";
+    const scoreName = "score-name";
+    const scoreValue = 100.5;
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        // sending data instead of batch
+        data: [
+          {
+            id: scoreEventId,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: scoreId,
+              name: scoreName,
+              value: scoreValue,
+              traceId: traceId,
+            },
+          },
+        ],
+      },
+      bearerAuth,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await prisma.trace.count()).toBe(0);
+
+    const dbScore = await prisma.score.findUnique({
+      where: {
+        id: scoreId,
+      },
+    });
+
+    expect(dbScore).toBeNull();
+  });
 });
