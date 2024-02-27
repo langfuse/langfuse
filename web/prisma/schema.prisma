@@ -261,6 +261,9 @@ model Observation {
     prompt   Prompt? @relation(fields: [promptId], onDelete: SetNull, references: [id])
 
     @@unique([id, projectId])
+    @@index([projectId, internalModel, startTime, unit])
+    @@index([traceId, projectId, type, startTime])
+    @@index([traceId, projectId, startTime])
     @@index([traceId])
     @@index([type])
     @@index(startTime)
@@ -268,6 +271,7 @@ model Observation {
     @@index(projectId)
     @@index(parentObservationId)
     @@index(model)
+    @@index([projectId, startTime, type])
     @@map("observations")
 }
 
@@ -461,6 +465,7 @@ model Model {
     tokenizerConfig Json?     @map("tokenizer_config")
 
     @@unique([projectId, modelName, startDate, unit])
+    @@index([projectId, modelName, startDate, unit])
     @@index([projectId, modelName])
     @@map("models")
 }
@@ -495,7 +500,7 @@ view ObservationView {
 
     promptId String? @map("prompt_id")
 
-    // Model
+    // model fields
     modelId     String?  @map("model_id")
     inputPrice  Decimal? @map("input_price")
     outputPrice Decimal? @map("output_price")

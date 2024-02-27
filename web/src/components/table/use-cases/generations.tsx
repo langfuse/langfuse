@@ -119,6 +119,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
 
     setIsExporting(true);
     posthog.capture("generations:export", { file_format: fileFormat });
+    if (fileFormat === "OPENAI-JSONL")
+      alert(
+        "When exporting in OpenAI-JSONL, only generations that exactly match the `ChatML` format will be exported. For any questions, reach out to support.",
+      );
     try {
       const fileData = await directApi.generations.export.query({
         projectId,

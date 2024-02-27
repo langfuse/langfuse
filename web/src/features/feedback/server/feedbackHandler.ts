@@ -19,6 +19,6 @@ export default async function feedbackApiHandler(
     }
   } catch (error) {
     console.error(error);
-    res.status(400).json({ status: "Error" });
+    res.status(500).json({ status: "Error" });
   }
 }
