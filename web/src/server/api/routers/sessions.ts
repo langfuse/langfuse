@@ -49,16 +49,41 @@ export const sessionRouter = createTRPCRouter({
             userIds: (string | null)[] | null;
             totalCount: number;
             sessionDuration: number | null;
+            inputCost: number;
+            outputCost: number;
             totalCost: number;
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+            totalLatency: number;
           }>
         >(Prisma.sql`
-      WITH observation_metrics AS (
+      WITH trace_latencies AS (
+        SELECT
+          trace_id,
+          EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
+        FROM
+          "observations_view"
+        WHERE
+          "trace_id" IS NOT NULL
+          AND "project_id" = ${input.projectId}
+        GROUP BY
+          trace_id
+      ),
+      observation_metrics AS (
         SELECT
           t.session_id,
           EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"), MAX(t.timestamp))) - EXTRACT(EPOCH FROM COALESCE(MIN(o."start_time"), MIN(t.timestamp)))::double precision AS "sessionDuration",
-          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
+          SUM(COALESCE(o."calculated_input_cost", 0)) AS "inputCost",
+          SUM(COALESCE(o."calculated_output_cost", 0)) AS "outputCost",
+          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost",
+          SUM(o.prompt_tokens) AS "promptTokens",
+          SUM(o.completion_tokens) AS "completionTokens",
+          SUM(o.total_tokens) AS "totalTokens",
+          SUM(l.latency) AS "totalLatency"
         FROM traces t
         LEFT JOIN observations_view o ON o.trace_id = t.id
+        LEFT JOIN trace_latencies l ON l.trace_id = t.id
         WHERE
           t."project_id" = ${input.projectId}
           AND t.session_id IS NOT NULL
@@ -85,6 +110,12 @@ export const sessionRouter = createTRPCRouter({
         t."countTraces",
         o."sessionDuration",
         o."totalCost",
+        o."inputCost",
+        o."outputCost",
+        o."promptTokens",
+        o."completionTokens",
+        o."totalTokens",
+        o."totalLatency",
         (count(*) OVER ())::int AS "totalCount"
       FROM trace_sessions s
       LEFT JOIN trace_metrics t ON t.session_id = s.id
