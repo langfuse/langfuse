@@ -47,7 +47,6 @@ export type GenerationsTableRow = {
   endTime?: string;
   timeToFirstToken?: string;
   latency?: number;
-  latencyPerToken?: Decimal;
   name?: string;
   model?: string;
   input?: unknown;
@@ -278,9 +277,9 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableSorting: true,
     },
     {
-      accessorKey: "latencyPerToken",
-      id: "latencyPerToken",
-      header: "Latency per Token",
+      accessorKey: "timePerOutputToken",
+      id: "timePerOutputToken",
+      header: "Time per Output Token",
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
         const usage: {
@@ -439,7 +438,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
         const value = `${promptName} (v${promptVersion})`;
-        promptName?.replace(" ", "-");
         return (
           promptName &&
           promptVersion && (
