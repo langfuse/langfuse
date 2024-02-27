@@ -13,7 +13,7 @@ import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
-import { type z } from "zod";
+import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 export default async function handler(
@@ -70,10 +70,16 @@ export default async function handler(
           error: "Internal Server Error",
         });
       }
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          error: error.errors,
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       console.error(error, req.body);
-      res.status(400).json({
+      res.status(500).json({
         message: "Invalid request data",
         error: errorMessage,
       });
@@ -120,7 +126,12 @@ export default async function handler(
           error: "Internal Server Error",
         });
       }
-
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          error: error.errors,
+        });
+      }
       if (error instanceof ResourceNotFoundError) {
         return res.status(404).json({
           message: "Span not found",
@@ -128,7 +139,7 @@ export default async function handler(
       }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(400).json({
+      res.status(500).json({
         message: "Invalid request data",
         error: errorMessage,
       });

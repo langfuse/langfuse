@@ -16,7 +16,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
-import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -286,7 +286,7 @@ export default function TracesTable({
       // add seconds to the end of the latency
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latency");
-        return value !== undefined ? formatInterval(value) : undefined;
+        return value !== undefined ? formatIntervalSeconds(value) : undefined;
       },
       enableHiding: true,
       enableSorting: true,
