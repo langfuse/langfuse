@@ -19,7 +19,7 @@ import { type Session } from "next-auth";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { DB, prisma } from "@/src/server/db";
-
+import * as Sentry from "@sentry/node";
 import * as z from "zod";
 
 type CreateContextOptions = {
@@ -55,6 +55,12 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 
   // Get the session from the server using the getServerSession wrapper function
   const session = await getServerAuthSession({ req, res });
+
+  Sentry.setUser({
+    id: session?.user?.id,
+    email: session?.user?.email ?? undefined,
+    username: session?.user?.name ?? undefined,
+  });
 
   return createInnerTRPCContext({
     session,
