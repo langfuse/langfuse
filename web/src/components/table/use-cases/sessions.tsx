@@ -23,7 +23,13 @@ export type SessionTableRow = {
   countTraces: number;
   bookmarked: boolean;
   sessionDuration: number | null;
+  inputCost: number;
+  outputCost: number;
   totalCost: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  totalLatency: number;
 };
 
 export type SessionTableProps = {
@@ -100,7 +106,13 @@ export default function SessionsTable({
       countTraces: session.countTraces,
       bookmarked: session.bookmarked,
       sessionDuration: session.sessionDuration,
+      inputCost: session.inputCost,
+      outputCost: session.outputCost,
       totalCost: session.totalCost,
+      inputTokens: session.promptTokens,
+      outputTokens: session.completionTokens,
+      totalTokens: session.totalTokens,
+      totalLatency: session.totalLatency,
     };
   };
 
@@ -190,6 +202,34 @@ export default function SessionsTable({
       enableSorting: true,
     },
     {
+      accessorKey: "inputCost",
+      id: "inputCost",
+      header: "Input Cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("inputCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value, 2, 2)}</span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "outputCost",
+      id: "outputCost",
+      header: "Output Cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("outputCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value, 2, 2)}</span>
+        ) : undefined;
+      },
+    },
+    {
       accessorKey: "totalCost",
       id: "totalCost",
       header: "Total Cost",
@@ -200,6 +240,52 @@ export default function SessionsTable({
 
         return value !== undefined ? (
           <span>{usdFormatter(value, 2, 2)}</span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "inputTokens",
+      id: "inputTokens",
+      header: "Input Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("inputTokens");
+
+        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+      },
+    },
+    {
+      accessorKey: "outputTokens",
+      id: "outputTokens",
+      header: "Output Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value = row.getValue("outputTokens");
+
+        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+      },
+    },
+    {
+      accessorKey: "totalTokens",
+      id: "totalTokens",
+      header: "Total Tokens",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value = row.getValue("totalTokens");
+        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+      },
+    },
+    {
+      accessorKey: "totalLatency",
+      id: "totalLatency",
+      header: "Total Latency",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("totalLatency");
+        return value !== undefined ? (
+          <span>{formatIntervalSeconds(value)}</span>
         ) : undefined;
       },
     },
