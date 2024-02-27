@@ -18,7 +18,7 @@ export const setEndOfDay = (date: Date) => {
 export const intervalInSeconds = (start: Date, end: Date | null) =>
   end ? (end.getTime() - start.getTime()) / 1000 : 0;
 
-export const formatInterval = (seconds: number) => {
+export const formatIntervalSeconds = (seconds: number) => {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
