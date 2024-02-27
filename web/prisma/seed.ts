@@ -1,6 +1,5 @@
 import {
   PrismaClient,
-  type Prompt,
   type Project,
   type Prisma,
   ObservationType,
@@ -14,6 +13,8 @@ import { parseArgs } from "node:util";
 import { ModelUsageUnit } from "@/src/constants";
 import { chunk } from "lodash";
 import { v4 } from "uuid";
+
+const LOAD_TRACE_VOLUME = 10_000;
 
 const options = {
   environment: { type: "string" },
@@ -148,7 +149,7 @@ async function main() {
     const envTags = [null, "development", "staging", "production"];
     const colorTags = [null, "red", "blue", "yellow"];
 
-    const traceVolume = environment === "load" ? 10_000 : 100;
+    const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
 
     const { generationIds, traces, observations, scores, sessions, events } =
       createObjects(
