@@ -1,4 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import {
+  PrismaClient,
+  type Prompt,
+  type Project,
+  type Prisma,
+  ObservationType,
+} from "@prisma/client";
 import {
   hashSecretKey,
   getDisplaySecretKey,
@@ -6,14 +12,14 @@ import {
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 import { ModelUsageUnit } from "@/src/constants";
+import { chunk } from "lodash";
+import { v4 } from "uuid";
 
 const options = {
   environment: { type: "string" },
 } as const;
 
 const prisma = new PrismaClient();
-
-const TRACE_VOLUME = 100;
 
 async function main() {
   const environment = parseArgs({
@@ -98,21 +104,12 @@ async function main() {
   }
 
   // Do not run the following for local docker compose setup
-  if (environment === "examples") {
+  if (environment === "examples" || environment === "load") {
     const project2 = await prisma.project.upsert({
       where: { id: "239ad00f-562f-411d-af14-831c75ddd875" },
       create: {
+        id: "239ad00f-562f-411d-af14-831c75ddd875",
         name: "demo-app",
-        apiKeys: {
-          create: [
-            {
-              note: "seeded key",
-              hashedSecretKey: await hashSecretKey("sk-lf-asdfghjkl"),
-              displaySecretKey: getDisplaySecretKey("sk-lf-asdfghjkl"),
-              publicKey: "pk-lf-asdfghjkl",
-            },
-          ],
-        },
         members: {
           create: {
             role: "OWNER",
@@ -123,436 +120,61 @@ async function main() {
       update: {},
     });
 
-    const promptIds: string[] = [];
-
-    const prompts = [
-      {
-        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
-        projectId: project2.id,
-        createdBy: "user-1",
-        prompt: "Prompt 1 content",
-        name: "Prompt 1",
-        version: 1,
-        isActive: true,
-      },
-      {
-        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
-        projectId: project2.id,
-        createdBy: "user-1",
-        prompt: "Prompt 2 content",
-        name: "Prompt 2",
-        version: 1,
-        isActive: true,
-      },
-      {
-        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
-        projectId: project2.id,
-        createdBy: "API",
-        prompt: "Prompt 3 content",
-        name: "Prompt 3 by API",
-        version: 1,
-        isActive: true,
-      },
-    ];
-
-    for (const prompt of prompts) {
-      await prisma.prompt.create({
+    const secondKey = {
+      id: "seed-api-key-2",
+      secret: process.env.SEED_SECRET_KEY ?? "sk-lf-asdfghjkl",
+      public: "pk-lf-asdfghjkl",
+      note: "seeded key 2",
+    };
+    if (!(await prisma.apiKey.findUnique({ where: { id: secondKey.id } }))) {
+      await prisma.apiKey.create({
         data: {
-          id: prompt.id,
-          projectId: prompt.projectId,
-          createdBy: prompt.createdBy,
-          prompt: prompt.prompt,
-          name: prompt.name,
-          version: prompt.version,
-          isActive: prompt.isActive,
+          note: secondKey.note,
+          id: secondKey.id,
+          publicKey: secondKey.public,
+          hashedSecretKey: await hashSecretKey(secondKey.secret),
+          displaySecretKey: getDisplaySecretKey(secondKey.secret),
+          project: {
+            connect: {
+              id: project2.id,
+            },
+          },
         },
       });
-      promptIds.push(prompt.id);
     }
 
-    const promptVersionsWithVariables = [
-      {
-        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
-        projectId: project2.id,
-        createdBy: "user-1",
-        prompt: "Prompt 4 version 1 content with {{variable}}",
-        name: "Prompt 4 with variable and config",
-        config: {
-          temperature: 0.7,
-        },
-        version: 1,
-        isActive: false,
-      },
-      {
-        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
-        projectId: project2.id,
-        createdBy: "user-1",
-        prompt: "Prompt 4 version 2 content with {{variable}}",
-        name: "Prompt 4 with variable and config",
-        config: {
-          temperature: 0.7,
-          topP: 0.9,
-        },
-        version: 2,
-        isActive: true,
-      },
-      {
-        id: `prompt-${Math.floor(Math.random() * 1000000000)}`,
-        projectId: project2.id,
-        createdBy: "user-1",
-        prompt: "Prompt 4 version 3 content with {{variable}}",
-        name: "Prompt 4 with variable and config",
-        config: {
-          temperature: 0.7,
-          topP: 0.9,
-          frequencyPenalty: 0.5,
-        },
-        version: 3,
-        isActive: false,
-      },
-    ];
+    const promptIds: string[] = await generatePromptsForProject(project2);
 
-    for (const version of promptVersionsWithVariables) {
-      await prisma.prompt.create({
-        data: {
-          id: version.id,
-          projectId: version.projectId,
-          createdBy: version.createdBy,
-          prompt: version.prompt,
-          name: version.name,
-          config: version.config,
-          version: version.version,
-          isActive: version.isActive,
-        },
-      });
-      promptIds.push(version.id);
-    }
-    const promptName = "Prompt with many versions";
-    const projectId = project2.id;
-    const createdBy = "user-1";
-
-    for (let i = 1; i <= 20; i++) {
-      const promptId = `prompt-${Math.floor(Math.random() * 1000000000)}`;
-      await prisma.prompt.create({
-        data: {
-          id: promptId,
-          projectId: projectId,
-          createdBy: createdBy,
-          prompt: `${promptName} version ${i} content`,
-          name: promptName,
-          version: i,
-          isActive: i === 20,
-        },
-      });
-      promptIds.push(promptId);
-    }
-
-    const generationIds: string[] = [];
     const envTags = [null, "development", "staging", "production"];
     const colorTags = [null, "red", "blue", "yellow"];
 
-    for (let i = 0; i < TRACE_VOLUME; i++) {
-      // print progress to console with a progress bar that refreshes every 10 iterations
-      if ((i + 1) % 10 === 0 || i === TRACE_VOLUME - 1) {
-        process.stdout.clearLine(0);
-        process.stdout.cursorTo(0);
-        process.stdout.write(`Seeding ${i + 1} of ${TRACE_VOLUME}`);
-      }
-      // random date within last 90 days, with a linear bias towards more recent dates
-      const traceTs = new Date(
-        Date.now() -
-          Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
+    // if ((i + 1) % 10 === 0 || i === TRACE_VOLUME - 1) {
+    //   process.stdout.clearLine(0);
+    //   process.stdout.cursorTo(0);
+    //   process.stdout.write(`Seeding ${i + 1} of ${TRACE_VOLUME}`);
+    // }
+
+    const traceVolume = environment === "load" ? 100_000 : 100;
+
+    const { generationIds, traces, observations, scores, sessions } =
+      createObjects(
+        traceVolume,
+        envTags,
+        colorTags,
+        project1,
+        project2,
+        promptIds,
+        prompt,
       );
 
-      const envTag = envTags[Math.floor(Math.random() * envTags.length)];
-      const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
+    console.log(
+      "Seeding traces, observations, and scores",
+      traces.length,
+      observations.length,
+      scores.length,
+    );
 
-      const tags = [envTag, colorTag].filter((tag) => tag !== null);
-
-      const projectId = [project1.id, project2.id][i % 2] as string;
-
-      const trace = await prisma.trace.create({
-        data: {
-          id: `trace-${Math.floor(Math.random() * 1000000000)}`,
-          timestamp: traceTs,
-          name: ["generate-outreach", "label-inbound", "draft-response"][
-            i % 3
-          ] as string,
-          metadata: {
-            user: `user-${i}@langfuse.com`,
-            more: "1,2,3;4?6",
-          },
-          tags: tags as string[],
-          project: {
-            connect: { id: projectId },
-          },
-          userId: `user-${i % 10}`,
-          session:
-            Math.random() > 0.3
-              ? {
-                  connectOrCreate: {
-                    where: {
-                      id_projectId: {
-                        id: `session-${i % 10}`,
-                        projectId: projectId,
-                      },
-                    },
-                    create: {
-                      id: `session-${i % 10}`,
-                      projectId: projectId,
-                    },
-                  },
-                }
-              : undefined,
-          input:
-            Math.random() > 0.3
-              ? "I'm looking for a React component"
-              : undefined,
-          output:
-            Math.random() > 0.3
-              ? "What kind of component are you looking for?"
-              : undefined,
-          scores: {
-            createMany: {
-              data: [
-                ...(Math.random() > 0.5
-                  ? [
-                      {
-                        name: "feedback",
-                        value: Math.floor(Math.random() * 3) - 1,
-                        timestamp: traceTs,
-                      },
-                    ]
-                  : []),
-                ...(Math.random() > 0.7
-                  ? [
-                      {
-                        name: "sentiment",
-                        value: Math.floor(Math.random() * 10) - 5,
-                        timestamp: traceTs,
-                      },
-                    ]
-                  : []),
-              ],
-            },
-          },
-        },
-      });
-
-      const existingSpanIds: string[] = [];
-
-      for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
-        // add between 1 and 30 ms to trace timestamp
-        const spanTsStart = new Date(
-          traceTs.getTime() + Math.floor(Math.random() * 30),
-        );
-        // random duration of upto 30ms
-        const spanTsEnd = new Date(
-          spanTsStart.getTime() + Math.floor(Math.random() * 30),
-        );
-
-        const span = await prisma.observation.create({
-          data: {
-            type: "SPAN",
-            id: `span-${Math.floor(Math.random() * 1000000000)}`,
-            startTime: spanTsStart,
-            endTime: spanTsEnd,
-            name: `span-${i}-${j}`,
-            metadata: {
-              user: `user-${i}@langfuse.com`,
-            },
-            project: { connect: { id: trace.projectId } },
-            traceId: trace.id,
-            // if this is the first span or in 50% of cases, add no parent; otherwise randomly select parent from existing spans
-            ...(existingSpanIds.length === 0 || Math.random() > 0.5
-              ? {}
-              : {
-                  parentObservationId:
-                    existingSpanIds[
-                      Math.floor(Math.random() * existingSpanIds.length)
-                    ],
-                }),
-          },
-        });
-
-        existingSpanIds.push(span.id);
-
-        for (let k = 0; k < Math.floor(Math.random() * 2) + 1; k++) {
-          // random start and end times within span
-          const generationTsStart = new Date(
-            spanTsStart.getTime() +
-              Math.floor(
-                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
-              ),
-          );
-          const generationTsEnd = new Date(
-            generationTsStart.getTime() +
-              Math.floor(
-                Math.random() *
-                  (spanTsEnd.getTime() - generationTsStart.getTime()),
-              ),
-          );
-
-          const promptTokens = Math.floor(Math.random() * 1000) + 300;
-          const completionTokens = Math.floor(Math.random() * 500) + 100;
-
-          const models = [
-            "gpt-3.5-turbo",
-            "gpt-4",
-            "gpt-4-32k-0613",
-            "gpt-3.5-turbo-16k-0613",
-            "claude-instant-1",
-            "claude-2.1",
-            "gpt-4-vision-preview",
-            "MIXTRAL-8X7B",
-          ];
-
-          const model = models[Math.floor(Math.random() * models.length)];
-          const promptId =
-            promptIds[Math.floor(Math.random() * promptIds.length)];
-          const generation = await prisma.observation.create({
-            data: {
-              type: "GENERATION",
-              id: `generation-${Math.floor(Math.random() * 1000000000)}`,
-              startTime: generationTsStart,
-              endTime: generationTsEnd,
-              name: `generation-${i}-${j}-${k}`,
-              project: { connect: { id: trace.projectId } },
-              prompt: { connect: { id: promptId } },
-              input:
-                Math.random() > 0.5
-                  ? [
-                      {
-                        role: "system",
-                        content: "Be a helpful assistant",
-                      },
-                      {
-                        role: "user",
-                        content: "How can i create a React component?",
-                      },
-                    ]
-                  : {
-                      input: "How can i create a React component?",
-                      retrievedDocuments: [
-                        {
-                          title: "How to create a React component",
-                          url: "https://www.google.com",
-                          description: "A guide to creating React components",
-                        },
-                        {
-                          title: "React component creation",
-                          url: "https://www.google.com",
-                          description: "A guide to creating React components",
-                        },
-                      ],
-                    },
-              output: {
-                completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
-
-              1.  **Functional Component**:
-              
-              A functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:
-              
-              
-              'import React from 'react';  function Greeting(props) {   return <h1>Hello, {props.name}</h1>; }  export default Greeting;'
-              
-              To use this component in another file, you can do:
-              
-              
-              'import Greeting from './Greeting';  function App() {   return (     <div>       <Greeting name="John" />     </div>   ); }  export default App;'
-              
-              2.  **Class Component**:
-              
-              You can also define components as classes in React. These have some additional features compared to functional components:
-              
-              
-              'import React, { Component } from 'react';  class Greeting extends Component {   render() {     return <h1>Hello, {this.props.name}</h1>;   } }  export default Greeting;'
-              
-              And here's how to use this component:
-              
-              
-              'import Greeting from './Greeting';  class App extends Component {   render() {     return (       <div>         <Greeting name="John" />       </div>     );   } }  export default App;'
-              
-              With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
-              
-              Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
-              },
-              model: model,
-              internalModel: model,
-              modelParameters: {
-                temperature:
-                  Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
-                topP:
-                  Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
-                maxTokens:
-                  Math.random() > 0.9
-                    ? undefined
-                    : Math.floor(Math.random() * 1000),
-              },
-              metadata: {
-                user: `user-${i}@langfuse.com`,
-              },
-              promptTokens,
-              completionTokens,
-              totalTokens: promptTokens + completionTokens,
-              parentObservationId: span.id,
-              traceId: trace.id,
-              ...{
-                ...(Math.random() > 0.5 && trace.projectId === prompt.projectId
-                  ? { prompt: { connect: { id: prompt.id } } }
-                  : {}),
-              },
-              unit: ModelUsageUnit.Tokens,
-            },
-          });
-          if (Math.random() > 0.6)
-            await prisma.score.create({
-              data: {
-                name: "quality",
-                value: Math.random() * 2 - 1,
-                observationId: generation.id,
-                traceId: trace.id,
-              },
-            });
-          if (Math.random() > 0.6)
-            await prisma.score.create({
-              data: {
-                name: "conciseness",
-                value: Math.random() * 2 - 1,
-                observationId: generation.id,
-                traceId: trace.id,
-              },
-            });
-
-          generationIds.push(generation.id);
-
-          for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
-            // random start time within span
-            const eventTs = new Date(
-              spanTsStart.getTime() +
-                Math.floor(
-                  Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
-                ),
-            );
-
-            await prisma.observation.create({
-              data: {
-                type: "EVENT",
-                id: `event-${Math.floor(Math.random() * 1000000000)}`,
-                startTime: eventTs,
-                name: `event-${i}-${j}-${k}-${l}`,
-                metadata: {
-                  user: `user-${i}@langfuse.com`,
-                },
-                parentObservationId: span.id,
-                traceId: trace.id,
-                project: { connect: { id: trace.projectId } },
-              },
-            });
-          }
-        }
-      }
-    }
+    await uploadObjects(traces, observations, scores, sessions);
 
     for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
       const dataset = await prisma.dataset.create({
@@ -615,3 +237,506 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
+async function uploadObjects(
+  traces: Prisma.TraceCreateManyInput[],
+  observations: Prisma.ObservationCreateManyInput[],
+  scores: Prisma.ScoreCreateManyInput[],
+  sessions: Prisma.TraceSessionCreateManyInput[],
+) {
+  let promises: Prisma.PrismaPromise<any>[] = [];
+
+  const chunkSize = 1000;
+
+  chunk(sessions, 1).forEach((chunk) => {
+    promises.push(
+      prisma.traceSession.upsert({
+        where: {
+          id_projectId: { id: chunk[0]!.id!, projectId: chunk[0]!.projectId },
+        },
+        create: chunk[0]!,
+        update: {},
+      }),
+    );
+  });
+  for (const promise of promises) {
+    await promise;
+  }
+
+  promises = [];
+
+  chunk(traces, chunkSize).forEach((chunk) => {
+    promises.push(
+      prisma.trace.createMany({
+        data: chunk,
+      }),
+    );
+  });
+  for (const promise of promises) {
+    await promise;
+  }
+
+  promises = [];
+  chunk(observations, chunkSize).forEach((chunk) => {
+    promises.push(
+      prisma.observation.createMany({
+        data: chunk,
+      }),
+    );
+  });
+  for (const promise of promises) {
+    await promise;
+  }
+
+  promises = [];
+  chunk(scores, chunkSize).forEach((chunk) => {
+    promises.push(
+      prisma.score.createMany({
+        data: chunk,
+      }),
+    );
+  });
+  for (const promise of promises) {
+    await promise;
+  }
+}
+
+function createObjects(
+  traceVolume: number,
+  envTags: (string | null)[],
+  colorTags: (string | null)[],
+  project1: Project,
+  project2: Project,
+  promptIds: string[],
+  prompt: Prompt,
+) {
+  const traces: Prisma.TraceCreateManyInput[] = [];
+  const observations: Prisma.ObservationCreateManyInput[] = [];
+  const scores: Prisma.ScoreCreateManyInput[] = [];
+  const sessions: Prisma.TraceSessionCreateManyInput[] = [];
+  const generationIds: string[] = [];
+
+  for (let i = 0; i < traceVolume; i++) {
+    // print progress to console with a progress bar that refreshes every 10 iterations
+    // random date within last 90 days, with a linear bias towards more recent dates
+    const traceTs = new Date(
+      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
+    );
+
+    const envTag = envTags[Math.floor(Math.random() * envTags.length)];
+    const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
+
+    const tags = [envTag, colorTag].filter((tag) => tag !== null);
+
+    const projectId = [project1.id, project2.id][i % 2] as string;
+
+    const session =
+      Math.random() > 0.3
+        ? {
+            id: `session-${i % 10}`,
+            projectId: projectId,
+          }
+        : undefined;
+
+    if (session) {
+      sessions.push(session);
+    }
+
+    const trace = {
+      id: `trace-${v4()}`,
+      timestamp: traceTs,
+      projectId: projectId,
+      name: ["generate-outreach", "label-inbound", "draft-response"][
+        i % 3
+      ] as string,
+      metadata: {
+        user: `user-${i}@langfuse.com`,
+        more: "1,2,3;4?6",
+      },
+      tags: tags as string[],
+      userId: `user-${i % 10}`,
+      input:
+        Math.random() > 0.3 ? "I'm looking for a React component" : undefined,
+      output:
+        Math.random() > 0.3
+          ? "What kind of component are you looking for?"
+          : undefined,
+      ...(session ? { sessionId: session.id } : {}),
+    };
+
+    traces.push(trace);
+
+    const traceScores = [
+      ...(Math.random() > 0.5
+        ? [
+            {
+              traceId: trace.id,
+              name: "feedback",
+              value: Math.floor(Math.random() * 3) - 1,
+              timestamp: traceTs,
+            },
+          ]
+        : []),
+      ...(Math.random() > 0.7
+        ? [
+            {
+              traceId: trace.id,
+              name: "sentiment",
+              value: Math.floor(Math.random() * 10) - 5,
+              timestamp: traceTs,
+            },
+          ]
+        : []),
+    ];
+
+    scores.push(...traceScores);
+
+    const existingSpanIds: string[] = [];
+
+    for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
+      // add between 1 and 30 ms to trace timestamp
+      const spanTsStart = new Date(
+        traceTs.getTime() + Math.floor(Math.random() * 30),
+      );
+      // random duration of upto 30ms
+      const spanTsEnd = new Date(
+        spanTsStart.getTime() + Math.floor(Math.random() * 30),
+      );
+
+      const span = {
+        type: ObservationType.SPAN,
+        id: `span-${v4()}`,
+        startTime: spanTsStart,
+        endTime: spanTsEnd,
+        name: `span-${i}-${j}`,
+        metadata: {
+          user: `user-${i}@langfuse.com`,
+        },
+        projectId: trace.projectId,
+        traceId: trace.id,
+        // if this is the first span or in 50% of cases, add no parent; otherwise randomly select parent from existing spans
+        ...(existingSpanIds.length === 0 || Math.random() > 0.5
+          ? {}
+          : {
+              parentObservationId:
+                existingSpanIds[
+                  Math.floor(Math.random() * existingSpanIds.length)
+                ],
+            }),
+      };
+
+      observations.push(span);
+
+      existingSpanIds.push(span.id);
+
+      for (let k = 0; k < Math.floor(Math.random() * 2) + 1; k++) {
+        // random start and end times within span
+        const generationTsStart = new Date(
+          spanTsStart.getTime() +
+            Math.floor(
+              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+            ),
+        );
+        const generationTsEnd = new Date(
+          generationTsStart.getTime() +
+            Math.floor(
+              Math.random() *
+                (spanTsEnd.getTime() - generationTsStart.getTime()),
+            ),
+        );
+
+        const promptTokens = Math.floor(Math.random() * 1000) + 300;
+        const completionTokens = Math.floor(Math.random() * 500) + 100;
+
+        const models = [
+          "gpt-3.5-turbo",
+          "gpt-4",
+          "gpt-4-32k-0613",
+          "gpt-3.5-turbo-16k-0613",
+          "claude-instant-1",
+          "claude-2.1",
+          "gpt-4-vision-preview",
+          "MIXTRAL-8X7B",
+        ];
+
+        const model = models[Math.floor(Math.random() * models.length)];
+        const promptId =
+          promptIds[Math.floor(Math.random() * promptIds.length)];
+
+        const generation = {
+          type: ObservationType.GENERATION,
+          id: `generation-${v4()}`,
+          startTime: generationTsStart,
+          endTime: generationTsEnd,
+          name: `generation-${i}-${j}-${k}`,
+          projectId: trace.projectId,
+          promptId: promptId,
+          input:
+            Math.random() > 0.5
+              ? [
+                  {
+                    role: "system",
+                    content: "Be a helpful assistant",
+                  },
+                  {
+                    role: "user",
+                    content: "How can i create a React component?",
+                  },
+                ]
+              : {
+                  input: "How can i create a React component?",
+                  retrievedDocuments: [
+                    {
+                      title: "How to create a React component",
+                      url: "https://www.google.com",
+                      description: "A guide to creating React components",
+                    },
+                    {
+                      title: "React component creation",
+                      url: "https://www.google.com",
+                      description: "A guide to creating React components",
+                    },
+                  ],
+                },
+          output: {
+            completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
+
+              1.  **Functional Component**:
+              
+              A functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:
+              
+              
+              'import React from 'react';  function Greeting(props) {   return <h1>Hello, {props.name}</h1>; }  export default Greeting;'
+              
+              To use this component in another file, you can do:
+              
+              
+              'import Greeting from './Greeting';  function App() {   return (     <div>       <Greeting name="John" />     </div>   ); }  export default App;'
+              
+              2.  **Class Component**:
+              
+              You can also define components as classes in React. These have some additional features compared to functional components:
+              
+              
+              'import React, { Component } from 'react';  class Greeting extends Component {   render() {     return <h1>Hello, {this.props.name}</h1>;   } }  export default Greeting;'
+              
+              And here's how to use this component:
+              
+              
+              'import Greeting from './Greeting';  class App extends Component {   render() {     return (       <div>         <Greeting name="John" />       </div>     );   } }  export default App;'
+              
+              With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
+              
+              Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
+          },
+          model: model,
+          internalModel: model,
+          modelParameters: {
+            temperature:
+              Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
+            topP: Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
+            maxTokens:
+              Math.random() > 0.9
+                ? undefined
+                : Math.floor(Math.random() * 1000),
+          },
+          metadata: {
+            user: `user-${i}@langfuse.com`,
+          },
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+          parentObservationId: span.id,
+          traceId: trace.id,
+          ...{
+            ...(Math.random() > 0.5 && trace.projectId === prompt.projectId
+              ? { promptId: prompt.id }
+              : {}),
+          },
+          unit: ModelUsageUnit.Tokens,
+        };
+
+        observations.push(generation);
+
+        if (Math.random() > 0.6)
+          scores.push({
+            name: "quality",
+            value: Math.random() * 2 - 1,
+            observationId: generation.id,
+            traceId: trace.id,
+          });
+        if (Math.random() > 0.6)
+          scores.push({
+            name: "conciseness",
+            value: Math.random() * 2 - 1,
+            observationId: generation.id,
+            traceId: trace.id,
+          });
+
+        generationIds.push(generation.id);
+
+        for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
+          // random start time within span
+          const eventTs = new Date(
+            spanTsStart.getTime() +
+              Math.floor(
+                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+              ),
+          );
+
+          observations.push({
+            type: ObservationType.EVENT,
+            id: `event-${v4()}`,
+            startTime: eventTs,
+            name: `event-${i}-${j}-${k}-${l}`,
+            metadata: {
+              user: `user-${i}@langfuse.com`,
+            },
+            parentObservationId: span.id,
+            traceId: trace.id,
+            projectId: trace.projectId,
+          });
+        }
+      }
+    }
+  }
+  // find unique sessions by id and projectid
+  const uniqueSessions: Prisma.TraceSessionCreateManyInput[] = Array.from(
+    new Set(sessions.map((session) => JSON.stringify(session))),
+  ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
+
+  return {
+    generationIds,
+    traces,
+    observations,
+    scores,
+    sessions: uniqueSessions,
+  };
+}
+
+async function generatePromptsForProject(project2: Project) {
+  const promptIds: string[] = [];
+
+  const prompts = [
+    {
+      id: `prompt-${v4()}`,
+      projectId: project2.id,
+      createdBy: "user-1",
+      prompt: "Prompt 1 content",
+      name: "Prompt 1",
+      version: 1,
+      isActive: true,
+    },
+    {
+      id: `prompt-${v4()}`,
+      projectId: project2.id,
+      createdBy: "user-1",
+      prompt: "Prompt 2 content",
+      name: "Prompt 2",
+      version: 1,
+      isActive: true,
+    },
+    {
+      id: `prompt-${v4()}`,
+      projectId: project2.id,
+      createdBy: "API",
+      prompt: "Prompt 3 content",
+      name: "Prompt 3 by API",
+      version: 1,
+      isActive: true,
+    },
+  ];
+
+  for (const prompt of prompts) {
+    await prisma.prompt.create({
+      data: {
+        id: prompt.id,
+        projectId: prompt.projectId,
+        createdBy: prompt.createdBy,
+        prompt: prompt.prompt,
+        name: prompt.name,
+        version: prompt.version,
+        isActive: prompt.isActive,
+      },
+    });
+    promptIds.push(prompt.id);
+  }
+
+  const promptVersionsWithVariables = [
+    {
+      id: `prompt-${v4()}`,
+      projectId: project2.id,
+      createdBy: "user-1",
+      prompt: "Prompt 4 version 1 content with {{variable}}",
+      name: "Prompt 4 with variable and config",
+      config: {
+        temperature: 0.7,
+      },
+      version: 1,
+      isActive: false,
+    },
+    {
+      id: `prompt-${v4()}`,
+      projectId: project2.id,
+      createdBy: "user-1",
+      prompt: "Prompt 4 version 2 content with {{variable}}",
+      name: "Prompt 4 with variable and config",
+      config: {
+        temperature: 0.7,
+        topP: 0.9,
+      },
+      version: 2,
+      isActive: true,
+    },
+    {
+      id: `prompt-${v4()}`,
+      projectId: project2.id,
+      createdBy: "user-1",
+      prompt: "Prompt 4 version 3 content with {{variable}}",
+      name: "Prompt 4 with variable and config",
+      config: {
+        temperature: 0.7,
+        topP: 0.9,
+        frequencyPenalty: 0.5,
+      },
+      version: 3,
+      isActive: false,
+    },
+  ];
+
+  for (const version of promptVersionsWithVariables) {
+    await prisma.prompt.create({
+      data: {
+        id: version.id,
+        projectId: version.projectId,
+        createdBy: version.createdBy,
+        prompt: version.prompt,
+        name: version.name,
+        config: version.config,
+        version: version.version,
+        isActive: version.isActive,
+      },
+    });
+    promptIds.push(version.id);
+  }
+  const promptName = "Prompt with many versions";
+  const projectId = project2.id;
+  const createdBy = "user-1";
+
+  for (let i = 1; i <= 20; i++) {
+    const promptId = `prompt-${v4()}`;
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        projectId: projectId,
+        createdBy: createdBy,
+        prompt: `${promptName} version ${i} content`,
+        name: promptName,
+        version: i,
+        isActive: i === 20,
+      },
+    });
+    promptIds.push(promptId);
+  }
+  return promptIds;
+}
