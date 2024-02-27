@@ -26,14 +26,8 @@ export const getAllQuery = protectedProjectProcedure
     const { rawSqlQuery, datetimeFilter, filterCondition, searchCondition } =
       getAllGenerationsSqlQuery({ input, type: "paginate" });
 
-    const generations = await ctx.prisma.$queryRaw<
-      (ObservationView & {
-        traceId: string;
-        traceName: string;
-        promptName: string | null;
-        promptVersion: string | null;
-      })[]
-    >(rawSqlQuery);
+    const generations =
+      await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(rawSqlQuery);
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
