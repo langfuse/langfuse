@@ -2,7 +2,7 @@ import { Transform, type TransformCallback } from "stream";
 
 import { usdFormatter } from "@/src/utils/numbers";
 
-import { formatInterval } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
 
 export function transformStreamToCsv(): Transform {
@@ -63,10 +63,10 @@ export function transformStreamToCsv(): Transform {
             new Date(row.completionStartTime).getTime()
           : "",
         row.scores ? JSON.stringify(row.scores) : "",
-        row.latency ? formatInterval(Number(row.latency)) : "",
+        row.latency ? formatIntervalSeconds(row.latency) : "",
         // latency per token
         row.latency && row.completionTokens !== 0
-          ? formatInterval(Number(row.latency) / row.completionTokens)
+          ? formatIntervalSeconds(row.latency / row.completionTokens)
           : "",
         row.calculatedInputCost
           ? usdFormatter(row.calculatedInputCost.toNumber(), 2, 8)
