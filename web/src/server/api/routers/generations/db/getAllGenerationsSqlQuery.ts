@@ -117,7 +117,7 @@ export function getAllGenerationsSqlQuery({
         o."latency",
         o.prompt_id as "promptId",
         p.name as "promptName",
-        p.version as "promptVersion"
+        p.version as "promptVersion",
         s_avg.scores_avg as "scores"
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
