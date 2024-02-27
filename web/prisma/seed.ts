@@ -61,7 +61,7 @@ async function main() {
     },
   });
 
-  const prompt = await prisma.prompt.upsert({
+  await prisma.prompt.upsert({
     where: {
       projectId_name_version: {
         projectId: seedProjectId,
