@@ -2,13 +2,12 @@ import { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fp from "fastify-plugin";
 
 async function routes(fastify: FastifyInstance, options: FastifyPluginOptions) {
-  console.log("routes");
   fastify.redis.subscribe("ingestion", (err, count) => {
     if (err) {
       fastify.log.error("Redis error:", err);
     } else {
       fastify.log.info(
-        `Subscribed to ${count} channel. Listening for updates on the channel...`
+        `Subscribed to ${count} channel. Listening for updates on the channel...`,
       );
     }
   });

@@ -78,9 +78,15 @@ export default async function handler(
           error: "Internal Server Error",
         });
       }
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          error: error.errors,
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(400).json({
+      res.status(500).json({
         message: "Invalid request data",
         error: errorMessage,
       });
@@ -131,9 +137,15 @@ export default async function handler(
           error: "Internal Server Error",
         });
       }
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          error: error.errors,
+        });
+      }
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(400).json({
+      res.status(500).json({
         message: "Invalid request data",
         error: errorMessage,
       });

@@ -31,4 +31,10 @@ export const sessionsViewCols: ColumnDefinition[] = [
     type: "number",
     internal: 't."countTraces"',
   },
+  {
+    name: "Cost (USD)",
+    id: "totalCost",
+    type: "number",
+    internal: 'o."totalCost"',
+  },
 ];
