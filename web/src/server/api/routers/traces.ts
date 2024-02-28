@@ -5,7 +5,12 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Trace, type ObservationView } from "@prisma/client";
+import {
+  Prisma,
+  type Trace,
+  type ObservationView,
+  type ObservationLevel,
+} from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -86,10 +91,10 @@ export const traceRouter = createTRPCRouter({
           COALESCE(u."completionTokens", 0)::int AS "completionTokens",
           COALESCE(u."totalTokens", 0)::int AS "totalTokens",
           tl.latency AS "latency",
-          td."trace_duration" AS "traceDuration",
-          COALESCE(u."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
-          COALESCE(u."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
-          COALESCE(u."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost"
+          COALESCE(c."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
+          COALESCE(c."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
+          COALESCE(c."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
+          l.level AS "level"
           `,
 
         input.projectId,
@@ -115,7 +120,7 @@ export const traceRouter = createTRPCRouter({
                 calculatedTotalCost: Decimal | null;
                 calculatedInputCost: Decimal | null;
                 calculatedOutputCost: Decimal | null;
-                traceDuration: number | null;
+                level: ObservationLevel;
               }
             >
           >(tracesQuery),
@@ -474,10 +479,7 @@ function createTracesQuery(
       trace_id,
       sum(prompt_tokens) AS "promptTokens",
       sum(completion_tokens) AS "completionTokens",
-      sum(total_tokens) AS "totalTokens",
-      sum(calculated_total_cost) AS "calculatedTotalCost",
-      sum(calculated_input_cost) AS "calculatedInputCost",
-      sum(calculated_output_cost) AS "calculatedOutputCost"
+      sum(total_tokens) AS "totalTokens"
     FROM
       "observations_view"
     WHERE
@@ -488,10 +490,12 @@ function createTracesQuery(
     GROUP BY
       trace_id
   ),
-  trace_duration AS (
+  cost AS (
     SELECT
       trace_id,
-      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM COALESCE(MIN("start_time")))::double precision AS "trace_duration"
+      sum(calculated_total_cost) AS "calculatedTotalCost",
+      sum(calculated_input_cost) AS "calculatedInputCost",
+      sum(calculated_output_cost) AS "calculatedOutputCost"
     FROM
       "observations_view"
     WHERE
@@ -514,6 +518,19 @@ function createTracesQuery(
       ${observationTimeseriesFilter}
     GROUP BY
       trace_id
+  ),
+  level AS (
+    SELECT
+      trace_id,
+      level AS "level"
+    FROM
+      "observations_view"
+    WHERE
+      "trace_id" IS NOT NULL
+      AND "project_id" = ${projectId}
+      ${observationTimeseriesFilter}
+    GROUP BY
+      trace_id, level
   ),
   -- used for filtering
   scores_avg AS (
@@ -539,11 +556,12 @@ function createTracesQuery(
       ${select}
   FROM
     "traces" AS t
+    LEFT JOIN cost AS c ON c.trace_id = t.id
+    LEFT JOIN level AS l ON l.trace_id = t.id
     LEFT JOIN usage AS u ON u.trace_id = t.id
     -- used for filtering
     LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
     LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
-    LEFT JOIN trace_duration AS td ON td.trace_id = t.id
   WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
