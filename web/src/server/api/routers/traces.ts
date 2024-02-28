@@ -94,7 +94,7 @@ export const traceRouter = createTRPCRouter({
           COALESCE(c."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
           COALESCE(c."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
           COALESCE(c."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
-          l.level AS "level"
+          t."level" AS "level"
           `,
 
         input.projectId,
@@ -519,19 +519,6 @@ function createTracesQuery(
     GROUP BY
       trace_id
   ),
-  level AS (
-    SELECT
-      trace_id,
-      level AS "level"
-    FROM
-      "observations_view"
-    WHERE
-      "trace_id" IS NOT NULL
-      AND "project_id" = ${projectId}
-      ${observationTimeseriesFilter}
-    GROUP BY
-      trace_id, level
-  ),
   -- used for filtering
   scores_avg AS (
     SELECT
@@ -557,13 +544,10 @@ function createTracesQuery(
   FROM
     "traces" AS t
     LEFT JOIN cost AS c ON c.trace_id = t.id
-    LEFT JOIN level AS l ON l.trace_id = t.id
-    LEFT JOIN usage AS u ON u.trace_id = t.id
     -- used for filtering
     LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
     LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
     LEFT JOIN usage AS u ON u.trace_id = t.id
-    LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
   WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
