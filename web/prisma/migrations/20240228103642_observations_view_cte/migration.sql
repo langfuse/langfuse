@@ -1,16 +1,4 @@
 CREATE OR REPLACE VIEW "observations_view" AS
-WITH model_ranked AS (
-    SELECT
-        *,
-        ROW_NUMBER() OVER (
-            PARTITION BY project_id, model_name, unit
-            ORDER BY project_id ASC, start_date DESC NULLS LAST
-        ) AS rn
-        -- adds a new column to the models table ordering the rows by project_id, model_name, and unit
-        -- each query should take the first row within a partition
-    FROM
-        models
-)
 SELECT
     o.*,
     m.id AS "model_id",
@@ -46,9 +34,26 @@ SELECT
     CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END AS "latency"
 FROM
     observations o
-LEFT JOIN model_ranked m ON
-    m.rn = 1 AND
-    (m.project_id = o.project_id OR m.project_id IS NULL) AND
-    m.model_name = o.internal_model AND
-    (m.start_date < o.start_time OR m.start_date IS NULL) AND
-    o.unit::TEXT = m.unit;
+LEFT JOIN LATERAL (
+    SELECT
+        models.*
+    FROM
+        models
+    WHERE (models.project_id = o.project_id OR models.project_id IS NULL)
+    AND models.model_name = o.internal_model
+    AND (models.start_date < o.start_time OR models.start_date IS NULL)
+    AND o.unit::TEXT = models.unit
+    ORDER BY
+        models.project_id ASC, -- in postgres, NULLs are sorted last when ordering ASC
+        models.start_date DESC NULLS LAST -- now, NULLs are sorted last when ordering DESC as well
+    LIMIT 1
+) m ON TRUE
+
+
+-- requirements:
+-- 1. The view should return all rows from the observations table
+-- 2. The view should match with only one or no model for each observation if:
+--     a. The model has the same project_id as the observation, otherwise the model without project_id. 
+--     b. The model has the same model_name as the observation
+--     c. The model has a start_date that is less than the observation start_time, otherwise the model without start_date
+--     d. The model has the same unit as the observation
