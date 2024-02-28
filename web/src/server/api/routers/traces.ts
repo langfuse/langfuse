@@ -514,6 +514,5 @@ function createTracesQuery(
   ${orderByCondition}
   LIMIT ${limit}
   OFFSET ${page * limit}
-  LIMIT ${limit} OFFSET ${page * limit};
 `;
 }
