@@ -1,6 +1,7 @@
 import { Transform, type TransformCallback } from "stream";
 
 import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
+import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
 
 export function transformStreamToCsv(): Transform {
   let isFirstChunk = true;
@@ -23,8 +24,8 @@ export function transformStreamToCsv(): Transform {
           "endTime",
           "timeToFirstToken",
           "scores",
-          "latencyInMilliSeconds",
-          "latencyPerTokenInMilliSeconds",
+          "latencyInSeconds",
+          "latencyPerTokenInSeconds",
           "inputCostInUSD",
           "outputCostInUSD",
           "totalCostInUSD",
@@ -55,11 +56,10 @@ export function transformStreamToCsv(): Transform {
         row.endTime?.toISOString() ?? "",
         // time to first token
         row.completionStartTime
-          ? new Date(row.startTime).getTime() -
-            new Date(row.completionStartTime).getTime()
+          ? intervalInSeconds(row.startTime, row.completionStartTime).toFixed(2)
           : "",
         row.scores ? JSON.stringify(row.scores) : "",
-        row.latency ? row.latency : "",
+        row.latency ? formatIntervalSeconds(row.latency).slice(0, -1) : "",
         // latency per token
         row.latency && row.completionTokens !== 0
           ? row.latency / row.completionTokens
