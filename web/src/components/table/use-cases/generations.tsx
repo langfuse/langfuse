@@ -23,11 +23,15 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
-import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
+import {
+  formatIntervalSeconds,
+  intervalInSeconds,
+  utcDateOffsetByDays,
+} from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type ObservationLevel, type Prisma } from "@prisma/client";
+import { type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -41,11 +45,11 @@ import type Decimal from "decimal.js";
 export type GenerationsTableRow = {
   id: string;
   traceId?: string;
-  startTime: string;
+  startTime: Date;
   level?: ObservationLevel;
   statusMessage?: string;
   endTime?: string;
-  timeToFirstToken?: string;
+  timeToFirstToken?: Date;
   latency?: number;
   name?: string;
   model?: string;
@@ -224,6 +228,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Start Time",
       enableHiding: true,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: Date = row.getValue("startTime");
+        return value.toLocaleString();
+      },
     },
     {
       accessorKey: "endTime",
@@ -238,18 +246,15 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Time to First Token",
       enableHiding: true,
       cell: ({ row }) => {
-        const startTime: string = row.getValue("startTime");
-        const timeToFirstToken: string | undefined =
+        const startTime: Date = row.getValue("startTime");
+        const timeToFirstToken: Date | undefined =
           row.getValue("timeToFirstToken");
 
         if (!timeToFirstToken) {
           return undefined;
         }
 
-        const latencyInMs =
-          new Date(timeToFirstToken).getTime() - new Date(startTime).getTime();
-        const latencyInSeconds = latencyInMs / 1000;
-
+        const latencyInSeconds = intervalInSeconds(startTime, timeToFirstToken);
         return <span>{formatIntervalSeconds(latencyInSeconds)}</span>;
       },
     },
@@ -471,10 +476,9 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           id: generation.id,
           traceId: generation.traceId ?? undefined,
           traceName: generation.traceName ?? "",
-          startTime: generation.startTime.toLocaleString(),
+          startTime: generation.startTime,
           endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken:
-            generation.completionStartTime?.toLocaleString() ?? undefined,
+          timeToFirstToken: generation.completionStartTime ?? undefined,
           latency: generation.latency ?? undefined,
           totalCost: generation.calculatedTotalCost ?? undefined,
           inputCost: generation.calculatedInputCost ?? undefined,
