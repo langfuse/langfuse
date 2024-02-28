@@ -6,6 +6,7 @@ import {
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@/src/server/db";
 import { isPrismaException } from "@/src/utils/exceptions";
+import * as Sentry from "@sentry/node";
 
 export type AuthHeaderVerificationResult =
   | {
@@ -66,6 +67,10 @@ export async function verifyAuthHeaderAndReturnScope(
         throw new Error("Invalid credentials");
       }
 
+      Sentry.setUser({
+        id: projectId,
+      });
+
       return {
         validKey: true,
         scope: {
@@ -79,6 +84,9 @@ export async function verifyAuthHeaderAndReturnScope(
       const publicKey = authHeader.replace("Bearer ", "");
 
       const dbKey = await findDbKeyOrThrow(publicKey);
+      Sentry.setUser({
+        id: dbKey.projectId,
+      });
 
       return {
         validKey: true,

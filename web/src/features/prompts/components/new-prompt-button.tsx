@@ -178,7 +178,7 @@ export const NewPromptForm = (props: {
         form.reset();
         // go to the following page after creating the prompt
         void router.push(
-          `/project/${props.projectId}/prompts/${newPrompt.name}`,
+          `/project/${props.projectId}/prompts/${encodeURIComponent(newPrompt.name)}`,
         );
       })
       .catch((error) => {

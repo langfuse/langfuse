@@ -22,7 +22,8 @@ export const getAllQuery = protectedProjectProcedure
       (ObservationView & {
         traceId: string;
         traceName: string;
-        latency: number | null;
+        promptName: string | null;
+        promptVersion: string | null;
       })[]
     >(rawSqlQuery);
 
