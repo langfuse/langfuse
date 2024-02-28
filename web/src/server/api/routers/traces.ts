@@ -98,8 +98,6 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
-      console.log("tracesQuery", tracesQuery.sql);
-
       const traces = await instrumentAsync(
         { name: "get-all-traces" },
         async () =>
@@ -509,11 +507,13 @@ function createTracesQuery(
             name
     ) tmp
   ) AS s_avg ON true
-  WHERE
+  WHERE 
     t."project_id" = ${projectId}
-    AND t."timestamp" > ${searchCondition}::timestamp with time zone at time zone 'UTC'
-    AND t."user_id" ILIKE '%' || ${filterCondition} || '%'
-    AND (s_avg.scores_avg->>${orderByCondition})::double precision > ${limit}
+    ${searchCondition}
+    ${filterCondition}
+  ${orderByCondition}
+  LIMIT ${limit}
+  OFFSET ${page * limit}
   LIMIT ${limit} OFFSET ${page * limit};
 `;
 }
