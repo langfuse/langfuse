@@ -1,11 +1,52 @@
 import { Transform, type TransformCallback } from "stream";
 
 import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
-import { formatInterval } from "@/src/utils/dates";
+import { intervalInSeconds } from "@/src/utils/dates";
+import {
+  type ObservationType,
+  type Prisma,
+  type ObservationLevel,
+} from "@prisma/client";
+import type Decimal from "decimal.js";
 
-type ExportedObservations = ObservationViewWithScores & {
-  timeToFirstToken?: string | null;
-  latencyPerToken?: number | null;
+type ExportedObservations = {
+  id: string;
+  traceId: string | null;
+  projectId: string;
+  type: ObservationType;
+  startTime: Date;
+  endTime: Date | null;
+  name: string | null;
+  metadata: Prisma.JsonValue | null;
+  parentObservationId: string | null;
+  level: ObservationLevel;
+  statusMessage: string | null;
+  version: string | null;
+  createdAt: Date;
+  model: string | null;
+  modelParameters: Prisma.JsonValue | null;
+  input: Prisma.JsonValue | null;
+  output: Prisma.JsonValue | null;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  unit: string | null;
+  completionStartTime: Date | null;
+  promptId: string | null;
+  modelId: string | null;
+  inputPrice: Decimal | null;
+  outputPrice: Decimal | null;
+  totalPrice: Decimal | null;
+  calculatedInputCostInUSD: number | null;
+  calculatedOutputCostInUSD: number | null;
+  calculatedTotalCostInUSD: number | null;
+  latencyInSeconds: number | null;
+  traceName: string | null;
+  promptName: string | null;
+  promptVersion: string | null;
+  scores: Record<string, number> | null;
+  timeToFirstTokenInSeconds?: number | null;
+  latencyPerTokenInSeconds?: number | null;
 };
 
 export function transformStreamToJson(): Transform {
@@ -25,22 +66,34 @@ export function transformStreamToJson(): Transform {
       } else {
         this.push(","); // For subsequent elements, prepend a comma
       }
-      let rowToPush: ExportedObservations = { ...row };
+      const {
+        calculatedInputCost,
+        calculatedOutputCost,
+        calculatedTotalCost,
+        latency,
+        ...rest
+      } = row;
+
+      const rowToPush: ExportedObservations = {
+        ...rest,
+        calculatedInputCostInUSD: calculatedInputCost?.toNumber() ?? null,
+        calculatedOutputCostInUSD: calculatedOutputCost?.toNumber() ?? null,
+        calculatedTotalCostInUSD: calculatedTotalCost?.toNumber() ?? null,
+        latencyInSeconds: latency,
+        latencyPerTokenInSeconds: null,
+        timeToFirstTokenInSeconds: null,
+      };
 
       if (row.completionStartTime) {
-        const timeToFirstToken = formatInterval(
-          new Date(row.startTime).getTime() -
-            new Date(row.completionStartTime).getTime(),
+        const timeToFirstToken = intervalInSeconds(
+          row.startTime,
+          row.completionStartTime,
         );
-        rowToPush = { ...rowToPush, timeToFirstToken: timeToFirstToken };
-      } else {
-        rowToPush = { ...rowToPush, timeToFirstToken: null };
+        rowToPush.timeToFirstTokenInSeconds = timeToFirstToken;
       }
       if (row.latency && row.totalTokens !== 0) {
-        const latencyPerToken = Number(row.latency) / row.totalTokens;
-        rowToPush = { ...rowToPush, latencyPerToken: latencyPerToken };
-      } else {
-        rowToPush = { ...rowToPush, latencyPerToken: null };
+        const latencyPerToken = row.latency / row.totalTokens;
+        rowToPush.latencyPerTokenInSeconds = latencyPerToken;
       }
 
       this.push(JSON.stringify(rowToPush)); // Push the current row as a JSON string
