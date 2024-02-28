@@ -364,7 +364,6 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
-      enableSorting: true,
       defaultHidden: true,
     },
     {
@@ -384,7 +383,6 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
-      enableSorting: true,
       defaultHidden: true,
     },
     {
