@@ -167,7 +167,6 @@ export default function TracesTable({
         completionTokens: trace.completionTokens,
         totalTokens: trace.totalTokens,
       },
-      traceDuration: trace.traceDuration ?? undefined,
       inputCost: trace.calculatedInputCost ?? undefined,
       outputCost: trace.calculatedOutputCost ?? undefined,
       totalCost: trace.calculatedTotalCost ?? undefined,
@@ -468,17 +467,6 @@ export default function TracesTable({
       header: "Level",
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
-      accessorKey: "traceDuration",
-      id: "traceDuration",
-      header: "Duration",
-      cell: ({ row }) => {
-        const value = row.getValue("traceDuration");
-        return value && typeof value === "number"
-          ? formatInterval(value)
-          : undefined;
-      },
     },
     {
       accessorKey: "tags",
