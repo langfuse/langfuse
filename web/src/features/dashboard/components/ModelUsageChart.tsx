@@ -39,7 +39,10 @@ export const ModelUsageChart = ({
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "model" },
       ],
-      filter: globalFilterState,
+      filter: [
+        ...globalFilterState,
+        { type: "string", column: "type", operator: "=", value: "GENERATION" },
+      ],
       groupBy: [
         {
           type: "datetime",
