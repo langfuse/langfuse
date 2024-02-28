@@ -48,3 +48,12 @@ LEFT JOIN LATERAL (
         models.start_date DESC NULLS LAST -- now, NULLs are sorted last when ordering DESC as well
     LIMIT 1
 ) m ON TRUE
+
+
+-- requirements:
+-- 1. The view should return all columns from the observations table
+-- 2. The view should match with only one model for each observation if:
+--     a. The model has the same project_id as the observation, otherwise the model without project_id. 
+--     b. The model has the same model_name as the observation
+--     c. The model has a start_date that is less than the observation start_time, otherwise the model without start_date
+--     d. The model has the same unit as the observation
