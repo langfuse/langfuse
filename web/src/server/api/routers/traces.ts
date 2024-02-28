@@ -517,10 +517,9 @@ function createTracesQuery(
       ${select}
   FROM
     "traces" AS t
-    LEFT JOIN usage AS u ON u.trace_id = t.id
-    -- used for filtering
-    LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
     LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
+    LEFT JOIN usage AS u ON u.trace_id = t.id
+    LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
   WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
