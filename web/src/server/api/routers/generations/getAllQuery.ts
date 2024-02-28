@@ -38,19 +38,16 @@ export const getAllQuery = protectedProjectProcedure
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
       LEFT JOIN LATERAL (
         SELECT
-          observation_id,
           jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
         FROM (
             SELECT
-              trace_id,
-              observation_id,
               name,
               avg(value) avg_value
             FROM
                 scores
             WHERE
-                trace_id = t.id
-                AND observations_id = o.id
+                scores."trace_id" = t.id
+                AND scores."observation_id" = o.id
             GROUP BY
                 name
         ) tmp
