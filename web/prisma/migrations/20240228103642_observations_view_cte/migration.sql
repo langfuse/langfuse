@@ -6,7 +6,7 @@ WITH model_ranked AS (
             PARTITION BY project_id, model_name, unit
             ORDER BY project_id ASC, start_date DESC NULLS LAST
         ) AS rn
-        -- adds a new column to the models table ordering the rows bu project_id, model_name, and unit
+        -- adds a new column to the models table ordering the rows by project_id, model_name, and unit
         -- each query should take the first row within a partition
     FROM
         models
