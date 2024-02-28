@@ -14,7 +14,7 @@ import { ModelUsageUnit } from "@/src/constants";
 import { chunk } from "lodash";
 import { v4 } from "uuid";
 
-const LOAD_TRACE_VOLUME = 20_000;
+const LOAD_TRACE_VOLUME = 10_000;
 
 const options = {
   environment: { type: "string" },
