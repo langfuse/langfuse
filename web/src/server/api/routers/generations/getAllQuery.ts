@@ -50,7 +50,7 @@ export const getAllQuery = protectedProjectProcedure
                 scores
             WHERE
                 trace_id = t.id
-                observations_id = o.id
+                AND observations_id = o.id
             GROUP BY
                 name
         ) tmp
