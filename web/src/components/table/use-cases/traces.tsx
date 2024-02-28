@@ -56,7 +56,6 @@ export type TracesTableRow = {
   inputCost?: Decimal;
   outputCost?: Decimal;
   totalCost?: Decimal;
-  traceDuration?: number;
 };
 
 export type TracesTableProps = {
