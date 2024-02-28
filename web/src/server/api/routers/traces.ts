@@ -463,63 +463,50 @@ function createTracesQuery(
   orderByCondition: Sql,
 ) {
   return Prisma.sql`
-  WITH usage AS (
-    SELECT
-      trace_id,
-      sum(prompt_tokens) AS "promptTokens",
-      sum(completion_tokens) AS "completionTokens",
-      sum(total_tokens) AS "totalTokens",
-      sum(calculated_total_cost) AS "calculatedTotalCost"
-    FROM
-      "observations_view"
-    WHERE
-      "trace_id" IS NOT NULL
-      AND "type" = 'GENERATION'
-      AND "project_id" = ${projectId}
-      ${observationTimeseriesFilter}
-    GROUP BY
-      trace_id
-  ),
-  trace_latency AS (
-    SELECT
-      trace_id,
-      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
-    FROM
-      "observations"
-    WHERE
-      "trace_id" IS NOT NULL
-      AND "project_id" = ${projectId}
-      ${observationTimeseriesFilter}
-    GROUP BY
-      trace_id
-  ),
-  -- used for filtering
-  scores_avg AS (
-    SELECT
-      trace_id,
-      jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
-    FROM (
-      SELECT
-        trace_id,
-        name,
-        avg(value) avg_value
-      FROM
-        scores
-      GROUP BY
-        1,
-        2
-      ORDER BY
-        1) tmp
-    GROUP BY
-      1
-  )
   SELECT
       ${select}
   FROM
     "traces" AS t
-    LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
-    LEFT JOIN usage AS u ON u.trace_id = t.id
-    LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
+  LEFT JOIN LATERAL (
+    SELECT
+        SUM(prompt_tokens) AS "promptTokens",
+        SUM(completion_tokens) AS "completionTokens",
+        SUM(total_tokens) AS "totalTokens",
+        SUM(calculated_total_cost) AS "calculatedTotalCost"
+    FROM
+        "observations_view"
+    WHERE
+        trace_id = t.id
+        AND "type" = 'GENERATION'
+
+        AND "project_id" = ${projectId}
+        ${observationTimeseriesFilter}
+  ) AS u ON true
+  LEFT JOIN LATERAL (
+    SELECT
+        EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
+    FROM
+        "observations"
+    WHERE
+        trace_id = t.id
+        AND "project_id" = ${projectId}
+         ${observationTimeseriesFilter}
+  ) AS tl ON true
+  LEFT JOIN LATERAL (
+    SELECT
+        jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
+    FROM (
+        SELECT
+            name,
+            AVG(value) avg_value
+        FROM
+            scores
+        WHERE
+            trace_id = t.id
+        GROUP BY
+            name
+    ) tmp
+  ) AS s_avg ON true
   WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
