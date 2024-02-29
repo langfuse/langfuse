@@ -43,7 +43,7 @@ export default function Dataset() {
         datasetId={datasetId}
         itemId={itemId}
       />
-      <Header title="Runs" />
+      <Header title="Runs" level="h3" />
       <DatasetRunItemsTable
         projectId={projectId}
         datasetItemId={itemId}
