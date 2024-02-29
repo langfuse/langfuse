@@ -19,6 +19,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import Auth0Provider from "next-auth/providers/auth0";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -128,6 +129,20 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
     }),
   );
+
+if (
+  env.AUTH_AUTH0_CLIENT_ID &&
+  env.AUTH_AUTH0_CLIENT_SECRET &&
+  env.AUTH_AUTH0_ISSUER
+) {
+  providers.push(
+    Auth0Provider({
+      clientId: env.AUTH_AUTH0_CLIENT_ID,
+      clientSecret: env.AUTH_AUTH0_CLIENT_SECRET,
+      issuer: env.AUTH_AUTH0_ISSUER,
+    }),
+  );
+}
 
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
