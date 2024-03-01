@@ -25,7 +25,15 @@ export const MetricTable = ({
         { column: "totalTokens", agg: "SUM" },
         { column: "model" },
       ],
-      filter: globalFilterState,
+      filter: [
+        ...globalFilterState,
+        {
+          type: "string",
+          column: "type",
+          operator: "=",
+          value: "GENERATION",
+        },
+      ],
       groupBy: [{ type: "string", column: "model" }],
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },

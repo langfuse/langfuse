@@ -31,6 +31,7 @@ export const executeQuery = async (
 ) => {
   const query = sqlInterface.parse(unsafeQuery);
   const sql = enrichAndCreateQuery(projectId, query);
+
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);

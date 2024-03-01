@@ -3,7 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
-import { formatInterval, intervalInSeconds } from "@/src/utils/dates";
+import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 
@@ -69,7 +69,7 @@ export function DatasetRunItemsTable(
       header: "Latency",
       cell: ({ row }) => {
         const latency: RowData["latency"] = row.getValue("latency");
-        return <>{formatInterval(latency)}</>;
+        return <>{formatIntervalSeconds(latency)}</>;
       },
     },
     {

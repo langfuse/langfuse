@@ -37,7 +37,15 @@ export const UserChart = ({
         { column: "user" },
         { column: "traceId", agg: "COUNT" },
       ],
-      filter: globalFilterState,
+      filter: [
+        ...globalFilterState,
+        {
+          type: "string",
+          column: "type",
+          operator: "=",
+          value: "GENERATION",
+        },
+      ],
       groupBy: [
         {
           type: "string",
