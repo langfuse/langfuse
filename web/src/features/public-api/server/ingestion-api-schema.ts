@@ -56,6 +56,8 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
+const NonEmptyString = z.string().min(1);
+
 export const TraceBody = z.object({
   id: z.string().nullish(),
   timestamp: stringDate,
@@ -86,11 +88,11 @@ export const OptionalObservationBody = z.object({
 });
 
 export const CreateEventEvent = OptionalObservationBody.extend({
-  id: z.string().nullish(),
+  id: NonEmptyString,
 });
 
 export const UpdateEventEvent = OptionalObservationBody.extend({
-  id: z.string(),
+  id: NonEmptyString,
 });
 
 export const CreateSpanBody = CreateEventEvent.extend({
@@ -147,7 +149,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
 
 export const ScoreBody = z.object({
   id: z.string().nullish(),
-  name: z.string(),
+  name: NonEmptyString,
   value: z.number(),
   traceId: z.string(),
   observationId: z.string().nullish(),

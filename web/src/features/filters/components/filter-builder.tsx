@@ -40,6 +40,8 @@ export function FilterBuilder({
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
 
+  console.log("wipFilterState", wipFilterState);
+
   const addNewFilter = () => {
     setWipFilterState((prev) => [
       ...prev,
@@ -181,10 +183,12 @@ function FilterBuilderForm({
         <tbody>
           {filterState.map((filter, i) => {
             const column = columns.find((c) => c.name === filter.column);
+            console.log("column", column);
             return (
               <tr key={i}>
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
                 <td className="flex gap-2 p-1">
+                  {/* selector of the column to be filtered */}
                   <Select
                     value={filter.column ?? ""}
                     onValueChange={(value) =>
@@ -217,6 +221,7 @@ function FilterBuilderForm({
                   (column?.type === "numberObject" ||
                     column?.type === "stringObject") ? (
                     column.keyOptions ? (
+                      // selector of the key of the object to be filtered
                       <Select
                         disabled={!filter.column}
                         onValueChange={(value) => {
@@ -229,8 +234,11 @@ function FilterBuilderForm({
                         </SelectTrigger>
                         <SelectContent>
                           {column.keyOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
+                            <SelectItem
+                              key={option}
+                              value={option === "" ? "EMPTY" : option}
+                            >
+                              {option === "" ? "EMPTY" : option}
                             </SelectItem>
                           ))}
                         </SelectContent>
