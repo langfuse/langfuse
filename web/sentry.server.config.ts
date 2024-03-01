@@ -22,7 +22,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
       ) {
         return 1.0;
       }
-      return 0.3;
+      return 1.0;
     },
 
     profilesSampleRate: 0.3, // Profiling sample rate is relative to tracesSampleRate
