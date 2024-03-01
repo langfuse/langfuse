@@ -37,7 +37,6 @@ import {
 } from "@/src/server/api/interfaces/exportTypes";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
-import { type VisibilityState } from "@tanstack/react-table";
 
 export type GenerationsTableRow = {
   id: string;
