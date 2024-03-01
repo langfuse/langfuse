@@ -3,7 +3,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useState } from "react";
+import { type SetStateAction, useState, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   DropdownMenu,
@@ -37,6 +37,7 @@ import {
 } from "@/src/server/api/interfaces/exportTypes";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
+import { type VisibilityState } from "@tanstack/react-table";
 
 export type GenerationsTableRow = {
   id: string;
@@ -451,11 +452,23 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       },
     },
   ];
-  const [columnVisibility, setColumnVisibility] =
+  const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
       "generationsColumnVisibility",
       columns,
     );
+
+  const smallTableRequired =
+    columnVisibility["input"] === true || columnVisibility["output"] === true;
+
+  if (smallTableRequired && paginationState.pageSize !== 10) {
+    setPaginationState((prev) => {
+      const currentPage = prev.pageIndex;
+      const currentPageSize = prev.pageSize;
+      const newPageIndex = Math.floor((currentPage * currentPageSize) / 10);
+      return { pageIndex: newPageIndex, pageSize: 10 };
+    });
+  }
 
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.generations.map((generation) => {
@@ -509,7 +522,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           currentQuery: searchQuery ?? undefined,
         }}
         columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
+        setColumnVisibility={setColumnVisibilityState}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -563,11 +576,13 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
+          // enforce a minimum page size of 10 if input or output columns are visible
+          options: smallTableRequired ? [10] : undefined,
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
+        onColumnVisibilityChange={setColumnVisibilityState}
       />
     </div>
   );
