@@ -18,6 +18,7 @@ import { TabComponent } from "@/src/features/dashboard/components/TabsComponent"
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { NoData } from "@/src/features/dashboard/components/NoData";
+import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 
 export const ModelUsageChart = ({
   className,
@@ -105,14 +106,14 @@ export const ModelUsageChart = ({
   // had to add this function as tremor under the hodd adds more variables
   // to the function call which would break usdFormatter.
   const oneValueUsdFormatter = (value: number) => {
-    return usdFormatter(value, 2, 2);
+    return totalCostDashboardFormatted(value);
   };
 
   const data = [
     {
       tabTitle: "Total cost",
       data: transformedModelCost,
-      totalMetric: totalCost ? usdFormatter(totalCost, 2, 2) : usdFormatter(0),
+      totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Token cost`,
       formatter: oneValueUsdFormatter,
     },
@@ -126,6 +127,7 @@ export const ModelUsageChart = ({
     },
   ];
 
+  console.log(data, "data", totalCost);
   return (
     <DashboardCard
       className={className}

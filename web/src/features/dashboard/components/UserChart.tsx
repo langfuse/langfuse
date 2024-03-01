@@ -10,7 +10,10 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { useState } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoData } from "@/src/features/dashboard/components/NoData";
-import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import {
+  createTracesTimeFilter,
+  totalCostDashboardFormatted,
+} from "@/src/features/dashboard/lib/dashboard-utils";
 
 type BarChartDataPoint = {
   name: string;
@@ -124,7 +127,8 @@ export const UserChart = ({
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
-  const localUsdFormatter = (value: number) => usdFormatter(value, 2, 2);
+  const localUsdFormatter = (value: number) =>
+    totalCostDashboardFormatted(value);
 
   const data = [
     {
@@ -132,7 +136,7 @@ export const UserChart = ({
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCost ? usdFormatter(totalCost, 2, 2) : usdFormatter(0),
+      totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: "Total cost",
       formatter: localUsdFormatter,
     },
