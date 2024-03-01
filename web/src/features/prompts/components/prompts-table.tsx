@@ -35,7 +35,7 @@ export function PromptTable(props: { projectId: string }) {
     if (prompts.isSuccess) {
       setDetailPageList(
         "prompts",
-        prompts.data.map((t) => t.name),
+        prompts.data.map((t) => encodeURIComponent(t.name)),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,7 +49,7 @@ export function PromptTable(props: { projectId: string }) {
         const name: string = row.getValue("name");
         return name && typeof name === "string" ? (
           <TableLink
-            path={`/project/${props.projectId}/prompts/${name}`}
+            path={`/project/${props.projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
             truncateAt={30}
           />

@@ -22,7 +22,8 @@ export const getAllQuery = protectedProjectProcedure
       (ObservationView & {
         traceId: string;
         traceName: string;
-        latency: number | null;
+        promptName: string | null;
+        promptVersion: string | null;
       })[]
     >(rawSqlQuery);
 
@@ -30,33 +31,27 @@ export const getAllQuery = protectedProjectProcedure
       Array<{ count: bigint }>
     >(
       Prisma.sql`
-      WITH scores_avg AS (
-        SELECT
-          trace_id,
-          observation_id,
-          jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
-        FROM (
-          SELECT
-            trace_id,
-            observation_id,
-            name,
-            avg(value) avg_value
-          FROM
-            scores
-          GROUP BY
-            1,
-            2,
-            3
-          ORDER BY
-            1) tmp
-        GROUP BY
-          1, 2
-      )
+
       SELECT
         count(*)
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
-      LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
+      LEFT JOIN LATERAL (
+        SELECT
+          jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
+        FROM (
+            SELECT
+              name,
+              avg(value) avg_value
+            FROM
+                scores
+            WHERE
+                scores."trace_id" = t.id
+                AND scores."observation_id" = o.id
+            GROUP BY
+                name
+        ) tmp
+      ) AS s_avg ON true
       WHERE
         t.project_id = ${input.projectId}
         AND o.type = 'GENERATION'

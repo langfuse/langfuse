@@ -13,7 +13,7 @@ export const LangfuseIcon = ({
 }) => (
   // eslint-disable-next-line @next/next/no-img-element
   <img
-    src="/icon256.png"
+    src="/icon.svg"
     width={size}
     height={size}
     alt="Langfuse Icon"
@@ -56,8 +56,8 @@ export const LangfuseLogo = ({
       <LangfuseIcon size={size === "sm" ? 16 : 20} />
       <span
         className={cn(
-          "font-mono font-semibold",
-          size === "sm" ? "ml-2 text-sm" : "ml-3 text-xl",
+          "ml-2 font-mono font-semibold",
+          size === "sm" ? "text-sm" : "text-xl",
         )}
       >
         Langfuse
