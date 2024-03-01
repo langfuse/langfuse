@@ -34,6 +34,7 @@ interface DataTableProps<TData, TValue> {
     pageCount: number;
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
+    options?: number[];
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
@@ -215,7 +216,12 @@ export function DataTable<TData extends object, TValue>({
           </Table>
         </div>
       </div>
-      {pagination !== undefined ? <DataTablePagination table={table} /> : null}
+      {pagination !== undefined ? (
+        <DataTablePagination
+          table={table}
+          paginationOptions={pagination.options}
+        />
+      ) : null}
     </>
   );
 }
