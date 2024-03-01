@@ -13,7 +13,7 @@ import {
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";

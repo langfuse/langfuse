@@ -4,7 +4,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import { type FilterState } from "@/src/features/filters/types";
 import { api } from "@/src/utils/api";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 
