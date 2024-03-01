@@ -26,6 +26,7 @@ import {
   filterOperators,
   singleFilter,
 } from "@/src/server/api/interfaces/filters";
+import { NonEmptyString } from "@/src/utils/zod";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function FilterBuilder({
@@ -39,8 +40,6 @@ export function FilterBuilder({
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
-
-  console.log("wipFilterState", wipFilterState);
 
   const addNewFilter = () => {
     setWipFilterState((prev) => [
@@ -183,7 +182,6 @@ function FilterBuilderForm({
         <tbody>
           {filterState.map((filter, i) => {
             const column = columns.find((c) => c.name === filter.column);
-            console.log("column", column);
             return (
               <tr key={i}>
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
@@ -233,14 +231,13 @@ function FilterBuilderForm({
                           <SelectValue placeholder="" />
                         </SelectTrigger>
                         <SelectContent>
-                          {column.keyOptions.map((option) => (
-                            <SelectItem
-                              key={option}
-                              value={option === "" ? "EMPTY" : option}
-                            >
-                              {option === "" ? "EMPTY" : option}
-                            </SelectItem>
-                          ))}
+                          {column.keyOptions
+                            .filter((o) => NonEmptyString.safeParse(o).success)
+                            .map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     ) : (

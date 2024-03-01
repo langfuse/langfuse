@@ -2,7 +2,7 @@ import lodash from "lodash";
 import { z } from "zod";
 
 import { ModelUsageUnit } from "@/src/constants";
-import { jsonSchema } from "@/src/utils/zod";
+import { NonEmptyString, jsonSchema } from "@/src/utils/zod";
 import { ObservationLevel } from "@prisma/client";
 
 export const Usage = z.object({
@@ -55,8 +55,6 @@ export const usage = MixedUsage.nullish()
   })
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
-
-const NonEmptyString = z.string().min(1);
 
 export const TraceBody = z.object({
   id: z.string().nullish(),

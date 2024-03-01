@@ -103,7 +103,6 @@ export default function Start() {
   ];
 
   const [userFilterState, setUserFilterState] = useQueryFilterState([]);
-  console.log("userFilterState", userFilterState);
 
   const timeFilter = dateRange
     ? [
