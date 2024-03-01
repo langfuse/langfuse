@@ -1,16 +1,7 @@
-import {
-  PrismaClient,
-  type Project,
-  type Prisma,
-  ObservationType,
-} from "@prisma/client";
-import {
-  hashSecretKey,
-  getDisplaySecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
+import { PrismaClient, Project, ObservationType, Prisma } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
-import { ModelUsageUnit } from "@/src/constants";
+
 import { chunk } from "lodash";
 import { v4 } from "uuid";
 
@@ -93,8 +84,9 @@ async function main() {
         note: seedApiKey.note,
         id: seedApiKey.id,
         publicKey: seedApiKey.public,
-        hashedSecretKey: await hashSecretKey(seedApiKey.secret),
-        displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
+        hashedSecretKey:
+          "5327f56f38f4fce11f520642efda21c0a3089d520a7d3e20d5a0d4443ab548a2",
+        displaySecretKey: "sk-lf-...7890",
         project: {
           connect: {
             id: project1.id,
@@ -133,8 +125,9 @@ async function main() {
           note: secondKey.note,
           id: secondKey.id,
           publicKey: secondKey.public,
-          hashedSecretKey: await hashSecretKey(secondKey.secret),
-          displaySecretKey: getDisplaySecretKey(secondKey.secret),
+          hashedSecretKey:
+            "4327f56f38f4fce11f520642efda21c0a3089d520a7d3e20d5a0d4443ab548a2",
+          displaySecretKey: "sk-lf-...hjkl",
           project: {
             connect: {
               id: project2.id,
@@ -158,11 +151,11 @@ async function main() {
         colorTags,
         project1,
         project2,
-        promptIds,
+        promptIds
       );
 
     console.log(
-      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`,
+      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
     );
 
     await uploadObjects(traces, observations, scores, sessions, events);
@@ -234,7 +227,7 @@ async function uploadObjects(
   observations: Prisma.ObservationCreateManyInput[],
   scores: Prisma.ScoreCreateManyInput[],
   sessions: Prisma.TraceSessionCreateManyInput[],
-  events: Prisma.ObservationCreateManyInput[],
+  events: Prisma.ObservationCreateManyInput[]
 ) {
   let promises: Prisma.PrismaPromise<unknown>[] = [];
 
@@ -248,7 +241,7 @@ async function uploadObjects(
         },
         create: chunk[0]!,
         update: {},
-      }),
+      })
     );
   });
 
@@ -256,7 +249,7 @@ async function uploadObjects(
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
     process.stdout.write(
-      `Seeding of Sessions ${(i / promises.length) * 100}% complete`,
+      `Seeding of Sessions ${(i / promises.length) * 100}% complete`
     );
     await promises[i];
   }
@@ -267,14 +260,14 @@ async function uploadObjects(
     promises.push(
       prisma.trace.createMany({
         data: chunk,
-      }),
+      })
     );
   });
   for (let i = 0; i < promises.length; i++) {
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
     process.stdout.write(
-      `Seeding of Traces ${(i / promises.length) * 100}% complete`,
+      `Seeding of Traces ${(i / promises.length) * 100}% complete`
     );
     await promises[i];
   }
@@ -284,7 +277,7 @@ async function uploadObjects(
     promises.push(
       prisma.observation.createMany({
         data: chunk,
-      }),
+      })
     );
   });
 
@@ -292,7 +285,7 @@ async function uploadObjects(
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
     process.stdout.write(
-      `Seeding of Observations ${(i / promises.length) * 100}% complete`,
+      `Seeding of Observations ${(i / promises.length) * 100}% complete`
     );
     await promises[i];
   }
@@ -302,7 +295,7 @@ async function uploadObjects(
     promises.push(
       prisma.observation.createMany({
         data: chunk,
-      }),
+      })
     );
   });
 
@@ -310,7 +303,7 @@ async function uploadObjects(
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
     process.stdout.write(
-      `Seeding of Events ${(i / promises.length) * 100}% complete`,
+      `Seeding of Events ${(i / promises.length) * 100}% complete`
     );
     await promises[i];
   }
@@ -320,14 +313,14 @@ async function uploadObjects(
     promises.push(
       prisma.score.createMany({
         data: chunk,
-      }),
+      })
     );
   });
   for (let i = 0; i < promises.length; i++) {
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
     process.stdout.write(
-      `Seeding of Scores ${(i / promises.length) * 100}% complete`,
+      `Seeding of Scores ${(i / promises.length) * 100}% complete`
     );
     await promises[i];
   }
@@ -339,7 +332,7 @@ function createObjects(
   colorTags: (string | null)[],
   project1: Project,
   project2: Project,
-  promptIds: Map<string, string[]>,
+  promptIds: Map<string, string[]>
 ) {
   const traces: Prisma.TraceCreateManyInput[] = [];
   const observations: Prisma.ObservationCreateManyInput[] = [];
@@ -352,7 +345,7 @@ function createObjects(
     // print progress to console with a progress bar that refreshes every 10 iterations
     // random date within last 90 days, with a linear bias towards more recent dates
     const traceTs = new Date(
-      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
+      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000)
     );
 
     const envTag = envTags[Math.floor(Math.random() * envTags.length)];
@@ -428,11 +421,11 @@ function createObjects(
     for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
       // add between 1 and 30 ms to trace timestamp
       const spanTsStart = new Date(
-        traceTs.getTime() + Math.floor(Math.random() * 30),
+        traceTs.getTime() + Math.floor(Math.random() * 30)
       );
       // random duration of upto 30ms
       const spanTsEnd = new Date(
-        spanTsStart.getTime() + Math.floor(Math.random() * 30),
+        spanTsStart.getTime() + Math.floor(Math.random() * 30)
       );
 
       const span = {
@@ -466,15 +459,15 @@ function createObjects(
         const generationTsStart = new Date(
           spanTsStart.getTime() +
             Math.floor(
-              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
-            ),
+              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
+            )
         );
         const generationTsEnd = new Date(
           generationTsStart.getTime() +
             Math.floor(
               Math.random() *
-                (spanTsEnd.getTime() - generationTsStart.getTime()),
-            ),
+                (spanTsEnd.getTime() - generationTsStart.getTime())
+            )
         );
 
         const promptTokens = Math.floor(Math.random() * 1000) + 300;
@@ -585,7 +578,7 @@ function createObjects(
           ...{
             ...(Math.random() > 0.5 ? { promptId: promptId } : {}),
           },
-          unit: ModelUsageUnit.Tokens,
+          unit: "Tokens",
         };
 
         observations.push(generation);
@@ -612,8 +605,8 @@ function createObjects(
           const eventTs = new Date(
             spanTsStart.getTime() +
               Math.floor(
-                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
-              ),
+                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
+              )
           );
 
           events.push({
@@ -634,7 +627,7 @@ function createObjects(
   }
   // find unique sessions by id and projectid
   const uniqueSessions: Prisma.TraceSessionCreateManyInput[] = Array.from(
-    new Set(sessions.map((session) => JSON.stringify(session))),
+    new Set(sessions.map((session) => JSON.stringify(session)))
   ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
 
   return {
@@ -654,13 +647,13 @@ async function generatePromptsForProject(projects: Project[]) {
     projects.map(async (project) => {
       const promptIdsForProject = await generatePrompts(project);
       promptIds.set(project.id, promptIdsForProject);
-    }),
+    })
   );
   return promptIds;
 }
 
 async function generatePrompts(project: Project) {
-  const promptIds = [];
+  const promptIds: string[] = [];
   const prompts = [
     {
       id: `prompt-${v4()}`,

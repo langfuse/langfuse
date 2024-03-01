@@ -5,7 +5,6 @@
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
     "dev": "npm run dev --prefix worker/ & npm run dev --prefix web/",
-    "postinstall": "cd worker && npm install && cd ../web && npm install",
     "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev"
   },
   "author": "",
@@ -18,5 +17,10 @@
     "dotenv-cli": "^7.3.0",
     "eslint": "^8.56.0",
     "prettier": "^3.2.5"
-  }
+  },
+  "workspaces": [
+    "worker",
+    "web",
+    "shared"
+  ]
 }

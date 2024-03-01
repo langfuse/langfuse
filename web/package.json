@@ -7,7 +7,6 @@
     "build": "next build",
     "dev": "dotenv -e ../.env -- next dev",
     "dx": "dotenv -e ../.env -- npm i && npm run db:reset && npm run db:seed:examples && npm run dev",
-    "postinstall": "dotenv -e ../.env -- prisma generate",
     "lint": "dotenv -e ../.env -- next lint",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",
@@ -16,18 +15,9 @@
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev && npm run db:worker",
-    "db:reset": "dotenv -e ../.env npx -- prisma migrate reset",
-    "db:deploy": "dotenv -e ../.env npx -- prisma migrate deploy",
-    "db:seed": "dotenv -e ../.env -- npx prisma db seed",
-    "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
-    "db:seed:load": "dotenv -e ../.env -- npx prisma db seed -- --environment load",
     "release": "dotenv -e ../.env -- release-it",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
     "db:worker": "cp -r prisma/generated ../worker"
-  },
-  "prisma": {
-    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -86,7 +76,7 @@
     "kysely": "^0.27.2",
     "lodash": "^4.17.21",
     "lucide-react": "^0.330.0",
-    "next": "^14.1.0",
+    "next": "^14.1.1",
     "next-auth": "^4.24.6",
     "next-query-params": "^5.0.0",
     "nodemailer": "^6.9.9",
@@ -100,6 +90,7 @@
     "react-icons": "^5.0.1",
     "react-responsive": "^9.0.2",
     "react18-json-view": "^0.2.8-canary.1",
+    "shared": "^1.0.0",
     "sonner": "^1.4.0",
     "superjson": "2.2.1",
     "tailwind-merge": "^2.2.1",
@@ -176,5 +167,9 @@
         }
       }
     }
-  }
+  },
+  "main": "index.js",
+  "author": "",
+  "license": "MIT",
+  "description": ""
 }

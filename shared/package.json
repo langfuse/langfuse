@@ -1,0 +1,38 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "db:migrate": "dotenv -e ../.env -v DISABLE_ERD=false -- npx prisma migrate dev && npm run",
+    "db:reset": "dotenv -e ../.env -- npx prisma migrate reset",
+    "db:deploy": "dotenv -e ../.env npx -- prisma migrate deploy",
+    "db:seed": "dotenv -e ../.env -- npx prisma db seed",
+    "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
+    "db:seed:load": "dotenv -e ../.env -- npx prisma db seed -- --environment load",
+    "postinstall": "dotenv -e ../.env -- prisma generate"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "kysely": "^0.27.2",
+    "lodash": "^4.17.21",
+    "prisma": "^5.10.2",
+    "prisma-kysely": "^1.8.0",
+    "zod": "^3.22.4"
+  },
+  "prisma": {
+    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.1.1",
+    "prettier": "^3.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
