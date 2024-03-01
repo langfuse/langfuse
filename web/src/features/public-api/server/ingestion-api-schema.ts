@@ -2,7 +2,7 @@ import lodash from "lodash";
 import { z } from "zod";
 
 import { ModelUsageUnit } from "@/src/constants";
-import { jsonSchema } from "@/src/utils/zod";
+import { NonEmptyString, jsonSchema } from "@/src/utils/zod";
 import { ObservationLevel } from "@prisma/client";
 
 export const Usage = z.object({
@@ -86,11 +86,11 @@ export const OptionalObservationBody = z.object({
 });
 
 export const CreateEventEvent = OptionalObservationBody.extend({
-  id: z.string().nullish(),
+  id: NonEmptyString,
 });
 
 export const UpdateEventEvent = OptionalObservationBody.extend({
-  id: z.string(),
+  id: NonEmptyString,
 });
 
 export const CreateSpanBody = CreateEventEvent.extend({
@@ -147,7 +147,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
 
 export const ScoreBody = z.object({
   id: z.string().nullish(),
-  name: z.string(),
+  name: NonEmptyString,
   value: z.number(),
   traceId: z.string(),
   observationId: z.string().nullish(),
