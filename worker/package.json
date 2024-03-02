@@ -1,6 +1,6 @@
 {
-  "name": "worker",
-  "version": "1.0.0",
+  "name": "@langfuse/worker",
+  "version": "2.9.0",
   "description": "",
   "main": "index.js",
   "private": true,
@@ -9,7 +9,7 @@
     "coverage": "vitest run --coverage",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
+    "dev": "dotenv -e ./../.env -- nodemon src/index.ts",
     "lint": "eslint .",
     "lint:fix": "eslint --fix ."
   },
@@ -22,7 +22,7 @@
     "kysely": "^0.27.2",
     "node": "^21.6.2",
     "pg": "^8.11.3",
-    "shared": "*",
+    "@langfuse/shared": "*",
     "zod": "^3.22.4"
   },
   "devDependencies": {

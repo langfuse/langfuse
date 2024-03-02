@@ -4,7 +4,8 @@
   "scripts": {
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
-    "dev": "npm run dev --prefix worker/ & npm run dev --prefix web/",
+    "dev": "npm run dev --workspace=worker & npm run dev --workspace=web",
+    "nuke": "find . -name 'node_modules' -type d -prune -print -exec rm -rf '{}' \\; && find . -name '.next' -type d -prune -print -exec rm -rf '{}' \\;",
     "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev"
   },
   "author": "",
