@@ -126,6 +126,8 @@ export const EditDatasetItem = ({
                       setHasChanges(true);
                     }}
                     editable
+                    collapsed={false}
+                    collapseStringsAfterLength={1000000}
                     className="rounded-md border border-gray-200 p-2 text-sm"
                   />
                   <FormMessage />
@@ -149,6 +151,8 @@ export const EditDatasetItem = ({
                       setHasChanges(true);
                     }}
                     editable
+                    collapsed={false}
+                    collapseStringsAfterLength={1000000}
                     className="rounded-md border border-gray-200 p-2 text-sm"
                   />
                   <FormMessage />
