@@ -26,6 +26,7 @@ import {
   filterOperators,
   singleFilter,
 } from "@/src/server/api/interfaces/filters";
+import { NonEmptyString } from "@/src/utils/zod";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function FilterBuilder({
@@ -185,6 +186,7 @@ function FilterBuilderForm({
               <tr key={i}>
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
                 <td className="flex gap-2 p-1">
+                  {/* selector of the column to be filtered */}
                   <Select
                     value={filter.column ?? ""}
                     onValueChange={(value) =>
@@ -220,6 +222,7 @@ function FilterBuilderForm({
                   (column?.type === "numberObject" ||
                     column?.type === "stringObject") ? (
                     column.keyOptions ? (
+                      // selector of the key of the object to be filtered
                       <Select
                         disabled={!filter.column}
                         onValueChange={(value) => {
@@ -231,11 +234,13 @@ function FilterBuilderForm({
                           <SelectValue placeholder="" />
                         </SelectTrigger>
                         <SelectContent>
-                          {column.keyOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
+                          {column.keyOptions
+                            .filter((o) => NonEmptyString.safeParse(o).success)
+                            .map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     ) : (
