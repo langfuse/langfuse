@@ -88,6 +88,7 @@ export const TracesTimeSeriesChart = ({
           agg={agg}
           data={transformedTraces}
           connectNulls={true}
+          chartType="area"
         />
       ) : (
         <NoData noDataText="No data available">

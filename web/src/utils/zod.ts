@@ -51,3 +51,5 @@ export const paginationZod = {
 
 export const noHtmlRegex = /<[^>]*>/;
 export const noHtmlCheck = (value: string) => !noHtmlRegex.test(value);
+
+export const NonEmptyString = z.string().min(1);
