@@ -5,26 +5,20 @@ FROM node:20-alpine AS base
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat
 
-FROM base AS deps
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
-WORKDIR /app
 
-# Install dependencies based on the preferred package manager
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-RUN \
-  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile; \
-  else echo "Lockfile not found." && exit 1; \
-  fi
 
 
 # Rebuild the source code only when needed
 FROM base AS builder
 
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY . /usr/src/app
+WORKDIR /usr/src/app
+RUN ls 
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./src/middleware.ts
@@ -37,11 +31,9 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # Disable validation of environment variables during build
 ENV DOCKER_BUILD 1
 
-# Generate prisma client
-RUN npx prisma generate
-
 # Build the application
-RUN npm run build
+RUN pnpm run -r build
+RUN pnpm deploy --filter=web --prod /prod/web
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -69,7 +61,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
+COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
 USER nextjs

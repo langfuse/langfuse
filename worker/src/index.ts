@@ -3,7 +3,7 @@ import consumer from "./redis-consumer";
 
 import { getLogger } from "./logger";
 import redis from "@fastify/redis";
-import { db } from "./database";
+// import { db } from "./database";
 
 const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map

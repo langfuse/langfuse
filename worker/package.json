@@ -22,11 +22,11 @@
     "kysely": "^0.27.2",
     "node": "^21.6.2",
     "pg": "^8.11.3",
-    "@langfuse/shared": "*",
+    "@langfuse/shared": "workspace:*",
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/node": "^20.11.1xw9",
+    "@types/node": "^20.11.24",
     "@types/pg": "^8.11.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "eslint": "^8.56.0",

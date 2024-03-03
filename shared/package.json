@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "db:generate": "dotenv -e ../.env -v DISABLE_ERD=false -- npx prisma generate",
     "db:migrate": "dotenv -e ../.env -v DISABLE_ERD=false -- npx prisma migrate dev && npm run",
     "db:reset": "dotenv -e ../.env -- npx prisma migrate reset",
     "db:deploy": "dotenv -e ../.env npx -- prisma migrate deploy",
@@ -15,6 +16,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@prisma/client": "5.10.2",
     "kysely": "^0.27.2",
     "lodash": "^4.17.21",
     "prisma": "^5.10.2",
@@ -32,6 +34,7 @@
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.1.1",
     "prettier": "^3.2.5",
+    "prisma-erd-generator": "^1.11.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }

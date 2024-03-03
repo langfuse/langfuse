@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyPluginOptions } from "fastify";
-import fp from "fastify-plugin";
+// import fp from "fastify-plugin";
 
 async function routes(fastify: FastifyInstance, options: FastifyPluginOptions) {
   fastify.redis.subscribe("ingestion", (err, count) => {
@@ -17,4 +17,4 @@ async function routes(fastify: FastifyInstance, options: FastifyPluginOptions) {
   });
 }
 
-export default fp(routes);
+export default routes;

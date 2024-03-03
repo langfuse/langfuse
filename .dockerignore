@@ -5,3 +5,7 @@ npm-debug.log
 README.md
 .next
 .git
+.gitignore
+*.md
+dist
+bin

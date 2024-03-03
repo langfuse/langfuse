@@ -11,13 +11,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/eslint": "^8.56.2",
-    "@types/jest": "^29.5.12",
-    "@typescript-eslint/eslint-plugin": "^7.0.2",
-    "@typescript-eslint/parser": "^7.0.2",
-    "dotenv-cli": "^7.3.0",
-    "eslint": "^8.56.0",
-    "prettier": "^3.2.5"
+    "dotenv-cli": "^7.3.0"
   },
   "workspaces": [
     "worker",

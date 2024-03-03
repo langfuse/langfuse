@@ -79,7 +79,7 @@ export const isChatModel = (model: string): model is ChatModel => {
 };
 
 export const isTiktokenModel = (model: string): model is TiktokenModel => {
-  return [
+  const models: TiktokenModel[] = [
     "davinci-002",
     "babbage-002",
     "text-davinci-003",
@@ -127,5 +127,6 @@ export const isTiktokenModel = (model: string): model is TiktokenModel => {
     "gpt-3.5-turbo-16k-0613",
     "gpt-4-1106-preview",
     "gpt-4-vision-preview",
-  ].includes(model);
+  ];
+  return models.includes(model);
 };

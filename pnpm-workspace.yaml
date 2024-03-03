@@ -1,0 +1,6 @@
+packages:
+  - "web/**"
+  - "worker/**"
+  - "shared/**"
+  # if required, exclude directories
+  - "!**/test/**"
