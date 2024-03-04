@@ -89,12 +89,6 @@ export const traceUser = {
   type: "string",
   internal: 't."user_id"',
 } as const;
-export const traceDuration = {
-  name: "traceDuration",
-  type: "string",
-  internal:
-    'EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision',
-} as const;
 
 export const calculatedTotalCost = {
   name: "calculatedTotalCost",
@@ -115,7 +109,6 @@ const tracesObservationsColumns: ColumnDefinition[] = [
   traceUser,
   startTime,
   traceName,
-  traceDuration,
   observationName,
 ];
 

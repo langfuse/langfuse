@@ -3,7 +3,7 @@ export function lastCharacters(str: string, n: number) {
 }
 
 export function truncate(str: string, n: number = 10) {
-  // ... suffix if the string is longer than n
+  // '...' suffix if the string is longer than n
   if (str.length > n) {
     return str.substring(0, n) + "...";
   }

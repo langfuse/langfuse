@@ -55,14 +55,13 @@ export const enrichAndCreateQuery = (
 export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   const query = sqlInterface.parse(queryUnsafe);
 
-  const daterangeCte = createDateRangeCte(
+  const cte = createDateRangeCte(
     query.from,
     query.filter ?? [],
     query.groupBy ?? [],
   );
 
-  const fromString =
-    daterangeCte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
+  const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
   // raw mandatory everywhere here as this creates the selection
   // agg is typed via zod
@@ -79,15 +78,15 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
       : Prisma.sql`${columnDefinition} as "${Prisma.raw(safeColumn.name)}"`;
   });
 
-  if (daterangeCte)
+  if (cte)
     // raw mandatory here
     selectedColumns.unshift(
-      Prisma.sql`date_series."date" as "${Prisma.raw(daterangeCte.column.name)}"`,
+      Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.name)}"`,
     );
 
   let groupString = Prisma.empty;
 
-  if ((query.groupBy && query.groupBy.length > 0) || daterangeCte) {
+  if ((query.groupBy && query.groupBy.length > 0) || cte) {
     const groupByFields = (query.groupBy ?? []).map((groupBy) =>
       prepareGroupBy(query.from, groupBy),
     );
@@ -104,13 +103,13 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   const orderByString = prepareOrderByString(
     query.from,
     query.orderBy,
-    daterangeCte ? true : false,
+    cte ? true : false,
   );
 
   const filterString =
     query.filter && query.filter.length > 0
       ? Prisma.sql` ${
-          daterangeCte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
+          cte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
         } ${tableColumnsToSqlFilter(query.filter, tableDefinitions[query.from]!.columns, query.from)}`
       : Prisma.empty;
 
@@ -119,7 +118,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
     : Prisma.empty;
 
   return Prisma.sql`${
-    daterangeCte?.cte ?? Prisma.empty
+    cte?.cte ?? Prisma.empty
   }${selectString}${fromString}${filterString}${groupString}${orderByString}${limitString};`;
 };
 
