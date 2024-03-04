@@ -16,7 +16,7 @@ import { TabComponent } from "@/src/features/dashboard/components/TabsComponent"
 import { numberFormatter } from "@/src/utils/numbers";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 
-export const LatencyChart = ({
+export const GenerationLatencyChart = ({
   className,
   projectId,
   globalFilterState,
