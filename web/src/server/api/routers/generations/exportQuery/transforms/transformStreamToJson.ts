@@ -37,16 +37,16 @@ type ExportedObservations = {
   inputPrice: Decimal | null;
   outputPrice: Decimal | null;
   totalPrice: Decimal | null;
-  calculatedInputCostInUSD: number | null;
-  calculatedOutputCostInUSD: number | null;
-  calculatedTotalCostInUSD: number | null;
-  latencyInSeconds: number | null;
+  calculatedInputCost: number | null;
+  calculatedOutputCost: number | null;
+  calculatedTotalCost: number | null;
+  latency: number | null;
   traceName: string | null;
   promptName: string | null;
   promptVersion: string | null;
   scores: Record<string, number> | null;
-  timeToFirstTokenInSeconds?: number | null;
-  latencyPerTokenInSeconds?: number | null;
+  timeToFirstToken?: number | null;
+  latencyPerToken?: number | null;
 };
 
 export function transformStreamToJson(): Transform {
@@ -76,12 +76,12 @@ export function transformStreamToJson(): Transform {
 
       const rowToPush: ExportedObservations = {
         ...rest,
-        calculatedInputCostInUSD: calculatedInputCost?.toNumber() ?? null,
-        calculatedOutputCostInUSD: calculatedOutputCost?.toNumber() ?? null,
-        calculatedTotalCostInUSD: calculatedTotalCost?.toNumber() ?? null,
-        latencyInSeconds: latency,
-        latencyPerTokenInSeconds: null,
-        timeToFirstTokenInSeconds: null,
+        calculatedInputCost: calculatedInputCost?.toNumber() ?? null,
+        calculatedOutputCost: calculatedOutputCost?.toNumber() ?? null,
+        calculatedTotalCost: calculatedTotalCost?.toNumber() ?? null,
+        latency: latency,
+        latencyPerToken: null,
+        timeToFirstToken: null,
       };
 
       if (row.completionStartTime) {
@@ -89,11 +89,11 @@ export function transformStreamToJson(): Transform {
           row.startTime,
           row.completionStartTime,
         );
-        rowToPush.timeToFirstTokenInSeconds = timeToFirstToken;
+        rowToPush.timeToFirstToken = timeToFirstToken;
       }
       if (row.latency && row.totalTokens !== 0) {
         const latencyPerToken = row.latency / row.totalTokens;
-        rowToPush.latencyPerTokenInSeconds = latencyPerToken;
+        rowToPush.latencyPerToken = latencyPerToken;
       }
 
       this.push(JSON.stringify(rowToPush)); // Push the current row as a JSON string
