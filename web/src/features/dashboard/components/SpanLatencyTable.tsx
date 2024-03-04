@@ -8,6 +8,7 @@ import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { truncate } from "@/src/utils/string";
+import { Popup } from "@/src/components/layouts/doc-popup";
 
 export const LatencyTables = ({
   projectId,
@@ -115,12 +116,18 @@ export const LatencyTables = ({
       ? data
           .filter((item) => item.name !== null)
           .map((item, i) => [
-            truncate(item.name as string),
+            <div key={`${item.name as string}-${i}`}>
+              {/* {item.name as string} */}
+              <Popup
+                triggerContent={truncate(item.name as string)}
+                description={item.name as string}
+              />
+            </div>,
             ...[
               "percentile50Duration",
               "percentile90Duration",
               "percentile95Duration",
-              "percentile99Duration",
+              "percentile99Du ration",
             ].map((percentile) => (
               <RightAlignedCell key={`${i}-${percentile}`}>
                 {item[percentile]
