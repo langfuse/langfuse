@@ -21,6 +21,9 @@ const arrayOperatorReplacements = {
   "none of": "&&",
 };
 
+/**
+ * SECURITY: This function must only be used, when all its inputs were verified with zod.
+ */
 export function tableColumnsToSqlFilterAndPrefix(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
@@ -33,6 +36,10 @@ export function tableColumnsToSqlFilterAndPrefix(
   return Prisma.join([Prisma.raw("AND "), sql], "");
 }
 
+/**
+ * SECURITY: This function must only be used, when all its inputs were verified with zod.
+ * Converts filter state and table columns to a Prisma SQL filter.
+ */
 export function tableColumnsToSqlFilter(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
