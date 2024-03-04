@@ -117,7 +117,6 @@ export const LatencyTables = ({
           .filter((item) => item.name !== null)
           .map((item, i) => [
             <div key={`${item.name as string}-${i}`}>
-              {/* {item.name as string} */}
               <Popup
                 triggerContent={truncate(item.name as string)}
                 description={item.name as string}
