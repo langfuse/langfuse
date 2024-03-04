@@ -2,6 +2,7 @@ import { prisma } from "@/src/server/db";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
 import { ProfilingIntegration } from "@sentry/profiling-node";
+
 import type { SamplingContext, TransactionEvent } from "@sentry/types";
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN)
@@ -22,7 +23,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
       ) {
         return 1.0;
       }
-      return 1.0;
+      return 0.2;
     },
 
     profilesSampleRate: 0.3, // Profiling sample rate is relative to tracesSampleRate
