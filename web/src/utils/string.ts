@@ -2,6 +2,14 @@ export function lastCharacters(str: string, n: number) {
   return str.substring(str.length - n);
 }
 
+export function truncate(str: string, n: number = 10) {
+  // ... suffix if the string is longer than n
+  if (str.length > n) {
+    return str.substring(0, n) + "...";
+  }
+  return str;
+}
+
 export function extractVariables(mustacheString: string): string[] {
   // Regular expression to match Mustache variables
   const regex: RegExp = /\{\{(.*?)\}\}/g;

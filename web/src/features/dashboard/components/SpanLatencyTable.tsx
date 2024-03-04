@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import { truncate } from "@/src/utils/string";
 
 export const LatencyTables = ({
   projectId,
@@ -114,7 +115,7 @@ export const LatencyTables = ({
       ? data
           .filter((item) => item.name !== null)
           .map((item, i) => [
-            item.name as string,
+            truncate(item.name as string),
             ...[
               "percentile50Duration",
               "percentile90Duration",

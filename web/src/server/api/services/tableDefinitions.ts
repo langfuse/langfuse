@@ -165,7 +165,7 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
   traces_duration: {
-    table: `traces t LEFT JOIN trace_duration_view tv ON t.name = tv.name and t.project_id = tv.project_id`,
+    table: `traces t LEFT JOIN trace_duration_view tv ON t.id = tv.id`,
     columns: [
       ...tracesColumns,
       { name: "duration", type: "number", internal: '"duration"' },
