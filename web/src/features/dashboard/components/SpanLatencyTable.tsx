@@ -6,13 +6,12 @@ import { api } from "@/src/utils/api";
 
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 
 export const LatencyTables = ({
-  className,
   projectId,
   globalFilterState,
 }: {
-  className: string;
   projectId: string;
   globalFilterState: FilterState;
 }) => {
@@ -22,7 +21,6 @@ export const LatencyTables = ({
       from: "observations",
       select: [
         { column: "duration", agg: "50thPercentile" },
-        { column: "duration", agg: "75thPercentile" },
         { column: "duration", agg: "90thPercentile" },
         { column: "duration", agg: "95thPercentile" },
         { column: "duration", agg: "99thPercentile" },
@@ -57,7 +55,6 @@ export const LatencyTables = ({
       from: "observations",
       select: [
         { column: "duration", agg: "50thPercentile" },
-        { column: "duration", agg: "75thPercentile" },
         { column: "duration", agg: "90thPercentile" },
         { column: "duration", agg: "95thPercentile" },
         { column: "duration", agg: "99thPercentile" },
@@ -86,6 +83,32 @@ export const LatencyTables = ({
     },
   );
 
+  const tracesLatencies = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: "traces_duration",
+      select: [
+        { column: "duration", agg: "50thPercentile" },
+        { column: "duration", agg: "90thPercentile" },
+        { column: "duration", agg: "95thPercentile" },
+        { column: "duration", agg: "99thPercentile" },
+        { column: "traceName" },
+      ],
+      filter: [...createTracesTimeFilter(globalFilterState)],
+      groupBy: [{ type: "string", column: "traceName" }],
+      orderBy: [
+        { column: "duration", agg: "95thPercentile", direction: "DESC" },
+      ],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
   const generateLatencyData = (data?: DatabaseRow[]) => {
     return data
       ? data
@@ -94,14 +117,13 @@ export const LatencyTables = ({
             item.name as string,
             ...[
               "percentile50Duration",
-              "percentile75Duration",
               "percentile90Duration",
               "percentile95Duration",
               "percentile99Duration",
             ].map((percentile) => (
               <RightAlignedCell key={`${i}-${percentile}`}>
                 {item[percentile]
-                  ? formatIntervalSeconds(item[percentile] as number, 4)
+                  ? formatIntervalSeconds(item[percentile] as number, 3)
                   : "-"}
               </RightAlignedCell>
             )),
@@ -112,7 +134,32 @@ export const LatencyTables = ({
   return (
     <>
       <DashboardCard
-        className={className}
+        className="col-span-1 xl:col-span-2"
+        title="Trace latencies"
+        isLoading={tracesLatencies.isLoading}
+      >
+        <DashboardTable
+          headers={[
+            "Trace Name",
+            <RightAlignedCell key="50th">50th</RightAlignedCell>,
+            <RightAlignedCell key="90th">90th</RightAlignedCell>,
+            <RightAlignedCell key="95th">
+              95th<span className="ml-1">▼</span>
+            </RightAlignedCell>,
+            <RightAlignedCell key="99th">99th</RightAlignedCell>,
+          ]}
+          rows={generateLatencyData(
+            tracesLatencies.data
+              ?.filter((item) => item.traceName !== null)
+              .map((item) => {
+                return { ...item, name: item.traceName as string };
+              }),
+          )}
+          collapse={{ collapsed: 5, expanded: 20 }}
+        />
+      </DashboardCard>
+      <DashboardCard
+        className="col-span-1 xl:col-span-2"
         title="Generation latencies"
         isLoading={generationsLatencies.isLoading}
       >
@@ -120,7 +167,6 @@ export const LatencyTables = ({
           headers={[
             "Generation Name",
             <RightAlignedCell key="50th">50th</RightAlignedCell>,
-            <RightAlignedCell key="75th">75th</RightAlignedCell>,
             <RightAlignedCell key="90th">90th</RightAlignedCell>,
             <RightAlignedCell key="95th">
               95th<span className="ml-1">▼</span>
@@ -132,7 +178,7 @@ export const LatencyTables = ({
         />
       </DashboardCard>
       <DashboardCard
-        className={className}
+        className="col-span-1 xl:col-span-2"
         title="Span latencies"
         isLoading={spansLatencies.isLoading}
       >
@@ -140,7 +186,6 @@ export const LatencyTables = ({
           headers={[
             "Span Name",
             <RightAlignedCell key="50th">50th</RightAlignedCell>,
-            <RightAlignedCell key="75th">75th</RightAlignedCell>,
             <RightAlignedCell key="90th">90th</RightAlignedCell>,
             <RightAlignedCell key="95th">
               95th<span className="ml-1">▼</span>

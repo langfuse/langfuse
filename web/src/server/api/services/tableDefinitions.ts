@@ -119,18 +119,20 @@ const tracesObservationsColumns: ColumnDefinition[] = [
   observationName,
 ];
 
+const tracesColumns = [
+  tracesProjectId,
+  traceVersion,
+  release,
+  traceId,
+  traceTimestamp,
+  traceName,
+  traceUser,
+];
+
 export const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces t`,
-    columns: [
-      tracesProjectId,
-      traceVersion,
-      release,
-      traceId,
-      traceTimestamp,
-      traceName,
-      traceUser,
-    ],
+    columns: tracesColumns,
   },
   traces_observations: {
     table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
@@ -162,6 +164,13 @@ export const tableDefinitions: TableDefinitions = {
       duration,
     ],
   },
+  traces_duration: {
+    table: `traces t LEFT JOIN trace_duration_view tv ON t.name = tv.name and t.project_id = tv.project_id`,
+    columns: [
+      ...tracesColumns,
+      { name: "duration", type: "number", internal: '"duration"' },
+    ],
+  },
   traces_scores: {
     table: ` traces t JOIN scores s ON t.id = s.trace_id`,
     columns: [
@@ -181,6 +190,7 @@ export const tableDefinitions: TableDefinitions = {
       traceName,
     ],
   },
+
   traces_parent_observation_scores: {
     table: ` traces t LEFT JOIN observations_view o on t."id" = o."trace_id" and o."parent_observation_id" is NULL LEFT JOIN scores s ON t."id" = s."trace_id"`,
     columns: [

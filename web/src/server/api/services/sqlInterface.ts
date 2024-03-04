@@ -55,6 +55,7 @@ export const sqlInterface = z.object({
     "traces_scores",
     "traces_parent_observation_scores",
     "traces_observationsview",
+    "traces_duration",
   ]),
   filter: filterInterface.optional(),
   groupBy: groupByInterface.optional(),

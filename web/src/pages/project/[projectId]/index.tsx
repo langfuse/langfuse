@@ -128,7 +128,7 @@ export default function Start() {
     <div className="md:container">
       <Header title={project?.name ?? "Dashboard"} />
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-        <div className=" flex flex-col gap-2  lg:flex-row">
+        <div className=" flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
             dateRange={dateRange}
             setAgg={setAgg}
@@ -165,7 +165,7 @@ export default function Start() {
       </div>
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
-          className="col-span-1 xl:col-span-2 "
+          className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
@@ -204,7 +204,6 @@ export default function Start() {
           globalFilterState={mergedFilterState}
         />
         <LatencyTables
-          className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
