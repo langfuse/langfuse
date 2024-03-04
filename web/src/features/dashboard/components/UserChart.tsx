@@ -34,7 +34,7 @@ export const UserChart = ({
   const user = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observations",
+      from: "traces_observationsview",
       select: [
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "user" },
