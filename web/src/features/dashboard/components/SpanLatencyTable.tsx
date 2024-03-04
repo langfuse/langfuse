@@ -126,7 +126,7 @@ export const LatencyTables = ({
               "percentile50Duration",
               "percentile90Duration",
               "percentile95Duration",
-              "percentile99Du ration",
+              "percentile99Duration",
             ].map((percentile) => (
               <RightAlignedCell key={`${i}-${percentile}`}>
                 {item[percentile]
