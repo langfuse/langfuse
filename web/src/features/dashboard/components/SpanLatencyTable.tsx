@@ -87,7 +87,7 @@ export const LatencyTables = ({
   const tracesLatencies = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_duration",
+      from: "traces_metrics",
       select: [
         { column: "duration", agg: "50thPercentile" },
         { column: "duration", agg: "90thPercentile" },

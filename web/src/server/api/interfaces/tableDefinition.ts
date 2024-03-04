@@ -38,7 +38,7 @@ export const tableNames = [
   "traces_observationsview",
   "observations",
   "traces_scores",
-  "traces_duration",
+  "traces_metrics",
   "traces_parent_observation_scores",
   "sessions",
 ] as const;

@@ -398,7 +398,7 @@ const getMandatoryFilter = (
   switch (table) {
     case "traces":
     case "traces_scores":
-    case "traces_duration":
+    case "traces_metrics":
       return [traceFilter];
     case "traces_observations":
     case "traces_observationsview":

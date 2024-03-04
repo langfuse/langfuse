@@ -1,4 +1,4 @@
-CREATE VIEW trace_duration_view AS
+CREATE VIEW trace_metrics_view AS
 SELECT
     t.id,
     EXTRACT(EPOCH FROM COALESCE(MAX(o.end_time), MAX(o.start_time))) - EXTRACT(EPOCH FROM MIN(o.start_time))::double precision AS duration
