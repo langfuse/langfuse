@@ -14,7 +14,7 @@ WITH observations_metrics AS (
 )
 SELECT
     t.*,
-    o.duration,
+    o.duration
 FROM
     traces t
     LEFT JOIN observations_metrics o ON t.id = o.trace_id and t.project_id = o.project_id
