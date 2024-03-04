@@ -149,6 +149,7 @@ const castValueToPostgresTypes = (
   return column.name === "type" &&
     (table === "observations" ||
       table === "traces_observations" ||
+      table === "traces_observationsview" ||
       table === "traces_parent_observation_scores")
     ? Prisma.sql`::"ObservationType"`
     : Prisma.empty;

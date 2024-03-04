@@ -31,7 +31,6 @@ export const executeQuery = async (
 ) => {
   const query = sqlInterface.parse(unsafeQuery);
   const sql = enrichAndCreateQuery(projectId, query);
-
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
@@ -56,13 +55,14 @@ export const enrichAndCreateQuery = (
 export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   const query = sqlInterface.parse(queryUnsafe);
 
-  const cte = createDateRangeCte(
+  const daterangeCte = createDateRangeCte(
     query.from,
     query.filter ?? [],
     query.groupBy ?? [],
   );
 
-  const fromString = cte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
+  const fromString =
+    daterangeCte?.from ?? Prisma.sql` FROM ${getTableSql(query.from)}`;
 
   // raw mandatory everywhere here as this creates the selection
   // agg is typed via zod
@@ -79,15 +79,15 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
       : Prisma.sql`${columnDefinition} as "${Prisma.raw(safeColumn.name)}"`;
   });
 
-  if (cte)
+  if (daterangeCte)
     // raw mandatory here
     selectedColumns.unshift(
-      Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.name)}"`,
+      Prisma.sql`date_series."date" as "${Prisma.raw(daterangeCte.column.name)}"`,
     );
 
   let groupString = Prisma.empty;
 
-  if ((query.groupBy && query.groupBy.length > 0) || cte) {
+  if ((query.groupBy && query.groupBy.length > 0) || daterangeCte) {
     const groupByFields = (query.groupBy ?? []).map((groupBy) =>
       prepareGroupBy(query.from, groupBy),
     );
@@ -104,13 +104,13 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
   const orderByString = prepareOrderByString(
     query.from,
     query.orderBy,
-    cte ? true : false,
+    daterangeCte ? true : false,
   );
 
   const filterString =
     query.filter && query.filter.length > 0
       ? Prisma.sql` ${
-          cte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
+          daterangeCte ? Prisma.sql` AND ` : Prisma.sql` WHERE `
         } ${tableColumnsToSqlFilter(query.filter, tableDefinitions[query.from]!.columns, query.from)}`
       : Prisma.empty;
 
@@ -119,7 +119,7 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
     : Prisma.empty;
 
   return Prisma.sql`${
-    cte?.cte ?? Prisma.empty
+    daterangeCte?.cte ?? Prisma.empty
   }${selectString}${fromString}${filterString}${groupString}${orderByString}${limitString};`;
 };
 
@@ -335,8 +335,8 @@ const getColumnDefinition = (
     return c.name === column;
   });
   if (!foundColumn) {
-    console.error(`Column ${column} not found in table ${table}`);
-    throw new Error(`Column ${column} not found in table ${table}`);
+    console.error(`Column "${column}" not found in table ${table}`);
+    throw new Error(`Column "${column}" not found in table ${table}`);
   }
   return foundColumn;
 };
@@ -401,6 +401,7 @@ const getMandatoryFilter = (
     case "traces_scores":
       return [traceFilter];
     case "traces_observations":
+    case "traces_observationsview":
     case "traces_parent_observation_scores":
       return [traceFilter, observationFilter];
     case "observations":

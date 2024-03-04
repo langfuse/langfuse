@@ -1,4 +1,7 @@
-import { type TableDefinitions } from "@/src/server/api/interfaces/tableDefinition";
+import {
+  type ColumnDefinition,
+  type TableDefinitions,
+} from "@/src/server/api/interfaces/tableDefinition";
 
 export const completionTokens = {
   name: "completionTokens",
@@ -86,12 +89,35 @@ export const traceUser = {
   type: "string",
   internal: 't."user_id"',
 } as const;
+export const traceDuration = {
+  name: "traceDuration",
+  type: "string",
+  internal:
+    'EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision',
+} as const;
 
 export const calculatedTotalCost = {
   name: "calculatedTotalCost",
   type: "number",
   internal: 'o."calculated_total_cost"',
 } as const;
+
+const tracesObservationsColumns: ColumnDefinition[] = [
+  traceId,
+  observationId,
+  { name: "type", type: "string", internal: 'o."type"' },
+  tracesProjectId,
+  observationsProjectId,
+  duration,
+  totalTokens,
+  model,
+  traceTimestamp,
+  traceUser,
+  startTime,
+  traceName,
+  traceDuration,
+  observationName,
+];
 
 export const tableDefinitions: TableDefinitions = {
   traces: {
@@ -107,22 +133,12 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
   traces_observations: {
+    table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
+    columns: tracesObservationsColumns,
+  },
+  traces_observationsview: {
     table: ` traces t LEFT JOIN observations_view o ON t.id = o.trace_id`,
-    columns: [
-      traceId,
-      observationId,
-      { name: "type", type: "string", internal: 'o."type"' },
-      tracesProjectId,
-      observationsProjectId,
-      duration,
-      calculatedTotalCost,
-      totalTokens,
-      model,
-      traceTimestamp,
-      traceUser,
-      startTime,
-      traceName,
-    ],
+    columns: [...tracesObservationsColumns, calculatedTotalCost],
   },
   observations: {
     table: ` observations_view o`,

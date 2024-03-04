@@ -2,7 +2,7 @@ import { useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
-import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
+import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
@@ -32,6 +32,7 @@ import { FilterBuilder } from "@/src/features/filters/components/filter-builder"
 import { type FilterState } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { LatencyTables } from "@/src/features/dashboard/components/SpanLatencyTable";
 
 export type DashboardDateRange = {
   from: Date;
@@ -202,7 +203,12 @@ export default function Start() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <LatencyChart
+        <LatencyTables
+          className="col-span-1 xl:col-span-3"
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+        />
+        <GenerationLatencyChart
           className="col-span-1 flex-auto justify-between xl:col-span-full"
           projectId={projectId}
           agg={agg}
