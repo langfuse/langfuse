@@ -91,7 +91,7 @@ flowchart TB
 
 The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
 
-Full database schema: [prisma/schema.prisma](prisma/schema.prisma)
+Full database schema: [web/prisma/schema.prisma](web/prisma/schema.prisma)
 
 <img src="./web/prisma/database.svg">
 

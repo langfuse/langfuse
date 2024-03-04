@@ -320,6 +320,85 @@ describe("cost retrieval tests", () => {
     expect(view?.calculatedTotalCost?.toString()).toBe("0.0124");
   });
 
+  it(`should take old model for old observations`, async () => {
+    await prisma.model.create({
+      data: {
+        id: "model-0",
+        modelName: "gpt-3.5-turbo",
+        inputPrice: "0.0000000",
+        outputPrice: "0.0000000",
+        totalPrice: "0.1",
+        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+        projectId: null,
+        startDate: null,
+        tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+        unit: ModelUsageUnit.Tokens,
+      },
+    });
+
+    await prisma.model.create({
+      data: {
+        id: "model-1",
+        modelName: "gpt-3.5-turbo",
+        inputPrice: "0.0000010",
+        outputPrice: "0.0000020",
+        totalPrice: "0.1",
+        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+        projectId: null,
+        startDate: new Date("2023-12-01"),
+        tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+        unit: ModelUsageUnit.Tokens,
+      },
+    });
+    await prisma.model.create({
+      data: {
+        id: "model-2",
+        modelName: "gpt-3.5-turbo",
+        inputPrice: "0.0000020",
+        outputPrice: "0.0000040",
+        totalPrice: undefined,
+        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+        startDate: new Date("2023-12-02"),
+        tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
+        unit: ModelUsageUnit.Tokens,
+      },
+    });
+
+    const dbTrace = await prisma.trace.create({
+      data: {
+        name: "trace-name",
+        project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
+      },
+    });
+
+    await prisma.observation.create({
+      data: {
+        traceId: dbTrace.id,
+        type: "GENERATION",
+        project: { connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" } },
+        model: "gpt-3.5-turbo",
+        internalModel: "gpt-3.5-turbo",
+        startTime: new Date("2023-01-01T00:00:00.000Z"),
+        unit: ModelUsageUnit.Tokens,
+        promptTokens: 200,
+        completionTokens: 3000,
+        totalTokens: undefined,
+      },
+    });
+
+    const view = await prisma.observationView.findFirst({
+      where: { traceId: dbTrace.id },
+    });
+
+    console.log(view);
+
+    // calculated cost fields
+    expect(view?.modelId).toBe("model-0");
+    expect(view?.calculatedInputCost?.toString()).toBe("0");
+    expect(view?.calculatedOutputCost?.toString()).toBe("0");
+    expect(view?.calculatedTotalCost?.toString()).toBe("0");
+  });
+
   it(`should prioritize own models`, async () => {
     await pruneDatabase();
     await prisma.model.create({
@@ -385,8 +464,6 @@ describe("cost retrieval tests", () => {
   });
 
   it(`should prioritize old model if the latest model is not own one`, async () => {
-    await pruneDatabase();
-
     await prisma.model.create({
       data: {
         id: "model-1",
