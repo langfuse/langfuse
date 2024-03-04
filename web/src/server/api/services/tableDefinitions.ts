@@ -162,11 +162,6 @@ export const tableDefinitions: TableDefinitions = {
     columns: [
       ...tracesColumns,
       { name: "duration", type: "number", internal: '"duration"' },
-      {
-        name: "projectId",
-        type: "string",
-        internal: 't."project_id"',
-      },
     ],
   },
   traces_scores: {
