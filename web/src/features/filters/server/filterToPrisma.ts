@@ -146,7 +146,7 @@ export function tableColumnsToSqlFilter(
     return Prisma.empty;
   }
   // FOR SECURITY: We join the statements with " AND " to prevent SQL injection.
-  // IF WE EVER CHANGE THIS, WE MUST ENSURE THAT USERS ONLY ACCES THE DATA THEY ARE ALLOWED TO.
+  // IF WE EVER CHANGE THIS, WE MUST ENSURE THAT USERS ONLY ACCESS THE DATA THEY ARE ALLOWED TO.
   // Example: Or condition on charts API on projectId would break this.
   return Prisma.join(statements, " AND ");
 }
