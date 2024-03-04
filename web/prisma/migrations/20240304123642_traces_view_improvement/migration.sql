@@ -1,4 +1,4 @@
-CREATE VIEW trace_metrics_view AS
+CREATE OR REPLACE VIEW trace_metrics_view AS
 SELECT
     t.id,
     t.project_id,

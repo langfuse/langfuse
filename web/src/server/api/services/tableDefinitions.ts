@@ -96,6 +96,12 @@ export const calculatedTotalCost = {
   internal: 'o."calculated_total_cost"',
 } as const;
 
+export const tracesMetricViewProjectId = {
+  name: "projectId",
+  type: "string",
+  internal: 'tv."project_id"',
+} as const;
+
 const tracesObservationsColumns: ColumnDefinition[] = [
   traceId,
   observationId,
@@ -162,6 +168,7 @@ export const tableDefinitions: TableDefinitions = {
     columns: [
       ...tracesColumns,
       { name: "duration", type: "number", internal: '"duration"' },
+      tracesMetricViewProjectId,
     ],
   },
   traces_scores: {
