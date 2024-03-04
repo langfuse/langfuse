@@ -29,6 +29,32 @@ import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
+import Redis from "ioredis";
+import Queue from "bullmq";
+import {
+  type QueueJobTypes,
+  QueueName,
+  QueueJobs,
+} from "@/src/server/api/queues";
+
+const isRedisAvailable: boolean =
+  process.env.REDIS_HOST !== undefined &&
+  process.env.REDIS_PORT !== undefined &&
+  process.env.REDIS_PASSWORD !== undefined;
+
+const redis = isRedisAvailable
+  ? new Redis({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
+      password: process.env.REDIS_PASSWORD,
+    })
+  : undefined;
+
+const queue = redis
+  ? new Queue.Queue<QueueJobTypes[QueueName.Evaluation]>(QueueName.Evaluation, {
+      connection: redis,
+    })
+  : undefined;
 
 export interface EventProcessor {
   process(
@@ -500,6 +526,15 @@ export class TraceProcessor implements EventProcessor {
         tags: body.tags ?? undefined,
       },
     });
+
+    await queue?.add(QueueName.Evaluation, {
+      name: QueueJobs.Evaluation,
+      payload: {
+        projectId: apiScope.projectId,
+        traceId: upsertedTrace.id,
+      },
+    });
+
     return upsertedTrace;
   }
 }

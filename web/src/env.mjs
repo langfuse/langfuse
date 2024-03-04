@@ -60,6 +60,10 @@ export const env = createEnv({
     S3_REGION: z.string().optional(),
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
+    // Redis
+    REDIS_HOST: z.string().optional(),
+    REDIS_PORT: z.string().optional(),
+    REDIS_AUTH: z.string().optional(),
   },
 
   /**
@@ -124,6 +128,10 @@ export const env = createEnv({
     S3_REGION: process.env.S3_REGION,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
+    // Redis
+    REDIS_HOST: process.env.REDIS_HOST,
+    REDIS_PORT: process.env.REDIS_PORT,
+    REDIS_AUTH: process.env.REDIS_AUTH,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

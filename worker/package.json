@@ -9,7 +9,7 @@
     "coverage": "vitest run --coverage",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
+    "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint .",
     "lint:fix": "eslint --fix ."
   },
@@ -18,6 +18,7 @@
   "dependencies": {
     "@fastify/redis": "^6.1.1",
     "backoff": "^2.5.0",
+    "bullmq": "^5.4.1",
     "fastify": "^4.26.1",
     "kysely": "^0.27.2",
     "node": "^21.6.2",
