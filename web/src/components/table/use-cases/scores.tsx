@@ -62,7 +62,7 @@ export default function ScoresTable({
     filter: filterState,
     orderBy: orderByState,
   });
-  const totalCount = scores.data?.slice(1)[0]?.totalCount ?? 0;
+  const totalCount = Number(scores.data?.totalCount[0]?.totalCount ?? 0);
 
   const filterOptions = api.scores.filterOptions.useQuery({
     projectId,
@@ -161,7 +161,7 @@ export default function ScoresTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: scores.data.map((t) => convertToTableRow(t)),
+                  data: scores.data.scores.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{

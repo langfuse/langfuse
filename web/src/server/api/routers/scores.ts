@@ -44,7 +44,7 @@ export const scoresRouter = createTRPCRouter({
       );
 
       const scores = await ctx.prisma.$queryRaw<
-        Array<Score & { traceName: string; totalCount: number }>
+        Array<Score & { traceName: string }>
       >(Prisma.sql`
           SELECT
             s.id,
@@ -54,8 +54,7 @@ export const scoresRouter = createTRPCRouter({
             s.comment,
             s.trace_id as "traceId",
             s.observation_id as "observationId",
-            t.name as "traceName",
-            (count(*) OVER())::int AS "totalCount"
+            t.name as "traceName"
           FROM scores s
           JOIN traces t ON t.id = s.trace_id
           WHERE t.project_id = ${input.projectId}
@@ -64,7 +63,21 @@ export const scoresRouter = createTRPCRouter({
           LIMIT ${input.limit}
           OFFSET ${input.page * input.limit}
       `);
-      return scores;
+
+      const scoresCount = await ctx.prisma.$queryRaw<
+        Array<{ totalCount: bigint }>
+      >(Prisma.sql`
+          SELECT
+            count(*) AS "totalCount"
+          FROM scores s
+          JOIN traces t ON t.id = s.trace_id
+          WHERE t.project_id = ${input.projectId}
+          ${filterCondition}
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.limit}
+      `);
+
+      return { scores, totalCount: scoresCount };
     }),
   filterOptions: protectedProjectProcedure
     .input(
