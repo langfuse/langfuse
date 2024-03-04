@@ -158,7 +158,7 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
   traces_metrics: {
-    table: `trace_metrics_view t`,
+    table: `traces_view t`,
     columns: [
       ...tracesColumns,
       { name: "duration", type: "number", internal: '"duration"' },

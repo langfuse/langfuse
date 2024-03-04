@@ -21,7 +21,7 @@ describe("Build valid SQL queries", () => {
       {
         table: "traces_metrics",
         values: ["project-id"],
-        strings: [' FROM trace_metrics_view t  WHERE  t."project_id" = ', ";"],
+        strings: [' FROM traces_view t  WHERE  t."project_id" = ', ";"],
       } as const,
       {
         table: "traces_observations",

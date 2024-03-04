@@ -1,4 +1,7 @@
-CREATE OR REPLACE VIEW trace_metrics_view AS
+DROP VIEW trace_metrics_view;
+
+
+CREATE OR REPLACE VIEW traces_view AS
 WITH observations_metrics AS (
     SELECT
         trace_id,
