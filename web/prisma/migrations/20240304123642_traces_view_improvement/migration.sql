@@ -13,21 +13,8 @@ WITH observations_metrics AS (
         project_id, trace_id
 )
 SELECT
-    t.id,
+    t.*,
     o.duration,
-    t.timestamp,
-    t.name,
-    t.user_id,
-    t.metadata,
-    t.release,
-    t.version,
-    t.project_id,
-    t.public,
-    t.bookmarked,
-    t.tags,
-    t.input,
-    t.output,
-    t.session_id
 FROM
     traces t
     LEFT JOIN observations_metrics o ON t.id = o.trace_id and t.project_id = o.project_id
