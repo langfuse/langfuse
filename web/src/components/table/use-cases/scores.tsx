@@ -62,7 +62,7 @@ export default function ScoresTable({
     filter: filterState,
     orderBy: orderByState,
   });
-  const totalCount = Number(scores.data?.totalCount[0]?.totalCount ?? 0);
+  const totalCount = scores.data?.totalCount ?? 0;
 
   const filterOptions = api.scores.filterOptions.useQuery({
     projectId,

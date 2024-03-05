@@ -77,7 +77,11 @@ export const scoresRouter = createTRPCRouter({
         ),
       );
 
-      return { scores, totalCount: scoresCount };
+      return {
+        scores,
+        totalCount:
+          scoresCount.length > 0 ? Number(scoresCount[0]?.totalCount) : 0,
+      };
     }),
   filterOptions: protectedProjectProcedure
     .input(
