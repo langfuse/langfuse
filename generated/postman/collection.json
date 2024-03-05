@@ -864,7 +864,7 @@
                 {
                   "key": "orderBy",
                   "value": "",
-                  "description": "Format of the string sort_by=timestamp.asc (id, timestamp, name, userId, release, version, public, bookmarked, sessionId)"
+                  "description": "Format of the string [field].[asc/desc]. Fields: id, timestamp, name, userId, release, version, public, bookmarked, sessionId. Example: timestamp.asc"
                 },
                 {
                   "key": "tags",
