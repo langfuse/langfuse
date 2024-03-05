@@ -146,7 +146,7 @@ export default function UsersPage() {
                     return {
                       userId: t.userId,
                       firstEvent:
-                        t.firstTrace?.toLocaleString() ?? "No event yet",
+                        t.firstTrace.toLocaleString() ?? "No event yet",
                       lastEvent:
                         t.lastObservation?.toLocaleString() ?? "No event yet",
                       totalEvents: compactNumberFormatter(
