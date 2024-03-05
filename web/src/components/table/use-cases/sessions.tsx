@@ -273,6 +273,7 @@ export default function SessionsTable({
       id: "totalTokens",
       header: "Total Tokens",
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const value = row.getValue("totalTokens");
         return value !== undefined ? <span>{Number(value)}</span> : undefined;
@@ -283,7 +284,6 @@ export default function SessionsTable({
       id: "usage",
       header: "Usage",
       enableHiding: true,
-      defaultHidden: true,
       cell: ({ row }) => {
         const promptTokens = row.getValue("inputTokens");
         const completionTokens = row.getValue("outputTokens");
