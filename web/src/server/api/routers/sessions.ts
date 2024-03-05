@@ -63,7 +63,7 @@ export const sessionRouter = createTRPCRouter({
           trace_id,
           EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
         FROM
-          "observations_view"
+          "observations"
         WHERE
           "trace_id" IS NOT NULL
           AND "project_id" = ${input.projectId}
