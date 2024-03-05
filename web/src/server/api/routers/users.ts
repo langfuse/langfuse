@@ -35,7 +35,7 @@ export const userRouter = createTRPCRouter({
         WHERE
           t.project_id = ${input.projectId}
         GROUP BY
-          t.project_id, t.user_id
+          t.user_id
         ORDER BY
           "totalTraces" DESC
         LIMIT
