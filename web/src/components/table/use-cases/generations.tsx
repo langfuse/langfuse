@@ -272,8 +272,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Scores",
       cell: ({ row }) => {
         const values: ScoreSimplified[] | undefined = row.getValue("scores");
-        console.log(values);
-        console.log(typeof values);
         return (
           values && <GroupedScoreBadges scores={values} variant="headings" />
         );
