@@ -372,7 +372,7 @@ export default function TracesTable({
             {cost ? (
               <span>{usdFormatter(cost.toNumber())}</span>
             ) : (
-              <span>Not Available</span>
+              <span>-</span>
             )}
           </div>
         );
@@ -391,7 +391,7 @@ export default function TracesTable({
             {cost ? (
               <span>{usdFormatter(cost.toNumber())}</span>
             ) : (
-              <span>Not Available</span>
+              <span>-</span>
             )}
           </div>
         );
