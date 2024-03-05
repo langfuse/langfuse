@@ -211,7 +211,7 @@ export default function SessionsTable({
         const value: number | undefined = row.getValue("inputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value, 2, 2)}</span>
+          <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
     },
@@ -225,7 +225,7 @@ export default function SessionsTable({
         const value: number | undefined = row.getValue("outputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value, 2, 2)}</span>
+          <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
     },
@@ -239,7 +239,7 @@ export default function SessionsTable({
         const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value, 2, 2)}</span>
+          <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
     },
