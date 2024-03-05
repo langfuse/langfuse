@@ -26,7 +26,7 @@ export const userRouter = createTRPCRouter({
           totalTraces: number;
         }>
       >`
-        EXPLAIN ANALYZE SELECT
+        SELECT
           t.user_id AS "userId",
           t.project_id AS "projectId",
           COUNT(t.id)::int AS "totalTraces"
@@ -41,6 +41,8 @@ export const userRouter = createTRPCRouter({
         LIMIT
           ${input.limit} OFFSET ${input.page * input.limit};
       `;
+
+      console.log("topUsers", topUsers);
 
       const users = await ctx.prisma.$queryRaw<
         Array<{
@@ -62,7 +64,6 @@ export const userRouter = createTRPCRouter({
           t.user_id AS "userId",
           MIN(t."timestamp") AS "firstTrace",
           MAX(t."timestamp") AS "lastTrace",
-          COUNT(DISTINCT t.id)::int AS "totalTraces",
           COALESCE(SUM(o.prompt_tokens), 0)::int AS "totalPromptTokens",
           COALESCE(SUM(o.completion_tokens), 0)::int AS "totalCompletionTokens",
           COALESCE(SUM(o.total_tokens), 0)::int AS "totalTokens",
@@ -102,18 +103,13 @@ export const userRouter = createTRPCRouter({
               t.user_id
           ) ov ON TRUE
         WHERE
-          t.user_id IS NOT NULL
-          AND t.user_id IN (${Prisma.join(
-            topUsers.map((user) => user.userId),
-            ",",
-          )})
+           t.user_id IN (${Prisma.join(
+             topUsers.map((user) => user.userId),
+             ",",
+           )})
           AND t.project_id = ${input.projectId}
         GROUP BY
-          1
-        ORDER BY
-          "totalTokens" DESC
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit};
+          1;
       `;
 
       if (users.length === 0) {
