@@ -19,7 +19,7 @@ import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesT
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type ObservationLevel, type Score } from "@prisma/client";
+import { type Score } from "@prisma/client";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
@@ -47,7 +47,6 @@ export type TracesTableRow = {
   sessionId?: string;
   scores: Score[];
   tags: string[];
-  level: ObservationLevel;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -159,7 +158,6 @@ export default function TracesTable({
       input: trace.input,
       output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
-      level: trace.level,
       tags: trace.tags,
       usage: {
         promptTokens: trace.promptTokens,
@@ -457,13 +455,6 @@ export default function TracesTable({
       header: "Release",
       enableHiding: true,
       enableSorting: true,
-    },
-    {
-      accessorKey: "level",
-      id: "level",
-      header: "Level",
-      enableHiding: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "tags",
