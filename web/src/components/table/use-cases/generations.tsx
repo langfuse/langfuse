@@ -254,8 +254,15 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           return undefined;
         }
 
-        const latencyInSeconds = intervalInSeconds(startTime, timeToFirstToken);
-        return <span>{formatIntervalSeconds(latencyInSeconds)}</span>;
+        const latencyInSeconds =
+          intervalInSeconds(startTime, timeToFirstToken) || "-";
+        return (
+          <span>
+            {typeof latencyInSeconds === "number"
+              ? formatIntervalSeconds(latencyInSeconds)
+              : latencyInSeconds}
+          </span>
+        );
       },
     },
     {
