@@ -28,9 +28,8 @@ export const PromptDetail = (props: PromptDetailProps) => {
     "version",
     NumberParam,
   );
-  const name = props.promptName.replaceAll("-", " ");
   const promptHistory = api.prompts.allVersions.useQuery({
-    name: name,
+    name: props.promptName,
     projectId: props.projectId,
   });
   const prompt = currentPromptVersion
