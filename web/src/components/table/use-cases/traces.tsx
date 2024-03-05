@@ -326,6 +326,21 @@ export default function TracesTable({
       defaultHidden: true,
     },
     {
+      accessorKey: "totalTokens",
+      id: "totalTokens",
+      header: "Total Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.totalTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
