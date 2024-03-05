@@ -53,9 +53,9 @@ export const sessionRouter = createTRPCRouter({
             inputCost: Decimal;
             outputCost: Decimal;
             totalCost: Decimal;
-            promptTokens: bigint;
-            completionTokens: bigint;
-            totalTokens: bigint;
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
             totalLatency: number;
           }>
         >(Prisma.sql`
