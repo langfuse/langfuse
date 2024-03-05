@@ -52,6 +52,7 @@ export const filterOptionsQuery = protectedProjectProcedure
     const res: ObservationOptions = {
       model: model
         .filter((i) => i.model !== null)
+
         .map((i) => ({
           value: i.model as string,
           count: i._count._all,
