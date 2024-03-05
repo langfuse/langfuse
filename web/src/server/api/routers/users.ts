@@ -47,7 +47,6 @@ export const userRouter = createTRPCRouter({
           userId: string;
           firstTrace: Date | null;
           lastTrace: Date | null;
-          totalTraces: number;
           totalPromptTokens: number;
           totalCompletionTokens: number;
           totalTokens: number;
@@ -151,6 +150,8 @@ export const userRouter = createTRPCRouter({
 
       return users.map((user) => ({
         ...user,
+        totalTraces: topUsers.find((topUser) => topUser.userId === user.userId)
+          ?.totalTraces,
         lastScore: lastScoresOfUsers.find(
           (score) => score.userId === user.userId,
         ),
