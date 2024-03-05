@@ -146,13 +146,20 @@ export const userRouter = createTRPCRouter({
         WHERE rn = 1
       `;
 
-      return topUsers.map((topUser) => ({
-        ...topUser,
-        ...users.find((user) => user.userId === topUser.userId),
-        lastScore: lastScoresOfUsers.find(
-          (score) => score.userId === topUser.userId,
-        ),
-      }));
+      return topUsers.map((topUser) => {
+        const user = users.find((user) => user.userId === topUser.userId);
+        if (!user) {
+          console.error("User not found", topUser.userId);
+          throw new Error("User not found");
+        }
+        return {
+          ...topUser,
+          ...user,
+          lastScore: lastScoresOfUsers.find(
+            (score) => score.userId === topUser.userId,
+          ),
+        };
+      });
     }),
 
   byId: protectedProjectProcedure
