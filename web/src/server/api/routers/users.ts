@@ -42,8 +42,6 @@ export const userRouter = createTRPCRouter({
           ${input.limit} OFFSET ${input.page * input.limit};
       `;
 
-      console.log("topUsers", topUsers);
-
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
