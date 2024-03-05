@@ -5,12 +5,7 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  Prisma,
-  type Trace,
-  type ObservationView,
-  type ObservationLevel,
-} from "@prisma/client";
+import { Prisma, type Trace, type ObservationView } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
