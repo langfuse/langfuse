@@ -12,7 +12,6 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
-import { DeleteTrace } from "@/src/components/delete-trace";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
 import { NoAccessError } from "@/src/components/no-access";
@@ -23,6 +22,7 @@ import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
+import { DeleteButton } from "@/src/components/deleteButton";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -159,6 +159,7 @@ export function Trace(props: {
 
 export function TracePage({ traceId }: { traceId: string }) {
   const router = useRouter();
+  const utils = api.useUtils();
   const trace = api.traces.byId.useQuery(
     { traceId },
     {
@@ -220,9 +221,13 @@ export function TracePage({ traceId }: { traceId: string }) {
               }
               listKey="traces"
             />
-            <DeleteTrace
-              traceId={trace.data.id}
+            <DeleteButton
+              itemId={traceId}
               projectId={trace.data.projectId}
+              scope="traces:delete"
+              invalidateFunc={() => void utils.traces.invalidate()}
+              type="trace"
+              redirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
           </>
         }
