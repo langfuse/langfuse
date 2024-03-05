@@ -87,14 +87,13 @@ export const traceRouter = createTRPCRouter({
           t."metadata" AS "metadata",
           t.session_id AS "sessionId",
           t."bookmarked" AS "bookmarked",
-          COALESCE(u."promptTokens", 0)::int AS "promptTokens",
-          COALESCE(u."completionTokens", 0)::int AS "completionTokens",
-          COALESCE(u."totalTokens", 0)::int AS "totalTokens",
+          COALESCE(tm."promptTokens", 0)::int AS "promptTokens",
+          COALESCE(tm."completionTokens", 0)::int AS "completionTokens",
+          COALESCE(tm."totalTokens", 0)::int AS "totalTokens",
           tl.latency AS "latency",
-          COALESCE(c."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
-          COALESCE(c."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
-          COALESCE(c."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
-          t."level" AS "level"
+          COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
+          COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
+          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost"
           `,
 
         input.projectId,
@@ -120,7 +119,6 @@ export const traceRouter = createTRPCRouter({
                 calculatedTotalCost: Decimal | null;
                 calculatedInputCost: Decimal | null;
                 calculatedOutputCost: Decimal | null;
-                level: ObservationLevel;
               }
             >
           >(tracesQuery),
@@ -474,25 +472,12 @@ function createTracesQuery(
   orderByCondition: Sql,
 ) {
   return Prisma.sql`
-  WITH usage AS (
+  WITH trace_metrics AS (
     SELECT
       trace_id,
       sum(prompt_tokens) AS "promptTokens",
       sum(completion_tokens) AS "completionTokens",
-      sum(total_tokens) AS "totalTokens"
-    FROM
-      "observations_view"
-    WHERE
-      "trace_id" IS NOT NULL
-      AND "type" = 'GENERATION'
-      AND "project_id" = ${projectId}
-      ${observationTimeseriesFilter}
-    GROUP BY
-      trace_id
-  ),
-  cost AS (
-    SELECT
-      trace_id,
+      sum(total_tokens) AS "totalTokens",
       sum(calculated_total_cost) AS "calculatedTotalCost",
       sum(calculated_input_cost) AS "calculatedInputCost",
       sum(calculated_output_cost) AS "calculatedOutputCost"
@@ -543,11 +528,10 @@ function createTracesQuery(
       ${select}
   FROM
     "traces" AS t
-    LEFT JOIN cost AS c ON c.trace_id = t.id
     -- used for filtering
     LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id
     LEFT JOIN trace_latency AS tl ON tl.trace_id = t.id
-    LEFT JOIN usage AS u ON u.trace_id = t.id
+    LEFT JOIN trace_metrics AS tm ON tm.trace_id = t.id
   WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
