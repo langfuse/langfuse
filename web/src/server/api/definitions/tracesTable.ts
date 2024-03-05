@@ -40,7 +40,7 @@ export const tracesTableCols: ColumnDefinition[] = [
   },
   {
     name: "Cost ($)",
-    id: "cost",
+    id: "totalCost",
     type: "number",
     internal: '"calculatedTotalCost"',
   },
