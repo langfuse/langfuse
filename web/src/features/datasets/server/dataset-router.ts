@@ -272,6 +272,41 @@ export const datasetRouter = createTRPCRouter({
 
       return dataset;
     }),
+  updateDataset: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        name: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+      const dataset = await ctx.prisma.dataset.update({
+        where: {
+          id: input.datasetId,
+          projectId: input.projectId,
+        },
+        data: {
+          name: input.name,
+        },
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: dataset.id,
+        projectId: input.projectId,
+        action: "update",
+        before: { name: input.name },
+        after: dataset,
+      });
+
+      return dataset;
+    }),
   deleteDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .mutation(async ({ input, ctx }) => {

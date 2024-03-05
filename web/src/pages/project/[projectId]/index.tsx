@@ -2,7 +2,7 @@ import { useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
-import { LatencyChart } from "@/src/features/dashboard/components/LatencyChart";
+import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
 import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
@@ -32,6 +32,7 @@ import { FilterBuilder } from "@/src/features/filters/components/filter-builder"
 import { type FilterState } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { LatencyTables } from "@/src/features/dashboard/components/SpanLatencyTable";
 
 export type DashboardDateRange = {
   from: Date;
@@ -127,7 +128,7 @@ export default function Start() {
     <div className="md:container">
       <Header title={project?.name ?? "Dashboard"} />
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-        <div className=" flex flex-col gap-2  lg:flex-row">
+        <div className=" flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
             dateRange={dateRange}
             setAgg={setAgg}
@@ -164,7 +165,7 @@ export default function Start() {
       </div>
       <div className="grid w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
-          className="col-span-1 xl:col-span-2 "
+          className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
@@ -202,7 +203,11 @@ export default function Start() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <LatencyChart
+        <LatencyTables
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+        />
+        <GenerationLatencyChart
           className="col-span-1 flex-auto justify-between xl:col-span-full"
           projectId={projectId}
           agg={agg}

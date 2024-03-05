@@ -1,4 +1,3 @@
-import { DeleteTrace } from "@/src/components/delete-trace";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
@@ -31,6 +30,7 @@ import {
 } from "use-query-params";
 import type Decimal from "decimal.js";
 import { usdFormatter } from "@/src/utils/numbers";
+import { DeleteButton } from "@/src/components/deleteButton";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -70,6 +70,7 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
 }: TracesTableProps) {
+  const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -483,10 +484,13 @@ export default function TracesTable({
       cell: ({ row }) => {
         const traceId = row.getValue("id");
         return traceId && typeof traceId === "string" ? (
-          <DeleteTrace
-            traceId={traceId}
-            isTableAction={true}
+          <DeleteButton
+            itemId={traceId}
             projectId={projectId}
+            scope="traces:delete"
+            invalidateFunc={() => void utils.traces.invalidate()}
+            type="trace"
+            isTableAction={true}
           />
         ) : undefined;
       },

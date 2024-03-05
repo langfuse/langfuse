@@ -1,4 +1,7 @@
-import { type TableDefinitions } from "@/src/server/api/interfaces/tableDefinition";
+import {
+  type ColumnDefinition,
+  type TableDefinitions,
+} from "@/src/server/api/interfaces/tableDefinition";
 
 export const completionTokens = {
   name: "completionTokens",
@@ -93,36 +96,44 @@ export const calculatedTotalCost = {
   internal: 'o."calculated_total_cost"',
 } as const;
 
+const tracesObservationsColumns: ColumnDefinition[] = [
+  traceId,
+  observationId,
+  { name: "type", type: "string", internal: 'o."type"' },
+  tracesProjectId,
+  observationsProjectId,
+  duration,
+  totalTokens,
+  model,
+  traceTimestamp,
+  traceUser,
+  startTime,
+  traceName,
+  observationName,
+];
+
+const tracesColumns = [
+  tracesProjectId,
+  traceVersion,
+  release,
+  traceId,
+  traceTimestamp,
+  traceName,
+  traceUser,
+];
+
 export const tableDefinitions: TableDefinitions = {
   traces: {
     table: ` traces t`,
-    columns: [
-      tracesProjectId,
-      traceVersion,
-      release,
-      traceId,
-      traceTimestamp,
-      traceName,
-      traceUser,
-    ],
+    columns: tracesColumns,
   },
   traces_observations: {
+    table: ` traces t LEFT JOIN observations o ON t.id = o.trace_id`,
+    columns: tracesObservationsColumns,
+  },
+  traces_observationsview: {
     table: ` traces t LEFT JOIN observations_view o ON t.id = o.trace_id`,
-    columns: [
-      traceId,
-      observationId,
-      { name: "type", type: "string", internal: 'o."type"' },
-      tracesProjectId,
-      observationsProjectId,
-      duration,
-      calculatedTotalCost,
-      totalTokens,
-      model,
-      traceTimestamp,
-      traceUser,
-      startTime,
-      traceName,
-    ],
+    columns: [...tracesObservationsColumns, calculatedTotalCost],
   },
   observations: {
     table: ` observations_view o`,
@@ -146,6 +157,13 @@ export const tableDefinitions: TableDefinitions = {
       duration,
     ],
   },
+  traces_metrics: {
+    table: `traces_view t`,
+    columns: [
+      ...tracesColumns,
+      { name: "duration", type: "number", internal: '"duration"' },
+    ],
+  },
   traces_scores: {
     table: ` traces t JOIN scores s ON t.id = s.trace_id`,
     columns: [
@@ -165,6 +183,7 @@ export const tableDefinitions: TableDefinitions = {
       traceName,
     ],
   },
+
   traces_parent_observation_scores: {
     table: ` traces t LEFT JOIN observations_view o on t."id" = o."trace_id" and o."parent_observation_id" is NULL LEFT JOIN scores s ON t."id" = s."trace_id"`,
     columns: [
