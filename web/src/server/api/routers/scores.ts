@@ -45,37 +45,37 @@ export const scoresRouter = createTRPCRouter({
 
       const scores = await ctx.prisma.$queryRaw<
         Array<Score & { traceName: string }>
-      >(Prisma.sql`
-          SELECT
-            s.id,
-            s.name,
-            s.value,
-            s.timestamp,
-            s.comment,
-            s.trace_id as "traceId",
-            s.observation_id as "observationId",
-            t.name as "traceName"
-          FROM scores s
-          JOIN traces t ON t.id = s.trace_id
-          WHERE t.project_id = ${input.projectId}
-          ${filterCondition}
-          ${orderByCondition}
-          LIMIT ${input.limit}
-          OFFSET ${input.page * input.limit}
-      `);
+      >(
+        generateScoresQuery(
+          Prisma.sql` 
+          s.id,
+          s.name,
+          s.value,
+          s.timestamp,
+          s.comment,
+          s.trace_id as "traceId",
+          s.observation_id as "observationId",
+          t.name as "traceName"`,
+          input.projectId,
+          filterCondition,
+          orderByCondition,
+          input.limit,
+          input.page,
+        ),
+      );
 
       const scoresCount = await ctx.prisma.$queryRaw<
         Array<{ totalCount: bigint }>
-      >(Prisma.sql`
-          SELECT
-            count(*) AS "totalCount"
-          FROM scores s
-          JOIN traces t ON t.id = s.trace_id
-          WHERE t.project_id = ${input.projectId}
-          ${filterCondition}
-          LIMIT ${input.limit}
-          OFFSET ${input.page * input.limit}
-      `);
+      >(
+        generateScoresQuery(
+          Prisma.sql` count(*) AS "totalCount"`,
+          input.projectId,
+          filterCondition,
+          orderByCondition,
+          input.limit,
+          input.page,
+        ),
+      );
 
       return { scores, totalCount: scoresCount };
     }),
@@ -297,3 +297,24 @@ export const scoresRouter = createTRPCRouter({
       });
     }),
 });
+
+const generateScoresQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+) => {
+  return Prisma.sql`
+  SELECT
+   ${select}
+  FROM scores s
+  JOIN traces t ON t.id = s.trace_id
+  WHERE t.project_id = ${projectId}
+  ${filterCondition}
+  ${orderCondition}
+  LIMIT ${limit}
+  OFFSET ${page * limit}
+`;
+};
