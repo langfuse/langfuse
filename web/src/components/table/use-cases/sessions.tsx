@@ -28,9 +28,9 @@ export type SessionTableRow = {
   inputCost: Decimal;
   outputCost: Decimal;
   totalCost: Decimal;
-  inputTokens: bigint;
-  outputTokens: bigint;
-  totalTokens: bigint;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
   totalLatency: number;
 };
 
@@ -285,9 +285,9 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
-        const promptTokens: bigint = row.getValue("inputTokens");
-        const completionTokens: bigint = row.getValue("outputTokens");
-        const totalTokens: bigint = row.getValue("totalTokens");
+        const promptTokens = row.getValue("inputTokens");
+        const completionTokens = row.getValue("outputTokens");
+        const totalTokens = row.getValue("totalTokens");
         return (
           <TokenUsageBadge
             promptTokens={Number(promptTokens)}
