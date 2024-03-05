@@ -52,7 +52,9 @@ export type TracesTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
-  cost?: Decimal;
+  inputCost?: Decimal;
+  outputCost?: Decimal;
+  totalCost?: Decimal;
 };
 
 export type TracesTableProps = {
@@ -163,7 +165,9 @@ export default function TracesTable({
         completionTokens: trace.completionTokens,
         totalTokens: trace.totalTokens,
       },
-      cost: trace.calculatedTotalCost ?? undefined,
+      inputCost: trace.calculatedInputCost ?? undefined,
+      outputCost: trace.calculatedOutputCost ?? undefined,
+      totalCost: trace.calculatedTotalCost ?? undefined,
     };
   };
 
@@ -292,6 +296,51 @@ export default function TracesTable({
       enableSorting: true,
     },
     {
+      accessorKey: "inputTokens",
+      id: "inputTokens",
+      header: "Input Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.promptTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "outputTokens",
+      id: "outputTokens",
+      header: "Output Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.completionTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "totalTokens",
+      id: "totalTokens",
+      header: "Total Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.totalTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
@@ -313,11 +362,49 @@ export default function TracesTable({
       enableHiding: true,
     },
     {
-      accessorKey: "cost",
-      id: "cost",
-      header: "Cost",
+      accessorKey: "inputCost",
+      id: "inputCost",
+      header: "Input Cost",
       cell: ({ row }) => {
-        const cost: Decimal | undefined = row.getValue("cost");
+        const cost: Decimal | undefined = row.getValue("inputCost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>Not Available</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "outputCost",
+      id: "outputCost",
+      header: "Output Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("outputCost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>Not Available</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: "Total Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("totalCost");
         return (
           <div>
             {cost ? (
