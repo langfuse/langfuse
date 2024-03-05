@@ -22,13 +22,11 @@ export const userRouter = createTRPCRouter({
       const topUsers = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
-          projectId: string;
           totalTraces: number;
         }>
       >`
         SELECT
           t.user_id AS "userId",
-          t.project_id AS "projectId",
           COUNT(t.id)::int AS "totalTraces"
         FROM
           traces t
