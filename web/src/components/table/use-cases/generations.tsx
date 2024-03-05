@@ -41,6 +41,7 @@ import {
 } from "@/src/server/api/interfaces/exportTypes";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
+import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 
 export type GenerationsTableRow = {
   id: string;
@@ -60,7 +61,7 @@ export type GenerationsTableRow = {
   totalCost?: Decimal;
   traceName?: string;
   metadata?: string;
-  scores?: Record<string, number>;
+  scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -270,15 +271,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "scores",
       header: "Scores",
       cell: ({ row }) => {
-        const values: Record<string, number> = row.getValue("scores");
+        const values: ScoreSimplified[] | undefined = row.getValue("scores");
+        console.log(values);
+        console.log(typeof values);
         return (
-          <GroupedScoreBadges
-            scores={Object.entries(values).map(([k, v]) => ({
-              name: k,
-              value: v,
-            }))}
-            variant="headings"
-          />
+          values && <GroupedScoreBadges scores={values} variant="headings" />
         );
       },
       enableHiding: true,
@@ -506,7 +503,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
-          scores: generation.scores ?? {},
+          scores: generation.scores ?? undefined,
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata
