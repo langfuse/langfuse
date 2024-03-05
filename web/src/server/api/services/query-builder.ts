@@ -31,7 +31,6 @@ export const executeQuery = async (
 ) => {
   const query = sqlInterface.parse(unsafeQuery);
   const sql = enrichAndCreateQuery(projectId, query);
-
   const response = await prisma.$queryRaw<InternalDatabaseRow[]>(sql);
 
   const parsedResult = outputParser(response);
@@ -335,8 +334,8 @@ const getColumnDefinition = (
     return c.name === column;
   });
   if (!foundColumn) {
-    console.error(`Column ${column} not found in table ${table}`);
-    throw new Error(`Column ${column} not found in table ${table}`);
+    console.error(`Column "${column}" not found in table ${table}`);
+    throw new Error(`Column "${column}" not found in table ${table}`);
   }
   return foundColumn;
 };
@@ -399,8 +398,10 @@ const getMandatoryFilter = (
   switch (table) {
     case "traces":
     case "traces_scores":
+    case "traces_metrics":
       return [traceFilter];
     case "traces_observations":
+    case "traces_observationsview":
     case "traces_parent_observation_scores":
       return [traceFilter, observationFilter];
     case "observations":
