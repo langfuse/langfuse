@@ -22,8 +22,8 @@ export const userRouter = createTRPCRouter({
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
-          firstTrace: Date;
-          lastTrace: Date;
+          firstTrace: Date | null;
+          lastTrace: Date | null;
           totalTraces: number;
           totalPromptTokens: number;
           totalCompletionTokens: number;
