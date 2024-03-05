@@ -172,7 +172,7 @@ export const userRouter = createTRPCRouter({
           COUNT(distinct o.id)::int "totalObservations",
           SUM(COALESCE(o.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
         FROM traces t
-        LEFT JOIN observations o on o.trace_id = t.id
+        LEFT JOIN observations_view o on o.trace_id = t.id
         WHERE t.user_id is not null
         AND t.project_id = ${input.projectId}
         AND o.project_id = ${input.projectId}
