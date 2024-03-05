@@ -19,6 +19,29 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
+      const topUsers = await ctx.prisma.$queryRaw<
+        Array<{
+          userId: string;
+          projectId: string;
+          totalTraces: number;
+        }>
+      >`
+        EXPLAIN ANALYZE SELECT
+          t.user_id AS "userId",
+          t.project_id AS "projectId",
+          COUNT(t.id)::int AS "totalTraces"
+        FROM
+          traces t
+        WHERE
+          t.project_id = ${input.projectId}
+        GROUP BY
+          t.project_id, t.user_id
+        ORDER BY
+          "totalTraces" DESC
+        LIMIT
+          ${input.limit} OFFSET ${input.page * input.limit};
+      `;
+
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
@@ -80,6 +103,10 @@ export const userRouter = createTRPCRouter({
           ) ov ON TRUE
         WHERE
           t.user_id IS NOT NULL
+          AND t.user_id IN (${Prisma.join(
+            topUsers.map((user) => user.userId),
+            ",",
+          )})
           AND t.project_id = ${input.projectId}
         GROUP BY
           1
