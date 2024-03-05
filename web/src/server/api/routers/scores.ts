@@ -71,7 +71,7 @@ export const scoresRouter = createTRPCRouter({
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
           filterCondition,
-          orderByCondition,
+          Prisma.empty,
           input.limit,
           input.page,
         ),
