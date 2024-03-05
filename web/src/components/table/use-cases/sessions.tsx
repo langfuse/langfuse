@@ -3,6 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
@@ -13,6 +14,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
+import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
@@ -23,7 +25,13 @@ export type SessionTableRow = {
   countTraces: number;
   bookmarked: boolean;
   sessionDuration: number | null;
-  totalCost: number;
+  inputCost: Decimal;
+  outputCost: Decimal;
+  totalCost: Decimal;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  totalLatency: number;
 };
 
 export type SessionTableProps = {
@@ -100,7 +108,13 @@ export default function SessionsTable({
       countTraces: session.countTraces,
       bookmarked: session.bookmarked,
       sessionDuration: session.sessionDuration,
+      inputCost: session.inputCost,
+      outputCost: session.outputCost,
       totalCost: session.totalCost,
+      inputTokens: session.promptTokens,
+      outputTokens: session.completionTokens,
+      totalTokens: session.totalTokens,
+      totalLatency: session.totalLatency,
     };
   };
 
@@ -190,16 +204,109 @@ export default function SessionsTable({
       enableSorting: true,
     },
     {
+      accessorKey: "inputCost",
+      id: "inputCost",
+      header: "Input Cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("inputCost");
+        return value !== undefined ? (
+          <span>{usdFormatter(value.toNumber())}</span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "outputCost",
+      id: "outputCost",
+      header: "Output Cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("outputCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value.toNumber())}</span>
+        ) : undefined;
+      },
+    },
+    {
       accessorKey: "totalCost",
       id: "totalCost",
       header: "Total Cost",
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
+        const value: Decimal | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value, 2, 2)}</span>
+          <span>{usdFormatter(value.toNumber())}</span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "inputTokens",
+      id: "inputTokens",
+      header: "Input Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("inputTokens");
+
+        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+      },
+    },
+    {
+      accessorKey: "outputTokens",
+      id: "outputTokens",
+      header: "Output Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value = row.getValue("outputTokens");
+
+        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+      },
+    },
+    {
+      accessorKey: "totalTokens",
+      id: "totalTokens",
+      header: "Total Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value = row.getValue("totalTokens");
+        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+      },
+    },
+    {
+      accessorKey: "usage",
+      id: "usage",
+      header: "Usage",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const promptTokens = row.getValue("inputTokens");
+        const completionTokens = row.getValue("outputTokens");
+        const totalTokens = row.getValue("totalTokens");
+        return (
+          <TokenUsageBadge
+            promptTokens={Number(promptTokens)}
+            completionTokens={Number(completionTokens)}
+            totalTokens={Number(totalTokens)}
+            inline
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "totalLatency",
+      id: "totalLatency",
+      header: "Total Latency",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("totalLatency");
+        return value !== undefined ? (
+          <span>{formatIntervalSeconds(value)}</span>
         ) : undefined;
       },
     },
