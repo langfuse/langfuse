@@ -15,6 +15,7 @@ import { TRPCError } from "@trpc/server";
 import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import type Decimal from "decimal.js";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -49,12 +50,12 @@ export const sessionRouter = createTRPCRouter({
             userIds: (string | null)[] | null;
             totalCount: number;
             sessionDuration: number | null;
-            inputCost: number;
-            outputCost: number;
-            totalCost: number;
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
+            inputCost: Decimal;
+            outputCost: Decimal;
+            totalCost: Decimal;
+            promptTokens: bigint;
+            completionTokens: bigint;
+            totalTokens: bigint;
             totalLatency: number;
           }>
         >(Prisma.sql`
