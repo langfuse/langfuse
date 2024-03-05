@@ -70,19 +70,21 @@ export function getAllGenerationsSqlQuery({
         SELECT
           trace_id,
           observation_id,
-          jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+          jsonb_agg(jsonb_build_object('name', name, 'value', avg_value, 'comment', comment)) AS scores_avg
         FROM (
           SELECT
             trace_id,
             observation_id,
             name,
-            avg(value) avg_value
+            avg(value) avg_value,
+            comment
           FROM
             scores
           GROUP BY
             1,
             2,
-            3
+            3,
+            5
           ORDER BY
             1) tmp
         GROUP BY
