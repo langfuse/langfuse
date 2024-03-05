@@ -451,11 +451,23 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       },
     },
   ];
-  const [columnVisibility, setColumnVisibility] =
+  const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
       "generationsColumnVisibility",
       columns,
     );
+
+  const smallTableRequired =
+    columnVisibility["input"] === true || columnVisibility["output"] === true;
+
+  if (smallTableRequired && paginationState.pageSize !== 10) {
+    setPaginationState((prev) => {
+      const currentPage = prev.pageIndex;
+      const currentPageSize = prev.pageSize;
+      const newPageIndex = Math.floor((currentPage * currentPageSize) / 10);
+      return { pageIndex: newPageIndex, pageSize: 10 };
+    });
+  }
 
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.generations.map((generation) => {
@@ -509,7 +521,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           currentQuery: searchQuery ?? undefined,
         }}
         columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
+        setColumnVisibility={setColumnVisibilityState}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -563,11 +575,13 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
+          // enforce a minimum page size of 10 if input or output columns are visible
+          options: smallTableRequired ? [10] : undefined,
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
+        onColumnVisibilityChange={setColumnVisibilityState}
       />
     </div>
   );

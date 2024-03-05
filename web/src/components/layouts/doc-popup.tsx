@@ -75,3 +75,28 @@ export default function DocPopup({
     </HoverCard>
   );
 }
+
+export type PopupProps = {
+  triggerContent: React.ReactNode;
+  description: React.ReactNode;
+};
+
+export function Popup({ triggerContent, description }: PopupProps) {
+  console.log("triggerContent", triggerContent, description);
+  return (
+    <HoverCard openDelay={200}>
+      <HoverCardTrigger className="mx-1 cursor-pointer" asChild>
+        <div>{triggerContent}</div>
+      </HoverCardTrigger>
+      <HoverCardContent>
+        {typeof description === "string" ? (
+          <div className="whitespace-break-spaces text-xs font-normal text-gray-800 sm:pl-0">
+            {description}
+          </div>
+        ) : (
+          description
+        )}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}

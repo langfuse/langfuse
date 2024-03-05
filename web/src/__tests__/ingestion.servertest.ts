@@ -768,6 +768,7 @@ describe("/api/public/ingestion API Endpoint", () => {
 
   it("should fail for wrong event formats", async () => {
     const traceId = v4();
+    const scoreId = v4();
 
     const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
@@ -787,13 +788,23 @@ describe("/api/public/ingestion API Endpoint", () => {
             version: "2.0.0",
           },
         },
+        {
+          id: v4(),
+          type: "score-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: scoreId,
+            name: "",
+            traceId: traceId,
+          },
+        },
       ],
     });
     expect(responseOne.status).toBe(207);
 
     expect("errors" in responseOne.body).toBe(true);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(responseOne.body.errors.length).toBe(1);
+    expect(responseOne.body.errors.length).toBe(2);
     expect("successes" in responseOne.body).toBe(true);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(responseOne.body.successes.length).toBe(1);

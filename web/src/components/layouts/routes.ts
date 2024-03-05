@@ -62,7 +62,6 @@ export const ROUTES: Route[] = [
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: PenSquareIcon,
-    label: "Beta",
     rbacScope: "prompts:read",
   },
   {

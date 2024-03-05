@@ -301,6 +301,7 @@ model Score {
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
     @@unique([id, traceId]) // used for upsert
+    @@index(timestamp)
     @@index([value])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
