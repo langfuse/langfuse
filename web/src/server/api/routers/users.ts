@@ -146,12 +146,11 @@ export const userRouter = createTRPCRouter({
         WHERE rn = 1
       `;
 
-      return users.map((user) => ({
-        ...user,
-        totalTraces: topUsers.find((topUser) => topUser.userId === user.userId)
-          ?.totalTraces,
+      return topUsers.map((topUser) => ({
+        ...topUser,
+        ...users.find((user) => user.userId === topUser.userId),
         lastScore: lastScoresOfUsers.find(
-          (score) => score.userId === user.userId,
+          (score) => score.userId === topUser.userId,
         ),
       }));
     }),
