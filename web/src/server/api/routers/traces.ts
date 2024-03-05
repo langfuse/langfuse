@@ -82,13 +82,13 @@ export const traceRouter = createTRPCRouter({
           t."metadata" AS "metadata",
           t.session_id AS "sessionId",
           t."bookmarked" AS "bookmarked",
-          COALESCE(u."promptTokens", 0)::int AS "promptTokens",
-          COALESCE(u."completionTokens", 0)::int AS "completionTokens",
-          COALESCE(u."totalTokens", 0)::int AS "totalTokens",
+          COALESCE(tm."promptTokens", 0)::int AS "promptTokens",
+          COALESCE(tm."completionTokens", 0)::int AS "completionTokens",
+          COALESCE(tm."totalTokens", 0)::int AS "totalTokens",
           tl.latency AS "latency",
-          COALESCE(c."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
-          COALESCE(c."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
-          COALESCE(c."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost"
+          COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
+          COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
+          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost"
           `,
 
         input.projectId,
@@ -474,19 +474,9 @@ function createTracesQuery(
     "traces" AS t
   LEFT JOIN LATERAL (
     SELECT
-        SUM(prompt_tokens) AS "promptTokens",
-        SUM(completion_tokens) AS "completionTokens",
-        SUM(total_tokens) AS "totalTokens"
-    FROM
-        "observations"
-    WHERE
-        trace_id = t.id
-        AND "type" = 'GENERATION'
-        AND "project_id" = ${projectId}
-        ${observationTimeseriesFilter}
-  ) AS u ON true
-  LEFT JOIN LATERAL (
-    SELECT
+      SUM(prompt_tokens) AS "promptTokens",
+      SUM(completion_tokens) AS "completionTokens",
+      SUM(total_tokens) AS "totalTokens",
       SUM(calculated_total_cost) AS "calculatedTotalCost",
       SUM(calculated_input_cost) AS "calculatedInputCost",
       SUM(calculated_output_cost) AS "calculatedOutputCost"
@@ -497,7 +487,7 @@ function createTracesQuery(
       AND "type" = 'GENERATION'
       AND "project_id" = ${projectId}
       ${observationTimeseriesFilter}
-  ) AS c ON true
+  ) AS tm ON true
   LEFT JOIN LATERAL (
     SELECT
         EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
