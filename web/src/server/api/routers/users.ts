@@ -19,12 +19,32 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
+      const topUsers = await ctx.prisma.$queryRaw<
+        Array<{
+          userId: string;
+          totalTraces: number;
+        }>
+      >`
+        SELECT
+          t.user_id AS "userId",
+          COUNT(t.id)::int AS "totalTraces"
+        FROM
+          traces t
+        WHERE
+          t.project_id = ${input.projectId}
+        GROUP BY
+          t.user_id
+        ORDER BY
+          "totalTraces" DESC
+        LIMIT
+          ${input.limit} OFFSET ${input.page * input.limit};
+      `;
+
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
           firstTrace: Date | null;
           lastTrace: Date | null;
-          totalTraces: number;
           totalPromptTokens: number;
           totalCompletionTokens: number;
           totalTokens: number;
@@ -39,7 +59,6 @@ export const userRouter = createTRPCRouter({
           t.user_id AS "userId",
           MIN(t."timestamp") AS "firstTrace",
           MAX(t."timestamp") AS "lastTrace",
-          COUNT(DISTINCT t.id)::int AS "totalTraces",
           COALESCE(SUM(o.prompt_tokens), 0)::int AS "totalPromptTokens",
           COALESCE(SUM(o.completion_tokens), 0)::int AS "totalCompletionTokens",
           COALESCE(SUM(o.total_tokens), 0)::int AS "totalTokens",
@@ -79,14 +98,13 @@ export const userRouter = createTRPCRouter({
               t.user_id
           ) ov ON TRUE
         WHERE
-          t.user_id IS NOT NULL
+           t.user_id IN (${Prisma.join(
+             topUsers.map((user) => user.userId),
+             ",",
+           )})
           AND t.project_id = ${input.projectId}
         GROUP BY
-          1
-        ORDER BY
-          "totalTokens" DESC
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit};
+          1;
       `;
 
       if (users.length === 0) {
@@ -128,12 +146,20 @@ export const userRouter = createTRPCRouter({
         WHERE rn = 1
       `;
 
-      return users.map((user) => ({
-        ...user,
-        lastScore: lastScoresOfUsers.find(
-          (score) => score.userId === user.userId,
-        ),
-      }));
+      return topUsers.map((topUser) => {
+        const user = users.find((user) => user.userId === topUser.userId);
+        if (!user) {
+          console.error("User not found", topUser.userId);
+          throw new Error("User not found");
+        }
+        return {
+          ...topUser,
+          ...user,
+          lastScore: lastScoresOfUsers.find(
+            (score) => score.userId === topUser.userId,
+          ),
+        };
+      });
     }),
 
   byId: protectedProjectProcedure
