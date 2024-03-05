@@ -10,6 +10,13 @@ import { getAllGenerationsSqlQuery } from "@/src/server/api/routers/generations/
 const getAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
 });
+
+export type ScoreSimplified = {
+  name: string;
+  value: number;
+  comment?: string | null;
+};
+
 export type GetAllGenerationsInput = z.infer<typeof getAllGenerationsInput>;
 
 export type ObservationViewWithScores = ObservationView & {
@@ -17,7 +24,7 @@ export type ObservationViewWithScores = ObservationView & {
   traceName: string | null;
   promptName: string | null;
   promptVersion: string | null;
-  scores: Record<string, number> | null;
+  scores: ScoreSimplified[] | null;
 };
 
 export const getAllQuery = protectedProjectProcedure
@@ -33,7 +40,6 @@ export const getAllQuery = protectedProjectProcedure
       Array<{ count: bigint }>
     >(
       Prisma.sql`
-
       SELECT
         count(*)
       FROM observations_view o
@@ -67,11 +73,6 @@ export const getAllQuery = protectedProjectProcedure
     const count = totalGenerations[0]?.count;
     return {
       totalCount: count ? Number(count) : undefined,
-      generations: generations.map((generation) => {
-        return {
-          ...generation,
-          scores: generation.scores,
-        };
-      }),
+      generations: generations,
     };
   });
