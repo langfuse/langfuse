@@ -87,6 +87,7 @@ export const sessionRouter = createTRPCRouter({
         LEFT JOIN trace_latencies l ON l.trace_id = t.id
         WHERE
           t."project_id" = ${input.projectId}
+          AND o."project_id" = ${input.projectId}
           AND t.session_id IS NOT NULL
         GROUP BY 1
       ),
