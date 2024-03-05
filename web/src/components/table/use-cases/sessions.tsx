@@ -3,6 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
@@ -13,6 +14,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
+import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
@@ -23,12 +25,12 @@ export type SessionTableRow = {
   countTraces: number;
   bookmarked: boolean;
   sessionDuration: number | null;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
+  inputCost: Decimal;
+  outputCost: Decimal;
+  totalCost: Decimal;
+  inputTokens: bigint;
+  outputTokens: bigint;
+  totalTokens: bigint;
   totalLatency: number;
 };
 
@@ -208,10 +210,9 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("inputCost");
-
+        const value: Decimal | undefined = row.getValue("inputCost");
         return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
+          <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
     },
@@ -222,10 +223,10 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("outputCost");
+        const value: Decimal | undefined = row.getValue("outputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
+          <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
     },
@@ -236,10 +237,10 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
+        const value: Decimal | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
+          <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
     },
@@ -275,6 +276,26 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value = row.getValue("totalTokens");
         return value !== undefined ? <span>{Number(value)}</span> : undefined;
+      },
+    },
+    {
+      accessorKey: "usage",
+      id: "usage",
+      header: "Usage",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const promptTokens: bigint = row.getValue("inputTokens");
+        const completionTokens: bigint = row.getValue("outputTokens");
+        const totalTokens: bigint = row.getValue("totalTokens");
+        return (
+          <TokenUsageBadge
+            promptTokens={Number(promptTokens)}
+            completionTokens={Number(completionTokens)}
+            totalTokens={Number(totalTokens)}
+            inline
+          />
+        );
       },
     },
     {
