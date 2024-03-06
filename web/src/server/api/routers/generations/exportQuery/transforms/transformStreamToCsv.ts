@@ -62,7 +62,7 @@ export function transformStreamToCsv(): Transform {
         row.completionStartTime
           ? intervalInSeconds(row.startTime, row.completionStartTime).toFixed(2)
           : "",
-        row.fullScores ? JSON.stringify(row.fullScores) : "",
+        row.scores ? JSON.stringify(row.scores) : "",
         row.latency ? formatIntervalSeconds(row.latency).slice(0, -1) : "",
         // latency per token
         row.latency && row.completionTokens !== 0

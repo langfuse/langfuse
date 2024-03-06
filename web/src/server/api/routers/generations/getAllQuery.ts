@@ -24,7 +24,7 @@ export type ObservationViewWithScores = ObservationView & {
   traceName: string | null;
   promptName: string | null;
   promptVersion: string | null;
-  fullScores: ScoreSimplified[] | null;
+  scores: ScoreSimplified[] | null;
 };
 
 export const getAllQuery = protectedProjectProcedure
@@ -35,6 +35,8 @@ export const getAllQuery = protectedProjectProcedure
 
     const generations =
       await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(rawSqlQuery);
+
+    console.log(JSON.stringify(generations, null, 2));
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>

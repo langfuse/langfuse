@@ -131,8 +131,7 @@ export function getAllGenerationsSqlQuery({
         o.prompt_id as "promptId",
         p.name as "promptName",
         p.version as "promptVersion",
-        s_avg.scores_avg as "scores",
-        fs.scores as "fullScores"
+        fs.scores as "scores"
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id

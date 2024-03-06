@@ -50,7 +50,7 @@ export type GenerationsTableRow = {
   level?: ObservationLevel;
   statusMessage?: string;
   endTime?: string;
-  timeToFirstToken?: Date;
+  completionStartTime?: Date;
   latency?: number;
   name?: string;
   model?: string;
@@ -248,15 +248,16 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
       cell: ({ row }) => {
         const startTime: Date = row.getValue("startTime");
-        const timeToFirstToken: Date | undefined =
-          row.getValue("timeToFirstToken");
+        const completionStartTime: Date | undefined = row.getValue(
+          "completionStartTime",
+        );
 
-        if (!timeToFirstToken) {
+        if (!completionStartTime) {
           return undefined;
         }
 
         const latencyInSeconds =
-          intervalInSeconds(startTime, timeToFirstToken) || "-";
+          intervalInSeconds(startTime, completionStartTime) || "-";
         return (
           <span>
             {typeof latencyInSeconds === "number"
@@ -492,7 +493,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           traceName: generation.traceName ?? "",
           startTime: generation.startTime,
           endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken: generation.completionStartTime ?? undefined,
+          completionStartTime: generation.completionStartTime ?? undefined,
           latency: generation.latency ?? undefined,
           totalCost: generation.calculatedTotalCost ?? undefined,
           inputCost: generation.calculatedInputCost ?? undefined,
@@ -501,7 +502,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
-          scores: generation.fullScores ?? undefined,
+          scores: generation.scores ?? undefined,
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata
