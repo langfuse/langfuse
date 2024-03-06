@@ -1,6 +1,5 @@
-import { useState } from "react";
 import Header from "@/src/components/layouts/header";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { findClosestInterval } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
@@ -34,6 +33,7 @@ import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefiniti
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/SpanLatencyTable";
 import { useMemo } from "react";
+import { useSession } from "next-auth/react";
 
 export type DashboardDateRange = {
   from: Date;
@@ -41,33 +41,30 @@ export type DashboardDateRange = {
 };
 
 export default function Start() {
-  const [agg, setAgg] = useState<DateTimeAggregationOption>("7 days");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const posthog = usePostHog();
 
-  const projects = api.projects.all.useQuery();
-  const project = projects.data?.find((p) => p.id === projectId);
+  const session = useSession();
+  const project = session.data?.user?.projects.find(
+    (project) => project.id === projectId,
+  );
 
   const memoizedDate = useMemo(() => new Date(), []);
 
-  const FromParam = withDefault(
-    NumberParam,
-    addDays(memoizedDate, -7).getTime(),
-  );
-  const ToParam = withDefault(NumberParam, memoizedDate.getTime());
-  const SelectParam = withDefault(StringParam, "Select a date range");
-
   const [urlParams, setUrlParams] = useQueryParams({
-    from: FromParam,
-    to: ToParam,
-    select: SelectParam,
+    from: withDefault(NumberParam, addDays(memoizedDate, -7).getTime()),
+    to: withDefault(NumberParam, memoizedDate.getTime()),
+    select: withDefault(StringParam, "Select a date range"),
   });
 
-  const dateRange =
-    urlParams.from && urlParams.to
-      ? { from: new Date(urlParams.from), to: new Date(urlParams.to) }
-      : undefined;
+  const dateRange = useMemo(
+    () =>
+      urlParams.from && urlParams.to
+        ? { from: new Date(urlParams.from), to: new Date(urlParams.to) }
+        : undefined,
+    [urlParams.from, urlParams.to],
+  );
 
   const selectedOption = isValidOption(urlParams.select)
     ? urlParams.select
@@ -110,6 +107,11 @@ export default function Start() {
 
   const [userFilterState, setUserFilterState] = useQueryFilterState([]);
 
+  const agg = useMemo(
+    () => (dateRange ? findClosestInterval(dateRange) ?? "7 days" : "7 days"),
+    [dateRange],
+  );
+
   const timeFilter = dateRange
     ? [
         {
@@ -136,7 +138,6 @@ export default function Start() {
         <div className=" flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
             dateRange={dateRange}
-            setAgg={setAgg}
             setDateRangeAndOption={setDateRangeAndOption}
             selectedOption={selectedOption}
             className="my-0 max-w-full overflow-x-auto"
