@@ -4,14 +4,9 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { cn } from "@/src/utils/tailwind";
 import { MessageCircle } from "lucide-react";
-
-type ScoreSimplified = {
-  name: string;
-  value: number;
-  comment?: string | null;
-};
 
 export const GroupedScoreBadges = ({
   scores,
