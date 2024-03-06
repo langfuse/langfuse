@@ -34,7 +34,6 @@ export const getAllQuery = protectedProjectProcedure
       getAllGenerationsSqlQuery({ input, type: "paginate" });
 
     const query = queryBuilder(input.limit, input.page * input.limit);
-    console.log(query);
     const generations =
       await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(query);
 
