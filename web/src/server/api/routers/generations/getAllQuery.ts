@@ -37,8 +37,6 @@ export const getAllQuery = protectedProjectProcedure
       queryBuilder(input.limit, input.page * input.limit),
     );
 
-    console.log(JSON.stringify(generations, null, 2));
-
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
     >(
