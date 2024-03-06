@@ -2,13 +2,13 @@ import { Transform, type TransformCallback } from "stream";
 import { z } from "zod";
 
 import { jsonSchema } from "@/src/utils/zod";
-import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
+import { type ObservationView } from "@prisma/client";
 
 export function transformStreamToJsonLines(): Transform {
   return new Transform({
     objectMode: true,
     transform(
-      row: ObservationViewWithScores,
+      row: ObservationView,
       encoding: BufferEncoding,
       callback: TransformCallback,
     ): void {
