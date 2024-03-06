@@ -19,7 +19,7 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
-      const totalUsers = await ctx.prisma.trace.findMany({
+      const uniqueUsers = await ctx.prisma.trace.findMany({
         where: {
           projectId: input.projectId,
         },
@@ -51,7 +51,7 @@ export const userRouter = createTRPCRouter({
       `;
 
       return {
-        totalUsers: totalUsers.length,
+        totalUsers: uniqueUsers.length,
         users: topUsers,
       };
     }),
