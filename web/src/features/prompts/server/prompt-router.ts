@@ -30,17 +30,30 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
-      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
-        SELECT id, name, version, project_id as "projectId", prompt, updated_at as "updatedAt", created_at AS "createdAt", is_active AS "isActive"
-        FROM prompts
-        WHERE (name, version) IN (
+      const prompts = await ctx.prisma.$queryRaw<
+        Array<Prompt & { observationCount: bigint }>
+      >`
+        SELECT 
+          p.id, 
+          p.name, 
+          p.version, 
+          p.project_id as "projectId", 
+          p.prompt, 
+          p.updated_at as "updatedAt", 
+          p.created_at AS "createdAt", 
+          p.is_active AS "isActive",
+          COUNT(o.id) as "observationCount"
+        FROM prompts p
+        LEFT JOIN observations o ON p.id = o.prompt_id
+        WHERE (p.name, p.version) IN (
           SELECT name, MAX(version)
           FROM prompts
           WHERE "project_id" = ${input.projectId}
           GROUP BY name
         )
-        AND "project_id" = ${input.projectId}
-        ORDER BY name ASC`;
+        AND p."project_id" = ${input.projectId}
+        GROUP BY p.id
+        ORDER BY p.name ASC`;
       return prompts;
     }),
   byId: protectedProjectProcedure
