@@ -10,7 +10,22 @@ import { getAllGenerationsSqlQuery } from "@/src/server/api/routers/generations/
 const getAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
 });
+
+export type ScoreSimplified = {
+  name: string;
+  value: number;
+  comment?: string | null;
+};
+
 export type GetAllGenerationsInput = z.infer<typeof getAllGenerationsInput>;
+
+export type ObservationViewWithScores = ObservationView & {
+  traceId: string | null;
+  traceName: string | null;
+  promptName: string | null;
+  promptVersion: string | null;
+  scores: ScoreSimplified[] | null;
+};
 
 export const getAllQuery = protectedProjectProcedure
   .input(getAllGenerationsInput)
@@ -18,20 +33,15 @@ export const getAllQuery = protectedProjectProcedure
     const { rawSqlQuery, datetimeFilter, filterCondition, searchCondition } =
       getAllGenerationsSqlQuery({ input, type: "paginate" });
 
-    const generations = await ctx.prisma.$queryRaw<
-      (ObservationView & {
-        traceId: string;
-        traceName: string;
-        promptName: string | null;
-        promptVersion: string | null;
-      })[]
-    >(rawSqlQuery);
+    const generations =
+      await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(rawSqlQuery);
+
+    console.log(JSON.stringify(generations, null, 2));
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
     >(
       Prisma.sql`
-
       SELECT
         count(*)
       FROM observations_view o
@@ -62,27 +72,9 @@ export const getAllQuery = protectedProjectProcedure
     `,
     );
 
-    const scores = await ctx.prisma.score.findMany({
-      where: {
-        trace: {
-          projectId: input.projectId,
-        },
-        observationId: {
-          in: generations.map((gen) => gen.id),
-        },
-      },
-    });
     const count = totalGenerations[0]?.count;
     return {
       totalCount: count ? Number(count) : undefined,
-      generations: generations.map((generation) => {
-        const filteredScores = scores.filter(
-          (s) => s.observationId === generation.id,
-        );
-        return {
-          ...generation,
-          scores: filteredScores,
-        };
-      }),
+      generations: generations,
     };
   });
