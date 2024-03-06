@@ -33,9 +33,10 @@ export const getAllQuery = protectedProjectProcedure
     const { queryBuilder, datetimeFilter, filterCondition, searchCondition } =
       getAllGenerationsSqlQuery({ input, type: "paginate" });
 
-    const generations = await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(
-      queryBuilder(input.limit, input.page * input.limit),
-    );
+    const query = queryBuilder(input.limit, input.page * input.limit);
+    console.log(query);
+    const generations =
+      await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(query);
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
