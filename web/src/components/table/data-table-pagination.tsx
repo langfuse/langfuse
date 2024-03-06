@@ -17,10 +17,12 @@ import {
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
+  paginationOptions?: number[];
 }
 
 export function DataTablePagination<TData>({
   table,
+  paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
   return (
     <div className="mt-3 flex items-center justify-between overflow-x-auto px-2">
@@ -41,7 +43,7 @@ export function DataTablePagination<TData>({
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
-              {[10, 20, 30, 40, 50].map((pageSize) => (
+              {paginationOptions.map((pageSize) => (
                 <SelectItem key={pageSize} value={`${pageSize}`}>
                   {pageSize}
                 </SelectItem>
