@@ -1,28 +1,25 @@
 import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
-import { type RouterInput } from "@/src/utils/types";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useEffect, useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import Decimal from "decimal.js";
 
-type CellState<T> = { loading: boolean; data?: T; error?: string };
-
-type GenericTableRow<T> = {
-  [Property in keyof T]: CellState<T[Property]>;
-};
-
-type TableData<T> = {
-  rows?: GenericTableRow<T>;
-  status: "loading" | "success" | "error";
-};
+export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
 type RowData = {
   userId: string;
@@ -30,8 +27,6 @@ type RowData = {
   lastEvent: string;
   totalEvents: string;
 };
-
-export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
 export default function UsersPage() {
   const router = useRouter();
@@ -45,101 +40,75 @@ export default function UsersPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const joinUserCoreAndMetrics = (): TableData<RowData> => {
-    const usersCore = api.users.all.useQuery({
-      ...queryOptions,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-      projectId,
-    });
+  const users = api.users.all.useQuery({
+    ...queryOptions,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    projectId,
+  });
 
-    const userMetrics = api.users.metrics.useQuery({
-      projectId,
-      userIds: usersCore.data?.users.map((u) => u.userId) ?? [],
-    });
+  const userMetrics = api.users.metrics.useQuery({
+    projectId,
+    userIds: users.data?.users.map((u) => u.userId) ?? [],
+  });
 
-    if (!usersCore.data || usersCore.isFetching || userMetrics.isFetching) {
-      return {
-        status: "loading" as const,
-        rows: undefined,
-      };
+  type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
+  type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
+
+  type APIOutput = {
+    status: "loading" | "error" | "success";
+    rows: (UserCoreOutput & Partial<UserMetricsOutput>)[] | undefined;
+  };
+
+  const joinUserCoreAndMetrics = (): APIOutput => {
+    if (users.isFetching) {
+      return { status: "loading" as const, rows: undefined };
     }
 
-    if (usersCore.error || userMetrics.error) {
-      return {
-        status: "error" as const,
-        rows: undefined,
-      };
+    if (users.error) {
+      return { status: "error" as const, rows: undefined };
     }
 
-    const userCoreData = usersCore.data.users.map((user) => ({
-      userId: { loading: false, data: user.userId },
-      totalTraces: { loading: false, data: user.totalTraces },
-    }));
+    if (users.data) {
+      const userCoreData = users.data.users.map((user) => ({
+        userId: user.userId,
+        totalTraces: user.totalTraces,
+      }));
 
-    const userCoreDataById = userCoreData.reduce<
-      Record<string, (typeof userCoreData)[number]>
-    >((acc, user) => {
-      acc[user.userId.data] = user;
-      return acc;
-    }, {});
+      if (userMetrics.isFetching) {
+        return { status: "success" as const, rows: userCoreData };
+      }
 
-    const metricsById = userMetrics.data?.reduce(
-      (acc, metric) => {
-        acc[metric.userId] = metric;
-        return acc;
-      },
-      {} as Record<string, (typeof userMetrics.data)[number]>,
-    );
+      if (userMetrics.error) {
+        return { status: "error" as const, rows: undefined };
+      }
 
-    const joinedData = usersCore.data.users.map((user) => {
-      const userCore = userCoreDataById[user.userId];
-      const metrics = metricsById?.[user.userId];
-      return {
-        userId: { loading: false, data: user.userId },
-        firstEvent: {
-          loading: false,
-          data: metrics?.firstTrace?.toISOString() ?? "N/A",
+      const metricsById = userMetrics.data?.reduce(
+        (acc, metric) => {
+          acc[metric.userId] = metric;
+          return acc;
         },
-        lastEvent: {
-          loading: false,
-          data: metrics?.lastTrace?.toISOString() ?? "N/A",
-        },
-        totalEvents: {
-          loading: false,
-          data: compactNumberFormatter(
-            (Number(userCore?.totalTraces) || 0) +
-              (Number(metrics?.totalObservations) || 0),
-          ),
-        },
-      };
+        {} as Record<string, (typeof userMetrics.data)[number]>,
+      );
+
+      const joinedData = userCoreData.map((userCore) => {
+        const metrics = metricsById?.[userCore.userId];
+        return {
+          ...userCore,
+          ...metrics,
+        };
+      });
+
+      return { status: "success" as const, rows: joinedData };
     }
 
-    return {
-      status: "success" as const,
-      rows: usersCore.data.users.map((user) => ({
-        userId: { loading: false, data: user.userId },
-        firstEvent: {
-          loading: false,
-          data: metricsById?.[user.userId]?.firstTrace?.toISOString() ?? "N/A",
-        },
-        lastEvent: {
-          loading: false,
-          data: metricsById?.[user.userId]?.lastTrace?.toISOString() ?? "N/A",
-        },
-        sumCalculatedTotalCost: {
-          loading: false,
-          data:
-            metricsById?.[user.userId]?.sumCalculatedTotalCost.toString() ??
-            "0",
-        },
-      })),
-    };
+    // This should not happen, but we handle it just in case
+    return { status: "error" as const, rows: undefined };
   };
 
   const userRowData = joinUserCoreAndMetrics();
 
-  const totalCount = userRowData.length;
+  const totalCount = userRowData.rows?.length ?? 0;
 
   useEffect(() => {
     if (users.isSuccess) {
@@ -173,14 +142,44 @@ export default function UsersPage() {
     {
       accessorKey: "firstEvent",
       header: "First Event",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("firstEvent");
+        if (value instanceof Date) {
+          return <>{value.toLocaleString()}</>;
+        }
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return typeof value === "string" ? <>{value}</> : undefined;
+      },
     },
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("totalCost");
+        if (value instanceof Decimal) {
+          return <>{usdFormatter(value.toNumber())}</>;
+        }
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return typeof value === "string" ? <>{value}</> : undefined;
+      },
     },
     {
       accessorKey: "lastEvent",
       header: "Last Event",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("lastEvent");
+        if (value instanceof Date) {
+          return <>{value.toLocaleString()}</>;
+        }
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return typeof value === "string" ? <>{value}</> : undefined;
+      },
     },
     {
       accessorKey: "totalEvents",
@@ -189,12 +188,26 @@ export default function UsersPage() {
     {
       accessorKey: "totalTokens",
       header: "Total Tokens",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("totalTokens");
+        if (typeof value === "number") {
+          return <>{compactNumberFormatter(value)}</>;
+        }
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return typeof value === "string" ? <>{value}</> : undefined;
+      },
     },
     {
       accessorKey: "lastScore",
       header: "Last Score",
       cell: ({ row }) => {
         const value: Score | null = row.getValue("lastScore");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+
         return (
           <>
             {value ? (
@@ -241,7 +254,7 @@ export default function UsersPage() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: users.data.map((t) => {
+                  data: userRowData.rows?.map((t) => {
                     return {
                       userId: t.userId,
                       firstEvent:
@@ -252,9 +265,13 @@ export default function UsersPage() {
                         (Number(t.totalTraces) || 0) +
                           (Number(t.totalObservations) || 0),
                       ),
-                      totalTokens: compactNumberFormatter(t.totalTokens),
+                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
                       lastScore: t.lastScore,
-                      totalCost: usdFormatter(t.sumCalculatedTotalCost, 2, 2),
+                      totalCost: usdFormatter(
+                        t.sumCalculatedTotalCost ?? 0,
+                        2,
+                        2,
+                      ),
                     };
                   }),
                 }
