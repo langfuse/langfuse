@@ -139,6 +139,15 @@ export default function UsersPage() {
     {
       accessorKey: "totalEvents",
       header: "Total Events",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("totalEvents");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
+        }
+      },
     },
     {
       accessorKey: "totalTokens",
