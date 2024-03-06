@@ -61,7 +61,7 @@ export function getAllGenerationsSqlQuery({
 
   const queryBuilder = (limit?: number, offset?: number) => {
     const pagination =
-      limit && offset
+      limit !== undefined && offset !== undefined
         ? Prisma.sql`LIMIT ${limit} OFFSET ${offset}`
         : Prisma.empty;
     return Prisma.sql`
