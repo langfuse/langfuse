@@ -66,11 +66,20 @@ export function getAllGenerationsSqlQuery({
       : Prisma.empty;
 
   const rawSqlQuery = Prisma.sql`
-      WITH scores_avg AS (
+      WITH full_scores AS (
+        SELECT 
+          scores."trace_id",
+          scores."observation_id",
+          jsonb_agg(jsonb_build_object('name', name, 'value', value, 'comment', comment)) AS scores
+        FROM
+          scores
+        GROUP BY scores.trace_id, scores.observation_id
+      ),
+      scores_avg AS (
         SELECT
           trace_id,
           observation_id,
-          jsonb_agg(jsonb_build_object('name', name, 'value', avg_value, 'comment', comment)) AS scores_avg
+          jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
         FROM (
           SELECT
             trace_id,
@@ -94,6 +103,7 @@ export function getAllGenerationsSqlQuery({
         o.id,
         o.name,
         o.model,
+        o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
         o.latency,
@@ -106,6 +116,7 @@ export function getAllGenerationsSqlQuery({
         o.prompt_tokens as "promptTokens",
         o.completion_tokens as "completionTokens",
         o.total_tokens as "totalTokens",
+        o.unit,
         o.level,
         o.status_message as "statusMessage",
         o.version,
@@ -120,11 +131,13 @@ export function getAllGenerationsSqlQuery({
         o.prompt_id as "promptId",
         p.name as "promptName",
         p.version as "promptVersion",
-        s_avg.scores_avg as "scores"
+        s_avg.scores_avg as "scores",
+        fs.scores as "fullScores"
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
       LEFT JOIN prompts p ON p.id = o.prompt_id
+      LEFT JOIN full_scores AS fs ON fs.trace_id = t.id and fs.observation_id = o.id
       WHERE
         o.project_id = ${input.projectId}
         AND t.project_id = ${input.projectId}
