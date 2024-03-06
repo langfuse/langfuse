@@ -33,6 +33,7 @@ import { type FilterState } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/SpanLatencyTable";
+import { useMemo } from "react";
 
 export type DashboardDateRange = {
   from: Date;
@@ -48,9 +49,13 @@ export default function Start() {
   const projects = api.projects.all.useQuery();
   const project = projects.data?.find((p) => p.id === projectId);
 
-  const currDate = new Date();
-  const FromParam = withDefault(NumberParam, addDays(currDate, -7).getTime());
-  const ToParam = withDefault(NumberParam, currDate.getTime());
+  const memoizedDate = useMemo(() => new Date(), []);
+
+  const FromParam = withDefault(
+    NumberParam,
+    addDays(memoizedDate, -7).getTime(),
+  );
+  const ToParam = withDefault(NumberParam, memoizedDate.getTime());
   const SelectParam = withDefault(StringParam, "Select a date range");
 
   const [urlParams, setUrlParams] = useQueryParams({
