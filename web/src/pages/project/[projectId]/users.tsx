@@ -220,13 +220,13 @@ export default function UsersPage() {
                         (Number(t.totalTraces) || 0) +
                           (Number(t.totalObservations) || 0),
                       ),
-                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
+                      totalTokens: t.totalTokens
+                        ? compactNumberFormatter(t.totalTokens)
+                        : undefined,
                       lastScore: t.lastScore,
-                      totalCost: usdFormatter(
-                        t.sumCalculatedTotalCost ?? 0,
-                        2,
-                        2,
-                      ),
+                      totalCost: t.sumCalculatedTotalCost
+                        ? usdFormatter(t.sumCalculatedTotalCost, 2, 2)
+                        : undefined,
                     };
                   }),
                 }
