@@ -11,6 +11,7 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { LockIcon, PlusIcon } from "lucide-react";
 import { useEffect } from "react";
+import Link from "next/link";
 
 type RowData = {
   name: string;
@@ -18,6 +19,7 @@ type RowData = {
   id: string;
   createdAt: Date;
   isActive: boolean;
+  observationCount: bigint;
 };
 
 export function PromptTable(props: { projectId: string }) {
@@ -33,6 +35,7 @@ export function PromptTable(props: { projectId: string }) {
 
   useEffect(() => {
     if (prompts.isSuccess) {
+      console.log(prompts.data);
       setDetailPageList(
         "prompts",
         prompts.data.map((t) => encodeURIComponent(t.name)),
@@ -73,6 +76,21 @@ export function PromptTable(props: { projectId: string }) {
       },
     },
     {
+      accessorKey: "observationCount",
+      header: "Number of Observations",
+      cell: ({ row }) => {
+        const numberOfObservations: bigint = row.getValue("observationCount");
+        return (
+          numberOfObservations > 0 && (
+            <TableLink
+              path={`/project/${props.projectId}/prompts/${encodeURIComponent(row.getValue("name"))}/observations`}
+              value={numberOfObservations.toLocaleString()}
+            />
+          )
+        );
+      },
+    },
+    {
       accessorKey: "actions",
       header: "Actions",
       cell: ({ row }) => {
@@ -95,6 +113,7 @@ export function PromptTable(props: { projectId: string }) {
       version: item.version,
       createdAt: item.createdAt,
       isActive: item.isActive,
+      observationCount: item.observationCount,
     };
   };
 
