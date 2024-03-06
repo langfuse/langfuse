@@ -68,9 +68,6 @@ export const userRouter = createTRPCRouter({
         return [];
       }
 
-      // add sleep of 4 seconds
-      await new Promise((resolve) => setTimeout(resolve, 4000));
-
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
