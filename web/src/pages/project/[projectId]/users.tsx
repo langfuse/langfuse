@@ -109,7 +109,6 @@ export default function UsersPage() {
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return typeof value === "string" ? <>{value}</> : undefined;
       },
     },
     {
@@ -123,7 +122,6 @@ export default function UsersPage() {
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return typeof value === "string" ? <>{value}</> : undefined;
       },
     },
     {
@@ -137,7 +135,6 @@ export default function UsersPage() {
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return typeof value === "string" ? <>{value}</> : undefined;
       },
     },
     {
@@ -155,7 +152,6 @@ export default function UsersPage() {
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return typeof value === "string" ? <>{value}</> : undefined;
       },
     },
     {
