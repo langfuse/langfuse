@@ -74,7 +74,7 @@ export function transformStreamToCsv(): Transform {
         row.level,
         row.statusMessage ?? "",
         row.model ?? "",
-        row.modelParameters ?? "",
+        JSON.stringify(row.modelParameters),
         row.promptTokens,
         row.completionTokens,
         row.totalTokens,
