@@ -45,6 +45,7 @@ export const getAllQuery = protectedProjectProcedure
         count(*)
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
+      LEFT JOIN prompts p ON p.id = o.prompt_id
       LEFT JOIN LATERAL (
         SELECT
           jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
