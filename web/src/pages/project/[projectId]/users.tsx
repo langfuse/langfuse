@@ -13,6 +13,17 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
+type CellState<T> = { loading: boolean; data?: T; error?: string };
+
+type GenericTableRow<T> = {
+  [Property in keyof T]: CellState<T[Property]>;
+};
+
+type TableData<T> = {
+  rows?: GenericTableRow<T>;
+  status: "loading" | "success" | "error";
+};
+
 type RowData = {
   userId: string;
   firstEvent: string;
@@ -34,20 +45,108 @@ export default function UsersPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const users = api.users.all.useQuery({
-    ...queryOptions,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    projectId,
-  });
-  const totalCount = users.data?.slice(1)[0]?.totalCount ?? 0;
+  const joinUserCoreAndMetrics = (): TableData<RowData> => {
+    const usersCore = api.users.all.useQuery({
+      ...queryOptions,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      projectId,
+    });
+
+    const userMetrics = api.users.metrics.useQuery({
+      projectId,
+      userIds: usersCore.data?.users.map((u) => u.userId) ?? [],
+    });
+
+    if (!usersCore.data || usersCore.isFetching || userMetrics.isFetching) {
+      return {
+        status: "loading" as const,
+        rows: undefined,
+      };
+    }
+
+    if (usersCore.error || userMetrics.error) {
+      return {
+        status: "error" as const,
+        rows: undefined,
+      };
+    }
+
+    const userCoreData = usersCore.data.users.map((user) => ({
+      userId: { loading: false, data: user.userId },
+      totalTraces: { loading: false, data: user.totalTraces },
+    }));
+
+    const userCoreDataById = userCoreData.reduce<
+      Record<string, (typeof userCoreData)[number]>
+    >((acc, user) => {
+      acc[user.userId.data] = user;
+      return acc;
+    }, {});
+
+    const metricsById = userMetrics.data?.reduce(
+      (acc, metric) => {
+        acc[metric.userId] = metric;
+        return acc;
+      },
+      {} as Record<string, (typeof userMetrics.data)[number]>,
+    );
+
+    const joinedData = usersCore.data.users.map((user) => {
+      const userCore = userCoreDataById[user.userId];
+      const metrics = metricsById?.[user.userId];
+      return {
+        userId: { loading: false, data: user.userId },
+        firstEvent: {
+          loading: false,
+          data: metrics?.firstTrace?.toISOString() ?? "N/A",
+        },
+        lastEvent: {
+          loading: false,
+          data: metrics?.lastTrace?.toISOString() ?? "N/A",
+        },
+        totalEvents: {
+          loading: false,
+          data: compactNumberFormatter(
+            (Number(userCore?.totalTraces) || 0) +
+              (Number(metrics?.totalObservations) || 0),
+          ),
+        },
+      };
+    }
+
+    return {
+      status: "success" as const,
+      rows: usersCore.data.users.map((user) => ({
+        userId: { loading: false, data: user.userId },
+        firstEvent: {
+          loading: false,
+          data: metricsById?.[user.userId]?.firstTrace?.toISOString() ?? "N/A",
+        },
+        lastEvent: {
+          loading: false,
+          data: metricsById?.[user.userId]?.lastTrace?.toISOString() ?? "N/A",
+        },
+        sumCalculatedTotalCost: {
+          loading: false,
+          data:
+            metricsById?.[user.userId]?.sumCalculatedTotalCost.toString() ??
+            "0",
+        },
+      })),
+    };
+  };
+
+  const userRowData = joinUserCoreAndMetrics();
+
+  const totalCount = userRowData.length;
 
   useEffect(() => {
     if (users.isSuccess) {
       console.log("setting detail page list");
       setDetailPageList(
         "users",
-        users.data.map((u) => encodeURIComponent(u.userId)),
+        users.data.users.map((u) => encodeURIComponent(u.userId)),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
