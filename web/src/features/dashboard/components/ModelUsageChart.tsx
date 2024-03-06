@@ -127,7 +127,6 @@ export const ModelUsageChart = ({
     },
   ];
 
-  console.log(data, "data", totalCost);
   return (
     <DashboardCard
       className={className}
