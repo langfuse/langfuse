@@ -19,14 +19,14 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
-      const totalUsers = await ctx.prisma.trace.groupBy({
+      const totalUsers = await ctx.prisma.trace.findMany({
         where: {
           projectId: input.projectId,
         },
-        by: ["userId"],
-        _count: {
+        select: {
           userId: true,
         },
+        distinct: ["userId"],
       });
 
       const topUsers = await ctx.prisma.$queryRaw<
@@ -51,7 +51,7 @@ export const userRouter = createTRPCRouter({
       `;
 
       return {
-        totalUsers: totalUsers[0]?._count.userId ?? 0,
+        totalUsers: totalUsers.length,
         users: topUsers,
       };
     }),
