@@ -6,11 +6,7 @@ import { useEffect, useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
-import {
-  compactNumberFormatter,
-  numberFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -47,6 +43,8 @@ export default function UsersPage() {
     projectId,
   });
 
+  // this API call will return an empty array if there are no users.
+  // Hence this adds one fast unnecessary API call if there are no users.
   const userMetrics = api.users.metrics.useQuery({
     projectId,
     userIds: users.data?.users.map((u) => u.userId) ?? [],
