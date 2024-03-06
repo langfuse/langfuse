@@ -67,11 +67,9 @@ export const sessionRouter = createTRPCRouter({
           SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost",
           SUM(o.prompt_tokens) AS "promptTokens",
           SUM(o.completion_tokens) AS "completionTokens",
-          SUM(o.total_tokens) AS "totalTokens",
-          SUM(l.latency) AS "totalLatency"
+          SUM(o.total_tokens) AS "totalTokens"
         FROM traces t
         LEFT JOIN observations_view o ON o.trace_id = t.id
-        LEFT JOIN trace_latencies l ON l.trace_id = t.id
         WHERE
           t."project_id" = ${input.projectId}
           AND o."project_id" = ${input.projectId}
@@ -104,7 +102,6 @@ export const sessionRouter = createTRPCRouter({
         o."promptTokens",
         o."completionTokens",
         o."totalTokens",
-        o."totalLatency",
         (count(*) OVER ())::int AS "totalCount"
       FROM trace_sessions s
       LEFT JOIN trace_metrics t ON t.session_id = s.id
