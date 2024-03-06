@@ -41,6 +41,7 @@ export const userRouter = createTRPCRouter({
         FROM
           traces t
         WHERE
+          t.user_id IS NOT NULL
           t.project_id = ${input.projectId}
         GROUP BY
           t.user_id
