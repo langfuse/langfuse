@@ -79,6 +79,7 @@ export const datasetRouter = createTRPCRouter({
             countRunItems: number;
             scores: Record<string, number>;
             avgLatency: number;
+            avgTotalCost: Prisma.Decimal;
           }
         >
       >(Prisma.sql`
@@ -120,6 +121,16 @@ export const datasetRouter = createTRPCRouter({
             JOIN observations o ON o.id = ri.observation_id
           WHERE o.project_id = ${input.projectId}
           group by 1
+        ),
+        avg_total_cost_by_run_id AS (
+          SELECT
+            ri.dataset_run_id run_id,
+            AVG(COALESCE(o.calculated_total_cost, 0)) AS "avgTotalCost"
+          FROM
+            dataset_run_items ri
+            JOIN observations_view o ON o.id = ri.observation_id
+          WHERE o.project_id = ${input.projectId}
+          GROUP BY 1
         )
 
         SELECT
@@ -129,6 +140,7 @@ export const datasetRouter = createTRPCRouter({
           runs.updated_at "updatedAt",
           COALESCE(avg_scores.scores, '[]'::jsonb) scores,
           COALESCE(latency."avgLatency", 0) "avgLatency",
+          COALESCE(avg_total_cost."avgTotalCost", 0) "avgTotalCost",  
           count(DISTINCT ri.id)::int "countRunItems"
         FROM
           dataset_runs runs
@@ -136,6 +148,7 @@ export const datasetRouter = createTRPCRouter({
           LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
           LEFT JOIN json_avg_scores_by_run_id avg_scores ON avg_scores.run_id = runs.id
           LEFT JOIN latency_by_run_id latency ON latency.run_id = runs.id
+          LEFT JOIN avg_total_cost_by_run_id avg_total_cost ON avg_total_cost.run_id = runs.id
         WHERE runs.dataset_id = ${input.datasetId}
           AND datasets.project_id = ${input.projectId}
         GROUP BY
@@ -144,7 +157,8 @@ export const datasetRouter = createTRPCRouter({
           3,
           4,
           5,
-          6
+          6,
+          7
         ORDER BY
           runs.created_at DESC
       `);
@@ -395,7 +409,7 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetRunItems.findMany({
+      const runItems = await ctx.prisma.datasetRunItems.findMany({
         where: {
           datasetRunId: input.datasetRunId,
           datasetItemId: input.datasetItemId,
@@ -416,6 +430,27 @@ export const datasetRouter = createTRPCRouter({
         orderBy: {
           createdAt: "desc",
         },
+      });
+
+      const observationIds = runItems.map((ri) => ri.observationId);
+      const observations = await ctx.prisma.observationView.findMany({
+        where: {
+          id: {
+            in: observationIds,
+          },
+        },
+      });
+
+      return runItems.map((ri) => {
+        return {
+          id: ri.id,
+          createdAt: ri.createdAt,
+          datasetItemId: ri.datasetItemId,
+          observation: {
+            ...ri.observation,
+            ...observations.find((o) => o.id === ri.observationId),
+          },
+        };
       });
     }),
   observationInDatasets: protectedProjectProcedure
