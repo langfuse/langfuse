@@ -52,61 +52,69 @@ export default function UsersPage() {
     userIds: users.data?.users.map((u) => u.userId) ?? [],
   });
 
+  function joinUserCoreAndMetrics<
+    Core extends { id: string },
+    Metric extends { id: string },
+  >(
+    userCoreData?: Core[],
+    userMetricsData?: Metric[],
+  ): {
+    status: "loading" | "error" | "success";
+    rows: (Core & Partial<Metric>)[] | undefined;
+  } {
+    if (!userCoreData) {
+      return { status: "error", rows: undefined };
+    }
+
+    const userCoreDataProcessed = userCoreData;
+
+    if (!userMetricsData) {
+      // create an object with all the keys of the UserMetrics type with undefined value
+
+      return {
+        status: "success",
+        rows: userCoreDataProcessed.map((u) => ({
+          ...u,
+          ...({} as Partial<Metric>),
+        })),
+      };
+    }
+
+    const metricsById = userMetricsData.reduce<Record<string, Metric>>(
+      (acc, metric) => {
+        acc[metric.id] = metric;
+        return acc;
+      },
+      {},
+    );
+
+    const joinedData = userCoreDataProcessed.map((userCore) => {
+      const metrics = metricsById[userCore.id];
+      return {
+        ...userCore,
+        ...(metrics ?? ({} as Partial<Metric>)),
+      };
+    });
+
+    return { status: "success", rows: joinedData };
+  }
+
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
 
-  type APIOutput = {
-    status: "loading" | "error" | "success";
-    rows: (UserCoreOutput & Partial<UserMetricsOutput>)[] | undefined;
-  };
+  type CoreType = Omit<UserCoreOutput, "userId"> & { id: string };
+  type MetricType = Omit<UserMetricsOutput, "userId"> & { id: string };
 
-  const joinUserCoreAndMetrics = (): APIOutput => {
-    if (users.isFetching) {
-      return { status: "loading" as const, rows: undefined };
-    }
-
-    if (users.error) {
-      return { status: "error" as const, rows: undefined };
-    }
-
-    if (users.data) {
-      const userCoreData = users.data.users.map((user) => ({
-        userId: user.userId,
-        totalTraces: user.totalTraces,
-      }));
-
-      if (userMetrics.isFetching) {
-        return { status: "success" as const, rows: userCoreData };
-      }
-
-      if (userMetrics.error) {
-        return { status: "error" as const, rows: undefined };
-      }
-
-      const metricsById = userMetrics.data?.reduce(
-        (acc, metric) => {
-          acc[metric.userId] = metric;
-          return acc;
-        },
-        {} as Record<string, (typeof userMetrics.data)[number]>,
-      );
-
-      const joinedData = userCoreData.map((userCore) => {
-        const metrics = metricsById?.[userCore.userId];
-        return {
-          ...userCore,
-          ...metrics,
-        };
-      });
-
-      return { status: "success" as const, rows: joinedData };
-    }
-
-    // This should not happen, but we handle it just in case
-    return { status: "error" as const, rows: undefined };
-  };
-
-  const userRowData = joinUserCoreAndMetrics();
+  const userRowData = joinUserCoreAndMetrics<CoreType, MetricType>(
+    users.data?.users.map((u) => ({
+      ...u,
+      id: u.userId,
+    })),
+    userMetrics.data?.map((u) => ({
+      ...u,
+      id: u.userId,
+    })),
+  );
 
   const totalCount = userRowData.rows?.length ?? 0;
 
@@ -256,7 +264,7 @@ export default function UsersPage() {
                   isError: false,
                   data: userRowData.rows?.map((t) => {
                     return {
-                      userId: t.userId,
+                      userId: t.id,
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
