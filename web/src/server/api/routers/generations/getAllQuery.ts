@@ -24,7 +24,7 @@ export type ObservationViewWithScores = ObservationView & {
   traceName: string | null;
   promptName: string | null;
   promptVersion: string | null;
-  scores: ScoreSimplified[] | null;
+  fullScores: ScoreSimplified[] | null;
 };
 
 export const getAllQuery = protectedProjectProcedure
