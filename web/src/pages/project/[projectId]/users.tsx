@@ -58,7 +58,7 @@ export default function UsersPage() {
   type CoreType = Omit<UserCoreOutput, "userId"> & { id: string };
   type MetricType = Omit<UserMetricsOutput, "userId"> & { id: string };
 
-  const userRowData = joinUserCoreAndMetrics<CoreType, MetricType>(
+  const userRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
     users.data?.users.map((u) => ({
       ...u,
       id: u.userId,
@@ -247,7 +247,7 @@ export default function UsersPage() {
   );
 }
 
-function joinUserCoreAndMetrics<
+function joinTableCoreAndMetrics<
   Core extends { id: string },
   Metric extends { id: string },
 >(
