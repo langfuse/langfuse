@@ -18,7 +18,7 @@ type RowData = {
   id: string;
   createdAt: Date;
   isActive: boolean;
-  observationCount: bigint;
+  numberOfObservations: bigint;
 };
 
 export function PromptTable(props: { projectId: string }) {
@@ -34,7 +34,6 @@ export function PromptTable(props: { projectId: string }) {
 
   useEffect(() => {
     if (prompts.isSuccess) {
-      console.log(prompts.data);
       setDetailPageList(
         "prompts",
         prompts.data.map((t) => encodeURIComponent(t.name)),
@@ -75,10 +74,12 @@ export function PromptTable(props: { projectId: string }) {
       },
     },
     {
-      accessorKey: "observationCount",
+      accessorKey: "numberOfObservations",
       header: "Number of Observations",
       cell: ({ row }) => {
-        const numberOfObservations: bigint = row.getValue("observationCount");
+        const numberOfObservations: bigint = row.getValue(
+          "numberOfObservations",
+        );
         const name: string = row.getValue("name");
         const filter = encodeURIComponent(
           `Prompt Name;stringOptions;;any of;${name}`,
@@ -116,7 +117,7 @@ export function PromptTable(props: { projectId: string }) {
       version: item.version,
       createdAt: item.createdAt,
       isActive: item.isActive,
-      observationCount: item.observationCount,
+      numberOfObservations: item.observationCount,
     };
   };
 
