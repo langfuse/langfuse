@@ -1,6 +1,6 @@
 import { Readable } from "stream";
 
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { type Prisma, type PrismaClient } from "@prisma/client";
 
 /**
  * DatabaseReadStream fetches and streams database records in paginated batches,
@@ -26,7 +26,7 @@ export class DatabaseReadStream<EntityType> extends Readable {
 
   constructor(
     private prisma: PrismaClient,
-    private rawSqlQuery: Prisma.Sql,
+    private queryBuilder: (limit?: number, offset?: number) => Prisma.Sql,
     private pageSize: number,
   ) {
     super({ objectMode: true }); // Set object mode to true to allow pushing objects to the stream rather than strings or buffers
@@ -42,8 +42,9 @@ export class DatabaseReadStream<EntityType> extends Readable {
     this.isReading = true;
 
     try {
-      const query = Prisma.sql`${this.rawSqlQuery} OFFSET ${this.offset} LIMIT ${this.pageSize}`;
-      const rows = await this.prisma.$queryRaw<EntityType[]>(query);
+      const rows = await this.prisma.$queryRaw<EntityType[]>(
+        this.queryBuilder(this.pageSize, this.offset),
+      );
 
       if (rows.length > 0) {
         rows.forEach((row) => this.push(row));

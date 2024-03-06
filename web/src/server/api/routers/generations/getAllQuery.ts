@@ -30,13 +30,12 @@ export type ObservationViewWithScores = ObservationView & {
 export const getAllQuery = protectedProjectProcedure
   .input(getAllGenerationsInput)
   .query(async ({ input, ctx }) => {
-    const { rawSqlQuery, datetimeFilter, filterCondition, searchCondition } =
+    const { queryBuilder, datetimeFilter, filterCondition, searchCondition } =
       getAllGenerationsSqlQuery({ input, type: "paginate" });
 
-    const generations =
-      await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(rawSqlQuery);
-
-    console.log(JSON.stringify(generations, null, 2));
+    const generations = await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(
+      queryBuilder(input.limit, input.page * input.limit),
+    );
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
