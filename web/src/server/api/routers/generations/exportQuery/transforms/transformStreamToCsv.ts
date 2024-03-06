@@ -22,6 +22,7 @@ export function transformStreamToCsv(): Transform {
           "traceName",
           "startTime",
           "endTime",
+          "completionStartTime",
           "timeToFirstToken",
           "scores",
           "latency",
@@ -32,9 +33,11 @@ export function transformStreamToCsv(): Transform {
           "level",
           "statusMessage",
           "model",
+          "modelParameters",
           "promptTokens",
           "completionTokens",
           "totalTokens",
+          "unit",
           "input",
           "output",
           "metadata",
@@ -54,11 +57,12 @@ export function transformStreamToCsv(): Transform {
         row.traceName,
         row.startTime.toISOString(),
         row.endTime?.toISOString() ?? "",
+        row.completionStartTime?.toISOString() ?? "",
         // time to first token
         row.completionStartTime
           ? intervalInSeconds(row.startTime, row.completionStartTime).toFixed(2)
           : "",
-        row.scores ? JSON.stringify(row.scores) : "",
+        row.fullScores ? JSON.stringify(row.fullScores) : "",
         row.latency ? formatIntervalSeconds(row.latency).slice(0, -1) : "",
         // latency per token
         row.latency && row.completionTokens !== 0
@@ -70,9 +74,11 @@ export function transformStreamToCsv(): Transform {
         row.level,
         row.statusMessage ?? "",
         row.model ?? "",
+        row.modelParameters ?? "",
         row.promptTokens,
         row.completionTokens,
         row.totalTokens,
+        row.unit ?? "",
         JSON.stringify(row.input),
         JSON.stringify(row.output),
         JSON.stringify(row.metadata),
