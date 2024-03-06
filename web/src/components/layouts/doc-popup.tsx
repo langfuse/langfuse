@@ -82,7 +82,6 @@ export type PopupProps = {
 };
 
 export function Popup({ triggerContent, description }: PopupProps) {
-  console.log("triggerContent", triggerContent, description);
   return (
     <HoverCard openDelay={200}>
       <HoverCardTrigger className="mx-1 cursor-pointer" asChild>

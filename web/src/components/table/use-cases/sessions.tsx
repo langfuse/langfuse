@@ -31,7 +31,6 @@ export type SessionTableRow = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
-  totalLatency: number;
 };
 
 export type SessionTableProps = {
@@ -114,7 +113,6 @@ export default function SessionsTable({
       inputTokens: session.promptTokens,
       outputTokens: session.completionTokens,
       totalTokens: session.totalTokens,
-      totalLatency: session.totalLatency,
     };
   };
 
@@ -296,18 +294,6 @@ export default function SessionsTable({
             inline
           />
         );
-      },
-    },
-    {
-      accessorKey: "totalLatency",
-      id: "totalLatency",
-      header: "Total Latency",
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalLatency");
-        return value !== undefined ? (
-          <span>{formatIntervalSeconds(value)}</span>
-        ) : undefined;
       },
     },
   ];
