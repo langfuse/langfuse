@@ -248,9 +248,8 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableHiding: true,
       cell: ({ row }) => {
         const startTime: Date = row.getValue("startTime");
-        const completionStartTime: Date | undefined = row.getValue(
-          "completionStartTime",
-        );
+        const completionStartTime: Date | undefined =
+          row.getValue("timeToFirstToken");
 
         if (!completionStartTime) {
           return undefined;
@@ -493,7 +492,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           traceName: generation.traceName ?? "",
           startTime: generation.startTime,
           endTime: generation.endTime?.toLocaleString() ?? undefined,
-          completionStartTime: generation.completionStartTime ?? undefined,
+          timeToFirstToken: generation.completionStartTime ?? undefined,
           latency: generation.latency ?? undefined,
           totalCost: generation.calculatedTotalCost ?? undefined,
           inputCost: generation.calculatedInputCost ?? undefined,

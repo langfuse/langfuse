@@ -14,7 +14,7 @@ type GetSqlFromInputParams =
       input: GenerationsExportInput;
       type: "export";
     }
-  | { input: GetAllGenerationsInput; type: "paginate" };
+  | { input: Omit<GetAllGenerationsInput, "limit, page">; type: "paginate" };
 
 export function getAllGenerationsSqlQuery({
   input,
@@ -59,23 +59,13 @@ export function getAllGenerationsSqlQuery({
       ? datetimeFilterToPrismaSql("start_time", "<", new Date())
       : Prisma.empty;
 
-  // For UI pagination: set LIMIT and OFFSET
-  const pagination =
-    type === "paginate"
-      ? Prisma.sql`LIMIT ${input.limit} OFFSET ${input.page * input.limit}`
-      : Prisma.empty;
-
-  const rawSqlQuery = Prisma.sql`
-      WITH full_scores AS (
-        SELECT 
-          scores."trace_id",
-          scores."observation_id",
-          jsonb_agg(jsonb_build_object('name', name, 'value', value, 'comment', comment)) AS scores
-        FROM
-          scores
-        GROUP BY scores.trace_id, scores.observation_id
-      ),
-      scores_avg AS (
+  const queryBuilder = (limit?: number, offset?: number) => {
+    const pagination =
+      limit && offset
+        ? Prisma.sql`LIMIT ${limit} OFFSET ${offset}`
+        : Prisma.empty;
+    return Prisma.sql`
+      WITH scores_avg AS (
         SELECT
           trace_id,
           observation_id,
@@ -98,7 +88,7 @@ export function getAllGenerationsSqlQuery({
             1) tmp
         GROUP BY
           1, 2
-      )
+      ), observations_agg as (
       SELECT
         o.id,
         o.name,
@@ -106,7 +96,6 @@ export function getAllGenerationsSqlQuery({
         o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
-        o.latency,
         o.input,
         o.output,
         o.metadata,
@@ -130,13 +119,11 @@ export function getAllGenerationsSqlQuery({
         o."latency",
         o.prompt_id as "promptId",
         p.name as "promptName",
-        p.version as "promptVersion",
-        fs.scores as "scores"
+        p.version as "promptVersion"
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
       LEFT JOIN prompts p ON p.id = o.prompt_id
-      LEFT JOIN full_scores AS fs ON fs.trace_id = t.id and fs.observation_id = o.id
       WHERE
         o.project_id = ${input.projectId}
         AND t.project_id = ${input.projectId}
@@ -147,7 +134,55 @@ export function getAllGenerationsSqlQuery({
         ${filterCondition}
         ${orderByCondition}
         ${pagination}
+    )
+      SELECT
+        o.*,
+        COALESCE(jsonb_agg(
+          CASE
+            WHEN s.name IS NOT NULL THEN jsonb_build_object(
+              'name', s.name,
+              'value', s.value,
+              'comment', s.comment
+            )
+            ELSE NULL
+          END
+        ) FILTER (WHERE s.name IS NOT NULL), '[]'::jsonb) AS "scores"
+      FROM
+        observations_agg o
+        LEFT JOIN scores s ON s.trace_id = o. "traceId" AND s.observation_id = o.id
+      GROUP BY
+          o.id,
+          o.name,
+          o.model,
+          o. "modelParameters",
+          o. "startTime",
+          o. "endTime",
+          o.input,
+          o.output,
+          o.metadata,
+          o."traceId",
+          o."traceName",
+          o."completionStartTime",
+          o."promptTokens",
+          o."completionTokens",
+          o."totalTokens",
+          o.unit,
+          o.level,
+          o."statusMessage",
+          o.version,
+          o."modelId",
+          o."inputPrice",
+          o."outputPrice",
+          o."totalPrice",
+          o."calculatedInputCost",
+          o."calculatedOutputCost",
+          o."calculatedTotalCost",
+          o."latency",
+          o."promptId",
+          o."promptName",
+          o."promptVersion";
     `;
+  };
 
-  return { rawSqlQuery, datetimeFilter, searchCondition, filterCondition };
+  return { queryBuilder, datetimeFilter, searchCondition, filterCondition };
 }
