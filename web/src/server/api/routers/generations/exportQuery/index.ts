@@ -36,7 +36,7 @@ export type GenerationsExportResult =
 export const generationsExportQuery = protectedProjectProcedure
   .input(generationsExportInput)
   .query<GenerationsExportResult>(async ({ input, ctx }) => {
-    const { rawSqlQuery } = getAllGenerationsSqlQuery({
+    const { queryBuilder } = getAllGenerationsSqlQuery({
       input,
       type: "export",
     });
@@ -44,7 +44,7 @@ export const generationsExportQuery = protectedProjectProcedure
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
     const dbReadStream = new DatabaseReadStream<ObservationView>(
       ctx.prisma,
-      rawSqlQuery,
+      queryBuilder,
       queryPageSize,
     );
 

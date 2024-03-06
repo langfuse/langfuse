@@ -14,7 +14,7 @@ type GetSqlFromInputParams =
       input: GenerationsExportInput;
       type: "export";
     }
-  | { input: GetAllGenerationsInput; type: "paginate" };
+  | { input: Omit<GetAllGenerationsInput, "limit, page">; type: "paginate" };
 
 export function getAllGenerationsSqlQuery({
   input,
@@ -59,13 +59,12 @@ export function getAllGenerationsSqlQuery({
       ? datetimeFilterToPrismaSql("start_time", "<", new Date())
       : Prisma.empty;
 
-  // For UI pagination: set LIMIT and OFFSET
-  const pagination =
-    type === "paginate"
-      ? Prisma.sql`LIMIT ${input.limit} OFFSET ${input.page * input.limit}`
-      : Prisma.empty;
-
-  const rawSqlQuery = Prisma.sql`
+  const queryBuilder = (limit?: number, offset?: number) => {
+    const pagination =
+      limit && offset
+        ? Prisma.sql`LIMIT ${limit} OFFSET ${offset}`
+        : Prisma.empty;
+    return Prisma.sql`
       WITH scores_avg AS (
         SELECT
           trace_id,
@@ -161,28 +160,29 @@ export function getAllGenerationsSqlQuery({
           o.input,
           o.output,
           o.metadata,
-          o. "traceId",
-          o. "traceName",
-          o. "completionStartTime",
-          o. "promptTokens",
-          o. "completionTokens",
-          o. "totalTokens",
+          o."traceId",
+          o."traceName",
+          o."completionStartTime",
+          o."promptTokens",
+          o."completionTokens",
+          o."totalTokens",
           o.unit,
           o.level,
-          o. "statusMessage",
+          o."statusMessage",
           o.version,
-          o. "modelId",
-          o. "inputPrice",
-          o. "outputPrice",
-          o. "totalPrice",
-          o. "calculatedInputCost",
-          o. "calculatedOutputCost",
-          o. "calculatedTotalCost",
-          o. "latency",
-          o. "promptId",
-          o. "promptName",
-          o. "promptVersion";
+          o."modelId",
+          o."inputPrice",
+          o."outputPrice",
+          o."totalPrice",
+          o."calculatedInputCost",
+          o."calculatedOutputCost",
+          o."calculatedTotalCost",
+          o."latency",
+          o."promptId",
+          o."promptName",
+          o."promptVersion";
     `;
+  };
 
-  return { rawSqlQuery, datetimeFilter, searchCondition, filterCondition };
+  return { queryBuilder, datetimeFilter, searchCondition, filterCondition };
 }
