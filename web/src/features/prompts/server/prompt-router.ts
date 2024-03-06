@@ -37,22 +37,30 @@ export const promptRouter = createTRPCRouter({
           p.id, 
           p.name, 
           p.version, 
-          p.project_id as "projectId", 
+          p.project_id AS "projectId", 
           p.prompt, 
-          p.updated_at as "updatedAt", 
+          p.updated_at AS "updatedAt", 
           p.created_at AS "createdAt", 
           p.is_active AS "isActive",
-          COUNT(o.id) as "observationCount"
+          oc.observationCount as "observationCount"
         FROM prompts p
-        LEFT JOIN observations o ON p.id = o.prompt_id
+        INNER JOIN (
+            SELECT 
+                prompts.name, 
+                COUNT(o.id) AS observationCount
+            FROM prompts
+            LEFT JOIN observations o ON prompts.id = o.prompt_id
+            WHERE prompts."project_id" = ${input.projectId}
+            GROUP BY prompts.name
+        ) AS oc ON p.name = oc.name
         WHERE (p.name, p.version) IN (
-          SELECT name, MAX(version)
-          FROM prompts
-          WHERE "project_id" = ${input.projectId}
-          GROUP BY name
+            SELECT name, MAX(version)
+            FROM prompts
+            WHERE "project_id" = ${input.projectId}
+            GROUP BY name
         )
         AND p."project_id" = ${input.projectId}
-        GROUP BY p.id
+        GROUP BY p.id, oc.observationCount
         ORDER BY p.name ASC`;
       return prompts;
     }),
