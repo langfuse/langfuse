@@ -11,7 +11,6 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { LockIcon, PlusIcon } from "lucide-react";
 import { useEffect } from "react";
-import Link from "next/link";
 
 type RowData = {
   name: string;
@@ -80,10 +79,14 @@ export function PromptTable(props: { projectId: string }) {
       header: "Number of Observations",
       cell: ({ row }) => {
         const numberOfObservations: bigint = row.getValue("observationCount");
+        const name: string = row.getValue("name");
+        const filter = encodeURIComponent(
+          `Prompt Name;stringOptions;;any of;${name}`,
+        );
         return (
           numberOfObservations > 0 && (
             <TableLink
-              path={`/project/${props.projectId}/prompts/${encodeURIComponent(row.getValue("name"))}/observations`}
+              path={`/project/${props.projectId}/generations?filter=${filter}`}
               value={numberOfObservations.toLocaleString()}
             />
           )
