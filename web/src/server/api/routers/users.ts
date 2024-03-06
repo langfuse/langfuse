@@ -42,7 +42,8 @@ export const userRouter = createTRPCRouter({
           traces t
         WHERE
           t.user_id IS NOT NULL
-          t.project_id = ${input.projectId}
+          AND t.user_id != ''
+          AND t.project_id = ${input.projectId}
         GROUP BY
           t.user_id
         ORDER BY
@@ -50,7 +51,6 @@ export const userRouter = createTRPCRouter({
         LIMIT
           ${input.limit} OFFSET ${input.page * input.limit};
       `;
-
       return {
         totalUsers: uniqueUsers.length,
         users: topUsers,
@@ -61,7 +61,7 @@ export const userRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        userIds: z.array(z.string()),
+        userIds: z.array(z.string().min(1)),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -132,6 +132,8 @@ export const userRouter = createTRPCRouter({
     GROUP BY
       1;
   `;
+
+      console.log(users);
 
       if (users.length === 0) {
         return [];
