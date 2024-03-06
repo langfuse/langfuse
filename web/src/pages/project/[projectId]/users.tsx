@@ -13,7 +13,6 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import Decimal from "decimal.js";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -103,11 +102,11 @@ export default function UsersPage() {
       header: "First Event",
       cell: ({ row }) => {
         const value: unknown = row.getValue("firstEvent");
-        if (value instanceof Date) {
-          return <>{value.toLocaleString()}</>;
-        }
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
         }
       },
     },
@@ -116,11 +115,11 @@ export default function UsersPage() {
       header: "Total Cost",
       cell: ({ row }) => {
         const value: unknown = row.getValue("totalCost");
-        if (value instanceof Decimal) {
-          return <>{usdFormatter(value.toNumber())}</>;
-        }
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
         }
       },
     },
@@ -129,11 +128,11 @@ export default function UsersPage() {
       header: "Last Event",
       cell: ({ row }) => {
         const value: unknown = row.getValue("lastEvent");
-        if (value instanceof Date) {
-          return <>{value.toLocaleString()}</>;
-        }
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
         }
       },
     },
@@ -146,11 +145,11 @@ export default function UsersPage() {
       header: "Total Tokens",
       cell: ({ row }) => {
         const value: unknown = row.getValue("totalTokens");
-        if (typeof value === "number") {
-          return <>{compactNumberFormatter(value)}</>;
-        }
         if (userMetrics.isFetching) {
           return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
         }
       },
     },
