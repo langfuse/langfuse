@@ -1,6 +1,3 @@
-import { PrismaClient } from "@prisma/client";
-
-import { env } from "@/src/env.mjs";
 import {
   DummyDriver,
   Kysely,
@@ -10,17 +7,23 @@ import {
 } from "kysely";
 import { type DB as Database } from "@/prisma/generated/types";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+import { PrismaClient } from "@prisma/client";
+
+// Instantiated according to the Prisma documentation
+// https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
+
+const prismaClientSingleton = () => {
+  return new PrismaClient();
 };
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
+declare global {
+  // eslint-disable-next-line no-var
+  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
+}
 
+export const prisma = globalThis.prisma ?? prismaClientSingleton();
+
+if (process.env.NODE_ENV !== "production") globalThis.prisma = prisma;
 export const DB = new Kysely<Database>({
   dialect: {
     createAdapter: () => new PostgresAdapter(),

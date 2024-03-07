@@ -205,7 +205,6 @@ export const traceRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
     .input(z.object({ traceId: z.string() }))
     .query(async ({ input, ctx }) => {
-      console.log("input", input);
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input.traceId,
