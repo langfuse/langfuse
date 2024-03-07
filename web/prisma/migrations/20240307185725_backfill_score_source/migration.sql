@@ -3,8 +3,10 @@ DO
 $$
 DECLARE 
    r record;
+   rows_processed int;
 BEGIN 
    LOOP
+      rows_processed := 0;
       FOR r in 
          SELECT "name", "id"
          FROM "scores"
@@ -18,14 +20,13 @@ BEGIN
             ELSE 'API'::"ScoreSource"
          END
          WHERE "id" = r.id;
+
+         rows_processed := rows_processed + 1;
       END LOOP;
 
       COMMIT;
-
-      -- exit when no more rows to process
-      IF NOT FOUND THEN 
-         EXIT; 
-      END IF; 
+      -- Exit the loop if we processed fewer rows than our limit
+      EXIT WHEN rows_processed < 1000;
    END LOOP;
 END
 $$;
