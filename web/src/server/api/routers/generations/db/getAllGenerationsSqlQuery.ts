@@ -96,8 +96,7 @@ export function getAllGenerationsSqlQuery({
         o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
-        o.input,
-        o.output,
+        ${type === "export" ? Prisma.sql`o.input, o.output,` : Prisma.empty} 
         o.metadata,
         o.trace_id as "traceId",
         t.name as "traceName",
@@ -157,8 +156,7 @@ export function getAllGenerationsSqlQuery({
           o. "modelParameters",
           o. "startTime",
           o. "endTime",
-          o.input,
-          o.output,
+          ${type === "export" ? Prisma.sql`o.input, o.output,` : Prisma.empty} 
           o.metadata,
           o."traceId",
           o."traceName",
