@@ -2,21 +2,21 @@ import Fastify from "fastify";
 import consumer from "./redis-consumer";
 
 import { getLogger } from "./logger";
-// import redis from "@fastify/redis";
+import redis from "@fastify/redis";
 import { db } from "./database";
 
 const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
 });
 
-// fastify.register(redis, {
-//   host: process.env.REDIS_URL,
-//   port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-//   password: process.env.REDIS_AUTH,
-//   maxRetriesPerRequest: null,
-// });
+fastify.register(redis, {
+  host: process.env.REDIS_HOST,
+  port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
+  password: process.env.REDIS_AUTH,
+  maxRetriesPerRequest: null,
+});
 
-// fastify.register(consumer);
+fastify.register(consumer);
 
 const start = async () => {
   try {

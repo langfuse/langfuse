@@ -5,7 +5,6 @@ import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import {
   type legacyObservationCreateEvent,
   eventTypes,
-  type traceEvent,
   type scoreEvent,
   type eventCreateEvent,
   type spanCreateEvent,
@@ -29,32 +28,6 @@ import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
-import Redis from "ioredis";
-import Queue from "bullmq";
-import {
-  type QueueJobTypes,
-  QueueName,
-  QueueJobs,
-} from "@/src/server/api/queues";
-
-const isRedisAvailable: boolean =
-  process.env.REDIS_HOST !== undefined &&
-  process.env.REDIS_PORT !== undefined &&
-  process.env.REDIS_PASSWORD !== undefined;
-
-const redis = isRedisAvailable
-  ? new Redis({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-      password: process.env.REDIS_PASSWORD,
-    })
-  : undefined;
-
-const queue = redis
-  ? new Queue.Queue<QueueJobTypes[QueueName.Evaluation]>(QueueName.Evaluation, {
-      connection: redis,
-    })
-  : undefined;
 
 export interface EventProcessor {
   process(
@@ -424,118 +397,6 @@ export class ObservationProcessor implements EventProcessor {
       create: obs.create,
       update: obs.update,
     });
-  }
-}
-export class TraceProcessor implements EventProcessor {
-  event: z.infer<typeof traceEvent>;
-
-  constructor(event: z.infer<typeof traceEvent>) {
-    this.event = event;
-  }
-
-  async process(
-    apiScope: ApiAccessScope,
-  ): Promise<Trace | Observation | Score> {
-    const { body } = this.event;
-
-    if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError(
-        `Access denied for trace creation, ${apiScope.accessLevel}`,
-      );
-
-    const internalId = body.id ?? v4();
-
-    console.log(
-      "Trying to create trace, project ",
-      apiScope.projectId,
-      ", body:",
-      body,
-    );
-
-    const existingTrace = await prisma.trace.findFirst({
-      where: {
-        id: internalId,
-      },
-    });
-
-    if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
-      throw new AuthenticationError(
-        `Access denied for trace creation ${existingTrace.projectId} `,
-      );
-    }
-
-    const mergedMetadata = mergeJson(
-      existingTrace?.metadata
-        ? jsonSchema.parse(existingTrace.metadata)
-        : undefined,
-      body.metadata ?? undefined,
-    );
-
-    if (body.sessionId) {
-      await prisma.traceSession.upsert({
-        where: {
-          id_projectId: {
-            id: body.sessionId,
-            projectId: apiScope.projectId,
-          },
-        },
-        create: {
-          id: body.sessionId,
-          projectId: apiScope.projectId,
-        },
-        update: {},
-      });
-    }
-
-    // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
-    // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    const upsertedTrace = await prisma.trace.upsert({
-      where: {
-        id: internalId,
-      },
-      create: {
-        id: internalId,
-        timestamp: this.event.body.timestamp
-          ? new Date(this.event.body.timestamp)
-          : undefined,
-        name: body.name ?? undefined,
-        userId: body.userId ?? undefined,
-        input: body.input ?? undefined,
-        output: body.output ?? undefined,
-        metadata: mergedMetadata ?? body.metadata ?? undefined,
-        release: body.release ?? undefined,
-        version: body.version ?? undefined,
-        sessionId: body.sessionId ?? undefined,
-        public: body.public ?? undefined,
-        projectId: apiScope.projectId,
-        tags: body.tags ?? undefined,
-      },
-      update: {
-        name: body.name ?? undefined,
-        timestamp: this.event.body.timestamp
-          ? new Date(this.event.body.timestamp)
-          : undefined,
-        userId: body.userId ?? undefined,
-        input: body.input ?? undefined,
-        output: body.output ?? undefined,
-        metadata: mergedMetadata ?? body.metadata ?? undefined,
-        release: body.release ?? undefined,
-        version: body.version ?? undefined,
-        sessionId: body.sessionId ?? undefined,
-        public: body.public ?? undefined,
-        tags: body.tags ?? undefined,
-      },
-    });
-
-    await queue?.add(QueueName.Evaluation, {
-      name: QueueJobs.Evaluation,
-      payload: {
-        projectId: apiScope.projectId,
-        traceId: upsertedTrace.id,
-      },
-    });
-
-    return upsertedTrace;
   }
 }
 export class ScoreProcessor implements EventProcessor {

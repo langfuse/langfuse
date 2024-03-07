@@ -20,7 +20,7 @@ import {
   type EventProcessor,
 } from "../../../server/api/services/EventProcessor";
 import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
-import { TraceProcessor } from "../../../server/api/services/EventProcessor";
+import { TraceProcessor } from "@/src/server/api/services/TraceProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
