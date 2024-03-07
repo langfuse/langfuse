@@ -12,8 +12,6 @@ BEGIN
          LIMIT 1000
          FOR UPDATE 
       LOOP
-         PERFORM pg_advisory_xact_lock(r.id); 
-
          UPDATE "scores"
          SET "source" = CASE
             WHEN r.name = 'manual-score' THEN 'REVIEW'::"ScoreSource"
