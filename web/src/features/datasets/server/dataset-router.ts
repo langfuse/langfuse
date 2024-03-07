@@ -112,25 +112,16 @@ export const datasetRouter = createTRPCRouter({
           ORDER BY
             run_id
         ),
-        latency_by_run_id AS (
+        latency_and_total_cost_by_run_id AS (
           SELECT
             ri.dataset_run_id run_id,
-            AVG(CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END)  AS "avgLatency"
-          FROM
-            dataset_run_items ri
-            JOIN observations o ON o.id = ri.observation_id
-          WHERE o.project_id = ${input.projectId}
-          group by 1
-        ),
-        avg_total_cost_by_run_id AS (
-          SELECT
-            ri.dataset_run_id run_id,
+            AVG(CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END)  AS "avgLatency",
             AVG(COALESCE(o.calculated_total_cost, 0)) AS "avgTotalCost"
           FROM
             dataset_run_items ri
             JOIN observations_view o ON o.id = ri.observation_id
           WHERE o.project_id = ${input.projectId}
-          GROUP BY 1
+          group by 1
         )
 
         SELECT
@@ -139,16 +130,15 @@ export const datasetRouter = createTRPCRouter({
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
           COALESCE(avg_scores.scores, '[]'::jsonb) scores,
-          COALESCE(latency."avgLatency", 0) "avgLatency",
-          COALESCE(avg_total_cost."avgTotalCost", 0) "avgTotalCost",  
+          COALESCE(latency_and_total_cost."avgLatency", 0) "avgLatency",
+          COALESCE(latency_and_total_cost."avgTotalCost", 0) "avgTotalCost",  
           count(DISTINCT ri.id)::int "countRunItems"
         FROM
           dataset_runs runs
           JOIN datasets ON datasets.id = runs.dataset_id
           LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
           LEFT JOIN json_avg_scores_by_run_id avg_scores ON avg_scores.run_id = runs.id
-          LEFT JOIN latency_by_run_id latency ON latency.run_id = runs.id
-          LEFT JOIN avg_total_cost_by_run_id avg_total_cost ON avg_total_cost.run_id = runs.id
+          LEFT JOIN latency_and_total_cost_by_run_id latency_and_total_cost ON latency_and_total_cost.run_id = runs.id
         WHERE runs.dataset_id = ${input.datasetId}
           AND datasets.project_id = ${input.projectId}
         GROUP BY
@@ -434,6 +424,10 @@ export const datasetRouter = createTRPCRouter({
 
       const observationIds = runItems.map((ri) => ri.observationId);
       const observations = await ctx.prisma.observationView.findMany({
+        select: {
+          id: true,
+          calculatedTotalCost: true,
+        },
         where: {
           id: {
             in: observationIds,
