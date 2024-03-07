@@ -14,7 +14,7 @@ type GetSqlFromInputParams =
       input: GenerationsExportInput;
       type: "export";
     }
-  | { input: GetAllGenerationsInput; type: "paginate" };
+  | { input: Omit<GetAllGenerationsInput, "limit, page">; type: "paginate" };
 
 export function getAllGenerationsSqlQuery({
   input,
@@ -59,13 +59,12 @@ export function getAllGenerationsSqlQuery({
       ? datetimeFilterToPrismaSql("start_time", "<", new Date())
       : Prisma.empty;
 
-  // For UI pagination: set LIMIT and OFFSET
-  const pagination =
-    type === "paginate"
-      ? Prisma.sql`LIMIT ${input.limit} OFFSET ${input.page * input.limit}`
-      : Prisma.empty;
-
-  const rawSqlQuery = Prisma.sql`
+  const queryBuilder = (limit?: number, offset?: number) => {
+    const pagination =
+      limit !== undefined && offset !== undefined
+        ? Prisma.sql`LIMIT ${limit} OFFSET ${offset}`
+        : Prisma.empty;
+    return Prisma.sql`
       WITH scores_avg AS (
         SELECT
           trace_id,
@@ -76,25 +75,27 @@ export function getAllGenerationsSqlQuery({
             trace_id,
             observation_id,
             name,
-            avg(value) avg_value
+            avg(value) avg_value,
+            comment
           FROM
             scores
           GROUP BY
             1,
             2,
-            3
+            3,
+            5
           ORDER BY
             1) tmp
         GROUP BY
           1, 2
-      )
+      ), observations_agg as (
       SELECT
         o.id,
         o.name,
         o.model,
+        o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
-        o.latency,
         o.input,
         o.output,
         o.metadata,
@@ -104,6 +105,7 @@ export function getAllGenerationsSqlQuery({
         o.prompt_tokens as "promptTokens",
         o.completion_tokens as "completionTokens",
         o.total_tokens as "totalTokens",
+        o.unit,
         o.level,
         o.status_message as "statusMessage",
         o.version,
@@ -132,7 +134,55 @@ export function getAllGenerationsSqlQuery({
         ${filterCondition}
         ${orderByCondition}
         ${pagination}
+    )
+      SELECT
+        o.*,
+        COALESCE(jsonb_agg(
+          CASE
+            WHEN s.name IS NOT NULL THEN jsonb_build_object(
+              'name', s.name,
+              'value', s.value,
+              'comment', s.comment
+            )
+            ELSE NULL
+          END
+        ) FILTER (WHERE s.name IS NOT NULL), '[]'::jsonb) AS "scores"
+      FROM
+        observations_agg o
+        LEFT JOIN scores s ON s.trace_id = o. "traceId" AND s.observation_id = o.id
+      GROUP BY
+          o.id,
+          o.name,
+          o.model,
+          o. "modelParameters",
+          o. "startTime",
+          o. "endTime",
+          o.input,
+          o.output,
+          o.metadata,
+          o."traceId",
+          o."traceName",
+          o."completionStartTime",
+          o."promptTokens",
+          o."completionTokens",
+          o."totalTokens",
+          o.unit,
+          o.level,
+          o."statusMessage",
+          o.version,
+          o."modelId",
+          o."inputPrice",
+          o."outputPrice",
+          o."totalPrice",
+          o."calculatedInputCost",
+          o."calculatedOutputCost",
+          o."calculatedTotalCost",
+          o."latency",
+          o."promptId",
+          o."promptName",
+          o."promptVersion";
     `;
+  };
 
-  return { rawSqlQuery, datetimeFilter, searchCondition, filterCondition };
+  return { queryBuilder, datetimeFilter, searchCondition, filterCondition };
 }
