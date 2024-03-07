@@ -133,8 +133,6 @@ export const userRouter = createTRPCRouter({
       1;
   `;
 
-      console.log(users);
-
       if (users.length === 0) {
         return [];
       }
