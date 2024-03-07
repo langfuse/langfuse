@@ -11,7 +11,7 @@ import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { type ObservationView } from "@prisma/client";
 
 import { DatabaseReadStream } from "../db/DatabaseReadStream";
-import { getAllGenerationsSqlQuery } from "../db/getAllGenerationsSqlQuery";
+import { getAllGenerations as getAllGenerations } from "../db/getAllGenerationsSqlQuery";
 import { GenerationTableOptions } from "../utils/GenerationTableOptions";
 import { transformStreamToCsv } from "./transforms/transformStreamToCsv";
 import { transformStreamToJson } from "./transforms/transformStreamToJson";
@@ -36,15 +36,16 @@ export type GenerationsExportResult =
 export const generationsExportQuery = protectedProjectProcedure
   .input(generationsExportInput)
   .query<GenerationsExportResult>(async ({ input, ctx }) => {
-    const { queryBuilder } = getAllGenerationsSqlQuery({
-      input,
-      type: "export",
-    });
-
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
+
     const dbReadStream = new DatabaseReadStream<ObservationView>(
-      ctx.prisma,
-      queryBuilder,
+      async (pageSize: number, offset: number) => {
+        const dbReturn = await getAllGenerations({
+          input: { ...input, page: offset, limit: pageSize },
+          selectIO: true,
+        });
+        return dbReturn.generations;
+      },
       queryPageSize,
     );
 
