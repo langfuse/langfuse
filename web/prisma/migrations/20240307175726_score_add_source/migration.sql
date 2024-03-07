@@ -1,11 +1,15 @@
-/*
-  Warnings:
-
-  - Added the required column `source` to the `scores` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- CreateEnum
 CREATE TYPE "ScoreSource" AS ENUM ('API', 'REVIEW');
 
--- AlterTable
-ALTER TABLE "scores" ADD COLUMN     "source" "ScoreSource" NOT NULL;
+-- Add a nullable column first
+ALTER TABLE "scores" ADD COLUMN "source" "ScoreSource";
+
+-- Set default values conditionally
+UPDATE "scores"
+SET "source" = CASE
+    WHEN "name" = 'manual-score' THEN 'REVIEW'
+    ELSE 'API'
+END;
+
+-- Alter column to not null after setting default values
+ALTER TABLE "scores" ALTER COLUMN "source" SET NOT NULL;
