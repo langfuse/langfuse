@@ -6,6 +6,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
+import { usdFormatter } from "../../../utils/numbers";
 
 type RowData = {
   id: string;
@@ -14,6 +15,7 @@ type RowData = {
   observation: { id: string; traceId: string };
   scores: Score[];
   latency: number;
+  totalCost: string;
 };
 
 export function DatasetRunItemsTable(
@@ -73,6 +75,14 @@ export function DatasetRunItemsTable(
       },
     },
     {
+      accessorKey: "totalCost",
+      header: "Total Cost",
+      cell: ({ row }) => {
+        const totalCost: RowData["totalCost"] = row.getValue("totalCost");
+        return <>{totalCost}</>;
+      },
+    },
+    {
       accessorKey: "scores",
       header: "Scores",
       cell: ({ row }) => {
@@ -94,6 +104,9 @@ export function DatasetRunItemsTable(
         traceId: item.observation.traceId ?? "", // never actually null, just not enforced by db
       },
       scores: item.observation.scores,
+      totalCost: usdFormatter(
+        item.observation.calculatedTotalCost?.toNumber() ?? 0,
+      ),
       latency: intervalInSeconds(
         item.observation.startTime,
         item.observation.endTime,
