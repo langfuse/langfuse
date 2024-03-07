@@ -264,7 +264,7 @@ export type Score = {
     timestamp: Generated<Timestamp>;
     name: string;
     value: number;
-    source: ScoreSource;
+    source: ScoreSource | null;
     comment: string | null;
     trace_id: string;
     observation_id: string | null;
