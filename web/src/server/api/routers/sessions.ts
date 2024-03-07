@@ -96,12 +96,12 @@ export const sessionRouter = createTRPCRouter({
         t."userIds",
         t."countTraces",
         o."sessionDuration",
-        o."totalCost",
-        o."inputCost",
-        o."outputCost",
-        o."promptTokens",
-        o."completionTokens",
-        o."totalTokens",
+        COALESCE(o."totalCost", 0) AS "totalCost",
+        COALESCE(o."inputCost", 0) AS "inputCost",
+        COALESCE(o."outputCost", 0) AS "outputCost",
+        COALESCE(o."promptTokens", 0) AS "promptTokens",
+        COALESCE(o."completionTokens", 0) AS "completionTokens",
+        COALESCE(o."totalTokens", 0) AS "totalTokens",
         (count(*) OVER ())::int AS "totalCount"
       FROM trace_sessions s
       LEFT JOIN trace_metrics t ON t.session_id = s.id
