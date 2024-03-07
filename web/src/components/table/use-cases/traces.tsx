@@ -31,6 +31,8 @@ import {
 import type Decimal from "decimal.js";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { LevelColors } from "@/src/components/level-colors";
+import { cn } from "@/src/utils/tailwind";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -464,8 +466,18 @@ export default function TracesTable({
       accessorKey: "level",
       header: "Level",
       cell: ({ row }) => {
-        const value: string = row.getValue("level");
-        return <span>{value}</span>;
+        const value: ObservationLevel = row.getValue("level");
+        return (
+          <span
+            className={cn(
+              "rounded-sm p-0.5 text-xs",
+              LevelColors[value].bg,
+              LevelColors[value].text,
+            )}
+          >
+            {value}
+          </span>
+        );
       },
       enableHiding: true,
       defaultHidden: true,
