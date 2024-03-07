@@ -35,8 +35,10 @@ export type ColumnDefinition =
 export const tableNames = [
   "traces",
   "traces_observations",
+  "traces_observationsview",
   "observations",
   "traces_scores",
+  "traces_metrics",
   "traces_parent_observation_scores",
   "sessions",
 ] as const;
