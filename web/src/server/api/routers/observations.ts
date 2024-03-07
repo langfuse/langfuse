@@ -13,8 +13,6 @@ export const observationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
       // also works for other observations
       const generation = await ctx.prisma.observation.findFirstOrThrow({
         where: {

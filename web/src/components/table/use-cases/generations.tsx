@@ -42,7 +42,6 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
-import { id } from "date-fns/esm/locale";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import React from "react";
 
@@ -669,7 +668,7 @@ export const JsonSkeleton = ({
   return (
     <div className={cn("w-[500px] rounded-md border", className)}>
       <div className="flex flex-col gap-1">
-        {[...Array<number>(numRows)].map((_, i) => (
+        {[...Array<number>(numRows)].map((_) => (
           <>
             <Skeleton className={generateRandomSize()} />
           </>
