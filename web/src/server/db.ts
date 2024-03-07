@@ -18,7 +18,7 @@ const prismaClientSingleton = () => {
     log:
       env.NODE_ENV === "production"
         ? ["error", "warn"]
-        : ["error", "warn", "info"],
+        : ["error", "warn", "info", "query"],
   });
 };
 
