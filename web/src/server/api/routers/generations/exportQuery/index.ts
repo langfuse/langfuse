@@ -35,7 +35,7 @@ export type GenerationsExportResult =
 
 export const generationsExportQuery = protectedProjectProcedure
   .input(generationsExportInput)
-  .query<GenerationsExportResult>(async ({ input, ctx }) => {
+  .query<GenerationsExportResult>(async ({ input }) => {
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
 
     const dbReadStream = new DatabaseReadStream<ObservationView>(
