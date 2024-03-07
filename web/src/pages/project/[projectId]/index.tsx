@@ -31,7 +31,7 @@ import { FilterBuilder } from "@/src/features/filters/components/filter-builder"
 import { type FilterState } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { LatencyTables } from "@/src/features/dashboard/components/SpanLatencyTable";
+import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 
