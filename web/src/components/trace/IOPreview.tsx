@@ -120,7 +120,9 @@ const OpenAiMessageSchema = z
   .object({
     role: z.enum(["system", "user", "assistant", "function"]).optional(),
     name: z.string().optional(),
-    content: z.union([z.record(z.any()).array(), z.string()]).nullable(),
+    content: z
+      .union([z.record(z.any()), z.record(z.any()).array(), z.string()])
+      .nullable(),
     function_call: z
       .object({
         name: z.string(),
