@@ -106,8 +106,6 @@ export function DatasetRunItemsTable(
       scores: item.observation.scores,
       totalCost: usdFormatter(
         item.observation.calculatedTotalCost?.toNumber() ?? 0,
-        2,
-        8,
       ),
       latency: intervalInSeconds(
         item.observation.startTime,

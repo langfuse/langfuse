@@ -105,7 +105,7 @@ export function DatasetRunsTable(props: {
       createdAt: item.createdAt.toISOString(),
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
-      avgTotalCost: usdFormatter(item.avgTotalCost.toNumber(), 2, 8),
+      avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
       scores: item.scores,
     };
   };
