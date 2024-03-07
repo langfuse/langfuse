@@ -54,6 +54,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbScore?.value).toBe(100.5);
     expect(dbScore?.observationId).toBeNull();
     expect(dbScore?.comment).toBe("comment");
+    expect(dbScore?.source).toBe("API");
   });
 
   it("should create score for a trace with int", async () => {
@@ -301,6 +302,7 @@ describe("/api/public/scores API Endpoint", () => {
       comment: string;
       traceId: string;
       observationId: string;
+      source: string;
     }>("GET", `/api/public/scores/${scoreId}`);
 
     expect(getScore.status).toBe(200);
@@ -309,6 +311,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "score-name",
       value: 100.5,
       comment: "comment",
+      source: "API",
       traceId,
       observationId: generationId,
     });
