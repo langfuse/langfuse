@@ -8,12 +8,18 @@ import {
 import { type DB as Database } from "@/prisma/generated/types";
 
 import { PrismaClient } from "@prisma/client";
+import { env } from "@/src/env.mjs";
 
 // Instantiated according to the Prisma documentation
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
 const prismaClientSingleton = () => {
-  return new PrismaClient();
+  return new PrismaClient({
+    log:
+      env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error", "warn"],
+  });
 };
 
 declare global {
