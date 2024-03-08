@@ -23,6 +23,7 @@ export class DatabaseReadStream<EntityType> extends Readable {
   private isReading: boolean;
 
   constructor(
+    // the delegate function takes care of querying the database in a paginated manner
     private queryDelegate: (
       pageSize: number,
       offset: number,
