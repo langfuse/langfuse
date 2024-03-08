@@ -15,6 +15,7 @@ export async function getAllGenerations({
   input: GetAllGenerationsInput;
   selectIO: boolean;
 }) {
+  console.log("input", input);
   const searchCondition = input.searchQuery
     ? Prisma.sql`AND (
         o."id" ILIKE ${`%${input.searchQuery}%`} OR

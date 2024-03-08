@@ -41,7 +41,7 @@ export const generationsExportQuery = protectedProjectProcedure
     const dbReadStream = new DatabaseReadStream<ObservationView>(
       async (pageSize: number, offset: number) => {
         const dbReturn = await getAllGenerations({
-          input: { ...input, page: offset, limit: pageSize },
+          input: { ...input, page: offset / pageSize, limit: pageSize },
           selectIO: true,
         });
         return dbReturn.generations;
