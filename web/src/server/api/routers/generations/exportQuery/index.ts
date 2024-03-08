@@ -16,6 +16,7 @@ import { GenerationTableOptions } from "../utils/GenerationTableOptions";
 import { transformStreamToCsv } from "./transforms/transformStreamToCsv";
 import { transformStreamToJson } from "./transforms/transformStreamToJson";
 import { transformStreamToJsonLines } from "./transforms/transformStreamToJsonLines";
+import { datetimeFilterToPrismaSql } from "@/src/features/filters/server/filterToPrisma";
 
 const generationsExportInput = GenerationTableOptions.extend({
   fileFormat: z.enum(exportFileFormats),
@@ -38,10 +39,22 @@ export const generationsExportQuery = protectedProjectProcedure
   .query<GenerationsExportResult>(async ({ input }) => {
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
 
+    const dateCutoffFilter = {
+      column: "o.start_time",
+      operator: "<" as const,
+      value: new Date(),
+      type: "datetime" as const,
+    };
+
     const dbReadStream = new DatabaseReadStream<ObservationView>(
       async (pageSize: number, offset: number) => {
         const dbReturn = await getAllGenerations({
-          input: { ...input, page: offset / pageSize, limit: pageSize },
+          input: {
+            ...input,
+            filter: [...input.filter, dateCutoffFilter],
+            page: offset / pageSize,
+            limit: pageSize,
+          },
           selectIO: true,
         });
         return dbReturn.generations;
