@@ -39,7 +39,7 @@ export const generationsExportQuery = protectedProjectProcedure
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
 
     const dateCutoffFilter = {
-      column: "o.start_time",
+      column: "start_time",
       operator: "<" as const,
       value: new Date(),
       type: "datetime" as const,

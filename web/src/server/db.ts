@@ -16,9 +16,9 @@ import { env } from "@/src/env.mjs";
 const prismaClientSingleton = () => {
   return new PrismaClient({
     log:
-      env.NODE_ENV === "production"
-        ? ["error", "warn"]
-        : ["error", "warn", "info", "query"],
+      env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error", "warn"],
   });
 };
 
