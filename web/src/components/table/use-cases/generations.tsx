@@ -509,7 +509,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
-          scores: generation.scores ?? undefined,
+          scores: generation.scores,
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata
