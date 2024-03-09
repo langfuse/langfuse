@@ -15,15 +15,18 @@ export const QuickstartExamples = ({
   publicKey: string;
   host: string;
 }) => (
-  <Tabs defaultValue="python">
-    <TabsList>
-      <TabsTrigger value="python">Python</TabsTrigger>
-      <TabsTrigger value="js">JS/TS</TabsTrigger>
-      <TabsTrigger value="openai">OpenAI</TabsTrigger>
-      <TabsTrigger value="langchain">Langchain</TabsTrigger>
-      <TabsTrigger value="langchain-js">Langchain JS</TabsTrigger>
-      <TabsTrigger value="other">Other</TabsTrigger>
-    </TabsList>
+  <Tabs defaultValue="python" className="relative max-w-full">
+    <div className="overflow-x-scroll">
+      <TabsList>
+        <TabsTrigger value="python">Python</TabsTrigger>
+        <TabsTrigger value="js">JS/TS</TabsTrigger>
+        <TabsTrigger value="openai">OpenAI</TabsTrigger>
+        <TabsTrigger value="langchain">Langchain</TabsTrigger>
+        <TabsTrigger value="langchain-js">Langchain JS</TabsTrigger>
+        <TabsTrigger value="llamaindex">LlamaIndex</TabsTrigger>
+        <TabsTrigger value="other">Other</TabsTrigger>
+      </TabsList>
+    </div>
     <TabsContent value="python">
       <CodeView content="pip install langfuse" className="mb-2 bg-blue-50" />
       <CodeView
@@ -49,7 +52,7 @@ export const QuickstartExamples = ({
         >
           Python docs
         </a>{" "}
-        for more details.
+        for more details and an end-to-end example.
       </p>
     </TabsContent>
     <TabsContent value="js">
@@ -77,7 +80,7 @@ export const QuickstartExamples = ({
         >
           JS/TS docs
         </a>{" "}
-        for more details.
+        for more details and an end-to-end example.
       </p>
     </TabsContent>
     <TabsContent value="openai">
@@ -89,7 +92,7 @@ export const QuickstartExamples = ({
       <CodeView content="pip install langfuse" className="my-2 bg-blue-50" />
       <CodeView
         title=".env"
-        content={`LANGFUSE_SECRET_KEY=${secretKey};\nLANGFUSE_PUBLIC_KEY=${publicKey};\nLANGFUSE_HOST="${host}";`}
+        content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"`}
         className="my-2 bg-blue-50"
       />
       <CodeView
@@ -106,7 +109,7 @@ export const QuickstartExamples = ({
         >
           OpenAI Integration docs
         </a>{" "}
-        for more details.
+        for more details and an end-to-end example.
       </p>
     </TabsContent>
     <TabsContent value="langchain">
@@ -116,11 +119,9 @@ export const QuickstartExamples = ({
       </p>
       <CodeView content="pip install langfuse" className="my-2 bg-blue-50" />
       <CodeView
-        title=".env"
-        content={`LANGFUSE_SECRET_KEY=${secretKey};\nLANGFUSE_PUBLIC_KEY=${publicKey};\nLANGFUSE_HOST="${host}";`}
+        content={LANGCHAIN_PYTHON_CODE({ publicKey, secretKey, host })}
         className="my-2 bg-blue-50"
       />
-      <CodeView content={LANGCHAIN_PYTHON_CODE} className="my-2 bg-blue-50" />
       <p className="mt-2 text-xs text-gray-600">
         See the{" "}
         <a
@@ -131,7 +132,7 @@ export const QuickstartExamples = ({
         >
           Langchain Integration docs
         </a>{" "}
-        for more details.
+        for more details and an end-to-end example.
       </p>
     </TabsContent>
     <TabsContent value="langchain-js">
@@ -144,11 +145,9 @@ export const QuickstartExamples = ({
         className="my-2 bg-blue-50"
       />
       <CodeView
-        title=".env"
-        content={`LANGFUSE_SECRET_KEY=${secretKey};\nLANGFUSE_PUBLIC_KEY=${publicKey};\LANGFUSE_BASEURL="${host}";`}
+        content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
         className="my-2 bg-blue-50"
       />
-      <CodeView content={LANGCHAIN_JS_CODE} className="my-2 bg-blue-50" />
       <p className="mt-2 text-xs text-gray-600">
         See the{" "}
         <a
@@ -159,7 +158,33 @@ export const QuickstartExamples = ({
         >
           Langchain Integration docs
         </a>{" "}
-        for more details.
+        for more details and an end-to-end example.
+      </p>
+    </TabsContent>
+    <TabsContent value="llamaindex">
+      <p className="mt-2 text-xs text-gray-600">
+        The integration uses the LlamaIndex callback system to automatically
+        capture detailed traces of your LlamaIndex executions.
+      </p>
+      <CodeView
+        content="pip install langfuse llama-index"
+        className="my-2 bg-blue-50"
+      />
+      <CodeView
+        content={LLAMA_INDEX_CODE({ publicKey, secretKey, host })}
+        className="my-2 bg-blue-50"
+      />
+      <p className="mt-2 text-xs text-gray-600">
+        See the{" "}
+        <a
+          href="https://langfuse.com/docs/integrations/llama-index"
+          className="underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          LlamaIndex Integration docs
+        </a>{" "}
+        for more details and an end-to-end example.
       </p>
     </TabsContent>
     <TabsContent value="other">
@@ -188,23 +213,55 @@ export const QuickstartExamples = ({
   </Tabs>
 );
 
-const LANGCHAIN_PYTHON_CODE = `from langfuse.callback import CallbackHandler
+const LANGCHAIN_PYTHON_CODE = (p: {
+  publicKey: string;
+  secretKey: string;
+  host: string;
+}) => `from langfuse.callback import CallbackHandler
+langfuse_handler = CallbackHandler(
+    public_key="${p.publicKey}",
+    secret_key="${p.secretKey}",
+    host="${p.host}"
+)
 
 # <Your Langchain code here>
  
 # Add handler to run/invoke/call/chat
-agent.run("<user_input>", callbacks=[handler])`;
+chain.invoke({"input": "<user_input>"}, config={"callbacks": [langfuse_handler]})`;
 
-const LANGCHAIN_JS_CODE = `import { CallbackHandler } from "langfuse-langchain";
+const LANGCHAIN_JS_CODE = (p: {
+  publicKey: string;
+  secretKey: string;
+  host: string;
+}) => `import { CallbackHandler } from "langfuse-langchain";
  
 // Initialize Langfuse callback handler
-const handler = new CallbackHandler();
+const langfuseHandler = new CallbackHandler({
+  publicKey: "${p.publicKey}",
+  secretKey: "${p.secretKey}",
+  baseUrl: "${p.host}"
+});
  
 // Your Langchain implementation
 const chain = new LLMChain(...);
  
 // Add handler as callback when running the Langchain agent
-await chain.call(
+await chain.invoke(
   { input: "<user_input>" },
-  { callbacks: [handler] }
+  { callbacks: [langfuseHandler] }
 );`;
+
+const LLAMA_INDEX_CODE = (p: {
+  publicKey: string;
+  secretKey: string;
+  host: string;
+}) => `from llama_index.core import Settings
+from llama_index.core.callbacks import CallbackManager
+from langfuse.llama_index import LlamaIndexCallbackHandler
+ 
+langfuse_callback_handler = LlamaIndexCallbackHandler(
+    public_key="${p.publicKey}",
+    secret_key="${p.secretKey}",
+    host="${p.host}"
+)
+Settings.callback_manager = CallbackManager([langfuse_callback_handler])"`;
