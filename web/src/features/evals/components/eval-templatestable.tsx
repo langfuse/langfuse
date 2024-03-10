@@ -1,7 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";

@@ -28,7 +28,7 @@ import { extractVariables } from "@/src/utils/string";
 import { evalModelList, evalModels } from "@/src/features/evals/constants";
 import { Badge } from "@/src/components/ui/badge";
 import { jsonSchema } from "@/src/utils/zod";
-import router, { Router } from "next/router";
+import router from "next/router";
 
 const formSchema = z.object({
   prompt: z
