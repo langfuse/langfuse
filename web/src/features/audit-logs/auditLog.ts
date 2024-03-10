@@ -13,7 +13,8 @@ export type AuditableResource =
   | "model"
   | "prompt"
   | "session"
-  | "apiKey";
+  | "apiKey"
+  | "evalTemplate";
 
 type AuditLog = {
   resourceType: AuditableResource;

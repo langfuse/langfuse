@@ -119,6 +119,17 @@ export type DatasetRuns = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
+export type EvalTemplate = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    prompt: string;
+    model: string;
+    model_params: unknown;
+    vars: Generated<string[]>;
+    output_schema: unknown;
+};
 export type Events = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -320,6 +331,7 @@ export type DB = {
     dataset_run_items: DatasetRunItems;
     dataset_runs: DatasetRuns;
     datasets: Dataset;
+    eval_templates: EvalTemplate;
     events: Events;
     Example: Example;
     membership_invitations: MembershipInvitation;

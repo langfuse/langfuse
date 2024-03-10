@@ -27,6 +27,9 @@ const scopes = [
   "prompts:read",
 
   "models:CUD",
+
+  "evalsTemplate:create",
+  "evalsTemplate:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -52,6 +55,8 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "prompts:CUD",
     "prompts:read",
     "models:CUD",
+    "evalsTemplate:create",
+    "evalsTemplate:read",
   ],
   ADMIN: [
     "project:update",
@@ -70,6 +75,8 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "prompts:CUD",
     "prompts:read",
     "models:CUD",
+    "evalsTemplate:create",
+    "evalsTemplate:read",
   ],
   MEMBER: [
     "members:read",
@@ -80,6 +87,8 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "evalsTemplate:create",
+    "evalsTemplate:read",
   ],
   VIEWER: ["prompts:read"],
 };

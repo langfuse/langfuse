@@ -51,6 +51,11 @@ export const ROUTES: Route[] = [
         name: "Models",
         pathname: `/project/[projectId]/models`,
       },
+      {
+        name: "Templates",
+        pathname: `/project/[projectId]/evals/templates`,
+        featureFlag: "eval",
+      },
     ],
   },
   {
