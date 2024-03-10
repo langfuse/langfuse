@@ -29,8 +29,11 @@ import { evalModelList, evalModels } from "@/src/features/evals/constants";
 import { Badge } from "@/src/components/ui/badge";
 import { jsonSchema } from "@/src/utils/zod";
 import router from "next/router";
+import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
+import { type EvalTemplate } from "@prisma/client";
 
 const formSchema = z.object({
+  name: z.string(),
   prompt: z
     .string()
     .min(1, "Enter a prompt")
@@ -63,13 +66,14 @@ const formSchema = z.object({
       message: "Config needs to be valid JSON",
     },
   ),
-  score: z.string(),
-  name: z.string(),
-  reasoning: z.string(),
+  outputScore: z.string(),
+  outputName: z.string(),
+  outputReasoning: z.string(),
 });
 
 export const NewEvalTemplateForm = (props: {
   projectId: string;
+  existingEvalTemplates: EvalTemplate[];
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
@@ -77,13 +81,14 @@ export const NewEvalTemplateForm = (props: {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      name: "",
       model: "gpt-4" as const,
       prompt: "",
       variables: [],
       modelParameters: "{}",
-      score: "",
-      name: "",
-      reasoning: "",
+      outputName: "",
+      outputScore: "",
+      outputReasoning: "",
     },
   });
 
@@ -99,6 +104,7 @@ export const NewEvalTemplateForm = (props: {
     posthog.capture("models:new_template_form");
     createEvalTemplateMutation
       .mutateAsync({
+        name: values.name,
         projectId: props.projectId,
         prompt: values.prompt,
         model: values.model,
@@ -109,9 +115,9 @@ export const NewEvalTemplateForm = (props: {
             : jsonSchema.parse({}),
         variables: values.variables,
         outputSchema: {
-          score: values.score,
-          name: values.name,
-          reasoning: values.reasoning,
+          score: values.outputScore,
+          name: values.outputName,
+          reasoning: values.outputReasoning,
         },
       })
       .then(() => {
@@ -140,6 +146,37 @@ export const NewEvalTemplateForm = (props: {
         className="flex flex-col gap-4"
       >
         <div className="grid grid-cols-4 gap-x-12">
+          <div className="col-span-3 row-span-1">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <>
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <AutoComplete
+                        {...field}
+                        options={props.existingEvalTemplates.map(
+                          (template) => ({
+                            value: template.name,
+                            label: template.name,
+                          }),
+                        )}
+                        placeholder=""
+                        onValueChange={(option) => field.onChange(option.value)}
+                        value={{ value: field.value, label: field.value }}
+                        disabled={false}
+                        createLabel="New eval template name:"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </>
+              )}
+            />
+          </div>
+
           <div className="col-span-3 row-span-4">
             <FormField
               control={form.control}
@@ -156,29 +193,29 @@ export const NewEvalTemplateForm = (props: {
                     </FormControl>
                     <FormMessage />
                   </FormItem>
-                  {/* <FormDescription> */}
-                  <p className="text-sm text-gray-500">
-                    You can use{" "}
-                    <code className="text-xs">{"{{variable}}"}</code> to insert
-                    variables into your prompt. The following variables are
-                    available:
-                  </p>
+                  <FormDescription>
+                    <p className="text-sm text-gray-500">
+                      You can use{" "}
+                      <code className="text-xs">{"{{variable}}"}</code> to
+                      insert variables into your prompt. The following variables
+                      are available:
+                    </p>
 
-                  <div className="flex flex-wrap gap-2">
-                    {extractedVariables.map((variable) => (
-                      <Badge key={variable} variant="outline">
-                        {variable}
-                      </Badge>
-                    ))}
-                  </div>
-                  {/* </FormDescription> */}
+                    <div className="flex flex-wrap gap-2">
+                      {extractedVariables.map((variable) => (
+                        <Badge key={variable} variant="outline">
+                          {variable}
+                        </Badge>
+                      ))}
+                    </div>
+                  </FormDescription>
                 </>
               )}
             />
 
             <FormField
               control={form.control}
-              name="score"
+              name="outputScore"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Score</FormLabel>
@@ -192,7 +229,7 @@ export const NewEvalTemplateForm = (props: {
             />
             <FormField
               control={form.control}
-              name="name"
+              name="outputName"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
@@ -206,7 +243,7 @@ export const NewEvalTemplateForm = (props: {
             />
             <FormField
               control={form.control}
-              name="reasoning"
+              name="outputReasoning"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Reasoning</FormLabel>

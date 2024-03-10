@@ -10,6 +10,7 @@ import { evalModels } from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";
 
 export const CreateEvalTemplate = z.object({
+  name: z.string(),
   projectId: z.string(),
   prompt: z.string(),
   model: evalModels,
@@ -66,8 +67,18 @@ export const evalRouter = createTRPCRouter({
         scope: "evalsTemplate:create",
       });
 
+      const latestTemplate = await ctx.prisma.evalTemplate.findFirst({
+        where: {
+          projectId: input.projectId,
+          name: input.name,
+        },
+        orderBy: [{ version: "desc" }],
+      });
+
       const evalTemplate = await ctx.prisma.evalTemplate.create({
         data: {
+          version: latestTemplate?.version ? latestTemplate.version + 1 : 1,
+          name: input.name,
           projectId: input.projectId,
           prompt: input.prompt,
           model: input.model,

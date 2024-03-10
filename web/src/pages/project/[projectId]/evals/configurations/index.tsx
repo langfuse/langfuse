@@ -4,7 +4,8 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
-import EvalsTemplateTable from "@/src/features/evals/components/eval-templatestable";
+import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
+import { api } from "@/src/utils/api";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -13,6 +14,12 @@ export default function TemplatesPage() {
   const hasWriteAccess = useHasAccess({
     projectId,
     scope: "evalsTemplate:create",
+  });
+
+  const evals = api.evals.allTemplates.useQuery({
+    projectId: projectId,
+    limit: 500,
+    page: 0,
   });
 
   return (
@@ -38,7 +45,10 @@ export default function TemplatesPage() {
           </Button>
         }
       />
-      <EvalsTemplateTable projectId={projectId} />
+      <EvalsTemplateTable
+        projectId={projectId}
+        evalTemplates={evals.data ?? []}
+      />
     </div>
   );
 }

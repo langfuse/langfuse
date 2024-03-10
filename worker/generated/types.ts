@@ -124,6 +124,8 @@ export type EvalTemplate = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     project_id: string;
+    name: string;
+    version: number;
     prompt: string;
     model: string;
     model_params: unknown;

@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { NewEvalTemplateForm } from "@/src/features/evals/components/new-template-form";
+import { NewEvalConfigForm } from "@/src/features/evals/components/new-eval-config-form";
 
 import { useRouter } from "next/router";
 
@@ -17,7 +17,7 @@ export default function TemplatesPage() {
           href: "https://langfuse.com/docs/scores",
         }}
       />
-      <NewEvalTemplateForm projectId={projectId} />
+      <NewEvalConfigForm projectId={projectId} />
     </div>
   );
 }

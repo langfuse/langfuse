@@ -6,13 +6,15 @@ import { type EvalTemplate } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type EvalsTemplateRow = {
+  version: number;
+  name: string;
   prompt: string;
   model: string;
   modelParameters: unknown;
   variables: string[];
-  scores?: string;
-  name?: string;
-  reasoning?: string;
+  outputScore?: string;
+  outputName?: string;
+  outputReasoning?: string;
 };
 
 export default function EvalsTemplateTable({
@@ -33,6 +35,16 @@ export default function EvalsTemplateTable({
   const totalCount = templates.data?.totalCount ?? 0;
 
   const columns: LangfuseColumnDef<EvalsTemplateRow>[] = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      enableHiding: true,
+    },
+    {
+      accessorKey: "version",
+      header: "Version",
+      enableHiding: true,
+    },
     {
       accessorKey: "prompt",
       header: "Prompt",
@@ -79,6 +91,8 @@ export default function EvalsTemplateTable({
       template.outputSchema === null
     ) {
       return {
+        name: template.name,
+        version: template.version,
         prompt: template.prompt,
         model: template.model,
         modelParameters: template.modelParams,
@@ -86,21 +100,23 @@ export default function EvalsTemplateTable({
       };
     }
     return {
+      name: template.name,
+      version: template.version,
       prompt: template.prompt,
       model: template.model,
       modelParameters: JSON.stringify(template.modelParams),
       variables: template.vars,
-      scores:
+      outputScore:
         "scores" in template.outputSchema &&
         typeof template.outputSchema.scores === "string"
           ? template.outputSchema.scores
           : undefined,
-      name:
+      outputName:
         "name" in template.outputSchema &&
         typeof template.outputSchema.name === "string"
           ? template.outputSchema.name
           : undefined,
-      reasoning:
+      outputReasoning:
         "reasoning" in template.outputSchema &&
         typeof template.outputSchema.reasoning === "string"
           ? template.outputSchema.reasoning

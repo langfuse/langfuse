@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
-import EvalsTemplateTable from "@/src/features/evals/components/eval-templatestable";
+import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
 
 export default function TemplatesPage() {
   const router = useRouter();
