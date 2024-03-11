@@ -199,7 +199,7 @@ export default function SessionsTable({
     {
       accessorKey: "countTraces",
       id: "countTraces",
-      header: "Traces",
+      header: "Traces Count",
       enableHiding: true,
       enableSorting: true,
     },
