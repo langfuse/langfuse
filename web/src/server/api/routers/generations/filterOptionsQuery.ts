@@ -43,8 +43,8 @@ export const filterOptionsQuery = protectedProjectProcedure
         FROM prompts p
         JOIN observations o ON o.prompt_id = p.id
         WHERE o.type = 'GENERATION'
-          AND o.prompt_id NOT NULL
           AND o.project_id = ${input.projectId}
+          AND o.prompt_id IS NOT NULL
           AND p.project_id = ${input.projectId}
         GROUP BY 1
       `);
