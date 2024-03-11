@@ -29,7 +29,7 @@ import router from "next/router";
 import { type EvalTemplate } from "@prisma/client";
 import { TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Tabs } from "@radix-ui/react-tabs";
-import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
 import { type FilterState } from "@/src/features/filters/types";
 import * as z from "zod";
@@ -191,7 +191,7 @@ export const NewEvalConfigForm = (props: {
               <FormItem>
                 <FormLabel>Target filter</FormLabel>
                 <FormControl>
-                  <FilterBuilder
+                  <PopoverFilterBuilder
                     columns={tracesTableCols}
                     filterState={field.value}
                     onChange={(value) => field.onChange(value)}

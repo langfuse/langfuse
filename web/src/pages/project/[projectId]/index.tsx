@@ -27,7 +27,7 @@ import { usePostHog } from "posthog-js/react";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type FilterState } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -142,7 +142,7 @@ export default function Start() {
             selectedOption={selectedOption}
             className="my-0 max-w-full overflow-x-auto"
           />
-          <FilterBuilder
+          <PopoverFilterBuilder
             columns={traceName}
             filterState={userFilterState}
             onChange={setUserFilterState}

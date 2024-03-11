@@ -29,7 +29,7 @@ import {
 import { NonEmptyString } from "@/src/utils/zod";
 
 // Has WipFilterState, passes all valid filters to parent onChange
-export function FilterBuilder({
+export function PopoverFilterBuilder({
   columns,
   filterState,
   onChange,

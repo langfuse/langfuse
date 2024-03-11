@@ -3,7 +3,7 @@ import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { type FilterState } from "@/src/features/filters/types";
-import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { type VisibilityState } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -64,7 +64,7 @@ export function DataTableToolbar<TData, TValue>({
             </Button>
           </div>
         )}
-        <FilterBuilder
+        <PopoverFilterBuilder
           columns={filterColumnDefinition}
           filterState={filterState}
           onChange={setFilterState}
