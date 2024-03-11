@@ -4,22 +4,17 @@ import {
 } from "@/src/features/filters/server/filterToPrisma";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
-import { Prisma } from "@prisma/client";
-
-import { type GenerationsExportInput } from "../exportQuery";
+import { type ObservationView, Prisma } from "@prisma/client";
+import { prisma } from "@/src/server/db";
 import { type GetAllGenerationsInput } from "../getAllQuery";
 
-type GetSqlFromInputParams =
-  | {
-      input: GenerationsExportInput;
-      type: "export";
-    }
-  | { input: Omit<GetAllGenerationsInput, "limit, page">; type: "paginate" };
-
-export function getAllGenerationsSqlQuery({
+export async function getAllGenerations({
   input,
-  type,
-}: GetSqlFromInputParams) {
+  selectIO,
+}: {
+  input: GetAllGenerationsInput;
+  selectIO: boolean;
+}) {
   const searchCondition = input.searchQuery
     ? Prisma.sql`AND (
         o."id" ILIKE ${`%${input.searchQuery}%`} OR
@@ -53,18 +48,7 @@ export function getAllGenerationsSqlQuery({
         )
       : Prisma.empty;
 
-  // For exports: use a date cutoff filter to ignore newly ingested rows
-  const dateCutoffFilter =
-    type === "export"
-      ? datetimeFilterToPrismaSql("start_time", "<", new Date())
-      : Prisma.empty;
-
-  const queryBuilder = (limit?: number, offset?: number) => {
-    const pagination =
-      limit !== undefined && offset !== undefined
-        ? Prisma.sql`LIMIT ${limit} OFFSET ${offset}`
-        : Prisma.empty;
-    return Prisma.sql`
+  const query = Prisma.sql`
       WITH scores_avg AS (
         SELECT
           trace_id,
@@ -88,7 +72,7 @@ export function getAllGenerationsSqlQuery({
             1) tmp
         GROUP BY
           1, 2
-      ), observations_agg as (
+      )
       SELECT
         o.id,
         o.name,
@@ -96,8 +80,7 @@ export function getAllGenerationsSqlQuery({
         o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
-        o.input,
-        o.output,
+        ${selectIO ? Prisma.sql`o.input, o.output,` : Prisma.empty} 
         o.metadata,
         o.trace_id as "traceId",
         t.name as "traceName",
@@ -129,60 +112,47 @@ export function getAllGenerationsSqlQuery({
         AND t.project_id = ${input.projectId}
         AND o.type = 'GENERATION'
         ${datetimeFilter}
-        ${dateCutoffFilter}
         ${searchCondition}
         ${filterCondition}
         ${orderByCondition}
-        ${pagination}
-    )
-      SELECT
-        o.*,
-        COALESCE(jsonb_agg(
-          CASE
-            WHEN s.name IS NOT NULL THEN jsonb_build_object(
-              'name', s.name,
-              'value', s.value,
-              'comment', s.comment
-            )
-            ELSE NULL
-          END
-        ) FILTER (WHERE s.name IS NOT NULL), '[]'::jsonb) AS "scores"
-      FROM
-        observations_agg o
-        LEFT JOIN scores s ON s.trace_id = o. "traceId" AND s.observation_id = o.id
-      GROUP BY
-          o.id,
-          o.name,
-          o.model,
-          o. "modelParameters",
-          o. "startTime",
-          o. "endTime",
-          o.input,
-          o.output,
-          o.metadata,
-          o."traceId",
-          o."traceName",
-          o."completionStartTime",
-          o."promptTokens",
-          o."completionTokens",
-          o."totalTokens",
-          o.unit,
-          o.level,
-          o."statusMessage",
-          o.version,
-          o."modelId",
-          o."inputPrice",
-          o."outputPrice",
-          o."totalPrice",
-          o."calculatedInputCost",
-          o."calculatedOutputCost",
-          o."calculatedTotalCost",
-          o."latency",
-          o."promptId",
-          o."promptName",
-          o."promptVersion";
+      LIMIT ${input.limit} OFFSET ${input.page * input.limit}
     `;
-  };
 
-  return { queryBuilder, datetimeFilter, searchCondition, filterCondition };
+  const generations = await prisma.$queryRaw<
+    Array<
+      ObservationView & {
+        traceName: string | null;
+        promptName: string | null;
+        promptVersion: string | null;
+      }
+    >
+  >(query);
+
+  const scores = await prisma.score.findMany({
+    where: {
+      trace: {
+        projectId: input.projectId,
+      },
+      observationId: {
+        in: generations.map((gen) => gen.id),
+      },
+    },
+  });
+
+  const fullGenerations = generations.map((generation) => {
+    const filteredScores = scores.filter(
+      (s) => s.observationId === generation.id,
+    );
+    return {
+      ...generation,
+      scores: filteredScores,
+    };
+  });
+
+  return {
+    generations: fullGenerations,
+    datetimeFilter,
+    searchCondition,
+    filterCondition,
+  };
 }
