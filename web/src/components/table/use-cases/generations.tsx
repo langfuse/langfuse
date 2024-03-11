@@ -472,7 +472,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "prompt",
       header: "Prompt",
       enableHiding: true,
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
