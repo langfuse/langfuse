@@ -30,9 +30,7 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
-      const prompts = await ctx.prisma.$queryRaw<
-        Array<Prompt & { observationCount: bigint }>
-      >`
+      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
         SELECT 
           id, 
           name, 
@@ -44,10 +42,10 @@ export const promptRouter = createTRPCRouter({
           is_active AS "isActive"
         FROM prompts
         WHERE (name, version) IN (
-            SELECT name, MAX(version)
-            FROM prompts
-            WHERE "project_id" = ${input.projectId}
-            GROUP BY name
+          SELECT name, MAX(version)
+          FROM prompts
+          WHERE "project_id" = ${input.projectId}
+          GROUP BY name
         )
         AND "project_id" = ${input.projectId}
         GROUP BY id
