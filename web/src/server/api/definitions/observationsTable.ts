@@ -7,52 +7,77 @@ import { ObservationLevel } from "@prisma/client";
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [
   {
-    name: "id",
+    name: "Id",
     id: "id",
     type: "string",
     internal: 'o."id"',
   },
   {
-    name: "name",
+    name: "Name",
     id: "name",
     type: "stringOptions",
     internal: 'o."name"',
     options: [], // to be added at runtime
   },
-  { name: "traceId", id: "traceId", type: "string", internal: 't."id"' },
+  { name: "Trace Id", id: "traceId", type: "string", internal: 't."id"' },
   {
-    name: "traceName",
+    name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be added at runtime
   },
-  { name: "userId", id: "userId", type: "string", internal: 't."user_id"' },
+  { name: "User Id", id: "userId", type: "string", internal: 't."user_id"' },
   {
-    name: "start_time",
+    name: "Start Time",
     id: "startTime",
     type: "datetime",
     internal: 'o."start_time"',
   },
   {
-    name: "end_time",
+    name: "End Time",
     id: "endTime",
     type: "datetime",
     internal: 'o."end_time"',
   },
   {
-    name: "latency (s)",
+    name: "Time To First Token (s)",
+    id: "timeToFirstToken",
+    type: "number",
+    internal: 'o."completion_start_time" - o."start_time"',
+  },
+  {
+    name: "Latency (s)",
     id: "latency",
     type: "number",
     internal: '"latency"',
   },
   {
-    name: "Cost ($)",
+    name: "Time Per Output Token (s)",
+    id: "timePerOutputToken",
+    type: "number",
+    internal: '"latency" / o."completion_tokens"',
+  },
+  {
+    name: "Input Cost ($)",
+    id: "inputCost",
+    type: "number",
+    internal: 'o."calculated_input_cost"',
+  },
+  {
+    name: "Output Cost ($)",
+    id: "outputCost",
+    type: "number",
+    internal: 'o."calculated_output_cost"',
+  },
+  {
+    name: "Total Cost ($)",
+    id: "totalCost",
     type: "number",
     internal: 'o."calculated_total_cost"',
   },
   {
-    name: "level",
+    name: "Level",
     id: "level",
     type: "stringOptions",
     internal: 'o."level"::text',
@@ -65,26 +90,44 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."status_message"',
   },
   {
-    name: "model",
+    name: "Model",
     id: "model",
     type: "stringOptions",
     internal: 'o."model"',
     options: [], // to be added at runtime
   },
   {
-    name: "metadata",
+    name: "Usage",
+    id: "usage",
+    type: "number",
+    internal: 'o."total_tokens"',
+  },
+  {
+    name: "Input",
+    id: "input",
+    type: "stringObject",
+    internal: 'o."input"',
+  },
+  {
+    name: "Output",
+    id: "output",
+    type: "stringObject",
+    internal: 'o."output"',
+  },
+  {
+    name: "Metadata",
     id: "metadata",
     type: "stringObject",
     internal: 'o."metadata"',
   },
   {
-    name: "scores_avg",
+    name: "Scores",
     id: "scores_avg",
     type: "numberObject",
     internal: "scores_avg",
   },
   {
-    name: "version",
+    name: "Version",
     id: "version",
     type: "string",
     internal: 'o."version"',
@@ -104,16 +147,16 @@ export function observationsTableColsWithOptions(
   options?: ObservationOptions,
 ): ColumnDefinition[] {
   return observationsTableCols.map((col) => {
-    if (col.name === "model") {
+    if (col.id === "model") {
       return { ...col, options: options?.model ?? [] };
     }
-    if (col.name === "name") {
+    if (col.id === "name") {
       return { ...col, options: options?.name ?? [] };
     }
-    if (col.name === "traceName") {
+    if (col.id === "traceName") {
       return { ...col, options: options?.traceName ?? [] };
     }
-    if (col.name === "scores_avg") {
+    if (col.id === "scores_avg") {
       return { ...col, keyOptions: options?.scores_avg ?? [] };
     }
     return col;
