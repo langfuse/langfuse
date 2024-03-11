@@ -27,7 +27,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
     internal: 's."created_at"',
   },
   {
-    name: "count Traces",
+    name: "Traces count",
     id: "countTraces",
     type: "number",
     internal: 't."countTraces"',
