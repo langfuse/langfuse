@@ -248,6 +248,7 @@ export default function TracesTable({
       header: "Name",
       id: "name",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "userId",
@@ -270,6 +271,7 @@ export default function TracesTable({
     {
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      id: "sessionId",
       header: "Session ID",
       cell: ({ row }) => {
         const value = row.getValue("sessionId");
@@ -282,6 +284,7 @@ export default function TracesTable({
         ) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "latency",
@@ -309,6 +312,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputTokens",
@@ -324,6 +328,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalTokens",
@@ -339,11 +344,13 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
+      id: "usage",
       cell: ({ row }) => {
         const value: {
           promptTokens: number;
@@ -359,6 +366,7 @@ export default function TracesTable({
           />
         );
       },
+      enableSorting: true,
       enableHiding: true,
     },
     {
@@ -379,6 +387,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputCost",
@@ -398,6 +407,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalCost",
@@ -432,22 +442,26 @@ export default function TracesTable({
     {
       accessorKey: "input",
       header: "Input",
+      id: "input",
       cell: ({ row }) => {
         const value: unknown = row.getValue("input");
         return <JSONView json={value} className="w-[500px]" />;
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "output",
       header: "Output",
+      id: "output",
       cell: ({ row }) => {
         const value: unknown = row.getValue("output");
         return <JSONView json={value} className="w-[500px] bg-green-50" />;
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "metadata",
