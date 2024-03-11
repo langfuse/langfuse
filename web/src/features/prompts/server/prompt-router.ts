@@ -90,7 +90,7 @@ export const promptRouter = createTRPCRouter({
         }, 0);
         return {
           ...p,
-          observationCount: count,
+          observationCount: count ?? 0,
         };
       });
 
