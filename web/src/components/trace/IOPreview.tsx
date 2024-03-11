@@ -81,10 +81,10 @@ export const IOPreview: React.FC<{
                   ...outChatMlMessage.data,
                   role: outChatMlMessage.data.role ?? "assistant",
                 }
-              : {
+              : ChatMlMessageSchema.parse({
                   role: "assistant",
                   content: outputClean ? JSON.stringify(outputClean) : null,
-                },
+                }),
           )}
         />
       ) : null}
@@ -173,8 +173,10 @@ const OpenAiMessageView: React.FC<{
                   title={message.name ?? message.role}
                   json={message.content}
                   className={cn(
+                    "bg-gray-100",
                     message.role === "system" && "bg-gray-100",
                     message.role === "assistant" && "bg-green-50",
+                    message.role === "user" && "bg-white",
                     !!message.json && "rounded-b-none",
                   )}
                 />
@@ -186,9 +188,11 @@ const OpenAiMessageView: React.FC<{
                   }
                   json={message.json}
                   className={cn(
+                    "bg-gray-100",
                     message.role === "system" && "bg-gray-100",
                     message.role === "assistant" && "bg-green-50",
-                    !!message.content && "rounded-t-none border-t-0 bg-gray-50",
+                    message.role === "user" && "bg-white",
+                    !!message.content && "rounded-t-none border-t-0",
                   )}
                 />
               )}
