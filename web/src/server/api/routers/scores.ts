@@ -72,8 +72,8 @@ export const scoresRouter = createTRPCRouter({
           input.projectId,
           filterCondition,
           Prisma.empty,
-          input.limit,
-          input.page,
+          1, // limit
+          0, // page
         ),
       );
 
