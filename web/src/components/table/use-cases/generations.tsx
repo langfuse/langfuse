@@ -34,7 +34,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { usdFormatter } from "@/src/utils/numbers";
+import { randomIntFromInterval, usdFormatter } from "@/src/utils/numbers";
 import {
   exportOptions,
   type ExportFileFormats,
@@ -42,6 +42,8 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import React from "react";
 
 export type GenerationsTableRow = {
   id: string;
@@ -410,8 +412,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "input",
       header: "Input",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("input");
-        return <JSONView json={value} className="w-[500px]" />;
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <IOCell observationId={observationId} traceId={traceId} io="input" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -420,8 +425,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "output",
       header: "Output",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("output");
-        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <IOCell observationId={observationId} traceId={traceId} io="output" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -501,7 +509,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
-          scores: generation.scores ?? undefined,
+          scores: generation.scores,
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata
@@ -600,3 +608,73 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     </div>
   );
 }
+
+const IOCell = ({
+  traceId,
+  observationId,
+  io,
+}: {
+  traceId: string;
+  observationId: string;
+  io: "input" | "output";
+}) => {
+  const observation = api.observations.byId.useQuery(
+    {
+      observationId: observationId,
+      traceId: traceId,
+    },
+    {
+      enabled: typeof traceId === "string" && typeof observationId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  return (
+    <>
+      {observation.isLoading || !observation.data ? (
+        <JsonSkeleton className="h-[250px] w-[500px] px-3 py-1" />
+      ) : (
+        <JSONView
+          json={
+            io === "output" ? observation.data.output : observation.data.input
+          }
+          className="h-[250px] w-[500px] overflow-y-auto"
+        />
+      )}
+    </>
+  );
+};
+
+export const JsonSkeleton = ({
+  className,
+  numRows = 10,
+}: {
+  numRows?: number;
+  className?: string;
+}) => {
+  const sizingOptions = [
+    "h-5 w-full",
+    "h-5 w-[400px]",
+    "h-5 w-[450px]",
+    "h-5 w-[475px]",
+  ];
+
+  const generateRandomSize = () =>
+    sizingOptions[randomIntFromInterval(0, sizingOptions.length - 1)];
+
+  return (
+    <div className={cn("w-[500px] rounded-md border", className)}>
+      <div className="flex flex-col gap-1">
+        {[...Array<number>(numRows)].map((_) => (
+          <>
+            <Skeleton className={generateRandomSize()} />
+          </>
+        ))}
+        <br />
+      </div>
+    </div>
+  );
+};

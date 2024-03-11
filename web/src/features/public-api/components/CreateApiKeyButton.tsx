@@ -67,34 +67,37 @@ export function CreateApiKeyButton(props: { projectId: string }) {
       </DialogTrigger>
       <DialogContent
         onPointerDownOutside={(e) => e.preventDefault()}
-        className="max-w-full md:max-w-xl"
+        className="flex max-h-screen w-full flex-col md:max-w-xl"
       >
         <DialogTitle>API Keys</DialogTitle>
-        <div className="mb-2">
-          <div className="text-md font-semibold">Secret Key</div>
-          <div className="my-2">
-            This key can only be viewed once. You can always generate a new key.
-          </div>
-          <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
-        </div>
-        <div>
-          <div className="text-md mb-2 font-semibold">Public Key</div>
-          <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
-        </div>
-        <div>
-          <div className="text-md mb-2 font-semibold">Host</div>
-          <CodeView content={hostname} />
-        </div>
-        {generatedKeys && (
+        <div className="shrink overflow-x-hidden overflow-y-scroll">
           <div className="mb-2">
-            <div className="text-md my-2 font-semibold">Usage</div>
-            <QuickstartExamples
-              secretKey={generatedKeys.secretKey}
-              publicKey={generatedKeys.publicKey}
-              host={hostname}
-            />
+            <div className="text-md font-semibold">Secret Key</div>
+            <div className="my-2">
+              This key can only be viewed once. You can always generate a new
+              key.
+            </div>
+            <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
           </div>
-        )}
+          <div>
+            <div className="text-md mb-2 font-semibold">Public Key</div>
+            <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
+          </div>
+          <div>
+            <div className="text-md mb-2 font-semibold">Host</div>
+            <CodeView content={hostname} />
+          </div>
+          {generatedKeys && (
+            <div className="mb-2 max-w-full">
+              <div className="text-md my-2 font-semibold">Usage</div>
+              <QuickstartExamples
+                secretKey={generatedKeys.secretKey}
+                publicKey={generatedKeys.publicKey}
+                host={hostname}
+              />
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

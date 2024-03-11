@@ -208,8 +208,8 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("inputCost");
-        return value !== undefined ? (
+        const value: Decimal | null | undefined = row.getValue("inputCost");
+        return value ? (
           <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
@@ -221,9 +221,9 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("outputCost");
+        const value: Decimal | null | undefined = row.getValue("outputCost");
 
-        return value !== undefined ? (
+        return value ? (
           <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
@@ -235,9 +235,9 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("totalCost");
+        const value: Decimal | null | undefined = row.getValue("totalCost");
 
-        return value !== undefined ? (
+        return value ? (
           <span>{usdFormatter(value.toNumber())}</span>
         ) : undefined;
       },
@@ -251,7 +251,7 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("inputTokens");
 
-        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+        return value ? <span>{Number(value)}</span> : undefined;
       },
     },
     {
@@ -263,7 +263,7 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value = row.getValue("outputTokens");
 
-        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+        return value ? <span>{Number(value)}</span> : undefined;
       },
     },
     {
@@ -274,7 +274,7 @@ export default function SessionsTable({
       defaultHidden: true,
       cell: ({ row }) => {
         const value = row.getValue("totalTokens");
-        return value !== undefined ? <span>{Number(value)}</span> : undefined;
+        return value ? <span>{Number(value)}</span> : undefined;
       },
     },
     {
