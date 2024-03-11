@@ -41,18 +41,8 @@ export const promptRouter = createTRPCRouter({
           p.prompt, 
           p.updated_at AS "updatedAt", 
           p.created_at AS "createdAt", 
-          p.is_active AS "isActive",
-          oc.observationCount as "observationCount"
+          p.is_active AS "isActive"
         FROM prompts p
-        INNER JOIN (
-            SELECT 
-                prompts.name, 
-                COUNT(o.id) AS observationCount
-            FROM prompts
-            LEFT JOIN observations o ON prompts.id = o.prompt_id
-            WHERE prompts."project_id" = ${input.projectId}
-            GROUP BY prompts.name
-        ) AS oc ON p.name = oc.name
         WHERE (p.name, p.version) IN (
             SELECT name, MAX(version)
             FROM prompts
@@ -60,8 +50,56 @@ export const promptRouter = createTRPCRouter({
             GROUP BY name
         )
         AND p."project_id" = ${input.projectId}
-        GROUP BY p.id, oc.observationCount
+        GROUP BY p.id
         ORDER BY p.name ASC`;
+
+      const promptIds = await ctx.prisma.prompt.groupBy({
+        where: {
+          projectId: input.projectId,
+        },
+        by: ["name", "id"],
+      });
+
+      const groupedPromptsById = promptIds.reduce<
+        Record<string, Array<{ name: string; id: string }>>
+      >((acc, prompt) => {
+        if (!acc[prompt.name]) {
+          acc[prompt.name] = [];
+        }
+        acc[prompt.name]?.push(prompt.id);
+        return acc;
+      }, {});
+
+      console.log("promptIds", groupedPromptsById);
+
+      const countObservationsByPromptId = await ctx.prisma.observation.groupBy({
+        where: {
+          projectId: input.projectId,
+          promptId: {
+            not: null,
+          },
+        },
+        by: ["promptId"],
+        _count: {
+          _all: true,
+        },
+      });
+
+      const joinedPromptsAndCounts = prompts.map((p) => {
+        const promptIds = groupedPromptsById[p.name];
+        const count = promptIds?.reduce((acc, id) => {
+          const count = countObservationsByPromptId.find(
+            (c) => c.promptId === id.id,
+          );
+          return acc + (count?._count._all ?? 0);
+        }, 0);
+        return {
+          ...p,
+          observationCount: count,
+        };
+      });
+
+      console.log("joinedPromptsAndCounts", joinedPromptsAndCounts);
       return prompts;
     }),
   byId: protectedProjectProcedure

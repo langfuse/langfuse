@@ -31,7 +31,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       where: queryFilter,
       _count: { _all: true },
     });
-    const promptName = await ctx.prisma.$queryRaw<
+    const promptNames = await ctx.prisma.$queryRaw<
       Array<{
         promptName: string | null;
         count: number;
@@ -43,6 +43,7 @@ export const filterOptionsQuery = protectedProjectProcedure
         FROM prompts p
         JOIN observations o ON o.prompt_id = p.id
         WHERE o.type = 'GENERATION'
+          AND o.prompt_id NOT NULL
           AND o.project_id = ${input.projectId}
           AND p.project_id = ${input.projectId}
         GROUP BY 1
@@ -86,10 +87,12 @@ export const filterOptionsQuery = protectedProjectProcedure
           count: i.count,
         })),
       scores_avg: scores.map((score) => score.name),
-      promptName: promptName.map((i) => ({
-        value: i.promptName as string,
-        count: i.count,
-      })),
+      promptName: promptNames
+        .filter((i) => i.promptName !== null)
+        .map((i) => ({
+          value: i.promptName as string,
+          count: i.count,
+        })),
     };
 
     return res;
