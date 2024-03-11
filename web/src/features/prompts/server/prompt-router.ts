@@ -34,24 +34,24 @@ export const promptRouter = createTRPCRouter({
         Array<Prompt & { observationCount: bigint }>
       >`
         SELECT 
-          p.id, 
-          p.name, 
-          p.version, 
-          p.project_id AS "projectId", 
-          p.prompt, 
-          p.updated_at AS "updatedAt", 
-          p.created_at AS "createdAt", 
-          p.is_active AS "isActive"
-        FROM prompts p
-        WHERE (p.name, p.version) IN (
+          id, 
+          name, 
+          version, 
+          project_id AS "projectId", 
+          prompt, 
+          updated_at AS "updatedAt", 
+          created_at AS "createdAt", 
+          is_active AS "isActive"
+        FROM prompts
+        WHERE (name, version) IN (
             SELECT name, MAX(version)
             FROM prompts
             WHERE "project_id" = ${input.projectId}
             GROUP BY name
         )
-        AND p."project_id" = ${input.projectId}
-        GROUP BY p.id
-        ORDER BY p.name ASC`;
+        AND "project_id" = ${input.projectId}
+        GROUP BY id
+        ORDER BY name ASC`;
 
       const promptIds = await ctx.prisma.prompt.groupBy({
         where: {
@@ -61,16 +61,14 @@ export const promptRouter = createTRPCRouter({
       });
 
       const groupedPromptsById = promptIds.reduce<
-        Record<string, Array<{ name: string; id: string }>>
+        Record<string, Array<string>>
       >((acc, prompt) => {
         if (!acc[prompt.name]) {
           acc[prompt.name] = [];
         }
-        acc[prompt.name]?.push(prompt.id);
+        acc[prompt.name]!.push(prompt.id);
         return acc;
       }, {});
-
-      console.log("promptIds", groupedPromptsById);
 
       const countObservationsByPromptId = await ctx.prisma.observation.groupBy({
         where: {
@@ -89,7 +87,7 @@ export const promptRouter = createTRPCRouter({
         const promptIds = groupedPromptsById[p.name];
         const count = promptIds?.reduce((acc, id) => {
           const count = countObservationsByPromptId.find(
-            (c) => c.promptId === id.id,
+            (c) => c.promptId === id,
           );
           return acc + (count?._count._all ?? 0);
         }, 0);
@@ -99,8 +97,7 @@ export const promptRouter = createTRPCRouter({
         };
       });
 
-      console.log("joinedPromptsAndCounts", joinedPromptsAndCounts);
-      return prompts;
+      return joinedPromptsAndCounts;
     }),
   byId: protectedProjectProcedure
     .input(
