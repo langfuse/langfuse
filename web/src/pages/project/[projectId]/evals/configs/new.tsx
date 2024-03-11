@@ -1,11 +1,18 @@
 import Header from "@/src/components/layouts/header";
 import { NewEvalConfigForm } from "@/src/features/evals/components/new-eval-config-form";
+import { api } from "@/src/utils/api";
 
 import { useRouter } from "next/router";
 
 export default function TemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  const evalTemplates = api.evals.allTemplates.useQuery({
+    projectId,
+    limit: 500,
+    page: 0,
+  });
 
   return (
     <div>
@@ -17,7 +24,10 @@ export default function TemplatesPage() {
           href: "https://langfuse.com/docs/scores",
         }}
       />
-      <NewEvalConfigForm projectId={projectId} />
+      <NewEvalConfigForm
+        projectId={projectId}
+        evalTemplates={evalTemplates.data?.templates ?? []}
+      />
     </div>
   );
 }
