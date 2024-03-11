@@ -48,7 +48,6 @@ export const promptRouter = createTRPCRouter({
           GROUP BY name
         )
         AND "project_id" = ${input.projectId}
-        GROUP BY id
         ORDER BY name ASC`;
 
       const promptIds = await ctx.prisma.prompt.groupBy({
