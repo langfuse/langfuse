@@ -66,7 +66,7 @@ export default function UsersPage() {
     })),
   );
 
-  const totalCount = userRowData.rows?.length ?? 0;
+  const totalCount = users.data?.totalUsers ?? 0;
 
   useEffect(() => {
     if (users.isSuccess) {
