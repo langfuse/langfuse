@@ -126,6 +126,8 @@ if (
       clientId: env.AUTH_AZURE_AD_CLIENT_ID,
       clientSecret: env.AUTH_AZURE_AD_CLIENT_SECRET,
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
