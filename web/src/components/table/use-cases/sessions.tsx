@@ -58,7 +58,7 @@ export default function SessionsTable({
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "userId",
+          column: "userIds",
           type: "string",
           operator: "=",
           value: userId,
@@ -176,8 +176,10 @@ export default function SessionsTable({
     {
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
+      id: "userIds",
       header: "User ID",
       enableHiding: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("userIds");
         return value && Array.isArray(value) ? (
@@ -207,6 +209,7 @@ export default function SessionsTable({
       header: "Input Cost",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: Decimal | null | undefined = row.getValue("inputCost");
         return value ? (
@@ -219,6 +222,7 @@ export default function SessionsTable({
       id: "outputCost",
       header: "Output Cost",
       enableHiding: true,
+      enableSorting: true,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: Decimal | null | undefined = row.getValue("outputCost");
@@ -248,6 +252,7 @@ export default function SessionsTable({
       header: "Input Tokens",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("inputTokens");
 
@@ -260,6 +265,7 @@ export default function SessionsTable({
       header: "Output Tokens",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("outputTokens");
 
@@ -272,6 +278,7 @@ export default function SessionsTable({
       header: "Total Tokens",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("totalTokens");
         return value ? <span>{Number(value)}</span> : undefined;
@@ -282,6 +289,7 @@ export default function SessionsTable({
       id: "usage",
       header: "Usage",
       enableHiding: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const promptTokens = row.getValue("inputTokens");
         const completionTokens = row.getValue("outputTokens");
