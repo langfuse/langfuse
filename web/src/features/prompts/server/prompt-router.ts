@@ -8,6 +8,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type Prompt, type PrismaClient } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { DB } from "@/src/server/db";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -30,6 +31,7 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
+
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
         SELECT 
           id, 
@@ -50,47 +52,29 @@ export const promptRouter = createTRPCRouter({
         AND "project_id" = ${input.projectId}
         ORDER BY name ASC`;
 
-      const promptIds = await ctx.prisma.prompt.groupBy({
-        where: {
-          projectId: input.projectId,
-        },
-        by: ["name", "id"],
-      });
+      const promptCountQuery = DB.selectFrom("observations")
+        .fullJoin("prompts", "prompts.id", "observations.prompt_id")
+        .select(({ fn }) => [
+          "prompts.name",
+          fn.count("observations.id").as("count"),
+        ])
+        .where("prompts.project_id", "=", input.projectId)
+        .groupBy("prompts.name");
 
-      const groupedPromptsById = promptIds.reduce<
-        Record<string, Array<string>>
-      >((acc, prompt) => {
-        if (!acc[prompt.name]) {
-          acc[prompt.name] = [];
-        }
-        acc[prompt.name]!.push(prompt.id);
-        return acc;
-      }, {});
+      const compiledQuery = promptCountQuery.compile();
 
-      const countObservationsByPromptId = await ctx.prisma.observation.groupBy({
-        where: {
-          projectId: input.projectId,
-          promptId: {
-            not: null,
-          },
-        },
-        by: ["promptId"],
-        _count: {
-          _all: true,
-        },
-      });
+      const promptCounts = await ctx.prisma.$queryRawUnsafe<
+        Array<{
+          name: string;
+          count: bigint;
+        }>
+      >(compiledQuery.sql, ...compiledQuery.parameters);
 
       const joinedPromptsAndCounts = prompts.map((p) => {
-        const promptIds = groupedPromptsById[p.name];
-        const count = promptIds?.reduce((acc, id) => {
-          const count = countObservationsByPromptId.find(
-            (c) => c.promptId === id,
-          );
-          return acc + (count?._count._all ?? 0);
-        }, 0);
+        const marchedCount = promptCounts.find((c) => c.name === p.name);
         return {
           ...p,
-          observationCount: count ?? 0,
+          observationCount: marchedCount?.count ?? 0,
         };
       });
 

@@ -75,7 +75,7 @@ export function PromptTable(props: { projectId: string }) {
     },
     {
       accessorKey: "numberOfObservations",
-      header: "Number of Observations",
+      header: "Number of Generations",
       cell: ({ row }) => {
         const numberOfObservations: number = row.getValue(
           "numberOfObservations",
