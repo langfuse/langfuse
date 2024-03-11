@@ -18,7 +18,7 @@ type RowData = {
   id: string;
   createdAt: Date;
   isActive: boolean;
-  numberOfObservations: bigint;
+  numberOfObservations: number;
 };
 
 export function PromptTable(props: { projectId: string }) {
@@ -77,7 +77,7 @@ export function PromptTable(props: { projectId: string }) {
       accessorKey: "numberOfObservations",
       header: "Number of Observations",
       cell: ({ row }) => {
-        const numberOfObservations: bigint = row.getValue(
+        const numberOfObservations: number = row.getValue(
           "numberOfObservations",
         );
         const name: string = row.getValue("name");
@@ -85,12 +85,10 @@ export function PromptTable(props: { projectId: string }) {
           `Prompt Name;stringOptions;;any of;${name}`,
         );
         return (
-          numberOfObservations > 0 && (
-            <TableLink
-              path={`/project/${props.projectId}/generations?filter=${filter}`}
-              value={numberOfObservations.toLocaleString()}
-            />
-          )
+          <TableLink
+            path={`/project/${props.projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            value={numberOfObservations.toLocaleString()}
+          />
         );
       },
     },
