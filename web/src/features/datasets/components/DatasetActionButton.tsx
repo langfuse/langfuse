@@ -1,0 +1,140 @@
+import { Button } from "@/src/components/ui/button";
+import { Edit, LockIcon, PlusIcon, Trash } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { useState } from "react";
+import { DialogTrigger } from "@radix-ui/react-dialog";
+import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+
+interface BaseDatasetButtonProps {
+  mode: "create" | "rename" | "delete";
+  projectId: string;
+  className?: string;
+  onFormSuccess?: () => void;
+}
+
+interface CreateDatasetButtonProps extends BaseDatasetButtonProps {
+  mode: "create";
+}
+
+interface DeleteDatasetButtonProps extends BaseDatasetButtonProps {
+  mode: "delete";
+  datasetId: string;
+}
+
+interface RenameDatasetButtonProps extends BaseDatasetButtonProps {
+  mode: "rename";
+  datasetId: string;
+  datasetName: string;
+  icon?: boolean;
+}
+
+type DatasetActionButtonProps =
+  | CreateDatasetButtonProps
+  | RenameDatasetButtonProps
+  | DeleteDatasetButtonProps;
+
+export const DatasetActionButton = (props: DatasetActionButtonProps) => {
+  const [open, setOpen] = useState(false);
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "datasets:CUD",
+  });
+
+  return (
+    <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {props.mode === "rename" ? (
+          props.icon ? (
+            <Button
+              variant="outline"
+              size={"icon"}
+              className={props.className}
+              disabled={!hasAccess}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+          ) : (
+            <div
+              className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+              onClick={() => setOpen(true)}
+            >
+              {hasAccess ? (
+                <Edit className="mr-2 h-4 w-4" />
+              ) : (
+                <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Rename
+            </div>
+          )
+        ) : props.mode === "delete" ? (
+          <div
+            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+            onClick={() => setOpen(true)}
+          >
+            <Trash className="mr-2 h-4 w-4" />
+            Delete
+          </div>
+        ) : (
+          <Button
+            variant="secondary"
+            className={props.className}
+            disabled={!hasAccess}
+          >
+            {hasAccess ? (
+              <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+            ) : (
+              <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
+            )}
+            New dataset
+          </Button>
+        )}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="mb-4">
+            {props.mode === "create"
+              ? "Create new dataset"
+              : props.mode === "delete"
+                ? "Please confirm"
+                : "Rename dataset"}
+          </DialogTitle>
+          {props.mode === "delete" && (
+            <DialogDescription className="text-md p-0">
+              This action cannot be undone and removes all the data associated
+              with this dataset.
+            </DialogDescription>
+          )}
+        </DialogHeader>
+        {props.mode === "create" ? (
+          <DatasetForm
+            mode="create"
+            projectId={props.projectId}
+            onFormSuccess={() => setOpen(false)}
+          />
+        ) : props.mode === "delete" ? (
+          <DatasetForm
+            mode="delete"
+            projectId={props.projectId}
+            onFormSuccess={() => setOpen(false)}
+            datasetId={props.datasetId}
+          />
+        ) : (
+          <DatasetForm
+            mode="rename"
+            projectId={props.projectId}
+            onFormSuccess={() => setOpen(false)}
+            datasetId={props.datasetId}
+            datasetName={props.datasetName}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
