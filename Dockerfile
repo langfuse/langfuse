@@ -24,7 +24,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV DOCKER_BUILD 1
 
 # # Generate prisma client
-# RUN yarn prisma generate
+RUN npx prisma generate
 
 # # Build the application
 RUN turbo prune web --docker
@@ -35,17 +35,29 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 WORKDIR /app
 
+# # Disable validation of environment variables during build
+ENV DOCKER_BUILD 1
+
+# # Generate prisma client
+RUN npx prisma generate
  
 # First install the dependencies (as they change less often)
 COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/yarn.lock ./yarn.lock
 RUN yarn install
+RUN yarn global add dotenv-cli
  
 # Build the project
 COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
-RUN yarn turbo build --filter=web... -vv
+
+# print env variables from dotent
+RUN dotenv -e ../.env -- printenv
+
+RUN printenv
+
+RUN yarn build
  
 FROM base AS runner
 
@@ -79,6 +91,9 @@ COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh
 
 USER nextjs
+
+#  echo all env variables 
+
 
 # Default port to 3000
 ENV PORT 3000

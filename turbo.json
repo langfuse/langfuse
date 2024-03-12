@@ -1,13 +1,44 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDotEnv": [".env.local", ".env"],
+  "globalDependencies": ["**/.env"],
+  "globalDotEnv": [".env"],
+  "globalEnv": [
+    "DATABASE_URL",
+    "NEXTAUTH_SECRET",
+    "NEXTAUTH_URL",
+    "LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES",
+    "SALT",
+    "EMAIL_FROM_ADDRESS",
+    "SMTP_CONNECTION_URL",
+    "S3_ENDPOINT",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+    "S3_BUCKET_NAME",
+    "S3_REGION",
+    "DOCKER_BUILD"
+  ],
   "pipeline": {
     "dev": {
       "cache": false,
       "persistent": true
     },
     "build": {
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": [
+        "DATABASE_URL",
+        "NEXTAUTH_SECRET",
+        "NEXTAUTH_URL",
+        "LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES",
+        "SALT",
+        "EMAIL_FROM_ADDRESS",
+        "SMTP_CONNECTION_URL",
+        "S3_ENDPOINT",
+        "S3_ACCESS_KEY_ID",
+        "S3_SECRET_ACCESS_KEY",
+        "S3_BUCKET_NAME",
+        "S3_REGION",
+        "DOCKER_BUILD"
+      ]
     }
   }
 }

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
-    "build": "next build",
+    "build": "dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
     "dx": "dotenv -e ../.env -- yarn i && yarn run db:reset && yarn run db:seed:examples && yarn run dev",
     "postinstall": "dotenv -e ../.env -- prisma generate",
