@@ -1,1 +1,0 @@
-2024-03-11T22:35:51.785739Z ERROR turborepo_filewatch::package_watcher: error getting package manager: package.json: no workspaces found. Turborepo requires npm workspaces to be defined in the root package.json
