@@ -8,7 +8,7 @@
     "nuke": "bash ./scripts/nuke.sh",
     "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
     "build:worker": "yarn workspace worker build",
-    "build:shared": "yarn workspace shared build",
+    "build:shared": "yarn workspace shared-langfuse build",
     "start:worker": "yarn workspace worker start"
   },
   "private": true,

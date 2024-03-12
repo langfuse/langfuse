@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "composite": true,
     "target": "es2017",
     "module": "commonjs",
     "esModuleInterop": true,
@@ -8,5 +9,10 @@
     "outDir": "dist",
     "strictNullChecks": true // Add this line
   },
-  "include": ["src/**/*", ".eslintrc.js"]
+  "include": ["src/**/*", ".eslintrc.js", "generated/**/*"],
+  "references": [
+    {
+      "path": "../shared-langfuse"
+    }
+  ]
 }
