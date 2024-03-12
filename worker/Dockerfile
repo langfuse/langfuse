@@ -8,7 +8,7 @@ COPY yarn.lock .
 COPY /shared ./shared
 COPY /worker ./worker
 
-RUN yarn install --pure-lockfile --non-interactive
+RUN yarn install --pure-lockfile --non-interactive --production
 
 COPY ./worker ./worker
 
@@ -29,6 +29,10 @@ COPY --from=base /app/worker/dist ./dist
 
 EXPOSE 3030
 
+RUN ls 
+RUN ls dist
+RUN ls dist/src
+
 ENV ADDRESS=0.0.0.0 PORT=3030
 
-CMD ["yarn", "start:worker"]
+CMD ["node", "dist/src/index.js"]

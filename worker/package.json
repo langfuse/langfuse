@@ -8,7 +8,7 @@
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "build": "tsc -p tsconfig.json",
-    "start": "node src/dist/index.js",
+    "start": "node dist/src/index.js",
     "dev": "nodemon src/index.ts",
     "lint": "eslint .",
     "lint:fix": "eslint --fix ."
