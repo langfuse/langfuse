@@ -15,6 +15,14 @@ COPY . .
 # # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./src/middleware.ts
 
+# # Prune deps
+RUN turbo prune web --docker
+ 
+# Add lockfile and package.json's of isolated subworkspace
+FROM base AS installer
+RUN apk update
+WORKDIR /app
+
 # # Next.js collects completely anonymous telemetry data about general usage.
 # # Learn more here: https://nextjs.org/telemetry
 # # Uncomment the following line in case you want to disable telemetry during the build.
@@ -22,24 +30,6 @@ ENV NEXT_TELEMETRY_DISABLED 1
 
 # # Disable validation of environment variables during build
 ENV DOCKER_BUILD 1
-
-# # Generate prisma client
-RUN npx prisma generate
-
-# # Build the application
-RUN turbo prune web --docker
- 
-# Add lockfile and package.json's of isolated subworkspace
-FROM base AS installer
-RUN apk add --no-cache libc6-compat
-RUN apk update
-WORKDIR /app
-
-# # Disable validation of environment variables during build
-ENV DOCKER_BUILD 1
-
-# # Generate prisma client
-RUN npx prisma generate
  
 # First install the dependencies (as they change less often)
 COPY .gitignore .gitignore
@@ -70,15 +60,13 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 # # Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
-
-RUN yarn install -g --no-package-lock --no-save prisma
  
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 USER nextjs
  
-COPY --from=installer /app/web/next.config.js .
+COPY --from=installer /app/web/next.config.mjs .
 COPY --from=installer /app/web/package.json .
  
 # Automatically leverage output traces to reduce image size
@@ -92,11 +80,8 @@ RUN chmod +x ./web/entrypoint.sh
 
 USER nextjs
 
-#  echo all env variables 
-
-
 # Default port to 3000
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "./entrypoint.sh"]
+CMD ["dumb-init", "--", "./web/entrypoint.sh"]
