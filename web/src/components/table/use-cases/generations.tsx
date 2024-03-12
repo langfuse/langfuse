@@ -93,7 +93,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
 
   const [filterState, setFilterState] = useQueryFilterState([
     {
-      column: "start_time",
+      column: "Start Time",
       type: "datetime",
       operator: ">",
       value: utcDateOffsetByDays(-14),
@@ -509,7 +509,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           version: generation.version ?? "",
           model: generation.model ?? "",
           input: generation.input,
-          scores: generation.scores ?? undefined,
+          scores: generation.scores,
           output: generation.output,
           level: generation.level,
           metadata: generation.metadata

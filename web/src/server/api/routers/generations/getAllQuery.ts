@@ -5,7 +5,7 @@ import { paginationZod } from "@/src/utils/zod";
 import { type ObservationView, Prisma } from "@prisma/client";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
-import { getAllGenerationsSqlQuery } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
+import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
 
 const getAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -30,12 +30,8 @@ export type ObservationViewWithScores = ObservationView & {
 export const getAllQuery = protectedProjectProcedure
   .input(getAllGenerationsInput)
   .query(async ({ input, ctx }) => {
-    const { queryBuilder, datetimeFilter, filterCondition, searchCondition } =
-      getAllGenerationsSqlQuery({ input, type: "paginate" });
-
-    const query = queryBuilder(input.limit, input.page * input.limit);
-    const generations =
-      await ctx.prisma.$queryRaw<ObservationViewWithScores[]>(query);
+    const { generations, datetimeFilter, filterCondition, searchCondition } =
+      await getAllGenerations({ input, selectIO: false });
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
@@ -45,6 +41,7 @@ export const getAllQuery = protectedProjectProcedure
         count(*)
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
+      LEFT JOIN prompts p ON p.id = o.prompt_id
       LEFT JOIN LATERAL (
         SELECT
           jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
