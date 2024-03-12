@@ -1,5 +1,4 @@
 {
-  "extends": "@langfuse/tsconfig/nextjs.json",
   "compilerOptions": {
     "target": "es2017",
     "lib": ["dom", "dom.iterable", "esnext"],

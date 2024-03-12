@@ -10,7 +10,6 @@
     "prettier-preset.js"
   ],
   "dependencies": {
-    "@langfuse/eslint-plugin": "*",
     "@todesktop/tailwind-variants": "^1.0.0",
     "eslint-config-next": "^13.2.1",
     "eslint-config-prettier": "^8.6.0",
