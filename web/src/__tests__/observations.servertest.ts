@@ -41,6 +41,10 @@ describe("/api/public/observations API Endpoint", () => {
       },
     });
 
+
+
+    const a = 0
+
     await prisma.observation.create({
       data: {
         id: uuidv4(),
