@@ -308,6 +308,7 @@ model Score {
     @@index([value])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
+    @@index([source])
     @@map("scores")
 }
 
