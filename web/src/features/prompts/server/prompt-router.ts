@@ -59,6 +59,7 @@ export const promptRouter = createTRPCRouter({
           fn.count("observations.id").as("count"),
         ])
         .where("prompts.project_id", "=", input.projectId)
+        .where("observations.project_id", "=", input.projectId)
         .groupBy("prompts.name");
 
       const compiledQuery = promptCountQuery.compile();
