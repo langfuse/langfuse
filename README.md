@@ -21,21 +21,12 @@
    </div>
    </br>
    <div>
-      <a href="https://langfuse.com/docs">
-         <strong>Docs</strong>
-      </a> ·
-      <a href="https://langfuse.com/issue">
-         <strong>Report Bug</strong>
-      </a> ·
-      <a href="https://langfuse.com/idea">
-         <strong>Feature Request</strong>
-      </a> ·
-      <a href="https://langfuse.com/changelog">
-         <strong>Changelog</strong>
-      </a> ·
-      <a href="https://langfuse.com/discord">
-         <strong>Discord</strong>
-      </a> 
+      <a href="https://langfuse.com/docs"><strong>Docs</strong></a> ·
+      <a href="https://langfuse.com/issues"><strong>Report Bug</strong></a> ·
+      <a href="https://langfuse.com/ideas"><strong>Feature Request</strong></a> ·
+      <a href="https://langfuse.com/changelog"><strong>Changelog</strong></a> ·
+      <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
+      <a href="https://langfuse.com/discord"><strong>Discord</strong></a> 
    </div>
    </br>
       <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
@@ -142,6 +133,7 @@ External projects/packages that integrate with Langfuse:
 
 - [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
 - [Feature Requests](https://langfuse.com/idea)
+- [Roadmap](https://langfuse.com/roadmap)
 
 ### Support and feedback
 
