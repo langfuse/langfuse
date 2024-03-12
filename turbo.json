@@ -24,13 +24,16 @@
     "db:push": {
       "cache": false
     },
+    "openapi:generate": {
+      "cache": false
+    },
     "dev": {
       "cache": false,
       "persistent": true,
       "dependsOn": ["db:generate"]
     },
     "build": {
-      "dependsOn": ["db:generate"],
+      "dependsOn": ["db:generate","openapi:generate"],
       "outputs": [".next/**", "!.next/cache/**"],
       "env": [
         "DATABASE_URL",
