@@ -19,7 +19,7 @@ COPY . /app
 
 ENV NODE_ENV production
 
-RUN npm run build
+RUN yarn run build
 
 FROM base AS runner
 
@@ -32,4 +32,4 @@ EXPOSE 3030
 
 ENV ADDRESS=0.0.0.0 PORT=3030
 
-CMD ["npm", "start"]
+CMD ["yarn", "start"]

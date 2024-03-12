@@ -6,7 +6,7 @@ export default defineConfig({
     baseURL: "http://localhost:3000",
   },
   webServer: {
-    command: process.env.CI ? "npm run start" : "npm run dev",
+    command: process.env.CI ? "yarn run start" : "yarn run dev",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     stdout: "ignore",

@@ -1,84 +1,3 @@
-# # Base image
-# FROM node:20-alpine AS base
-
-
-# FROM base AS deps
-
-# WORKDIR /app
-
-# # Install dependencies based on the preferred package manager
-# COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-# RUN \
-#   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-#   elif [ -f package-lock.json ]; then npm ci; \
-#   elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile; \
-#   else echo "Lockfile not found." && exit 1; \
-#   fi
-
-
-# # Rebuild the source code only when needed
-# FROM base AS builder
-
-# WORKDIR /app
-# COPY --from=deps /app/node_modules ./node_modules
-# COPY . .
-
-# # remove middleware.ts if it exists - not needed in self-hosted environments
-# RUN rm -f ./src/middleware.ts
-
-# # Next.js collects completely anonymous telemetry data about general usage.
-# # Learn more here: https://nextjs.org/telemetry
-# # Uncomment the following line in case you want to disable telemetry during the build.
-# ENV NEXT_TELEMETRY_DISABLED 1
-
-# # Disable validation of environment variables during build
-# ENV DOCKER_BUILD 1
-
-# # Generate prisma client
-# RUN npx prisma generate
-
-# # Build the application
-# RUN npm run build
-
-# # Production image, copy all the files and run next
-# FROM base AS runner
-
-# RUN apk add --no-cache dumb-init
-
-# WORKDIR /app
-
-# ENV NODE_ENV production
-# # Uncomment the following line in case you want to disable telemetry during runtime.
-# ENV NEXT_TELEMETRY_DISABLED 1
-# # Needed to re-enable validation of environment variables during runtime
-# ENV DOCKER_BUILD 0
-
-# RUN addgroup --system --gid 1001 nodejs
-# RUN adduser --system --uid 1001 nextjs
-
-# RUN npm install -g --no-package-lock --no-save prisma
-
-# COPY --from=builder /app/public ./public
-
-# # Automatically leverage output traces to reduce image size
-# # https://nextjs.org/docs/advanced-features/output-file-tracing
-# COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-# COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-
-# COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
-# RUN chmod +x ./entrypoint.sh
-
-# USER nextjs
-
-# # Default port to 3000
-# ENV PORT 3000
-
-# # CMD ["node", "server.js"]
-# CMD ["dumb-init", "--", "./entrypoint.sh"]
-
-
-
 FROM node:20-alpine AS base
  
 FROM base AS builder
@@ -105,7 +24,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV DOCKER_BUILD 1
 
 # # Generate prisma client
-RUN npx prisma generate
+# RUN yarn prisma generate
 
 # # Build the application
 RUN turbo prune web --docker
@@ -126,7 +45,7 @@ RUN yarn install
 # Build the project
 COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
-RUN yarn turbo build --filter=web...
+RUN yarn turbo build --filter=web... -vv
  
 FROM base AS runner
 
@@ -147,14 +66,14 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 USER nextjs
  
-COPY --from=installer /app/apps/web/next.config.js .
-COPY --from=installer /app/apps/web/package.json .
+COPY --from=installer /app/web/next.config.js .
+COPY --from=installer /app/web/package.json .
  
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=installer --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+COPY --from=installer --chown=nextjs:nodejs /app/web/.next/standalone ./
+COPY --from=installer --chown=nextjs:nodejs /app/web/.next/static ./web/.next/static
+COPY --from=installer --chown=nextjs:nodejs /app/web/public ./web/public
  
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh
