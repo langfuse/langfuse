@@ -8,17 +8,14 @@ BEGIN
    LOOP
       rows_processed := 0;
       FOR r in 
-         SELECT "name", "id"
+         SELECT "id"
          FROM "scores"
-         WHERE "source" IS NULL
+         WHERE "name" = 'manual-score'
          LIMIT 1000
          FOR UPDATE 
       LOOP
          UPDATE "scores"
-         SET "source" = CASE
-            WHEN r.name = 'manual-score' THEN 'REVIEW'::"ScoreSource"
-            ELSE 'API'::"ScoreSource"
-         END
+         SET "source" = 'REVIEW'::"ScoreSource"
          WHERE "id" = r.id;
 
          rows_processed := rows_processed + 1;
