@@ -115,7 +115,7 @@ export function PromptTable(props: { projectId: string }) {
       version: item.version,
       createdAt: item.createdAt,
       isActive: item.isActive,
-      numberOfObservations: item.observationCount,
+      numberOfObservations: Number(item.observationCount),
     };
   };
 
