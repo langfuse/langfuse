@@ -1,32 +1,49 @@
 FROM node:20-alpine AS base
 
-WORKDIR /app
-
-# Install dependencies based on the preferred package manager
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-RUN \
-  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile; \
-  else echo "Lockfile not found." && exit 1; \
-  fi
-
-
 FROM base AS builder
+RUN apk add --no-cache libc6-compat
 
-# Copying the entire context to /app including package.json
-COPY . /app
+# # It's important to update the index before installing packages to ensure you're getting the latest versions.
+# # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat
 
-ENV NODE_ENV production
+# Set working directory
+WORKDIR /app
+RUN yarn global add turbo
+COPY . .
 
-RUN yarn run build
+# # Prune deps
+RUN turbo prune worker --docker
+
+
+# Add lockfile and package.json's of isolated subworkspace
+FROM base AS installer
+RUN apk update
+WORKDIR /app
+ 
+# First install the dependencies (as they change less often)
+COPY .gitignore .gitignore
+COPY --from=builder /app/out/json/ .
+COPY --from=builder /app/out/yarn.lock ./yarn.lock
+RUN yarn install
+ 
+# Build the project
+COPY --from=builder /app/out/full/ .
+COPY turbo.json turbo.json
+
+RUN yarn build
 
 FROM base AS runner
+
+WORKDIR /app
 
 ENV NODE_ENV production
 
 # Copy the built application from the builder stage
-COPY --from=builder /app/dist ./dist
+COPY --from=installer /app/worker/dist ./dist
+COPY --from=installer /app/worker/package.json .
+
+RUN ls dist/src
 
 EXPOSE 3030
 

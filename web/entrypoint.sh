@@ -18,8 +18,12 @@ if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
 
+echo "List of files in the current directory:"
+ls web -l
+
+
 # Apply migrations
-prisma migrate deploy
+prisma migrate deploy --schema=./web/prisma/schema.prisma
 status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
@@ -30,4 +34,4 @@ if [ $status -ne 0 ]; then
 fi
 
 # Start server
-node server.js
+node ./web/server.js

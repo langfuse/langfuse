@@ -36,16 +36,11 @@ COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/yarn.lock ./yarn.lock
 RUN yarn install
-RUN yarn global add dotenv-cli
+
  
 # Build the project
 COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
-
-# print env variables from dotent
-RUN dotenv -e ../.env -- printenv
-
-RUN printenv
 
 RUN yarn build
  
@@ -60,6 +55,9 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 # # Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
+
+# Required for prisma command in entrypoint.sh
+RUN yarn global add prisma
  
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs
@@ -74,7 +72,10 @@ COPY --from=installer /app/web/package.json .
 COPY --from=installer --chown=nextjs:nodejs /app/web/.next/standalone ./
 COPY --from=installer --chown=nextjs:nodejs /app/web/.next/static ./web/.next/static
 COPY --from=installer --chown=nextjs:nodejs /app/web/public ./web/public
- 
+COPY --from=builder --chown=nextjs:nodejs /app/web/prisma ./web/prisma
+
+RUN ls 
+
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh
 

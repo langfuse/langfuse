@@ -25,26 +25,26 @@ services:
       - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
     restart: always
 
-  # worker:
-  #   build:
-  #     dockerfile: ./Dockerfile
-  #     context: ./worker
-  #   depends_on:
-  #     - db
-  #     - redis
-  #     - server
-  #   ports:
-  #     - "3030:3030"
-  #   environment:
-  #     - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-  #     - NEXTAUTH_SECRET=mysecret
-  #     - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
-  #     - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
-  #     - PORT=${PORT:-3030}
-  #     - REDIS_URL=${REDIS_URL:-redis}
-  #     - REDIS_PORT=${REDIS_PORT:-6379}
-  #     - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
-  #   restart: always
+  worker:
+    build:
+      dockerfile: ./worker/Dockerfile
+      context: .
+    depends_on:
+      - db
+      - redis
+      - server
+    ports:
+      - "3030:3030"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+      - NEXTAUTH_SECRET=mysecret
+      - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
+      - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
+      - PORT=${PORT:-3030}
+      - REDIS_URL=${REDIS_URL:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
+    restart: always
 
   redis:
     image: redis
