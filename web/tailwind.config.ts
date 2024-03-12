@@ -5,8 +5,9 @@ module.exports = {
     "./pages/**/*.{ts,tsx,jsx,tsx}",
     "./components/**/*.{ts,tsx,jsx,tsx}",
     "./app/**/*.{ts,tsx,jsx,tsx}",
+    "./web/**/*.{ts,tsx,jsx,tsx}",
     "./src/**/*.{js,ts,jsx,tsx}",
-    "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
+    "./../node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     container: {
