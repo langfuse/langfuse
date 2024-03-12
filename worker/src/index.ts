@@ -4,10 +4,13 @@ import consumer from "./redis-consumer";
 import { getLogger } from "./logger";
 import redis from "@fastify/redis";
 import { db } from "./database";
+import {sum} from "shared/src/index";
 
 const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
 });
+
+
 
 fastify.register(redis, {
   host: process.env.REDIS_URL,
@@ -32,5 +35,5 @@ const start = async () => {
 start();
 
 fastify.get("/", async (request, reply) => {
-  return { hello: "world" };
+  return { hello: sum(1, 2) };
 });

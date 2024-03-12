@@ -8,7 +8,7 @@
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "node src/dist/index.js",
     "dev": "nodemon src/index.ts",
     "lint": "eslint .",
     "lint:fix": "eslint --fix ."
@@ -22,7 +22,8 @@
     "kysely": "^0.27.3",
     "node": "^21.6.2",
     "pg": "^8.11.3",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "shared": "1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",
