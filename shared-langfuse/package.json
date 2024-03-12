@@ -1,0 +1,27 @@
+{
+    "name": "shared-langfuse",
+    "version": "1.0.0",
+    "main": "index.js",
+    "license": "MIT",
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "start": "node dist/src/index.js",
+        "dev": "nodemon src/index.ts",
+        "lint": "eslint .",
+        "lint:fix": "eslint --fix ."
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.19",
+        "@typescript-eslint/eslint-plugin": "^7.1.1",
+        "eslint": "^8.56.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-import": "^2.29.1",
+        "eslint-plugin-n": "^16.6.2",
+        "eslint-plugin-promise": "^6.1.1",
+        "nodemon": "^3.0.3",
+        "pino-pretty": "^10.3.1",
+        "prettier": "3.2.5",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3"
+    }
+}

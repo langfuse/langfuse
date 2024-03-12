@@ -22,8 +22,8 @@
     "kysely": "^0.27.3",
     "node": "^21.6.2",
     "pg": "^8.11.3",
-    "zod": "^3.22.4",
-    "shared": "1.0.0"
+    "shared-langfuse": "workspace:^",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

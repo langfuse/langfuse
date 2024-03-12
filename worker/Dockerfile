@@ -8,7 +8,7 @@ COPY yarn.lock .
 COPY /shared ./shared
 COPY /worker ./worker
 
-RUN yarn install --pure-lockfile --non-interactive --production
+RUN yarn install --pure-lockfile --non-interactive
 
 COPY ./worker ./worker
 
@@ -25,14 +25,15 @@ FROM base AS runner
 ENV NODE_ENV production
 
 # Copy the built application from the builder stage
-COPY --from=base /app/worker/dist ./dist
+COPY --from=base /app/worker/dist ./worker/dist
+
+RUN yarn install --pure-lockfile --non-interactive --production
 
 EXPOSE 3030
 
 RUN ls 
-RUN ls dist
-RUN ls dist/src
+RUN ls worker/dist/src
 
 ENV ADDRESS=0.0.0.0 PORT=3030
 
-CMD ["node", "dist/src/index.js"]
+CMD ["node", "worker/dist/src/index.js"]

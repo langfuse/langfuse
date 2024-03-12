@@ -4,13 +4,11 @@ import consumer from "./redis-consumer";
 import { getLogger } from "./logger";
 import redis from "@fastify/redis";
 import { db } from "./database";
-import {sum} from "shared/src/index";
+import { sum } from "shared-langfuse";
 
 const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
 });
-
-
 
 fastify.register(redis, {
   host: process.env.REDIS_URL,

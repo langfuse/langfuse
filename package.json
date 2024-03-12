@@ -8,13 +8,14 @@
     "nuke": "bash ./scripts/nuke.sh",
     "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
     "build:worker": "yarn workspace worker build",
+    "build:shared": "yarn workspace shared build",
     "start:worker": "yarn workspace worker start"
   },
   "private": true,
   "workspaces": [
     "worker",
     "web",
-    "shared"
+    "shared-langfuse"
   ],
   "author": "",
   "license": "MIT",
@@ -26,5 +27,6 @@
     "dotenv-cli": "^7.3.0",
     "eslint": "^8.56.0",
     "prettier": "^3.2.5"
-  }
+  },
+  "packageManager": "yarn@1.22.1"
 }
