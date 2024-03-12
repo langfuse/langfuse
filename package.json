@@ -11,7 +11,8 @@
   },
   "workspaces": [
     "worker",
-    "web"
+    "web",
+    "packages/*"
   ],
   "private": true,
   "license": "MIT",

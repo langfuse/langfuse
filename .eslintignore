@@ -1,3 +1,7 @@
 node_modules
-build
-coverage
+**/**/node_modules
+**/**/.next
+**/**/build
+**/**/dist
+**/**/public
+packages/prisma/zod

@@ -28,6 +28,8 @@
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.0",
     "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@langfuse/config": "*",
+    "@langfuse/eslint-plugin": "*",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",

@@ -54,3 +54,5 @@ yarn-error.log*
 
 # vscode
 .devcontainer
+
+**/**/node_modules
