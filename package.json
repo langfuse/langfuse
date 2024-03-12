@@ -4,10 +4,14 @@
   "scripts": {
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
-    "dev": "npm run dev --prefix worker/ & npm run dev --prefix web/",
-    "postinstall": "cd worker && npm install && cd ../web && npm install",
-    "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev"
+    "dev": "dotenv -- turbo run dev",
+    "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
+    "nuke": "bash ./scripts/nuke.sh"
   },
+  "workspaces": [
+      "worker",
+      "web"
+    ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
