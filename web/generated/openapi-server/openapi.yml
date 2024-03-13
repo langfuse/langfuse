@@ -1376,6 +1376,8 @@ components:
         value:
           type: number
           format: double
+        source:
+          $ref: '#/components/schemas/ScoreSource'
         observationId:
           type: string
           nullable: true
@@ -1390,6 +1392,7 @@ components:
         - traceId
         - name
         - value
+        - source
         - timestamp
     Dataset:
       title: Dataset
@@ -1541,6 +1544,12 @@ components:
       enum:
         - ACTIVE
         - ARCHIVED
+    ScoreSource:
+      title: ScoreSource
+      type: string
+      enum:
+        - API
+        - REVIEW
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object

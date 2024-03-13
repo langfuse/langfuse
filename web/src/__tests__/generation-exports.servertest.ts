@@ -95,7 +95,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),
@@ -123,7 +123,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),
@@ -150,7 +150,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),
@@ -179,7 +179,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),
