@@ -93,7 +93,7 @@ jobs:
           yarn workspace web run db:seed
 
       - name: Build
-        run: yarn run build
+        run: yarn workspace web run build
 
       - name: Start Langfuse
         run: (yarn workspace web run start&)
@@ -134,7 +134,7 @@ jobs:
           yarn workspace web run db:migrate
 
       - name: Build
-        run: yarn run build
+        run: yarn workspace web run build
 
       - name: Install playwright
         run: npx playwright install
