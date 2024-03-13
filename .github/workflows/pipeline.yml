@@ -102,9 +102,6 @@ jobs:
         run: yarn workspace web run test
 
   e2e-tests:
-    defaults:
-      run:
-        working-directory: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -112,7 +109,7 @@ jobs:
         with:
           node-version: 20
           cache: "yarn"
-          cache-dependency-path: "**/yarn.lock"
+          cache-dependency-path: "yarn.lock"
 
       - name: install dependencies
         run: |
@@ -140,7 +137,7 @@ jobs:
         run: npx playwright install
 
       - name: Run e2e tests
-        run: yarn run test:e2e
+        run: yarn workspace web run test:e2e
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
