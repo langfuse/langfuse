@@ -486,12 +486,12 @@ function createTracesQuery(
       SUM(calculated_total_cost) AS "calculatedTotalCost",
       SUM(calculated_input_cost) AS "calculatedInputCost",
       SUM(calculated_output_cost) AS "calculatedOutputCost",
-      CASE
-        WHEN MAX(CASE level WHEN 'ERROR' THEN 1 ELSE NULL END) IS NOT NULL THEN 'ERROR'
-        WHEN MAX(CASE level WHEN 'WARNING' THEN 1 ELSE NULL END) IS NOT NULL THEN 'WARNING'
-        WHEN MAX(CASE level WHEN 'DEFAULT' THEN 1 ELSE NULL END) IS NOT NULL THEN 'DEFAULT'
-        ELSE 'DEBUG'
-      END AS "level"
+      COALESCE(  
+        MAX(CASE WHEN level = 'ERROR' THEN 'ERROR' END),  
+        MAX(CASE WHEN level = 'WARNING' THEN 'WARNING' END),  
+        MAX(CASE WHEN level = 'DEFAULT' THEN 'DEFAULT' END),  
+        'DEBUG'  
+      ) AS "level"
     FROM
       "observations_view"
     WHERE
