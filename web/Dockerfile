@@ -55,7 +55,7 @@ RUN adduser --system --uid 1001 nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma
 
-COPY --from=builder /app/public ./public
+COPY --from=builder /app/web/public ./web/public
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing

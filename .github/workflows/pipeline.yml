@@ -27,20 +27,20 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: "npm"
-          cache-dependency-path: "**/package-lock.json"
+          cache: "yarn"
+          cache-dependency-path: "**/yarn.lock"
       - name: install dependencies
         run: |
-          npm ci
+          yarn
       - name: Load default env
         run: |
           cp .env.dev.example .env
       - name: lint web
         working-directory: ./web
-        run: npm run lint
+        run: yarn run lint
       - name: lint worker
         working-directory: ./worker
-        run: npm run lint
+        run: yarn run lint
 
   test-docker-build:
     defaults:
@@ -82,12 +82,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
-          cache-dependency-path: "**/package-lock.json"
+          cache: "yarn"
+          cache-dependency-path: "**/yarn.lock"
 
       - name: install dependencies
         run: |
-          npm ci
+          yarn
 
       - name: Load default env
         working-directory: .
@@ -106,7 +106,7 @@ jobs:
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
-        run: npm run build
+        run: yarn run build
 
       - name: Start Langfuse
         run: (npm start&)
@@ -124,12 +124,12 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: "npm"
-          cache-dependency-path: "**/package-lock.json"
+          cache: "yarn"
+          cache-dependency-path: "**/yarn.lock"
 
       - name: install dependencies
         run: |
-          npm ci
+          yarn
 
       - name: Load default env
         working-directory: .
@@ -148,13 +148,13 @@ jobs:
           npx --yes prisma migrate reset --force --skip-generate
 
       - name: Build
-        run: npm run build
+        run: yarn run build
 
       - name: Install playwright
         run: npx playwright install
 
       - name: Run e2e tests
-        run: npm run test:e2e
+        run: yarn run test:e2e
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
@@ -188,7 +188,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache-dependency-path: "**/package-lock.json"
+          cache-dependency-path: "**/"
 
       - name: Checkout
         uses: actions/checkout@v3
