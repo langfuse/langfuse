@@ -24,6 +24,11 @@ export const ObservationLevel = {
     ERROR: "ERROR"
 } as const;
 export type ObservationLevel = (typeof ObservationLevel)[keyof typeof ObservationLevel];
+export const ScoreSource = {
+    API: "API",
+    REVIEW: "REVIEW"
+} as const;
+export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
 export const PricingUnit = {
     PER_1000_TOKENS: "PER_1000_TOKENS",
     PER_1000_CHARS: "PER_1000_CHARS"
@@ -259,6 +264,7 @@ export type Score = {
     timestamp: Generated<Timestamp>;
     name: string;
     value: number;
+    source: ScoreSource;
     comment: string | null;
     trace_id: string;
     observation_id: string | null;
