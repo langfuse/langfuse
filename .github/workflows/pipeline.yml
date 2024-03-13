@@ -30,9 +30,9 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        run: yarn workspaces web run lint
+        run: yarn workspace web run lint
       - name: lint worker
-        run: yarn workspaces worker run lint
+        run: yarn workspace worker run lint
 
   test-docker-build:
     runs-on: ubuntu-latest
@@ -98,7 +98,7 @@ jobs:
         run: (yarn start&)
 
       - name: run tests
-        run: yarn run test
+        run: yarn workspace web run test
 
   e2e-tests:
     defaults:
