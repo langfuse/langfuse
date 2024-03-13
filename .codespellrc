@@ -1,4 +1,4 @@
 [codespell]
-skip = .git,*.pdf,*.svg,package-lock.json,*.prisma
+skip = .git,*.pdf,*.svg,package-lock.json,*.prisma,yarn.lock
 ignore-words-list = afterall,vertx
 
