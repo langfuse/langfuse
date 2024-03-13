@@ -1,23 +1,9 @@
-module.exports = {	
-  env: {	
-    browser: true,	
-    es2021: true,	
-  },	
-  extends: ["prettier"],	
-  overrides: [	
-    {	
-      env: {	
-        node: true,	
-      },	
-      files: [".eslintrc.{js,cjs}"],	
-      parserOptions: {	
-        sourceType: "script",	
-      },	
-    },	
-  ],	
-  parserOptions: {	
-    ecmaVersion: "latest",	
-    sourceType: "module",	
-  },	
-  rules: {},	
+/** @type {import("eslint").Linter.Config} */
+module.exports = {
+  extends: ["@repo/eslint-config/server.js"],
+  parser: "@typescript-eslint/parser",
+  parserOptions: {
+    project: true,
+  },
+  ignorePatterns: ["node_modules", ".eslintrc.js"],
 };

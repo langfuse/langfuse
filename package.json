@@ -7,6 +7,7 @@
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
     "dev": "dotenv -e .env -- turbo run dev",
     "lint": "dotenv -e .env -- turbo run lint",
+    "lint:fix": "dotenv -e .env -- turbo run lint:fix",
     "test": "dotenv -e .env -- turbo run test",
     "dx": "dotenv -e .env -- yarn i && yarn run infra:dev:up && cd web && yarn run db:reset && yarn run db:seed:examples && cd .. && yarn run dev",
     "nuke": "bash ./scripts/nuke.sh"
@@ -29,5 +30,5 @@
     "turbo": "^1.12.5"
   },
   "repository": "https://github.com/langfuse/langfuse.git",
-  "dependencies": {}
+  "packageManager": "yarn@1.22.1"
 }

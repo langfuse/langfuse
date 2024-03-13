@@ -1,5 +1,5 @@
 export const getLogger = (env: "development" | "production" | "test") => {
-  return envToLogger[env] ?? true;
+  return envToLogger[env];
 };
 
 const envToLogger = {

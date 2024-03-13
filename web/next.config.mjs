@@ -2,12 +2,15 @@
  * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
  * for Docker builds.
  */
-await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 
+await import("./src/env.mjs");
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // NextJs needs to transpile the shared package: https://turbo.build/repo/docs/handbook/sharing-code/internal-packages#6-configuring-your-app
+  transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
 
   /**

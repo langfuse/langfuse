@@ -24,6 +24,9 @@
     "lint": {
       "cache": false
     },
+    "lint:fix": {
+      "cache": false
+    },
     "db:push": {
       "cache": false
     },
@@ -33,11 +36,11 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "build": {
-      "dependsOn": ["db:generate", "openapi:generate", "lint"],
-      "outputs": [".next/**", "!.next/cache/**"],
+      "dependsOn": ["^build", "db:generate", "openapi:generate", "lint"],
+      "outputs": [".next/**", "!.next/cache/**", "dist"],
       "env": [
         "DATABASE_URL",
         "NEXTAUTH_SECRET",

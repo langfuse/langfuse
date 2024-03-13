@@ -117,6 +117,8 @@ This repository contains the following packages:
 - `web`: is the main application package providing Frontend and Backend APIs for Langfuse
 - `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
 
+yarn workspaces info
+
 ## Development Setup (web package only)
 
 Requirements

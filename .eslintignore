@@ -1,7 +1,0 @@
-node_modules
-**/**/node_modules
-**/**/.next
-**/**/build
-**/**/dist
-**/**/public
-packages/prisma/zod

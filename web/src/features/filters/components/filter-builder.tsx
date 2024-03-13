@@ -1,3 +1,5 @@
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { Filter, Plus, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -8,8 +10,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
-import { useState, type Dispatch, type SetStateAction } from "react";
-import { Filter, Plus, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -85,8 +85,8 @@ export function FilterBuilder({
               ? filterState.map((filter, i) => {
                   return (
                     <span
-                      key={i}
                       className="ml-3 whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs"
+                      key={i}
                     >
                       {filter.column}
                       {filter.type === "stringObject" ||
@@ -114,8 +114,8 @@ export function FilterBuilder({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-fit max-w-[90vw] overflow-x-auto"
           align="start"
+          className="w-fit max-w-[90vw] overflow-x-auto"
         >
           <FilterBuilderForm
             columns={columns}
@@ -126,10 +126,12 @@ export function FilterBuilder({
       </Popover>
       {filterState.length > 0 ? (
         <Button
-          onClick={() => setWipFilterState([])}
-          variant="ghost"
-          size="icon"
           className="ml-2"
+          onClick={() => {
+            setWipFilterState([]);
+          }}
+          size="icon"
+          variant="ghost"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -188,8 +190,7 @@ function FilterBuilderForm({
                 <td className="flex gap-2 p-1">
                   {/* selector of the column to be filtered */}
                   <Select
-                    value={filter.column ?? ""}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
                       handleFilterChange(
                         {
                           column: value,
@@ -199,8 +200,9 @@ function FilterBuilderForm({
                           key: undefined,
                         },
                         i,
-                      )
-                    }
+                      );
+                    }}
+                    value={filter.column ?? ""}
                   >
                     <SelectTrigger className="min-w-[100px]">
                       <SelectValue placeholder="Column" />
@@ -242,14 +244,14 @@ function FilterBuilderForm({
                       </Select>
                     ) : (
                       <Input
-                        value={filter.key ?? ""}
-                        placeholder="key"
-                        onChange={(e) =>
+                        onChange={(e) => {
                           handleFilterChange(
                             { ...filter, key: e.target.value },
                             i,
-                          )
-                        }
+                          );
+                        }}
+                        placeholder="key"
+                        value={filter.key ?? ""}
                       />
                     )
                   ) : null}
@@ -287,23 +289,20 @@ function FilterBuilderForm({
                   {filter.type === "string" ||
                   filter.type === "stringObject" ? (
                     <Input
-                      value={filter.value ?? ""}
-                      placeholder="string"
-                      onChange={(e) =>
+                      onChange={(e) => {
                         handleFilterChange(
                           { ...filter, value: e.target.value },
                           i,
-                        )
-                      }
+                        );
+                      }}
+                      placeholder="string"
+                      value={filter.value ?? ""}
                     />
                   ) : filter.type === "number" ||
                     filter.type === "numberObject" ? (
                     <Input
-                      value={filter.value ?? undefined}
-                      type="number"
-                      step="0.01"
                       lang="en-US"
-                      onChange={(e) =>
+                      onChange={(e) => {
                         handleFilterChange(
                           {
                             ...filter,
@@ -312,8 +311,11 @@ function FilterBuilderForm({
                               : Number(e.target.value),
                           },
                           i,
-                        )
-                      }
+                        );
+                      }}
+                      step="0.01"
+                      type="number"
+                      value={filter.value ?? undefined}
                     />
                   ) : filter.type === "datetime" ? (
                     <DatePicker
@@ -332,14 +334,14 @@ function FilterBuilderForm({
                   ) : filter.type === "stringOptions" ||
                     filter.type === "arrayOptions" ? (
                     <MultiSelect
-                      title="Value"
                       className="min-w-[100px]"
+                      onValueChange={(value) => {
+                        handleFilterChange({ ...filter, value }, i);
+                      }}
                       options={
                         column?.type === filter.type ? column.options : []
                       }
-                      onValueChange={(value) =>
-                        handleFilterChange({ ...filter, value }, i)
-                      }
+                      title="Value"
                       values={Array.isArray(filter.value) ? filter.value : []}
                     />
                   ) : filter.type === "boolean" ? (
@@ -373,9 +375,11 @@ function FilterBuilderForm({
 
                 <td>
                   <Button
-                    onClick={() => removeFilter(i)}
-                    variant="ghost"
+                    onClick={() => {
+                      removeFilter(i);
+                    }}
                     size="xs"
+                    variant="ghost"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -386,10 +390,12 @@ function FilterBuilderForm({
         </tbody>
       </table>
       <Button
-        onClick={() => addNewFilter()}
         className="mt-2"
-        variant="ghost"
+        onClick={() => {
+          addNewFilter();
+        }}
         size="sm"
+        variant="ghost"
       >
         <Plus className="mr-2 h-4 w-4" />
         Add filter
