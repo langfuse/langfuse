@@ -89,7 +89,7 @@ jobs:
 
       - name: Seed DB
         run: |
-          npx --yes prisma migrate reset --force --skip-generate --schema=/web/prisma/schema.prisma
+          yarn workspace web run db:migrate
 
       - name: Build
         run: yarn run build
