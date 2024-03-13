@@ -478,6 +478,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "level",
+      id: "level",
       header: "Level",
       cell: ({ row }) => {
         const value: ObservationLevel = row.getValue("level");
@@ -495,6 +496,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "version",
