@@ -12,10 +12,11 @@ WORKDIR /app
 RUN yarn global add turbo
 COPY . .
 
-# # remove middleware.ts if it exists - not needed in self-hosted environments
+# remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./src/middleware.ts
 
-# # Prune deps
+# Turbo generates all required files for web and puts them into /out directory
+# Turbo adjusts the yarn.lock files to include only the dependencies required for the web workspace.
 RUN turbo prune web --docker
  
 # Add lockfile and package.json's of isolated subworkspace
@@ -35,11 +36,16 @@ ENV DOCKER_BUILD 1
 COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/yarn.lock ./yarn.lock
+
 RUN yarn install
 
  
-# Build the project
+# Copy pruned and installed files over.
 COPY --from=builder /app/out/full/ .
+
+# needs to be added to add API to the public folder. Taken care of in turbo pipeline when building.
+COPY --from=builder /app/generated/openapi-client ./generated/openapi-client
+COPY --from=builder /app/generated/openapi-server ./generated/openapi-server
 COPY turbo.json turbo.json
 
 RUN yarn build
@@ -74,7 +80,6 @@ COPY --from=installer --chown=nextjs:nodejs /app/web/.next/static ./web/.next/st
 COPY --from=installer --chown=nextjs:nodejs /app/web/public ./web/public
 COPY --from=builder --chown=nextjs:nodejs /app/web/prisma ./web/prisma
 
-RUN ls 
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh
