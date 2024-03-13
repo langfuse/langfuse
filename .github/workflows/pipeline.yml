@@ -45,7 +45,7 @@ jobs:
   test-docker-build:
     defaults:
       run:
-        working-directory: web
+        working-directory: .
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -54,13 +54,15 @@ jobs:
       - name: Build Web Docker image
         uses: docker/build-push-action@v4
         with:
-          context: web
+          context: .
+          file: ./web/Dockerfile
           push: false
 
       - name: Build Worker Docker image
         uses: docker/build-push-action@v4
         with:
-          context: worker
+          context: .
+          file: ./worker/Dockerfile
           push: false
 
   tests:
