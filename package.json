@@ -6,6 +6,7 @@
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
     "dev": "dotenv -e .env -- turbo run dev",
+    "lint": "dotenv -e .env -- turbo run lint",
     "test": "dotenv -e .env -- turbo run test",
     "dx": "dotenv -e .env -- yarn i && yarn run infra:dev:up && cd web && yarn run db:reset && yarn run db:seed:examples && cd .. && yarn run dev",
     "nuke": "bash ./scripts/nuke.sh"

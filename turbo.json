@@ -21,6 +21,9 @@
     "db:generate": {
       "cache": false
     },
+    "lint": {
+      "cache": false
+    },
     "db:push": {
       "cache": false
     },
@@ -33,7 +36,7 @@
       "dependsOn": ["db:generate"]
     },
     "build": {
-      "dependsOn": ["db:generate","openapi:generate"],
+      "dependsOn": ["db:generate", "openapi:generate", "lint"],
       "outputs": [".next/**", "!.next/cache/**"],
       "env": [
         "DATABASE_URL",
