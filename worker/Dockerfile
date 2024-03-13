@@ -18,7 +18,6 @@ RUN ls worker/node_modules
 
 ENV NODE_ENV production
 
-RUN yarn run build:shared
 RUN yarn run build:worker
 
 FROM base AS runner

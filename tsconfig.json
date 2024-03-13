@@ -1,0 +1,9 @@
+{
+  "references": [
+    { "path": "./worker" },
+    { "path": "./web" },
+    { "path": "./shared-langfuse" }
+  ],
+  "files": [],
+  "exclude": ["**/node_modules"]
+}
