@@ -32,7 +32,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV DOCKER_BUILD 1
 
 # Generate prisma client
-RUN npx prisma generate --schema ./web/prisma/schema.prisma
+RUN yarn workspace web db:generate
 
 # Build the application
 RUN npm run build:web
@@ -59,9 +59,9 @@ COPY --from=builder /app/web/public ./web/public
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/web/prisma ./prisma
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
