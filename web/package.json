@@ -12,7 +12,7 @@
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
-    "start": "next start",
+    "start": "dotenv -e ../.env -- next start",
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",

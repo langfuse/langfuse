@@ -96,7 +96,7 @@ jobs:
         run: yarn run build
 
       - name: Start Langfuse
-        run: (yarn run start&)
+        run: (yarn workspace web run start&)
 
       - name: run tests
         run: yarn workspace web run test
