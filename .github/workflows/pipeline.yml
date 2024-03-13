@@ -12,15 +12,9 @@ on:
     branches:
       - "main"
 
-defaults:
-  run:
-    working-directory: web
 
 jobs:
   lint:
-    defaults:
-      run:
-        working-directory: .
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -36,16 +30,12 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        working-directory: ./web
-        run: yarn run lint
+        run: yarn workspaces web run lint
       - name: lint worker
-        working-directory: ./worker
-        run: yarn run lint
+        run: yarn workspaces worker run lint
 
   test-docker-build:
     defaults:
-      run:
-        working-directory: .
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -66,9 +56,6 @@ jobs:
           push: false
 
   tests:
-    defaults:
-      run:
-        working-directory: web
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -92,29 +79,27 @@ jobs:
           yarn
 
       - name: Load default env
-        working-directory: .
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
 
       - name: Run + migrate
-        working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
         run: |
-          npx --yes prisma migrate reset --force --skip-generate
+          npx --yes prisma migrate reset --force --skip-generate --schema=/web/prisma/schema.prisma
 
       - name: Build
         run: yarn run build
 
       - name: Start Langfuse
-        run: (npm start&)
+        run: (yarn start&)
 
       - name: run tests
-        run: npm run test
+        run: yarn run test
 
   e2e-tests:
     defaults:
