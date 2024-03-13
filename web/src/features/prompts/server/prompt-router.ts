@@ -8,6 +8,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type Prompt, type PrismaClient } from "@prisma/client";
 import { jsonSchema } from "@/src/utils/zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { DB } from "@/src/server/db";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -30,8 +31,17 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
+
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
-        SELECT id, name, version, project_id as "projectId", prompt, updated_at as "updatedAt", created_at AS "createdAt", is_active AS "isActive"
+        SELECT 
+          id, 
+          name, 
+          version, 
+          project_id AS "projectId", 
+          prompt, 
+          updated_at AS "updatedAt", 
+          created_at AS "createdAt", 
+          is_active AS "isActive"
         FROM prompts
         WHERE (name, version) IN (
           SELECT name, MAX(version)
@@ -41,7 +51,35 @@ export const promptRouter = createTRPCRouter({
         )
         AND "project_id" = ${input.projectId}
         ORDER BY name ASC`;
-      return prompts;
+
+      const promptCountQuery = DB.selectFrom("observations")
+        .fullJoin("prompts", "prompts.id", "observations.prompt_id")
+        .select(({ fn }) => [
+          "prompts.name",
+          fn.count("observations.id").as("count"),
+        ])
+        .where("prompts.project_id", "=", input.projectId)
+        .where("observations.project_id", "=", input.projectId)
+        .groupBy("prompts.name");
+
+      const compiledQuery = promptCountQuery.compile();
+
+      const promptCounts = await ctx.prisma.$queryRawUnsafe<
+        Array<{
+          name: string;
+          count: bigint;
+        }>
+      >(compiledQuery.sql, ...compiledQuery.parameters);
+
+      const joinedPromptsAndCounts = prompts.map((p) => {
+        const marchedCount = promptCounts.find((c) => c.name === p.name);
+        return {
+          ...p,
+          observationCount: marchedCount?.count ?? 0,
+        };
+      });
+
+      return joinedPromptsAndCounts;
     }),
   byId: protectedProjectProcedure
     .input(
