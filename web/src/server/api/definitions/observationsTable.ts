@@ -97,6 +97,24 @@ export const observationsTableCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
   },
   {
+    name: "Input Tokens",
+    id: "inputTokens",
+    type: "number",
+    internal: 'o."prompt_tokens"',
+  },
+  {
+    name: "Output Tokens",
+    id: "outputTokens",
+    type: "number",
+    internal: 'o."completion_tokens"',
+  },
+  {
+    name: "Total Tokens",
+    id: "totalTokens",
+    type: "number",
+    internal: 'o."total_tokens"',
+  },
+  {
     name: "Usage",
     id: "usage",
     type: "number",
@@ -138,6 +156,12 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: "p.name",
     options: [], // to be added at runtime
+  },
+  {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "p.version",
   },
 ];
 
