@@ -132,6 +132,13 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "string",
     internal: 'o."version"',
   },
+  {
+    name: "Prompt Name",
+    id: "promptName",
+    type: "stringOptions",
+    internal: "p.name",
+    options: [], // to be added at runtime
+  },
 ];
 
 // to be used client side, insert options for use in filter-builder
@@ -141,6 +148,7 @@ export type ObservationOptions = {
   name: Array<OptionsDefinition>;
   traceName: Array<OptionsDefinition>;
   scores_avg: Array<string>;
+  promptName: Array<OptionsDefinition>;
 };
 
 export function observationsTableColsWithOptions(
@@ -158,6 +166,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "scores_avg") {
       return { ...col, keyOptions: options?.scores_avg ?? [] };
+    }
+    if (col.id === "promptName") {
+      return { ...col, options: options?.promptName ?? [] };
     }
     return col;
   });

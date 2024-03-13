@@ -18,6 +18,7 @@ type RowData = {
   id: string;
   createdAt: Date;
   isActive: boolean;
+  numberOfObservations: number;
 };
 
 export function PromptTable(props: { projectId: string }) {
@@ -73,6 +74,25 @@ export function PromptTable(props: { projectId: string }) {
       },
     },
     {
+      accessorKey: "numberOfObservations",
+      header: "Number of Generations",
+      cell: ({ row }) => {
+        const numberOfObservations: number = row.getValue(
+          "numberOfObservations",
+        );
+        const name: string = row.getValue("name");
+        const filter = encodeURIComponent(
+          `Prompt Name;stringOptions;;any of;${name}`,
+        );
+        return (
+          <TableLink
+            path={`/project/${props.projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            value={numberOfObservations.toLocaleString()}
+          />
+        );
+      },
+    },
+    {
       accessorKey: "actions",
       header: "Actions",
       cell: ({ row }) => {
@@ -95,6 +115,7 @@ export function PromptTable(props: { projectId: string }) {
       version: item.version,
       createdAt: item.createdAt,
       isActive: item.isActive,
+      numberOfObservations: Number(item.observationCount),
     };
   };
 
