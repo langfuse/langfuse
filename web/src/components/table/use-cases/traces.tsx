@@ -18,7 +18,7 @@ import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesT
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@prisma/client";
+import { type ObservationLevel, type Score } from "@prisma/client";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
@@ -31,6 +31,8 @@ import {
 import type Decimal from "decimal.js";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { LevelColors } from "@/src/components/level-colors";
+import { cn } from "@/src/utils/tailwind";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -39,6 +41,7 @@ export type TracesTableRow = {
   name: string;
   userId: string;
   metadata?: string;
+  level: ObservationLevel;
   latency?: number;
   release?: string;
   version?: string;
@@ -150,6 +153,7 @@ export default function TracesTable({
       id: trace.id,
       timestamp: trace.timestamp.toLocaleString(),
       name: trace.name ?? "",
+      level: trace.level,
       metadata: JSON.stringify(trace.metadata),
       release: trace.release ?? undefined,
       version: trace.version ?? undefined,
@@ -471,6 +475,26 @@ export default function TracesTable({
         return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
       },
       enableHiding: true,
+    },
+    {
+      accessorKey: "level",
+      header: "Level",
+      cell: ({ row }) => {
+        const value: ObservationLevel = row.getValue("level");
+        return (
+          <span
+            className={cn(
+              "rounded-sm p-0.5 text-xs",
+              LevelColors[value].bg,
+              LevelColors[value].text,
+            )}
+          >
+            {value}
+          </span>
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "version",
