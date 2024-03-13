@@ -22,6 +22,7 @@
     "kysely": "^0.27.3",
     "node": "^21.6.2",
     "pg": "^8.11.3",
+    "pino-pretty": "^10.3.1",
     "shared-langfuse": "1.0.0",
     "zod": "^3.22.4"
   },
@@ -36,7 +37,6 @@
     "eslint-plugin-promise": "^6.1.1",
     "kysely-codegen": "^0.11.0",
     "nodemon": "^3.0.3",
-    "pino-pretty": "^10.3.1",
     "prettier": "3.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",

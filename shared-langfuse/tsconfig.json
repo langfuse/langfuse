@@ -9,5 +9,5 @@
         "outDir": "dist",
         "strictNullChecks": true // Add this line
     },
-    "include": ["src/**/*", ".eslintrc.js", "index.ts"]
+    "include": ["src/**/*", ".eslintrc.js", "src/index.ts"]
 }

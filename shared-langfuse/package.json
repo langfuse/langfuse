@@ -1,7 +1,7 @@
 {
     "name": "shared-langfuse",
     "version": "1.0.0",
-    "main": "index.js",
+    "main": "dist/src/index.js",
     "license": "MIT",
     "scripts": {
         "build": "tsc -p tsconfig.json",

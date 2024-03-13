@@ -7,6 +7,7 @@
     "dev": "npm run dev --prefix worker/ & npm run dev --prefix web/",
     "nuke": "bash ./scripts/nuke.sh",
     "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
+    "build:web": "yarn workspace web build",
     "build:worker": "yarn workspace worker build",
     "build:shared": "yarn workspace shared-langfuse build",
     "start:worker": "yarn workspace worker start",

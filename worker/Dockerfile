@@ -4,8 +4,9 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json .
+COPY tsconfig.json .
 COPY yarn.lock .
-COPY /shared ./shared
+COPY /shared-langfuse ./shared-langfuse
 COPY /worker ./worker
 
 RUN yarn install --pure-lockfile --non-interactive
