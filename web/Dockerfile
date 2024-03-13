@@ -66,6 +66,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/prisma ./prisma
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
+RUN ls
+RUN ls /app/web/
+
 USER nextjs
 
 # Default port to 3000

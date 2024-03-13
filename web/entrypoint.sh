@@ -30,4 +30,4 @@ if [ $status -ne 0 ]; then
 fi
 
 # Start server
-node server.js
+node /web/server.js
