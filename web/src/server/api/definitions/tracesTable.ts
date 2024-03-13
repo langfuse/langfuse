@@ -2,6 +2,7 @@ import {
   type OptionsDefinition,
   type ColumnDefinition,
 } from "@/src/server/api/interfaces/tableDefinition";
+import { ObservationLevel } from "@prisma/client";
 
 export const tracesTableCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
@@ -109,6 +110,13 @@ export const tracesTableCols: ColumnDefinition[] = [
     id: "release",
     type: "string",
     internal: 't."release"',
+  },
+  {
+    name: "Level",
+    id: "level",
+    type: "stringOptions",
+    internal: '"level"',
+    options: Object.values(ObservationLevel).map((value) => ({ value })),
   },
   {
     name: "tags",
