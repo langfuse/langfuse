@@ -29,9 +29,11 @@ export type ScoreFilterInput = Omit<
 export default function ScoresTable({
   projectId,
   userId,
+  omittedFilter = [],
 }: {
   projectId: string;
   userId?: string;
+  omittedFilter?: string[];
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -146,6 +148,7 @@ export default function ScoresTable({
         setFilterState={setUserFilterState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        omittedFilter={omittedFilter}
       />
       <DataTable
         columns={columns}
