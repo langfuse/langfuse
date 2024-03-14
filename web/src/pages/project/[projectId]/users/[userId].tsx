@@ -194,7 +194,11 @@ function DetailsTab({ userId, projectId }: TabProps) {
 function ScoresTab({ userId, projectId }: TabProps) {
   return (
     <div className="mt-5 pt-5">
-      <ScoresTable projectId={projectId} userId={userId} />
+      <ScoresTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["userId"]}
+      />
     </div>
   );
 }
