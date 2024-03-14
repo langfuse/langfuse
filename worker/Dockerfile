@@ -27,9 +27,6 @@ RUN yarn install --pure-lockfile --non-interactive --production
 
 EXPOSE 3030
 
-RUN ls 
-RUN ls worker/dist/src
-
 ENV ADDRESS=0.0.0.0 PORT=3030
 
 CMD ["node", "worker/dist/src/index.js"]

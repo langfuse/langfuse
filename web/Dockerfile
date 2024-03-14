@@ -37,8 +37,6 @@ RUN yarn workspace web db:generate
 # Build the application
 RUN yarn run build:web
 
-RUN ls /app/web
-
 # Production image, copy all the files and run next
 FROM base AS runner
 
@@ -71,10 +69,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/prisma ./web/prisma
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh
-
-RUN ls
-RUN ls /app/
-RUN ls web
 
 USER nextjs
 
