@@ -70,7 +70,6 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (users.isSuccess) {
-      console.log("setting detail page list");
       setDetailPageList(
         "users",
         users.data.users.map((u) => encodeURIComponent(u.userId)),
