@@ -255,7 +255,6 @@ export default function TracesTable({
     },
     {
       accessorKey: "userId",
-      enableColumnFilter: !omittedFilter.find((f) => f === "userId"),
       header: "User ID",
       id: "userId",
       cell: ({ row }) => {
@@ -567,6 +566,7 @@ export default function TracesTable({
         }
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        omittedFilter={omittedFilter}
       />
       <DataTable
         columns={columns}
