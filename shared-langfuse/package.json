@@ -4,8 +4,8 @@
   "main": "dist/src/index.js",
   "license": "MIT",
   "scripts": {
-    "lint": "eslint .",
-    "lint:fix": "eslint --fix ."
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --debug",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

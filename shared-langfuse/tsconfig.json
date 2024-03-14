@@ -1,4 +1,5 @@
 {
+  "composite": true,
   "compilerOptions": {
     "composite": true,
     "target": "es2017",
@@ -7,7 +8,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "outDir": "dist",
-    "strictNullChecks": true // Add this line
+    "strictNullChecks": true
   },
-  "include": ["src/**/*", ".eslintrc.json", "generated/**/*"]
+  "include": ["src/**/*", ".eslintrc.json"]
 }

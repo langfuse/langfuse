@@ -10,8 +10,8 @@
     "build": "tsc --build tsconfig.json",
     "start": "node dist/src/index.js",
     "dev": "tsc-watch -b --onSuccess 'node dist/src/index.js'",
-    "lint": "eslint",
-    "lint:fix": "eslint --fix"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --debug",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
   "author": "",
   "license": "MIT",

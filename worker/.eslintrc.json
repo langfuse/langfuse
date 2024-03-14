@@ -10,7 +10,12 @@
     "node": true
   },
   "rules": {
-    "prettier/prettier": ["error"]
+    "prettier/prettier": [
+      "error",
+      {
+        "trailingComma": "es5"
+      }
+    ]
   },
-  "ignorePatterns": ["dist", "node_modules", "examples", "scripts"]
+  "ignorePatterns": ["dist", "node_modules"]
 }
