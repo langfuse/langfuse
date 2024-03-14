@@ -10,8 +10,8 @@
     "build": "tsc --build tsconfig.json",
     "start": "node dist/src/index.js",
     "dev": "tsc-watch -b --onSuccess 'node dist/src/index.js'",
-    "lint": "eslint .",
-    "lint:fix": "eslint --fix ."
+    "lint": "eslint",
+    "lint:fix": "eslint --fix"
   },
   "author": "",
   "license": "MIT",
@@ -29,9 +29,14 @@
   "devDependencies": {
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.2",
+    "@typescript-eslint/parser": "^7.2.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
     "kysely-codegen": "^0.11.0",
     "nodemon": "^3.0.3",
-    "prettier": "3.2.5",
+    "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.0.4",
     "typescript": "^5.3.3",

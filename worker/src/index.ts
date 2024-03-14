@@ -3,7 +3,6 @@ import consumer from "./redis-consumer";
 
 import { getLogger } from "./logger";
 import redis from "@fastify/redis";
-import { db } from "./database";
 import { sum, subtract, multiply } from "shared-langfuse";
 
 const fastify = Fastify({
@@ -33,6 +32,7 @@ const start = async () => {
 start();
 
 fastify.get("/", async (request, reply) => {
-  return { hello: sum(1, 2) + subtract(3, 1) + multiply(2, 2)};
-});
+  console.log("GET /", request, reply);
 
+  return { hello: sum(1, 2) + subtract(3, 1) + multiply(2, 2) };
+});
