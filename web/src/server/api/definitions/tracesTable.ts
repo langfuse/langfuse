@@ -6,83 +6,71 @@ import { ObservationLevel } from "@prisma/client";
 
 export const tracesTableCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
-  { name: "id", id: "id", type: "string", internal: "t.id" },
+  { name: "Id", id: "id", type: "string", internal: "t.id" },
   {
-    name: "name",
+    name: "Name",
     id: "name",
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be filled in at runtime
   },
   {
-    name: "timestamp",
+    name: "Timestamp",
     id: "timestamp",
     type: "datetime",
     internal: 't."timestamp"',
   },
-  { name: "userId", id: "userId", type: "string", internal: 't."user_id"' },
+  { name: "User Id", id: "userId", type: "string", internal: 't."user_id"' },
   {
-    name: "sessionId",
+    name: "Session Id",
     id: "sessionId",
     type: "string",
     internal: 't."session_id"',
   },
   {
-    name: "inputTokens",
+    name: "Input Tokens",
     id: "inputTokens",
     type: "number",
     internal: 'tm."promptTokens"',
   },
   {
-    name: "outputTokens",
+    name: "Output Tokens",
     id: "outputTokens",
     type: "number",
     internal: 'tm."completionTokens"',
   },
   {
-    name: "totalTokens",
+    name: "Total Tokens",
     id: "totalTokens",
     type: "number",
     internal: 'tm."totalTokens"',
   },
   {
-    name: "usage",
+    name: "Usage",
     id: "usage",
     type: "number",
     internal: 'tm."totalTokens"',
   },
   {
-    name: "inputCost",
-    id: "inputCost",
-    type: "number",
-    internal: '"calculatedInputCost"',
-  },
-  {
-    name: "outputCost",
-    id: "outputCost",
-    type: "number",
-    internal: '"calculatedOutputCost"',
-  },
-  {
-    name: "input",
+    name: "Input",
     id: "input",
     type: "stringObject",
     internal: 't."input"',
   },
   {
-    name: "output",
+    name: "Output",
     id: "output",
     type: "stringObject",
     internal: 't."output"',
   },
   {
-    name: "metadata",
+    name: "Metadata",
     id: "metadata",
     type: "stringObject",
     internal: 't."metadata"',
   },
   {
-    name: "scores_avg",
+    name: "Scores",
     id: "scores_avg",
     type: "numberObject",
     internal: "scores_avg",
@@ -94,19 +82,31 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: "tl.latency",
   },
   {
-    name: "Cost ($)",
+    name: "Input Cost ($)",
+    id: "inputCost",
+    type: "number",
+    internal: '"calculatedInputCost"',
+  },
+  {
+    name: "Output Cost ($)",
+    id: "outputCost",
+    type: "number",
+    internal: '"calculatedOutputCost"',
+  },
+  {
+    name: "Total Cost ($)",
     id: "totalCost",
     type: "number",
     internal: '"calculatedTotalCost"',
   },
   {
-    name: "version",
+    name: "Version",
     id: "version",
     type: "string",
     internal: 't."version"',
   },
   {
-    name: "release",
+    name: "Release",
     id: "release",
     type: "string",
     internal: 't."release"',
@@ -119,7 +119,8 @@ export const tracesTableCols: ColumnDefinition[] = [
     options: Object.values(ObservationLevel).map((value) => ({ value })),
   },
   {
-    name: "tags",
+    name: "Tags",
+    id: "tags",
     type: "arrayOptions",
     internal: 't."tags"',
     options: [], // to be filled in at runtime
@@ -136,13 +137,13 @@ export function tracesTableColsWithOptions(
   options?: TraceOptions,
 ): ColumnDefinition[] {
   return tracesTableCols.map((col) => {
-    if (col.name === "scores_avg") {
+    if (col.id === "scores_avg") {
       return { ...col, keyOptions: options?.scores_avg ?? [] };
     }
-    if (col.name === "name") {
+    if (col.id === "name") {
       return { ...col, options: options?.name ?? [] };
     }
-    if (col.name === "tags") {
+    if (col.id === "tags") {
       return { ...col, options: options?.tags ?? [] };
     }
     return col;
