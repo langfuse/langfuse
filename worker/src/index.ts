@@ -3,7 +3,7 @@ import consumer from "./redis-consumer";
 
 import { getLogger } from "./logger";
 import redis from "@fastify/redis";
-import { sum, subtract, multiply } from "shared-langfuse";
+import { sum, subtract, multiply } from "shared";
 
 const fastify = Fastify({
   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map

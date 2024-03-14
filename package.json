@@ -10,7 +10,7 @@
     "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
     "build:web": "yarn workspace web build",
     "build:worker": "yarn workspace worker build",
-    "build:shared": "yarn workspace shared-langfuse build",
+    "build:shared": "yarn workspace shared build",
     "start:worker": "yarn workspace worker start",
     "build": "tsc --build tsconfig.json",
     "lint": "yarn workspace web run lint & yarn workspace worker run lint"
@@ -19,7 +19,7 @@
   "workspaces": [
     "worker",
     "web",
-    "shared-langfuse"
+    "shared"
   ],
   "author": "",
   "license": "MIT",

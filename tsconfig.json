@@ -2,7 +2,7 @@
   "references": [
     { "path": "./web" },
     { "path": "./worker" },
-    { "path": "./shared-langfuse" }
+    { "path": "./shared" }
   ],
   "files": [],
   "exclude": ["**/node_modules"]

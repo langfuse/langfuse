@@ -23,7 +23,7 @@
     "node": "^21.6.2",
     "pg": "^8.11.3",
     "pino-pretty": "^10.3.1",
-    "shared-langfuse": "1.0.0",
+    "shared": "1.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
