@@ -82,7 +82,7 @@ export default function TracesTable({
   );
   const [userFilterState, setUserFilterState] = useQueryFilterState([
     {
-      column: "timestamp",
+      column: "Timestamp",
       type: "datetime",
       operator: ">",
       value: utcDateOffsetByDays(-14),
@@ -96,7 +96,7 @@ export default function TracesTable({
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "userId",
+          column: "User Id",
           type: "string",
           operator: "=",
           value: userId,
