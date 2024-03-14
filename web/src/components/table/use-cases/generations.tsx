@@ -479,7 +479,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           <IOCell observationId={observationId} traceId={traceId} io="input" />
         );
       },
-      enableSorting: true,
       enableHiding: true,
       defaultHidden: true,
     },
@@ -494,7 +493,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           <IOCell observationId={observationId} traceId={traceId} io="output" />
         );
       },
-      enableSorting: true,
       enableHiding: true,
       defaultHidden: true,
     },
@@ -608,7 +606,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         }}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
-        omittedFilter={["Input", "Output"]}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
