@@ -127,6 +127,7 @@ jobs:
       - name: Seed DB
         run: |
           yarn workspace web run db:migrate
+          yarn workspace web run db:seed
 
       - name: Build
         run: yarn workspace web run build

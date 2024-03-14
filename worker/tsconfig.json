@@ -9,7 +9,7 @@
     "outDir": "dist",
     "strictNullChecks": true // Add this line
   },
-  "include": ["src/**/*", ".eslintrc.js", "generated/**/*"],
+  "include": ["src/**/*", ".eslintrc.json", "generated/**/*"],
   "references": [
     {
       "path": "../shared-langfuse"
