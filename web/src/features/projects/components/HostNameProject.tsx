@@ -1,10 +1,7 @@
 import { Card } from "@tremor/react";
 import { CodeView } from "@/src/components/ui/code";
-import { env } from "@/src/env.mjs";
 
 export function HostNameProject() {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") return null;
-
   return (
     <div>
       <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
