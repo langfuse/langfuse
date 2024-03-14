@@ -9,7 +9,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
+import { sessionsTableColsWithOptions } from "@/src/server/api/definitions/sessionsView";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -85,6 +85,19 @@ export default function SessionsTable({
     filter: filterState,
     orderBy: orderByState,
   });
+
+  const filterOptions = api.sessions.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
@@ -177,7 +190,7 @@ export default function SessionsTable({
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
       id: "userIds",
-      header: "User ID",
+      header: "User IDs",
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -312,7 +325,9 @@ export default function SessionsTable({
   return (
     <div>
       <DataTableToolbar
-        filterColumnDefinition={sessionsViewCols}
+        filterColumnDefinition={sessionsTableColsWithOptions(
+          filterOptions.data,
+        )}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columns={columns}
