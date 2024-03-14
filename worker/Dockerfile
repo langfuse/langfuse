@@ -11,15 +11,10 @@ COPY /worker ./worker
 
 RUN yarn install --pure-lockfile --non-interactive
 
-COPY ./worker ./worker
-
-RUN ls
-RUN ls worker
-RUN ls worker/node_modules
 
 ENV NODE_ENV production
 
-RUN yarn run build:worker
+RUN yarn build:worker
 
 FROM base AS runner
 

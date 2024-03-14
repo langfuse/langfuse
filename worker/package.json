@@ -7,7 +7,7 @@
   "scripts": {
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "build": "tsc -p ./tsconfig.json",
+    "build": "tsc --build tsconfig.json",
     "start": "node dist/src/index.js",
     "dev": "nodemon src/index.ts",
     "lint": "eslint .",
