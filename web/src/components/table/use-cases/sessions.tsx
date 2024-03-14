@@ -310,6 +310,7 @@ export default function SessionsTable({
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        omittedFilter={omittedFilter}
       />
       <DataTable
         columns={columns}
