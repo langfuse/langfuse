@@ -23,6 +23,7 @@ interface DataTableToolbarProps<TData, TValue> {
   setFilterState: Dispatch<SetStateAction<FilterState>>;
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
+  omittedFilter?: string[];
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -34,11 +35,14 @@ export function DataTableToolbar<TData, TValue>({
   setFilterState,
   columnVisibility,
   setColumnVisibility,
+  omittedFilter,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
-
+  const filterableColumns = filterColumnDefinition.filter(
+    (c) => !omittedFilter?.includes(c.name),
+  );
   return (
     <div className="my-2 flex max-w-full items-center justify-between overflow-x-auto">
       <div className="flex flex-1 items-center space-x-2">
@@ -65,7 +69,7 @@ export function DataTableToolbar<TData, TValue>({
           </div>
         )}
         <FilterBuilder
-          columns={filterColumnDefinition}
+          columns={filterableColumns}
           filterState={filterState}
           onChange={setFilterState}
         />
