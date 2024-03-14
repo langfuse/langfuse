@@ -608,6 +608,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         }}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
+        omittedFilter={["Input", "Output"]}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
