@@ -121,18 +121,6 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."total_tokens"',
   },
   {
-    name: "Input",
-    id: "input",
-    type: "stringObject",
-    internal: 'o."input"',
-  },
-  {
-    name: "Output",
-    id: "output",
-    type: "stringObject",
-    internal: 'o."output"',
-  },
-  {
     name: "Metadata",
     id: "metadata",
     type: "stringObject",
