@@ -1,7 +1,7 @@
 {
   "references": [
-    { "path": "./worker" },
     { "path": "./web" },
+    { "path": "./worker" },
     { "path": "./shared-langfuse" }
   ],
   "files": [],

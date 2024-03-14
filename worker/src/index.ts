@@ -35,3 +35,4 @@ start();
 fastify.get("/", async (request, reply) => {
   return { hello: sum(1, 2) + substract(3, 1) + multiply(2, 2)};
 });
+

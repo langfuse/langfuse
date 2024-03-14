@@ -35,7 +35,9 @@ ENV DOCKER_BUILD 1
 RUN yarn workspace web db:generate
 
 # Build the application
-RUN npm run build:web
+RUN yarn run build:web
+
+RUN ls /app/web
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -55,21 +57,22 @@ RUN adduser --system --uid 1001 nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma
 
-COPY --from=builder /app/web/public ./public
+
+COPY --from=builder /app/web/next.config.mjs .
+COPY --from=builder /app/web/package.json .
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/web/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
-COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
+RUN chmod +x ./web/entrypoint.sh
 
 RUN ls
 RUN ls /app/
-RUN ls /web
-RUN ls /public
+RUN ls web
 
 USER nextjs
 
@@ -77,4 +80,4 @@ USER nextjs
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "./entrypoint.sh"]
+CMD ["dumb-init", "--", "./web/entrypoint.sh"]
