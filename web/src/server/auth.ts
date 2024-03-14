@@ -103,7 +103,8 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
     GoogleProvider({
       clientId: env.AUTH_GOOGLE_CLIENT_ID,
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
@@ -112,7 +113,8 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
