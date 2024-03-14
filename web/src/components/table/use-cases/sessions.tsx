@@ -48,7 +48,7 @@ export default function SessionsTable({
 
   const [userFilterState, setUserFilterState] = useQueryFilterState([
     {
-      column: "createdAt",
+      column: "Created At",
       type: "datetime",
       operator: ">",
       value: utcDateOffsetByDays(-14),
