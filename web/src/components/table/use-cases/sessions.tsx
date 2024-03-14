@@ -58,9 +58,9 @@ export default function SessionsTable({
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "userIds",
+          column: "User Ids",
           type: "string",
-          operator: "=",
+          operator: "contains",
           value: userId,
         },
       ]
