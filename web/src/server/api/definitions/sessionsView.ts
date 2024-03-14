@@ -1,18 +1,22 @@
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import {
+  type OptionsDefinition,
+  type ColumnDefinition,
+} from "@/src/server/api/interfaces/tableDefinition";
 
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "s.bookmarked" },
   {
-    name: "Id",
+    name: "ID",
     id: "id",
     type: "string",
     internal: 's."id"',
   },
   {
-    name: "User Ids",
+    name: "User IDs",
     id: "userIds",
-    type: "string",
-    internal: "array_to_string(t.\"userIds\", ', ')",
+    type: "arrayOptions",
+    internal: 't."userIds"',
+    options: [], // to be filled in at runtime
   },
   {
     name: "Session Duration (s)",
@@ -75,3 +79,18 @@ export const sessionsViewCols: ColumnDefinition[] = [
     internal: 'o."totalTokens"',
   },
 ];
+
+export type SessionOptions = {
+  userIds: Array<OptionsDefinition>;
+};
+
+export function sessionsTableColsWithOptions(
+  options?: SessionOptions,
+): ColumnDefinition[] {
+  return sessionsViewCols.map((col) => {
+    if (col.id === "userIds") {
+      return { ...col, options: options?.userIds ?? [] };
+    }
+    return col;
+  });
+}
