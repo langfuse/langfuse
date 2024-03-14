@@ -1,5 +1,5 @@
 {
-  "name": "shared-langfuse",
+  "name": "shared",
   "version": "1.0.0",
   "main": "dist/src/index.js",
   "license": "MIT",

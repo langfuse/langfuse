@@ -12,7 +12,7 @@
   "include": ["./src/**/*", ".eslintrc.json"],
   "references": [
     {
-      "path": "../shared-langfuse"
+      "path": "../shared"
     }
   ]
 }

@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json .
 COPY tsconfig.json .
 COPY yarn.lock .
-COPY /shared-langfuse ./shared-langfuse
+COPY /shared ./shared
 COPY /worker ./worker
 
 RUN yarn install --pure-lockfile --non-interactive
