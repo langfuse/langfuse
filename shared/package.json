@@ -14,6 +14,9 @@
     "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
     "db:seed:load": "dotenv -e ../.env -- npx prisma db seed -- --environment load"
   },
+  "prisma": {
+    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
   "devDependencies": {
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.2",

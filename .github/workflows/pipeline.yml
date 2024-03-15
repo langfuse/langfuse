@@ -10,7 +10,7 @@ on:
   merge_group:
   pull_request:
     branches:
-      - "main"
+      - "*"
 
 jobs:
   lint:
@@ -88,8 +88,8 @@ jobs:
 
       - name: Seed DB
         run: |
-          yarn workspace web run db:migrate
-          yarn workspace web run db:seed
+          yarn workspace shared run db:migrate
+          yarn workspace shared run db:seed
 
       - name: Build
         run: yarn workspace web run build
@@ -126,8 +126,8 @@ jobs:
 
       - name: Seed DB
         run: |
-          yarn workspace web run db:migrate
-          yarn workspace web run db:seed
+          yarn workspace shared run db:migrate
+          yarn workspace shared run db:seed
 
       - name: Build
         run: yarn workspace web run build
