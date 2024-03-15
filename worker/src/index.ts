@@ -1,38 +1,44 @@
-import Fastify from "fastify";
-import consumer from "./redis-consumer";
+import app from "./app";
 
-import { getLogger } from "./logger";
-import redis from "@fastify/redis";
-import { sum, subtract, multiply } from "shared";
-
-const fastify = Fastify({
-  logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
+const port = process.env.PORT ? parseInt(process.env.PORT) : 3030;
+app.listen(port, () => {
+  console.log(`Listening: http://localhost:${port}`);
 });
 
-fastify.register(redis, {
-  host: process.env.REDIS_URL,
-  port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-  password: process.env.REDIS_AUTH,
-});
-fastify.register(consumer);
+// import consumer from "./redis-consumer";
 
-const start = async () => {
-  try {
-    // listen to 0.0.0.0 is required for docker
-    await fastify.listen({
-      port: process.env.PORT ? parseInt(process.env.PORT) : 3030,
-      host: "0.0.0.0",
-    });
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
+// import { getLogger } from "./logger";
 
-start();
+// import { sum, subtract, multiply } from "shared";
 
-fastify.get("/", async (request, reply) => {
-  console.log("GET /", request, reply);
+// const fastify = Fastify({
+//   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
+// });
 
-  return { hello: sum(1, 2) + subtract(3, 1) + multiply(2, 2) };
-});
+// fastify.register(redis, {
+//   host: process.env.REDIS_URL,
+//   port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
+//   password: process.env.REDIS_AUTH,
+// });
+// fastify.register(consumer);
+
+// const start = async () => {
+//   try {
+//     // listen to 0.0.0.0 is required for docker
+//     await fastify.listen({
+//       port: process.env.PORT ? parseInt(process.env.PORT) : 3030,
+//       host: "0.0.0.0",
+//     });
+//   } catch (err) {
+//     fastify.log.error(err);
+//     process.exit(1);
+//   }
+// };
+
+// start();
+
+// fastify.get("/", async (request, reply) => {
+//   console.log("GET /", request, reply);
+
+//   return { hello: sum(1, 2) + subtract(3, 1) + multiply(2, 2) };
+// });
