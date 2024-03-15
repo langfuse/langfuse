@@ -5,7 +5,7 @@ import {
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
 import { type ObservationView, Prisma } from "@prisma/client";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 import { type GetAllGenerationsInput } from "../getAllQuery";
 
 export async function getAllGenerations({

@@ -1,0 +1,17 @@
+{
+  "composite": true,
+  "compilerOptions": {
+    "composite": true,
+    "target": "es2017",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "strictNullChecks": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", ".eslintrc.json"]
+}

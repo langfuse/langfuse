@@ -1,7 +1,7 @@
 import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(

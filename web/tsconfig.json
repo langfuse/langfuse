@@ -20,7 +20,8 @@
     "baseUrl": ".",
     "types": ["jest", "node"],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@prisma/client/*": ["shared/prisma/client/*"]
     }
   },
   "include": [

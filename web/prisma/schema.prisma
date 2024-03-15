@@ -297,6 +297,7 @@ model Score {
     timestamp     DateTime     @default(now())
     name          String
     value         Float
+    source        ScoreSource
     comment       String?
     traceId       String       @map("trace_id")
     trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
@@ -308,7 +309,13 @@ model Score {
     @@index([value])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
+    @@index([source])
     @@map("scores")
+}
+
+enum ScoreSource {
+    API
+    REVIEW
 }
 
 enum PricingUnit {

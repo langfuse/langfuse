@@ -3,14 +3,12 @@ import {
   type Project,
   type Prisma,
   ObservationType,
+  ScoreSource,
 } from "@prisma/client";
-import {
-  hashSecretKey,
-  getDisplaySecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
+import { hashSecretKey, getDisplaySecretKey } from "shared/src/auth/auth";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit } from "shared/src/constants";
 import { chunk } from "lodash";
 import { v4 } from "uuid";
 
@@ -386,7 +384,7 @@ function createObjects(
         more: "1,2,3;4?6",
       },
       tags: tags as string[],
-      userId: `user-${i % 10}`,
+      userId: `user-${i % 60}`,
       input:
         Math.random() > 0.3 ? "I'm looking for a React component" : undefined,
       output:
@@ -403,9 +401,10 @@ function createObjects(
         ? [
             {
               traceId: trace.id,
-              name: "feedback",
+              name: "manual-score",
               value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
+              source: ScoreSource.REVIEW,
             },
           ]
         : []),
@@ -416,6 +415,7 @@ function createObjects(
               name: "sentiment",
               value: Math.floor(Math.random() * 10) - 5,
               timestamp: traceTs,
+              source: ScoreSource.API,
             },
           ]
         : []),
@@ -596,6 +596,7 @@ function createObjects(
             value: Math.random() * 2 - 1,
             observationId: generation.id,
             traceId: trace.id,
+            source: ScoreSource.API,
           });
         if (Math.random() > 0.6)
           scores.push({
@@ -603,6 +604,7 @@ function createObjects(
             value: Math.random() * 2 - 1,
             observationId: generation.id,
             traceId: trace.id,
+            source: ScoreSource.API,
           });
 
         generationIds.push(generation.id);

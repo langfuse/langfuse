@@ -1,12 +1,18 @@
 {
   "compilerOptions": {
+    "composite": true,
     "target": "es2017",
     "module": "commonjs",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "outDir": "dist",
-    "strictNullChecks": true // Add this line
+    "strictNullChecks": true
   },
-  "include": ["src/**/*", ".eslintrc.js"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", ".eslintrc.json"],
+  "references": [
+    {
+      "path": "../shared"
+    }
+  ]
 }

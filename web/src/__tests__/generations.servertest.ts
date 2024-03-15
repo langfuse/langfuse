@@ -3,8 +3,8 @@
 import { v4 as uuidv4 } from "uuid";
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@/src/constants";
-import { prisma } from "@/src/server/db";
+import { ModelUsageUnit } from "shared/src/constants";
+import { prisma } from "shared/src/db/index";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());

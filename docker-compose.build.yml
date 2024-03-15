@@ -3,8 +3,8 @@ version: "3.5"
 services:
   server:
     build:
-      dockerfile: ./Dockerfile
-      context: ./web
+      dockerfile: ./web/Dockerfile
+      context: .
     depends_on:
       - db
       - redis
@@ -25,8 +25,8 @@ services:
 
   worker:
     build:
-      dockerfile: ./Dockerfile
-      context: ./worker
+      dockerfile: ./worker/Dockerfile
+      context: .
     depends_on:
       - db
       - redis

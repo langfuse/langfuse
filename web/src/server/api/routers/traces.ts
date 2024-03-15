@@ -5,7 +5,12 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Trace, type ObservationView } from "@prisma/client";
+import {
+  Prisma,
+  type Trace,
+  type ObservationView,
+  type ObservationLevel,
+} from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -88,7 +93,8 @@ export const traceRouter = createTRPCRouter({
           tl.latency AS "latency",
           COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
           COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
-          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost"
+          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
+          tm."level" AS "level"
           `,
 
         input.projectId,
@@ -111,6 +117,7 @@ export const traceRouter = createTRPCRouter({
                 totalTokens: number;
                 totalCount: number;
                 latency: number | null;
+                level: ObservationLevel;
                 calculatedTotalCost: Decimal | null;
                 calculatedInputCost: Decimal | null;
                 calculatedOutputCost: Decimal | null;
@@ -478,7 +485,13 @@ function createTracesQuery(
       SUM(total_tokens) AS "totalTokens",
       SUM(calculated_total_cost) AS "calculatedTotalCost",
       SUM(calculated_input_cost) AS "calculatedInputCost",
-      SUM(calculated_output_cost) AS "calculatedOutputCost"
+      SUM(calculated_output_cost) AS "calculatedOutputCost",
+      COALESCE(  
+        MAX(CASE WHEN level = 'ERROR' THEN 'ERROR' END),  
+        MAX(CASE WHEN level = 'WARNING' THEN 'WARNING' END),  
+        MAX(CASE WHEN level = 'DEFAULT' THEN 'DEFAULT' END),  
+        'DEBUG'  
+      ) AS "level"
     FROM
       "observations_view"
     WHERE

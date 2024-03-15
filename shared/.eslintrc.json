@@ -1,0 +1,21 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./shared/tsconfig.json"
+  },
+  "extends": ["prettier"],
+  "plugins": ["prettier"],
+  "env": {
+    "es6": true,
+    "node": true
+  },
+  "rules": {
+    "prettier/prettier": [
+      "error",
+      {
+        "trailingComma": "es5"
+      }
+    ]
+  },
+  "ignorePatterns": ["dist", "node_modules"]
+}

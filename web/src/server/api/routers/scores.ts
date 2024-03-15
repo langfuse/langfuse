@@ -72,8 +72,8 @@ export const scoresRouter = createTRPCRouter({
           input.projectId,
           filterCondition,
           Prisma.empty,
-          input.limit,
-          input.page,
+          1, // limit
+          0, // page
         ),
       );
 
@@ -128,7 +128,7 @@ export const scoresRouter = createTRPCRouter({
       },
     }),
   ),
-  create: protectedProcedure
+  createReviewScore: protectedProcedure
     .input(
       z.object({
         traceId: z.string(),
@@ -176,6 +176,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           name: input.name,
           comment: input.comment,
+          source: "REVIEW",
         },
       });
       await auditLog({
@@ -191,7 +192,7 @@ export const scoresRouter = createTRPCRouter({
       });
       return score;
     }),
-  update: protectedProcedure
+  updateReviewScore: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -203,6 +204,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await ctx.prisma.score.findFirstOrThrow({
         where: {
           id: input.id,
+          source: "REVIEW",
           trace: {
             project: {
               members: {
@@ -252,12 +254,13 @@ export const scoresRouter = createTRPCRouter({
         },
       });
     }),
-  delete: protectedProcedure
+  deleteReviewScore: protectedProcedure
     .input(z.string())
     .mutation(async ({ input, ctx }) => {
       const score = await ctx.prisma.score.findFirstOrThrow({
         where: {
           id: input,
+          source: "REVIEW",
           trace: {
             project: {
               members: {
