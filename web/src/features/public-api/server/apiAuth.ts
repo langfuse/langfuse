@@ -1,8 +1,5 @@
 import { env } from "@/src/env.mjs";
-import {
-  createShaHash,
-  verifySecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
+import { createShaHash, verifySecretKey } from "shared/src/auth/auth";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "shared/src/db/index";
 import { isPrismaException } from "@/src/utils/exceptions";

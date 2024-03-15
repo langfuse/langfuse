@@ -1,7 +1,4 @@
-import {
-  getDisplaySecretKey,
-  hashSecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
+import { getDisplaySecretKey, hashSecretKey } from "shared/src/auth/auth";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "shared/src/db/index";
 
