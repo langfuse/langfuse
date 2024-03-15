@@ -20,9 +20,6 @@
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
     "db:worker": "cp -r prisma/generated ../worker"
   },
-  "prisma": {
-    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
-  },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@aws-sdk/client-s3": "^3.507.0",
