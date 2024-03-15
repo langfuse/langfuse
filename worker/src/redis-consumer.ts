@@ -7,7 +7,7 @@ async function routes(fastify: FastifyInstance, options: FastifyPluginOptions) {
       fastify.log.error("Redis error:", err);
     } else {
       fastify.log.info(
-        `Subscribed to ${count} channel. Listening for updates on the channel...`,
+        `Subscribed to ${count} channel. Listening for updates on the channel...`
       );
     }
   });

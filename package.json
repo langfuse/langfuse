@@ -4,11 +4,23 @@
   "scripts": {
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
-    "dev": "npm run dev --prefix worker/ & npm run dev --prefix web/",
-    "postinstall": "cd worker && npm install && cd ../web && npm install",
+    "dev": "yarn workspace web run dev & yarn workspace worker run dev",
+    "start": "yarn workspace web run start & yarn workspace worker run start",
     "nuke": "bash ./scripts/nuke.sh",
-    "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev"
+    "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
+    "build:web": "yarn workspace web build",
+    "build:worker": "yarn workspace worker build",
+    "build:shared": "yarn workspace shared build",
+    "start:worker": "yarn workspace worker start",
+    "build": "tsc --build tsconfig.json",
+    "lint": "yarn workspace web run lint & yarn workspace worker run lint"
   },
+  "private": true,
+  "workspaces": [
+    "worker",
+    "web",
+    "shared"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -19,5 +31,6 @@
     "dotenv-cli": "^7.3.0",
     "eslint": "^8.56.0",
     "prettier": "^3.2.5"
-  }
+  },
+  "packageManager": "yarn@1.22.1"
 }

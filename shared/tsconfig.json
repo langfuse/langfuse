@@ -1,0 +1,14 @@
+{
+  "composite": true,
+  "compilerOptions": {
+    "composite": true,
+    "target": "es2017",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "strictNullChecks": true
+  },
+  "include": ["src/**/*", ".eslintrc.json"]
+}
