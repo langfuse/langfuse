@@ -1,4 +1,4 @@
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit } from "shared/src/constants";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 
 describe("Token Count Functions", () => {

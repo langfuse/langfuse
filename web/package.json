@@ -16,13 +16,6 @@
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev && npm run db:worker",
-    "db:reset": "dotenv -e ../.env npx -- prisma migrate reset",
-    "db:deploy": "dotenv -e ../.env npx -- prisma migrate deploy",
-    "db:seed": "dotenv -e ../.env -- npx prisma db seed",
-    "db:generate": "dotenv -e ../.env -- npx prisma generate",
-    "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
-    "db:seed:load": "dotenv -e ../.env -- npx prisma db seed -- --environment load",
     "release": "dotenv -e ../.env -- release-it",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
     "db:worker": "cp -r prisma/generated ../worker"
