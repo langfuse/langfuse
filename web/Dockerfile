@@ -32,7 +32,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV DOCKER_BUILD 1
 
 # Generate prisma client
-RUN yarn workspace web db:generate
+RUN yarn workspace shared db:generate
 
 # Build the application
 RUN yarn run build:web
