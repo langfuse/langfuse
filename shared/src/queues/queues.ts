@@ -6,8 +6,10 @@ export const QueueEnvelope = z.object({
 });
 
 export const EvalEvent = QueueEnvelope.extend({
-  projectId: z.string(),
-  traceId: z.string(),
+  data: z.object({
+    projectId: z.string(),
+    traceId: z.string(),
+  }),
 });
 
 export enum QueueName {

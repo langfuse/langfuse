@@ -1,13 +1,13 @@
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import { type traceEvent } from "@/src/features/public-api/server/ingestion-api-schema";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 import { mergeJson } from "@/src/utils/json";
 import { type Trace, type Observation, type Score } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
-import { QueueName, QueueJobs } from "@/src/server/api/queues";
+import { QueueName, QueueJobs } from "shared/src/queues/queues";
 import { type EventProcessor } from "./EventProcessor";
 import { evalQueue } from "@/src/server/redis";
 
@@ -115,8 +115,12 @@ export class TraceProcessor implements EventProcessor {
     await evalQueue?.add(QueueName.Evaluation, {
       name: QueueJobs.Evaluation,
       payload: {
-        projectId: upsertedTrace.projectId,
-        traceId: upsertedTrace.id,
+        id: upsertedTrace.id,
+        timestamp: new Date().toISOString(),
+        data: {
+          projectId: upsertedTrace.projectId,
+          traceId: upsertedTrace.id,
+        },
       },
     });
 

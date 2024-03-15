@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { type QueueJobTypes, QueueName } from "@/src/server/api/queues";
+import { type TQueueJobTypes, QueueName } from "shared/src/queues/queues";
 import { Queue } from "bullmq";
 import Redis from "ioredis";
 
@@ -17,7 +17,7 @@ const redis = isRedisAvailable
   : undefined;
 
 export const evalQueue = redis
-  ? new Queue<QueueJobTypes[QueueName.Evaluation]>(QueueName.Evaluation, {
+  ? new Queue<TQueueJobTypes[QueueName.Evaluation]>(QueueName.Evaluation, {
       connection: redis,
     })
   : undefined;
