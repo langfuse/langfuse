@@ -5,7 +5,7 @@ import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "shared/src/constants";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 import type { Session } from "next-auth";
 
 describe("observations.export RPC", () => {

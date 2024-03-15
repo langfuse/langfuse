@@ -3,7 +3,7 @@ import {
   hashSecretKey,
 } from "@/src/features/public-api/lib/apiKeys";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 
 describe("Validate api calls", () => {
   beforeEach(async () => {

@@ -4,7 +4,7 @@ import {
   verifySecretKey,
 } from "@/src/features/public-api/lib/apiKeys";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 

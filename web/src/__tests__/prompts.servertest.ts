@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import { type Prompt } from "@prisma/client";

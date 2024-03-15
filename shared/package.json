@@ -32,6 +32,8 @@
   },
   "dependencies": {
     "@prisma/client": "^5.11.0",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
     "prisma": "^5.11.0",
     "prisma-erd-generator": "^1.11.2"
   }

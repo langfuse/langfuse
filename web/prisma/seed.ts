@@ -5,13 +5,10 @@ import {
   ObservationType,
   ScoreSource,
 } from "@prisma/client";
-import {
-  hashSecretKey,
-  getDisplaySecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
+import { hashSecretKey, getDisplaySecretKey } from "shared/src/auth/auth";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit } from "shared/src/constants";
 import { chunk } from "lodash";
 import { v4 } from "uuid";
 
