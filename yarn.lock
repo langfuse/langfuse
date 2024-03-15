@@ -1808,7 +1808,7 @@
     "@pnpm/network.ca-file" "^1.0.1"
     config-chain "^1.1.11"
 
-"@prisma/client@^5.10.2":
+"@prisma/client@^5.10.2", "@prisma/client@^5.11.0":
   version "5.11.0"
   resolved "https://registry.npmjs.org/@prisma/client/-/client-5.11.0.tgz"
   integrity sha512-SWshvS5FDXvgJKM/a0y9nDC1rqd7KG0Q6ZVzd+U7ZXK5soe73DJxJJgbNBt2GNXOa+ysWB4suTpdK5zfFPhwiw==
@@ -3769,7 +3769,7 @@
 
 "@types/bcryptjs@^2.4.6":
   version "2.4.6"
-  resolved "https://registry.npmjs.org/@types/bcryptjs/-/bcryptjs-2.4.6.tgz"
+  resolved "https://registry.yarnpkg.com/@types/bcryptjs/-/bcryptjs-2.4.6.tgz#2b92e3c2121c66eba3901e64faf8bb922ec291fa"
   integrity sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ==
 
 "@types/body-parser@*":
@@ -4904,7 +4904,7 @@ basic-ftp@^5.0.2:
 
 bcryptjs@^2.4.3:
   version "2.4.3"
-  resolved "https://registry.npmjs.org/bcryptjs/-/bcryptjs-2.4.3.tgz"
+  resolved "https://registry.yarnpkg.com/bcryptjs/-/bcryptjs-2.4.3.tgz#9ab5627b93e60621ff7cdac5da9733027df1d0cb"
   integrity sha512-V/Hy/X9Vt7f3BbPJEi8BdVFMByHi+jNXrYkW3huaybV/kQ0KJg0Y6PkEMbn+zeT+i+SiKZ/HMqJGIIt4LZDqNQ==
 
 before-after-hook@^2.2.0:
@@ -10178,7 +10178,7 @@ pretty-format@^3.8.0:
 
 prisma-erd-generator@^1.11.2:
   version "1.11.2"
-  resolved "https://registry.npmjs.org/prisma-erd-generator/-/prisma-erd-generator-1.11.2.tgz"
+  resolved "https://registry.yarnpkg.com/prisma-erd-generator/-/prisma-erd-generator-1.11.2.tgz#75b4321f212d0837e75f98230b03abc3488ff71f"
   integrity sha512-abo2EBIjqJALfjm8p+uOsQk38DlU3rlLJA9/cOvcLLt8A9bjMkRwlqaZDAD/iXVZcXJRJPgJ98fEviTa+w8oTQ==
   dependencies:
     "@mermaid-js/mermaid-cli" "^10.6.1"
@@ -10196,7 +10196,7 @@ prisma-kysely@^1.8.0:
     typescript "^5.2.2"
     zod "^3.22.2"
 
-prisma@^5.10.2:
+prisma@^5.10.2, prisma@^5.11.0:
   version "5.11.0"
   resolved "https://registry.npmjs.org/prisma/-/prisma-5.11.0.tgz"
   integrity sha512-KCLiug2cs0Je7kGkQBN9jDWoZ90ogE/kvZTUTgz2h94FEo8pczCkPH7fPNXkD1sGU7Yh65risGGD1HQ5DF3r3g==

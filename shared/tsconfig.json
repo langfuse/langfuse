@@ -8,7 +8,10 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "outDir": "dist",
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
-  "include": ["src/**/*", ".eslintrc.json"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", ".eslintrc.json"]
 }

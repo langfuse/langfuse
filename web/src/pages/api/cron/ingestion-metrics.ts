@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared/src/db/index";
 import { Prisma } from "@prisma/client";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { PostHog } from "posthog-node";
