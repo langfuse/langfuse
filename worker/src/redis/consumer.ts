@@ -1,6 +1,6 @@
 import Redis from "ioredis";
 import { Job, Worker } from "bullmq";
-import { QueueJobs, QueueName, TQueueJobTypes } from "shared/src/queues/queues";
+import { QueueName, TQueueJobTypes } from "shared/src/queues/index";
 import { evaluate } from "../eval-service";
 
 export const redis = new Redis({
@@ -11,7 +11,7 @@ export const redis = new Redis({
 });
 
 export const worker = new Worker<TQueueJobTypes[QueueName.Evaluation]>(
-  QueueJobs.Evaluation,
+  "evaluation-job",
   async (job: Job<TQueueJobTypes[QueueName.Evaluation]>) => {
     console.log("job", job.data);
     // Optionally report some progress

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { EvalEvent } from "shared/src/queues/queues";
+import { EvalEvent } from "shared/src/queues/index";
 import { db } from "./database";
 
 export const evaluate = async ({

@@ -7,7 +7,7 @@ import { type Trace, type Observation, type Score } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
-import { QueueName, QueueJobs } from "shared/src/queues/queues";
+import { QueueJobs } from "shared/src/queues/index";
 import { type EventProcessor } from "./EventProcessor";
 import { evalQueue } from "@/src/server/redis";
 
@@ -112,7 +112,7 @@ export class TraceProcessor implements EventProcessor {
       },
     });
 
-    await evalQueue?.add(QueueName.Evaluation, {
+    await evalQueue?.add("evaluation-job", {
       name: QueueJobs.Evaluation,
       payload: {
         id: upsertedTrace.id,
