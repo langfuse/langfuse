@@ -13,7 +13,7 @@ export const IOCell = ({
 }) => {
   return (
     <>
-      {isLoading || data ? (
+      {isLoading  ? (
         <JsonSkeleton className="h-[250px] w-[500px] px-3 py-1" />
       ) : (
         <JSONView json={data} className="h-[250px] w-[500px] overflow-y-auto" />
