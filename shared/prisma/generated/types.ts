@@ -152,6 +152,19 @@ export type Example = {
     created_at: Generated<Timestamp>;
     updated_at: Timestamp;
 };
+export type JobConfiguration = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    job_type: string;
+    eval_template_id: string | null;
+    score_name: string;
+    filter: unknown;
+    target_object: string;
+    variable_mapping: unknown;
+    sampling: string;
+};
 export type Membership = {
     project_id: string;
     user_id: string;
@@ -342,6 +355,7 @@ export type DB = {
     eval_templates: EvalTemplate;
     events: Events;
     Example: Example;
+    job_configurations: JobConfiguration;
     membership_invitations: MembershipInvitation;
     memberships: Membership;
     models: Model;

@@ -113,7 +113,7 @@ export const NewEvalTemplateForm = (props: {
           typeof JSON.parse(values.modelParameters) === "object"
             ? jsonSchema.parse(JSON.parse(values.modelParameters))
             : jsonSchema.parse({}),
-        variables: values.variables,
+        variables: extractedVariables,
         outputSchema: {
           score: values.outputScore,
           name: values.outputName,

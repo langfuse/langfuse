@@ -14,7 +14,8 @@ export type AuditableResource =
   | "prompt"
   | "session"
   | "apiKey"
-  | "evalTemplate";
+  | "evalTemplate"
+  | "job";
 
 type AuditLog = {
   resourceType: AuditableResource;

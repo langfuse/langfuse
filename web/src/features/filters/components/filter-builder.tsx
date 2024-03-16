@@ -138,6 +138,55 @@ export function PopoverFilterBuilder({
   );
 }
 
+export function InlineFilterBuilder({
+  columns,
+  filterState,
+  onChange,
+}: {
+  columns: ColumnDefinition[];
+  filterState: FilterState;
+  onChange: Dispatch<SetStateAction<FilterState>>;
+}) {
+  const [wipFilterState, _setWipFilterState] =
+    useState<WipFilterState>(filterState);
+
+  const addNewFilter = () => {
+    setWipFilterState((prev) => [
+      ...prev,
+      {
+        column: undefined,
+        type: undefined,
+        operator: undefined,
+        value: undefined,
+        key: undefined,
+      },
+    ]);
+  };
+
+  const setWipFilterState = (
+    state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
+  ) => {
+    _setWipFilterState((prev) => {
+      const newState = state instanceof Function ? state(prev) : state;
+      const validFilters = newState.filter(
+        (f) => singleFilter.safeParse(f).success,
+      ) as FilterState;
+      onChange(validFilters);
+      return newState;
+    });
+  };
+
+  return (
+    <div className="flex flex-col">
+      <FilterBuilderForm
+        columns={columns}
+        filterState={wipFilterState}
+        onChange={setWipFilterState}
+      />
+    </div>
+  );
+}
+
 function FilterBuilderForm({
   columns,
   filterState,

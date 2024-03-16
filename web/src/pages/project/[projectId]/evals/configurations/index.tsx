@@ -16,12 +16,6 @@ export default function TemplatesPage() {
     scope: "evalsTemplate:create",
   });
 
-  const evals = api.evals.allTemplates.useQuery({
-    projectId: projectId,
-    limit: 500,
-    page: 0,
-  });
-
   return (
     <div>
       <Header
@@ -45,10 +39,7 @@ export default function TemplatesPage() {
           </Button>
         }
       />
-      <EvalsTemplateTable
-        projectId={projectId}
-        evalTemplates={evals.data ?? []}
-      />
+      <EvalsTemplateTable projectId={projectId} />
     </div>
   );
 }

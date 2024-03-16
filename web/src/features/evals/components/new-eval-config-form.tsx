@@ -1,7 +1,5 @@
 import { usePostHog } from "posthog-js/react";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
-import JsonView from "react18-json-view";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -20,28 +18,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Textarea } from "@/src/components/ui/textarea";
-import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Badge } from "@/src/components/ui/badge";
-import { jsonSchema } from "@/src/utils/zod";
-import router from "next/router";
-import { type EvalTemplate } from "@prisma/client";
 import { TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Tabs } from "@radix-ui/react-tabs";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
+import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { type FilterState } from "@/src/features/filters/types";
 import * as z from "zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { Card } from "@/src/components/ui/card";
+import { useState } from "react";
+import { api } from "@/src/utils/api";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { type EvalTemplate } from "@prisma/client";
+import router from "next/router";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
-  scoreName: z.string().nullable(),
+  scoreName: z.string(),
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
-  mapping: z.string(),
-  sampling: z.number(),
+  mapping: z.array(z.object({ name: z.string(), value: z.string() })),
+  sampling: z.string().transform(Number).pipe(z.number().gte(0).lte(1)),
 });
 
 export const NewEvalConfigForm = (props: {
@@ -58,56 +55,73 @@ export const NewEvalConfigForm = (props: {
       scoreName: undefined,
       target: "trace",
       filter: [] as FilterState,
-      mapping: "{}",
+      mapping: [],
       sampling: 1,
     },
   });
 
+  const traceFilterOptions = api.traces.filterOptions.useQuery({
+    projectId: props.projectId,
+    ...form.getFieldState("filter"),
+  });
+
+  const selectedEvalTemplate = props.evalTemplates.find(
+    (template) =>
+      `${template.name}-${template.version}` ===
+      form.getValues().evalTemplateId,
+  );
+  const updateVariableValue = (variable: string, value: string) => {
+    const currentMapping = form.getValues().mapping;
+    if (Array.isArray(currentMapping)) {
+      form.setValue("mapping", [...currentMapping, { name: variable, value }]);
+    } else {
+      form.setValue("mapping", [{ name: variable, value }]);
+    }
+  };
+
   const utils = api.useUtils();
-  const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
+  const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
     onError: (error) => setFormError(error.message),
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("models:new_template_form");
-    // createEvalTemplateMutation
-    //   .mutateAsync({
-    //     projectId: props.projectId,
-    //     prompt: values.prompt,
-    //     model: values.model,
-    //     modelParameters:
-    //       values.modelParameters &&
-    //       typeof JSON.parse(values.modelParameters) === "object"
-    //         ? jsonSchema.parse(JSON.parse(values.modelParameters))
-    //         : jsonSchema.parse({}),
-    //     variables: values.variables,
-    //     outputSchema: {
-    //       score: values.score,
-    //       name: values.name,
-    //       reasoning: values.reasoning,
-    //     },
-    //   })
-    //   .then(() => {
-    //     props.onFormSuccess?.();
-    //     form.reset();
-    //     void router.push(`/project/${props.projectId}/evals/templates/`);
-    //   })
-    //   .catch((error) => {
-    //     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    //     if ("message" in error && typeof error.message === "string") {
-    //       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    //       setFormError(error.message as string);
-    //       return;
-    //     } else {
-    //       setFormError(JSON.stringify(error));
-    //       console.error(error);
-    //     }
-    //   });
+    if (!selectedEvalTemplate) {
+      setFormError("Please select an eval template");
+      return;
+    }
+    createJobMutation
+      .mutateAsync({
+        projectId: props.projectId,
+        evalTemplateId: selectedEvalTemplate.id,
+        scoreName: values.scoreName,
+        target: values.target,
+        filter: values.filter,
+        mapping: values.mapping,
+        sampling: values.sampling,
+      })
+      .then(() => {
+        props.onFormSuccess?.();
+        form.reset();
+        void router.push(`/project/${props.projectId}/evals/templates/`);
+      })
+      .catch((error) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        if ("message" in error && typeof error.message === "string") {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          setFormError(error.message as string);
+          return;
+        } else {
+          setFormError(JSON.stringify(error));
+          console.error(error);
+        }
+      });
   }
 
   return (
     <Form {...form}>
+      {JSON.stringify(form.getValues(), null, 2)}
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
@@ -119,11 +133,12 @@ export const NewEvalConfigForm = (props: {
             name="evalTemplateId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Model</FormLabel>
+                <FormLabel>Eval Template</FormLabel>
                 <Select
                   defaultValue={field.value}
-                  onValueChange={(value) => {}}
-                  // field.onChange(value as (typeof evalModelList)[number])
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                  }}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -162,82 +177,111 @@ export const NewEvalConfigForm = (props: {
               </FormItem>
             )}
           />
+          <Card className="p-4">
+            <FormField
+              control={form.control}
+              name="target"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Eval target object</FormLabel>
+                  <FormControl>
+                    <Tabs defaultValue="trace">
+                      <TabsList {...field}>
+                        <TabsTrigger value="trace">Trace</TabsTrigger>
+                        <TabsTrigger value="observation" disabled={true}>
+                          Observation (coming soon)
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </FormControl>
+                  <FormDescription>Description</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Card>
+          <Card className="p-4">
+            <FormField
+              control={form.control}
+              name="filter"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Target filter</FormLabel>
+                  <FormControl>
+                    <div className="w-1/2">
+                      <InlineFilterBuilder
+                        columns={tracesTableColsWithOptions(
+                          traceFilterOptions.data,
+                        )}
+                        filterState={field.value ?? []}
+                        onChange={(value) => field.onChange(value)}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    This will run on all future and XX historical traces.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Card>
+          <Card className="p-4">
+            <FormField
+              control={form.control}
+              name="mapping"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Variable mapping</FormLabel>
+                  <FormControl>
+                    Here will some variable mapping be added.
+                  </FormControl>
+                  {selectedEvalTemplate?.vars.map((variable) => (
+                    <div key={variable}>
+                      <div className="flex">
+                        <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+                          {variable}
+                        </span>
+                        <Input
+                          onInput={(event) => {
+                            updateVariableValue(
+                              variable,
+                              event.currentTarget.value,
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <FormDescription>Description </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Card>
+          <Card className="p-4">
+            <FormField
+              control={form.control}
+              name="sampling"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sampling</FormLabel>
+                  <FormControl>
+                    Here will some variable mapping be added.
+                  </FormControl>
 
-          <FormField
-            control={form.control}
-            name="target"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Eval target object</FormLabel>
-                <FormControl>
-                  <Tabs>
-                    <TabsList {...field}>
-                      <TabsTrigger value="account">Trace</TabsTrigger>
-                      <TabsTrigger value="password" disabled={true}>
-                        Observation (coming soon)
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </FormControl>
-                <FormDescription>Description</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="filter"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Target filter</FormLabel>
-                <FormControl>
-                  <PopoverFilterBuilder
-                    columns={tracesTableCols}
-                    filterState={field.value}
-                    onChange={(value) => field.onChange(value)}
-                  />
-                </FormControl>
-                <FormDescription>
-                  This will run on all future and XX historical traces.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="mapping"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Variable mapping</FormLabel>
-                <FormControl>
-                  Here will some variable mapping be added.
-                </FormControl>
-                <FormDescription>Description </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="sampling"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Variable mapping</FormLabel>
-                <FormControl>
-                  Here will some variable mapping be added.
-                </FormControl>
-                <FormDescription>Description </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                  <Input {...field} />
+                  <FormDescription>Description </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Card>
         </div>
 
         <Button
           type="submit"
-          loading={createEvalTemplateMutation.isLoading}
+          loading={createJobMutation.isLoading}
           className="mt-3"
         >
           Save

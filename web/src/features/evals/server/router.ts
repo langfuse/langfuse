@@ -8,6 +8,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { evalModels } from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";
+import { singleFilter } from "@/src/server/api/interfaces/filters";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),
@@ -57,6 +58,62 @@ export const evalRouter = createTRPCRouter({
         templates: templates,
         totalCount: count,
       };
+    }),
+  createJob: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evalTemplateId: z.string(),
+        scoreName: z.string(),
+        target: z.string(),
+        filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+        mapping: z.array(z.object({ name: z.string(), value: z.string() })),
+        sampling: z.number().gte(0).lte(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "job:create",
+        });
+
+        const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
+          where: {
+            id: input.evalTemplateId,
+          },
+        });
+
+        if (!evalTemplate || evalTemplate.projectId !== input.projectId) {
+          console.log(
+            `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
+          );
+          throw new Error("Template not found");
+        }
+
+        const job = await ctx.prisma.jobConfiguration.create({
+          data: {
+            projectId: input.projectId,
+            jobType: "evaluation",
+            evalTemplateId: input.evalTemplateId,
+            scoreName: input.scoreName,
+            targetObject: "trace",
+            filter: input.filter ?? [],
+            variableMapping: input.mapping,
+            sampling: input.sampling,
+          },
+        });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "job",
+          resourceId: job.id,
+          action: "create",
+        });
+      } catch (e) {
+        console.log(e);
+        throw e;
+      }
     }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplate)
