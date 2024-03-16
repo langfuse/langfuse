@@ -13,7 +13,7 @@ export const EvalEvent = QueueEnvelope.extend({
 });
 
 export enum QueueName {
-  Evaluation = "evaluation",
+  Evaluation = "evaluation-queue",
 }
 
 export enum QueueJobs {
