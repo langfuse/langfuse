@@ -33,6 +33,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
+import { IOCell, JsonSkeleton } from "./IOCell";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -437,8 +438,8 @@ export default function TracesTable({
       accessorKey: "input",
       header: "Input",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("input");
-        return <JSONView json={value} className="w-[500px]" />;
+        const traceId: string = row.getValue("id");
+        return <TracesIOCell traceId={traceId} io="input" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -447,8 +448,8 @@ export default function TracesTable({
       accessorKey: "output",
       header: "Output",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("output");
-        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+        const traceId: string = row.getValue("id");
+        return <TracesIOCell traceId={traceId} io="output" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -600,3 +601,31 @@ export default function TracesTable({
     </div>
   );
 }
+
+const TracesIOCell = ({
+  traceId,
+  io,
+}: {
+  traceId: string;
+  io: "input" | "output";
+}) => {
+  const trace = api.traces.byId.useQuery(
+    {
+      traceId: traceId,
+    },
+    {
+      enabled: typeof traceId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  return (
+    <IOCell
+      isLoading={trace.isLoading}
+      data={io === "output" ? trace.data?.output : trace.data?.input}
+    />
+  );
+};
