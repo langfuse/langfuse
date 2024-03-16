@@ -70,7 +70,7 @@ export default function SessionsTable({
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+    pageSize: withDefault(NumberParam, 20),
   });
 
   const [orderByState, setOrderByState] = useOrderByState({

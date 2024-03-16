@@ -107,7 +107,7 @@ export default function TracesTable({
   const filterState = userFilterState.concat(userIdFilter);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+    pageSize: withDefault(NumberParam, 20),
   });
   const tracesAllQueryFilter = {
     page: paginationState.pageIndex,
