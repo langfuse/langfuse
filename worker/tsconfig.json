@@ -9,6 +9,12 @@
     "outDir": "dist",
     "strictNullChecks": true
   },
+  "exclude": [
+    "dist",
+    "node_modules",
+    "../shared/dist",
+    "../shared/node_modules"
+  ],
   "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", ".eslintrc.json"],
   "references": [
     {

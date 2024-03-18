@@ -1,4 +1,4 @@
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "shared/src/interfaces/filters";
 import { z } from "zod";
 
 export const temporalUnit = z.enum([

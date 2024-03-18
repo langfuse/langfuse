@@ -20,12 +20,9 @@ import {
   type WipFilterState,
   type FilterState,
   type WipFilterCondition,
-} from "@/src/features/filters/types";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import {
-  filterOperators,
-  singleFilter,
-} from "@/src/server/api/interfaces/filters";
+} from "shared/src/types";
+import { type ColumnDefinition } from "shared/src/interfaces/tableDefinition";
+import { filterOperators, singleFilter } from "shared/src/interfaces/filters";
 import { NonEmptyString } from "@/src/utils/zod";
 
 // Has WipFilterState, passes all valid filters to parent onChange
@@ -149,19 +146,6 @@ export function InlineFilterBuilder({
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
-
-  const addNewFilter = () => {
-    setWipFilterState((prev) => [
-      ...prev,
-      {
-        column: undefined,
-        type: undefined,
-        operator: undefined,
-        value: undefined,
-        key: undefined,
-      },
-    ]);
-  };
 
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,

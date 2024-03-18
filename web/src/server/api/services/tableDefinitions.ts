@@ -1,7 +1,7 @@
 import {
   type ColumnDefinition,
   type TableDefinitions,
-} from "@/src/server/api/interfaces/tableDefinition";
+} from "shared/src/interfaces/tableDefinition";
 
 export const completionTokens = {
   name: "completionTokens",

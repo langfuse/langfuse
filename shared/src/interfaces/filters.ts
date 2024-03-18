@@ -6,13 +6,7 @@ export const filterOperators = {
   stringOptions: ["any of", "none of"],
   arrayOptions: ["any of", "none of", "all of"],
   number: ["=", ">", "<", ">=", "<="],
-  stringObject: [
-    "=",
-    "contains",
-    "does not contain",
-    "starts with",
-    "ends with",
-  ],
+  stringObject: ["=", "contains", "does not contain", "starts with", "ends with"],
   numberObject: ["=", ">", "<", ">=", "<="],
   boolean: ["=", "<>"],
 } as const;

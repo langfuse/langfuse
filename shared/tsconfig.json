@@ -9,9 +9,11 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "strictNullChecks": true,
+    "allowJs": false,
     "paths": {
       "@/*": ["./*"]
     }
   },
+  "exclude": ["node_modules", "dist"],
   "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", ".eslintrc.json"]
 }

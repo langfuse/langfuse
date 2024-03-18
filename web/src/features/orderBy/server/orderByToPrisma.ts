@@ -1,5 +1,5 @@
 import { type OrderByState } from "@/src/features/orderBy/types";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import { type ColumnDefinition } from "shared/src/interfaces/tableDefinition";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 

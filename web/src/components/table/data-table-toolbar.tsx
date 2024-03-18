@@ -2,9 +2,9 @@ import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { type FilterState } from "@/src/features/filters/types";
+import { type FilterState } from "shared/src/types";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import { type ColumnDefinition } from "shared";
 import { type VisibilityState } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 

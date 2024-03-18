@@ -8,7 +8,8 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { evalModels } from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "shared/src/interfaces/filters";
+import { JobTypes } from "shared/src/constants";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),
@@ -95,7 +96,7 @@ export const evalRouter = createTRPCRouter({
         const job = await ctx.prisma.jobConfiguration.create({
           data: {
             projectId: input.projectId,
-            jobType: "evaluation",
+            jobType: JobTypes.Evaluation,
             evalTemplateId: input.evalTemplateId,
             scoreName: input.scoreName,
             targetObject: "trace",

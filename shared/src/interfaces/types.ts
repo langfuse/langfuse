@@ -1,4 +1,4 @@
-import { type singleFilter } from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "@/src/interfaces/filters";
 import { type z } from "zod";
 
 // to be sent to the server
@@ -14,9 +14,7 @@ type AllowStringAsValue<T> = {
   [K in keyof T]: K extends "value" ? string | T[K] : T[K];
 };
 
-export type WipFilterCondition = AllowStringAsValue<
-  MakeOptional<FilterCondition>
->;
+export type WipFilterCondition = AllowStringAsValue<MakeOptional<FilterCondition>>;
 export type WipFilterState = WipFilterCondition[];
 
 export type FilterOption = {

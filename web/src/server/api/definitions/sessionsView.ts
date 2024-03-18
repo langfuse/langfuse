@@ -1,4 +1,4 @@
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import { type ColumnDefinition } from "@/src/features/rbac/constants/interfaces/tableDefinition";
 
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "s.bookmarked" },

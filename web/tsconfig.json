@@ -32,7 +32,8 @@
     "**/*.cjs",
     "**/*.mjs",
     "src/features/navigate-detail-pages",
-    "types/global.d.ts"
+    "types/global.d.ts",
+    "../shared/src/interfaces/tracesTable.ts"
   ],
   "exclude": ["node_modules", "sdk"],
   "references": [

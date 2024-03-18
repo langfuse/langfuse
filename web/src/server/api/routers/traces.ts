@@ -12,18 +12,18 @@ import {
   type ObservationLevel,
 } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "shared/src/interfaces/filters";
 import {
   type TraceOptions,
   tracesTableCols,
-} from "@/src/server/api/definitions/tracesTable";
+} from "shared/src/interfaces/tracesTable";
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
-} from "@/src/features/filters/server/filterToPrisma";
+} from "shared/src/filterToPrisma";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "shared/src/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { type Sql } from "@prisma/client/runtime/library";
 import { instrumentAsync } from "@/src/utils/instrumentation";

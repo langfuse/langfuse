@@ -5,3 +5,7 @@ export enum ModelUsageUnit {
   Milliseconds = "MILLISECONDS",
   Images = "IMAGES",
 }
+
+export enum JobTypes {
+  Evaluation = "evaluation",
+}

@@ -1,5 +1,5 @@
-import { type FilterState } from "@/src/features/filters/types";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { type FilterState } from "shared/src/types";
+import { singleFilter } from "shared/src/interfaces/filters";
 import { useState } from "react";
 import {
   useQueryParam,

@@ -1,7 +1,7 @@
 import Redis from "ioredis";
 import { Job, Worker } from "bullmq";
 import { QueueName, TQueueJobTypes } from "shared/src/queues/index";
-import { evaluate } from "../eval-service";
+import { createEvalJobs } from "../eval-service";
 
 export const redis = new Redis({
   host: process.env.REDIS_HOST,
@@ -10,17 +10,15 @@ export const redis = new Redis({
   maxRetriesPerRequest: 0,
 });
 
-export const worker = new Worker<TQueueJobTypes[QueueName.Evaluation]>(
+export const consumer = new Worker<TQueueJobTypes[QueueName.Evaluation]>(
   "evaluation-job",
   async (job: Job<TQueueJobTypes[QueueName.Evaluation]>) => {
     console.log("job", job.data);
-    // Optionally report some progress
-    // await job.updateProgress(42);
-    // // Optionally sending an object as progress
-    // await job.updateProgress({ foo: "bar" });
-    await evaluate({ data: job.data.payload });
+
+    await createEvalJobs({ event: job.data.payload });
 
     console.log(job.data);
+
     // Do something with job
     return "some value";
   },

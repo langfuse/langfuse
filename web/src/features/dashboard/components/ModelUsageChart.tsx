@@ -4,7 +4,7 @@ import {
   dateTimeAggregationSettings,
   type DateTimeAggregationOption,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { type FilterState } from "@/src/features/filters/types";
+import { type FilterState } from "shared/src/types";
 
 import {
   getAllModels,

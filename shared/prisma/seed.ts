@@ -1,10 +1,4 @@
-import {
-  PrismaClient,
-  type Project,
-  type Prisma,
-  ObservationType,
-  ScoreSource,
-} from "@prisma/client";
+import { PrismaClient, type Project, type Prisma, ObservationType, ScoreSource } from "@prisma/client";
 import { hashSecretKey, getDisplaySecretKey } from "@/src/auth/auth";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
@@ -149,19 +143,16 @@ async function main() {
 
     const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
 
-    const { generationIds, traces, observations, scores, sessions, events } =
-      createObjects(
-        traceVolume,
-        envTags,
-        colorTags,
-        project1,
-        project2,
-        promptIds
-      );
-
-    console.log(
-      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
+    const { generationIds, traces, observations, scores, sessions, events } = createObjects(
+      traceVolume,
+      envTags,
+      colorTags,
+      project1,
+      project2,
+      promptIds
     );
+
+    console.log(`Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`);
 
     await uploadObjects(traces, observations, scores, sessions, events);
 
@@ -183,16 +174,13 @@ async function main() {
 
         for (let runNumber = 0; runNumber < 10; runNumber++) {
           //pick randomly from existingSpanIds
-          const sourceObservationId =
-            generationIds[Math.floor(Math.random() * generationIds.length)];
-          const runObservationId =
-            generationIds[Math.floor(Math.random() * generationIds.length)];
+          const sourceObservationId = generationIds[Math.floor(Math.random() * generationIds.length)];
+          const runObservationId = generationIds[Math.floor(Math.random() * generationIds.length)];
 
           const datasetItem = await prisma.datasetItem.create({
             data: {
               datasetId: dataset.id,
-              sourceObservationId:
-                Math.random() > 0.5 ? sourceObservationId : undefined,
+              sourceObservationId: Math.random() > 0.5 ? sourceObservationId : undefined,
               input: [
                 {
                   role: "user",
@@ -253,9 +241,7 @@ async function uploadObjects(
   for (let i = 0; i < promises.length; i++) {
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Sessions ${(i / promises.length) * 100}% complete`
-    );
+    process.stdout.write(`Seeding of Sessions ${(i / promises.length) * 100}% complete`);
     await promises[i];
   }
 
@@ -271,9 +257,7 @@ async function uploadObjects(
   for (let i = 0; i < promises.length; i++) {
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Traces ${(i / promises.length) * 100}% complete`
-    );
+    process.stdout.write(`Seeding of Traces ${(i / promises.length) * 100}% complete`);
     await promises[i];
   }
 
@@ -289,9 +273,7 @@ async function uploadObjects(
   for (let i = 0; i < promises.length; i++) {
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Observations ${(i / promises.length) * 100}% complete`
-    );
+    process.stdout.write(`Seeding of Observations ${(i / promises.length) * 100}% complete`);
     await promises[i];
   }
 
@@ -307,9 +289,7 @@ async function uploadObjects(
   for (let i = 0; i < promises.length; i++) {
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Events ${(i / promises.length) * 100}% complete`
-    );
+    process.stdout.write(`Seeding of Events ${(i / promises.length) * 100}% complete`);
     await promises[i];
   }
 
@@ -324,9 +304,7 @@ async function uploadObjects(
   for (let i = 0; i < promises.length; i++) {
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Scores ${(i / promises.length) * 100}% complete`
-    );
+    process.stdout.write(`Seeding of Scores ${(i / promises.length) * 100}% complete`);
     await promises[i];
   }
 }
@@ -349,9 +327,7 @@ function createObjects(
   for (let i = 0; i < traceVolume; i++) {
     // print progress to console with a progress bar that refreshes every 10 iterations
     // random date within last 90 days, with a linear bias towards more recent dates
-    const traceTs = new Date(
-      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000)
-    );
+    const traceTs = new Date(Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000));
 
     const envTag = envTags[Math.floor(Math.random() * envTags.length)];
     const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
@@ -376,21 +352,15 @@ function createObjects(
       id: `trace-${v4()}`,
       timestamp: traceTs,
       projectId: projectId,
-      name: ["generate-outreach", "label-inbound", "draft-response"][
-        i % 3
-      ] as string,
+      name: ["generate-outreach", "label-inbound", "draft-response"][i % 3] as string,
       metadata: {
         user: `user-${i}@langfuse.com`,
         more: "1,2,3;4?6",
       },
       tags: tags as string[],
       userId: `user-${i % 60}`,
-      input:
-        Math.random() > 0.3 ? "I'm looking for a React component" : undefined,
-      output:
-        Math.random() > 0.3
-          ? "What kind of component are you looking for?"
-          : undefined,
+      input: Math.random() > 0.3 ? "I'm looking for a React component" : undefined,
+      output: Math.random() > 0.3 ? "What kind of component are you looking for?" : undefined,
       ...(session ? { sessionId: session.id } : {}),
     };
 
@@ -427,13 +397,9 @@ function createObjects(
 
     for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
       // add between 1 and 30 ms to trace timestamp
-      const spanTsStart = new Date(
-        traceTs.getTime() + Math.floor(Math.random() * 30)
-      );
+      const spanTsStart = new Date(traceTs.getTime() + Math.floor(Math.random() * 30));
       // random duration of upto 30ms
-      const spanTsEnd = new Date(
-        spanTsStart.getTime() + Math.floor(Math.random() * 30)
-      );
+      const spanTsEnd = new Date(spanTsStart.getTime() + Math.floor(Math.random() * 30));
 
       const span = {
         type: ObservationType.SPAN,
@@ -450,10 +416,7 @@ function createObjects(
         ...(existingSpanIds.length === 0 || Math.random() > 0.5
           ? {}
           : {
-              parentObservationId:
-                existingSpanIds[
-                  Math.floor(Math.random() * existingSpanIds.length)
-                ],
+              parentObservationId: existingSpanIds[Math.floor(Math.random() * existingSpanIds.length)],
             }),
       };
 
@@ -464,17 +427,10 @@ function createObjects(
       for (let k = 0; k < Math.floor(Math.random() * 2) + 1; k++) {
         // random start and end times within span
         const generationTsStart = new Date(
-          spanTsStart.getTime() +
-            Math.floor(
-              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-            )
+          spanTsStart.getTime() + Math.floor(Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()))
         );
         const generationTsEnd = new Date(
-          generationTsStart.getTime() +
-            Math.floor(
-              Math.random() *
-                (spanTsEnd.getTime() - generationTsStart.getTime())
-            )
+          generationTsStart.getTime() + Math.floor(Math.random() * (spanTsEnd.getTime() - generationTsStart.getTime()))
         );
 
         const promptTokens = Math.floor(Math.random() * 1000) + 300;
@@ -492,10 +448,7 @@ function createObjects(
         ];
 
         const model = models[Math.floor(Math.random() * models.length)];
-        const promptId =
-          promptIds.get(projectId)![
-            Math.floor(Math.random() * promptIds.get(projectId)!.length)
-          ];
+        const promptId = promptIds.get(projectId)![Math.floor(Math.random() * promptIds.get(projectId)!.length)];
 
         const generation = {
           type: ObservationType.GENERATION,
@@ -566,13 +519,9 @@ function createObjects(
           model: model,
           internalModel: model,
           modelParameters: {
-            temperature:
-              Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
+            temperature: Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
             topP: Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
-            maxTokens:
-              Math.random() > 0.9
-                ? undefined
-                : Math.floor(Math.random() * 1000),
+            maxTokens: Math.random() > 0.9 ? undefined : Math.floor(Math.random() * 1000),
           },
           metadata: {
             user: `user-${i}@langfuse.com`,
@@ -612,10 +561,7 @@ function createObjects(
         for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
           // random start time within span
           const eventTs = new Date(
-            spanTsStart.getTime() +
-              Math.floor(
-                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-              )
+            spanTsStart.getTime() + Math.floor(Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()))
           );
 
           events.push({

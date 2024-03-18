@@ -21,10 +21,10 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Tabs } from "@radix-ui/react-tabs";
-import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
-import { type FilterState } from "@/src/features/filters/types";
+import { tracesTableColsWithOptions } from "shared/src/interfaces/tracesTable";
+import { type FilterState } from "shared/src/interfaces/types";
 import * as z from "zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "shared/src/interfaces/filters";
 import { Card } from "@/src/components/ui/card";
 import { useState } from "react";
 import { api } from "@/src/utils/api";

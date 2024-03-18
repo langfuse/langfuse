@@ -5,7 +5,7 @@ import { env } from "@/src/env.mjs";
 import {
   exportFileFormats,
   exportOptions,
-} from "@/src/server/api/interfaces/exportTypes";
+} from "shared/src/interfaces/exportTypes";
 import { S3StorageService } from "@/src/server/api/services/S3StorageService";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { type ObservationView } from "@prisma/client";

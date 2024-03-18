@@ -38,7 +38,7 @@ import { randomIntFromInterval, usdFormatter } from "@/src/utils/numbers";
 import {
   exportOptions,
   type ExportFileFormats,
-} from "@/src/server/api/interfaces/exportTypes";
+} from "shared/src/interfaces/exportTypes";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";

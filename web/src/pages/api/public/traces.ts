@@ -17,7 +17,7 @@ import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "shared/src/interfaces/orderBy";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetTracesSchema = z.object({

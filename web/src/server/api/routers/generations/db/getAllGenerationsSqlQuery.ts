@@ -1,7 +1,7 @@
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
-} from "@/src/features/filters/server/filterToPrisma";
+} from "shared/src/filterToPrisma";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
 import { type ObservationView, Prisma } from "@prisma/client";

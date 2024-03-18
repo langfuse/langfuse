@@ -1,18 +1,18 @@
 import { z } from "zod";
 
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
-import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
+import { tableColumnsToSqlFilterAndPrefix } from "shared/src/filterToPrisma";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma } from "@prisma/client";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "shared/src/interfaces/filters";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "shared/src/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type Decimal from "decimal.js";

@@ -1,9 +1,9 @@
 {
   "name": "shared",
   "version": "1.0.0",
-  "main": "dist/src/index.js",
   "license": "MIT",
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev",
