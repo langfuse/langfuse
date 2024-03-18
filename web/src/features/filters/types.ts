@@ -3,7 +3,9 @@ import { type z } from "zod";
 
 // to be sent to the server
 export type FilterCondition = z.infer<typeof singleFilter>;
+export type UIFilterCondition = FilterCondition & { urlName: string };
 export type FilterState = FilterCondition[];
+export type UIFilterState = UIFilterCondition[];
 
 // to be used in the client during editing
 type MakeOptional<T> = {
@@ -15,7 +17,7 @@ type AllowStringAsValue<T> = {
 };
 
 export type WipFilterCondition = AllowStringAsValue<
-  MakeOptional<FilterCondition>
+  MakeOptional<UIFilterCondition>
 >;
 export type WipFilterState = WipFilterCondition[];
 

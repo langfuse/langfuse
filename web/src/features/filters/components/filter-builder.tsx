@@ -18,13 +18,14 @@ import {
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import {
   type WipFilterState,
-  type FilterState,
   type WipFilterCondition,
+  type UIFilterCondition,
+  type UIFilterState,
 } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import {
   filterOperators,
-  singleFilter,
+  singleFilterWithUrlParam,
 } from "@/src/server/api/interfaces/filters";
 import { NonEmptyString } from "@/src/utils/zod";
 
@@ -35,8 +36,8 @@ export function FilterBuilder({
   onChange,
 }: {
   columns: ColumnDefinition[];
-  filterState: FilterState;
-  onChange: Dispatch<SetStateAction<FilterState>>;
+  filterState: UIFilterState;
+  onChange: Dispatch<SetStateAction<UIFilterState>>;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -47,6 +48,7 @@ export function FilterBuilder({
       {
         column: undefined,
         type: undefined,
+        urlName: undefined,
         operator: undefined,
         value: undefined,
         key: undefined,
@@ -54,14 +56,18 @@ export function FilterBuilder({
     ]);
   };
 
+  const getValidFilters = (state: WipFilterState): UIFilterCondition[] => {
+    return state.filter(
+      (f) => singleFilterWithUrlParam.safeParse(f).success,
+    ) as UIFilterCondition[];
+  };
+
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
   ) => {
     _setWipFilterState((prev) => {
       const newState = state instanceof Function ? state(prev) : state;
-      const validFilters = newState.filter(
-        (f) => singleFilter.safeParse(f).success,
-      ) as FilterState;
+      const validFilters = getValidFilters(newState);
       onChange(validFilters);
       return newState;
     });
@@ -83,6 +89,8 @@ export function FilterBuilder({
             <span>Filter</span>
             {filterState.length > 0
               ? filterState.map((filter, i) => {
+                  console.log("UI Filter", filter);
+                  console.log("urlName", filter.urlName);
                   return (
                     <span
                       key={i}
@@ -161,6 +169,7 @@ function FilterBuilderForm({
       {
         column: undefined,
         operator: undefined,
+        urlName: undefined,
         value: undefined,
         type: undefined,
         key: undefined,
@@ -182,32 +191,35 @@ function FilterBuilderForm({
         <tbody>
           {filterState.map((filter, i) => {
             const column = columns.find((c) => c.name === filter.column);
+            console.log("filter", filter);
             return (
               <tr key={i}>
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
                 <td className="flex gap-2 p-1">
                   {/* selector of the column to be filtered */}
                   <Select
-                    value={filter.column ?? ""}
-                    onValueChange={(value) =>
+                    value={filter.urlName ?? ""}
+                    onValueChange={(value) => {
+                      console.log("value: ", value);
                       handleFilterChange(
                         {
-                          column: value,
-                          type: columns.find((c) => c.name === value)?.type,
+                          column: columns.find((c) => c.id === value)?.name,
+                          type: columns.find((c) => c.id === value)?.type,
+                          urlName: value,
                           operator: undefined,
                           value: undefined,
                           key: undefined,
                         },
                         i,
-                      )
-                    }
+                      );
+                    }}
                   >
                     <SelectTrigger className="min-w-[100px]">
                       <SelectValue placeholder="Column" />
                     </SelectTrigger>
                     <SelectContent>
                       {columns.map((option) => (
-                        <SelectItem key={option.name} value={option.name}>
+                        <SelectItem key={option.id} value={option.id!}>
                           {option.name}
                         </SelectItem>
                       ))}

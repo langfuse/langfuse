@@ -91,14 +91,18 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [filterState, setFilterState] = useQueryFilterState([
-    {
-      column: "Start Time",
-      type: "datetime",
-      operator: ">",
-      value: utcDateOffsetByDays(-14),
-    },
-  ]);
+  const [filterState, setFilterState] = useQueryFilterState(
+    [
+      {
+        column: "Start Time",
+        type: "datetime",
+        operator: ">",
+        urlName: "startTime",
+        value: utcDateOffsetByDays(-14),
+      },
+    ],
+    "generation",
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
@@ -114,6 +118,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     searchQuery,
   });
 
+  console.log("generation: ", filterState);
   const totalCount = generations.data?.totalCount ?? 0;
 
   const filterOptions = api.generations.filterOptions.useQuery(
