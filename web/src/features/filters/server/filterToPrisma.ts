@@ -53,7 +53,7 @@ export function tableColumnsToSqlFilter(
         c.name === filter.column || c.id === filter.column,
     );
     if (!col) {
-      console.error("Invalid filter column", filter.column);
+      console.error("Invalid filter column");
       throw new Error("Invalid filter column: " + filter.column);
     }
     const colPrisma = Prisma.raw(col.internal);
