@@ -5,7 +5,7 @@ import {
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { type FilterState } from "shared/src/types";
+import { type FilterState } from "shared/src/interfaces/types";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,

@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "shared/src/types";
+import { type FilterState } from "shared/src/interfaces/types";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";

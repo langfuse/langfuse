@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { EvalEvent } from "shared/src/queues/index";
 import { db } from "./database";
-import { singleFilter } from "shared/src/interfaces/filters";
+// import { singleFilter } from "shared/src/interfaces/filters";
 import { tableColumnsToSqlFilter } from "shared/src/filterToPrisma";
 import { tracesTableCols } from "shared/src/interfaces/tracesTable";
 import { sql } from "kysely";
@@ -13,6 +13,7 @@ export const createEvalJobs = async ({
 }: {
   event: z.infer<typeof EvalEvent>;
 }) => {
+  const a = EvalEvent.parse(event);
   const configurations = await db
     .selectFrom("job_configurations")
     .selectAll()
@@ -21,19 +22,19 @@ export const createEvalJobs = async ({
     .execute();
 
   for (const configuration of configurations) {
-    const parsedFilers = z.array(singleFilter).parse(configuration.filter);
-    const filters = tableColumnsToSqlFilter(
-      parsedFilers,
-      tracesTableCols,
-      "traces"
-    );
-    const trace = sql<Trace[]>`
-      select *
-      from traces
-      where id = ${event.data.traceId}
-      ${filters}
-    `.execute(db);
-    console.log(trace);
+    // const parsedFilers = z.array(singleFilter).parse(configuration.filter);
+    // const filters = tableColumnsToSqlFilter(
+    //   parsedFilers,
+    //   tracesTableCols,
+    //   "traces"
+    // );
+    // const trace = sql<Trace[]>`
+    //   select *
+    //   from traces
+    //   where id = ${event.data.traceId}
+    //   ${filters}
+    // `.execute(db);
+    // console.log(trace);
     // const traceQuery = db
     //   .selectFrom("traces")
     //   .selectAll()

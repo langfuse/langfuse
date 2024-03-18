@@ -1,4 +1,4 @@
-import { type FilterState } from "shared/src/types";
+import { type FilterState } from "shared/src/interfaces/types";
 import { singleFilter } from "shared/src/interfaces/filters";
 import { useState } from "react";
 import {
