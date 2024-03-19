@@ -14,13 +14,16 @@ const project = resolve(process.cwd(), "tsconfig.json");
 module.exports = {
   parser: "@typescript-eslint/parser", // Set the parser to @typescript-eslint/parser
   extends: [
-    "@vercel/style-guide/eslint/node",
-    "@vercel/style-guide/eslint/typescript",
-    "@vercel/style-guide/eslint/browser",
-    "@vercel/style-guide/eslint/react",
-    "@vercel/style-guide/eslint/next",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/strict-type-checked",
     "eslint-config-turbo",
-  ].map(require.resolve),
+  ],
+  rules: {
+    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/no-confusing-void-expression": "off",
+  },
+  parser: "@typescript-eslint/parser",
+
   parserOptions: {
     project,
   },
@@ -28,7 +31,12 @@ module.exports = {
     React: true,
     JSX: true,
   },
-  plugins: ["only-warn"],
+  plugins: ["@typescript-eslint"],
+  extends: ["next/core-web-vitals"],
+  env: {
+    es6: true,
+    jest: true,
+  },
   settings: {
     "import/resolver": {
       typescript: {
@@ -39,6 +47,19 @@ module.exports = {
   ignorePatterns: ["node_modules/", "dist/"],
   // add rules configurations here
   rules: {
-    "import/no-default-export": "off",
+    "@typescript-eslint/consistent-type-imports": [
+      "warn",
+      {
+        prefer: "type-imports",
+        fixStyle: "inline-type-imports",
+      },
+    ],
+    "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    "react/jsx-key": [
+      "error",
+      {
+        warnOnDuplicates: true,
+      },
+    ],
   },
 };

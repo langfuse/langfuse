@@ -12,6 +12,7 @@ module.exports = {
   },
   env: {
     node: true,
+    es6: true,
   },
   settings: {
     "import/resolver": {
@@ -26,6 +27,10 @@ module.exports = {
     "node_modules/",
     "dist/",
   ],
+  rules: {
+    "no-redeclare": "off",
+    "import/order": "off",
+  },
   overrides: [
     {
       files: ["*.js?(x)", "*.ts?(x)"],

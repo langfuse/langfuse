@@ -18,6 +18,11 @@
     "db:generate": {
       "dependsOn": ["^db:generate"]
     },
-    "lint": {}
+    "lint": {
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["^test", "db:generate"]
+    }
   }
 }

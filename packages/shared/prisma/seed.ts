@@ -5,13 +5,12 @@ import {
   ObservationType,
   ScoreSource,
 } from "@prisma/client";
-import { hashSecretKey, getDisplaySecretKey } from "@/src/auth/auth";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 
 import { chunk } from "lodash";
 import { v4 } from "uuid";
-import { ModelUsageUnit } from "@/src";
+import { ModelUsageUnit, getDisplaySecretKey, hashSecretKey } from "../src";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
