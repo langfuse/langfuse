@@ -79,29 +79,3 @@ export const singleFilter = z.discriminatedUnion("type", [
   numberObjectFilter,
   booleanFilter,
 ]);
-
-const urlNameSchema = z.object({
-  urlName: z.string(),
-});
-
-// Extending each filter schema with urlName
-const timeFilterWithUrlName = timeFilter.merge(urlNameSchema);
-const stringFilterWithUrlName = stringFilter.merge(urlNameSchema);
-const numberFilterWithUrlName = numberFilter.merge(urlNameSchema);
-const stringOptionsFilterWithUrlName = stringOptionsFilter.merge(urlNameSchema);
-const arrayOptionsFilterWithUrlName = arrayOptionsFilter.merge(urlNameSchema);
-const stringObjectFilterWithUrlName = stringObjectFilter.merge(urlNameSchema);
-const numberObjectFilterWithUrlName = numberObjectFilter.merge(urlNameSchema);
-const booleanFilterWithUrlName = booleanFilter.merge(urlNameSchema);
-
-// Recreating the discriminated union with the extended schemas
-export const singleFilterWithUrlParam = z.discriminatedUnion("type", [
-  timeFilterWithUrlName,
-  stringFilterWithUrlName,
-  numberFilterWithUrlName,
-  stringOptionsFilterWithUrlName,
-  arrayOptionsFilterWithUrlName,
-  stringObjectFilterWithUrlName,
-  numberObjectFilterWithUrlName,
-  booleanFilterWithUrlName,
-]);
