@@ -1,4 +1,4 @@
-import { prisma as _prisma } from "shared/src/db/index";
+import { prisma as _prisma } from "shared";
 import { type MembershipRole } from "@prisma/client";
 
 export type AuditableResource =

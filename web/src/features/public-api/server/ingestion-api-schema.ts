@@ -1,7 +1,7 @@
 import lodash from "lodash";
 import { z } from "zod";
 
-import { ModelUsageUnit } from "shared/src/constants";
+import { ModelUsageUnit } from "shared";
 import { NonEmptyString, jsonSchema } from "@/src/utils/zod";
 import { ObservationLevel } from "@prisma/client";
 

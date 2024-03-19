@@ -43,9 +43,9 @@ Timed out fetching a new connection from the connection pool. More info:  (Curre
   meta: { modelName: 'ApiKey', connection_limit: 1, timeout: 10 }
 */
 
-jest.mock("shared/src/db/index.ts", () => {
+jest.mock("shared", () => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const originalModule = jest.requireActual("shared/src/db/index.ts");
+  const originalModule = jest.requireActual("shared");
 
   // Create a mock for PrismaClient
   const mockPrismaClient = {

@@ -1,7 +1,7 @@
 /** @jest-environment node */
 
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "shared/src/constants";
+import { ModelUsageUnit } from "shared";
 import { prisma } from "shared";
 
 describe("cost retrieval tests", () => {

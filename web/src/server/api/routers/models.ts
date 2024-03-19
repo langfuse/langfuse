@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ModelUsageUnit } from "shared/src/constants";
+import { ModelUsageUnit } from "shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,

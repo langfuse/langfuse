@@ -1,4 +1,4 @@
-import { getDisplaySecretKey, hashSecretKey } from "shared/src/auth/auth";
+import { getDisplaySecretKey, hashSecretKey } from "shared";
 import { prisma } from "shared";
 import { hash } from "bcryptjs";
 
