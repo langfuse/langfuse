@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { type UIFilterState } from "@/src/features/filters/types";
+import { type FilterState } from "@/src/features/filters/types";
 import { FilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import { type VisibilityState } from "@tanstack/react-table";
@@ -19,8 +19,8 @@ interface DataTableToolbarProps<TData, TValue> {
   filterColumnDefinition: ColumnDefinition[];
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
-  filterState: UIFilterState;
-  setFilterState: Dispatch<SetStateAction<UIFilterState>>;
+  filterState: FilterState;
+  setFilterState: Dispatch<SetStateAction<FilterState>>;
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
 }
