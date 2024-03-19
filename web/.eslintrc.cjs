@@ -41,6 +41,10 @@ const config = {
         warnOnDuplicates: true,
       },
     ],
+    "@typescript-eslint/no-unnecessary-condition": [
+      "error",
+      { allowConstantLoopConditions: true },
+    ],
   },
 };
 
