@@ -10,9 +10,13 @@ import { paginationZod } from "@/src/utils/zod";
 import { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
+import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
+  filter: z.array(singleFilter),
   ...paginationZod,
 });
 
@@ -20,6 +24,12 @@ export const modelRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        modelsTableCols,
+        "models",
+      );
+      console.log(filterCondition);
       const models = await ctx.prisma.model.findMany({
         where: {
           OR: [{ projectId: input.projectId }, { projectId: null }],
