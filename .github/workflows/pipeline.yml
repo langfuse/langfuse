@@ -102,7 +102,7 @@ jobs:
         run: (pnpm run start&)
 
       - name: run tests
-        run: yarn workspace web run test
+        run: pnpm run test
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -114,8 +114,8 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: "yarn"
-          cache-dependency-path: "yarn.lock"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: install dependencies
         run: |
@@ -133,17 +133,17 @@ jobs:
 
       - name: Seed DB
         run: |
-          yarn workspace shared run db:migrate
-          yarn workspace shared run db:seed
+          pnpm run db:migrate
+          pnpm run run db:seed
 
       - name: Build
-        run: yarn workspace web run build
+        run: pnpm run build
 
       - name: Install playwright
         run: npx playwright install
 
       - name: Run e2e tests
-        run: yarn workspace web run test:e2e
+        run: pnpm --filter=web run test:e2e
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
