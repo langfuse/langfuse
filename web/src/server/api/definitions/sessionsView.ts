@@ -3,38 +3,49 @@ import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefiniti
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "s.bookmarked" },
   {
-    name: "id",
+    name: "ID",
     id: "id",
     type: "string",
     internal: 's."id"',
   },
   {
-    name: "userId",
+    name: "User ID",
+    id: "userId",
     type: "string",
     internal: "array_to_string(t.\"userIds\", ', ')",
   },
   {
-    name: "Session duration (s)",
+    name: "Session Duration",
     id: "sessionDuration",
     type: "number",
     internal: 'o."sessionDuration"',
   },
   {
-    name: "createdAt",
+    name: "Created At",
     id: "createdAt",
     type: "datetime",
     internal: 's."created_at"',
   },
   {
-    name: "countTraces",
+    name: "Traces",
     id: "countTraces",
     type: "number",
     internal: 't."countTraces"',
   },
   {
-    name: "Cost (USD)",
+    name: "Total Cost",
     id: "totalCost",
     type: "number",
     internal: 'o."totalCost"',
   },
 ];
+
+export const SESSIONS_ID_NAME_MAP = {
+  bookmarked: "⭐️",
+  id: "ID",
+  userId: "User ID",
+  sessionDuration: "Session Duration",
+  createdAt: "Created At",
+  countTraces: "Traces",
+  totalCost: "Total Cost",
+};
