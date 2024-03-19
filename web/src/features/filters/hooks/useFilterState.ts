@@ -116,7 +116,7 @@ function getIdNameMap(table: TableName): { [key: string]: string } {
     case "scores":
       return SCORES_ID_NAME_MAP;
     case "dashboard":
-      return { traceName: "Trace Name" };
+      return { traceName: "traceName" };
     default:
       return {};
   }
