@@ -7,7 +7,7 @@ import { ObservationLevel } from "@prisma/client";
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [
   {
-    name: "Id",
+    name: "ID",
     id: "id",
     type: "string",
     internal: 'o."id"',
@@ -19,7 +19,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."name"',
     options: [], // to be added at runtime
   },
-  { name: "traceId", id: "traceId", type: "string", internal: 't."id"' },
+  { name: "Trace ID", id: "traceId", type: "string", internal: 't."id"' },
   {
     name: "Trace Name",
     id: "traceName",
@@ -27,7 +27,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 't."name"',
     options: [], // to be added at runtime
   },
-  { name: "userId", id: "userId", type: "string", internal: 't."user_id"' },
+  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
   {
     name: "Start Time",
     id: "startTime",
@@ -41,13 +41,14 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."end_time"',
   },
   {
-    name: "Latency (s)",
+    name: "Latency",
     id: "latency",
     type: "number",
     internal: '"latency"',
   },
   {
-    name: "Total Cost ($)",
+    name: "Total Cost",
+    id: "totalCost",
     type: "number",
     internal: 'o."calculated_total_cost"',
   },
@@ -108,12 +109,12 @@ export type ObservationOptions = {
   promptName: Array<OptionsDefinition>;
 };
 
-export const GENERATIONS_NAME_ID_MAP = {
-  id: "Id",
+export const GENERATIONS_ID_NAME_MAP = {
+  id: "ID",
   name: "Name",
-  traceId: "Trace Id",
+  traceId: "Trace ID",
   traceName: "Trace Name",
-  userId: "User Id",
+  userId: "User ID",
   startTime: "Start Time",
   endTime: "End Time",
   latency: "Latency",
