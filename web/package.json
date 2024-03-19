@@ -7,7 +7,6 @@
     "build": "dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
     "dx": "dotenv -e ../.env -- npm i && npm run db:reset && npm run db:seed:examples && npm run dev",
-    "postinstall": "dotenv -e ../.env -- prisma generate",
     "lint": "dotenv -e ../.env -- next lint",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",
