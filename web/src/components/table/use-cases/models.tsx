@@ -1,8 +1,11 @@
 import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@prisma/client";
@@ -47,11 +50,12 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
+  const [filterState, setFilterState] = useQueryFilterState([]);
   const models = api.models.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
+    filter: filterState,
   });
   const totalCount = models.data?.totalCount ?? 0;
 
@@ -61,6 +65,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       id: "maintainer",
       enableColumnFilter: true,
       header: "Maintainer",
+      enableSorting: true,
     },
     {
       accessorKey: "modelName",
@@ -69,6 +74,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.modelName,
       },
+      enableSorting: true,
     },
     {
       accessorKey: "startDate",
@@ -77,6 +83,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.startDate,
       },
+      enableHiding: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("startDate");
 
@@ -94,6 +102,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.matchPattern,
       },
       header: "Match Pattern",
+      enableHiding: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: string = row.getValue("matchPattern");
 
@@ -118,6 +128,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.inputPrice,
       },
+      enableSorting: true,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputPrice");
 
@@ -144,6 +155,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           </>
         );
       },
+      enableSorting: true,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputPrice");
 
@@ -170,6 +182,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.totalPrice,
       },
+      enableSorting: true,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalPrice");
 
@@ -189,6 +202,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.unit,
       },
+      enableSorting: true,
       enableHiding: true,
     },
     {
@@ -198,6 +212,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.tokenizerId,
       },
+      enableSorting: true,
       enableHiding: true,
     },
     {
@@ -235,7 +250,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ModelTableRow>("scoresColumnVisibility", columns);
+    useColumnVisibility<ModelTableRow>("modelColumnVisibility", columns);
 
   const convertToTableRow = (model: Model): ModelTableRow => {
     return {
@@ -257,6 +272,14 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 
   return (
     <div>
+      <DataTableToolbar
+        columns={columns}
+        filterColumnDefinition={modelsTableCols}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+      />
       <DataTable
         columns={columns}
         data={
