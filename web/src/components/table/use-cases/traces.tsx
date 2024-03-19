@@ -80,14 +80,17 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
-  const [userFilterState, setUserFilterState] = useQueryFilterState([
-    {
-      column: "timestamp",
-      type: "datetime",
-      operator: ">",
-      value: utcDateOffsetByDays(-14),
-    },
-  ]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [
+      {
+        column: "Timestamp",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(-14),
+      },
+    ],
+    "traces",
+  );
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
@@ -96,7 +99,7 @@ export default function TracesTable({
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "userId",
+          column: "User ID",
           type: "string",
           operator: "=",
           value: userId,
