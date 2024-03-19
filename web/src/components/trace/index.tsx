@@ -283,10 +283,19 @@ export function TracePage({ traceId }: { traceId: string }) {
 }
 
 export const calculateDisplayTotalCost = (
-  observations: ObservationReturnType[],
+  observations: Pick<
+    ObservationReturnType,
+    "calculatedInputCost" | "calculatedOutputCost" | "calculatedTotalCost"
+  >[],
 ) => {
   return observations.reduce(
-    (prev: Decimal | undefined, curr: ObservationReturnType) => {
+    (
+      prev: Decimal | undefined,
+      curr: Pick<
+        ObservationReturnType,
+        "calculatedInputCost" | "calculatedOutputCost" | "calculatedTotalCost"
+      >,
+    ) => {
       // if we don't have any calculated costs, we can't do anything
       if (
         !curr.calculatedTotalCost &&

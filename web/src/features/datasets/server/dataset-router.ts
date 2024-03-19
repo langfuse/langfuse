@@ -8,6 +8,10 @@ import { type DatasetRuns, Prisma, type Dataset } from "@prisma/client";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
+import { isNotNullOrUndefined } from "@/src/utils/types";
+import { usdFormatter } from "@/src/utils/numbers";
+import { intervalInSeconds } from "@/src/utils/dates";
+import { calculateDisplayTotalCost } from "@/src/components/trace";
 
 export const datasetRouter = createTRPCRouter({
   allDatasets: protectedProjectProcedure
@@ -416,36 +420,133 @@ export const datasetRouter = createTRPCRouter({
               scores: true,
             },
           },
+          trace: {
+            include: {
+              scores: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "desc",
         },
       });
 
-      const observationIds = runItems.map((ri) => ri.observationId);
+      const observationIds = runItems
+        .map((ri) => ri.observationId)
+        .filter(isNotNullOrUndefined);
+      const traceIds = runItems
+        .map((ri) => ri.traceId)
+        .filter(isNotNullOrUndefined);
       const observations = await ctx.prisma.observationView.findMany({
         select: {
           id: true,
+          traceId: true,
+          projectId: true,
+          type: true,
+          startTime: true,
+          endTime: true,
+          name: true,
+          metadata: true,
+          parentObservationId: true,
+          level: true,
+          statusMessage: true,
+          version: true,
+          createdAt: true,
+          model: true,
+          modelParameters: true,
+          promptTokens: true,
+          completionTokens: true,
+          totalTokens: true,
+          unit: true,
+          completionStartTime: true,
+          promptId: true,
+          modelId: true,
+          inputPrice: true,
+          outputPrice: true,
+          totalPrice: true,
+          calculatedInputCost: true,
+          calculatedOutputCost: true,
           calculatedTotalCost: true,
         },
         where: {
-          id: {
-            in: observationIds,
-          },
+          OR: [
+            {
+              id: {
+                in: observationIds,
+              },
+            },
+            {
+              traceId: {
+                in: traceIds,
+              },
+            },
+          ],
         },
       });
 
-      return runItems.map((ri) => {
-        return {
-          id: ri.id,
-          createdAt: ri.createdAt,
-          datasetItemId: ri.datasetItemId,
-          observation: {
-            ...ri.observation,
-            ...observations.find((o) => o.id === ri.observationId),
-          },
-        };
-      });
+      return runItems
+        .map((ri) => {
+          if (ri.observation !== null) {
+            const observation = observations.find(
+              (o) => o.id === ri.observationId,
+            );
+
+            return {
+              id: ri.id,
+              runAt: ri.createdAt,
+              datasetItemId: ri.datasetItemId,
+              observationId: ri.observation.id,
+              traceId: ri.observation.traceId,
+              scores: ri.observation.scores,
+              totalCost: usdFormatter(
+                observation?.calculatedTotalCost?.toNumber() ?? 0,
+              ),
+              latency: intervalInSeconds(
+                ri.observation.startTime,
+                ri.observation.endTime,
+              ),
+            };
+          }
+
+          if (ri.trace !== null) {
+            const traceObservations = observations.filter(
+              (obs) => obs.traceId === ri.traceId,
+            );
+            console.log(traceObservations.length, observations.length);
+
+            const obsStartTimes = traceObservations
+              .map((o) => o.startTime)
+              .sort((a, b) => a.getTime() - b.getTime());
+            const obsEndTimes = traceObservations
+              .map((o) => o.endTime)
+              .filter((t) => t)
+              .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
+            const latencyMs =
+              obsStartTimes.length > 0
+                ? obsEndTimes.length > 0
+                  ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+                    obsStartTimes[0]!.getTime()
+                  : obsStartTimes.length > 1
+                    ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                      obsStartTimes[0]!.getTime()
+                    : undefined
+                : undefined;
+
+            return {
+              id: ri.id,
+              runAt: ri.createdAt,
+              datasetItemId: ri.datasetItemId,
+              observationId: ri.observationId,
+              traceId: ri.trace.id,
+              scores: ri.trace.scores,
+              totalCost: usdFormatter(
+                calculateDisplayTotalCost(traceObservations)?.toNumber() ?? 0,
+              ),
+              latency: latencyMs ?? 0,
+            };
+          }
+        })
+        .filter(isNotNullOrUndefined);
     }),
   observationInDatasets: protectedProjectProcedure
     .input(
