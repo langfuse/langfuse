@@ -1,4 +1,4 @@
-import { prisma } from "shared/src/db/index";
+import { prisma } from "shared";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
 import { ProfilingIntegration } from "@sentry/profiling-node";

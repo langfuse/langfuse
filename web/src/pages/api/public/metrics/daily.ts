@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "shared/src/db/index";
+import { prisma } from "shared";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";

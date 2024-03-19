@@ -34,5 +34,10 @@
     "src/features/navigate-detail-pages",
     "types/global.d.ts"
   ],
+  "references": [
+    {
+      "path": "../shared"
+    }
+  ],
   "exclude": ["node_modules", "sdk"]
 }

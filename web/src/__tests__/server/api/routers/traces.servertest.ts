@@ -2,7 +2,7 @@
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "shared/src/db/index";
+import { prisma } from "shared";
 import type { Session } from "next-auth";
 
 describe("Traces TRPC Router", () => {

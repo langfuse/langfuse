@@ -9,6 +9,7 @@
     "outDir": "dist",
     "strictNullChecks": true
   },
+
   "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", ".eslintrc.json"],
   "references": [
     {

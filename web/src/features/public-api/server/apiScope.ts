@@ -1,5 +1,5 @@
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma } from "shared/src/db/index";
+import { prisma } from "shared";
 
 type Resource = {
   type: "project" | "trace" | "observation" | "score";

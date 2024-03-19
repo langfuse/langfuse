@@ -5,7 +5,7 @@ import { v4 } from "uuid";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "shared/src/constants";
 import { cleanEvent } from "@/src/pages/api/public/ingestion";
-import { prisma } from "shared/src/db/index";
+import { prisma } from "shared";
 
 describe("/api/public/ingestion API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());

@@ -1,6 +1,6 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "shared/src/db/index";
+import { prisma } from "shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 import { type NextApiRequest, type NextApiResponse } from "next";

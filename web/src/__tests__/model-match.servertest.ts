@@ -2,7 +2,7 @@
 
 import { modelMatch } from "@/scripts/model-match";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { prisma } from "shared/src/db/index";
+import { prisma } from "shared";
 import { ModelUsageUnit } from "shared/src/constants";
 
 describe("model match", () => {

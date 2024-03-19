@@ -2,7 +2,12 @@
   "name": "shared",
   "version": "1.0.0",
   "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "license": "MIT",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist"
+  },
   "scripts": {
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
