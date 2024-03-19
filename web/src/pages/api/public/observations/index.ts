@@ -1,9 +1,13 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
-import { prisma } from "shared";
+import { prisma } from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
-import { Prisma, type PrismaClient, type ObservationView } from "shared";
+import {
+  Prisma,
+  type PrismaClient,
+  type ObservationView,
+} from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";

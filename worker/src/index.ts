@@ -9,7 +9,7 @@ app.listen(port, () => {
 
 // import { getLogger } from "./logger";
 
-// import { sum, subtract, multiply } from "shared";
+// import { sum, subtract, multiply } from "@langfuse/shared";
 
 // const fastify = Fastify({
 //   logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map

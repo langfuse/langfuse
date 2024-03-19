@@ -3,7 +3,7 @@
 import { createMocks } from "node-mocks-http";
 import handler from "@/src/pages/api/public/ingestion";
 import { type NextApiResponse, type NextApiRequest } from "next";
-import { Prisma } from "shared";
+import { Prisma } from "@langfuse/shared";
 
 /*
 
@@ -43,9 +43,9 @@ Timed out fetching a new connection from the connection pool. More info:  (Curre
   meta: { modelName: 'ApiKey', connection_limit: 1, timeout: 10 }
 */
 
-jest.mock("shared", () => {
+jest.mock("@langfuse/shared", () => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const originalModule = jest.requireActual("shared");
+  const originalModule = jest.requireActual("@langfuse/shared");
 
   // Create a mock for PrismaClient
   const mockPrismaClient = {

@@ -3,7 +3,7 @@ import {
   type timeFilter,
 } from "@/src/server/api/interfaces/filters";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import { Prisma, type PrismaClient } from "shared";
+import { Prisma, type PrismaClient } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import { type z } from "zod";
 import {

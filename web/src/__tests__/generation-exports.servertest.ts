@@ -2,10 +2,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "shared";
+import { ModelUsageUnit } from "@langfuse/shared";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "shared";
+import { prisma } from "@langfuse/shared";
 import type { Session } from "next-auth";
 
 describe("observations.export RPC", () => {

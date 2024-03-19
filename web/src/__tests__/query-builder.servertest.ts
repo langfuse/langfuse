@@ -5,7 +5,7 @@ import {
   executeQuery,
 } from "@/src/server/api/services/query-builder";
 import { type aggregations } from "@/src/server/api/services/sqlInterface";
-import { prisma } from "shared";
+import { prisma } from "@langfuse/shared";
 import { type z } from "zod";
 
 describe("Build valid SQL queries", () => {

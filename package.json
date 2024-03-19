@@ -4,7 +4,7 @@
   "scripts": {
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
-
+    "db:generate": "turbo run db:generate",
     "nuke": "bash ./scripts/nuke.sh",
     "build": "turbo run build",
     "clean": "turbo run clean",

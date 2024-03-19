@@ -10,7 +10,7 @@ import {
   type Trace,
   type ObservationView,
   type ObservationLevel,
-} from "shared";
+} from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {

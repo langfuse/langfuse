@@ -18,7 +18,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma } from "shared";
+import { prisma } from "@langfuse/shared";
 import * as Sentry from "@sentry/node";
 import * as z from "zod";
 

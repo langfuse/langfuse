@@ -27,7 +27,7 @@
     "node": "^21.6.2",
     "pg": "^8.11.3",
     "pino-pretty": "^10.3.1",
-    "shared": "workspace:*",
+    "@langfuse/shared": "workspace:*",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },

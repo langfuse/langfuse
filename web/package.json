@@ -92,7 +92,7 @@
     "react-icons": "^5.0.1",
     "react-responsive": "^9.0.2",
     "react18-json-view": "^0.2.8-canary.1",
-    "shared": "workspace:*",
+    "@langfuse/shared": "workspace:*",
     "sonner": "^1.4.0",
     "superjson": "2.2.1",
     "tailwind-merge": "^2.2.1",

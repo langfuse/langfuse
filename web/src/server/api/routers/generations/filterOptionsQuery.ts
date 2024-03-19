@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { type ObservationOptions } from "@/src/server/api/definitions/observationsTable";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { Prisma } from "shared";
+import { Prisma } from "@langfuse/shared";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(z.object({ projectId: z.string() }))

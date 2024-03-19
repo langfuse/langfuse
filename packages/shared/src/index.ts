@@ -3,6 +3,6 @@ export * from "./auth/auth";
 
 export { ModelUsageUnit };
 
-// export db stuff
+// export prisma client and types
 export * from "./client";
 export * from "@prisma/client";

@@ -5,7 +5,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { type DB as Database } from "shared/prisma/generated/types";
+import { type DB as Database } from "../../../packages/shared/prisma/generated/types";
 
 export const DB = new Kysely<Database>({
   dialect: {

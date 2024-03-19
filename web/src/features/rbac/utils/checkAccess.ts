@@ -2,7 +2,7 @@ import {
   roleAccessRights,
   type Scope,
 } from "@/src/features/rbac/constants/roleAccessRights";
-import { type MembershipRole } from "shared";
+import { type MembershipRole } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";

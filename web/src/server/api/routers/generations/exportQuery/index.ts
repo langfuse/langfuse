@@ -8,7 +8,7 @@ import {
 } from "@/src/server/api/interfaces/exportTypes";
 import { S3StorageService } from "@/src/server/api/services/S3StorageService";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { type ObservationView } from "shared";
+import { type ObservationView } from "@langfuse/shared";
 
 import { DatabaseReadStream } from "../db/DatabaseReadStream";
 import { getAllGenerations as getAllGenerations } from "../db/getAllGenerationsSqlQuery";

@@ -2,7 +2,7 @@ import {
   type OptionsDefinition,
   type ColumnDefinition,
 } from "@/src/server/api/interfaces/tableDefinition";
-import { ObservationLevel } from "shared";
+import { ObservationLevel } from "@langfuse/shared";
 
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [

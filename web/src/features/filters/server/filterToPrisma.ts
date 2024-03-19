@@ -4,7 +4,7 @@ import {
   type TableNames as TableName,
   type ColumnDefinition,
 } from "@/src/server/api/interfaces/tableDefinition";
-import { Prisma } from "shared";
+import { Prisma } from "@langfuse/shared";
 
 const operatorReplacements = {
   "any of": "IN",

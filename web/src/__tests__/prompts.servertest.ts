@@ -1,9 +1,9 @@
 /** @jest-environment node */
 
-import { prisma } from "shared";
+import { prisma } from "@langfuse/shared";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt } from "shared";
+import { type Prompt } from "@langfuse/shared";
 
 describe("/api/public/prompts API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());

@@ -2,7 +2,7 @@ import { type z } from "zod";
 
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { type ObservationView, Prisma } from "shared";
+import { type ObservationView, Prisma } from "@langfuse/shared";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";

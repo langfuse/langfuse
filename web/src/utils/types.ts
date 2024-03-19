@@ -1,4 +1,4 @@
-import { type Observation } from "shared";
+import { type Observation } from "@langfuse/shared";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
 import {
@@ -12,7 +12,7 @@ export type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];
 };
 
-export type TypedObservation = Event | Span | Generation;
+export type TypedObservation = Event;
 
 export type Event = Observation & {
   type: "EVENT";
