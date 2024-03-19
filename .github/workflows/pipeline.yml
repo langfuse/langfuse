@@ -134,7 +134,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run run db:seed
+          pnpm run db:seed
 
       - name: Build
         run: pnpm run build
