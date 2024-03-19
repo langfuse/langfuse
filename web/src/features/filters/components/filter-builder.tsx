@@ -19,13 +19,13 @@ import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import {
   type WipFilterState,
   type WipFilterCondition,
-  type UIFilterCondition,
-  type UIFilterState,
+  type FilterState,
+  type FilterCondition,
 } from "@/src/features/filters/types";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
 import {
   filterOperators,
-  singleFilterWithUrlParam,
+  singleFilter,
 } from "@/src/server/api/interfaces/filters";
 import { NonEmptyString } from "@/src/utils/zod";
 
@@ -36,19 +36,17 @@ export function FilterBuilder({
   onChange,
 }: {
   columns: ColumnDefinition[];
-  filterState: UIFilterState;
-  onChange: Dispatch<SetStateAction<UIFilterState>>;
+  filterState: FilterState;
+  onChange: Dispatch<SetStateAction<FilterState>>;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
-
   const addNewFilter = () => {
     setWipFilterState((prev) => [
       ...prev,
       {
         column: undefined,
         type: undefined,
-        urlName: undefined,
         operator: undefined,
         value: undefined,
         key: undefined,
@@ -56,10 +54,11 @@ export function FilterBuilder({
     ]);
   };
 
-  const getValidFilters = (state: WipFilterState): UIFilterCondition[] => {
-    return state.filter(
-      (f) => singleFilterWithUrlParam.safeParse(f).success,
-    ) as UIFilterCondition[];
+  const getValidFilters = (state: WipFilterState): FilterCondition[] => {
+    const valid = state.filter(
+      (f) => singleFilter.safeParse(f).success,
+    ) as FilterCondition[];
+    return valid;
   };
 
   const setWipFilterState = (
@@ -80,7 +79,9 @@ export function FilterBuilder({
           // Create empty filter when opening popover
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
-          if (!open) setWipFilterState(filterState);
+          if (!open) {
+            setWipFilterState(filterState);
+          }
         }}
       >
         <PopoverTrigger asChild>
@@ -89,8 +90,6 @@ export function FilterBuilder({
             <span>Filter</span>
             {filterState.length > 0
               ? filterState.map((filter, i) => {
-                  console.log("UI Filter", filter);
-                  console.log("urlName", filter.urlName);
                   return (
                     <span
                       key={i}
@@ -169,7 +168,6 @@ function FilterBuilderForm({
       {
         column: undefined,
         operator: undefined,
-        urlName: undefined,
         value: undefined,
         type: undefined,
         key: undefined,
@@ -190,22 +188,21 @@ function FilterBuilderForm({
       <table className="table-auto">
         <tbody>
           {filterState.map((filter, i) => {
-            const column = columns.find((c) => c.name === filter.column);
-            console.log("filter", filter);
+            const column = columns.find(
+              (c) => c.id === filter.column || c.name === filter.column,
+            );
             return (
               <tr key={i}>
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
                 <td className="flex gap-2 p-1">
                   {/* selector of the column to be filtered */}
                   <Select
-                    value={filter.urlName ?? ""}
+                    value={column ? column.id : ""}
                     onValueChange={(value) => {
-                      console.log("value: ", value);
                       handleFilterChange(
                         {
-                          column: columns.find((c) => c.id === value)?.name,
+                          column: columns.find((c) => c.id === value)?.id,
                           type: columns.find((c) => c.id === value)?.type,
-                          urlName: value,
                           operator: undefined,
                           value: undefined,
                           key: undefined,
@@ -219,7 +216,7 @@ function FilterBuilderForm({
                     </SelectTrigger>
                     <SelectContent>
                       {columns.map((option) => (
-                        <SelectItem key={option.id} value={option.id!}>
+                        <SelectItem key={option.id} value={option.id}>
                           {option.name}
                         </SelectItem>
                       ))}
