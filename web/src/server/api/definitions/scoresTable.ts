@@ -42,7 +42,7 @@ export function scoresTableColsWithOptions(
   options?: ScoreOptions,
 ): ColumnDefinition[] {
   return scoresTableCols.map((col) => {
-    if (col.name === "name") {
+    if (col.id === "name") {
       return { ...col, options: options?.name ?? [] };
     }
     return col;
