@@ -38,8 +38,6 @@ COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker
 
-RUN pnpm prune --prod --no-optional
-RUN rm -rf ./**/*/src
 
 
 FROM base AS runner
