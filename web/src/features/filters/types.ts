@@ -5,7 +5,6 @@ import { type z } from "zod";
 export type FilterCondition = z.infer<typeof singleFilter>;
 export type UIFilterCondition = FilterCondition & { urlName: string };
 export type FilterState = FilterCondition[];
-export type UIFilterState = UIFilterCondition[];
 
 // to be used in the client during editing
 type MakeOptional<T> = {
@@ -17,7 +16,7 @@ type AllowStringAsValue<T> = {
 };
 
 export type WipFilterCondition = AllowStringAsValue<
-  MakeOptional<UIFilterCondition>
+  MakeOptional<FilterCondition>
 >;
 export type WipFilterState = WipFilterCondition[];
 
@@ -25,3 +24,10 @@ export type FilterOption = {
   value: string;
   count?: number;
 };
+
+export type TableName =
+  | "traces"
+  | "generations"
+  | "sessions"
+  | "scores"
+  | "dashboard";
