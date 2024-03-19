@@ -118,6 +118,7 @@ types:
       traceId: string
       name: string
       value: double
+      source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
@@ -183,6 +184,10 @@ types:
     enum:
       - ACTIVE
       - ARCHIVED
+  ScoreSource:
+    enum:
+      - API
+      - REVIEW
 
 errors:
   Error:
