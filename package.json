@@ -4,10 +4,10 @@
   "scripts": {
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
-    "dev": "yarn workspace web run dev & yarn workspace worker run dev",
+
     "nuke": "bash ./scripts/nuke.sh",
     "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
-    "build": "yarn workspace worker run build && yarn workspace web run build",
+
     "start": "yarn workspace worker run start && yarn workspace web run start",
     "lint": "yarn workspaces run lint",
     "build:web": "yarn workspace web build",

@@ -11,7 +11,7 @@
   "scripts": {
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev && yarn workspace shared run lint:fix",
+    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev",
     "db:reset": "dotenv -e ../.env npx -- prisma migrate reset",
     "db:deploy": "dotenv -e ../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../.env -- npx prisma db seed",
@@ -23,8 +23,10 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "devDependencies": {
+    "@types/lodash": "^4.14.202",
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.2",
+    "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.2.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
@@ -42,7 +44,9 @@
     "@prisma/client": "^5.11.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
+    "kysely": "^0.27.3",
     "prisma": "^5.11.0",
-    "prisma-erd-generator": "^1.11.2"
+    "prisma-erd-generator": "^1.11.2",
+    "prisma-kysely": "^1.8.0"
   }
 }

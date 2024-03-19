@@ -1,0 +1,7 @@
+packages:
+  # include packages in subfolders (e.g. apps/ and packages/)
+  - "web/**"
+  - 'worker/**'
+  - 'shared/**'
+  # if required, exclude some directories
+  - '!**/test/**'
