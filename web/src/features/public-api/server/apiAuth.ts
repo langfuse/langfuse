@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { createShaHash, verifySecretKey } from "shared";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 

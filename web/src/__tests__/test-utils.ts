@@ -1,5 +1,5 @@
 import { getDisplaySecretKey, hashSecretKey } from "shared";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared";
 import { hash } from "bcryptjs";
 
 export const pruneDatabase = async () => {

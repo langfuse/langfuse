@@ -15,7 +15,7 @@ import {
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
 import {

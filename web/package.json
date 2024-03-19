@@ -53,6 +53,7 @@
     "@react-email/components": "^0.0.14",
     "@react-email/render": "^0.0.12",
     "@sentry/nextjs": "^7.102.1",
+    "@sentry/node": "^7.107.0",
     "@sentry/profiling-node": "^7.102.1",
     "@sentry/types": "^7.88.0",
     "@t3-oss/env-nextjs": "^0.8.0",

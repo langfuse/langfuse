@@ -6,7 +6,7 @@ import {
   dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { type TiktokenModel } from "tiktoken";
+import { type TiktokenModel } from "js-tiktoken";
 
 export type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];

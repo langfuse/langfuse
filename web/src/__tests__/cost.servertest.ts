@@ -2,7 +2,7 @@
 
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "shared";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared";
 
 describe("cost retrieval tests", () => {
   beforeEach(async () => await pruneDatabase());

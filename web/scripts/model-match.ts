@@ -6,7 +6,7 @@
 import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared";
 import lodash from "lodash";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { type Prisma } from "shared";

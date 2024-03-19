@@ -1,4 +1,4 @@
-import { prisma } from "@/src/server/db";
+import { prisma } from "shared";
 import { Prisma, type Score } from "shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
