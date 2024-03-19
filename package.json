@@ -2,6 +2,7 @@
   "name": "langfuse",
   "version": "2.7.0",
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
     "db:generate": "turbo run db:generate",
