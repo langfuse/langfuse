@@ -71,8 +71,10 @@ export default function ScoresTable({
   const columns: LangfuseColumnDef<ScoresTableRow>[] = [
     {
       accessorKey: "traceId",
+      id: "traceId",
       enableColumnFilter: true,
       header: "Trace ID",
+      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
@@ -88,6 +90,8 @@ export default function ScoresTable({
     {
       accessorKey: "observationId",
       header: "Observation ID",
+      id: "observationId",
+      enableSorting: true,
       cell: ({ row }) => {
         const observationId = row.getValue("observationId");
         const traceId = row.getValue("traceId");
@@ -103,22 +107,34 @@ export default function ScoresTable({
     {
       accessorKey: "timestamp",
       header: "Timestamp",
+      id: "timestamp",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "name",
       header: "Name",
+      id: "name",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "value",
       header: "Value",
+      id: "value",
       enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: number = row.getValue("value");
+        return value % 1 === 0 ? value : value.toFixed(4);
+      },
     },
     {
       accessorKey: "comment",
       header: "Comment",
+      id: "comment",
       enableHiding: true,
+      enableSorting: true,
     },
   ];
 
