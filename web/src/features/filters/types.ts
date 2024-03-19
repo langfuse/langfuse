@@ -3,7 +3,6 @@ import { type z } from "zod";
 
 // to be sent to the server
 export type FilterCondition = z.infer<typeof singleFilter>;
-export type UIFilterCondition = FilterCondition & { urlName: string };
 export type FilterState = FilterCondition[];
 
 // to be used in the client during editing
