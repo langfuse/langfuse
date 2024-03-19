@@ -7,7 +7,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { type RouterInput } from "@/src/utils/types";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
@@ -19,6 +19,8 @@ export type ScoresTableRow = {
   value: number;
   comment?: string;
   observationId?: string;
+  traceName: string;
+  userId: string;
 };
 
 export type ScoreFilterInput = Omit<
@@ -105,6 +107,26 @@ export default function ScoresTable({
       },
     },
     {
+      accessorKey: "traceName",
+      header: "Trace Name",
+      id: "traceName",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: string = row.getValue("traceName");
+        const filter = encodeURIComponent(
+          `name;stringOptions;;any of;${value}`,
+        );
+        return (
+          <TableLink
+            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
+            value={value}
+            truncateAt={40}
+          />
+        );
+      },
+    },
+    {
       accessorKey: "timestamp",
       header: "Timestamp",
       id: "timestamp",
@@ -130,6 +152,25 @@ export default function ScoresTable({
       },
     },
     {
+      accessorKey: "userId",
+      header: "User ID",
+      id: "userId",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value = row.getValue("userId");
+        return typeof value === "string" ? (
+          <>
+            <TableLink
+              path={`/project/${projectId}/users/${value}`}
+              value={value}
+              truncateAt={40}
+            />
+          </>
+        ) : undefined;
+      },
+    },
+    {
       accessorKey: "comment",
       header: "Comment",
       id: "comment",
@@ -141,7 +182,9 @@ export default function ScoresTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<ScoresTableRow>("scoresColumnVisibility", columns);
 
-  const convertToTableRow = (score: Score): ScoresTableRow => {
+  const convertToTableRow = (
+    score: RouterOutput["scores"]["all"]["scores"][0],
+  ): ScoresTableRow => {
     return {
       id: score.id,
       timestamp: score.timestamp.toLocaleString(),
@@ -150,6 +193,8 @@ export default function ScoresTable({
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
+      traceName: score.traceName,
+      userId: score.userId,
     };
   };
 
