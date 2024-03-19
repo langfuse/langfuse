@@ -14,11 +14,11 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { type Adapter } from "next-auth/adapters";
 
 // Providers
-import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import { type Provider } from "next-auth/providers/index";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =

@@ -6,6 +6,9 @@
       "dependsOn": ["^build", "db:generate"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
+    "start": {
+      "dependsOn": ["^start"]
+    },
     "db:deploy": {},
     "db:reset": {},
     "db:push": {},

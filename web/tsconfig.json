@@ -1,5 +1,4 @@
 {
-  "exclude": ["node_modules"],
   "extends": "@repo/typescript-config/nextjs.json",
   "compilerOptions": {
     "declaration": false,
@@ -14,6 +13,7 @@
       "@/*": ["./*"]
     }
   },
+  "exclude": ["node_modules", "sdk"],
   "include": [
     "src",
     "next-env.d.ts",
