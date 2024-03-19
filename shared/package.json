@@ -11,11 +11,11 @@
   "scripts": {
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev",
+    "db:migrate": "DISABLE_ERD=false dotenv -e ../.env -- npx prisma migrate dev && yarn workspace shared run lint:fix",
     "db:reset": "dotenv -e ../.env npx -- prisma migrate reset",
     "db:deploy": "dotenv -e ../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../.env -- npx prisma db seed",
-    "db:generate": "dotenv -e ../.env -- npx prisma generate",
+    "db:generate": "dotenv -e ../.env -- npx prisma generate && yarn workspace shared run lint:fix",
     "db:seed:examples": "dotenv -e ../.env -- npx prisma db seed -- --environment examples",
     "db:seed:load": "dotenv -e ../.env -- npx prisma db seed -- --environment load"
   },

@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Prompt, type PrismaClient } from "@prisma/client";
+import { type Prompt, type PrismaClient } from "shared";
 import { jsonSchema } from "@/src/utils/zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";

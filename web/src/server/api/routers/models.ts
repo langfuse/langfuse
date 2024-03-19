@@ -7,7 +7,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "shared";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 

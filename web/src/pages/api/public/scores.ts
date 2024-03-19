@@ -1,5 +1,5 @@
-import { prisma } from "shared";
-import { Prisma, type Score } from "@prisma/client";
+import { prisma } from "@/src/server/db";
+import { Prisma, type Score } from "shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";

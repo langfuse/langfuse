@@ -1,5 +1,5 @@
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { prisma } from "shared";
+import { prisma } from "@/src/server/db";
 import { compare, hash } from "bcryptjs";
 
 /**

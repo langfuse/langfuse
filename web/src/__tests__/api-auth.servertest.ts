@@ -1,6 +1,6 @@
 import { getDisplaySecretKey, hashSecretKey } from "shared";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "shared";
+import { prisma } from "@/src/server/db";
 
 describe("Validate api calls", () => {
   beforeEach(async () => {

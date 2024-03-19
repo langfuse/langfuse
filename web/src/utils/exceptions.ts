@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "shared";
 
 export class ResourceNotFoundError extends Error {
   id: string;

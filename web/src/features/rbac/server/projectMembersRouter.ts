@@ -5,7 +5,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { MembershipRole } from "@prisma/client";
+import { MembershipRole } from "shared";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 

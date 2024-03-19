@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "shared";
+import { prisma } from "@/src/server/db";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -67,6 +67,12 @@ const providers: Provider[] = [
           "Sign in with email and password is disabled for this domain. Please use SSO.",
         );
       }
+
+      await prisma.apiKey.findUnique({
+        where: {
+          id: "clgb17vnp000008jjere5g15i",
+        },
+      });
 
       const dbUser = await prisma.user.findUnique({
         where: {

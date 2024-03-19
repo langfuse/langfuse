@@ -1,6 +1,5 @@
-import { prisma } from "./db/index";
 import { ModelUsageUnit } from "./constants";
 export * from "./auth/auth";
-export * from "../prisma/generated/types";
+export * from "@prisma/client";
 
-export { prisma, ModelUsageUnit };
+export { ModelUsageUnit };

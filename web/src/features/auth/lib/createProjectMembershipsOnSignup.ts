@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma } from "shared";
+import { prisma } from "@/src/server/db";
 
 export async function createProjectMembershipsOnSignup(user: {
   id: string;

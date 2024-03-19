@@ -1,4 +1,4 @@
-import { type Observation } from "@prisma/client";
+import { type Observation } from "shared";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
 import {

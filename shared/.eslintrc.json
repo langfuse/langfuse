@@ -1,7 +1,7 @@
 {
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": "./shared/tsconfig.json"
+    "project": "./tsconfig.json"
   },
   "extends": ["prettier"],
   "plugins": ["prettier"],

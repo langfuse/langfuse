@@ -4,8 +4,8 @@ import {
 } from "@/src/features/filters/server/filterToPrisma";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
-import { type ObservationView, Prisma } from "@prisma/client";
-import { prisma } from "shared";
+import { type ObservationView, Prisma } from "shared";
+import { prisma } from "@/src/server/db";
 import { type GetAllGenerationsInput } from "../getAllQuery";
 
 export async function getAllGenerations({

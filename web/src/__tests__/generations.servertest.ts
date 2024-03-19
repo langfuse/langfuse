@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "shared";
-import { prisma } from "shared";
+import { prisma } from "@/src/server/db";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());

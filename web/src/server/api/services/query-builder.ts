@@ -3,8 +3,8 @@ import {
   type timeFilter,
 } from "@/src/server/api/interfaces/filters";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import { Prisma, type PrismaClient } from "@prisma/client";
-import { type Sql } from "@prisma/client/runtime/library";
+import { Prisma, type PrismaClient } from "shared";
+import { type Sql } from "shared/runtime/library";
 import Decimal from "decimal.js";
 import { type z } from "zod";
 import {
