@@ -6,7 +6,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { type UIFilterState } from "@/src/features/filters/types";
+import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
@@ -52,20 +52,18 @@ export default function SessionsTable({
         column: "Created At",
         type: "datetime",
         operator: ">",
-        urlName: "createdAt",
         value: utcDateOffsetByDays(-14),
       },
     ],
     "sessions",
   );
 
-  const userIdFilter: UIFilterState = userId
+  const userIdFilter: FilterState = userId
     ? [
         {
           column: "User ID",
           type: "string",
           operator: "=",
-          urlName: "userId",
           value: userId,
         },
       ]
