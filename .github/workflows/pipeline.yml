@@ -119,7 +119,7 @@ jobs:
 
       - name: install dependencies
         run: |
-          yarn
+          pnpm install
 
       - name: Load default env
         run: |
