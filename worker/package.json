@@ -9,7 +9,7 @@
     "coverage": "vitest run --coverage",
     "build": "tsc --build tsconfig.json",
     "start": "node dist/src/index.js",
-    "dev": "tsc-watch --build --verbose --preserveWatchOutput --onSuccess 'node dist/src/index.js'",
+    "dev": "dotenv -e ../.env -- tsc-watch --build --preserveWatchOutput --onSuccess 'node dist/src/index.js'",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
