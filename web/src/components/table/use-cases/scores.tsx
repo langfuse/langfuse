@@ -38,11 +38,14 @@ export default function ScoresTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "scores",
+  );
   const filterState = userId
     ? userFilterState.concat([
         {
-          column: "userId",
+          column: "User ID",
           type: "string",
           operator: "=",
           value: userId,
@@ -72,6 +75,7 @@ export default function ScoresTable({
     {
       accessorKey: "traceId",
       enableColumnFilter: true,
+      id: "traceId",
       header: "Trace ID",
       cell: ({ row }) => {
         const value = row.getValue("traceId");
@@ -87,6 +91,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "observationId",
+      id: "observationId",
       header: "Observation ID",
       cell: ({ row }) => {
         const observationId = row.getValue("observationId");
