@@ -3,16 +3,15 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
-import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
-import { usdFormatter } from "../../../utils/numbers";
 
 type RowData = {
   id: string;
   runAt: string;
   datasetItemId: string;
-  observation: { id: string; traceId: string };
+  observation: { id: string | null; traceId: string | null };
   scores: Score[];
   latency: number;
   totalCost: string;
@@ -32,6 +31,8 @@ export function DatasetRunItemsTable(
       },
 ) {
   const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery(props);
+
+  console.log(runItems.data);
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
@@ -56,11 +57,27 @@ export function DatasetRunItemsTable(
       accessorKey: "observation",
       header: "Observation",
       cell: ({ row }) => {
-        const observation: RowData["observation"] = row.getValue("observation");
+        const { id: observationId, traceId }: RowData["observation"] =
+          row.getValue("observation");
+
+        if (!traceId) {
+          return "";
+        }
+
+        if (observationId) {
+          return (
+            <TableLink
+              path={`/project/${props.projectId}/traces/${traceId}?observation=${observationId}`}
+              value={observationId}
+              truncateAt={7}
+            />
+          );
+        }
+
         return (
           <TableLink
-            path={`/project/${props.projectId}/traces/${observation.traceId}?observation=${observation.id}`}
-            value={observation.id}
+            path={`/project/${props.projectId}/traces/${traceId}`}
+            value={traceId}
             truncateAt={7}
           />
         );
@@ -97,22 +114,19 @@ export function DatasetRunItemsTable(
   ): RowData => {
     return {
       id: item.id,
-      runAt: item.createdAt.toISOString(),
+      runAt: item.runAt.toISOString(),
       datasetItemId: item.datasetItemId,
       observation: {
-        id: item.observation.id,
-        traceId: item.observation.traceId ?? "", // never actually null, just not enforced by db
+        traceId: item.traceId,
+        id: item.observationId,
       },
-      scores: item.observation.scores,
-      totalCost: usdFormatter(
-        item.observation.calculatedTotalCost?.toNumber() ?? 0,
-      ),
-      latency: intervalInSeconds(
-        item.observation.startTime,
-        item.observation.endTime,
-      ),
+      scores: item.scores,
+      latency: item.latency,
+      totalCost: item.totalCost,
     };
   };
+
+  console.log(runItems.data?.map((t) => convertToTableRow(t)));
 
   return (
     <DataTable
