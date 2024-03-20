@@ -31,6 +31,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/express-serve-static-core": "^4.17.43",
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
     "@types/cors": "^2.8.17",
