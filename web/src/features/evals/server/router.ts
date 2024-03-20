@@ -8,7 +8,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { evalModels } from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "@langfuse/shared";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),

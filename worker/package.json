@@ -13,7 +13,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
-  "author": "",
+  "author": "max@langfuse.com",
   "license": "MIT",
   "dependencies": {
     "@langfuse/shared": "workspace:*",

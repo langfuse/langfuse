@@ -1,7 +1,7 @@
 import {
-  type OptionsDefinition,
-  type ColumnDefinition,
-} from "@/src/server/api/interfaces/tableDefinition";
+  ColumnDefinition,
+  OptionsDefinition,
+} from "./interfaces/tableDefinition";
 
 export const tracesTableCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
@@ -71,7 +71,7 @@ export type TraceOptions = {
 };
 
 export function tracesTableColsWithOptions(
-  options?: TraceOptions,
+  options?: TraceOptions
 ): ColumnDefinition[] {
   return tracesTableCols.map((col) => {
     if (col.name === "scores_avg") {

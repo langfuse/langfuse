@@ -64,6 +64,9 @@ importers:
       prisma-erd-generator:
         specifier: ^1.11.2
         version: 1.11.2(@prisma/client@5.11.0)(typescript@5.4.2)
+      prisma-extension-kysely:
+        specifier: ^2.1.0
+        version: 2.1.0(@prisma/client@5.11.0)
       prisma-kysely:
         specifier: ^1.8.0
         version: 1.8.0
@@ -12464,6 +12467,14 @@ packages:
       - supports-color
       - typescript
       - utf-8-validate
+
+  /prisma-extension-kysely@2.1.0(@prisma/client@5.11.0):
+    resolution: {integrity: sha512-s1hujYjrNzfQc9Z79s93464mkTkkt9ZPqPELDRFe9jEmiIlM/JRXZtqIyyN3FM0GDkN/BDPVtpPtdC52XnjAcQ==}
+    peerDependencies:
+      '@prisma/client': latest
+    dependencies:
+      '@prisma/client': 5.11.0(prisma@5.11.0)
+    dev: false
 
   /prisma-kysely@1.8.0:
     resolution: {integrity: sha512-VpNpolZ8RXRgfU+j4R+fPZmX8EE95w3vJ2tt7+FwuiQc0leNTfLK5QLf3KbbPDes2rfjh3g20AjDxefQIo5GIA==}

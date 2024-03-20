@@ -165,6 +165,19 @@ export type JobConfiguration = {
     variable_mapping: unknown;
     sampling: string;
 };
+export type JobExecution = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    job_configuration_id: string;
+    status: string;
+    start_time: Timestamp | null;
+    end_time: Timestamp | null;
+    result: unknown | null;
+    error: string | null;
+    trace_id: string | null;
+};
 export type Membership = {
     project_id: string;
     user_id: string;
@@ -356,6 +369,7 @@ export type DB = {
     events: Events;
     Example: Example;
     job_configurations: JobConfiguration;
+    job_executions: JobExecution;
     membership_invitations: MembershipInvitation;
     memberships: Membership;
     models: Model;

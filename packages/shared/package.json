@@ -31,6 +31,7 @@
     "kysely": "^0.27.3",
     "prisma": "^5.11.0",
     "prisma-erd-generator": "^1.11.2",
+    "prisma-extension-kysely": "^2.1.0",
     "prisma-kysely": "^1.8.0",
     "zod": "^3.22.4"
   },

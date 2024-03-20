@@ -10,20 +10,18 @@ import {
   type Trace,
   type ObservationView,
   type ObservationLevel,
+  type TraceOptions,
 } from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
-import {
-  type TraceOptions,
-  tracesTableCols,
-} from "@/src/server/api/definitions/tracesTable";
+import { singleFilter } from "@langfuse/shared";
+import { tracesTableCols } from "@langfuse/shared";
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
-} from "@/src/features/filters/server/filterToPrisma";
+} from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { type Sql } from "@prisma/client/runtime/library";
 import { instrumentAsync } from "@/src/utils/instrumentation";

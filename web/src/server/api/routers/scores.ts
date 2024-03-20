@@ -8,13 +8,13 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type MembershipRole, Prisma, type Score } from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
+import { singleFilter } from "@langfuse/shared";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
 import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 

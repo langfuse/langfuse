@@ -7,7 +7,7 @@ import MessageResponse from "./interfaces/MessageResponse";
 
 require("dotenv").config();
 
-import { worker } from "./redis/consumer";
+import { evalJobCreator, evalJobExecutor } from "./redis/consumer";
 
 const app = express();
 
@@ -24,21 +24,23 @@ app.use("/api/v1", api);
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
-console.log("Worker started", worker.isPaused(), worker.isRunning());
+console.log("Eval Job Creator started", evalJobCreator.isRunning());
 
-worker.on("active", (jobId) => {
-  console.log(`Job ${jobId} is active`);
-});
+console.log("Eval Job Executor started", evalJobExecutor.isRunning());
 
-worker.on("failed", (job, err) => {
+evalJobCreator.on("failed", (job, err) => {
   console.log(`Job failed with error ${err}`);
 });
 
-worker.on("progress", (job, progress) => {
-  console.log(`Job ${job.id} reported progress: ${progress}`);
+evalJobExecutor.on("completed", (job) => {
+  console.log(`Job completed with error ${job.failedReason}`);
 });
 
-worker.on("completed", (job) => {
+evalJobCreator.on("failed", (job, err) => {
+  console.log(`Job failed with error ${err}`);
+});
+
+evalJobCreator.on("completed", (job) => {
   console.log(`Job completed with result ${job.returnvalue}`);
 });
 

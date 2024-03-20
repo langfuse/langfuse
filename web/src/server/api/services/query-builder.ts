@@ -1,8 +1,5 @@
-import {
-  type singleFilter,
-  type timeFilter,
-} from "@/src/server/api/interfaces/filters";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import { type singleFilter, type timeFilter } from "@langfuse/shared";
+import { type ColumnDefinition } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import { type z } from "zod";
@@ -13,7 +10,7 @@ import {
   filterInterface,
 } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
-import { tableColumnsToSqlFilter } from "@/src/features/filters/server/filterToPrisma";
+import { tableColumnsToSqlFilter } from "@langfuse/shared";
 import { type Sql } from "@prisma/client/runtime/library";
 
 export type InternalDatabaseRow = {
