@@ -9,20 +9,15 @@ import React, {
 
 import { v4 as uuidv4 } from "uuid";
 
+import useCommandEnter from "@/src/components/playground/hooks/useCommandEnter";
 import {
+  type ChatMessage,
   ChatMessageRole,
-  SupportedModel,
+  type ModelParams,
+  type PromptVariable,
+  ModelProvider,
 } from "@/src/components/playground/types";
 import { extractVariables } from "@/src/utils/string";
-import useCommandEnter from "@/src/components/playground/hooks/useCommandEnter";
-
-export type PromptVariable = { name: string; value: string; isUsed: boolean };
-export type ChatMessage = {
-  role: ChatMessageRole;
-  content: string;
-  id: string;
-};
-export type ModelParams = { model: SupportedModel; temperature: number };
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -75,10 +70,13 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     createEmptyMessage(ChatMessageRole.System),
     createEmptyMessage(ChatMessageRole.User),
   ]);
-  const [modelParams, setModelParams] = useState<ModelParams>({
-    model: SupportedModel.OpenAIGpt35Turbo,
-    temperature: 1,
-  });
+  const [modelParams, setModelParams] = useState<ModelParams>(
+    getDefaultModelParams(ModelProvider.OpenAI),
+  );
+
+  useEffect(() => {
+    setModelParams(getDefaultModelParams(modelParams.provider));
+  }, [modelParams.provider]);
 
   const updatePromptVariables = useCallback(() => {
     const messageContents = messages.map((m) => m.content).join("\n");
@@ -216,7 +214,8 @@ async function* getChatCompletionStream(
   messages: ChatMessage[],
   modelParams: ModelParams,
 ) {
-  const body = JSON.stringify({ messages: messages, modelParams });
+  const body = JSON.stringify({ messages, modelParams });
+  console.log({ messages, modelParams });
   const result = await fetch("/api/chatCompletion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -286,4 +285,32 @@ function createEmptyMessage(
     content: content ?? "",
     id: uuidv4(),
   };
+}
+
+function getDefaultModelParams(provider: ModelProvider): ModelParams {
+  switch (provider) {
+    // Docs: https://platform.openai.com/docs/api-reference/chat/create
+    case ModelProvider.OpenAI:
+      return {
+        provider,
+        model: "gpt-3.5-turbo",
+        temperature: 1,
+        max_temperature: 2,
+        max_tokens: 256,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      };
+
+    // Docs: https://docs.anthropic.com/claude/reference/messages_post
+    case ModelProvider.Anthropic:
+      return {
+        provider,
+        model: "claude-3-opus-20240229",
+        temperature: 0,
+        max_temperature: 1,
+        max_tokens: 256,
+        top_p: 1,
+      };
+  }
 }
