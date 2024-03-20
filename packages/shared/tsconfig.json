@@ -1,6 +1,8 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
+    "moduleResolution": "Node",
+    "module": "commonjs",
     "lib": ["ES2015"],
     "outDir": "./dist",
     "types": ["node"]

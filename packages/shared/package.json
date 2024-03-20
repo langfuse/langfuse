@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "license": "MIT",
   "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "files": [
     "dist/**"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
@@ -38,7 +38,7 @@
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
     "@types/lodash": "^4.14.202",
-    "@types/node": "^20.11.19",
+    "@types/node": "^20.11.29",
     "@types/pg": "^8.11.2",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.2.0",
