@@ -4,6 +4,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
 import { api } from "@/src/utils/api";
@@ -51,11 +52,16 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageSize: withDefault(NumberParam, 50),
   });
   const [filterState, setFilterState] = useQueryFilterState([]);
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "modelName",
+    order: "DESC",
+  });
   const models = api.models.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
     filter: filterState,
+    orderBy: orderByState,
   });
   const totalCount = models.data?.totalCount ?? 0;
 
@@ -63,7 +69,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "maintainer",
       id: "maintainer",
-      enableColumnFilter: true,
       header: "Maintainer",
       enableSorting: true,
     },
@@ -253,6 +258,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     useColumnVisibility<ModelTableRow>("modelColumnVisibility", columns);
 
   const convertToTableRow = (model: Model): ModelTableRow => {
+    console.log("Model", model);
+    console.log("Maintainer", model.projectId, typeof model.projectId);
     return {
       modelId: model.id,
       maintainer: model.projectId ? "User" : "Langfuse",
@@ -302,6 +309,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />
