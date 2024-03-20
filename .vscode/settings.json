@@ -16,7 +16,6 @@
   ],
 
   "eslint.rules.customizations": [{ "rule": "*", "severity": "warn" }],
-  "eslint.packageManager": "yarn",
   "typescript.tsdk": "node_modules/typescript/lib",
   "prettier.documentSelectors": [
     "**/*.{cjs,mjs,ts,tsx,astro,md,mdx,json,yaml,yml}"

@@ -180,7 +180,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache-dependency-path: "**/"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Checkout
         uses: actions/checkout@v3

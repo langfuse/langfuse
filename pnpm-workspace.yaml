@@ -3,5 +3,3 @@ packages:
   - "web"
   - "worker"
   - "packages/**"
-  # if required, exclude some directories
-  - "!**/test/**"

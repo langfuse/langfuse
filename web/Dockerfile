@@ -28,12 +28,10 @@ COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=pruner /app/out/json/ .
 
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 ENV DOCKER_BUILD 1
 
-
-RUN ls -la node_modules
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
@@ -48,9 +46,6 @@ RUN rm -f ./web/src/middleware.ts
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
-
-# Generate prisma client
-RUN pnpm run db:generate
 
 COPY --from=pruner /app/out/full/ .
 

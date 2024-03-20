@@ -31,7 +31,6 @@ COPY --from=pruner /app/out/json/ .
 
 RUN pnpm install
 
-RUN ls -la node_modules
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
