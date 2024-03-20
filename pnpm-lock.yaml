@@ -524,6 +524,12 @@ importers:
         specifier: ^3.22.4
         version: 3.22.4
     devDependencies:
+      '@repo/eslint-config':
+        specifier: '*'
+        version: link:../packages/config-eslint
+      '@types/express-serve-static-core':
+        specifier: ^4.17.43
+        version: 4.17.43
       '@types/lodash':
         specifier: ^4.14.202
         version: 4.17.0
