@@ -25,6 +25,42 @@ export const CreateEvalTemplate = z.object({
 });
 
 export const evalRouter = createTRPCRouter({
+  allConfigs: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        limit: z.number(),
+        page: z.number(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:read",
+      });
+
+      const configs = await ctx.prisma.jobConfiguration.findMany({
+        where: {
+          projectId: input.projectId,
+          jobType: "evaluation",
+        },
+        take: input.limit,
+        skip: input.page * input.limit,
+      });
+
+      const count = await ctx.prisma.jobConfiguration.count({
+        where: {
+          projectId: input.projectId,
+          jobType: "evaluation",
+        },
+      });
+      return {
+        configs: configs,
+        totalCount: count,
+      };
+    }),
+
   allTemplates: protectedProjectProcedure
     .input(
       z.object({

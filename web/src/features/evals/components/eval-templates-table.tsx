@@ -83,7 +83,10 @@ export default function EvalsTemplateTable({
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<EvalsTemplateRow>("scoresColumnVisibility", columns);
+    useColumnVisibility<EvalsTemplateRow>(
+      "evalTemplateConfigColumnVisibility",
+      columns,
+    );
 
   const convertToTableRow = (template: EvalTemplate): EvalsTemplateRow => {
     if (

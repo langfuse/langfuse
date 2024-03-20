@@ -73,7 +73,18 @@ export const NewEvalConfigForm = (props: {
   const updateVariableValue = (variable: string, value: string) => {
     const currentMapping = form.getValues().mapping;
     if (Array.isArray(currentMapping)) {
-      form.setValue("mapping", [...currentMapping, { name: variable, value }]);
+      let updatedMapping = [...currentMapping];
+
+      const variableIndex = updatedMapping.findIndex(
+        (mapping) => mapping.name === variable,
+      );
+
+      if (variableIndex !== -1) {
+        updatedMapping[variableIndex] = { name: variable, value };
+      } else {
+        updatedMapping.push({ name: variable, value });
+      }
+      form.setValue("mapping", updatedMapping);
     } else {
       form.setValue("mapping", [{ name: variable, value }]);
     }
@@ -104,7 +115,7 @@ export const NewEvalConfigForm = (props: {
       .then(() => {
         props.onFormSuccess?.();
         form.reset();
-        void router.push(`/project/${props.projectId}/evals/templates/`);
+        void router.push(`/project/${props.projectId}/evals/configs/`);
       })
       .catch((error) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access

@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
-import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
+import EvalConfigTable from "@/src/features/evals/components/eval-config-table";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function TemplatesPage() {
           </Button>
         }
       />
-      <EvalsTemplateTable projectId={projectId} />
+      <EvalConfigTable projectId={projectId} />
     </div>
   );
 }
