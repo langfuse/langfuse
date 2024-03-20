@@ -34,7 +34,7 @@
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.1.1",
     "kysely-codegen": "^0.11.0",
-    "nodemon": "^3.0.3",
+    "nodemon": "^3.1.0",
     "pino-pretty": "^10.3.1",
     "prettier": "3.2.5",
     "ts-node": "^10.9.2",
