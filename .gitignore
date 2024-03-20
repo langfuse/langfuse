@@ -60,3 +60,4 @@ node_modules
 **/.next/*
 **/.turbo/*
 .yarn
+.turbo

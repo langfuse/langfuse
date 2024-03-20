@@ -5,7 +5,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { type DB as Database } from "@/prisma/generated/types";
+import { type DB as Database } from "../../../packages/shared/prisma/generated/types";
 
 export const DB = new Kysely<Database>({
   dialect: {
@@ -15,3 +15,7 @@ export const DB = new Kysely<Database>({
     createQueryCompiler: () => new PostgresQueryCompiler(),
   },
 });
+
+// prisma needs to be exported from the package which does migrations.
+// The prisma package contains the generated schema and is exported with the PrismaClient.
+
