@@ -38,7 +38,7 @@ export default function TemplatesPage() {
           </Button>
         }
       />
-      <EvalsTemplateTable projectId={projectId} existingEval />
+      <EvalsTemplateTable projectId={projectId} />
     </div>
   );
 }

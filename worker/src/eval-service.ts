@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { EvalEvent } from "@langfuse/shared/src/index";
+import { EvalEvent } from "@langfuse/shared";
 import { db } from "./database";
 
 export const evaluate = async ({

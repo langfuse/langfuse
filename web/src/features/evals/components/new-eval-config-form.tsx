@@ -230,7 +230,7 @@ export const NewEvalConfigForm = (props: {
             <FormField
               control={form.control}
               name="mapping"
-              render={({ field }) => (
+              render={() => (
                 <FormItem>
                   <FormLabel>Variable mapping</FormLabel>
                   <FormControl>

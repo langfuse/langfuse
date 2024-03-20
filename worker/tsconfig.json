@@ -1,13 +1,10 @@
 {
+  "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
-    "composite": true,
-    "target": "es2017",
-    "module": "commonjs",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "outDir": "dist",
-    "strictNullChecks": true
+    "lib": ["ES2015"],
+    "module": "ESNext",
+    "outDir": "./dist"
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.mjs", ".eslintrc.json"]
+  "exclude": ["node_modules"],
+  "include": ["."]
 }

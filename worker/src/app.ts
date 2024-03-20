@@ -26,6 +26,10 @@ app.use(middlewares.errorHandler);
 
 console.log("Worker started", worker.isPaused(), worker.isRunning());
 
+worker.on("active", (jobId) => {
+  console.log(`Job ${jobId} is active`);
+});
+
 worker.on("failed", (job, err) => {
   console.log(`Job failed with error ${err}`);
 });

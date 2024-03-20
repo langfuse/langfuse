@@ -1,6 +1,6 @@
 import { Kysely, PostgresDialect } from "kysely";
 import { Pool } from "pg";
-import { DB } from "@langfuse/shared/prisma/generated/types";
+import { DB } from "@langfuse/shared";
 
 export const db = new Kysely<DB>({
   dialect: new PostgresDialect({

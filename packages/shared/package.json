@@ -2,16 +2,15 @@
   "name": "@langfuse/shared",
   "version": "1.0.0",
   "license": "MIT",
+  "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "files": [
     "dist/**"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
@@ -52,6 +51,7 @@
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.0.4",
+    "tsup": "^8.0.2",
     "typescript": "^5.3.3",
     "vitest": "^1.3.1"
   }

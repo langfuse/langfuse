@@ -150,19 +150,6 @@ export function InlineFilterBuilder({
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
 
-  const addNewFilter = () => {
-    setWipFilterState((prev) => [
-      ...prev,
-      {
-        column: undefined,
-        type: undefined,
-        operator: undefined,
-        value: undefined,
-        key: undefined,
-      },
-    ]);
-  };
-
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
   ) => {

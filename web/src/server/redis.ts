@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { type TQueueJobTypes, QueueName } from "shared/src/queues/index";
+import { type TQueueJobTypes, QueueName } from "@langfuse/shared";
 import { Queue } from "bullmq";
 import Redis from "ioredis";
 
