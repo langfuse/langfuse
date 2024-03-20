@@ -20,7 +20,7 @@ export const LatencyTables = ({
   const generationsLatencies = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "observations",
+      from: "traces_observations",
       select: [
         { column: "duration", agg: "50thPercentile" },
         { column: "duration", agg: "90thPercentile" },
@@ -54,7 +54,7 @@ export const LatencyTables = ({
   const spansLatencies = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "observations",
+      from: "traces_observations",
       select: [
         { column: "duration", agg: "50thPercentile" },
         { column: "duration", agg: "90thPercentile" },

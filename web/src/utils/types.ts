@@ -1,4 +1,4 @@
-import { type Observation } from "@prisma/client";
+import { type Observation } from "@langfuse/shared";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
 import {
@@ -6,13 +6,13 @@ import {
   dateTimeAggregationOptions,
 } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { type TiktokenModel } from "tiktoken";
+import { type TiktokenModel } from "js-tiktoken";
 
 export type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];
 };
 
-export type TypedObservation = Event | Span | Generation;
+export type TypedObservation = Event;
 
 export type Event = Observation & {
   type: "EVENT";

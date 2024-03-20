@@ -1,6 +1,3 @@
-// prisma needs to be exported from the package which does migrations.
-// The prisma package contains the generated schema and is exported with the PrismaClient.
-
 import { PrismaClient } from "@prisma/client";
 import { env } from "process";
 

@@ -19,7 +19,7 @@ if [ -z "$DIRECT_URL" ]; then
 fi
 
 # Apply migrations
-prisma migrate deploy --schema=./shared/prisma/schema.prisma
+prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
 status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status

@@ -2,34 +2,27 @@
   "name": "langfuse",
   "version": "2.7.0",
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
     "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
-    "dev": "yarn workspace web run dev & yarn workspace worker run dev",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:seed": "turbo run db:seed",
     "nuke": "bash ./scripts/nuke.sh",
-    "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev",
-    "build": "yarn workspace worker run build && yarn workspace web run build",
-    "start": "yarn workspace worker run start && yarn workspace web run start",
-    "lint": "yarn workspaces run lint",
-    "build:web": "yarn workspace web build",
-    "build:worker": "yarn workspace worker build",
-    "build:shared": "yarn workspace shared build",
-    "start:worker": "yarn workspace worker start"
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "clean": "turbo run clean",
+    "dev": "turbo run dev",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "lint": "turbo run lint",
+    "test": "turbo run test"
   },
   "private": true,
-  "workspaces": [
-    "worker",
-    "web",
-    "shared"
-  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/eslint": "^8.56.2",
-    "@types/jest": "^29.5.12",
-    "@typescript-eslint/eslint-plugin": "^7.0.2",
-    "@typescript-eslint/parser": "^7.0.2",
-    "dotenv-cli": "^7.3.0",
-    "eslint": "^8.56.0",
-    "prettier": "^3.2.5"
+    "prettier": "^3.2.5",
+    "turbo": "^1.12.4",
+    "dotenv-cli": "^7.3.0"
   }
 }

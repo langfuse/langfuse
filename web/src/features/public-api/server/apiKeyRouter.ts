@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { generateKeySet } from "shared/src/auth/auth";
+import { generateKeySet } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
