@@ -1,9 +1,0 @@
-{
-  "references": [
-    { "path": "./web" },
-    { "path": "./worker" },
-    { "path": "./shared" }
-  ],
-  "files": [],
-  "exclude": ["**/node_modules"]
-}

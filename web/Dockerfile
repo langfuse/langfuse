@@ -1,24 +1,40 @@
-# Base image
-FROM node:20-alpine AS base
+FROM node:20-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat
 
+FROM alpine AS base
+RUN npm install pnpm turbo --global
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
 
-# Rebuild the source code only when needed
+FROM base AS pruner
+
+WORKDIR /app
+
+COPY . .
+RUN turbo prune --scope=web --docker
+
+
 FROM base AS builder
 
 WORKDIR /app
-COPY package.json .
-COPY tsconfig.json .
-COPY yarn.lock .
-COPY /shared ./shared
-COPY /web ./web
 
-RUN yarn install --pure-lockfile --non-interactive
+# First install the dependencies (as they change less often)
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=pruner /app/out/json/ .
 
+RUN pnpm install --frozen-lockfile
+
+ENV DOCKER_BUILD 1
+
+
+# Copy source code of isolated subworkspace
+COPY --from=pruner /app/out/full/ .
 
 # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./web/src/middleware.ts
@@ -28,14 +44,7 @@ RUN rm -f ./web/src/middleware.ts
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Disable validation of environment variables during build
-ENV DOCKER_BUILD 1
-
-# Generate prisma client
-RUN yarn workspace shared db:generate
-
-# Build the application
-RUN yarn run build:web
+RUN turbo run build --filter=web
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -65,7 +74,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
-COPY --from=builder --chown=nextjs:nodejs /app/shared/prisma ./shared/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh
