@@ -8,8 +8,8 @@
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "start": "node dist/index.js",
-    "dev": "tsup --watch --onSuccess \"node dist/index.js\"",
-    "build": "tsup",
+    "build": "tsc",
+    "dev": "dotenv -e ../.env -- nodemon --watch 'src/**/*' -e ts,tsx --exec 'ts-node' src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
