@@ -44,8 +44,6 @@ RUN rm -f ./web/src/middleware.ts
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-COPY --from=pruner /app/out/full/ .
-
 RUN turbo run build --filter=web
 
 # Production image, copy all the files and run next
