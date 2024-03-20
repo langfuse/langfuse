@@ -30,6 +30,9 @@ COPY --from=pruner /app/out/json/ .
 
 RUN pnpm install
 
+ENV DOCKER_BUILD 1
+
+
 RUN ls -la node_modules
 
 # Copy source code of isolated subworkspace
@@ -45,9 +48,6 @@ RUN rm -f ./web/src/middleware.ts
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
-
-# Disable validation of environment variables during build
-ENV DOCKER_BUILD 1
 
 # Generate prisma client
 RUN pnpm run db:generate
@@ -84,7 +84,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
-COPY --from=builder --chown=nextjs:nodejs /app/apps/shared/prisma ./apps/shared/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh
