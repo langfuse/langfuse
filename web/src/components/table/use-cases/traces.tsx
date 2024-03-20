@@ -195,7 +195,7 @@ export default function TracesTable({
             }
           }}
           aria-label="Select all"
-          className="mt-1 opacity-60 data-[state=checked]:mt-[6px]"
+          className="mt-1 opacity-60 data-[state=checked]:mt-[6px] data-[state=indeterminate]:mt-[6px]"
         />
       ),
       cell: ({ row }) => (
