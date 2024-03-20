@@ -4,8 +4,8 @@ export const modelsTableCols: ColumnDefinition[] = [
   {
     name: "Maintainer",
     id: "maintainer",
-    type: "string",
-    internal: 'm."maintainer"',
+    type: "boolean",
+    internal: '(m."project_id" IS NOT NULL)',
   },
   {
     name: "Model Name",
