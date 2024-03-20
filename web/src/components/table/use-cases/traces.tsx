@@ -178,6 +178,7 @@ export default function TracesTable({
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
       id: "select",
+      accessorKey: "select",
       header: ({ table }) => (
         <Checkbox
           checked={
