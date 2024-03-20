@@ -7,16 +7,19 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { Prisma } from "@prisma/client";
+import { type Model, Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
 import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
   filter: z.array(singleFilter),
+  orderBy: orderBy,
   ...paginationZod,
 });
 
@@ -29,33 +32,48 @@ export const modelRouter = createTRPCRouter({
         modelsTableCols,
         "models",
       );
-      console.log(filterCondition);
-      const models = await ctx.prisma.model.findMany({
-        where: {
-          OR: [{ projectId: input.projectId }, { projectId: null }],
-        },
-        skip: input.page * input.limit,
-        orderBy: [
-          { modelName: "asc" },
-          { unit: "asc" },
-          {
-            startDate: {
-              sort: "desc",
-              nulls: "last",
-            },
-          },
-        ],
-        take: input.limit,
-      });
 
-      const totalAmount = await ctx.prisma.model.count({
-        where: {
-          OR: [{ projectId: input.projectId }, { projectId: null }],
-        },
-      });
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        modelsTableCols,
+      );
+
+      const models = await ctx.prisma.$queryRaw<Array<Model>>(
+        generateModelsQuery(
+          Prisma.sql` 
+          m.id,
+          m.project_id as "projectId",
+          m.model_name as "modelName",
+          m.match_pattern as "matchPattern",
+          m.start_date as "startDate",
+          m.input_price as "inputPrice",
+          m.output_price as "outputPrice",
+          m.total_price as "totalPrice",
+          m.unit,
+          m.tokenizer_id as "tokenizerId"`,
+          input.projectId,
+          filterCondition,
+          orderByCondition,
+          input.limit,
+          input.page,
+        ),
+      );
+      const totalAmount = await ctx.prisma.$queryRaw<
+        Array<{ totalCount: bigint }>
+      >(
+        generateModelsQuery(
+          Prisma.sql` count(*) AS "totalCount"`,
+          input.projectId,
+          filterCondition,
+          Prisma.empty,
+          1, // limit
+          0, // page
+        ),
+      );
       return {
         models,
-        totalCount: totalAmount,
+        totalCount:
+          totalAmount.length > 0 ? Number(totalAmount[0]?.totalCount) : 0,
       };
     }),
   modelNames: protectedProjectProcedure
@@ -168,3 +186,23 @@ export const modelRouter = createTRPCRouter({
       return createdModel;
     }),
 });
+
+const generateModelsQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+) => {
+  return Prisma.sql`
+  SELECT
+   ${select}
+  FROM models m
+  WHERE (m.project_id = ${projectId} OR m.project_id IS NULL)
+  ${filterCondition}
+  ${orderCondition}
+  LIMIT ${limit}
+  OFFSET ${page * limit}
+`;
+};
