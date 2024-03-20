@@ -255,11 +255,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ModelTableRow>("modelColumnVisibility", columns);
+    useColumnVisibility<ModelTableRow>("modelsColumnVisibility", columns);
 
   const convertToTableRow = (model: Model): ModelTableRow => {
-    console.log("Model", model);
-    console.log("Maintainer", model.projectId, typeof model.projectId);
     return {
       modelId: model.id,
       maintainer: model.projectId ? "User" : "Langfuse",
