@@ -36,9 +36,6 @@ ENV DOCKER_BUILD 1
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN turbo run build --filter=web
-
-
 # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./web/src/middleware.ts
 
