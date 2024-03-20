@@ -29,7 +29,7 @@ COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=pruner /app/out/json/ .
 
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 
 # Copy source code of isolated subworkspace

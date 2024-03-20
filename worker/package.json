@@ -24,7 +24,6 @@
     "ioredis": "^5.3.2",
     "kysely": "^0.27.3",
     "lodash": "^4.17.21",
-    "node": "^21.6.2",
     "pg": "^8.11.3",
     "pino-pretty": "^10.3.1",
     "@langfuse/shared": "workspace:*",
