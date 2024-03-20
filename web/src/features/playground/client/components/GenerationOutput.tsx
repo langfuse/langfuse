@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "../context";
 import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
-import { ChatMessageRole } from "@/src/components/playground/types";
+import { ChatMessageRole } from "@/src/features/playground/types";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);

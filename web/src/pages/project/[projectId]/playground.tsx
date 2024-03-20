@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import Playground from "@/src/components/playground";
+import Playground from "@/src/features/playground/client";
 
 export default function PlaygroundPage() {
   return (

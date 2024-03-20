@@ -1,7 +1,7 @@
 import {
   supportedModels,
   ModelProvider,
-} from "@/src/components/playground/types";
+} from "@/src/features/playground/types";
 import { Input } from "@/src/components/ui/input";
 import {
   Select,

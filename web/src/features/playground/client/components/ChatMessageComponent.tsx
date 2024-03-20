@@ -1,7 +1,7 @@
 import { capitalize } from "lodash";
 import { MinusCircleIcon } from "lucide-react";
 import { type ChangeEvent, useEffect, useState, useRef } from "react";
-import { ChatMessageRole } from "@/src/components/playground/types";
+import { ChatMessageRole } from "@/src/features/playground/types";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Textarea } from "@/src/components/ui/textarea";

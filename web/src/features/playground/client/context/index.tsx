@@ -9,14 +9,14 @@ import React, {
 
 import { v4 as uuidv4 } from "uuid";
 
-import useCommandEnter from "@/src/components/playground/hooks/useCommandEnter";
+import useCommandEnter from "@/src/features/playground/client/hooks/useCommandEnter";
 import {
   type ChatMessage,
   ChatMessageRole,
   type ModelParams,
   type PromptVariable,
   ModelProvider,
-} from "@/src/components/playground/types";
+} from "@/src/features/playground/types";
 import { extractVariables } from "@/src/utils/string";
 
 type PlaygroundContextType = {
