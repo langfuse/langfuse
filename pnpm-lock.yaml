@@ -67,6 +67,9 @@ importers:
       prisma-kysely:
         specifier: ^1.8.0
         version: 1.8.0
+      zod:
+        specifier: ^3.22.4
+        version: 3.22.4
     devDependencies:
       '@repo/eslint-config':
         specifier: '*'

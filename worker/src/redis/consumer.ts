@@ -1,6 +1,6 @@
 import Redis from "ioredis";
 import { Job, Worker } from "bullmq";
-import { QueueName, TQueueJobTypes } from "shared/src/queues/index";
+import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/index";
 import { evaluate } from "../eval-service";
 
 export const redis = new Redis({
