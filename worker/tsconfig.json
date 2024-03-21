@@ -1,6 +1,7 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
+    "esModuleInterop": true,
     "moduleResolution": "Node",
     "module": "commonjs",
     "declaration": false,

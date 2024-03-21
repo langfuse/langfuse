@@ -16,3 +16,4 @@ export * from "./tracesTable";
 export type { DB };
 export * from "./client";
 export * from "@prisma/client";
+export { type DB };

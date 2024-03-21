@@ -1,7 +1,8 @@
 {
   "name": "langfuse",
   "version": "2.7.0",
-  "type": "module",
+  "author": "engineering@langfuse.com",
+  "license": "MIT",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
@@ -10,17 +11,13 @@
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
     "nuke": "bash ./scripts/nuke.sh",
+    "dx": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=worker run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "start": "turbo run start",
-    "clean": "turbo run clean",
     "dev": "turbo run dev",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "lint": "turbo run lint",
     "test": "turbo run test"
   },
-  "private": true,
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
     "prettier": "^3.2.5",
     "turbo": "^1.12.4",

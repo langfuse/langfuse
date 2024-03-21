@@ -1,6 +1,7 @@
 {
   "name": "@repo/eslint-config",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "files": [
     "library.js",

@@ -35,7 +35,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN turbo run build --filter=worker
+RUN turbo run build --filter=worker...
 
 
 
@@ -44,18 +44,15 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
+ENV DOCKER_BUILD 0
 
 # Don't run production as root
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
-USER nodejs
-
-
-COPY --from=builder /app/worker/package.json .
-COPY --from=builder /app/worker/dist ./dist
+RUN addgroup --system --gid 1001 expressjs
+RUN adduser --system --uid 1001 expressjs
+USER expressjs
+COPY --from=builder --chown=expressjs:expressjs /app .
 
 EXPOSE 3030
+ENV PORT=3030
 
-ENV ADDRESS=0.0.0.0 PORT=3030
-
-CMD ["node", "dist/src/index.js"]
+CMD ["node", "worker/dist/src/index.js"]
