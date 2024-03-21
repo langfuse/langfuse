@@ -38,7 +38,6 @@ COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
 ARG environment=qa
 COPY --from=builder /app/admin/langfuse/.env.${environment} /app/admin/langfuse/.env
-RUN npx prisma generate
 RUN pnpm turbo run build:${environment} --filter=langfuse
 
 # use alpine as the thinest image
