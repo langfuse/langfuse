@@ -8,7 +8,7 @@
     "build:prod": "cp .env.prod .env.local && SKIP_ENV_VALIDATION=1 next build",
     "build:qa": "cp .env.qa .env.local && SKIP_ENV_VALIDATION=1 next build",
     "dev": "next dev",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate --schema=admin/langfuse/prisma/schema.prisma",
     "lint": "next lint",
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
