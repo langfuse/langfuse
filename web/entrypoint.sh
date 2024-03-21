@@ -19,7 +19,7 @@ if [ -z "$DIRECT_URL" ]; then
 fi
 
 # Apply migrations
-prisma migrate deploy
+prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
 status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
@@ -30,4 +30,4 @@ if [ $status -ne 0 ]; then
 fi
 
 # Start server
-node server.js
+node web/server.js

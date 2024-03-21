@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit } from "@langfuse/shared";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
