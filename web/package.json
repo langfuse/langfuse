@@ -2,11 +2,11 @@
   "name": "web",
   "version": "2.11.3",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
     "build": "dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
-    "dx": "dotenv -e ../.env -- npm i && npm run db:reset && npm run db:seed:examples && npm run dev",
     "lint": "dotenv -e ../.env -- next lint",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",

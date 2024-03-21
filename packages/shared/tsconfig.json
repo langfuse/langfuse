@@ -1,9 +1,12 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "."
+    "moduleResolution": "Node",
+    "module": "commonjs",
+    "lib": ["ES2015"],
+    "outDir": "./dist",
+    "types": ["node"]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "tsup.config.ts"],
+  "include": ["."],
   "exclude": ["node_modules", "dist"]
 }
