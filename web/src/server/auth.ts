@@ -68,12 +68,6 @@ const providers: Provider[] = [
         );
       }
 
-      await prisma.apiKey.findUnique({
-        where: {
-          id: "clgb17vnp000008jjere5g15i",
-        },
-      });
-
       const dbUser = await prisma.user.findUnique({
         where: {
           email: credentials.email.toLowerCase(),
