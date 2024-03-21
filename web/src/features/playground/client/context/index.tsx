@@ -11,9 +11,9 @@ import { v4 as uuidv4 } from "uuid";
 
 import useCommandEnter from "@/src/features/playground/client/hooks/useCommandEnter";
 import {
-  type ChatMessage,
+  type ChatMessageWithId,
   ChatMessageRole,
-  type ModelParams,
+  type UIModelParams,
   type PromptVariable,
   ModelProvider,
 } from "@/src/features/playground/types";
@@ -25,19 +25,19 @@ type PlaygroundContextType = {
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
 
-  modelParams: ModelParams;
-  updateModelParams: <Key extends keyof ModelParams>(
+  modelParams: UIModelParams;
+  updateModelParams: <Key extends keyof UIModelParams>(
     key: Key,
-    value: ModelParams[Key],
+    value: UIModelParams[Key],
   ) => void;
 
-  messages: ChatMessage[];
-  addMessage: (role: ChatMessageRole, content?: string) => ChatMessage;
+  messages: ChatMessageWithId[];
+  addMessage: (role: ChatMessageRole, content?: string) => ChatMessageWithId;
   deleteMessage: (id: string) => void;
-  updateMessage: <Key extends keyof ChatMessage>(
+  updateMessage: <Key extends keyof ChatMessageWithId>(
     id: string,
     key: Key,
-    value: ChatMessage[Key],
+    value: ChatMessageWithId[Key],
   ) => void;
 
   output: string;
@@ -66,11 +66,11 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<ChatMessageWithId[]>([
     createEmptyMessage(ChatMessageRole.System),
     createEmptyMessage(ChatMessageRole.User),
   ]);
-  const [modelParams, setModelParams] = useState<ModelParams>(
+  const [modelParams, setModelParams] = useState<UIModelParams>(
     getDefaultModelParams(ModelProvider.OpenAI),
   );
 
@@ -211,8 +211,8 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 };
 
 async function* getChatCompletionStream(
-  messages: ChatMessage[],
-  modelParams: ModelParams,
+  messages: ChatMessageWithId[],
+  modelParams: UIModelParams,
 ) {
   const body = JSON.stringify({ messages, modelParams });
   console.log({ messages, modelParams });
@@ -250,7 +250,7 @@ async function* getChatCompletionStream(
 
 function getFinalMessages(
   promptVariables: PromptVariable[],
-  messages: ChatMessage[],
+  messages: ChatMessageWithId[],
 ) {
   const missingVariables = promptVariables.filter((v) => !v.value && v.isUsed);
   if (missingVariables.length > 0) {
@@ -279,7 +279,7 @@ function getFinalMessages(
 function createEmptyMessage(
   role: ChatMessageRole,
   content?: string,
-): ChatMessage {
+): ChatMessageWithId {
   return {
     role,
     content: content ?? "",
@@ -287,7 +287,7 @@ function createEmptyMessage(
   };
 }
 
-function getDefaultModelParams(provider: ModelProvider): ModelParams {
+function getDefaultModelParams(provider: ModelProvider): UIModelParams {
   switch (provider) {
     // Docs: https://platform.openai.com/docs/api-reference/chat/create
     case ModelProvider.OpenAI:

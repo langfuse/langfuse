@@ -1,8 +1,9 @@
 import { type ChangeEvent } from "react";
-import { usePlaygroundContext, type PromptVariable } from "../context";
+import { usePlaygroundContext } from "../context";
 import { Input } from "@/src/components/ui/input";
 import { CheckCircle2, Circle, Trash2Icon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { type PromptVariable } from "@/src/features/playground/types";
 
 export const PromptVariableComponent: React.FC<{
   promptVariable: PromptVariable;

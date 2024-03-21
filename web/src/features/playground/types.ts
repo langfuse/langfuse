@@ -2,8 +2,9 @@ export type PromptVariable = { name: string; value: string; isUsed: boolean };
 export type ChatMessage = {
   role: ChatMessageRole;
   content: string;
-  id: string;
 };
+
+export type ChatMessageWithId = ChatMessage & { id: string };
 
 export enum ModelProvider {
   Anthropic = "anthropic",
@@ -15,17 +16,21 @@ export enum ChatMessageRole {
   Assistant = "assistant",
 }
 export type ModelParams = AnthropicModelParams | OpenAIModelParams;
+export type UIModelParams = Required<
+  AnthropicModelParams | OpenAIModelParams
+> & {
+  max_temperature: number;
+};
 
 // OpenAI
 export type OpenAIModelParams = {
   provider: ModelProvider.OpenAI;
   model: OpenAIModel;
-  max_tokens: number;
-  temperature: number;
-  max_temperature: 2;
-  top_p: number;
-  presence_penalty: number;
-  frequency_penalty: number;
+  max_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+  presence_penalty?: number;
+  frequency_penalty?: number;
 };
 
 export const openAIModels = [
@@ -49,10 +54,9 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export type AnthropicModelParams = {
   provider: ModelProvider.Anthropic;
   model: AnthropicModel;
-  temperature: number;
-  max_temperature: 1;
-  max_tokens: number;
-  top_p: number;
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
 };
 
 export const anthropicModels = [
