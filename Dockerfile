@@ -38,17 +38,20 @@ COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
 ARG environment=qa
 COPY --from=builder /app/admin/langfuse/.env.${environment} /app/admin/langfuse/.env
-COPY --from=builder /app/admin/langfuse/prisma /app/admin/langfuse/prisma
+RUN npx prisma generate
 RUN pnpm turbo run build:${environment} --filter=langfuse
 
 # use alpine as the thinest image
 FROM alpine AS runner
 WORKDIR /app
 
+RUN pnpm install -g --no-package-lock --no-save prisma
+
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 USER nextjs
+
 
 COPY --from=installer /app/admin/langfuse/next.config.js .
 COPY --from=installer /app/admin/langfuse/package.json .
