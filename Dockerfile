@@ -50,7 +50,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 USER nextjs
 
-COPY --from=installer /app/admin/langfuse/next.config.js .
+COPY --from=installer /app/admin/langfuse/next.config.mjs .
 COPY --from=installer /app/admin/langfuse/package.json .
 
 # Automatically leverage output traces to reduce image size
