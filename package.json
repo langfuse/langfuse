@@ -1,6 +1,8 @@
 {
   "name": "langfuse",
   "version": "2.7.0",
+  "author": "engineering@langfuse.com",
+  "license": "MIT",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
@@ -16,9 +18,6 @@
     "lint": "turbo run lint",
     "test": "turbo run test"
   },
-  "private": true,
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
     "prettier": "^3.2.5",
     "turbo": "^1.12.4",

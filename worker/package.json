@@ -2,6 +2,7 @@
   "name": "worker",
   "version": "1.0.0",
   "description": "",
+  "license": "MIT",
   "main": "index.js",
   "private": true,
   "scripts": {
@@ -13,8 +14,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
-  "author": "",
-  "license": "MIT",
+  "author": "engineering@langfuse.com",
   "dependencies": {
     "@langfuse/shared": "workspace:*",
     "backoff": "^2.5.0",
