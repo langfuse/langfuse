@@ -42,7 +42,6 @@ COPY turbo.json turbo.json
 ARG environment=qa
 COPY --from=builder /app/admin/langfuse/.env.${environment} /app/admin/langfuse/.env
 RUN SKIP_ENV_VALIDATION=1 pnpm turbo run build:${environment} --filter=langfuse
-RUN pnpm turbo run db:generate --filter=langfuse
 
 # use alpine as the thinest image
 FROM alpine AS runner
