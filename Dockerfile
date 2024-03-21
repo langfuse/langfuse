@@ -8,9 +8,6 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN pnpm install turbo --global
 
-# Generate prisma client
-RUN npx prisma generate
-
 FROM base AS builder
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat libcrypto3 libssl3 
@@ -19,6 +16,9 @@ RUN apk update
 WORKDIR /app
 COPY . .
 RUN turbo prune --scope=langfuse --docker
+
+# Generate prisma client
+RUN npx prisma generate
 
 # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./src/middleware.ts
