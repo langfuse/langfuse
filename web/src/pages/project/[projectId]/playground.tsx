@@ -7,7 +7,7 @@ export default function PlaygroundPage() {
       <Header
         title="Playground"
         help={{
-          description: "A sandbox to test and interate your prompts",
+          description: "A sandbox to test and iterate your prompts",
         }}
       />
       <div className="flex-1 overflow-auto">

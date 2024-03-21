@@ -1,16 +1,19 @@
 import { StreamingTextResponse } from "ai";
+import { getToken } from "next-auth/jwt";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { validateChatCompletionBody } from "./validateChatCompletionBody";
 import { fetchLLMCompletion } from "./fetchLLMCompletion";
+import { validateChatCompletionBody } from "./validateChatCompletionBody";
 
 export default async function chatCompletionHandler(req: NextRequest) {
-  if (req.method !== "POST") {
+  if (!(await getToken({ req })))
+    return NextResponse.json({ message: "Unauthenticated" }, { status: 401 });
+
+  if (req.method !== "POST")
     return NextResponse.json(
       { message: "Method not allowed" },
       { status: 405 },
     );
-  }
 
   let body: ReturnType<typeof validateChatCompletionBody>;
 

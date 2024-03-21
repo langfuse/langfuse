@@ -71,6 +71,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           variant="ghost"
           size="icon"
           onClick={() => deleteMessage(message.id)}
+          disabled={message.role === ChatMessageRole.System}
         >
           <MinusCircleIcon />
         </Button>
