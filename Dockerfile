@@ -19,7 +19,7 @@ RUN turbo prune --scope=langfuse --docker
 
 # Generate prisma client
 RUN echo ${PWD} && ls -la
-RUN npx prisma generate --schema=admin/langfuse/prisma/schema.prisma
+RUN pnpm dlx prisma generate --schema=admin/langfuse/prisma/schema.prisma
 
 # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./src/middleware.ts
