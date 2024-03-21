@@ -2,8 +2,9 @@
  * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
  * for Docker builds.
  */
-!process.env.SKIP_ENV_VALIDATION && (await import("./src/env.mjs"));
+await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
+import { env } from "./src/env.mjs";
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
@@ -39,7 +40,7 @@ const nextConfig = {
         ],
       },
       // Required to check authentication status from langfuse.com
-      ...(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
+      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
             {
               source: "/api/auth/session",
