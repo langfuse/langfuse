@@ -35,12 +35,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN ls .
-
 RUN turbo run build --filter=worker...
-
-RUN ls .
-RUN ls worker
 
 
 
@@ -55,9 +50,9 @@ ENV DOCKER_BUILD 0
 RUN addgroup --system --gid 1001 expressjs
 RUN adduser --system --uid 1001 expressjs
 USER expressjs
-COPY --from=builder /app .
+COPY --from=builder --chown=expressjs:expressjs /app .
 
-
+EXPOSE 3030
 ENV PORT=3030
 
 CMD ["node", "worker/dist/src/index.js"]
