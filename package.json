@@ -1,7 +1,6 @@
 {
   "name": "langfuse",
   "version": "2.7.0",
-  "type": "module",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
