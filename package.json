@@ -1,5 +1,5 @@
 {
-  "name": "langfuse-core",
+  "name": "langfuse",
   "version": "1.17.3",
   "private": true,
   "scripts": {
