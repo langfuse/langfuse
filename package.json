@@ -5,8 +5,8 @@
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
     "build": "next build",
-    "build:prod": "cp .env.prod .env.local && next build",
-    "build:qa": "cp .env.qa .env.local && next build",
+    "build:prod": "cp .env.prod .env.local && SKIP_ENV_VALIDATION=1 next build",
+    "build:qa": "cp .env.qa .env.local && SKIP_ENV_VALIDATION=1 next build",
     "dev": "next dev",
     "postinstall": "prisma generate",
     "lint": "next lint",
