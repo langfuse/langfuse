@@ -81,13 +81,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 RUN echo ${PWD} && ls -lR
-COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+# COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
+# RUN chmod +x ./entrypoint.sh
 
 USER nextjs
 
 # Default port to 3000
 ENV PORT 3000
 
-# CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "./entrypoint.sh"]
+CMD ["node", "server.js"]
+# CMD ["dumb-init", "--", "./entrypoint.sh"]
