@@ -80,8 +80,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-COPY --chown=nextjs:nodejs entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY --chown=nextjs:nodejs entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
 
 USER nextjs
 
@@ -89,4 +89,4 @@ USER nextjs
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "/entrypoint.sh"]
+CMD ["dumb-init", "--", "entrypoint.sh"]
