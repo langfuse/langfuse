@@ -20,12 +20,9 @@ import {
   type WipFilterState,
   type FilterState,
   type WipFilterCondition,
-} from "@/src/features/filters/types";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import {
-  filterOperators,
-  singleFilter,
-} from "@/src/server/api/interfaces/filters";
+} from "@langfuse/shared";
+import { type ColumnDefinition } from "@langfuse/shared";
+import { filterOperators, singleFilter } from "@langfuse/shared";
 import { NonEmptyString } from "@/src/utils/zod";
 
 // Has WipFilterState, passes all valid filters to parent onChange
