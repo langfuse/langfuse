@@ -17,6 +17,8 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:e2e": "playwright test",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push --skip-generate",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
     "db:seed:examples": "npx prisma db seed -- --environment examples",
@@ -25,6 +27,8 @@
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
+  "main": "./index.ts",
+  "types": "./index.ts",
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@emotion/react": "^11.11.1",
