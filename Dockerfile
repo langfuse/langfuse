@@ -51,8 +51,6 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 USER nextjs
 
-RUN pnpm install -g --no-package-lock --no-save prisma
-
 COPY --from=installer /app/admin/langfuse/next.config.js .
 COPY --from=installer /app/admin/langfuse/package.json .
 
