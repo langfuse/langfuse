@@ -69,6 +69,7 @@ export const ROUTES: Route[] = [
     name: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
+    featureFlag: "playground",
   },
   {
     name: "Datasets",
