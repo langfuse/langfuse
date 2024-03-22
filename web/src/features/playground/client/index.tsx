@@ -12,10 +12,10 @@ export default function Playground() {
         </div>
         <div className="h-full basis-1/4 pr-2">
           <div className="flex h-full flex-col">
-            <div className="flex-1">
+            <div className="basis-[55%] ">
               <ModelParameters />
             </div>
-            <div className="flex-1 overflow-auto">
+            <div className="basis-[45%]  overflow-auto">
               <Variables />
             </div>
           </div>

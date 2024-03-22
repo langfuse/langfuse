@@ -19,7 +19,7 @@ export type ModelParams = AnthropicModelParams | OpenAIModelParams;
 export type UIModelParams = Required<
   AnthropicModelParams | OpenAIModelParams
 > & {
-  max_temperature: number;
+  maxTemperature: number;
 };
 
 // OpenAI

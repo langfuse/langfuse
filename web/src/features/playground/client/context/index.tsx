@@ -215,7 +215,6 @@ async function* getChatCompletionStream(
   modelParams: UIModelParams,
 ) {
   const body = JSON.stringify({ messages, modelParams });
-  console.log({ messages, modelParams });
   const result = await fetch("/api/chatCompletion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -295,7 +294,7 @@ function getDefaultModelParams(provider: ModelProvider): UIModelParams {
         provider,
         model: "gpt-3.5-turbo",
         temperature: 1,
-        max_temperature: 2,
+        maxTemperature: 2,
         max_tokens: 256,
         top_p: 1,
         frequency_penalty: 0,
@@ -308,7 +307,7 @@ function getDefaultModelParams(provider: ModelProvider): UIModelParams {
         provider,
         model: "claude-3-opus-20240229",
         temperature: 0,
-        max_temperature: 1,
+        maxTemperature: 1,
         max_tokens: 256,
         top_p: 1,
       };
