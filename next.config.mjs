@@ -6,9 +6,16 @@ await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ["shared-key"],
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -27,6 +34,13 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+  experimental: {
+    // this includes files from the monorepo base two directories up
+    outputFileTracingRoot: join(__dirname, "../../"),
+    // add for help with barrel files (even though we don't recommend them, they are used in My Key)
+    // https://nextjs.org/docs/app/api-reference/next-config-js/optimizePackageImports
+    optimizePackageImports: ["shared-key"],
+  },
 
   async headers() {
     return [
