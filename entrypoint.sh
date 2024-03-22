@@ -17,7 +17,7 @@ fi
 export DIRECT_URL=$DATABASE_URL
 
 # Apply migrations
-prisma migrate deploy
+prisma migrate deploy --schema=admin/langfuse/prisma/schema.prisma
 status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
