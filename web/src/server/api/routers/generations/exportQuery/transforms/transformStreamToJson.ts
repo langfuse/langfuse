@@ -1,6 +1,7 @@
 import { Transform, type TransformCallback } from "stream";
 
-import type { ObservationView } from "@prisma/client";
+import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
+import { intervalInSeconds } from "@/src/utils/dates";
 
 export function transformStreamToJson(): Transform {
   let isFirstElement = true;
@@ -9,7 +10,7 @@ export function transformStreamToJson(): Transform {
     objectMode: true,
 
     transform(
-      row: ObservationView,
+      row: ObservationViewWithScores,
       encoding: BufferEncoding,
       callback: TransformCallback,
     ): void {
@@ -19,8 +20,30 @@ export function transformStreamToJson(): Transform {
       } else {
         this.push(","); // For subsequent elements, prepend a comma
       }
+      const {
+        calculatedInputCost,
+        calculatedOutputCost,
+        calculatedTotalCost,
+        latency,
+        ...rest
+      } = row;
 
-      this.push(JSON.stringify(row)); // Push the current row as a JSON string
+      const rowToPush = {
+        ...rest,
+        calculatedInputCost: calculatedInputCost?.toNumber() ?? null,
+        calculatedOutputCost: calculatedOutputCost?.toNumber() ?? null,
+        calculatedTotalCost: calculatedTotalCost?.toNumber() ?? null,
+        latency: latency,
+        latencyPerToken:
+          row.latency && row.totalTokens !== 0
+            ? row.latency / row.totalTokens
+            : null,
+        timeToFirstToken: row.completionStartTime
+          ? intervalInSeconds(row.startTime, row.completionStartTime)
+          : null,
+      };
+
+      this.push(JSON.stringify(rowToPush)); // Push the current row as a JSON string
 
       callback();
     },

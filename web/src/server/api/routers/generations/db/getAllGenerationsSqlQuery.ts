@@ -4,22 +4,17 @@ import {
 } from "@/src/features/filters/server/filterToPrisma";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
-import { Prisma } from "@prisma/client";
-
-import { type GenerationsExportInput } from "../exportQuery";
+import { type ObservationView, Prisma } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared";
 import { type GetAllGenerationsInput } from "../getAllQuery";
 
-type GetSqlFromInputParams =
-  | {
-      input: GenerationsExportInput;
-      type: "export";
-    }
-  | { input: GetAllGenerationsInput; type: "paginate" };
-
-export function getAllGenerationsSqlQuery({
+export async function getAllGenerations({
   input,
-  type,
-}: GetSqlFromInputParams) {
+  selectIO,
+}: {
+  input: GetAllGenerationsInput;
+  selectIO: boolean;
+}) {
   const searchCondition = input.searchQuery
     ? Prisma.sql`AND (
         o."id" ILIKE ${`%${input.searchQuery}%`} OR
@@ -53,19 +48,7 @@ export function getAllGenerationsSqlQuery({
         )
       : Prisma.empty;
 
-  // For exports: use a date cutoff filter to ignore newly ingested rows
-  const dateCutoffFilter =
-    type === "export"
-      ? datetimeFilterToPrismaSql("start_time", "<", new Date())
-      : Prisma.empty;
-
-  // For UI pagination: set LIMIT and OFFSET
-  const pagination =
-    type === "paginate"
-      ? Prisma.sql`LIMIT ${input.limit} OFFSET ${input.page * input.limit}`
-      : Prisma.empty;
-
-  const rawSqlQuery = Prisma.sql`
+  const query = Prisma.sql`
       WITH scores_avg AS (
         SELECT
           trace_id,
@@ -76,13 +59,15 @@ export function getAllGenerationsSqlQuery({
             trace_id,
             observation_id,
             name,
-            avg(value) avg_value
+            avg(value) avg_value,
+            comment
           FROM
             scores
           GROUP BY
             1,
             2,
-            3
+            3,
+            5
           ORDER BY
             1) tmp
         GROUP BY
@@ -92,11 +77,10 @@ export function getAllGenerationsSqlQuery({
         o.id,
         o.name,
         o.model,
+        o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
-        o.latency,
-        o.input,
-        o.output,
+        ${selectIO ? Prisma.sql`o.input, o.output,` : Prisma.empty} 
         o.metadata,
         o.trace_id as "traceId",
         t.name as "traceName",
@@ -104,6 +88,7 @@ export function getAllGenerationsSqlQuery({
         o.prompt_tokens as "promptTokens",
         o.completion_tokens as "completionTokens",
         o.total_tokens as "totalTokens",
+        o.unit,
         o.level,
         o.status_message as "statusMessage",
         o.version,
@@ -127,12 +112,47 @@ export function getAllGenerationsSqlQuery({
         AND t.project_id = ${input.projectId}
         AND o.type = 'GENERATION'
         ${datetimeFilter}
-        ${dateCutoffFilter}
         ${searchCondition}
         ${filterCondition}
         ${orderByCondition}
-        ${pagination}
+      LIMIT ${input.limit} OFFSET ${input.page * input.limit}
     `;
 
-  return { rawSqlQuery, datetimeFilter, searchCondition, filterCondition };
+  const generations = await prisma.$queryRaw<
+    Array<
+      ObservationView & {
+        traceName: string | null;
+        promptName: string | null;
+        promptVersion: string | null;
+      }
+    >
+  >(query);
+
+  const scores = await prisma.score.findMany({
+    where: {
+      trace: {
+        projectId: input.projectId,
+      },
+      observationId: {
+        in: generations.map((gen) => gen.id),
+      },
+    },
+  });
+
+  const fullGenerations = generations.map((generation) => {
+    const filteredScores = scores.filter(
+      (s) => s.observationId === generation.id,
+    );
+    return {
+      ...generation,
+      scores: filteredScores,
+    };
+  });
+
+  return {
+    generations: fullGenerations,
+    datetimeFilter,
+    searchCondition,
+    filterCondition,
+  };
 }

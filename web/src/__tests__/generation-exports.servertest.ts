@@ -1,12 +1,11 @@
 /** @jest-environment node */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit, prisma } from "@langfuse/shared";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
-import type { Session } from "next-auth";
 
 describe("observations.export RPC", () => {
   const numberOfGenerations = 5;
@@ -95,7 +94,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),
@@ -123,7 +122,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),
@@ -150,7 +149,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),
@@ -179,7 +178,7 @@ describe("observations.export RPC", () => {
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
-          column: "start_time",
+          column: "Start Time",
           type: "datetime",
           operator: ">",
           value: new Date("1990-01-01"),

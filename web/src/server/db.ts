@@ -1,6 +1,3 @@
-import { PrismaClient } from "@prisma/client";
-
-import { env } from "@/src/env.mjs";
 import {
   DummyDriver,
   Kysely,
@@ -8,18 +5,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { type DB as Database } from "@/prisma/generated/types";
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
+import { type DB as Database } from "@langfuse/shared";
 
 export const DB = new Kysely<Database>({
   dialect: {
@@ -29,3 +15,6 @@ export const DB = new Kysely<Database>({
     createQueryCompiler: () => new PostgresQueryCompiler(),
   },
 });
+
+// prisma needs to be exported from the package which does migrations.
+// The prisma package contains the generated schema and is exported with the PrismaClient.

@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
 
 import { api } from "@/src/utils/api";
-import { type RouterInput } from "@/src/utils/types";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useEffect, useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import { DataTable } from "@/src/components/table/data-table";
@@ -12,6 +12,9 @@ import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { Skeleton } from "@/src/components/ui/skeleton";
+
+export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
 type RowData = {
   userId: string;
@@ -19,8 +22,6 @@ type RowData = {
   lastEvent: string;
   totalEvents: string;
 };
-
-export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
 export default function UsersPage() {
   const router = useRouter();
@@ -40,14 +41,39 @@ export default function UsersPage() {
     limit: paginationState.pageSize,
     projectId,
   });
-  const totalCount = users.data?.slice(1)[0]?.totalCount ?? 0;
+
+  // this API call will return an empty array if there are no users.
+  // Hence this adds one fast unnecessary API call if there are no users.
+  const userMetrics = api.users.metrics.useQuery({
+    projectId,
+    userIds: users.data?.users.map((u) => u.userId) ?? [],
+  });
+
+  type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
+  type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
+
+  type CoreType = Omit<UserCoreOutput, "userId"> & { id: string };
+  type MetricType = Omit<UserMetricsOutput, "userId"> & { id: string };
+
+  const userRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
+    users.data?.users.map((u) => ({
+      ...u,
+      id: u.userId,
+    })),
+    userMetrics.data?.map((u) => ({
+      ...u,
+      id: u.userId,
+    })),
+  );
+
+  const totalCount = users.data?.totalUsers ?? 0;
 
   useEffect(() => {
     if (users.isSuccess) {
       console.log("setting detail page list");
       setDetailPageList(
         "users",
-        users.data.map((u) => encodeURIComponent(u.userId)),
+        users.data.users.map((u) => encodeURIComponent(u.userId)),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,28 +100,77 @@ export default function UsersPage() {
     {
       accessorKey: "firstEvent",
       header: "First Event",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("firstEvent");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
+        }
+      },
     },
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("totalCost");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
+        }
+      },
     },
     {
       accessorKey: "lastEvent",
       header: "Last Event",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("lastEvent");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
+        }
+      },
     },
     {
       accessorKey: "totalEvents",
       header: "Total Events",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("totalEvents");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
+        }
+      },
     },
     {
       accessorKey: "totalTokens",
       header: "Total Tokens",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("totalTokens");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
+        }
+      },
     },
     {
       accessorKey: "lastScore",
       header: "Last Score",
       cell: ({ row }) => {
         const value: Score | null = row.getValue("lastScore");
+        if (userMetrics.isFetching) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+
         return (
           <>
             {value ? (
@@ -142,9 +217,9 @@ export default function UsersPage() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: users.data.map((t) => {
+                  data: userRowData.rows?.map((t) => {
                     return {
-                      userId: t.userId,
+                      userId: t.id,
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
@@ -153,9 +228,13 @@ export default function UsersPage() {
                         (Number(t.totalTraces) || 0) +
                           (Number(t.totalObservations) || 0),
                       ),
-                      totalTokens: compactNumberFormatter(t.totalTokens),
+                      totalTokens: t.totalTokens
+                        ? compactNumberFormatter(t.totalTokens)
+                        : undefined,
                       lastScore: t.lastScore,
-                      totalCost: usdFormatter(t.sumCalculatedTotalCost, 2, 2),
+                      totalCost: t.sumCalculatedTotalCost
+                        ? usdFormatter(t.sumCalculatedTotalCost, 2, 2)
+                        : undefined,
                     };
                   }),
                 }
@@ -168,4 +247,51 @@ export default function UsersPage() {
       />
     </div>
   );
+}
+
+function joinTableCoreAndMetrics<
+  Core extends { id: string },
+  Metric extends { id: string },
+>(
+  userCoreData?: Core[],
+  userMetricsData?: Metric[],
+): {
+  status: "loading" | "error" | "success";
+  rows: (Core & Partial<Metric>)[] | undefined;
+} {
+  if (!userCoreData) {
+    return { status: "error", rows: undefined };
+  }
+
+  const userCoreDataProcessed = userCoreData;
+
+  if (!userMetricsData) {
+    // create an object with all the keys of the UserMetrics type with undefined value
+
+    return {
+      status: "success",
+      rows: userCoreDataProcessed.map((u) => ({
+        ...u,
+        ...({} as Partial<Metric>),
+      })),
+    };
+  }
+
+  const metricsById = userMetricsData.reduce<Record<string, Metric>>(
+    (acc, metric) => {
+      acc[metric.id] = metric;
+      return acc;
+    },
+    {},
+  );
+
+  const joinedData = userCoreDataProcessed.map((userCore) => {
+    const metrics = metricsById[userCore.id];
+    return {
+      ...userCore,
+      ...(metrics ?? ({} as Partial<Metric>)),
+    };
+  });
+
+  return { status: "success", rows: joinedData };
 }

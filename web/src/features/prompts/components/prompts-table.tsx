@@ -18,6 +18,7 @@ type RowData = {
   id: string;
   createdAt: Date;
   isActive: boolean;
+  numberOfObservations: number;
 };
 
 export function PromptTable(props: { projectId: string }) {
@@ -47,11 +48,11 @@ export function PromptTable(props: { projectId: string }) {
       header: "Name",
       cell: ({ row }) => {
         const name: string = row.getValue("name");
-        return name && typeof name === "string" ? (
+        return name ? (
           <TableLink
             path={`/project/${props.projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
-            truncateAt={30}
+            truncateAt={50}
           />
         ) : undefined;
       },
@@ -70,6 +71,25 @@ export function PromptTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const createdAt: Date = row.getValue("createdAt");
         return createdAt.toLocaleString();
+      },
+    },
+    {
+      accessorKey: "numberOfObservations",
+      header: "Number of Generations",
+      cell: ({ row }) => {
+        const numberOfObservations: number = row.getValue(
+          "numberOfObservations",
+        );
+        const name: string = row.getValue("name");
+        const filter = encodeURIComponent(
+          `Prompt Name;stringOptions;;any of;${name}`,
+        );
+        return (
+          <TableLink
+            path={`/project/${props.projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            value={numberOfObservations.toLocaleString()}
+          />
+        );
       },
     },
     {
@@ -95,6 +115,7 @@ export function PromptTable(props: { projectId: string }) {
       version: item.version,
       createdAt: item.createdAt,
       isActive: item.isActive,
+      numberOfObservations: Number(item.observationCount),
     };
   };
 

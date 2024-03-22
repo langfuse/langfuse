@@ -6,7 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type MembershipRole, Prisma, type Score } from "@prisma/client";
+import { type MembershipRole, Prisma, type Score } from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
@@ -44,27 +44,44 @@ export const scoresRouter = createTRPCRouter({
       );
 
       const scores = await ctx.prisma.$queryRaw<
-        Array<Score & { traceName: string; totalCount: number }>
-      >(Prisma.sql`
-          SELECT
-            s.id,
-            s.name,
-            s.value,
-            s.timestamp,
-            s.comment,
-            s.trace_id as "traceId",
-            s.observation_id as "observationId",
-            t.name as "traceName",
-            (count(*) OVER())::int AS "totalCount"
-          FROM scores s
-          JOIN traces t ON t.id = s.trace_id
-          WHERE t.project_id = ${input.projectId}
-          ${filterCondition}
-          ${orderByCondition}
-          LIMIT ${input.limit}
-          OFFSET ${input.page * input.limit}
-      `);
-      return scores;
+        Array<Score & { traceName: string }>
+      >(
+        generateScoresQuery(
+          Prisma.sql` 
+          s.id,
+          s.name,
+          s.value,
+          s.timestamp,
+          s.comment,
+          s.trace_id as "traceId",
+          s.observation_id as "observationId",
+          t.name as "traceName"`,
+          input.projectId,
+          filterCondition,
+          orderByCondition,
+          input.limit,
+          input.page,
+        ),
+      );
+
+      const scoresCount = await ctx.prisma.$queryRaw<
+        Array<{ totalCount: bigint }>
+      >(
+        generateScoresQuery(
+          Prisma.sql` count(*) AS "totalCount"`,
+          input.projectId,
+          filterCondition,
+          Prisma.empty,
+          1, // limit
+          0, // page
+        ),
+      );
+
+      return {
+        scores,
+        totalCount:
+          scoresCount.length > 0 ? Number(scoresCount[0]?.totalCount) : 0,
+      };
     }),
   filterOptions: protectedProjectProcedure
     .input(
@@ -111,7 +128,7 @@ export const scoresRouter = createTRPCRouter({
       },
     }),
   ),
-  create: protectedProcedure
+  createReviewScore: protectedProcedure
     .input(
       z.object({
         traceId: z.string(),
@@ -159,6 +176,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           name: input.name,
           comment: input.comment,
+          source: "REVIEW",
         },
       });
       await auditLog({
@@ -174,7 +192,7 @@ export const scoresRouter = createTRPCRouter({
       });
       return score;
     }),
-  update: protectedProcedure
+  updateReviewScore: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -186,6 +204,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await ctx.prisma.score.findFirstOrThrow({
         where: {
           id: input.id,
+          source: "REVIEW",
           trace: {
             project: {
               members: {
@@ -235,12 +254,13 @@ export const scoresRouter = createTRPCRouter({
         },
       });
     }),
-  delete: protectedProcedure
+  deleteReviewScore: protectedProcedure
     .input(z.string())
     .mutation(async ({ input, ctx }) => {
       const score = await ctx.prisma.score.findFirstOrThrow({
         where: {
           id: input,
+          source: "REVIEW",
           trace: {
             project: {
               members: {
@@ -284,3 +304,24 @@ export const scoresRouter = createTRPCRouter({
       });
     }),
 });
+
+const generateScoresQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+) => {
+  return Prisma.sql`
+  SELECT
+   ${select}
+  FROM scores s
+  JOIN traces t ON t.id = s.trace_id
+  WHERE t.project_id = ${projectId}
+  ${filterCondition}
+  ${orderCondition}
+  LIMIT ${limit}
+  OFFSET ${page * limit}
+`;
+};

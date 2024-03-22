@@ -4,7 +4,7 @@ import {
   type TableNames as TableName,
   type ColumnDefinition,
 } from "@/src/server/api/interfaces/tableDefinition";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@langfuse/shared";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -21,6 +21,9 @@ const arrayOperatorReplacements = {
   "none of": "&&",
 };
 
+/**
+ * SECURITY: This function must only be used, when all its inputs were verified with zod.
+ */
 export function tableColumnsToSqlFilterAndPrefix(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
@@ -33,6 +36,10 @@ export function tableColumnsToSqlFilterAndPrefix(
   return Prisma.join([Prisma.raw("AND "), sql], "");
 }
 
+/**
+ * SECURITY: This function must only be used, when all its inputs were verified with zod.
+ * Converts filter state and table columns to a Prisma SQL filter.
+ */
 export function tableColumnsToSqlFilter(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
@@ -138,7 +145,9 @@ export function tableColumnsToSqlFilter(
   if (statements.length === 0) {
     return Prisma.empty;
   }
-
+  // FOR SECURITY: We join the statements with " AND " to prevent SQL injection.
+  // IF WE EVER CHANGE THIS, WE MUST ENSURE THAT USERS ONLY ACCESS THE DATA THEY ARE ALLOWED TO.
+  // Example: Or condition on charts API on projectId would break this.
   return Prisma.join(statements, " AND ");
 }
 
@@ -149,6 +158,7 @@ const castValueToPostgresTypes = (
   return column.name === "type" &&
     (table === "observations" ||
       table === "traces_observations" ||
+      table === "traces_observationsview" ||
       table === "traces_parent_observation_scores")
     ? Prisma.sql`::"ObservationType"`
     : Prisma.empty;

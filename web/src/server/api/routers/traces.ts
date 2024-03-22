@@ -5,7 +5,12 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Trace, type ObservationView } from "@prisma/client";
+import {
+  Prisma,
+  type Trace,
+  type ObservationView,
+  type ObservationLevel,
+} from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
@@ -82,11 +87,14 @@ export const traceRouter = createTRPCRouter({
           t."metadata" AS "metadata",
           t.session_id AS "sessionId",
           t."bookmarked" AS "bookmarked",
-          COALESCE(u."promptTokens", 0)::int AS "promptTokens",
-          COALESCE(u."completionTokens", 0)::int AS "completionTokens",
-          COALESCE(u."totalTokens", 0)::int AS "totalTokens",
+          COALESCE(tm."promptTokens", 0)::int AS "promptTokens",
+          COALESCE(tm."completionTokens", 0)::int AS "completionTokens",
+          COALESCE(tm."totalTokens", 0)::int AS "totalTokens",
           tl.latency AS "latency",
-          COALESCE(u."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost"
+          COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
+          COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
+          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
+          tm."level" AS "level"
           `,
 
         input.projectId,
@@ -109,7 +117,10 @@ export const traceRouter = createTRPCRouter({
                 totalTokens: number;
                 totalCount: number;
                 latency: number | null;
+                level: ObservationLevel;
                 calculatedTotalCost: Decimal | null;
+                calculatedInputCost: Decimal | null;
+                calculatedOutputCost: Decimal | null;
               }
             >
           >(tracesQuery),
@@ -199,7 +210,6 @@ export const traceRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
     .input(z.object({ traceId: z.string() }))
     .query(async ({ input, ctx }) => {
-      console.log("input", input);
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input.traceId,
@@ -468,19 +478,26 @@ function createTracesQuery(
     "traces" AS t
   LEFT JOIN LATERAL (
     SELECT
-        SUM(prompt_tokens) AS "promptTokens",
-        SUM(completion_tokens) AS "completionTokens",
-        SUM(total_tokens) AS "totalTokens",
-        SUM(calculated_total_cost) AS "calculatedTotalCost"
+      SUM(prompt_tokens) AS "promptTokens",
+      SUM(completion_tokens) AS "completionTokens",
+      SUM(total_tokens) AS "totalTokens",
+      SUM(calculated_total_cost) AS "calculatedTotalCost",
+      SUM(calculated_input_cost) AS "calculatedInputCost",
+      SUM(calculated_output_cost) AS "calculatedOutputCost",
+      COALESCE(  
+        MAX(CASE WHEN level = 'ERROR' THEN 'ERROR' END),  
+        MAX(CASE WHEN level = 'WARNING' THEN 'WARNING' END),  
+        MAX(CASE WHEN level = 'DEFAULT' THEN 'DEFAULT' END),  
+        'DEBUG'  
+      ) AS "level"
     FROM
-        "observations_view"
+      "observations_view"
     WHERE
-        trace_id = t.id
-        AND "type" = 'GENERATION'
-
-        AND "project_id" = ${projectId}
-        ${observationTimeseriesFilter}
-  ) AS u ON true
+      trace_id = t.id
+      AND "type" = 'GENERATION'
+      AND "project_id" = ${projectId}
+      ${observationTimeseriesFilter}
+  ) AS tm ON true
   LEFT JOIN LATERAL (
     SELECT
         EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"

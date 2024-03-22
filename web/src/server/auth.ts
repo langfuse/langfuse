@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -14,11 +14,11 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { type Adapter } from "next-auth/adapters";
 
 // Providers
-import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import { type Provider } from "next-auth/providers/index";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =
@@ -103,7 +103,8 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
     GoogleProvider({
       clientId: env.AUTH_GOOGLE_CLIENT_ID,
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
@@ -112,7 +113,8 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
@@ -126,6 +128,8 @@ if (
       clientId: env.AUTH_AZURE_AD_CLIENT_ID,
       clientSecret: env.AUTH_AZURE_AD_CLIENT_SECRET,
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 

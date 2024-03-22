@@ -23,29 +23,36 @@ import {
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
-import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
+import {
+  formatIntervalSeconds,
+  intervalInSeconds,
+  utcDateOffsetByDays,
+} from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type Score, type ObservationLevel } from "@prisma/client";
+import { type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { usdFormatter } from "@/src/utils/numbers";
+import { randomIntFromInterval, usdFormatter } from "@/src/utils/numbers";
 import {
   exportOptions,
   type ExportFileFormats,
 } from "@/src/server/api/interfaces/exportTypes";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
+import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import React from "react";
 
 export type GenerationsTableRow = {
   id: string;
-  traceId: string;
-  startTime: string;
+  traceId?: string;
+  startTime: Date;
   level?: ObservationLevel;
   statusMessage?: string;
   endTime?: string;
-  timeToFirstToken?: string;
+  completionStartTime?: Date;
   latency?: number;
   name?: string;
   model?: string;
@@ -56,7 +63,7 @@ export type GenerationsTableRow = {
   totalCost?: Decimal;
   traceName?: string;
   metadata?: string;
-  scores: Score[];
+  scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -86,7 +93,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
 
   const [filterState, setFilterState] = useQueryFilterState([
     {
-      column: "start_time",
+      column: "Start Time",
       type: "datetime",
       operator: ">",
       value: utcDateOffsetByDays(-14),
@@ -224,6 +231,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Start Time",
       enableHiding: true,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: Date = row.getValue("startTime");
+        return value.toLocaleString();
+      },
     },
     {
       accessorKey: "endTime",
@@ -238,19 +249,23 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       header: "Time to First Token",
       enableHiding: true,
       cell: ({ row }) => {
-        const startTime: string = row.getValue("startTime");
-        const timeToFirstToken: string | undefined =
+        const startTime: Date = row.getValue("startTime");
+        const completionStartTime: Date | undefined =
           row.getValue("timeToFirstToken");
 
-        if (!timeToFirstToken) {
+        if (!completionStartTime) {
           return undefined;
         }
 
-        const latencyInMs =
-          new Date(timeToFirstToken).getTime() - new Date(startTime).getTime();
-        const latencyInSeconds = latencyInMs / 1000;
-
-        return <span>{formatIntervalSeconds(latencyInSeconds)}</span>;
+        const latencyInSeconds =
+          intervalInSeconds(startTime, completionStartTime) || "-";
+        return (
+          <span>
+            {typeof latencyInSeconds === "number"
+              ? formatIntervalSeconds(latencyInSeconds)
+              : latencyInSeconds}
+          </span>
+        );
       },
     },
     {
@@ -258,8 +273,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "scores",
       header: "Scores",
       cell: ({ row }) => {
-        const values: Score[] = row.getValue("scores");
-        return <GroupedScoreBadges scores={values} variant="headings" />;
+        const values: ScoreSimplified[] | undefined = row.getValue("scores");
+        return (
+          values && <GroupedScoreBadges scores={values} variant="headings" />
+        );
       },
       enableHiding: true,
     },
@@ -395,8 +412,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "input",
       header: "Input",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("input");
-        return <JSONView json={value} className="w-[500px]" />;
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <IOCell observationId={observationId} traceId={traceId} io="input" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -405,8 +425,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "output",
       header: "Output",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("output");
-        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <IOCell observationId={observationId} traceId={traceId} io="output" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -433,7 +456,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "prompt",
       header: "Prompt",
       enableHiding: true,
-      enableSorting: true,
+      enableSorting: false,
       cell: ({ row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
@@ -473,12 +496,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     ? generations.data.generations.map((generation) => {
         return {
           id: generation.id,
-          traceId: generation.traceId,
-          traceName: generation.traceName,
-          startTime: generation.startTime.toLocaleString(),
+          traceId: generation.traceId ?? undefined,
+          traceName: generation.traceName ?? "",
+          startTime: generation.startTime,
           endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken:
-            generation.completionStartTime?.toLocaleString() ?? undefined,
+          timeToFirstToken: generation.completionStartTime ?? undefined,
           latency: generation.latency ?? undefined,
           totalCost: generation.calculatedTotalCost ?? undefined,
           inputCost: generation.calculatedInputCost ?? undefined,
@@ -586,3 +608,73 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     </div>
   );
 }
+
+const IOCell = ({
+  traceId,
+  observationId,
+  io,
+}: {
+  traceId: string;
+  observationId: string;
+  io: "input" | "output";
+}) => {
+  const observation = api.observations.byId.useQuery(
+    {
+      observationId: observationId,
+      traceId: traceId,
+    },
+    {
+      enabled: typeof traceId === "string" && typeof observationId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  return (
+    <>
+      {observation.isLoading || !observation.data ? (
+        <JsonSkeleton className="h-[250px] w-[500px] px-3 py-1" />
+      ) : (
+        <JSONView
+          json={
+            io === "output" ? observation.data.output : observation.data.input
+          }
+          className="h-[250px] w-[500px] overflow-y-auto"
+        />
+      )}
+    </>
+  );
+};
+
+export const JsonSkeleton = ({
+  className,
+  numRows = 10,
+}: {
+  numRows?: number;
+  className?: string;
+}) => {
+  const sizingOptions = [
+    "h-5 w-full",
+    "h-5 w-[400px]",
+    "h-5 w-[450px]",
+    "h-5 w-[475px]",
+  ];
+
+  const generateRandomSize = () =>
+    sizingOptions[randomIntFromInterval(0, sizingOptions.length - 1)];
+
+  return (
+    <div className={cn("w-[500px] rounded-md border", className)}>
+      <div className="flex flex-col gap-1">
+        {[...Array<number>(numRows)].map((_) => (
+          <>
+            <Skeleton className={generateRandomSize()} />
+          </>
+        ))}
+        <br />
+      </div>
+    </div>
+  );
+};

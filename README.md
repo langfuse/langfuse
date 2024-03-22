@@ -21,21 +21,12 @@
    </div>
    </br>
    <div>
-      <a href="https://langfuse.com/docs">
-         <strong>Docs</strong>
-      </a> ·
-      <a href="https://langfuse.com/issue">
-         <strong>Report Bug</strong>
-      </a> ·
-      <a href="https://langfuse.com/idea">
-         <strong>Feature Request</strong>
-      </a> ·
-      <a href="https://langfuse.com/changelog">
-         <strong>Changelog</strong>
-      </a> ·
-      <a href="https://langfuse.com/discord">
-         <strong>Discord</strong>
-      </a> 
+      <a href="https://langfuse.com/docs"><strong>Docs</strong></a> ·
+      <a href="https://langfuse.com/issues"><strong>Report Bug</strong></a> ·
+      <a href="https://langfuse.com/ideas"><strong>Feature Request</strong></a> ·
+      <a href="https://langfuse.com/changelog"><strong>Changelog</strong></a> ·
+      <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
+      <a href="https://langfuse.com/discord"><strong>Discord</strong></a> 
    </div>
    </br>
       <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
@@ -123,8 +114,8 @@ See our the [→ Quickstart](https://langfuse.com/docs/get-started) to get start
 | ---------------------------------------------------------------- | ------------- | ---------------------------------------------------------------- |
 | [**SDK** - _recommended_](https://langfuse.com/docs/sdk)         | Python, JS/TS | Manual instrumentation using the SDKs for full flexibility.      |
 | [OpenAI SDK](https://langfuse.com/docs/integrations/openai)      | Python        | Automated instrumentation via drop-in replacement of OpenAI SDK. |
-| [Langchain](https://langfuse.com/docs/integrations/langchain)    | Python, JS/TS | Automated instrumentation via LlamaIndex callback system.        |
-| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index) | Python, JS/TS | Automated instrumentation via LlamaIndex callback system.        |
+| [Langchain](https://langfuse.com/docs/integrations/langchain)    | Python, JS/TS | Instrumentation via Langchain callbacks.        |
+| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index) | Python       | Automated instrumentation via LlamaIndex callback system.        |
 | [API](https://langfuse.com/docs/api)                             |               | Directly call the public API. OpenAPI spec available.            |
 
 External projects/packages that integrate with Langfuse:
@@ -142,6 +133,7 @@ External projects/packages that integrate with Langfuse:
 
 - [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
 - [Feature Requests](https://langfuse.com/idea)
+- [Roadmap](https://langfuse.com/roadmap)
 
 ### Support and feedback
 
@@ -180,6 +172,6 @@ This helps us to:
 1. Understand how Langfuse is used and improve the most relevant features.
 2. Track overall usage for internal and external (e.g. fundraising) reporting.
 
-None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/features/telemetry/index.ts).
+None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/web/src/features/telemetry/index.ts).
 
 You can opt-out by setting `TELEMETRY_ENABLED=false`.

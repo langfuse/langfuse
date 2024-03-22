@@ -8,10 +8,10 @@ import {
 } from "@/src/server/api/interfaces/exportTypes";
 import { S3StorageService } from "@/src/server/api/services/S3StorageService";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { type ObservationView } from "@prisma/client";
+import { type ObservationView } from "@langfuse/shared";
 
 import { DatabaseReadStream } from "../db/DatabaseReadStream";
-import { getAllGenerationsSqlQuery } from "../db/getAllGenerationsSqlQuery";
+import { getAllGenerations as getAllGenerations } from "../db/getAllGenerationsSqlQuery";
 import { GenerationTableOptions } from "../utils/GenerationTableOptions";
 import { transformStreamToCsv } from "./transforms/transformStreamToCsv";
 import { transformStreamToJson } from "./transforms/transformStreamToJson";
@@ -35,16 +35,29 @@ export type GenerationsExportResult =
 
 export const generationsExportQuery = protectedProjectProcedure
   .input(generationsExportInput)
-  .query<GenerationsExportResult>(async ({ input, ctx }) => {
-    const { rawSqlQuery } = getAllGenerationsSqlQuery({
-      input,
-      type: "export",
-    });
-
+  .query<GenerationsExportResult>(async ({ input }) => {
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
+
+    const dateCutoffFilter = {
+      column: "Start Time",
+      operator: "<" as const,
+      value: new Date(),
+      type: "datetime" as const,
+    };
+
     const dbReadStream = new DatabaseReadStream<ObservationView>(
-      ctx.prisma,
-      rawSqlQuery,
+      async (pageSize: number, offset: number) => {
+        const dbReturn = await getAllGenerations({
+          input: {
+            ...input,
+            filter: [...input.filter, dateCutoffFilter],
+            page: offset / pageSize,
+            limit: pageSize,
+          },
+          selectIO: true,
+        });
+        return dbReturn.generations;
+      },
       queryPageSize,
     );
 

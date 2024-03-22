@@ -1,9 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { Prisma, type Trace } from "@prisma/client";
+import { Prisma, type Trace } from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
 import {
   handleBatch,
@@ -131,8 +131,8 @@ export default async function handler(
             t.tags,
             COALESCE(SUM(o.calculated_total_cost), 0)::DOUBLE PRECISION AS "totalCost",
             COALESCE(EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"))) - EXTRACT(EPOCH FROM MIN(o."start_time")), 0)::double precision AS "latency",
-            ARRAY_AGG(DISTINCT o.id) FILTER (WHERE o.id IS NOT NULL) AS "observations",
-            ARRAY_AGG(DISTINCT s.id) FILTER (WHERE s.id IS NOT NULL) AS "scores"
+            COALESCE(ARRAY_AGG(DISTINCT o.id) FILTER (WHERE o.id IS NOT NULL), ARRAY[]::text[]) AS "observations",
+            COALESCE(ARRAY_AGG(DISTINCT s.id) FILTER (WHERE s.id IS NOT NULL), ARRAY[]::text[]) AS "scores"
           FROM "traces" AS t
           LEFT JOIN "observations_view" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
           LEFT JOIN "scores" AS s ON t.id = s.trace_id

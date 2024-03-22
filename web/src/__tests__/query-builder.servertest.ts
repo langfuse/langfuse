@@ -5,7 +5,7 @@ import {
   executeQuery,
 } from "@/src/server/api/services/query-builder";
 import { type aggregations } from "@/src/server/api/services/sqlInterface";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared";
 import { type z } from "zod";
 
 describe("Build valid SQL queries", () => {
@@ -19,7 +19,21 @@ describe("Build valid SQL queries", () => {
         strings: [' FROM  traces t  WHERE  t."project_id" = ', ";"],
       } as const,
       {
+        table: "traces_metrics",
+        values: ["project-id"],
+        strings: [' FROM traces_view t  WHERE  t."project_id" = ', ";"],
+      } as const,
+      {
         table: "traces_observations",
+        values: ["project-id", "project-id"],
+        strings: [
+          ' FROM  traces t LEFT JOIN observations o ON t.id = o.trace_id  WHERE  t."project_id" = ',
+          ' AND o."project_id" = ',
+          ";",
+        ],
+      } as const,
+      {
+        table: "traces_observationsview",
         values: ["project-id", "project-id"],
         strings: [
           ' FROM  traces t LEFT JOIN observations_view o ON t.id = o.trace_id  WHERE  t."project_id" = ',
@@ -142,7 +156,7 @@ describe("Build valid SQL queries", () => {
           from: "traces",
           select: [{ column: "unknown" }],
         }),
-      ).toThrow("Column unknown not found");
+      ).toThrow('Column "unknown" not found in table traces');
     });
 
     it("should not group by an unknown column", () => {
@@ -152,7 +166,7 @@ describe("Build valid SQL queries", () => {
           groupBy: [{ column: "unknown", type: "string" }],
           select: [],
         }),
-      ).toThrow("Column unknown not found");
+      ).toThrow('Column "unknown" not found in table traces');
     });
 
     it("should not order by an unknown column", () => {
@@ -162,7 +176,7 @@ describe("Build valid SQL queries", () => {
           select: [],
           orderBy: [{ column: "unknown", direction: "ASC" }],
         }),
-      ).toThrow("Column unknown not found");
+      ).toThrow('Column "unknown" not found in table traces');
     });
   });
 
