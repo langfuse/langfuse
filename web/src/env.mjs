@@ -61,6 +61,9 @@ export const env = createEnv({
     S3_REGION: z.string().optional(),
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
+    // Prompt playground
+    OPENAI_API_KEY: z.string().optional(),
+    ANTHROPIC_API_KEY: z.string().optional(),
   },
 
   /**
@@ -127,6 +130,9 @@ export const env = createEnv({
     S3_REGION: process.env.S3_REGION,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
+    // Prompt playground
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
