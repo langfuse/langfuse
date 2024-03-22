@@ -15,6 +15,7 @@ const __dirname = dirname(__filename);
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  basePath: "/ai",
   transpilePackages: ["shared-key"],
   eslint: {
     ignoreDuringBuilds: true,
