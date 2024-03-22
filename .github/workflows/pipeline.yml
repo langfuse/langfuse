@@ -10,45 +10,48 @@ on:
   merge_group:
   pull_request:
     branches:
-      - "main"
+      - "*"
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: "npm"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
         run: |
-          npm ci
+          pnpm i
       - name: Load default env
         run: |
           cp .env.dev.example .env
-      - name: lint
-        run: npm run lint
+      - name: lint web
+        run: pnpm run lint
 
   test-docker-build:
     runs-on: ubuntu-latest
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
-
     steps:
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Docker image
+      - name: Build Web Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
+          file: ./web/Dockerfile
+          push: false
+
+      - name: Build Worker Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./worker/Dockerfile
           push: false
 
   tests:
@@ -63,66 +66,86 @@ jobs:
           swap-size-gb: 10
 
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: install dependencies
         run: |
-          npm ci
+          pnpm install
 
       - name: Load default env
         run: |
           cp .env.dev.example .env
+          cp .env.dev.example web/.env
 
-      - name: Run, migrate, seed DB
+      - name: Run + migrate
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
-          npx --yes prisma migrate reset --force --skip-generate
+
+      - name: Seed DB
+        run: |
+          pnpm run db:migrate
+          pnpm run db:seed
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Start Langfuse
-        run: (npm start&)
+        run: (pnpm run start&)
 
       - name: run tests
-        run: npm run test
+        run: pnpm run test
 
   e2e-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: "npm"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: install dependencies
         run: |
-          npm ci
+          pnpm install
 
       - name: Load default env
         run: |
           cp .env.dev.example .env
+          cp .env.dev.example web/.env
 
-      - name: Run, migrate, seed DB
+      - name: Run + migrate
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
-          npx --yes prisma migrate reset --force --skip-generate
+
+      - name: Seed DB
+        run: |
+          pnpm run db:migrate
+          pnpm run db:seed
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Install playwright
-        run: npx playwright install
+        run: |
+          npm add --global playwright
+          pnpm exec playwright install
 
       - name: Run e2e tests
-        run: npm run test:e2e
+        run: pnpm --filter=web run test:e2e
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
@@ -133,9 +156,11 @@ jobs:
       - name: Successful deploy
         if: ${{ !(contains(needs.*.result, 'failure')) }}
         run: exit 0
+        working-directory: .
       - name: Failing deploy
         if: ${{ contains(needs.*.result, 'failure') }}
         run: exit 1
+        working-directory: .
 
   push-docker-image:
     needs: all-ci-passed
@@ -150,10 +175,14 @@ jobs:
       contents: read
 
     steps:
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version: 20
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -177,11 +206,13 @@ jobs:
             type=sha
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
+          file: ./web/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

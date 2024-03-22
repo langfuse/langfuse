@@ -46,7 +46,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Create a dataset item, upserts on id",
+            "description": "Create a dataset item",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items",
               "host": [
@@ -79,7 +79,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a specific dataset item",
+            "description": "Get a dataset item",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items/:id",
               "host": [
@@ -301,7 +301,7 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "Ingest multiple events to Langfuse",
+            "description": "Batched ingestion for Langfuse Tracing",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
               "host": [
@@ -335,13 +335,72 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Metrics",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Daily",
+          "request": {
+            "description": "Get daily metrics of the Langfuse project",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "metrics",
+                "daily"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "traceName",
+                  "value": "",
+                  "description": "Optional filter by the name of the trace"
+                },
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": "Optional filter by the userId associated with the trace"
+                },
+                {
+                  "key": "tags",
+                  "value": "",
+                  "description": "Optional filter for metrics where traces include all of these tags"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Observations",
       "item": [
         {
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a specific observation",
+            "description": "Get a observation",
             "url": {
               "raw": "{{baseUrl}}/api/public/observations/:observationId",
               "host": [
@@ -441,7 +500,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": null,
+            "description": "Get Project associated with API key",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects",
               "host": [
@@ -473,7 +532,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a specific prompt",
+            "description": "Get a prompt",
             "url": {
               "raw": "{{baseUrl}}/api/public/prompts?name=&version=",
               "host": [
@@ -509,7 +568,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Create a specific prompt",
+            "description": "Create a prompt",
             "url": {
               "raw": "{{baseUrl}}/api/public/prompts",
               "host": [
@@ -528,7 +587,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\",\n    \"isActive\": true,\n    \"prompt\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"isActive\": true,\n    \"prompt\": \"example\",\n    \"config\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -549,7 +608,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Add a score to the database, upserts on id",
+            "description": "Create a score",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores",
               "host": [
@@ -582,7 +641,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get scores",
+            "description": "Get a list of scores",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=",
               "host": [
@@ -616,6 +675,38 @@
                 }
               ],
               "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get By Id",
+          "request": {
+            "description": "Get a score",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scores/:scoreId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores",
+                ":scoreId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "scoreId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score"
+                }
+              ]
             },
             "header": [],
             "method": "GET",
@@ -773,7 +864,7 @@
                 {
                   "key": "orderBy",
                   "value": "",
-                  "description": "Format of the string sort_by=timestamp.asc (id, timestamp, name, userId, release, version, public, bookmarked, sessionId)"
+                  "description": "Format of the string [field].[asc/desc]. Fields: id, timestamp, name, userId, release, version, public, bookmarked, sessionId. Example: timestamp.asc"
                 },
                 {
                   "key": "tags",

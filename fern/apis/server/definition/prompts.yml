@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     get:
-      docs: Get a specific prompt
+      docs: Get a prompt
       method: GET
       path: /prompts
       request:
@@ -17,7 +17,7 @@ service:
           version: optional<integer>
       response: Prompt
     create:
-      docs: Create a specific prompt
+      docs: Create a prompt
       method: POST
       path: /prompts
       request: CreatePromptRequest
@@ -27,10 +27,15 @@ types:
   CreatePromptRequest:
     properties:
       name: string
-      isActive: boolean
+      isActive:
+        docs: Should the prompt be promoted to production immediately?
+        type: boolean
       prompt: string
+      config: optional<unknown>
+
   Prompt:
     properties:
       name: string
       version: integer
       prompt: string
+      config: unknown

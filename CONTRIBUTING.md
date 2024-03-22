@@ -91,9 +91,9 @@ flowchart TB
 
 The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
 
-Full database schema: [prisma/schema.prisma](prisma/schema.prisma)
+Full database schema: [web/prisma/schema.prisma](web/prisma/schema.prisma)
 
-<img src="./prisma/database.svg">
+<img src="./web/prisma/database.svg">
 
 ### Infrastructure & Network Overview
 
@@ -110,6 +110,15 @@ flowchart LR
    App --- DB
 ```
 
+## Repository Structure
+
+We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
+- `web`: is the main application package providing Frontend and Backend APIs for Langfuse.
+- `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
+- `shared`: contains shared code between the above packages.
+- `config-eslint`: contains eslint configurations which are shared between the above packages.
+- `config-typescript`: contains typescript configurations which are shared between the above packages.
+
 ## Development Setup
 
 Requirements
@@ -120,42 +129,77 @@ Requirements
 **Steps**
 
 1. Fork the the repository and clone it locally
-2. Install dependencies
+2. Run the development database
 
    ```bash
-   npm install
+   pnpm run infra:dev:up
    ```
 
-3. Run the development database
-
-   ```bash
-   docker-compose -f docker-compose.dev.yml up -d
-   ```
-
-4. Create an env file
+3. Create an env file
 
    ```bash
     cp .env.dev.example .env
    ```
 
-5. Run the migrations
+4. Install dependencies
 
    ```bash
-   npm run db:migrate
+   pnpm install
+   ```
+
+6. Run the migrations
+
+   All database migrations and configs are in the `shared` package.
+
+   ```bash
+   pnpm run db:migrate
 
    # Optional: seed the database
-   # npm run db:seed
-   # npm run db:seed:examples
+   # pnpm --filter=shared run db:seed
+   # pnpm --filter=shared run db:seed:examples
+   # pnpm --filter=shared run db:seed:load
    ```
 
-6. Start the development server
+7. Start the development server
 
    ```bash
-    npm run dev
+    pnpm run dev
    ```
 
+## Monorepo quickstart
+
+- Available packages and their dependencies
+
+  Packages are included in the monorepo according to the `pnpm-workspace.yaml` file. Each package maintains its own dependencies defined in the `package.json`. Internal dependencies can be added as well by adding them to the package dependencies: `"@langfuse/shared": "workspace:*"`.
+
+- Global commands
+
+   You can run commands in all packages at once. For example, to install all dependencies in all packages, you can execute:
+
+   ```bash
+   pnpm install
+   ```
+
+   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
+
+- Executing commands (adding dependencies, running scripts, etc.)
+  
+   From the root of the package, you can execute commands in the monorepo using `pnpm` with the `--filter` flag. For example:
+   
+   ```bash
+   pnpm --filter=web run dev
+   pnpm --filter=shared run db:migrate
+   ```
+
+   Commands that you want to execute in a specific workspace, need to be defined in its `package.json`. E.g. `pnpm --filter=web run dev` will run the `dev` script defined in the `web` `package.json`.
+
+
+
 > [!NOTE]
-> If you frequently switch branches, use `npm run dx` instead of `npm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
+> If you frequently switch branches, use `pnpm run dx` instead of `pnpm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
+
+> [!NOTE]
+> If you find yourself stuck and want to clean the repo, execute `pnpm run nuke`. It will remove all node_modules and build files.
 
 ## Commit messages
 
