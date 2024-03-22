@@ -12,7 +12,7 @@
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "next start",
-    "start:migrate": "prisma migrate deploy && node server.js",
+    "start:migrate": "prisma migrate deploy && node admin/langfuse/server.js",
     "test": "SKIP_ENV_VALIDATION=1 jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:e2e": "playwright test",

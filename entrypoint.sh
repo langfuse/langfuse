@@ -28,4 +28,4 @@ if [ $status -ne 0 ]; then
 fi
 
 # Start server
-node server.js
+node admin/langfuse/server.js

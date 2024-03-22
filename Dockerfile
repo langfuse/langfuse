@@ -18,7 +18,7 @@ COPY . .
 RUN turbo prune --scope=langfuse --docker
 
 # Generate prisma client
-# RUN pnpm dlx prisma generate --schema=admin/langfuse/prisma/schema.prisma
+RUN pnpm dlx prisma generate --schema=admin/langfuse/prisma/schema.prisma
 
 # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./src/middleware.ts
@@ -48,6 +48,8 @@ RUN SKIP_ENV_VALIDATION=1 pnpm turbo run build:${environment} --filter=langfuse
 FROM alpine AS runner
 WORKDIR /app
 
+RUN apk add --no-cache dumb-init
+RUN npm install -g --no-package-lock --no-save prisma
 
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs
@@ -63,9 +65,10 @@ COPY --from=installer --chown=nextjs:nodejs /app/admin/langfuse/.next/standalone
 COPY --from=installer --chown=nextjs:nodejs /app/admin/langfuse/.next/static ./admin/langfuse/.next/static
 COPY --from=installer --chown=nextjs:nodejs /app/admin/langfuse/public ./admin/langfuse/public
 
+COPY --from=builder --chown=nextjs:nodejs app/admin/langfuse/prisma ./admin/langfuse/prisma
+COPY --from=builder --chown=nextjs:nodejs app/admin/langfuse/entrypoint.sh ./admin/langfuse/entrypoint.sh
+RUN chmod +x ./admin/langfuse/entrypoint.sh
+
 EXPOSE 3000
 
-# set hostname to localhost
-# ENV HOSTNAME "0.0.0.0"
-
-CMD node admin/langfuse/server.js
+CMD ["dumb-init", "--", "./admin/langfuse/entrypoint.sh"]
