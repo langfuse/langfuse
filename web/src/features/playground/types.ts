@@ -22,16 +22,18 @@ export type UIModelParams = Required<
   maxTemperature: number;
 };
 
+// Generic config
+export type ModelConfig = {
+  max_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+};
+
 // OpenAI
 export type OpenAIModelParams = {
   provider: ModelProvider.OpenAI;
   model: OpenAIModel;
-  max_tokens?: number;
-  temperature?: number;
-  top_p?: number;
-  presence_penalty?: number;
-  frequency_penalty?: number;
-};
+} & ModelConfig;
 
 export const openAIModels = [
   "gpt-4-turbo-preview",
@@ -54,10 +56,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export type AnthropicModelParams = {
   provider: ModelProvider.Anthropic;
   model: AnthropicModel;
-  temperature?: number;
-  max_tokens?: number;
-  top_p?: number;
-};
+} & ModelConfig;
 
 export const anthropicModels = [
   "claude-3-opus-20240229",

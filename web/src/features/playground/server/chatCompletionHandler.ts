@@ -3,7 +3,10 @@ import { getToken } from "next-auth/jwt";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { fetchLLMCompletion } from "./fetchLLMCompletion";
-import { validateChatCompletionBody } from "./validateChatCompletionBody";
+import {
+  type ValidatedChatCompletionBody,
+  validateChatCompletionBody,
+} from "./validateChatCompletionBody";
 
 export default async function chatCompletionHandler(req: NextRequest) {
   if (!(await getToken({ req })))
@@ -15,7 +18,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
       { status: 405 },
     );
 
-  let body: ReturnType<typeof validateChatCompletionBody>;
+  let body: ValidatedChatCompletionBody;
 
   try {
     body = validateChatCompletionBody(await req.json());

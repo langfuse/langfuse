@@ -66,8 +66,6 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
-      frequencyPenalty: modelParams.frequency_penalty,
-      presencePenalty: modelParams.presence_penalty,
     });
   }
 

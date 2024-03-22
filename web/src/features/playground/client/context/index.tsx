@@ -41,6 +41,7 @@ type PlaygroundContextType = {
   ) => void;
 
   output: string;
+  outputJson: string;
 
   handleSubmit: () => Promise<void>;
   isStreaming: boolean;
@@ -65,6 +66,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 }) => {
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
+  const [outputJson, setOutputJson] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages] = useState<ChatMessageWithId[]>([
     createEmptyMessage(ChatMessageRole.System),
@@ -136,6 +138,9 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     useCallback(async () => {
       try {
         setIsStreaming(true);
+        setOutput("");
+        setOutputJson("");
+
         const finalMessages = getFinalMessages(promptVariables, messages);
         const leftOverVariables = extractVariables(
           finalMessages.map((m) => m.content).join(""),
@@ -155,6 +160,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           response += token;
           setOutput(response);
         }
+        setOutputJson(getOutputJson(response, finalMessages, modelParams));
       } catch (err) {
         console.error(err);
 
@@ -201,6 +207,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         updateModelParams,
 
         output,
+        outputJson,
         handleSubmit,
         isStreaming,
       }}
@@ -297,8 +304,6 @@ function getDefaultModelParams(provider: ModelProvider): UIModelParams {
         maxTemperature: 2,
         max_tokens: 256,
         top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
       };
 
     // Docs: https://docs.anthropic.com/claude/reference/messages_post
@@ -312,4 +317,24 @@ function getDefaultModelParams(provider: ModelProvider): UIModelParams {
         top_p: 1,
       };
   }
+}
+
+function getOutputJson(
+  output: string,
+  messages: ChatMessageWithId[],
+  modelParams: UIModelParams,
+) {
+  return JSON.stringify(
+    {
+      output,
+      input: messages.map((obj) => filterKeyFromObject(obj, "id")),
+      model: filterKeyFromObject(modelParams, "maxTemperature"),
+    },
+    null,
+    2,
+  );
+}
+
+function filterKeyFromObject<T extends object>(obj: T, key: keyof T) {
+  return Object.fromEntries(Object.entries(obj).filter(([k, _]) => k !== key));
 }

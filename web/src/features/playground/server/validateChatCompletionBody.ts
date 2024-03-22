@@ -14,8 +14,6 @@ const OpenAIModelParamsSchema = z.object({
   max_tokens: z.number().optional(),
   temperature: z.number().optional(),
   top_p: z.number().optional(),
-  presence_penalty: z.number().optional(),
-  frequency_penalty: z.number().optional(),
 });
 const AnthropicModelParamsSchema = z.object({
   provider: z.literal(ModelProvider.Anthropic),
@@ -41,3 +39,7 @@ export const ChatCompletionBodySchema = z.object({
 export const validateChatCompletionBody = (input: unknown) => {
   return ChatCompletionBodySchema.parse(input);
 };
+
+export type ValidatedChatCompletionBody = z.infer<
+  typeof ChatCompletionBodySchema
+>;
