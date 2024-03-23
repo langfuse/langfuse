@@ -1,5 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { Prisma, type Score } from "@langfuse/shared";
+import { Prisma, type Score } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
