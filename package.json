@@ -19,8 +19,8 @@
     "test": "turbo run test"
   },
   "devDependencies": {
+    "dotenv-cli": "^7.3.0",
     "prettier": "^3.2.5",
-    "turbo": "^1.12.4",
-    "dotenv-cli": "^7.3.0"
+    "turbo": "^1.13.0"
   }
 }
