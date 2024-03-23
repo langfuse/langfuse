@@ -4,6 +4,8 @@ services:
   redis:
     image: redis
     restart: always
+    command: >
+      --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
       - 6379:6379
 
