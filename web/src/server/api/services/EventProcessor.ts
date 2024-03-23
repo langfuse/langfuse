@@ -24,8 +24,7 @@ import {
   type Score,
   Prisma,
   type Model,
-} from "@langfuse/shared/src/db
-";
+} from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
