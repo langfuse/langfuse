@@ -5,4 +5,10 @@ module.exports = {
   parserOptions: {
     project: true,
   },
+  rules: {
+    "@typescript-eslint/no-unnecessary-condition": [
+      "error",
+      { allowConstantLoopConditions: true },
+    ],
+  },
 };

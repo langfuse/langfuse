@@ -8,3 +8,5 @@ find . -iname "dist" -type d -prune -print -exec rm -rf '{}' \;
 find . -iname "out" -type d -prune -print -exec rm -rf '{}' \;
 find . -iname ".turbo" -type d -prune -print -exec rm -rf '{}' \;
 find . -iname "tsconfig.tsbuildinfo" -type d -prune -print -exec rm -rf '{}' \;
+
+pnpm store prune
