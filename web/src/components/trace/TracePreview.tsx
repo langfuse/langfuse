@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/code";
-import { type Trace, type Score } from "@prisma/client";
+import { type Trace, type Score } from "@langfuse/shared/src/db";
 import {
   Card,
   CardContent,

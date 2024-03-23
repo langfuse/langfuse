@@ -10,8 +10,7 @@ import {
   type Trace,
   type ObservationView,
   type ObservationLevel,
-  type TraceOptions,
-} from "@langfuse/shared";
+} from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
@@ -23,7 +22,6 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { type Sql } from "@prisma/client/runtime/library";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -462,14 +460,14 @@ export const traceRouter = createTRPCRouter({
 });
 
 function createTracesQuery(
-  select: Sql,
+  select: Prisma.Sql,
   projectId: string,
-  observationTimeseriesFilter: Sql,
+  observationTimeseriesFilter: Prisma.Sql,
   page: number,
   limit: number,
-  searchCondition: Sql,
-  filterCondition: Sql,
-  orderByCondition: Sql,
+  searchCondition: Prisma.Sql,
+  filterCondition: Prisma.Sql,
+  orderByCondition: Prisma.Sql,
 ) {
   return Prisma.sql`
   SELECT

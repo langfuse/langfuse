@@ -67,6 +67,9 @@ export const env = createEnv({
     REDIS_HOST: z.string().optional(),
     REDIS_PORT: z.string().optional(),
     REDIS_AUTH: z.string().optional(),
+    // Prompt playground
+    OPENAI_API_KEY: z.string().optional(),
+    ANTHROPIC_API_KEY: z.string().optional(),
   },
 
   /**
@@ -141,6 +144,9 @@ export const env = createEnv({
     REDIS_HOST: process.env.REDIS_HOST,
     REDIS_PORT: process.env.REDIS_PORT,
     REDIS_AUTH: process.env.REDIS_AUTH,
+    // Prompt playground
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

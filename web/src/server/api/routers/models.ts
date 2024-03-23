@@ -9,6 +9,7 @@ import {
 import { paginationZod } from "@/src/utils/zod";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { Prisma } from "@langfuse/shared/src/db";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
