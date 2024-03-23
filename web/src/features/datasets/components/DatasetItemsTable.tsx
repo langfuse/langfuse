@@ -103,6 +103,8 @@ export function DatasetItemsTable({
     },
     {
       id: "actions",
+      accessorKey: "actions",
+      header: "Actions",
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         const status: DatasetStatus = row.getValue("status");

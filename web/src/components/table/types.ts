@@ -10,6 +10,7 @@ export type LangfuseColumnDef<
   TData extends RowData,
   TValue = unknown,
 > = ColumnDef<TData, TValue> & {
+  accessorKey: string;
   defaultHidden?: boolean;
   headerTooltip?: {
     description: string;

@@ -178,6 +178,7 @@ export default function TracesTable({
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
       id: "select",
+      accessorKey: "select",
       header: ({ table }) => (
         <Checkbox
           checked={
@@ -194,7 +195,7 @@ export default function TracesTable({
             }
           }}
           aria-label="Select all"
-          className="opacity-60"
+          className="mt-1 opacity-60 data-[state=checked]:mt-[6px] data-[state=indeterminate]:mt-[6px]"
         />
       ),
       cell: ({ row }) => (
@@ -202,7 +203,7 @@ export default function TracesTable({
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="opacity-60"
+          className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
         />
       ),
     },
