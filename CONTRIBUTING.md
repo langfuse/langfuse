@@ -172,26 +172,16 @@ Requirements
 
   Packages are included in the monorepo according to the `pnpm-workspace.yaml` file. Each package maintains its own dependencies defined in the `package.json`. Internal dependencies can be added as well by adding them to the package dependencies: `"@langfuse/shared": "workspace:*"`.
 
-- Global commands
+- Executing commands
 
    You can run commands in all packages at once. For example, to install all dependencies in all packages, you can execute:
 
    ```bash
    pnpm install
+   pnpm --filter=web run dev # execute command only in one package
    ```
 
    In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
-
-- Executing commands (adding dependencies, running scripts, etc.)
-  
-   From the root of the package, you can execute commands in the monorepo using `pnpm` with the `--filter` flag. For example:
-   
-   ```bash
-   pnpm --filter=web run dev
-   pnpm --filter=shared run db:migrate
-   ```
-
-   Commands that you want to execute in a specific workspace, need to be defined in its `package.json`. E.g. `pnpm --filter=web run dev` will run the `dev` script defined in the `web` `package.json`.
 
 
 
