@@ -23,7 +23,7 @@ const EnvSchema = z.object({
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(6379),
-  REDIS_PASSWORD: z.string(),
+  REDIS_AUTH: z.string(),
 });
 
 export const env = EnvSchema.parse(process.env);

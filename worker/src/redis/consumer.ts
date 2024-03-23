@@ -7,7 +7,7 @@ import { env } from "../env";
 export const redis = new Redis({
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
-  password: env.REDIS_PASSWORD,
+  password: env.REDIS_AUTH,
   maxRetriesPerRequest: 0,
 });
 
