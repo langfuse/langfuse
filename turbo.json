@@ -16,7 +16,8 @@
     "db:seed": {},
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "dependsOn": ["db:generate"]
     },
     "db:generate": {
       "cache": false,
