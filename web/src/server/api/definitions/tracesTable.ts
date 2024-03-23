@@ -65,21 +65,6 @@ export const tracesTableCols: ColumnDefinition[] = [
   },
 ];
 
-export const TRACES_ID_NAME_MAP = {
-  bookmarked: "⭐️",
-  id: "ID",
-  name: "Name",
-  timestamp: "Timestamp",
-  userId: "User ID",
-  metadata: "Metadata",
-  scores_avg: "Scores",
-  latency: "Latency",
-  totalCost: "Total Cost",
-  version: "Version",
-  release: "Release",
-  tags: "Tags",
-};
-
 export type TraceOptions = {
   scores_avg: Array<string>;
   name: Array<OptionsDefinition>;

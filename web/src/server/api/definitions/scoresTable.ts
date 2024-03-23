@@ -47,12 +47,3 @@ export function scoresTableColsWithOptions(
     return col;
   });
 }
-
-export const SCORES_ID_NAME_MAP = {
-  traceId: "Trace ID",
-  observationId: "Observation ID",
-  timestamp: "Timestamp",
-  name: "Name",
-  value: "Value",
-  userId: "User ID",
-};

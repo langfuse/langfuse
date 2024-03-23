@@ -1,8 +1,8 @@
 import { type FilterState, type TableName } from "@/src/features/filters/types";
-import { GENERATIONS_ID_NAME_MAP } from "@/src/server/api/definitions/observationsTable";
-import { SCORES_ID_NAME_MAP } from "@/src/server/api/definitions/scoresTable";
-import { SESSIONS_ID_NAME_MAP } from "@/src/server/api/definitions/sessionsView";
-import { TRACES_ID_NAME_MAP } from "@/src/server/api/definitions/tracesTable";
+import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
+import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
+import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
+import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { useState } from "react";
 import {
@@ -17,18 +17,13 @@ const DEBUG_QUERY_STATE = false;
 // encode/decode filter state
 // The decode has to return null or undefined so that withDefault will use the default value.
 // An empty array will be interpreted as existing state and hence the default value will not be used.
-const CommaArrayParam = (table: TableName) => ({
+const getCommaArrayParam = (table: TableName) => ({
   encode: (value: FilterState) =>
     encodeDelimitedArray(
       value.map((f) => {
-        const map = getIdNameMap(table);
-        const reversed_map = Object.fromEntries(
-          Object.entries(map).map(([key, value]) => [value, key]),
-        );
-        const columnName =
-          f.column in reversed_map ? reversed_map[f.column] : f.column;
+        const columnId = getColumnId(table, f.column);
 
-        const stringified = `${columnName};${f.type};${
+        const stringified = `${columnId};${f.type};${
           f.type === "numberObject" || f.type === "stringObject" ? f.key : ""
         };${f.operator};${encodeURIComponent(
           f.type === "datetime"
@@ -49,10 +44,8 @@ const CommaArrayParam = (table: TableName) => ({
   decode: (arrayStr: string | (string | null)[] | null | undefined) =>
     (decodeDelimitedArray(arrayStr, ",")
       ?.map((f) => {
-        const map = getIdNameMap(table);
         if (!f) return null;
         const [column, type, key, operator, value] = f.split(";");
-        const columnName = column && column in map ? map[column] : column;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
@@ -74,7 +67,7 @@ const CommaArrayParam = (table: TableName) => ({
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
-          column: columnName,
+          column: getColumnName(table, column),
           key: key !== "" ? key : undefined,
           operator,
           value: parsedValue,
@@ -93,7 +86,7 @@ export const useQueryFilterState = (
 ) => {
   const [filterState, setFilterState] = useQueryParam(
     "filter",
-    withDefault(CommaArrayParam(table), initialState),
+    withDefault(getCommaArrayParam(table), initialState),
   );
 
   return [filterState, setFilterState] as const;
@@ -104,20 +97,18 @@ export const useMemoryFilterState = (initialState: FilterState = []) => {
   return [filterState, setFilterState] as const;
 };
 
-// Utility function to get the ID-Name map based on the table name
-function getIdNameMap(table: TableName): { [key: string]: string } {
-  switch (table) {
-    case "generations":
-      return GENERATIONS_ID_NAME_MAP;
-    case "traces":
-      return TRACES_ID_NAME_MAP;
-    case "sessions":
-      return SESSIONS_ID_NAME_MAP;
-    case "scores":
-      return SCORES_ID_NAME_MAP;
-    case "dashboard":
-      return { traceName: "traceName" };
-    default:
-      return {};
-  }
+const tableCols = {
+  generations: observationsTableCols,
+  traces: tracesTableCols,
+  sessions: sessionsViewCols,
+  scores: scoresTableCols,
+  dashboard: [{ id: "traceName", name: "traceName" }],
+};
+
+function getColumnId(table: TableName, name: string): string | undefined {
+  return tableCols[table]?.find((col) => col.name === name)?.id;
+}
+
+function getColumnName(table: TableName, id: string): string | undefined {
+  return tableCols[table]?.find((col) => col.id === id)?.name;
 }

@@ -39,13 +39,3 @@ export const sessionsViewCols: ColumnDefinition[] = [
     internal: 'o."totalCost"',
   },
 ];
-
-export const SESSIONS_ID_NAME_MAP = {
-  bookmarked: "⭐️",
-  id: "ID",
-  userId: "User ID",
-  sessionDuration: "Session Duration",
-  createdAt: "Created At",
-  countTraces: "Traces",
-  totalCost: "Total Cost",
-};

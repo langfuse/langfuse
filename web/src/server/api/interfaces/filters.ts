@@ -68,7 +68,6 @@ export const booleanFilter = z.object({
   operator: z.enum(filterOperators.boolean),
   value: z.boolean(),
 });
-
 export const singleFilter = z.discriminatedUnion("type", [
   timeFilter,
   stringFilter,

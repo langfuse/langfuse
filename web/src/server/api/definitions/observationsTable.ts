@@ -109,25 +109,6 @@ export type ObservationOptions = {
   promptName: Array<OptionsDefinition>;
 };
 
-export const GENERATIONS_ID_NAME_MAP = {
-  id: "ID",
-  name: "Name",
-  traceId: "Trace ID",
-  traceName: "Trace Name",
-  userId: "User ID",
-  startTime: "Start Time",
-  endTime: "End Time",
-  latency: "Latency",
-  totalCost: "Total Cost",
-  level: "Level",
-  statusMessage: "Status Message",
-  model: "Model",
-  metadata: "Metadata",
-  scores_avg: "Scores",
-  version: "Version",
-  promptName: "Prompt Name",
-};
-
 export function observationsTableColsWithOptions(
   options?: ObservationOptions,
 ): ColumnDefinition[] {
