@@ -2,11 +2,12 @@ import Redis from "ioredis";
 import { Job, Queue, Worker } from "bullmq";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
+import { env } from "../env";
 
 export const redis = new Redis({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-  password: "myredissecret",
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+  password: env.REDIS_PASSWORD,
   maxRetriesPerRequest: 0,
 });
 

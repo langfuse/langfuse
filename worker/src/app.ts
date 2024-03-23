@@ -48,6 +48,7 @@ app.get<{}, MessageResponse>("/", (req, res) => {
 });
 
 app.use("/api/v1", api);
+
 if (isSentryEnabled) {
   // The error handler must be before any other error middleware and after all controllers
   app.use(Sentry.Handlers.errorHandler());
