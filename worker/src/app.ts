@@ -42,11 +42,6 @@ app.get<{}, MessageResponse>("/", (req, res) => {
 });
 
 app.use("/api/v1", api);
-
-app.get("/debug-sentry", function mainHandler(req, res) {
-  throw new Error("My first Sentry error!");
-});
-
 // The error handler must be before any other error middleware and after all controllers
 app.use(Sentry.Handlers.errorHandler());
 app.use(middlewares.notFound);

@@ -19,7 +19,6 @@
     "@langfuse/shared": "workspace:*",
     "@sentry/node": "^7.107.0",
     "@sentry/profiling-node": "^7.102.1",
-    "add": "^2.0.6",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
