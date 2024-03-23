@@ -12,7 +12,7 @@ export type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];
 };
 
-export type TypedObservation = Event;
+export type TypedObservation = Event | Span | Generation;
 
 export type Event = Observation & {
   type: "EVENT";
