@@ -55,7 +55,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@sentry/nextjs": "^7.102.1",
-    "@sentry/node": "^7.107.0",
+    "@sentry/node": "^7.108.0",
     "@sentry/profiling-node": "^7.102.1",
     "@sentry/types": "^7.88.0",
     "@t3-oss/env-nextjs": "^0.8.0",

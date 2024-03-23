@@ -1,7 +1,7 @@
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import { type traceEvent } from "@/src/features/public-api/server/ingestion-api-schema";
-import { prisma } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { mergeJson } from "@/src/utils/json";
 import { type Trace, type Observation, type Score } from "@prisma/client";
 import { v4 } from "uuid";

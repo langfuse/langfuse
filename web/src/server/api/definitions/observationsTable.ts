@@ -1,7 +1,7 @@
 import {
   type OptionsDefinition,
   type ColumnDefinition,
-} from "@/src/server/api/interfaces/tableDefinition";
+} from "@langfuse/shared";
 import { ObservationLevel } from "@langfuse/shared";
 
 // to be used server side

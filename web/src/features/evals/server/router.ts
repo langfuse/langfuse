@@ -9,6 +9,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { evalModels } from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";
 import { singleFilter } from "@langfuse/shared";
+import { VariableMapping } from "@/src/features/evals/components/new-eval-config-form";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),
@@ -103,7 +104,7 @@ export const evalRouter = createTRPCRouter({
         scoreName: z.string(),
         target: z.string(),
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
-        mapping: z.array(z.object({ name: z.string(), value: z.string() })),
+        mapping: z.array(VariableMapping),
         sampling: z.number().gte(0).lte(1),
       }),
     )

@@ -1,13 +1,12 @@
 import { z } from "zod";
 
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
+import { Prisma, tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma } from "@langfuse/shared";
 import { singleFilter } from "@langfuse/shared";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";

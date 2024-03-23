@@ -35,10 +35,7 @@ import { type ObservationLevel } from "@prisma/client";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { randomIntFromInterval, usdFormatter } from "@/src/utils/numbers";
-import {
-  exportOptions,
-  type ExportFileFormats,
-} from "@/src/server/api/interfaces/exportTypes";
+import { exportOptions, type ExportFileFormats } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";

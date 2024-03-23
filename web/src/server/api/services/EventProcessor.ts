@@ -1,5 +1,5 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
-import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
+import { checkApiAccessScope } from "@/src/server/api/routers/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import {
@@ -14,7 +14,7 @@ import {
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
-import { prisma } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
 import {

@@ -1,5 +1,5 @@
 import { usePostHog } from "posthog-js/react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -19,25 +19,73 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Tabs } from "@radix-ui/react-tabs";
-import { tracesTableColsWithOptions } from "@langfuse/shared";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  tracesTableCols,
+  tracesTableColsWithOptions,
+  singleFilter,
+} from "@langfuse/shared";
 import { type FilterState } from "@langfuse/shared";
 import * as z from "zod";
-import { singleFilter } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type EvalTemplate } from "@prisma/client";
+import { type EvalTemplate } from "@langfuse/shared";
 import router from "next/router";
+import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
+
+export const langfuseObjects = [
+  "trace",
+  "span",
+  "generation",
+  "event",
+] as const;
+
+export const VariableMapping = z.object({
+  templateVariable: z.string(),
+  objectName: z.string().nullish(),
+  langfuseObject: z.enum(langfuseObjects),
+  selectedColumnId: z.string().nullish(),
+});
+
+const evalObjects = [
+  {
+    id: "trace",
+    display: "Trace",
+    availableColumns: [
+      ...tracesTableCols.map((c) => ({ name: c.name, id: c.id })),
+      { name: "Input", id: "input" },
+      { name: "Output", id: "output" },
+    ],
+  },
+  {
+    id: "span",
+    display: "Span",
+    availableColumns: [
+      ...observationsTableCols.map((c) => ({ name: c.name, id: c.id })),
+      { name: "Input", id: "input" },
+      { name: "Output", id: "output" },
+    ],
+  },
+  {
+    id: "generation",
+    display: "Generation",
+    availableColumns: [
+      ...observationsTableCols.map((c) => ({ name: c.name, id: c.id })),
+      { name: "Input", id: "input" },
+      { name: "Output", id: "output" },
+    ],
+  },
+  { id: "event", display: "Event", availableColumns: observationsTableCols },
+];
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
   scoreName: z.string(),
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
-  mapping: z.array(z.object({ name: z.string(), value: z.string() })),
+  mapping: z.array(VariableMapping),
   sampling: z.string().transform(Number).pipe(z.number().gte(0).lte(1)),
 });
 
@@ -65,30 +113,29 @@ export const NewEvalConfigForm = (props: {
     ...form.getFieldState("filter"),
   });
 
-  const selectedEvalTemplate = props.evalTemplates.find(
+  const getSelectedEvalTemplate = props.evalTemplates.find(
     (template) =>
       `${template.name}-${template.version}` ===
       form.getValues().evalTemplateId,
   );
-  const updateVariableValue = (variable: string, value: string) => {
-    const currentMapping = form.getValues().mapping;
-    if (Array.isArray(currentMapping)) {
-      let updatedMapping = [...currentMapping];
 
-      const variableIndex = updatedMapping.findIndex(
-        (mapping) => mapping.name === variable,
+  useEffect(() => {
+    if (getSelectedEvalTemplate) {
+      form.setValue("mapping", []);
+      form.setValue(
+        "mapping",
+        getSelectedEvalTemplate.vars.map((v) => ({
+          templateVariable: v,
+          langfuseObject: "trace" as const,
+        })),
       );
-
-      if (variableIndex !== -1) {
-        updatedMapping[variableIndex] = { name: variable, value };
-      } else {
-        updatedMapping.push({ name: variable, value });
-      }
-      form.setValue("mapping", updatedMapping);
-    } else {
-      form.setValue("mapping", [{ name: variable, value }]);
     }
-  };
+  }, [form, getSelectedEvalTemplate]);
+
+  const { fields } = useFieldArray({
+    control: form.control,
+    name: "mapping",
+  });
 
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
@@ -98,14 +145,14 @@ export const NewEvalConfigForm = (props: {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("models:new_template_form");
-    if (!selectedEvalTemplate) {
+    if (!getSelectedEvalTemplate) {
       setFormError("Please select an eval template");
       return;
     }
     createJobMutation
       .mutateAsync({
         projectId: props.projectId,
-        evalTemplateId: selectedEvalTemplate.id,
+        evalTemplateId: getSelectedEvalTemplate.id,
         scoreName: values.scoreName,
         target: values.target,
         filter: values.filter,
@@ -132,7 +179,7 @@ export const NewEvalConfigForm = (props: {
 
   return (
     <Form {...form}>
-      {JSON.stringify(form.getValues(), null, 2)}
+      {JSON.stringify(form.watch(), null, 2)}
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
@@ -237,38 +284,134 @@ export const NewEvalConfigForm = (props: {
               )}
             />
           </Card>
+
           <Card className="p-4">
-            <FormField
-              control={form.control}
-              name="mapping"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Variable mapping</FormLabel>
-                  <FormControl>
-                    Here will some variable mapping be added.
-                  </FormControl>
-                  {selectedEvalTemplate?.vars.map((variable) => (
-                    <div key={variable}>
-                      <div className="flex">
-                        <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-                          {variable}
-                        </span>
-                        <Input
-                          onInput={(event) => {
-                            updateVariableValue(
-                              variable,
-                              event.currentTarget.value,
-                            );
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <FormDescription>Description </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FormLabel>Variable mapping</FormLabel>
+            <FormControl>Here will some variable mapping be added.</FormControl>
+            <div className="mt-2 flex flex-col gap-2">
+              {fields.map((mappingField, index) => (
+                <div className="flex gap-2" key={index}>
+                  <span className="whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs	">
+                    {mappingField.templateVariable}
+                  </span>
+                  <FormField
+                    control={form.control}
+                    key={`${mappingField.id}-langfuseObject`}
+                    name={`mapping.${index}.langfuseObject`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Select
+                            defaultValue={
+                              evalObjects.find(
+                                (evalObject) => evalObject.id === field.value,
+                              )?.display
+                            }
+                            onValueChange={(value) => {
+                              const obj = evalObjects.find(
+                                (evalObject) => evalObject.display === value,
+                              );
+                              field.onChange(obj?.id);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Object type" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              {evalObjects.map((evalObject) => (
+                                <SelectItem
+                                  value={evalObject.display}
+                                  key={evalObject.id}
+                                >
+                                  {evalObject.display}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch(`mapping.${index}.langfuseObject`) !== "trace" ? (
+                    <FormField
+                      control={form.control}
+                      key={`${mappingField.id}-objectName`}
+                      name={`mapping.${index}.objectName`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input {...field} value={field.value ?? ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : undefined}
+
+                  <FormField
+                    control={form.control}
+                    key={`${mappingField.id}-selectedColumnId`}
+                    name={`mapping.${index}.selectedColumnId`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Select
+                            defaultValue={
+                              field.value
+                                ? evalObjects.find(
+                                    (evalObject) =>
+                                      evalObject.id === field.value,
+                                  )?.availableColumns[0].name ?? "N/A"
+                                : "N/A"
+                            }
+                            onValueChange={(value) => {
+                              const availableColumns = evalObjects.find(
+                                (evalObject) =>
+                                  evalObject.id ===
+                                  form.watch(`mapping.${index}.langfuseObject`),
+                              )?.availableColumns;
+                              const column = availableColumns?.find(
+                                (column) => column.name === value,
+                              );
+
+                              field.onChange(column?.id);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Object type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {evalObjects
+                                .find(
+                                  (evalObject) =>
+                                    evalObject.id ===
+                                    form.watch(
+                                      `mapping.${index}.langfuseObject`,
+                                    ),
+                                )
+                                ?.availableColumns.map((column) => (
+                                  <SelectItem
+                                    value={column.name}
+                                    key={column.id}
+                                  >
+                                    {column.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ))}
+            </div>
+            <FormDescription>Description </FormDescription>
+            <FormMessage />
           </Card>
           <Card className="p-4">
             <FormField

@@ -1,4 +1,4 @@
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import { type ColumnDefinition } from "@langfuse/shared";
 
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "s.bookmarked" },

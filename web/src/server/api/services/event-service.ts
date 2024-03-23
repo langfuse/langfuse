@@ -1,7 +1,8 @@
-import { type Prisma, type PrismaClient } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared";
 import { type NextApiRequest } from "next";
 import { type jsonSchema } from "@/src/utils/zod";
 import lodash from "lodash";
+import { type PrismaClient } from "@langfuse/shared/src/db";
 
 // This function persists raw events to the database which came via API
 // It relates each event to a project

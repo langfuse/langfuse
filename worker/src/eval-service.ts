@@ -3,16 +3,14 @@ import { z } from "zod";
 import {
   EvalEvent,
   EvalExecutionEvent,
-  Prisma,
   QueueJobs,
   QueueName,
-  TQueueJobTypes,
-  Trace,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
   tracesTableCols,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared";
+import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
 
@@ -21,7 +19,7 @@ export const createEvalJobs = async ({
 }: {
   data: z.infer<typeof EvalEvent>;
 }) => {
-  const configs = await prisma.$kysely
+  const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where("job_type", "=", "evaluation")
@@ -55,7 +53,7 @@ export const createEvalJobs = async ({
       );
 
       const jobId = randomUUID();
-      await prisma.$kysely
+      await kyselyPrisma.$kysely
         .insertInto("job_executions")
         .values({
           id: jobId,
@@ -89,20 +87,20 @@ export const evaluate = async ({
   console.log(
     `Evaluating job ${data.data.jobId} for project ${data.data.projectId}`
   );
-  const job = await prisma.$kysely
+  const job = await kyselyPrisma.$kysely
     .selectFrom("job_executions")
     .selectAll()
     .where("id", "=", data.data.jobId)
     .where("project_id", "=", data.data.projectId)
     .execute();
 
-  const config = await prisma.$kysely
+  const config = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where("id", "=", job[0].job_configuration_id)
     .execute();
 
-  const template = await prisma.$kysely
+  const template = await kyselyPrisma.$kysely
     .selectFrom("eval_templates")
     .selectAll()
     .where("id", "=", config[0].eval_template_id)

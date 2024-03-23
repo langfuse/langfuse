@@ -10,7 +10,8 @@ import { parseArgs } from "node:util";
 
 import { chunk } from "lodash";
 import { v4 } from "uuid";
-import { ModelUsageUnit, getDisplaySecretKey, hashSecretKey } from "../src";
+import { ModelUsageUnit } from "../src";
+import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
