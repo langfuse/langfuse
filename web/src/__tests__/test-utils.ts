@@ -1,5 +1,5 @@
 import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { hash } from "bcryptjs";
 
 export const pruneDatabase = async () => {

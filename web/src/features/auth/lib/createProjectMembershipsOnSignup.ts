@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 
 export async function createProjectMembershipsOnSignup(user: {
   id: string;
