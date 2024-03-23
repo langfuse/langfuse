@@ -1,4 +1,3 @@
-import { IterableReadableStream } from "@langchain/core/dist/utils/stream";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -16,6 +15,7 @@ import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { ChatOpenAI } from "@langchain/openai";
+import { ReadableStream } from "node:stream/web";
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -30,7 +30,7 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
   }
-): Promise<IterableReadableStream<Uint8Array>>;
+): Promise<ReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -40,7 +40,7 @@ export async function fetchLLMCompletion(
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
-): Promise<string | IterableReadableStream<Uint8Array>> {
+): Promise<string | ReadableStream<Uint8Array>> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
