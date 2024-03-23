@@ -7,7 +7,7 @@ import {
   protectedProjectProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/src/db";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";

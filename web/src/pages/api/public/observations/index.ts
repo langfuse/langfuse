@@ -1,7 +1,7 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
-import { prisma } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import {
   Prisma,
