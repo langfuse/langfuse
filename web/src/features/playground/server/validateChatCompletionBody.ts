@@ -4,7 +4,7 @@ import {
   ModelProvider,
   anthropicModels,
   openAIModels,
-} from "@/src/features/playground/types";
+} from "@langfuse/shared";
 
 const OpenAIModelSchema = z.enum([...openAIModels]);
 const AnthropicModelSchema = z.enum([...anthropicModels]);

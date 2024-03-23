@@ -46,6 +46,15 @@ importers:
 
   packages/shared:
     dependencies:
+      '@langchain/anthropic':
+        specifier: ^0.1.8
+        version: 0.1.8
+      '@langchain/core':
+        specifier: ^0.1.49
+        version: 0.1.49
+      '@langchain/openai':
+        specifier: ^0.0.23
+        version: 0.0.23
       '@prisma/client':
         specifier: ^5.11.0
         version: 5.11.0(prisma@5.11.0)
@@ -58,6 +67,9 @@ importers:
       kysely:
         specifier: ^0.27.3
         version: 0.27.3
+      langchain:
+        specifier: ^0.1.28
+        version: 0.1.28(@aws-sdk/client-s3@3.536.0)(@aws-sdk/credential-provider-node@3.535.0)(lodash@4.17.21)
       prisma-extension-kysely:
         specifier: ^2.1.0
         version: 2.1.0(@prisma/client@5.11.0)

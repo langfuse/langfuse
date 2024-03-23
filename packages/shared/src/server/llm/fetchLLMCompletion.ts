@@ -1,9 +1,10 @@
+import { IterableReadableStream } from "@langchain/core/dist/utils/stream";
 import {
   type ChatMessage,
   ChatMessageRole,
   type ModelParams,
   ModelProvider,
-} from "@/src/features/playground/types";
+} from "./types";
 import { ChatAnthropic } from "@langchain/anthropic";
 import {
   AIMessage,
@@ -28,18 +29,18 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
-  },
-): Promise<ReadableStream<Uint8Array>>;
+  }
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-  },
+  }
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
-  params: FetchLLMCompletionParams,
-): Promise<string | ReadableStream<Uint8Array>> {
+  params: FetchLLMCompletionParams
+): Promise<string | IterableReadableStream<Uint8Array>> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
