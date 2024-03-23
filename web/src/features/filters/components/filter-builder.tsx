@@ -201,7 +201,7 @@ function FilterBuilderForm({
                     onValueChange={(value) => {
                       handleFilterChange(
                         {
-                          column: columns.find((c) => c.id === value)?.id,
+                          column: columns.find((c) => c.id === value)?.name,
                           type: columns.find((c) => c.id === value)?.type,
                           operator: undefined,
                           value: undefined,

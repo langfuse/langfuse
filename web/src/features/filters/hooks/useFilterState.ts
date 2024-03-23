@@ -18,9 +18,9 @@ const DEBUG_QUERY_STATE = false;
 // The decode has to return null or undefined so that withDefault will use the default value.
 // An empty array will be interpreted as existing state and hence the default value will not be used.
 const getCommaArrayParam = (table: TableName) => ({
-  encode: (value: FilterState) =>
+  encode: (filterState: FilterState) =>
     encodeDelimitedArray(
-      value.map((f) => {
+      filterState.map((f) => {
         const columnId = getColumnId(table, f.column);
 
         const stringified = `${columnId};${f.type};${
