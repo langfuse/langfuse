@@ -1,12 +1,15 @@
 {
+  "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
-    "target": "es2017",
-    "module": "commonjs",
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "outDir": "dist",
-    "strictNullChecks": true // Add this line
+    "moduleResolution": "Node",
+    "module": "commonjs",
+    "declaration": false,
+    "declarationMap": false,
+    "lib": ["ES2015"],
+    "outDir": "./dist",
+    "types": ["node"]
   },
-  "include": ["src/**/*", ".eslintrc.js"]
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
 }
