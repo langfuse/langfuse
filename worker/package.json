@@ -17,6 +17,9 @@
   "author": "engineering@langfuse.com",
   "dependencies": {
     "@langfuse/shared": "workspace:*",
+    "@sentry/node": "^7.107.0",
+    "@sentry/profiling-node": "^7.102.1",
+    "add": "^2.0.6",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
@@ -31,11 +34,11 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/express-serve-static-core": "^4.17.43",
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/express-serve-static-core": "^4.17.43",
     "@types/lodash": "^4.14.202",
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.2",
