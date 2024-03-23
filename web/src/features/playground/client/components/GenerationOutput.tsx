@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "../context";
 import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
-import { ChatMessageRole } from "@/src/features/playground/types";
+import { ChatMessageRole } from "@langfuse/shared";
 import { BracesIcon } from "lucide-react";
 
 export const GenerationOutput = () => {
