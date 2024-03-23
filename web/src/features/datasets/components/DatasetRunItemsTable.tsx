@@ -5,7 +5,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@prisma/client";
+import { type Score } from "@langfuse/shared/src/db";
 import { usdFormatter } from "../../../utils/numbers";
 
 type RowData = {

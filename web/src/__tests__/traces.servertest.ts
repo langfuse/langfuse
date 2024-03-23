@@ -1,7 +1,7 @@
 /** @jest-environment node */
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { prisma } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 
 interface GetTracesAPIResponse {
