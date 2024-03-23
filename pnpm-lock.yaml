@@ -344,6 +344,9 @@ importers:
       posthog-node:
         specifier: ^3.6.3
         version: 3.6.3
+      prisma:
+        specifier: ^5.11.0
+        version: 5.11.0
       react:
         specifier: 18.2.0
         version: 18.2.0
