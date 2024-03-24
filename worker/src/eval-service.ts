@@ -12,8 +12,7 @@ import {
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
   tracesTableCols,
-  variableMapping,
-  DB,
+  variableMappingList,
   observationsTableCols,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
@@ -22,6 +21,10 @@ import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
 import { sql } from "kysely";
 import Handlebars from "handlebars";
+import {
+  JobExecution,
+  EvalTemplate,
+} from "@langfuse/shared/prisma/generated/types";
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -136,94 +139,23 @@ export const evaluate = async ({
     `Evaluating job ${job.id} for project ${data.data.projectId} with template ${template.id}. Searching for context...`
   );
 
-  const parsedVariableMapping = z
-    .array(variableMapping)
-    .parse(config.variable_mapping);
-
-  const mappingResult: { var: string; value: string }[] = [];
+  const parsedVariableMapping = variableMappingList.parse(
+    config.variable_mapping
+  );
 
   console.log("Parsed variable mapping", parsedVariableMapping);
-  for (const variable of template.vars) {
-    console.log(`Searching for context for variable ${variable}`);
 
-    const mapping = parsedVariableMapping.find(
-      (m) => m.templateVariable === variable
-    );
-
-    if (!mapping) {
-      console.log(`No mapping found for variable ${variable}`);
-      mappingResult.push({ var: variable, value: "" });
-      continue; // no need to fetch additional data
-    }
-
-    if (mapping.langfuseObject === "trace") {
-      const column = tracesTableCols.find(
-        (col) => col.id === mapping.selectedColumnId
-      );
-
-      if (!column?.id) {
-        console.log(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
-      }
-
-      const trace = await kyselyPrisma.$kysely
-        .selectFrom("traces as t")
-        .select(sql<string>`${column.internal}`.as(column.id))
-        .where("id", "=", job.trace_id)
-        .executeTakeFirstOrThrow();
-
-      mappingResult.push({
-        var: variable,
-        value: trace[mapping.selectedColumnId],
-      });
-    }
-    if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
-      const column = observationsTableCols.find(
-        (col) => col.id === mapping.selectedColumnId
-      );
-
-      if (!mapping.objectName) {
-        console.log(
-          `No object name found for variable ${variable} and object ${mapping.langfuseObject}`
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
-      }
-
-      if (!column?.id) {
-        console.log(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
-      }
-
-      const observation = await kyselyPrisma.$kysely
-        .selectFrom("observations as o")
-        .select(sql<string>`${column.internal}`.as(column.id))
-        .where("trace_id", "=", job.trace_id)
-        .where("name", "=", mapping.objectName)
-        .executeTakeFirstOrThrow();
-
-      mappingResult.push({
-        var: variable,
-        value: observation[mapping.selectedColumnId],
-      });
-    }
-  }
-
-  console.log("Mapping result", mappingResult);
+  const mappingResult = await extractVariablesFromTrace(
+    template.vars,
+    job.trace_id,
+    parsedVariableMapping
+  );
 
   const prompt = compileHandlebarString(template.prompt, {
     ...Object.fromEntries(
       mappingResult.map(({ var: key, value }) => [key, value])
     ),
   });
-
-  console.log("Prompt", prompt);
 
   const parsedOutputSchema = z
     .object({
@@ -257,8 +189,6 @@ export const evaluate = async ({
 
   const parsedLLMOutput = openAIFunction.parse(completion);
 
-  console.log("OpenAI completion", completion);
-
   const scoreId = randomUUID();
   await kyselyPrisma.$kysely
     .insertInto("scores")
@@ -287,4 +217,85 @@ export function compileHandlebarString(
 ): string {
   const template = Handlebars.compile(handlebarString);
   return template(context);
+}
+
+async function extractVariablesFromTrace(
+  variables: string[],
+  traceId: string,
+  variableMapping: z.infer<typeof variableMappingList>
+) {
+  const mappingResult: { var: string; value: string }[] = [];
+
+  for (const variable of variables) {
+    console.log(`Searching for context for variable ${variable}`);
+
+    const mapping = variableMapping.find(
+      (m) => m.templateVariable === variable
+    );
+
+    if (!mapping) {
+      console.log(`No mapping found for variable ${variable}`);
+      mappingResult.push({ var: variable, value: "" });
+      continue; // no need to fetch additional data
+    }
+
+    if (mapping.langfuseObject === "trace") {
+      const column = tracesTableCols.find(
+        (col) => col.id === mapping.selectedColumnId
+      );
+
+      if (!column?.id) {
+        console.log(
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
+        );
+        mappingResult.push({ var: variable, value: "" });
+        continue;
+      }
+
+      const trace = await kyselyPrisma.$kysely
+        .selectFrom("traces as t")
+        .select(sql<string>`${column.internal}`.as(column.id))
+        .where("id", "=", traceId)
+        .executeTakeFirstOrThrow();
+
+      mappingResult.push({
+        var: variable,
+        value: trace[mapping.selectedColumnId],
+      });
+    }
+    if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
+      const column = observationsTableCols.find(
+        (col) => col.id === mapping.selectedColumnId
+      );
+
+      if (!mapping.objectName) {
+        console.log(
+          `No object name found for variable ${variable} and object ${mapping.langfuseObject}`
+        );
+        mappingResult.push({ var: variable, value: "" });
+        continue;
+      }
+
+      if (!column?.id) {
+        console.log(
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
+        );
+        mappingResult.push({ var: variable, value: "" });
+        continue;
+      }
+
+      const observation = await kyselyPrisma.$kysely
+        .selectFrom("observations as o")
+        .select(sql<string>`${column.internal}`.as(column.id))
+        .where("trace_id", "=", traceId)
+        .where("name", "=", mapping.objectName)
+        .executeTakeFirstOrThrow();
+
+      mappingResult.push({
+        var: variable,
+        value: observation[mapping.selectedColumnId],
+      });
+    }
+  }
+  return mappingResult;
 }

@@ -21,6 +21,8 @@ export const variableMapping = z
     }
   );
 
+export const variableMappingList = z.array(variableMapping);
+
 export const wipVariableMapping = z.object({
   templateVariable: z.string(),
   objectName: z.string().nullish(),
