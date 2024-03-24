@@ -5,6 +5,9 @@
   "license": "MIT",
   "main": "index.js",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "test": "vitest run",
     "coverage": "vitest run --coverage",
