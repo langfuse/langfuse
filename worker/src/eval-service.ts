@@ -1,15 +1,19 @@
 import { z } from "zod";
 
 import {
+  ChatMessageRole,
   EvalEvent,
   EvalExecutionEvent,
+  ModelProvider,
   QueueJobs,
   QueueName,
-  observationsTableCols,
+  ScoreSource,
+  fetchLLMCompletion,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
   tracesTableCols,
   variableMapping,
+  DB,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -111,6 +115,10 @@ export const evaluate = async ({
     .where("project_id", "=", data.data.projectId)
     .executeTakeFirstOrThrow();
 
+  if (!job.trace_id) {
+    throw new Error("Jobs can only be executed on traces for now.");
+  }
+
   const config = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
@@ -146,6 +154,61 @@ export const evaluate = async ({
   });
 
   console.log("Prompt", prompt);
+
+  const parsedOutputSchema = z
+    .object({
+      score: z.string(),
+      reasoning: z.string(),
+    })
+    .parse(template.output_schema);
+
+  if (!parsedOutputSchema) {
+    throw new Error("Output schema not found");
+  }
+
+  const openAIFunction = z.object({
+    score: z.number().describe(parsedOutputSchema.score),
+    reasoning: z.string().describe(parsedOutputSchema.reasoning),
+  });
+
+  const completion = await fetchLLMCompletion({
+    streaming: false,
+    messages: [{ role: ChatMessageRole.System, content: prompt }],
+    modelParams: {
+      provider: ModelProvider.OpenAI,
+      model: "gpt-4",
+    },
+    functionCall: {
+      name: "evalutate",
+      description: "some description",
+      parameters: openAIFunction,
+    },
+  });
+
+  const parsedLLMOutput = openAIFunction.parse(completion);
+
+  console.log("OpenAI completion", completion);
+
+  const scoreId = randomUUID();
+  await kyselyPrisma.$kysely
+    .insertInto("scores")
+    .values({
+      id: scoreId,
+      trace_id: job.trace_id,
+      name: config.score_name,
+      value: parsedLLMOutput.score,
+      comment: parsedLLMOutput.reasoning,
+      source: sql`${ScoreSource.MODEL_BASED_EVALUATION}::"ScoreSource"`,
+    })
+    .execute();
+
+  await kyselyPrisma.$kysely
+    .updateTable("job_executions")
+    .set("status", "completed")
+    .set("end_time", new Date())
+    .set("score_id", scoreId)
+    .where("id", "=", data.data.jobExecutionId)
+    .execute();
 };
 
 export function compileHandlebarString(

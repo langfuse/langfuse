@@ -3,6 +3,7 @@ import {
   ChatMessageRole,
   type ModelParams,
   ModelProvider,
+  LLMFunctionCall,
 } from "./types";
 import { ChatAnthropic } from "@langchain/anthropic";
 import {
@@ -15,11 +16,13 @@ import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { ChatOpenAI } from "@langchain/openai";
+import { JsonOutputFunctionsParser } from "langchain/output_parsers";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
-console.log("fetchLLMCompletion.ts");
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
+  functionCall?: LLMFunctionCall;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -29,18 +32,27 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
+    functionCall: undefined;
   }
 ): Promise<ReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
+    functionCall: undefined;
   }
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
+  params: LLMCompletionParams & {
+    streaming: false;
+    functionCall: LLMFunctionCall;
+  }
+): Promise<unknown>;
+
+export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
-): Promise<string | ReadableStream<Uint8Array>> {
+): Promise<string | ReadableStream<Uint8Array> | unknown> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
@@ -68,6 +80,23 @@ export async function fetchLLMCompletion(
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
     });
+  }
+
+  console.log("params: ", params);
+
+  if (params.functionCall) {
+    console.log("Function call", params.functionCall);
+    const functionCallingModel = chatModel.bind({
+      functions: [
+        {
+          ...params.functionCall,
+          parameters: zodToJsonSchema(params.functionCall.parameters),
+        },
+      ],
+      function_call: { name: "evalutate" },
+    });
+    const outputParser = new JsonOutputFunctionsParser();
+    return await functionCallingModel.pipe(outputParser).invoke(finalMessages);
   }
 
   if (streaming) {

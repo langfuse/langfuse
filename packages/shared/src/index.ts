@@ -10,12 +10,9 @@ export * from "./tracesTable";
 export * from "./server/auth";
 export * from "./features/evals/types";
 export * from "./observationsTable";
-// export prisma client and its types to all package users
-export * from "@prisma/client";
-import { ModelUsageUnit } from "./constants";
-export { type DB } from "../prisma/generated/types";
-
 export * from "./server/llm/types";
 export * from "./server/llm/fetchLLMCompletion";
 
-export { ModelUsageUnit };
+// export db types only
+export * from "@prisma/client";
+export { type DB } from "../prisma/generated/types";

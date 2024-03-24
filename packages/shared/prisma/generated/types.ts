@@ -26,7 +26,8 @@ export const ObservationLevel = {
 export type ObservationLevel = (typeof ObservationLevel)[keyof typeof ObservationLevel];
 export const ScoreSource = {
     API: "API",
-    REVIEW: "REVIEW"
+    REVIEW: "REVIEW",
+    MODEL_BASED_EVALUATION: "MODEL_BASED_EVALUATION"
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
 export const PricingUnit = {
@@ -174,9 +175,9 @@ export type JobExecution = {
     status: string;
     start_time: Timestamp | null;
     end_time: Timestamp | null;
-    result: unknown | null;
     error: string | null;
     trace_id: string | null;
+    score_id: string | null;
 };
 export type Membership = {
     project_id: string;

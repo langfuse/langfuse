@@ -296,16 +296,17 @@ enum ObservationLevel {
 }
 
 model Score {
-    id            String       @id @default(cuid())
-    timestamp     DateTime     @default(now())
+    id            String         @id @default(cuid())
+    timestamp     DateTime       @default(now())
     name          String
     value         Float
     source        ScoreSource
     comment       String?
-    traceId       String       @map("trace_id")
-    trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
-    observationId String?      @map("observation_id")
-    observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+    traceId       String         @map("trace_id")
+    trace         Trace          @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    observationId String?        @map("observation_id")
+    observation   Observation?   @relation(fields: [observationId], references: [id], onDelete: SetNull)
+    JobExecution  JobExecution[]
 
     @@unique([id, traceId]) // used for upsert
     @@index(timestamp)
@@ -319,6 +320,7 @@ model Score {
 enum ScoreSource {
     API
     REVIEW
+    MODEL_BASED_EVALUATION
 }
 
 enum PricingUnit {
@@ -610,11 +612,13 @@ model JobExecution {
     status    String
     startTime DateTime? @map("start_time")
     endTime   DateTime? @map("end_time")
-    result    Json?
     error     String?
 
     traceId String? @map("trace_id")
     trace   Trace?  @relation(fields: [traceId], references: [id], onDelete: SetNull)
+
+    scoreId String? @map("score_id")
+    score   Score?  @relation(fields: [scoreId], references: [id], onDelete: SetNull)
 
     @@index([projectId, id])
     @@index([projectId])

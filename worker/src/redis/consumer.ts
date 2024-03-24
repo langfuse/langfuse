@@ -25,6 +25,7 @@ export const evalJobCreator = new Worker<TQueueJobTypes[QueueName.Evaluation]>(
       console.log("Executing Evaluation Job", job.data);
 
       await createEvalJobs({ data: job.data.payload });
+      return true;
     } catch (e) {
       console.error(
         `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`,
@@ -50,6 +51,7 @@ export const evalJobExecutor = new Worker<
       // // Optionally sending an object as progress
       // await job.updateProgress({ foo: "bar" });
       await evaluate({ data: job.data.payload });
+      return true;
     } catch (e) {
       console.error(
         `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`,
