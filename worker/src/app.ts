@@ -7,8 +7,12 @@ import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
 import { env } from "./env";
+import {getLogger} from "./logger";
+
 
 require("dotenv").config();
+
+const logger = getLogger(env.NODE_ENV);
 
 import { evalJobCreator, evalJobExecutor } from "./redis/consumer";
 
@@ -61,7 +65,7 @@ console.log("Eval Job Creator started", evalJobCreator.isRunning());
 console.log("Eval Job Executor started", evalJobExecutor.isRunning());
 
 evalJobCreator.on("failed", (job, err) => {
-  console.log(`Job failed with error ${err}`);
+  logger.(`Job failed with error ${err}`);
 });
 
 evalJobExecutor.on("completed", (job) => {
