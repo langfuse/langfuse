@@ -7,6 +7,8 @@ import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
 import { env } from "./env";
+import { pinoHttp } from "pino-http";
+import logger from "./logger";
 
 require("dotenv").config();
 
