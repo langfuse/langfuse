@@ -17,4 +17,6 @@ export const getLogger = (env: "development" | "production" | "test") => {
   }
 };
 
-export default getLogger(env.NODE_ENV);
+const logger = getLogger(env.NODE_ENV);
+
+export default logger;
