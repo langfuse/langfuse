@@ -15,8 +15,8 @@ import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { ChatOpenAI } from "@langchain/openai";
-import { ReadableStream } from "node:stream/web";
 
+console.log("fetchLLMCompletion.ts");
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;

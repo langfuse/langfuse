@@ -8,6 +8,9 @@
   "files": [
     "dist/**"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -35,6 +38,7 @@
     "langchain": "^0.1.28",
     "prisma-extension-kysely": "^2.1.0",
     "prisma-kysely": "^1.8.0",
+    "web-streams-polyfill": "^4.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
