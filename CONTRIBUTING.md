@@ -91,9 +91,9 @@ flowchart TB
 
 The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
 
-Full database schema: [web/prisma/schema.prisma](web/prisma/schema.prisma)
+Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
 
-<img src="./web/prisma/database.svg">
+<img src="./packages/shared/prisma/database.svg">
 
 ### Infrastructure & Network Overview
 
@@ -113,6 +113,7 @@ flowchart LR
 ## Repository Structure
 
 We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
+
 - `web`: is the main application package providing Frontend and Backend APIs for Langfuse.
 - `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
 - `shared`: contains shared code between the above packages.
@@ -147,7 +148,7 @@ Requirements
    pnpm install
    ```
 
-6. Run the migrations
+5. Run the migrations
 
    All database migrations and configs are in the `shared` package.
 
@@ -160,7 +161,7 @@ Requirements
    # pnpm --filter=shared run db:seed:load
    ```
 
-7. Start the development server
+6. Start the development server
 
    ```bash
     pnpm run dev
@@ -174,16 +175,14 @@ Requirements
 
 - Executing commands
 
-   You can run commands in all packages at once. For example, to install all dependencies in all packages, you can execute:
+  You can run commands in all packages at once. For example, to install all dependencies in all packages, you can execute:
 
-   ```bash
-   pnpm install
-   pnpm --filter=web run dev # execute command only in one package
-   ```
+  ```bash
+  pnpm install
+  pnpm --filter=web run dev # execute command only in one package
+  ```
 
-   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
-
-
+  In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
 
 > [!NOTE]
 > If you frequently switch branches, use `pnpm run dx` instead of `pnpm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
