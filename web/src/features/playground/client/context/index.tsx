@@ -16,7 +16,7 @@ import {
   type UIModelParams,
   type PromptVariable,
   ModelProvider,
-} from "@/src/features/playground/types";
+} from "@langfuse/shared";
 import { extractVariables } from "@/src/utils/string";
 
 type PlaygroundContextType = {

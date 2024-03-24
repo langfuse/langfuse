@@ -2,7 +2,7 @@ import {
   supportedModels,
   ModelProvider,
   type UIModelParams,
-} from "@/src/features/playground/types";
+} from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import {
   Select,
