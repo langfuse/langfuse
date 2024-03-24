@@ -3,7 +3,7 @@ import {
   ChatMessageRole,
   type ModelParams,
   ModelProvider,
-} from "@/src/features/playground/types";
+} from "./types";
 import { ChatAnthropic } from "@langchain/anthropic";
 import {
   AIMessage,
@@ -16,6 +16,7 @@ import {
 } from "@langchain/core/output_parsers";
 import { ChatOpenAI } from "@langchain/openai";
 
+console.log("fetchLLMCompletion.ts");
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
@@ -28,17 +29,17 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
-  },
+  }
 ): Promise<ReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-  },
+  }
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
-  params: FetchLLMCompletionParams,
+  params: FetchLLMCompletionParams
 ): Promise<string | ReadableStream<Uint8Array>> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {

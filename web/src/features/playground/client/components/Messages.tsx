@@ -1,7 +1,7 @@
 import { PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { ChatMessageRole } from "@/src/features/playground/types";
+import { ChatMessageRole } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 
 import { usePlaygroundContext } from "../context";

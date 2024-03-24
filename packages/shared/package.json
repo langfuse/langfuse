@@ -8,6 +8,9 @@
   "files": [
     "dist/**"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -25,10 +28,14 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@langchain/anthropic": "^0.1.8",
+    "@langchain/core": "^0.1.49",
+    "@langchain/openai": "^0.0.23",
     "@prisma/client": "^5.11.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "kysely": "^0.27.3",
+    "langchain": "^0.1.28",
     "prisma-extension-kysely": "^2.1.0",
     "zod": "^3.22.4"
   },
