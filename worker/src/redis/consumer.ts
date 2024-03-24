@@ -60,6 +60,7 @@ export const evalJobExecutor = new Worker<
       await kyselyPrisma.$kysely
         .updateTable("job_executions")
         .set("status", "failed")
+        .set("end_time", new Date())
         .set("error", JSON.stringify(e))
         .where("id", "=", job.data.payload.data.jobExecutionId)
         .where("project_id", "=", job.data.payload.data.projectId)
