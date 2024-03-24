@@ -8,11 +8,9 @@ import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
 import { env } from "./env";
 
-import logger from "./logger";
-
 require("dotenv").config();
 
-const logger = getLogger(env.NODE_ENV);
+import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./redis/consumer";
 
@@ -65,19 +63,13 @@ console.log("Eval Job Creator started", evalJobCreator.isRunning());
 console.log("Eval Job Executor started", evalJobExecutor.isRunning());
 
 evalJobCreator.on("failed", (job, err) => {
-  logger.(`Job failed with error ${err}`);
-});
-
-evalJobExecutor.on("completed", (job) => {
-  console.log(`Job completed`);
+  logger.error(`Eval Job with id ${job?.id} failed with error ${err}`);
 });
 
 evalJobCreator.on("failed", (job, err) => {
-  console.log(`Job failed with error ${err}`);
-});
-
-evalJobCreator.on("completed", (job) => {
-  console.log(`Job completed`);
+  logger.error(
+    `Eval execution Job with id ${job?.id} failed with error ${err}`
+  );
 });
 
 export default app;
