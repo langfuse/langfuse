@@ -1,6 +1,7 @@
 import app from "./app";
 import { env } from "./env";
+import logger from "./logger";
 
 app.listen(env.PORT, () => {
-  console.log(`Listening: http://localhost:${env.PORT}`);
+  logger.info(`Listening: http://localhost:${env.PORT}`);
 });
