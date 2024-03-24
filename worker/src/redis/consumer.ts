@@ -46,10 +46,6 @@ export const evalJobExecutor = new Worker<
   async (job: Job<TQueueJobTypes[QueueName.Evaluation_Execution]>) => {
     try {
       console.log("Executing Evaluation Execution Job", job.data);
-      // Optionally report some progress
-      // await job.updateProgress(42);
-      // // Optionally sending an object as progress
-      // await job.updateProgress({ foo: "bar" });
       await evaluate({ data: job.data.payload });
       return true;
     } catch (e) {

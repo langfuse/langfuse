@@ -65,7 +65,7 @@ evalJobCreator.on("failed", (job, err) => {
 });
 
 evalJobExecutor.on("completed", (job) => {
-  console.log(`Job completed with error ${job.failedReason}`);
+  console.log(`Job completed`);
 });
 
 evalJobCreator.on("failed", (job, err) => {
@@ -73,7 +73,7 @@ evalJobCreator.on("failed", (job, err) => {
 });
 
 evalJobCreator.on("completed", (job) => {
-  console.log(`Job completed with result ${job.returnvalue}`);
+  console.log(`Job completed`);
 });
 
 export default app;
