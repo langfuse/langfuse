@@ -15,7 +15,7 @@ export const EvalEvent = QueueEnvelope.extend({
 export const EvalExecutionEvent = QueueEnvelope.extend({
   data: z.object({
     projectId: z.string(),
-    jobId: z.string(),
+    jobExecutionId: z.string(),
   }),
 });
 

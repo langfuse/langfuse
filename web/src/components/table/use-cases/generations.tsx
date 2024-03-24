@@ -22,7 +22,6 @@ import {
   withDefault,
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { observationsTableColsWithOptions } from "@/src/server/api/definitions/observationsTable";
 import {
   formatIntervalSeconds,
   intervalInSeconds,
@@ -35,7 +34,11 @@ import { type ObservationLevel } from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { randomIntFromInterval, usdFormatter } from "@/src/utils/numbers";
-import { exportOptions, type ExportFileFormats } from "@langfuse/shared";
+import {
+  exportOptions,
+  type ExportFileFormats,
+  observationsTableColsWithOptions,
+} from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";

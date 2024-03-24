@@ -5,15 +5,21 @@ import {
   EvalExecutionEvent,
   QueueJobs,
   QueueName,
+  observationsTableCols,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
   tracesTableCols,
+  variableMapping,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
+import { sql } from "kysely";
+import Handlebars from "handlebars";
 
+// this function is used to determine which eval jobs to create for a given trace
+// there might be multiple eval jobs to create for a single trace
 export const createEvalJobs = async ({
   data,
 }: {
@@ -52,11 +58,11 @@ export const createEvalJobs = async ({
         `Trace with id ${traces[0].id} found to eval for config ${config.id}. Creating job instance `
       );
 
-      const jobId = randomUUID();
+      const jobExecutionId = randomUUID();
       await kyselyPrisma.$kysely
         .insertInto("job_executions")
         .values({
-          id: jobId,
+          id: jobExecutionId,
           project_id: data.data.projectId,
           job_configuration_id: config.id,
           trace_id: data.data.traceId,
@@ -64,49 +70,88 @@ export const createEvalJobs = async ({
         })
         .execute();
 
-      evalQueue.add(QueueName.Evaluation_Execution, {
-        name: QueueJobs.Evaluation_Execution,
-        payload: {
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          data: {
-            projectId: data.data.projectId,
-            jobId: jobId,
+      evalQueue.add(
+        QueueName.Evaluation_Execution,
+        {
+          name: QueueJobs.Evaluation_Execution,
+          payload: {
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            data: {
+              projectId: data.data.projectId,
+              jobExecutionId: jobExecutionId,
+            },
           },
         },
-      });
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 1000,
+          },
+        }
+      );
     }
   }
 };
 
+// for a single eval job, this function is used to evaluate the job
 export const evaluate = async ({
   data,
 }: {
   data: z.infer<typeof EvalExecutionEvent>;
 }) => {
   console.log(
-    `Evaluating job ${data.data.jobId} for project ${data.data.projectId}`
+    `Evaluating job ${data.data.jobExecutionId} for project ${data.data.projectId}`
   );
   const job = await kyselyPrisma.$kysely
     .selectFrom("job_executions")
     .selectAll()
-    .where("id", "=", data.data.jobId)
+    .where("id", "=", data.data.jobExecutionId)
     .where("project_id", "=", data.data.projectId)
-    .execute();
+    .executeTakeFirstOrThrow();
 
   const config = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
-    .where("id", "=", job[0].job_configuration_id)
-    .execute();
+    .where("id", "=", job.job_configuration_id)
+    .executeTakeFirstOrThrow();
 
   const template = await kyselyPrisma.$kysely
     .selectFrom("eval_templates")
     .selectAll()
-    .where("id", "=", config[0].eval_template_id)
-    .execute();
+    .where("id", "=", config.eval_template_id)
+    .executeTakeFirstOrThrow();
 
   console.log(
-    `Evaluating job ${job[0].id} for project ${data.data.projectId} with template ${template[0].id}`
+    `Evaluating job ${job.id} for project ${data.data.projectId} with template ${template.id}. Searching for context...`
   );
+
+  const parsedVariableMapping = z
+    .array(variableMapping)
+    .parse(config.variable_mapping);
+
+  const mappingResult: { var: string; value: string }[] = [];
+
+  console.log("Parsed variable mapping", parsedVariableMapping);
+  for (const variable of template.vars) {
+  }
+
+  console.log("Mapping result", mappingResult);
+
+  const prompt = compileHandlebarString(template.prompt, {
+    ...Object.fromEntries(
+      mappingResult.map(({ var: key, value }) => [key, value])
+    ),
+  });
+
+  console.log("Prompt", prompt);
 };
+
+export function compileHandlebarString(
+  handlebarString: string,
+  context: Record<string, any>
+): string {
+  const template = Handlebars.compile(handlebarString);
+  return template(context);
+}

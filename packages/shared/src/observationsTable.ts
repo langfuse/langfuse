@@ -1,8 +1,8 @@
 import {
   type OptionsDefinition,
   type ColumnDefinition,
-} from "@langfuse/shared";
-import { ObservationLevel } from "@langfuse/shared/src/db";
+} from "./interfaces/tableDefinition";
+import { ObservationLevel } from "./db";
 
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [
@@ -109,7 +109,7 @@ export type ObservationOptions = {
 };
 
 export function observationsTableColsWithOptions(
-  options?: ObservationOptions,
+  options?: ObservationOptions
 ): ColumnDefinition[] {
   return observationsTableCols.map((col) => {
     if (col.id === "model") {

@@ -31,23 +31,13 @@ import { Card } from "@/src/components/ui/card";
 import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type EvalTemplate } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  variableMapping,
+  wipVariableMapping,
+  observationsTableCols,
+} from "@langfuse/shared";
 import router from "next/router";
-import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
-
-export const langfuseObjects = [
-  "trace",
-  "span",
-  "generation",
-  "event",
-] as const;
-
-export const VariableMapping = z.object({
-  templateVariable: z.string(),
-  objectName: z.string().nullish(),
-  langfuseObject: z.enum(langfuseObjects),
-  selectedColumnId: z.string().nullish(),
-});
 
 const evalObjects = [
   {
@@ -85,7 +75,7 @@ const formSchema = z.object({
   scoreName: z.string(),
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
-  mapping: z.array(VariableMapping),
+  mapping: z.array(wipVariableMapping),
   sampling: z.string().transform(Number).pipe(z.number().gte(0).lte(1)),
 });
 
@@ -149,6 +139,10 @@ export const NewEvalConfigForm = (props: {
       setFormError("Please select an eval template");
       return;
     }
+
+    // validate wip variable mapping
+    const validatedVarMapping = z.array(variableMapping).parse(values.mapping);
+
     createJobMutation
       .mutateAsync({
         projectId: props.projectId,
@@ -156,7 +150,7 @@ export const NewEvalConfigForm = (props: {
         scoreName: values.scoreName,
         target: values.target,
         filter: values.filter,
-        mapping: values.mapping,
+        mapping: validatedVarMapping,
         sampling: values.sampling,
       })
       .then(() => {

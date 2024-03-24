@@ -3,6 +3,7 @@ import { Job, Queue, Worker } from "bullmq";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
 import { env } from "../env";
+import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 export const redis = new Redis({
   host: env.REDIS_HOST,
@@ -20,16 +21,17 @@ export const evalQueue = new Queue<
 export const evalJobCreator = new Worker<TQueueJobTypes[QueueName.Evaluation]>(
   QueueName.Evaluation,
   async (job: Job<TQueueJobTypes[QueueName.Evaluation]>) => {
-    console.log("job", job.data);
-    // Optionally report some progress
-    // await job.updateProgress(42);
-    // // Optionally sending an object as progress
-    // await job.updateProgress({ foo: "bar" });
-    await createEvalJobs({ data: job.data.payload });
+    try {
+      console.log("Executing Evaluation Job", job.data);
 
-    console.log(job.data);
-    // Do something with job
-    return "some value";
+      await createEvalJobs({ data: job.data.payload });
+    } catch (e) {
+      console.error(
+        `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`,
+        e
+      );
+      throw e;
+    }
   },
   {
     connection: redis,
@@ -41,16 +43,27 @@ export const evalJobExecutor = new Worker<
 >(
   QueueName.Evaluation_Execution,
   async (job: Job<TQueueJobTypes[QueueName.Evaluation_Execution]>) => {
-    console.log("job", job.data);
-    // Optionally report some progress
-    // await job.updateProgress(42);
-    // // Optionally sending an object as progress
-    // await job.updateProgress({ foo: "bar" });
-    await evaluate({ data: job.data.payload });
-
-    console.log(job.data);
-    // Do something with job
-    return "some value";
+    try {
+      console.log("Executing Evaluation Execution Job", job.data);
+      // Optionally report some progress
+      // await job.updateProgress(42);
+      // // Optionally sending an object as progress
+      // await job.updateProgress({ foo: "bar" });
+      await evaluate({ data: job.data.payload });
+    } catch (e) {
+      console.error(
+        `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`,
+        e
+      );
+      await kyselyPrisma.$kysely
+        .updateTable("job_executions")
+        .set("status", "failed")
+        .set("error", JSON.stringify(e))
+        .where("id", "=", job.data.payload.data.jobExecutionId)
+        .where("project_id", "=", job.data.payload.data.projectId)
+        .execute();
+      throw e;
+    }
   },
   {
     connection: redis,
