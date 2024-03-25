@@ -10,6 +10,7 @@
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
+    "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
     "dx": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=worker run db:seed:examples && pnpm run dev",
     "build": "turbo run build",

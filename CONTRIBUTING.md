@@ -156,8 +156,8 @@ Requirements
    pnpm run db:migrate
 
    # Optional: seed the database
-   # pnpm --filter=shared run db:seed
-   # pnpm --filter=shared run db:seed:examples
+   # pnpm run db:seed
+   # pnpm run db:seed:examples
    # pnpm --filter=shared run db:seed:load
    ```
 
@@ -179,6 +179,7 @@ Requirements
 
   ```bash
   pnpm install
+  pnpm run dev
   pnpm --filter=web run dev # execute command only in one package
   ```
 
