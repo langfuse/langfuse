@@ -110,11 +110,13 @@ export default async function handler(
     console.error(error);
 
     if (isPrismaException(error)) {
+      console.log("Internal Server error", error);
       return res.status(500).json({
         error: "Internal Server Error",
       });
     }
     if (error instanceof z.ZodError) {
+      console.log("Invalid request data", error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
