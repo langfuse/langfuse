@@ -5,6 +5,8 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
 import { usdFormatter } from "../../../utils/numbers";
@@ -18,23 +20,29 @@ type RowData = {
   countRunItems: string;
   avgLatency: number;
   avgTotalCost: string;
-  scores: RouterOutput["datasets"]["runsByDatasetId"][number]["scores"];
+  scores: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["scores"];
 };
 
 export function DatasetRunsTable(props: {
   projectId: string;
   datasetId: string;
 }) {
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
   const runs = api.datasets.runsByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
   });
   const { setDetailPageList } = useDetailPageLists();
   useEffect(() => {
     if (runs.isSuccess) {
       setDetailPageList(
         "datasetRuns",
-        runs.data.map((t) => t.id),
+        runs.data.runs.map((t) => t.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,7 +106,7 @@ export function DatasetRunsTable(props: {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["runsByDatasetId"][number],
+    item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
@@ -125,9 +133,16 @@ export function DatasetRunsTable(props: {
             : {
                 isLoading: false,
                 isError: false,
-                data: runs.data.map((t) => convertToTableRow(t)),
+                data: runs.data.runs.map((t) => convertToTableRow(t)),
               }
       }
+      pagination={{
+        pageCount: Math.ceil(
+          (runs.data?.totalRuns ?? 0) / paginationState.pageSize,
+        ),
+        onChange: setPaginationState,
+        state: paginationState,
+      }}
     />
   );
 }
