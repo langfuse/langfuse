@@ -18,7 +18,7 @@ export default function TemplatesPage() {
   return (
     <div>
       <Header
-        title="Eval Templates"
+        title="Eval Configs"
         help={{
           description: "XXX",
           href: "https://langfuse.com/docs/evals",

@@ -19,7 +19,6 @@ export const CreateEvalTemplate = z.object({
   variables: z.array(z.string()),
   outputSchema: z.object({
     score: z.string(),
-    name: z.string(),
     reasoning: z.string(),
   }),
 });

@@ -116,7 +116,6 @@ export const NewEvalTemplateForm = (props: {
         variables: extractedVariables,
         outputSchema: {
           score: values.outputScore,
-          name: values.outputName,
           reasoning: values.outputReasoning,
         },
       })
@@ -219,20 +218,6 @@ export const NewEvalTemplateForm = (props: {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Score</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormDescription>Description</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="outputName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
