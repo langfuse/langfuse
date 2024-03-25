@@ -41,8 +41,8 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
-import React from "react";
 import { IOCell } from "./IOCell";
+import { setSmallPaginationIfColumnsVisible } from "../../../features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
 
 export type GenerationsTableRow = {
   id: string;
@@ -487,17 +487,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       columns,
     );
 
-  const smallTableRequired =
-    columnVisibility["input"] === true || columnVisibility["output"] === true;
-
-  if (smallTableRequired && paginationState.pageSize !== 10) {
-    setPaginationState((prev) => {
-      const currentPage = prev.pageIndex;
-      const currentPageSize = prev.pageSize;
-      const newPageIndex = Math.floor((currentPage * currentPageSize) / 10);
-      return { pageIndex: newPageIndex, pageSize: 10 };
-    });
-  }
+  const smallTableRequired = setSmallPaginationIfColumnsVisible(
+    columnVisibility,
+    ["input", "output"],
+    paginationState,
+    setPaginationState,
+  );
 
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.generations.map((generation) => {

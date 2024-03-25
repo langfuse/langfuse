@@ -33,6 +33,7 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
 import { IOCell } from "./IOCell";
+import { setSmallPaginationIfColumnsVisible } from "@/src/features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -439,7 +440,9 @@ export default function TracesTable({
       header: "Input",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
-        return <TracesIOCell traceId={traceId} projectId={projectId} io="input" />;
+        return (
+          <TracesIOCell traceId={traceId} projectId={projectId} io="input" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -449,7 +452,9 @@ export default function TracesTable({
       header: "Output",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
-        return <TracesIOCell traceId={traceId} projectId={projectId} io="output" />;
+        return (
+          <TracesIOCell traceId={traceId} projectId={projectId} io="output" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -540,6 +545,13 @@ export default function TracesTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
+  const smallTableRequired = setSmallPaginationIfColumnsVisible(
+    columnVisibility,
+    ["input", "output"],
+    paginationState,
+    setPaginationState,
+  );
+
   return (
     <div>
       <DataTableToolbar
@@ -590,6 +602,7 @@ export default function TracesTable({
           pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
+          options: smallTableRequired ? [10] : undefined,
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
@@ -607,7 +620,7 @@ const TracesIOCell = ({
   traceId,
   io,
 }: {
-  projectId: string
+  projectId: string;
   traceId: string;
   io: "input" | "output";
 }) => {
@@ -639,7 +652,11 @@ const TracesIOCell = ({
   return (
     <IOCell
       isLoading={trace.isLoading}
-      data={io === "output" ? trace.data?.traces[0]?.output : trace.data?.traces[0]?.input}
+      data={
+        io === "output"
+          ? trace.data?.traces[0]?.output
+          : trace.data?.traces[0]?.input
+      }
     />
   );
 };
