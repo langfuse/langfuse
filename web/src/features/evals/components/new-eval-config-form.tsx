@@ -35,40 +35,9 @@ import {
   type EvalTemplate,
   variableMapping,
   wipVariableMapping,
-  observationsTableCols,
+  evalObjects,
 } from "@langfuse/shared";
 import router from "next/router";
-
-const evalObjects = [
-  {
-    id: "trace",
-    display: "Trace",
-    availableColumns: [
-      ...tracesTableCols.map((c) => ({ name: c.name, id: c.id })),
-      { name: "Input", id: "input" },
-      { name: "Output", id: "output" },
-    ],
-  },
-  {
-    id: "span",
-    display: "Span",
-    availableColumns: [
-      ...observationsTableCols.map((c) => ({ name: c.name, id: c.id })),
-      { name: "Input", id: "input" },
-      { name: "Output", id: "output" },
-    ],
-  },
-  {
-    id: "generation",
-    display: "Generation",
-    availableColumns: [
-      ...observationsTableCols.map((c) => ({ name: c.name, id: c.id })),
-      { name: "Input", id: "input" },
-      { name: "Output", id: "output" },
-    ],
-  },
-  { id: "event", display: "Event", availableColumns: observationsTableCols },
-];
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -76,7 +45,8 @@ const formSchema = z.object({
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
   mapping: z.array(wipVariableMapping),
-  sampling: z.string().transform(Number).pipe(z.number().gte(0).lte(1)),
+  sampling: z.coerce.number().gte(0).lte(1),
+  delay: z.coerce.number().optional().default(10_000),
 });
 
 export const NewEvalConfigForm = (props: {
@@ -95,6 +65,7 @@ export const NewEvalConfigForm = (props: {
       filter: [] as FilterState,
       mapping: [],
       sampling: 1,
+      delay: 10_000,
     },
   });
 
@@ -311,7 +282,6 @@ export const NewEvalConfigForm = (props: {
                             <SelectTrigger>
                               <SelectValue placeholder="Object type" />
                             </SelectTrigger>
-
                             <SelectContent>
                               {evalObjects.map((evalObject) => (
                                 <SelectItem
@@ -415,10 +385,22 @@ export const NewEvalConfigForm = (props: {
                 <FormItem>
                   <FormLabel>Sampling</FormLabel>
                   <FormControl>
-                    Here will some variable mapping be added.
+                    <Input {...field} />
                   </FormControl>
-
-                  <Input {...field} />
+                  <FormDescription>Description </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="delay"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Delay (ms)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
                   <FormDescription>Description </FormDescription>
                   <FormMessage />
                 </FormItem>

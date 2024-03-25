@@ -14,6 +14,7 @@ import {
   tracesTableCols,
   variableMappingList,
   observationsTableCols,
+  evalObjects,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -25,6 +26,7 @@ import {
   JobExecution,
   EvalTemplate,
 } from "@langfuse/shared/prisma/generated/types";
+import lodash from "lodash";
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -113,6 +115,7 @@ export const evaluate = async ({
   console.log(
     `Evaluating job ${data.data.jobExecutionId} for project ${data.data.projectId}`
   );
+  // first, fetch all the context required for the evaluation
   const job = await kyselyPrisma.$kysely
     .selectFrom("job_executions")
     .selectAll()
@@ -146,17 +149,24 @@ export const evaluate = async ({
 
   console.log("Parsed variable mapping", parsedVariableMapping);
 
+  // extract the variables which need to be inserted into the prompt
   const mappingResult = await extractVariablesFromTrace(
+    data.data.projectId,
     template.vars,
     job.trace_id,
     parsedVariableMapping
   );
 
+  console.log("Extracted variables", mappingResult);
+
+  // compile the prompt and send out the LLM request
   const prompt = compileHandlebarString(template.prompt, {
     ...Object.fromEntries(
       mappingResult.map(({ var: key, value }) => [key, value])
     ),
   });
+
+  console.log("Compiled prompt", prompt);
 
   const parsedOutputSchema = z
     .object({
@@ -190,6 +200,7 @@ export const evaluate = async ({
 
   const parsedLLMOutput = openAIFunction.parse(completion);
 
+  // persist the score and update the job status
   const scoreId = randomUUID();
   await kyselyPrisma.$kysely
     .insertInto("scores")
@@ -216,17 +227,21 @@ export function compileHandlebarString(
   handlebarString: string,
   context: Record<string, any>
 ): string {
-  const template = Handlebars.compile(handlebarString);
+  console.log("Compiling handlebar string", handlebarString, context);
+  const template = Handlebars.compile(handlebarString, { noEscape: true });
   return template(context);
 }
 
 async function extractVariablesFromTrace(
+  projectId: string,
   variables: string[],
   traceId: string,
+  // this here are variables which were inserted by users. Need to validate before DB query.
   variableMapping: z.infer<typeof variableMappingList>
 ) {
   const mappingResult: { var: string; value: string }[] = [];
 
+  // find the context for each variable of the template
   for (const variable of variables) {
     console.log(`Searching for context for variable ${variable}`);
 
@@ -241,9 +256,10 @@ async function extractVariablesFromTrace(
     }
 
     if (mapping.langfuseObject === "trace") {
-      const column = tracesTableCols.find(
-        (col) => col.id === mapping.selectedColumnId
-      );
+      // find the internal definitions of the column
+      const column = evalObjects
+        .find((o) => o.id === "trace")
+        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
       if (!column?.id) {
         console.log(
@@ -255,19 +271,20 @@ async function extractVariablesFromTrace(
 
       const trace = await kyselyPrisma.$kysely
         .selectFrom("traces as t")
-        .select(sql<string>`${column.internal}`.as(column.id))
+        .select(sql`${sql.raw(column.internal)}`.as(column.id)) // query the internal column name raw
         .where("id", "=", traceId)
+        .where("project_id", "=", projectId)
         .executeTakeFirstOrThrow();
 
       mappingResult.push({
         var: variable,
-        value: trace[mapping.selectedColumnId],
+        value: parseUnknwnToString(trace[mapping.selectedColumnId]),
       });
     }
     if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
-      const column = observationsTableCols.find(
-        (col) => col.id === mapping.selectedColumnId
-      );
+      const column = evalObjects
+        .find((o) => o.id === mapping.langfuseObject)
+        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
       if (!mapping.objectName) {
         console.log(
@@ -287,16 +304,38 @@ async function extractVariablesFromTrace(
 
       const observation = await kyselyPrisma.$kysely
         .selectFrom("observations as o")
-        .select(sql<string>`${column.internal}`.as(column.id))
+        .select(sql`${sql.raw(column.internal)}`.as(column.id)) // query the internal column name raw
         .where("trace_id", "=", traceId)
+        .where("project_id", "=", projectId)
         .where("name", "=", mapping.objectName)
         .executeTakeFirstOrThrow();
 
       mappingResult.push({
         var: variable,
-        value: observation[mapping.selectedColumnId],
+        value: parseUnknwnToString(observation[mapping.selectedColumnId]),
       });
     }
   }
   return mappingResult;
 }
+
+export const parseUnknwnToString = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value.toString();
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "symbol") {
+    return value.toString();
+  }
+
+  return String(value);
+};
