@@ -1,12 +1,12 @@
 /** @jest-environment node */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@/src/server/db";
-import type { Session } from "next-auth";
 
 describe("observations.export RPC", () => {
   const numberOfGenerations = 5;

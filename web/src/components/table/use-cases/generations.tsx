@@ -31,7 +31,7 @@ import {
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type ObservationLevel } from "@prisma/client";
+import { type ObservationLevel } from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { randomIntFromInterval, usdFormatter } from "@/src/utils/numbers";

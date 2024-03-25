@@ -1,9 +1,8 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@/src/server/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { Prisma } from "@prisma/client";
 import { paginationZod } from "@/src/utils/zod";
 import { isPrismaException } from "@/src/utils/exceptions";
 

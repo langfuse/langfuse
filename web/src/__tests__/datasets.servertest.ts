@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 
@@ -113,9 +113,13 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("should create and get a dataset run", async () => {
-    const dataset = await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name",
-    });
+    const dataset = await makeAPICall<{ id: string }>(
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-name",
+      },
+    );
     expect(dataset.status).toBe(200);
     expect(dataset.body).toMatchObject({
       name: "dataset-name",
@@ -175,7 +179,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbRun).not.toBeNull();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(dbRun?.datasetId).toBe(dataset.body.id);
     expect(runItem.status).toBe(200);
     expect(runItem.body).toMatchObject({

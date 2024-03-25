@@ -2,8 +2,8 @@
 
 import { modelMatch } from "@/scripts/model-match";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@/src/constants";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
+import { ModelUsageUnit } from "@langfuse/shared";
 
 describe("model match", () => {
   beforeEach(async () => await pruneDatabase());

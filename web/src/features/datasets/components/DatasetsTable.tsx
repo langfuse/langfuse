@@ -75,6 +75,8 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       id: "actions",
+      accessorKey: "actions",
+      header: "Actions",
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (

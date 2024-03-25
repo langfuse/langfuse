@@ -3,7 +3,7 @@ import {
   type User as PrismaUser,
   type Membership as PrismaMembership,
   type Project as PrismaProject,
-} from "@prisma/client";
+} from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
 
 /**
