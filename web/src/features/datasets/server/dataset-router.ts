@@ -15,6 +15,19 @@ import { DB } from "@/src/server/db";
 import { paginationZod } from "@/src/utils/zod";
 
 export const datasetRouter = createTRPCRouter({
+  allDatasetMeta: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.dataset.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+    }),
   allDatasets: protectedProjectProcedure
     .input(
       z.object({
