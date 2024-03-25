@@ -3,6 +3,9 @@
   "version": "2.7.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
