@@ -181,7 +181,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbRun).not.toBeNull();
     expect(dbRun?.datasetId).toBe(dataset.body.id);
-    expect(dbRun?.metadata).toBe({ key: "value" });
+    expect(dbRun?.metadata).toMatchObject({ key: "value" });
     expect(runItem.status).toBe(200);
     expect(runItem.body).toMatchObject({
       datasetItemId: "dataset-item-id",
