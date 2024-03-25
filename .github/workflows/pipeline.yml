@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [20]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
