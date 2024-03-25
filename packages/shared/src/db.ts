@@ -1,3 +1,6 @@
+// This file exports the prisma db connection, the Prisma Object, and the Typescript types.
+// This is not imported in the index.ts file of this package, as we must not import this into FE code.
+
 import { PrismaClient } from "@prisma/client";
 import { env } from "process";
 
@@ -19,5 +22,6 @@ declare global {
 }
 
 export const prisma = globalThis.prisma ?? prismaClientSingleton();
+export * from "@prisma/client";
 
 if (process.env.NODE_ENV !== "production") globalThis.prisma = prisma;

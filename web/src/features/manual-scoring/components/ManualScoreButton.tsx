@@ -18,7 +18,7 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Score } from "@prisma/client";
+import { type Score } from "@langfuse/shared/src/db";
 import { useState } from "react";
 import * as z from "zod";
 

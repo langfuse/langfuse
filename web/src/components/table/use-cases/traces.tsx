@@ -18,7 +18,7 @@ import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesT
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type ObservationLevel, type Score } from "@prisma/client";
+import { type ObservationLevel, type Score } from "@langfuse/shared/src/db";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
