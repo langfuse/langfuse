@@ -201,6 +201,13 @@ async function main() {
           data: {
             name: `demo-dataset-run-${datasetRunNumber}`,
             datasetId: dataset.id,
+            metadata: [
+              undefined,
+              "string",
+              100,
+              { key: "value" },
+              ["tag1", "tag2"],
+            ][datasetRunNumber % 5],
           },
         });
 

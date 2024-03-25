@@ -15,5 +15,8 @@ types:
   CreateDatasetRunItemRequest:
     properties:
       runName: string
+      metadata:
+        type: optional<unknown>
+        docs: Metadata of the dataset run, updates run if run already exists
       datasetItemId: string
       observationId: string
