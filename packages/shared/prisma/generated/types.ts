@@ -120,6 +120,7 @@ export type DatasetRunItems = {
 export type DatasetRuns = {
     id: string;
     name: string;
+    metadata: unknown | null;
     dataset_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;

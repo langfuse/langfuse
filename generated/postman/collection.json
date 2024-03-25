@@ -137,7 +137,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"runName\": \"example\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\"\n}",
+              "raw": "{\n    \"runName\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
