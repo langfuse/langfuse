@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.11.3",
+  "version": "2.12.0",
   "private": true,
   "license": "MIT",
   "scripts": {
