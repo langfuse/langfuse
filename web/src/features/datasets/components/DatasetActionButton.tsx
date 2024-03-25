@@ -82,11 +82,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             Delete
           </div>
         ) : (
-          <Button
-            variant="secondary"
-            className={props.className}
-            disabled={!hasAccess}
-          >
+          <Button className={props.className} disabled={!hasAccess}>
             {hasAccess ? (
               <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
             ) : (
