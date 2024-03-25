@@ -78,7 +78,8 @@ export const evalRouter = createTRPCRouter({
 
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
-          projectId: input.projectId,
+          // langfuse managed templates are do not have a projectId
+          OR: [{ projectId: input.projectId }, { projectId: null }],
         },
         take: input.limit,
         skip: input.page * input.limit,

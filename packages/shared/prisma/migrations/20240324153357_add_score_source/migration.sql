@@ -1,2 +1,0 @@
--- AlterEnum
-ALTER TYPE "ScoreSource" ADD VALUE 'MODEL_BASED_EVALUATION';
