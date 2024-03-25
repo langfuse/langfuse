@@ -185,6 +185,14 @@ Requirements
 
   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
 
+- Run migrations
+
+  To run migrations, you can execute the following command which will pass the name to prisma.
+
+  ```bash
+  pnpm run db:migrate -- --name fix_job_execution
+  ```
+
 > [!NOTE]
 > If you frequently switch branches, use `pnpm run dx` instead of `pnpm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
 
