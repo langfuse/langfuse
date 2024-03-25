@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { JSONView } from "@/src/components/ui/code";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
@@ -14,6 +15,11 @@ export default function Dataset() {
     datasetId,
     projectId,
   });
+  const run = api.datasets.runById.useQuery({
+    datasetId,
+    projectId,
+    runId,
+  });
 
   return (
     <div>
@@ -25,7 +31,8 @@ export default function Dataset() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
-          { name: "Run: " + runId },
+          { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
+          { name: run.data?.name ?? "" },
         ]}
         actionButtons={
           <DetailPageNav
@@ -37,6 +44,13 @@ export default function Dataset() {
           />
         }
       />
+      {!!run.data?.metadata && (
+        <>
+          <Header title="Metadata" level="h3" />
+          <JSONView json={run.data.metadata} />
+        </>
+      )}
+      <Header title="Runs" level="h3" />
       <DatasetRunItemsTable
         projectId={projectId}
         datasetId={datasetId}

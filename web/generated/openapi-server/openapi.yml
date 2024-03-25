@@ -1488,6 +1488,8 @@ components:
           type: string
         name:
           type: string
+        metadata:
+          nullable: true
         datasetId:
           type: string
         createdAt:
@@ -1572,6 +1574,9 @@ components:
       properties:
         runName:
           type: string
+        metadata:
+          nullable: true
+          description: Metadata of the dataset run, updates run if run already exists
         datasetItemId:
           type: string
         observationId:

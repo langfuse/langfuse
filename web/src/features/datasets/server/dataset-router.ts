@@ -97,6 +97,25 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  runById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        runId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.datasetRuns.findUnique({
+        where: {
+          id: input.runId,
+          datasetId: input.datasetId,
+          dataset: {
+            projectId: input.projectId,
+          },
+        },
+      });
+    }),
   runsByDatasetId: protectedProjectProcedure
     .input(
       z.object({
@@ -160,6 +179,7 @@ export const datasetRouter = createTRPCRouter({
         SELECT
           runs.id,
           runs.name,
+          runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
           COALESCE(avg_scores.scores, '[]'::jsonb) scores,
@@ -181,7 +201,8 @@ export const datasetRouter = createTRPCRouter({
           4,
           5,
           6,
-          7
+          7,
+          8
         ORDER BY
           runs.created_at DESC
         LIMIT ${input.limit}

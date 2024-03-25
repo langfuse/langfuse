@@ -384,6 +384,7 @@ enum DatasetStatus {
 model DatasetRuns {
     id              String            @id @default(cuid())
     name            String
+    metadata        Json?
     datasetId       String            @map("dataset_id")
     dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
     createdAt       DateTime          @default(now()) @map("created_at")
