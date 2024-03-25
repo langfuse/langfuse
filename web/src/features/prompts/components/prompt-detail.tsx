@@ -56,7 +56,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
               },
               {
                 name: prompt.name,
-                href: `/project/${props.projectId}/prompts/${props.promptName}`,
+                href: `/project/${props.projectId}/prompts/${encodeURIComponent(props.promptName)}`,
               },
               { name: `Version ${prompt.version}` },
             ]}
