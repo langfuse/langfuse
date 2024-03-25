@@ -1,0 +1,13 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "types": ["node"],
+    "target": "ES2020"
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
+}

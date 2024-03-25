@@ -18,7 +18,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 
 import { getServerAuthSession } from "@/src/server/auth";
-import { DB, prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/node";
 import * as z from "zod";
 
@@ -78,6 +78,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import { DB } from "@/src/server/db";
 
 setUpSuperjson();
 

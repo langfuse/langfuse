@@ -5,31 +5,8 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { type DB as Database } from "@/prisma/generated/types";
+import { type DB as Database } from "@langfuse/shared";
 
-import { PrismaClient } from "@prisma/client";
-import { env } from "@/src/env.mjs";
-
-// Instantiated according to the Prisma documentation
-// https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
-
-const prismaClientSingleton = () => {
-  return new PrismaClient({
-    log:
-      env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error", "warn"],
-  });
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
-}
-
-export const prisma = globalThis.prisma ?? prismaClientSingleton();
-
-if (process.env.NODE_ENV !== "production") globalThis.prisma = prisma;
 export const DB = new Kysely<Database>({
   dialect: {
     createAdapter: () => new PostgresAdapter(),
@@ -38,3 +15,6 @@ export const DB = new Kysely<Database>({
     createQueryCompiler: () => new PostgresQueryCompiler(),
   },
 });
+
+// prisma needs to be exported from the package which does migrations.
+// The prisma package contains the generated schema and is exported with the PrismaClient.

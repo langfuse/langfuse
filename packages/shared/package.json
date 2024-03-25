@@ -1,0 +1,66 @@
+{
+  "name": "@langfuse/shared",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist/**"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
+    "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
+    "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
+    "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
+    "db:generate": "dotenv -e ../../.env -- npx prisma generate",
+    "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
+    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load"
+  },
+  "prisma": {
+    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^0.1.8",
+    "@langchain/core": "^0.1.49",
+    "@langchain/openai": "^0.0.23",
+    "@prisma/client": "^5.11.0",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
+    "kysely": "^0.27.3",
+    "langchain": "^0.1.28",
+    "prisma-extension-kysely": "^2.1.0",
+    "prisma-kysely": "^1.8.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/lodash": "^4.14.202",
+    "@types/node": "^20.11.29",
+    "@types/pg": "^8.11.2",
+    "@types/uuid": "^9.0.8",
+    "@typescript-eslint/parser": "^7.2.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "kysely-codegen": "^0.11.0",
+    "nodemon": "^3.0.3",
+    "prettier": "^3.2.5",
+    "prisma": "^5.11.0",
+    "prisma-erd-generator": "^1.11.2",
+    "ts-node": "^10.9.2",
+    "tsc-watch": "^6.0.4",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.3.1"
+  }
+}
