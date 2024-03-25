@@ -8,7 +8,6 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
-import { type Score } from "@prisma/client";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -175,7 +174,6 @@ export default function ScoresTable({
       header: "Comment",
       id: "comment",
       enableHiding: true,
-      enableSorting: true,
     },
   ];
 
