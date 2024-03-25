@@ -389,7 +389,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "statusMessage",
       enableHiding: true,
       defaultHidden: true,
-      enableSorting: true,
     },
     {
       accessorKey: "model",
