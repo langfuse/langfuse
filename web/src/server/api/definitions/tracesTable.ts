@@ -52,18 +52,6 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: 'tm."totalTokens"',
   },
   {
-    name: "Input",
-    id: "input",
-    type: "stringObject",
-    internal: 't."input"',
-  },
-  {
-    name: "Output",
-    id: "output",
-    type: "stringObject",
-    internal: 't."output"',
-  },
-  {
     name: "Metadata",
     id: "metadata",
     type: "stringObject",
