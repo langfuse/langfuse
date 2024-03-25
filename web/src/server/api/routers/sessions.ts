@@ -134,8 +134,9 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const userIds: { value: string }[] = await ctx.prisma.$queryRaw`
-      SELECT traces.user_id as value
+      const userIds: { value: string; count: number }[] = await ctx.prisma
+        .$queryRaw`
+      SELECT traces.user_id as value, COUNT(traces.user_id)::int as count
       FROM traces
       WHERE traces.session_id IS NOT NULL
       AND traces.project_id = ${input.projectId}

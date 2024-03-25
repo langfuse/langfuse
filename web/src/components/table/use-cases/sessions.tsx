@@ -192,7 +192,6 @@ export default function SessionsTable({
       id: "userIds",
       header: "User IDs",
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("userIds");
         return value && Array.isArray(value) ? (
