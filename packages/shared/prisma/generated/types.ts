@@ -134,11 +134,6 @@ export type Events = {
     url: string | null;
     method: string | null;
 };
-export type Example = {
-    id: string;
-    created_at: Generated<Timestamp>;
-    updated_at: Timestamp;
-};
 export type Membership = {
     project_id: string;
     user_id: string;
@@ -327,7 +322,6 @@ export type DB = {
     dataset_runs: DatasetRuns;
     datasets: Dataset;
     events: Events;
-    Example: Example;
     membership_invitations: MembershipInvitation;
     memberships: Membership;
     models: Model;
