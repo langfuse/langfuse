@@ -126,7 +126,7 @@
     "@types/react-dom": "^18.2.19",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@typescript-eslint/parser": "^7.4.0",
     "autoprefixer": "^10.4.17",
     "dotenv-cli": "^7.3.0",
     "eslint": "^8.56.0",
