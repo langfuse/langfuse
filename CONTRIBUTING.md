@@ -187,7 +187,7 @@ Requirements
 
 - Run migrations
 
-  To run migrations, you can execute the following command wich will pass the name to prisma.
+  To run migrations, you can execute the following command which will pass the name to prisma.
 
   ```bash
   pnpm run db:migrate -- --name fix_job_execution
