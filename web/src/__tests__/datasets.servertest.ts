@@ -172,6 +172,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       datasetItemId: "dataset-item-id",
       observationId: observationId,
       runName: "run-name",
+      metadata: { key: "value" },
     });
     const dbRun = await prisma.datasetRuns.findFirst({
       where: {
@@ -180,6 +181,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbRun).not.toBeNull();
     expect(dbRun?.datasetId).toBe(dataset.body.id);
+    expect(dbRun?.metadata).toBe({ key: "value" });
     expect(runItem.status).toBe(200);
     expect(runItem.body).toMatchObject({
       datasetItemId: "dataset-item-id",

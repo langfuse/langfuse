@@ -121,8 +121,8 @@ export function DatasetsTable(props: { projectId: string }) {
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
-      createdAt: item.createdAt.toISOString(),
-      lastRunAt: item.lastRunAt?.toISOString() ?? "",
+      createdAt: item.createdAt.toLocaleString(),
+      lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
     };

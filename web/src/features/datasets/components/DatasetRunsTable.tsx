@@ -21,6 +21,7 @@ type RowData = {
   avgLatency: number;
   avgTotalCost: string;
   scores: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["scores"];
+  metadata: string;
 };
 
 export function DatasetRunsTable(props: {
@@ -103,6 +104,14 @@ export function DatasetRunsTable(props: {
         );
       },
     },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      cell: ({ row }) => {
+        const metadata: RowData["metadata"] = row.getValue("metadata");
+        return <div className="flex flex-wrap gap-x-3 gap-y-1">{metadata}</div>;
+      },
+    },
   ];
 
   const convertToTableRow = (
@@ -110,11 +119,12 @@ export function DatasetRunsTable(props: {
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
-      createdAt: item.createdAt.toISOString(),
+      createdAt: item.createdAt.toLocaleString(),
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
       scores: item.scores,
+      metadata: JSON.stringify(item.metadata),
     };
   };
 

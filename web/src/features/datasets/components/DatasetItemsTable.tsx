@@ -167,7 +167,7 @@ export function DatasetItemsTable({
     return {
       id: item.id,
       status: item.status,
-      createdAt: item.createdAt.toISOString(),
+      createdAt: item.createdAt.toLocaleString(),
       input,
       expectedOutput,
     };
