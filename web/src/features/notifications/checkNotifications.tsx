@@ -10,6 +10,33 @@ import { env } from "@/src/env.mjs";
 
 export const NOTIFICATIONS: TNotification[] = [
   {
+    id: 2,
+    releaseDate: new Date("2024-03-27"),
+    message: "New: Python Decorator",
+    description: (
+      <div>
+        <p>
+          Use the <strong>@observe()</strong> decorator to trace your Python
+          application. The highlights:
+        </p>
+        <ul className="ms-4 mt-2 list-outside list-disc">
+          <li>
+            Fully interoperable with LangChain, LlamaIndex, OpenAI SDK
+            integrations
+          </li>
+          <li>
+            Significantly less lines of code than the previous low-level SDK
+          </li>
+        </ul>
+        <Button size="sm" variant="secondary" className="mt-3">
+          <Link href="https://langfuse.com/changelog/2024-03-24-python-decorator">
+            Changelog post
+          </Link>
+        </Button>
+      </div>
+    ),
+  },
+  {
     id: 1,
     releaseDate: new Date("2024-01-29"),
     message: "New: Custom model prices",
