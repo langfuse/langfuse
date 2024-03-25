@@ -454,7 +454,6 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
-      enableSorting: true,
     },
     {
       accessorKey: "output",
@@ -466,7 +465,6 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
-      enableSorting: true,
     },
     {
       accessorKey: "metadata",
