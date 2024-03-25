@@ -591,6 +591,7 @@ model JobConfiguration {
     targetObject    String         @map("target_object")
     variableMapping Json           @map("variable_mapping")
     sampling        Decimal
+    delay           Int // delay in milliseconds
     JobExecution    JobExecution[]
 
     @@index([projectId, id])

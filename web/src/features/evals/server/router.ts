@@ -137,6 +137,7 @@ export const evalRouter = createTRPCRouter({
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,
+            delay: 10_000, // 10 seconds default
           },
         });
         await auditLog({

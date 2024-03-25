@@ -97,6 +97,7 @@ export const createEvalJobs = async ({
             type: "exponential",
             delay: 1000,
           },
+          delay: config.delay, // milliseconds
         }
       );
     }

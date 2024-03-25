@@ -112,6 +112,9 @@ export class TraceProcessor implements EventProcessor {
       },
     });
 
+    // we only send the event to eval if the queue is available
+    // we are not able to easily check for feature flags, as they are on the user and not
+    // on the project level
     if (evalQueue) {
       console.log(
         `Adding evaluation job ${QueueJobs.Evaluation} to queue ${QueueName.Evaluation} for trace ${upsertedTrace.id}`,
