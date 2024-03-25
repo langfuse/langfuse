@@ -153,7 +153,7 @@ Requirements
    All database migrations and configs are in the `shared` package.
 
    ```bash
-   pnpm run db:migrate
+   pnpm --filter=shared run db:migrate
 
    # Optional: seed the database
    # pnpm run db:seed
@@ -187,10 +187,10 @@ Requirements
 
 - Run migrations
 
-  To run migrations, you can execute the following command which will pass the name to prisma.
+  To run migrations, you can execute the following command.
 
   ```bash
-  pnpm run db:migrate -- --name fix_job_execution
+  pnpm --filter=shared run db:migrate
   ```
 
 > [!NOTE]
