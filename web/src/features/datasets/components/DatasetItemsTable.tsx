@@ -10,6 +10,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+
 import { Archive, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { DatasetStatus, type DatasetItem } from "@langfuse/shared/src/db";
@@ -35,16 +37,24 @@ export function DatasetItemsTable({
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
+
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
   });
 
   useEffect(() => {
     if (items.isSuccess) {
       setDetailPageList(
         "datasetItems",
-        items.data.map((t) => t.id),
+        items.data.datasetItems.map((t) => t.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,7 +152,7 @@ export function DatasetItemsTable({
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["itemsByDatasetId"][number],
+    item: RouterOutput["datasets"]["itemsByDatasetId"]["datasetItems"][number],
   ): RowData => {
     let input = JSON.stringify(item.input);
     input = input.length > 50 ? input.slice(0, 50) + "..." : input;
@@ -179,9 +189,18 @@ export function DatasetItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.map((t) => convertToTableRow(t)),
+                  data: items.data.datasetItems.map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
+        pagination={{
+          pageCount: Math.ceil(
+            (items.data?.totalDatasetItems ?? 0) / paginationState.pageSize,
+          ),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
       <NewDatasetItemButton
         projectId={projectId}
