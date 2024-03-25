@@ -17,7 +17,8 @@
     "start": "turbo run start",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "models:migrate": "turbo run models:migrate"
   },
   "devDependencies": {
     "dotenv-cli": "^7.3.0",
