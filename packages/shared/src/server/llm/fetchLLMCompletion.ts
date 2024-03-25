@@ -16,7 +16,6 @@ import {
 } from "@langchain/core/output_parsers";
 import { ChatOpenAI } from "@langchain/openai";
 
-console.log("fetchLLMCompletion.ts");
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
