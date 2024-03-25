@@ -173,7 +173,30 @@ async function main() {
         },
       });
 
-      for (let datasetRunNumber = 0; datasetRunNumber < 2; datasetRunNumber++) {
+      const datasetItemIds = [];
+      for (let i = 0; i < 18; i++) {
+        const sourceObservationId =
+          Math.random() > 0.5
+            ? generationIds[Math.floor(Math.random() * generationIds.length)]
+            : undefined;
+        const datasetItem = await prisma.datasetItem.create({
+          data: {
+            datasetId: dataset.id,
+            sourceObservationId: sourceObservationId,
+            input: [
+              {
+                role: "user",
+                content: "How can i create a React component?",
+              },
+            ],
+            expectedOutput:
+              "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.",
+          },
+        });
+        datasetItemIds.push(datasetItem.id);
+      }
+
+      for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
             name: `demo-dataset-run-${datasetRunNumber}`,
@@ -181,33 +204,14 @@ async function main() {
           },
         });
 
-        for (let runNumber = 0; runNumber < 10; runNumber++) {
-          //pick randomly from existingSpanIds
-          const sourceObservationId =
-            generationIds[Math.floor(Math.random() * generationIds.length)];
+        for (const datasetItemId of datasetItemIds) {
           const runObservationId =
             generationIds[Math.floor(Math.random() * generationIds.length)];
 
-          const datasetItem = await prisma.datasetItem.create({
-            data: {
-              datasetId: dataset.id,
-              sourceObservationId:
-                Math.random() > 0.5 ? sourceObservationId : undefined,
-              input: [
-                {
-                  role: "user",
-                  content: "How can i create a React component?",
-                },
-              ],
-              expectedOutput:
-                "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.",
-            },
-          });
-
           await prisma.datasetRunItems.create({
             data: {
-              datasetItemId: datasetItem.id,
-              observationId: runObservationId!,
+              datasetItemId,
+              observationId: runObservationId,
               datasetRunId: datasetRun.id,
             },
           });
