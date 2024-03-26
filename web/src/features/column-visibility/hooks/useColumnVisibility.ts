@@ -37,7 +37,8 @@ function useColumnVisibility<TData>(
       columns.forEach((column) => {
         if ("accessorKey" in column && typeof column.accessorKey === "string") {
           newVisibility[column.accessorKey] =
-            columnVisibility[column.accessorKey] ?? true;
+            columnVisibility[column.accessorKey] ??
+            !(column.defaultHidden === true);
         }
       });
       setColumnVisibility(newVisibility);
