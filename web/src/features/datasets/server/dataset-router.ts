@@ -12,12 +12,27 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
+import { paginationZod } from "@/src/utils/zod";
 
 export const datasetRouter = createTRPCRouter({
+  allDatasetMeta: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.dataset.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+    }),
   allDatasets: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -40,11 +55,13 @@ export const datasetRouter = createTRPCRouter({
           "datasets.created_at",
           "datasets.updated_at",
         ])
-        .orderBy("datasets.created_at", "desc");
+        .orderBy("datasets.created_at", "desc")
+        .limit(input.limit)
+        .offset(input.page * input.limit);
 
       const compiledQuery = query.compile();
 
-      return await ctx.prisma.$queryRawUnsafe<
+      const datasets = await ctx.prisma.$queryRawUnsafe<
         Array<
           Dataset & {
             countDatasetItems: number;
@@ -53,6 +70,17 @@ export const datasetRouter = createTRPCRouter({
           }
         >
       >(compiledQuery.sql, ...compiledQuery.parameters);
+
+      const totalDatasets = await ctx.prisma.dataset.count({
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      return {
+        totalDatasets,
+        datasets,
+      };
     }),
   byId: protectedProjectProcedure
     .input(
@@ -69,11 +97,31 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  runById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        runId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.datasetRuns.findUnique({
+        where: {
+          id: input.runId,
+          datasetId: input.datasetId,
+          dataset: {
+            projectId: input.projectId,
+          },
+        },
+      });
+    }),
   runsByDatasetId: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -131,6 +179,7 @@ export const datasetRouter = createTRPCRouter({
         SELECT
           runs.id,
           runs.name,
+          runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
           COALESCE(avg_scores.scores, '[]'::jsonb) scores,
@@ -152,12 +201,27 @@ export const datasetRouter = createTRPCRouter({
           4,
           5,
           6,
-          7
+          7,
+          8
         ORDER BY
           runs.created_at DESC
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
       `);
 
-      return runs;
+      const totalRuns = await ctx.prisma.datasetRuns.count({
+        where: {
+          datasetId: input.datasetId,
+          dataset: {
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      return {
+        totalRuns,
+        runs,
+      };
     }),
   itemById: protectedProjectProcedure
     .input(
@@ -183,10 +247,11 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetItem.findMany({
+      const datasetItems = await ctx.prisma.datasetItem.findMany({
         where: {
           datasetId: input.datasetId,
           dataset: {
@@ -201,7 +266,23 @@ export const datasetRouter = createTRPCRouter({
             createdAt: "desc",
           },
         ],
+        take: input.limit,
+        skip: input.page * input.limit,
       });
+
+      const totalDatasetItems = await ctx.prisma.datasetItem.count({
+        where: {
+          datasetId: input.datasetId,
+          dataset: {
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      return {
+        totalDatasetItems,
+        datasetItems,
+      };
     }),
   updateDatasetItem: protectedProjectProcedure
     .input(
@@ -396,6 +477,7 @@ export const datasetRouter = createTRPCRouter({
           datasetId: z.string(),
           datasetRunId: z.string().optional(),
           datasetItemId: z.string().optional(),
+          ...paginationZod,
         })
         .refine(
           (input) => input.datasetRunId || input.datasetItemId,
@@ -424,6 +506,20 @@ export const datasetRouter = createTRPCRouter({
         orderBy: {
           createdAt: "desc",
         },
+        take: input.limit,
+        skip: input.page * input.limit,
+      });
+
+      const totalRunItems = await ctx.prisma.datasetRunItems.count({
+        where: {
+          datasetRunId: input.datasetRunId,
+          datasetItemId: input.datasetItemId,
+          datasetRun: {
+            dataset: {
+              projectId: input.projectId,
+            },
+          },
+        },
       });
 
       const observationIds = runItems.map((ri) => ri.observationId);
@@ -439,7 +535,7 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      return runItems.map((ri) => {
+      const items = runItems.map((ri) => {
         return {
           id: ri.id,
           createdAt: ri.createdAt,
@@ -450,6 +546,11 @@ export const datasetRouter = createTRPCRouter({
           },
         };
       });
+
+      return {
+        totalRunItems,
+        runItems: items,
+      };
     }),
   observationInDatasets: protectedProjectProcedure
     .input(

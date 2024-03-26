@@ -153,11 +153,11 @@ Requirements
    All database migrations and configs are in the `shared` package.
 
    ```bash
-   pnpm run db:migrate
+   pnpm --filter=shared run db:migrate
 
    # Optional: seed the database
-   # pnpm --filter=shared run db:seed
-   # pnpm --filter=shared run db:seed:examples
+   # pnpm run db:seed
+   # pnpm run db:seed:examples
    # pnpm --filter=shared run db:seed:load
    ```
 
@@ -179,10 +179,19 @@ Requirements
 
   ```bash
   pnpm install
+  pnpm run dev
   pnpm --filter=web run dev # execute command only in one package
   ```
 
   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
+
+- Run migrations
+
+  To run migrations, you can execute the following command.
+
+  ```bash
+  pnpm --filter=shared run db:migrate
+  ```
 
 > [!NOTE]
 > If you frequently switch branches, use `pnpm run dx` instead of `pnpm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
