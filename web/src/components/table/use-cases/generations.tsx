@@ -115,6 +115,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     orderBy: orderByState,
     searchQuery,
   });
+
   const totalCount = generations.data?.totalCount ?? 0;
 
   const filterOptions = api.generations.filterOptions.useQuery(
