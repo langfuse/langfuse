@@ -229,6 +229,7 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "id",
@@ -257,6 +258,7 @@ export default function TracesTable({
       header: "Name",
       id: "name",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "userId",
@@ -279,6 +281,7 @@ export default function TracesTable({
     {
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      id: "sessionId",
       header: "Session ID",
       cell: ({ row }) => {
         const value = row.getValue("sessionId");
@@ -291,6 +294,7 @@ export default function TracesTable({
         ) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "latency",
@@ -318,6 +322,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputTokens",
@@ -333,6 +338,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalTokens",
@@ -348,11 +354,13 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
+      id: "usage",
       cell: ({ row }) => {
         const value: {
           promptTokens: number;
@@ -368,6 +376,7 @@ export default function TracesTable({
           />
         );
       },
+      enableSorting: true,
       enableHiding: true,
     },
     {
@@ -388,6 +397,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputCost",
@@ -407,6 +417,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalCost",
@@ -441,6 +452,7 @@ export default function TracesTable({
     {
       accessorKey: "input",
       header: "Input",
+      id: "input",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
         return (
@@ -453,6 +465,7 @@ export default function TracesTable({
     {
       accessorKey: "output",
       header: "Output",
+      id: "output",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
         return (
@@ -473,6 +486,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "level",
+      id: "level",
       header: "Level",
       cell: ({ row }) => {
         const value: ObservationLevel = row.getValue("level");
@@ -490,6 +504,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "version",

@@ -2,6 +2,7 @@ import {
   type OptionsDefinition,
   type ColumnDefinition,
 } from "@/src/server/api/interfaces/tableDefinition";
+import { ObservationLevel } from "@prisma/client";
 
 export const tracesTableCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
@@ -19,7 +20,37 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "datetime",
     internal: 't."timestamp"',
   },
-  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
+  { name: "User Id", id: "userId", type: "string", internal: 't."user_id"' },
+  {
+    name: "Session Id",
+    id: "sessionId",
+    type: "string",
+    internal: 't."session_id"',
+  },
+  {
+    name: "Input Tokens",
+    id: "inputTokens",
+    type: "number",
+    internal: 'tm."promptTokens"',
+  },
+  {
+    name: "Output Tokens",
+    id: "outputTokens",
+    type: "number",
+    internal: 'tm."completionTokens"',
+  },
+  {
+    name: "Total Tokens",
+    id: "totalTokens",
+    type: "number",
+    internal: 'tm."totalTokens"',
+  },
+  {
+    name: "Usage",
+    id: "usage",
+    type: "number",
+    internal: 'tm."totalTokens"',
+  },
   {
     name: "Metadata",
     id: "metadata",
@@ -39,7 +70,19 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: "tl.latency",
   },
   {
-    name: "Total Cost",
+    name: "Input Cost ($)",
+    id: "inputCost",
+    type: "number",
+    internal: '"calculatedInputCost"',
+  },
+  {
+    name: "Output Cost ($)",
+    id: "outputCost",
+    type: "number",
+    internal: '"calculatedOutputCost"',
+  },
+  {
+    name: "Total Cost ($)",
     id: "totalCost",
     type: "number",
     internal: '"calculatedTotalCost"',
@@ -55,6 +98,13 @@ export const tracesTableCols: ColumnDefinition[] = [
     id: "release",
     type: "string",
     internal: 't."release"',
+  },
+  {
+    name: "Level",
+    id: "level",
+    type: "stringOptions",
+    internal: '"level"',
+    options: Object.values(ObservationLevel).map((value) => ({ value })),
   },
   {
     name: "Tags",
@@ -75,13 +125,13 @@ export function tracesTableColsWithOptions(
   options?: TraceOptions,
 ): ColumnDefinition[] {
   return tracesTableCols.map((col) => {
-    if (col.name === "scores_avg") {
+    if (col.id === "scores_avg") {
       return { ...col, keyOptions: options?.scores_avg ?? [] };
     }
-    if (col.name === "name") {
+    if (col.id === "name") {
       return { ...col, options: options?.name ?? [] };
     }
-    if (col.name === "tags") {
+    if (col.id === "tags") {
       return { ...col, options: options?.tags ?? [] };
     }
     return col;
