@@ -149,15 +149,14 @@ async function main() {
 
     const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
 
-    const { generationIds, traces, observations, scores, sessions, events } =
-      createObjects(
-        traceVolume,
-        envTags,
-        colorTags,
-        project1,
-        project2,
-        promptIds
-      );
+    const { traces, observations, scores, sessions, events } = createObjects(
+      traceVolume,
+      envTags,
+      colorTags,
+      project1,
+      project2,
+      promptIds
+    );
 
     console.log(
       `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
@@ -177,7 +176,7 @@ async function main() {
       for (let i = 0; i < 18; i++) {
         const sourceObservationId =
           Math.random() > 0.5
-            ? generationIds[Math.floor(Math.random() * generationIds.length)]
+            ? observations[Math.floor(Math.random() * observations.length)].id
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
@@ -212,13 +211,14 @@ async function main() {
         });
 
         for (const datasetItemId of datasetItemIds) {
-          const runObservationId =
-            generationIds[Math.floor(Math.random() * generationIds.length)];
+          const observation =
+            observations[Math.floor(Math.random() * observations.length)];
 
           await prisma.datasetRunItems.create({
             data: {
               datasetItemId,
-              observationId: runObservationId,
+              traceId: observation.traceId as string,
+              observationId: Math.random() > 0.5 ? observation.id : undefined,
               datasetRunId: datasetRun.id,
             },
           });
@@ -354,7 +354,6 @@ function createObjects(
   const observations: Prisma.ObservationCreateManyInput[] = [];
   const scores: Prisma.ScoreCreateManyInput[] = [];
   const sessions: Prisma.TraceSessionCreateManyInput[] = [];
-  const generationIds: string[] = [];
   const events: Prisma.ObservationCreateManyInput[] = [];
 
   for (let i = 0; i < traceVolume; i++) {
@@ -618,8 +617,6 @@ function createObjects(
             source: ScoreSource.API,
           });
 
-        generationIds.push(generation.id);
-
         for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
           // random start time within span
           const eventTs = new Date(
@@ -651,7 +648,6 @@ function createObjects(
   ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
 
   return {
-    generationIds,
     traces,
     observations,
     scores,
