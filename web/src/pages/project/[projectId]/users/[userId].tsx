@@ -197,7 +197,7 @@ function ScoresTab({ userId, projectId }: TabProps) {
       <ScoresTable
         projectId={projectId}
         userId={userId}
-        omittedFilter={["userId"]}
+        omittedFilter={["User ID"]}
       />
     </div>
   );
@@ -209,7 +209,7 @@ function TracesTab({ userId, projectId }: TabProps) {
       <TracesTable
         projectId={projectId}
         userId={userId}
-        omittedFilter={["userId"]}
+        omittedFilter={["User ID"]}
       />
     </div>
   );
@@ -221,7 +221,7 @@ function SessionsTab({ userId, projectId }: TabProps) {
       <SessionsTable
         projectId={projectId}
         userId={userId}
-        omittedFilter={["userId"]}
+        omittedFilter={["User IDs"]}
       />
     </div>
   );
