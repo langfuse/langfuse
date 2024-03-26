@@ -10,7 +10,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { DB } from ".";
+import { DB } from "..";
 
 // Instantiated according to the Prisma documentation
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices

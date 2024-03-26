@@ -4,7 +4,7 @@ import {
   type Prisma,
   ObservationType,
   ScoreSource,
-} from "../src/db";
+} from "../src/db/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 
