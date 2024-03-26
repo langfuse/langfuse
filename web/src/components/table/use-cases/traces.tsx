@@ -153,7 +153,7 @@ export default function TracesTable({
       bookmarked: trace.bookmarked,
       id: trace.id,
       timestamp: trace.timestamp.toLocaleString(),
-      name: trace.name ?? "",
+      name: trace.name ?? "[no-trace-name]",
       level: trace.level,
       metadata: JSON.stringify(trace.metadata),
       release: trace.release ?? undefined,
@@ -544,7 +544,6 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
-
   const smallTableRequired = setSmallPaginationIfColumnsVisible(
     columnVisibility,
     ["input", "output"],
