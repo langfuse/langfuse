@@ -68,7 +68,7 @@ export const userRouter = createTRPCRouter({
       if (input.userIds.length === 0) {
         return [];
       }
-
+      const userIds = input.userIds.map((id) => `'${id}'`).join(",");
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
@@ -127,7 +127,7 @@ export const userRouter = createTRPCRouter({
           t.user_id
       ) ov ON TRUE
     WHERE
-       t.user_id IN (${Prisma.join(input.userIds, ",")})
+       t.user_id IN (${userIds})
       AND t.project_id = ${input.projectId}
     GROUP BY
       1;
