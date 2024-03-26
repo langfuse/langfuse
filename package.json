@@ -3,6 +3,9 @@
   "version": "2.7.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
@@ -10,17 +13,19 @@
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
+    "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
     "dx": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=worker run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "start": "turbo run start",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "models:migrate": "turbo run models:migrate"
   },
   "devDependencies": {
+    "dotenv-cli": "^7.3.0",
     "prettier": "^3.2.5",
-    "turbo": "^1.12.4",
-    "dotenv-cli": "^7.3.0"
+    "turbo": "^1.13.0"
   }
 }

@@ -24,9 +24,13 @@ export default function Dataset() {
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
+            href: `/project/${projectId}/datasets/${datasetId}`,
+          },
+          {
+            name: "Items",
             href: `/project/${projectId}/datasets/${datasetId}/items`,
           },
-          { name: "Item: " + itemId },
+          { name: itemId },
         ]}
         actionButtons={
           <DetailPageNav

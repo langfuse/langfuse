@@ -14,9 +14,14 @@
     "db:reset": {},
     "db:push": {},
     "db:seed": {},
+    "models:migrate": {
+      "dependsOn": ["db:generate"]
+    },
+    "db:seed:examples": {},
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "dependsOn": ["db:generate"]
     },
     "db:generate": {
       "cache": false,

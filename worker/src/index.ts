@@ -1,6 +1,7 @@
 import app from "./app";
+import { env } from "./env";
+import logger from "./logger";
 
-const port = process.env.PORT ? parseInt(process.env.PORT) : 3030;
-app.listen(port, () => {
-  console.log(`Listening: http://localhost:${port}`);
+app.listen(env.PORT, () => {
+  logger.info(`Listening: http://localhost:${env.PORT}`);
 });

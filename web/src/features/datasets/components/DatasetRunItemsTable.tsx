@@ -5,7 +5,9 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@prisma/client";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+
+import { type Score } from "@langfuse/shared/src/db";
 import { usdFormatter } from "../../../utils/numbers";
 
 type RowData = {
@@ -31,7 +33,15 @@ export function DatasetRunItemsTable(
         datasetItemId: string;
       },
 ) {
-  const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery(props);
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+  const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery({
+    ...props,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+  });
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
@@ -93,7 +103,7 @@ export function DatasetRunItemsTable(
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["runitemsByRunIdOrItemId"][number],
+    item: RouterOutput["datasets"]["runitemsByRunIdOrItemId"]["runItems"][number],
   ): RowData => {
     return {
       id: item.id,
@@ -129,9 +139,16 @@ export function DatasetRunItemsTable(
             : {
                 isLoading: false,
                 isError: false,
-                data: runItems.data.map((t) => convertToTableRow(t)),
+                data: runItems.data.runItems.map((t) => convertToTableRow(t)),
               }
       }
+      pagination={{
+        pageCount: Math.ceil(
+          (runItems.data?.totalRunItems ?? 0) / paginationState.pageSize,
+        ),
+        onChange: setPaginationState,
+        state: paginationState,
+      }}
     />
   );
 }

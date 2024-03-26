@@ -25,7 +25,13 @@ export default function DatasetItems() {
         title={`Dataset: ${dataset.data?.name}`}
         breadcrumb={[
           { name: "Datasets", href: `/project/${projectId}/datasets` },
-          { name: dataset.data?.name ?? datasetId },
+          {
+            name: dataset.data?.name ?? datasetId,
+            href: `/project/${projectId}/datasets/${datasetId}`,
+          },
+          {
+            name: "Items",
+          },
         ]}
         actionButtons={
           <>
