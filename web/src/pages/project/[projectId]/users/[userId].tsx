@@ -26,6 +26,15 @@ export default function UserPage() {
     return classes.filter(Boolean).join(" ");
   }
 
+  const handleClick = async (tab: string) => {
+    if (router.query.filter) {
+      const newQuery = { ...router.query };
+      delete newQuery.filter;
+      await router.replace({ query: newQuery });
+    }
+    setCurrentTab(tab);
+  };
+
   const renderTabContent = () => {
     switch (currentTab as (typeof tabs)[number]) {
       case "Details":
@@ -70,7 +79,7 @@ export default function UserPage() {
             name="tabs"
             className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
             defaultValue={currentTab}
-            onChange={(e) => setCurrentTab(e.currentTarget.value)}
+            onChange={(e) => handleClick(e.currentTarget.value)}
           >
             {tabs.map((tab) => (
               <option key={tab}>{tab}</option>
@@ -90,7 +99,7 @@ export default function UserPage() {
                     "whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium",
                   )}
                   aria-current={tab === currentTab ? "page" : undefined}
-                  onClick={() => setCurrentTab(tab)}
+                  onClick={() => handleClick(tab)}
                 >
                   {tab}
                 </button>
