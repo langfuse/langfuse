@@ -6,12 +6,18 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { isPrismaException } from "@/src/utils/exceptions";
 import { jsonSchema } from "@/src/utils/zod";
 
-const DatasetRunItemPostSchema = z.object({
-  runName: z.string(),
-  metadata: jsonSchema.nullish(),
-  datasetItemId: z.string(),
-  observationId: z.string(),
-});
+const DatasetRunItemPostSchema = z
+  .object({
+    runName: z.string(),
+    metadata: jsonSchema.nullish(),
+    datasetItemId: z.string(),
+    observationId: z.string().nullish(),
+    traceId: z.string().nullish(),
+  })
+  .refine((data) => data.observationId || data.traceId, {
+    message: "ObservationId or traceId must be provided",
+    path: ["observationId", "traceId"], // Specify the path of the error
+  });
 
 export default async function handler(
   req: NextApiRequest,
@@ -43,10 +49,10 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      const { datasetItemId, observationId, runName, metadata } =
+      const { datasetItemId, observationId, traceId, runName, metadata } =
         DatasetRunItemPostSchema.parse(req.body);
 
-      const item = await prisma.datasetItem.findUnique({
+      const datasetItem = await prisma.datasetItem.findUnique({
         where: {
           id: datasetItemId,
           status: "ACTIVE",
@@ -58,37 +64,59 @@ export default async function handler(
           dataset: true,
         },
       });
-      const observation = await prisma.observation.findUnique({
-        where: {
-          id: observationId,
-          projectId: authCheck.scope.projectId,
-        },
-      });
-
-      // Validity of id and access checks
-      if (!item) {
+      if (!datasetItem) {
         console.error("item not found");
         return res.status(404).json({
           message: "Dataset item not found or not active",
         });
       }
-      if (!observation) {
-        console.error("observation not found");
+
+      const observation = observationId
+        ? await prisma.observation.findUnique({
+            where: {
+              id: observationId,
+              projectId: authCheck.scope.projectId,
+            },
+          })
+        : undefined;
+      if (observationId && !observation) {
+        console.error("Observation not found");
         return res.status(404).json({
           message: "Observation not found",
+        });
+      }
+
+      const trace = traceId
+        ? await prisma.trace.findUnique({
+            where: { id: traceId, projectId: authCheck.scope.projectId },
+          })
+        : undefined;
+      if (traceId && !trace) {
+        console.error("Trace not found");
+        return res.status(404).json({
+          message: "Trace not found",
+        });
+      }
+
+      // double check, should not be necessary due to zod schema + validations above
+      const saveTraceId = trace?.id ?? observation?.traceId;
+      if (!!!saveTraceId) {
+        console.error("Observation or Trace not found");
+        return res.status(404).json({
+          message: "Observation or Trace not found",
         });
       }
 
       const run = await prisma.datasetRuns.upsert({
         where: {
           datasetId_name: {
-            datasetId: item.datasetId,
+            datasetId: datasetItem.datasetId,
             name: runName,
           },
         },
         create: {
           name: runName,
-          datasetId: item.datasetId,
+          datasetId: datasetItem.datasetId,
           metadata: metadata ?? undefined,
         },
         update: {
@@ -99,7 +127,8 @@ export default async function handler(
       const runItem = await prisma.datasetRunItems.create({
         data: {
           datasetItemId: datasetItemId,
-          observationId: observationId,
+          traceId: saveTraceId,
+          observationId: observation?.id ?? undefined,
           datasetRunId: run.id,
         },
       });
