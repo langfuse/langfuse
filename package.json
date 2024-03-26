@@ -7,7 +7,7 @@
     "build": "SKIP_ENV_VALIDATION=1 next build",
     "build:prod": "cp .env.prod .env.local && SKIP_ENV_VALIDATION=1 next build",
     "build:qa": "cp .env.qa .env.local && SKIP_ENV_VALIDATION=1 next build",
-    "dev": "next dev",
+    "dev:admin": "next dev",
     "lint": "next lint",
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
