@@ -192,7 +192,7 @@ export const evaluate = async ({
       model: "gpt-4",
     },
     functionCall: {
-      name: "evalutate",
+      name: "evaluate",
       description: "some description",
       parameters: openAIFunction,
     },
