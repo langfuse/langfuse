@@ -14,10 +14,11 @@ type RowData = {
   id: string;
   runAt: string;
   datasetItemId: string;
-  observation: { id: string; traceId: string };
+  observationId?: string;
+  traceId?: string;
   scores: Score[];
-  latency: number;
-  totalCost: string;
+  latency?: number;
+  totalCost?: string;
 };
 
 export function DatasetRunItemsTable(
@@ -109,18 +110,13 @@ export function DatasetRunItemsTable(
       id: item.id,
       runAt: item.createdAt.toISOString(),
       datasetItemId: item.datasetItemId,
-      observation: {
-        id: item.observation.id,
-        traceId: item.observation.traceId ?? "", // never actually null, just not enforced by db
-      },
-      scores: item.observation.scores,
-      totalCost: usdFormatter(
-        item.observation.calculatedTotalCost?.toNumber() ?? 0,
-      ),
-      latency: intervalInSeconds(
-        item.observation.startTime,
-        item.observation.endTime,
-      ),
+      observationId: item.observation?.id,
+      traceId: item.trace?.id,
+      scores: item.scores,
+      totalCost: !!item.observation?.calculatedTotalCost
+        ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
+        : undefined,
+      latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
     };
   };
 

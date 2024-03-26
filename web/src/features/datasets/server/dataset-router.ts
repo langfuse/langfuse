@@ -491,19 +491,21 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: input.datasetItemId,
           datasetRun: {
             dataset: {
-              projectId: input.projectId,
+              projectId: ctx.session.projectId,
             },
           },
         },
         include: {
           datasetItem: true,
           observation: {
-            include: {
+            select: {
+              id: true,
               scores: true,
             },
           },
           trace: {
-            include: {
+            select: {
+              id: true,
               scores: true,
             },
           },
@@ -521,22 +523,32 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: input.datasetItemId,
           datasetRun: {
             dataset: {
-              projectId: input.projectId,
+              projectId: ctx.session.projectId,
             },
           },
         },
       });
 
-      const observationIds = runItems.map((ri) => ri.observationId);
+      const observationIds = runItems
+        .map((ri) => ri.observation?.id)
+        .filter(Boolean) as string[];
       const observations = await ctx.prisma.observationView.findMany({
-        select: {
-          id: true,
-          calculatedTotalCost: true,
-        },
         where: {
           id: {
             in: observationIds,
           },
+        },
+      });
+
+      const traceIds = runItems
+        .map((ri) => ri.trace?.id)
+        .filter(Boolean) as string[];
+      const traces = await ctx.prisma.traceView.findMany({
+        where: {
+          id: {
+            in: traceIds,
+          },
+          projectId: ctx.session.projectId,
         },
       });
 
@@ -545,10 +557,12 @@ export const datasetRouter = createTRPCRouter({
           id: ri.id,
           createdAt: ri.createdAt,
           datasetItemId: ri.datasetItemId,
-          observation: {
-            ...ri.observation,
-            ...observations.find((o) => o.id === ri.observationId),
-          },
+          observation: observations.find((o) => o.id === ri.observationId),
+          trace: traces.find((t) => t.id === ri.traceId),
+          scores:
+            // use observation scores if run is linked to an observation, otherwise use all trace scores
+            (!!ri.observationId ? ri.observation?.scores : ri.trace?.scores) ??
+            [],
         };
       });
 
