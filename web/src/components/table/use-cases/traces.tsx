@@ -146,6 +146,7 @@ export default function TracesTable({
       },
     },
   );
+
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {

@@ -12,7 +12,7 @@ import {
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@langfuse/shared";
+import { TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
   datetimeFilterToPrismaSql,
