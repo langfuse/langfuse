@@ -5,7 +5,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { type DB as Database } from "@langfuse/shared/src/db";
+import { type DB as Database } from "@langfuse/shared";
 
 export const DB = new Kysely<Database>({
   dialect: {
