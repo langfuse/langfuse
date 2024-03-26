@@ -54,7 +54,7 @@
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toggle": "^1.0.3",
     "@radix-ui/react-tooltip": "^1.0.7",
-    "@react-email/components": "^0.0.14",
+    "@react-email/components": "^0.0.15",
     "@react-email/render": "^0.0.12",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
