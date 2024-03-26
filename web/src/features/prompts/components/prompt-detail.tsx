@@ -37,7 +37,9 @@ export const PromptDetail = (props: PromptDetailProps) => {
         (prompt) => prompt.version === currentPromptVersion,
       )
     : promptHistory.data?.[0];
-  const extractedVariables = prompt ? extractVariables(prompt.prompt) : [];
+
+  const promptString = JSON.stringify(prompt?.prompt?.valueOf(), null, 2);
+  const extractedVariables = prompt ? extractVariables(promptString) : [];
 
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
@@ -74,7 +76,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
                   title="Update Prompt"
                   subtitle="We do not update prompts, instead we create a new version of the prompt."
                   promptName={prompt.name}
-                  promptText={prompt.prompt}
+                  promptText={promptString}
                   promptConfig={jsonSchema.parse(prompt.config)}
                 >
                   <Button variant="outline" size="icon">
@@ -98,7 +100,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
           />
         </div>
         <div className="col-span-2 md:h-full">
-          <CodeView content={prompt.prompt} title="Prompt" />
+          <CodeView content={promptString} title="Prompt" />
           <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7">
             <div className="border-b px-3 py-1 text-xs font-medium">
               Variables

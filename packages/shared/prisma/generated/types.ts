@@ -249,9 +249,10 @@ export type Prompt = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     created_by: string;
-    prompt: string;
+    prompt: unknown;
     name: string;
     version: number;
+    type: Generated<string>;
     is_active: boolean;
     config: Generated<unknown>;
 };
