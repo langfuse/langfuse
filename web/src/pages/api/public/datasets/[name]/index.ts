@@ -54,6 +54,9 @@ export default async function handler(
             where: {
               status: "ACTIVE",
             },
+            orderBy: {
+              createdAt: "desc",
+            },
           },
           datasetRuns: {
             select: {
