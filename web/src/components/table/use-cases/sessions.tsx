@@ -9,7 +9,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
+import { sessionsTableColsWithOptions } from "@/src/server/api/definitions/sessionsView";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -46,24 +46,21 @@ export default function SessionsTable({
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Created At",
-        type: "datetime",
-        operator: ">",
-        value: utcDateOffsetByDays(-14),
-      },
-    ],
-    "sessions",
-  );
+  const [userFilterState, setUserFilterState] = useQueryFilterState([
+    {
+      column: "Created At",
+      type: "datetime",
+      operator: ">",
+      value: utcDateOffsetByDays(-14),
+    },
+  ]);
 
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "User ID",
+          column: "User Ids",
           type: "string",
-          operator: "=",
+          operator: "contains",
           value: userId,
         },
       ]
@@ -88,6 +85,19 @@ export default function SessionsTable({
     filter: filterState,
     orderBy: orderByState,
   });
+
+  const filterOptions = api.sessions.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
   useEffect(() => {
@@ -179,7 +189,8 @@ export default function SessionsTable({
     {
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
-      header: "User ID",
+      id: "userIds",
+      header: "User IDs",
       enableHiding: true,
       cell: ({ row }) => {
         const value = row.getValue("userIds");
@@ -200,7 +211,7 @@ export default function SessionsTable({
     {
       accessorKey: "countTraces",
       id: "countTraces",
-      header: "Traces",
+      header: "Traces Count",
       enableHiding: true,
       enableSorting: true,
     },
@@ -210,6 +221,7 @@ export default function SessionsTable({
       header: "Input Cost",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: Decimal | null | undefined = row.getValue("inputCost");
         return value ? (
@@ -222,6 +234,7 @@ export default function SessionsTable({
       id: "outputCost",
       header: "Output Cost",
       enableHiding: true,
+      enableSorting: true,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: Decimal | null | undefined = row.getValue("outputCost");
@@ -251,6 +264,7 @@ export default function SessionsTable({
       header: "Input Tokens",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("inputTokens");
 
@@ -263,6 +277,7 @@ export default function SessionsTable({
       header: "Output Tokens",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("outputTokens");
 
@@ -275,6 +290,7 @@ export default function SessionsTable({
       header: "Total Tokens",
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("totalTokens");
         return value ? <span>{Number(value)}</span> : undefined;
@@ -285,6 +301,7 @@ export default function SessionsTable({
       id: "usage",
       header: "Usage",
       enableHiding: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const promptTokens = row.getValue("inputTokens");
         const completionTokens = row.getValue("outputTokens");
@@ -307,7 +324,9 @@ export default function SessionsTable({
   return (
     <div>
       <DataTableToolbar
-        filterColumnDefinition={sessionsViewCols}
+        filterColumnDefinition={sessionsTableColsWithOptions(
+          filterOptions.data,
+        )}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columns={columns}
