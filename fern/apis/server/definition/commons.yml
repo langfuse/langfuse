@@ -153,6 +153,7 @@ types:
     properties:
       id: string
       name: string
+      metadata: optional<unknown>
       datasetId: string
       createdAt: datetime
       updatedAt: datetime

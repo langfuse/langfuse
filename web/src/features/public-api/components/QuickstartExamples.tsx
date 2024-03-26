@@ -264,4 +264,4 @@ langfuse_callback_handler = LlamaIndexCallbackHandler(
     secret_key="${p.secretKey}",
     host="${p.host}"
 )
-Settings.callback_manager = CallbackManager([langfuse_callback_handler])"`;
+Settings.callback_manager = CallbackManager([langfuse_callback_handler])`;

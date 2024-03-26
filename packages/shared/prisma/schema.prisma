@@ -32,12 +32,6 @@ generator kysely {
     // enumFileName = "enums.ts"
 }
 
-model Example {
-    id        String   @id @default(cuid())
-    createdAt DateTime @default(now()) @map("created_at")
-    updatedAt DateTime @updatedAt @map("updated_at")
-}
-
 // Necessary for Next auth
 model Account {
     id                String  @id @default(cuid())
@@ -396,6 +390,7 @@ enum DatasetStatus {
 model DatasetRuns {
     id              String            @id @default(cuid())
     name            String
+    metadata        Json?
     datasetId       String            @map("dataset_id")
     dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
     createdAt       DateTime          @default(now()) @map("created_at")
