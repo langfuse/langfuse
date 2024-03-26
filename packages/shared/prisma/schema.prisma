@@ -185,6 +185,8 @@ model TraceSession {
     @@map("trace_sessions")
 }
 
+// Update TraceView below when making changes to this model!
+
 model Trace {
     id         String        @id @default(cuid())
     externalId String?       @map("external_id")
