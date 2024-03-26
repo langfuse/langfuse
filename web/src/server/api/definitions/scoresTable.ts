@@ -30,7 +30,6 @@ export const scoresTableCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
   },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
-  { name: "Comment", id: "comment", type: "string", internal: 's."comment"' },
   { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
 ];
 
