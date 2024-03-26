@@ -20,9 +20,9 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "datetime",
     internal: 't."timestamp"',
   },
-  { name: "User Id", id: "userId", type: "string", internal: 't."user_id"' },
+  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
   {
-    name: "Session Id",
+    name: "Session ID",
     id: "sessionId",
     type: "string",
     internal: 't."session_id"',
