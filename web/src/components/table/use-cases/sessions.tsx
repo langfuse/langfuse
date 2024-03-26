@@ -60,7 +60,7 @@ export default function SessionsTable({
         {
           column: "userId",
           type: "string",
-          operator: "=",
+          operator: "contains",
           value: userId,
         },
       ]
@@ -298,19 +298,22 @@ export default function SessionsTable({
     },
   ];
 
+  const transformFilterOptions = () => {
+    return sessionsViewCols.filter((c) => !omittedFilter?.includes(c.name));
+  };
+
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
   return (
     <div>
       <DataTableToolbar
-        filterColumnDefinition={sessionsViewCols}
+        filterColumnDefinition={transformFilterOptions()}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        omittedFilter={omittedFilter}
       />
       <DataTable
         columns={columns}
