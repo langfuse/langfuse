@@ -37,6 +37,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
     messages,
     modelParams,
     streaming: true,
+    functionCall: undefined,
   });
 
   return new StreamingTextResponse(stream);
