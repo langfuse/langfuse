@@ -14,7 +14,10 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
+import {
+  TraceOptions,
+  tracesTableColsWithOptions,
+} from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
@@ -33,6 +36,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
+import { trace } from "console";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -145,6 +149,15 @@ export default function TracesTable({
       },
     },
   );
+
+  const transformFilterOptions = (
+    traceFilterOptions: TraceOptions | undefined,
+  ) => {
+    return tracesTableColsWithOptions(traceFilterOptions).filter(
+      (c) => !omittedFilter?.includes(c.name),
+    );
+  };
+
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
@@ -543,9 +556,7 @@ export default function TracesTable({
     <div>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={tracesTableColsWithOptions(
-          traceFilterOptions.data,
-        )}
+        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
           placeholder: "Search by id, name, user id",
           updateQuery: setSearchQuery,
@@ -567,7 +578,6 @@ export default function TracesTable({
         }
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        omittedFilter={omittedFilter}
       />
       <DataTable
         columns={columns}
