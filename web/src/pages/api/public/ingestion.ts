@@ -27,6 +27,7 @@ import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { env } from "@/src/env.mjs";
 
 export const config = {
   api: {
@@ -34,6 +35,12 @@ export const config = {
       sizeLimit: "4.5mb",
     },
   },
+};
+
+type BatchResult = {
+  result: unknown;
+  id: string;
+  type: string;
 };
 
 export default async function handler(
@@ -105,6 +112,10 @@ export default async function handler(
       authCheck,
     );
 
+    // send out REST requests to worker for all trace types
+    await sendToWorker(result.results, authCheck.scope.projectId);
+    console.log("sending to worker done");
+
     handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
     console.error(error);
@@ -156,8 +167,14 @@ export const handleBatch = async (
 
   if (!authCheck.validKey) throw new AuthenticationError(authCheck.error);
 
-  const results = []; // Array to store the results
-  const errors = []; // Array to store the errors
+  const results: BatchResult[] = []; // Array to store the results
+
+  const errors: {
+    error: unknown;
+    id: string;
+    type: string;
+  }[] = []; // Array to store the errors
+
   for (const singleEvent of events) {
     try {
       const result = await retry(async () => {
@@ -168,13 +185,17 @@ export const handleBatch = async (
           authCheck.scope,
         );
       });
-      results.push({ result: result, id: singleEvent.id }); // Push each result into the array
+      results.push({
+        result: result,
+        id: singleEvent.id,
+        type: singleEvent.type,
+      }); // Push each result into the array
     } catch (error) {
       // Handle or log the error if `handleSingleEvent` fails
       console.error("Error handling event:", error);
       // Decide how to handle the error: rethrow, continue, or push an error object to results
       // For example, push an error object:
-      errors.push({ error: error, id: singleEvent.id });
+      errors.push({ error: error, id: singleEvent.id, type: singleEvent.type });
     }
   }
 
@@ -400,3 +421,33 @@ export function cleanEvent(obj: unknown): unknown {
     return obj;
   }
 }
+
+export const sendToWorker = async (
+  results: BatchResult[],
+  projectId: string,
+): Promise<void> => {
+  console.log("sending to worker", env.WORKER_HOST, env.WORKER_PASSWORD);
+  if (env.WORKER_HOST && env.WORKER_PASSWORD) {
+    const traceEvents = results
+      .filter((result) => result.type === eventTypes.TRACE_CREATE)
+      .map((result) =>
+        result.result &&
+        typeof result.result === "object" &&
+        "id" in result.result
+          ? { traceId: result.result.id, projectId: projectId }
+          : null,
+      )
+      .filter(isNotNullOrUndefined);
+
+    const response = await fetch(`${env.WORKER_HOST}/api/events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:
+          "Basic " +
+          Buffer.from("server" + ":" + env.WORKER_PASSWORD).toString("base64"),
+      },
+      body: JSON.stringify(traceEvents),
+    });
+  }
+};

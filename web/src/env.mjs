@@ -64,9 +64,8 @@ export const env = createEnv({
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
     // Redis
-    REDIS_HOST: z.string().optional(),
-    REDIS_PORT: z.string().optional(),
-    REDIS_AUTH: z.string().optional(),
+    WORKER_HOST: z.string().optional(),
+    WORKER_PASSWORD: z.string().optional(),
     // Prompt playground
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
@@ -141,9 +140,8 @@ export const env = createEnv({
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Redis
-    REDIS_HOST: process.env.REDIS_HOST,
-    REDIS_PORT: process.env.REDIS_PORT,
-    REDIS_AUTH: process.env.REDIS_AUTH,
+    WORKER_HOST: process.env.WORKER_HOST,
+    WORKER_PASSWORD: process.env.WORKER_PASSWORD,
     // Prompt playground
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
