@@ -1,7 +1,7 @@
 /** @jest-environment node */
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 describe("/api/public/traces API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());

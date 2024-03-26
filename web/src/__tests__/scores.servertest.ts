@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 
@@ -146,7 +146,7 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     expect(dbScore?.id).toBe(scoreId);
-    expect(dbScore?.traceId).toBe(dbGeneration[0]!.traceId!);
+    expect(dbScore?.traceId).toBe(dbGeneration[0]!.traceId);
     expect(dbScore?.observationId).toBe(dbGeneration[0]!.id);
     expect(dbScore?.name).toBe("score-name");
     expect(dbScore?.value).toBe(100);

@@ -46,19 +46,22 @@ export default function SessionsTable({
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState([
-    {
-      column: "createdAt",
-      type: "datetime",
-      operator: ">",
-      value: utcDateOffsetByDays(-14),
-    },
-  ]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [
+      {
+        column: "Created At",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(-14),
+      },
+    ],
+    "sessions",
+  );
 
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "userId",
+          column: "User ID",
           type: "string",
           operator: "=",
           value: userId,

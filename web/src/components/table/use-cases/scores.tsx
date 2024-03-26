@@ -7,7 +7,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -39,11 +39,14 @@ export default function ScoresTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "scores",
+  );
   const filterState = userId
     ? userFilterState.concat([
         {
-          column: "userId",
+          column: "User ID",
           type: "string",
           operator: "=",
           value: userId,
@@ -90,8 +93,8 @@ export default function ScoresTable({
     },
     {
       accessorKey: "observationId",
-      header: "Observation ID",
       id: "observationId",
+      header: "Observation ID",
       enableSorting: true,
       cell: ({ row }) => {
         const observationId = row.getValue("observationId");

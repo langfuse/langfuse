@@ -6,7 +6,11 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type MembershipRole, Prisma, type Score } from "@prisma/client";
+import {
+  type MembershipRole,
+  Prisma,
+  type Score,
+} from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";

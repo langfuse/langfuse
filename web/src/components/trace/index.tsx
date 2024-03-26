@@ -1,4 +1,4 @@
-import { type Trace, type Score } from "@prisma/client";
+import { type Trace, type Score } from "@langfuse/shared/src/db";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";

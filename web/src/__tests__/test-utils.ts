@@ -1,8 +1,5 @@
-import {
-  hashSecretKey,
-  getDisplaySecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
-import { prisma } from "@/src/server/db";
+import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { hash } from "bcryptjs";
 
 export const pruneDatabase = async () => {

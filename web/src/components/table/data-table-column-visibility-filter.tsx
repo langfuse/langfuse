@@ -38,6 +38,29 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     [setColumnVisibility],
   );
 
+  const calculateColumnCounts = (
+    columns: LangfuseColumnDef<TData, TValue>[],
+    columnVisibility: VisibilityState,
+  ) => {
+    return columns.reduce(
+      (acc, column) => {
+        if (column.enableHiding) {
+          acc.total++;
+          if (
+            column.accessorKey in columnVisibility &&
+            columnVisibility[column.accessorKey]
+          ) {
+            acc.count++;
+          }
+        }
+        return acc;
+      },
+      { count: 0, total: 0 },
+    );
+  };
+
+  const { count, total } = calculateColumnCounts(columns, columnVisibility);
+
   return (
     <DropdownMenu open={isOpen}>
       <DropdownMenuTrigger
@@ -48,7 +71,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         asChild
       >
         <Button variant="outline" className="ml-auto">
-          Columns
+          Columns {count <= total ? `${count}/${total}` : ""}
           <ChevronDownIcon className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

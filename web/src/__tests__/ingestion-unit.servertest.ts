@@ -3,17 +3,17 @@
 import { createMocks } from "node-mocks-http";
 import handler from "@/src/pages/api/public/ingestion";
 import { type NextApiResponse, type NextApiRequest } from "next";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@langfuse/shared/src/db";
 
 /*
 
 ERROR	Error verifying auth header:  PrismaClientKnownRequestError: 
 Invalid `prisma.apiKey.findUnique()` invocation:
 Server has closed the connection.
-    at ai.handleRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6775)
-    at ai.handleAndLogRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6109)
-    at ai.request (/var/task/node_modules/@prisma/client/runtime/library.js:126:5817)
-    at async l (/var/task/node_modules/@prisma/client/runtime/library.js:131:9709)
+    at ai.handleRequestError (/var/task/node_modules/shared/runtime/library.js:126:6775)
+    at ai.handleAndLogRequestError (/var/task/node_modules/shared/runtime/library.js:126:6109)
+    at ai.request (/var/task/node_modules/shared/runtime/library.js:126:5817)
+    at async l (/var/task/node_modules/shared/runtime/library.js:131:9709)
     at async d (/var/task/.next/server/chunks/5811.js:1:9768)
     at async f (/var/task/.next/server/pages/api/public/generations.js:1:1026)
     at async /var/task/node_modules/@sentry/nextjs/cjs/common/wrapApiHandlerWithSentry.js:136:41
@@ -28,10 +28,10 @@ Server has closed the connection.
 ERROR	Error verifying auth header:  PrismaClientKnownRequestError: 
 Invalid `prisma.apiKey.findUnique()` invocation:
 Timed out fetching a new connection from the connection pool. More info:  (Current connection pool timeout: 10, connection limit: 1)
-    at ai.handleRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6775)
-    at ai.handleAndLogRequestError (/var/task/node_modules/@prisma/client/runtime/library.js:126:6109)
-    at ai.request (/var/task/node_modules/@prisma/client/runtime/library.js:126:5817)
-    at async l (/var/task/node_modules/@prisma/client/runtime/library.js:131:9709)
+    at ai.handleRequestError (/var/task/node_modules/shared/runtime/library.js:126:6775)
+    at ai.handleAndLogRequestError (/var/task/node_modules/shared/runtime/library.js:126:6109)
+    at ai.request (/var/task/node_modules/shared/runtime/library.js:126:5817)
+    at async l (/var/task/node_modules/shared/runtime/library.js:131:9709)
     at async l (/var/task/.next/server/chunks/5811.js:1:9768)
     at async y (/var/task/.next/server/pages/api/public/spans.js:1:1018)
     at async /var/task/node_modules/@sentry/nextjs/cjs/common/wrapApiHandlerWithSentry.js:136:41
@@ -43,9 +43,9 @@ Timed out fetching a new connection from the connection pool. More info:  (Curre
   meta: { modelName: 'ApiKey', connection_limit: 1, timeout: 10 }
 */
 
-jest.mock("../server/db.ts", () => {
+jest.mock("@langfuse/shared/src/db", () => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const originalModule = jest.requireActual("../server/db.ts");
+  const originalModule = jest.requireActual("@langfuse/shared/src/db");
 
   // Create a mock for PrismaClient
   const mockPrismaClient = {

@@ -31,7 +31,7 @@ import {
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { JSONView } from "@/src/components/ui/code";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type ObservationLevel } from "@prisma/client";
+import { type ObservationLevel } from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { randomIntFromInterval, usdFormatter } from "@/src/utils/numbers";
@@ -91,14 +91,17 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [filterState, setFilterState] = useQueryFilterState([
-    {
-      column: "Start Time",
-      type: "datetime",
-      operator: ">",
-      value: utcDateOffsetByDays(-14),
-    },
-  ]);
+  const [filterState, setFilterState] = useQueryFilterState(
+    [
+      {
+        column: "Start Time",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(-14),
+      },
+    ],
+    "generations",
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
@@ -113,7 +116,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     orderBy: orderByState,
     searchQuery,
   });
-
   const totalCount = generations.data?.totalCount ?? 0;
 
   const filterOptions = api.generations.filterOptions.useQuery(

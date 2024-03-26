@@ -21,7 +21,7 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { Textarea } from "@/src/components/ui/textarea";
-import { type Prisma } from "@prisma/client";
+import { type Prisma } from "@langfuse/shared/src/db";
 
 const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),

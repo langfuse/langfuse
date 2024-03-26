@@ -1,8 +1,8 @@
 /** @jest-environment node */
 
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@/src/constants";
-import { prisma } from "@/src/server/db";
+import { ModelUsageUnit } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 
 describe("cost retrieval tests", () => {
   beforeEach(async () => await pruneDatabase());
