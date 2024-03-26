@@ -6,14 +6,8 @@
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "files": [
-    "dist/**",
-    "src/**/*"
+    "dist/**"
   ],
-  "exports": {
-    ".": "./dist/src/index.js",
-    "./src/db": "./dist/src/db.js",
-    "./src/server/auth": "./dist/src/server/auth.js"
-  },
   "engines": {
     "node": ">=20"
   },

@@ -17,6 +17,7 @@ import {
 } from "@langchain/core/output_parsers";
 import { ChatOpenAI } from "@langchain/openai";
 import { JsonOutputFunctionsParser } from "langchain/output_parsers";
+import { ReadableStream } from "node:stream/web";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 type LLMCompletionParams = {
