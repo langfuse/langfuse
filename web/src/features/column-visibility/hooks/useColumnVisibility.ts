@@ -32,6 +32,16 @@ function useColumnVisibility<TData>(
       });
       setColumnVisibility(initialVisibility);
     }
+    if (Object.keys(columnVisibility).length !== columns.length) {
+      const newVisibility: VisibilityState = {};
+      columns.forEach((column) => {
+        if ("accessorKey" in column && typeof column.accessorKey === "string") {
+          newVisibility[column.accessorKey] =
+            columnVisibility[column.accessorKey] ?? true;
+        }
+      });
+      setColumnVisibility(newVisibility);
+    }
   }, [columnVisibility, columns, setColumnVisibility]);
 
   return [columnVisibility, setColumnVisibility] as const;
