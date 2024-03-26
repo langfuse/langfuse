@@ -185,6 +185,8 @@ model TraceSession {
     @@map("trace_sessions")
 }
 
+// Update TraceView below when making changes to this model!
+
 model Trace {
     id         String        @id @default(cuid())
     externalId String?       @map("external_id")
@@ -218,6 +220,33 @@ model Trace {
     @@map("traces")
 }
 
+// This view is based on the trace table. Once prisma supports
+// inheritance, we should remove code duplication here.
+view TraceView {
+    // trace fields
+    id         String   @id @default(cuid())
+    externalId String?  @map("external_id")
+    timestamp  DateTime @default(now())
+    name       String?
+    userId     String?  @map("user_id")
+    metadata   Json?
+    release    String?
+    version    String?
+    projectId  String   @map("project_id")
+    public     Boolean  @default(false)
+    bookmarked Boolean  @default(false)
+    tags       String[] @default([])
+    input      Json?
+    output     Json?
+    sessionId  String?  @map("session_id")
+
+    // calculated fields
+    duration Float? @map("duration") // can be null if no observations in trace
+
+    @@map("traces_view")
+}
+
+// Update ObservationView below when making changes to this model!
 model Observation {
     id                  String           @id @default(cuid())
     traceId             String?          @map("trace_id")
@@ -270,6 +299,51 @@ model Observation {
     @@index(promptId)
     @@index([projectId, startTime, type])
     @@map("observations")
+}
+
+// This view is a mix of the observation and model. Once prisma supports
+// inheritance, we should remove code duplication here.
+view ObservationView {
+    id                  String           @id @default(cuid())
+    traceId             String?          @map("trace_id")
+    projectId           String           @map("project_id")
+    type                ObservationType
+    startTime           DateTime         @default(now()) @map("start_time")
+    endTime             DateTime?        @map("end_time")
+    name                String?
+    metadata            Json?
+    parentObservationId String?          @map("parent_observation_id")
+    level               ObservationLevel @default(DEFAULT)
+    statusMessage       String?          @map("status_message")
+    version             String?
+    createdAt           DateTime         @default(now()) @map("created_at")
+
+    // GENERATION ONLY
+    model               String?
+    modelParameters     Json?
+    input               Json?
+    output              Json?
+    promptTokens        Int       @default(0) @map("prompt_tokens")
+    completionTokens    Int       @default(0) @map("completion_tokens")
+    totalTokens         Int       @default(0) @map("total_tokens")
+    unit                String?
+    completionStartTime DateTime? @map("completion_start_time")
+
+    promptId String? @map("prompt_id")
+
+    // model fields
+    modelId     String?  @map("model_id")
+    inputPrice  Decimal? @map("input_price")
+    outputPrice Decimal? @map("output_price")
+    totalPrice  Decimal? @map("total_price")
+
+    // calculated fields
+    calculatedInputCost  Decimal? @map("calculated_input_cost")
+    calculatedOutputCost Decimal? @map("calculated_output_cost")
+    calculatedTotalCost  Decimal? @map("calculated_total_cost")
+    latency              Float?   @map("latency")
+
+    @@map("observations_view")
 }
 
 enum ObservationType {
@@ -452,6 +526,7 @@ model Prompt {
     @@map("prompts")
 }
 
+// Update ObservationView below when making changes to this model!
 model Model {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now()) @map("created_at")
@@ -474,51 +549,6 @@ model Model {
     @@index([projectId, modelName, startDate, unit])
     @@index([projectId, modelName])
     @@map("models")
-}
-
-// This view is a mix of the observation and model. Once prisma supports
-// inheritance, we should remove code duplication here.
-view ObservationView {
-    id                  String           @id @default(cuid())
-    traceId             String?          @map("trace_id")
-    projectId           String           @map("project_id")
-    type                ObservationType
-    startTime           DateTime         @default(now()) @map("start_time")
-    endTime             DateTime?        @map("end_time")
-    name                String?
-    metadata            Json?
-    parentObservationId String?          @map("parent_observation_id")
-    level               ObservationLevel @default(DEFAULT)
-    statusMessage       String?          @map("status_message")
-    version             String?
-    createdAt           DateTime         @default(now()) @map("created_at")
-
-    // GENERATION ONLY
-    model               String?
-    modelParameters     Json?
-    input               Json?
-    output              Json?
-    promptTokens        Int       @default(0) @map("prompt_tokens")
-    completionTokens    Int       @default(0) @map("completion_tokens")
-    totalTokens         Int       @default(0) @map("total_tokens")
-    unit                String?
-    completionStartTime DateTime? @map("completion_start_time")
-
-    promptId String? @map("prompt_id")
-
-    // model fields
-    modelId     String?  @map("model_id")
-    inputPrice  Decimal? @map("input_price")
-    outputPrice Decimal? @map("output_price")
-    totalPrice  Decimal? @map("total_price")
-
-    // calculated fields
-    calculatedInputCost  Decimal? @map("calculated_input_cost")
-    calculatedOutputCost Decimal? @map("calculated_output_cost")
-    calculatedTotalCost  Decimal? @map("calculated_total_cost")
-    latency              Float?   @map("latency")
-
-    @@map("observations_view")
 }
 
 model AuditLog {
