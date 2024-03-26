@@ -249,6 +249,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       id: "timeToFirstToken",
       header: "Time to First Token",
       enableHiding: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const startTime: Date = row.getValue("startTime");
         const completionStartTime: Date | undefined =
@@ -316,9 +317,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       },
       defaultHidden: true,
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "inputCost",
+      id: "inputCost",
       header: "Input Cost",
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputCost");
@@ -329,9 +332,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputCost",
+      id: "outputCost",
       header: "Output Cost",
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputCost");
@@ -342,10 +347,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      id: "totalCost",
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalCost");
 
@@ -354,6 +361,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         ) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "level",
@@ -379,6 +387,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     {
       accessorKey: "statusMessage",
       header: "Status Message",
+      id: "statusMessage",
       enableHiding: true,
       defaultHidden: true,
     },
@@ -390,8 +399,57 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableSorting: true,
     },
     {
+      accessorKey: "inputTokens",
+      id: "inputTokens",
+      header: "Input Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.promptTokens}</span>;
+      },
+    },
+    {
+      accessorKey: "outputTokens",
+      id: "outputTokens",
+      header: "Output Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.completionTokens}</span>;
+      },
+    },
+    {
+      accessorKey: "totalTokens",
+      id: "totalTokens",
+      header: "Total Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.totalTokens}</span>;
+      },
+    },
+    {
       accessorKey: "usage",
       header: "Usage",
+      id: "usage",
       cell: ({ row }) => {
         const value: {
           promptTokens: number;
@@ -408,10 +466,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         );
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "input",
       header: "Input",
+      id: "input",
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -428,6 +488,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     },
     {
       accessorKey: "output",
+      id: "output",
       header: "Output",
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -461,11 +522,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       enableSorting: true,
     },
     {
-      accessorKey: "prompt",
-      id: "prompt",
+      accessorKey: "promptName",
+      id: "promptName",
       header: "Prompt",
       enableHiding: true,
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;

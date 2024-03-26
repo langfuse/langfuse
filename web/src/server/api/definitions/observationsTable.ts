@@ -41,13 +41,37 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."end_time"',
   },
   {
-    name: "Latency",
+    name: "Time To First Token (s)",
+    id: "timeToFirstToken",
+    type: "number",
+    internal: 'o."completion_start_time" - o."start_time"',
+  },
+  {
+    name: "Latency (s)",
     id: "latency",
     type: "number",
     internal: '"latency"',
   },
   {
-    name: "Total Cost",
+    name: "Time Per Output Token (s)",
+    id: "timePerOutputToken",
+    type: "number",
+    internal: '"latency" / o."completion_tokens"',
+  },
+  {
+    name: "Input Cost ($)",
+    id: "inputCost",
+    type: "number",
+    internal: 'o."calculated_input_cost"',
+  },
+  {
+    name: "Output Cost ($)",
+    id: "outputCost",
+    type: "number",
+    internal: 'o."calculated_output_cost"',
+  },
+  {
+    name: "Total Cost ($)",
     id: "totalCost",
     type: "number",
     internal: 'o."calculated_total_cost"',
@@ -73,6 +97,30 @@ export const observationsTableCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
   },
   {
+    name: "Input Tokens",
+    id: "inputTokens",
+    type: "number",
+    internal: 'o."prompt_tokens"',
+  },
+  {
+    name: "Output Tokens",
+    id: "outputTokens",
+    type: "number",
+    internal: 'o."completion_tokens"',
+  },
+  {
+    name: "Total Tokens",
+    id: "totalTokens",
+    type: "number",
+    internal: 'o."total_tokens"',
+  },
+  {
+    name: "Usage",
+    id: "usage",
+    type: "number",
+    internal: 'o."total_tokens"',
+  },
+  {
     name: "Metadata",
     id: "metadata",
     type: "stringObject",
@@ -96,6 +144,12 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: "p.name",
     options: [], // to be added at runtime
+  },
+  {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "p.version",
   },
 ];
 

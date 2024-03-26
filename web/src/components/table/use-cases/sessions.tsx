@@ -321,15 +321,17 @@ export default function SessionsTable({
     },
   ];
 
+  const transformFilterOptions = () => {
+    return sessionsViewCols.filter((c) => !omittedFilter?.includes(c.name));
+  };
+
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
   return (
     <div>
       <DataTableToolbar
-        filterColumnDefinition={sessionsTableColsWithOptions(
-          filterOptions.data,
-        )}
+        filterColumnDefinition={transformFilterOptions()}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columns={columns}

@@ -5,7 +5,10 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
+import {
+  ScoreOptions,
+  scoresTableColsWithOptions,
+} from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -30,9 +33,11 @@ export type ScoreFilterInput = Omit<
 export default function ScoresTable({
   projectId,
   userId,
+  omittedFilter = [],
 }: {
   projectId: string;
   userId?: string;
+  omittedFilter?: string[];
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -199,11 +204,19 @@ export default function ScoresTable({
     };
   };
 
+  const transformFilterOptions = (
+    traceFilterOptions: ScoreOptions | undefined,
+  ) => {
+    return scoresTableColsWithOptions(traceFilterOptions).filter(
+      (c) => !omittedFilter?.includes(c.name),
+    );
+  };
+
   return (
     <div>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={scoresTableColsWithOptions(filterOptions.data)}
+        filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columnVisibility={columnVisibility}
