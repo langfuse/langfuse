@@ -83,7 +83,6 @@ export async function fetchLLMCompletion(
   }
 
   if (params.functionCall) {
-    console.log("Function call", params.functionCall);
     const functionCallingModel = chatModel.bind({
       functions: [
         {

@@ -7,8 +7,16 @@ import { Queue } from "bullmq";
 import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { redis } from "../redis/consumer";
 import { randomUUID } from "crypto";
+import basicAuth from "express-basic-auth";
+import { env } from "../env";
 
 const router = express.Router();
+
+router.use(
+  basicAuth({
+    users: { admin: env.WORKER_PASSWORD },
+  })
+);
 
 export const evalQueue = new Queue<TQueueJobTypes[QueueName.Evaluation]>(
   QueueName.Evaluation,

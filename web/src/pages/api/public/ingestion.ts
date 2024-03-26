@@ -445,7 +445,7 @@ export const sendToWorker = async (
         "Content-Type": "application/json",
         Authorization:
           "Basic " +
-          Buffer.from("server" + ":" + env.WORKER_PASSWORD).toString("base64"),
+          Buffer.from("admin" + ":" + env.WORKER_PASSWORD).toString("base64"),
       },
       body: JSON.stringify(traceEvents),
     });
