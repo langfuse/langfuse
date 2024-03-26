@@ -5,19 +5,21 @@ import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Textarea } from "@/src/components/ui/textarea";
-import { usePlaygroundContext } from "../context";
+import { MessagesContext } from "@/src/features/playground/client/components/Messages";
 
-type ChatMessageProps = {
-  message: ChatMessageWithId;
-};
+type ChatMessageProps = Pick<
+  MessagesContext,
+  "deleteMessage" | "updateMessage" | "updatePromptVariables"
+> & { message: ChatMessageWithId };
+
 export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   message,
+  updateMessage,
+  updatePromptVariables,
+  deleteMessage,
 }) => {
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const [textAreaRows, setTextAreaRows] = useState(1);
-
-  const { deleteMessage, updateMessage, updatePromptVariables } =
-    usePlaygroundContext();
 
   const toggleRole = () => {
     if (message.role === ChatMessageRole.System) return;
