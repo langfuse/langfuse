@@ -1,11 +1,8 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
-    "esModuleInterop": true,
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
-    "declaration": false,
-    "declarationMap": false,
     "lib": ["ES2020"],
     "outDir": "./dist",
     "types": ["node"],

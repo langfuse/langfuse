@@ -11,7 +11,7 @@
   "scripts": {
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "start": "dotenv -e ../.env -- node dist/src/index.js",
+    "start": "dotenv -e ../.env -- node dist/src/index.js --trace-resolution",
     "build": "tsc",
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

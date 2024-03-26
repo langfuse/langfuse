@@ -2,7 +2,7 @@ import { StreamingTextResponse } from "ai";
 import { getToken } from "next-auth/jwt";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { fetchLLMCompletion } from "@langfuse/shared/src/server/llm/fetchLLMCompletion";
+import { fetchLLMCompletion } from "@langfuse/shared";
 import {
   type ValidatedChatCompletionBody,
   validateChatCompletionBody,

@@ -90,7 +90,7 @@ export async function fetchLLMCompletion(
           parameters: zodToJsonSchema(params.functionCall.parameters),
         },
       ],
-      function_call: { name: "evalutate" },
+      function_call: { name: "evaluate" },
     });
     const outputParser = new JsonOutputFunctionsParser();
     return await functionCallingModel.pipe(outputParser).invoke(finalMessages);

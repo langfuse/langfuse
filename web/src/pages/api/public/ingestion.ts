@@ -428,7 +428,6 @@ export const sendToWorker = async (
   results: BatchResult[],
   projectId: string,
 ): Promise<void> => {
-  console.log("sending to worker", env.WORKER_HOST, env.WORKER_PASSWORD);
   if (env.WORKER_HOST && env.WORKER_PASSWORD) {
     const traceEvents = results
       .filter((result) => result.type === eventTypes.TRACE_CREATE)
