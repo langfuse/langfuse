@@ -220,6 +220,8 @@ model Trace {
     @@map("traces")
 }
 
+// This view is based on the trace table. Once prisma supports
+// inheritance, we should remove code duplication here.
 view TraceView {
     // trace fields
     id         String   @id @default(cuid())
