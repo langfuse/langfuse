@@ -17,7 +17,7 @@ import {
   evalObjects,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db/index";
+import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
 import { sql } from "kysely";
