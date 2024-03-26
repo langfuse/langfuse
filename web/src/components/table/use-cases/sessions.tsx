@@ -322,7 +322,9 @@ export default function SessionsTable({
   ];
 
   const transformFilterOptions = () => {
-    return sessionsViewCols.filter((c) => !omittedFilter?.includes(c.name));
+    return sessionsTableColsWithOptions(filterOptions.data).filter(
+      (c) => !omittedFilter?.includes(c.name),
+    );
   };
 
   const [columnVisibility, setColumnVisibility] =
