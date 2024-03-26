@@ -1,6 +1,6 @@
 import React, {
   createContext,
-  type PropsWithChildren,
+  PropsWithChildren,
   useCallback,
   useContext,
   useEffect,
@@ -9,43 +9,30 @@ import React, {
 
 import { v4 as uuidv4 } from "uuid";
 
+import { MessagesContext } from "@/src/features/playground/client/components/Messages";
+import { ModelParamsContext } from "@/src/features/playground/client/components/ModelParameters";
 import useCommandEnter from "@/src/features/playground/client/hooks/useCommandEnter";
-import {
-  type ChatMessageWithId,
-  ChatMessageRole,
-  type UIModelParams,
-  type PromptVariable,
-  ModelProvider,
-} from "@langfuse/shared";
 import { extractVariables } from "@/src/utils/string";
+import {
+  ChatMessageRole,
+  ChatMessageWithId,
+  ModelProvider,
+  PromptVariable,
+  UIModelParams,
+} from "@langfuse/shared";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
-  updatePromptVariables: () => void;
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
-
-  modelParams: UIModelParams;
-  updateModelParams: <Key extends keyof UIModelParams>(
-    key: Key,
-    value: UIModelParams[Key],
-  ) => void;
-
-  messages: ChatMessageWithId[];
-  addMessage: (role: ChatMessageRole, content?: string) => ChatMessageWithId;
-  deleteMessage: (id: string) => void;
-  updateMessage: <Key extends keyof ChatMessageWithId>(
-    id: string,
-    key: Key,
-    value: ChatMessageWithId[Key],
-  ) => void;
 
   output: string;
   outputJson: string;
 
   handleSubmit: () => Promise<void>;
   isStreaming: boolean;
-};
+} & ModelParamsContext &
+  MessagesContext;
 
 const PlaygroundContext = createContext<PlaygroundContextType | undefined>(
   undefined,

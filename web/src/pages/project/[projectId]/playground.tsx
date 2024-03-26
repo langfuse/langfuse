@@ -1,5 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import Playground from "@/src/features/playground/client";
+import { PlaygroundProvider } from "@/src/features/playground/client/context";
 
 export default function PlaygroundPage() {
   return (
@@ -11,7 +12,9 @@ export default function PlaygroundPage() {
         }}
       />
       <div className="flex-1 overflow-auto">
-        <Playground />
+        <PlaygroundProvider>
+          <Playground />
+        </PlaygroundProvider>
       </div>
     </div>
   );
