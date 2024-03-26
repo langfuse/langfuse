@@ -9,7 +9,6 @@ import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 import { QueueJobs, QueueName } from "@langfuse/shared";
 import { type EventProcessor } from "./EventProcessor";
-import { evalQueue } from "@/src/server/redis";
 
 export class TraceProcessor implements EventProcessor {
   event: z.infer<typeof traceEvent>;
@@ -111,26 +110,6 @@ export class TraceProcessor implements EventProcessor {
         tags: body.tags ?? undefined,
       },
     });
-
-    // we only send the event to eval if the queue is available
-    // we are not able to easily check for feature flags, as they are on the user and not
-    // on the project level
-    if (evalQueue) {
-      console.log(
-        `Adding evaluation job ${QueueJobs.Evaluation} to queue ${QueueName.Evaluation} for trace ${upsertedTrace.id}`,
-      );
-      await evalQueue?.add(QueueName.Evaluation, {
-        name: QueueJobs.Evaluation,
-        payload: {
-          id: upsertedTrace.id,
-          timestamp: new Date().toISOString(),
-          data: {
-            projectId: upsertedTrace.projectId,
-            traceId: upsertedTrace.id,
-          },
-        },
-      });
-    }
 
     return upsertedTrace;
   }
