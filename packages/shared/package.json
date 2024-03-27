@@ -8,6 +8,16 @@
   "engines": {
     "node": ">=20"
   },
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "require": "./dist/src/index.js"
+    },
+    "./src/db": {
+      "import": "./dist/src/db.js",
+      "require": "./dist/src/db.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
