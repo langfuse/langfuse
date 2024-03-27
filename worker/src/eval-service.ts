@@ -39,6 +39,11 @@ export const createEvalJobs = async ({
     .where("project_id", "=", data.data.projectId)
     .execute();
 
+  if (configs.length === 0) {
+    console.log("No evaluation jobs found for project", data.data.projectId);
+    return;
+  }
+
   for (const config of configs) {
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 

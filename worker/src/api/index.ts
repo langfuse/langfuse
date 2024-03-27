@@ -34,7 +34,7 @@ const eventBody = z.array(
 
 router.post<{}, MessageResponse>("/events", async (req, res) => {
   const { body } = req;
-  logger.info(`Received events, ${JSON.stringify(body)}`);
+  console.log(`Received events, ${JSON.stringify(body)}`);
 
   const events = eventBody.parse(body);
   //{ name: string; data: { payload: { timestamp: string; id: string; data: { projectId: string; traceId: string; }; }; name: QueueJobs.Evaluation; }; opts?: BulkJobOptions | undefined; }
