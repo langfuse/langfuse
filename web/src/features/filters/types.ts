@@ -23,3 +23,10 @@ export type FilterOption = {
   value: string;
   count?: number;
 };
+
+export type TableName =
+  | "traces"
+  | "generations"
+  | "sessions"
+  | "scores"
+  | "dashboard";

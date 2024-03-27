@@ -19,27 +19,7 @@ import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
-
-// Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
-const useSecureCookies =
-  env.NEXTAUTH_URL.startsWith("https://") || process.env.VERCEL === "1";
-
-const cookieOptions = {
-  domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
-  httpOnly: true,
-  sameSite: "lax",
-  path: "/",
-  secure: useSecureCookies,
-};
-
-const cookieName = (name: string) =>
-  [
-    useSecureCookies ? "__Secure-" : "",
-    name,
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
-      : "",
-  ].join("");
+import { getCookieName, cookieOptions } from "./utils/cookies";
 
 const providers: Provider[] = [
   CredentialsProvider({
@@ -223,27 +203,27 @@ export const authOptions: NextAuthOptions = {
   },
   cookies: {
     sessionToken: {
-      name: cookieName("next-auth.session-token"),
+      name: getCookieName("next-auth.session-token"),
       options: cookieOptions,
     },
     csrfToken: {
-      name: cookieName("next-auth.csrf-token"),
+      name: getCookieName("next-auth.csrf-token"),
       options: cookieOptions,
     },
     callbackUrl: {
-      name: cookieName("next-auth.callback-url"),
+      name: getCookieName("next-auth.callback-url"),
       options: cookieOptions,
     },
     state: {
-      name: cookieName("next-auth.state"),
+      name: getCookieName("next-auth.state"),
       options: cookieOptions,
     },
     nonce: {
-      name: cookieName("next-auth.nonce"),
+      name: getCookieName("next-auth.nonce"),
       options: cookieOptions,
     },
     pkceCodeVerifier: {
-      name: cookieName("next-auth.pkce.code_verifier"),
+      name: getCookieName("next-auth.pkce.code_verifier"),
       options: cookieOptions,
     },
   },
