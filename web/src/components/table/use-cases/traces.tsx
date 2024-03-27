@@ -50,6 +50,9 @@ export type TracesTableRow = {
   release?: string;
   version?: string;
   sessionId?: string;
+  // i/o not set explicitly, but fetched from the server from the cell
+  input?: unknown;
+  output?: unknown;
   scores: Score[];
   tags: string[];
   usage: {
