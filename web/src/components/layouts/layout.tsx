@@ -6,7 +6,7 @@ import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Code, MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
+import { MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -30,7 +30,8 @@ import {
 } from "@/src/features/notifications/checkNotifications";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import ProjectNav from "@/src/components/projectNav";
+import ProjectNav from "@/src/components/projectNavigation";
+import ProjectNavigation from "@/src/components/projectNavigation";
 
 const userNavigation = [
   {
@@ -106,6 +107,8 @@ export default function Layout(props: PropsWithChildren) {
     mapNavigation(route),
   ).filter(Boolean);
   const navigation = navigationMapped.filter(Boolean) as NavigationItem[]; // does not include null due to filter
+  const coreFeatures = navigation.slice(0, 6);
+  const projectFeatures = navigation.slice(6);
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
 
@@ -282,9 +285,9 @@ export default function Layout(props: PropsWithChildren) {
             />
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
               <ul role="list" className="flex h-full flex-col gap-y-4">
-                <MainNavigation nav={navigation.slice(0, 6)} />
+                <MainNavigation nav={coreFeatures} />
                 <li className="mt-auto">
-                  <MainNavigation nav={navigation.slice(6)} />
+                  <MainNavigation nav={projectFeatures} />
                   <FeedbackButtonWrapper
                     className="space-y-1"
                     title="Provide feedback"
@@ -306,7 +309,7 @@ export default function Layout(props: PropsWithChildren) {
                     <NewProjectButton size="xs" />
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
-                    <ProjectNav
+                    <ProjectNavigation
                       currentProjectId={projectId ?? ""}
                       projects={projects}
                     />
