@@ -50,22 +50,31 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
+      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900 dark:text-white">
         Project Members
       </h2>
       <Card className="mb-4">
         <Table className="text-sm">
           <TableHeader>
             <TableRow>
-              <TableHead className="text-gray-900">Name</TableHead>
-              <TableHead className="text-gray-900">Email</TableHead>
-              <TableHead className="text-gray-900">Role</TableHead>
+              <TableHead className="text-gray-900 dark:text-white">
+                Name
+              </TableHead>
+              <TableHead className="text-gray-900 dark:text-white">
+                Email
+              </TableHead>
+              <TableHead className="text-gray-900 dark:text-white">
+                Role
+              </TableHead>
               {hasDeleteAccess ? <TableHead /> : null}
             </TableRow>
           </TableHeader>
           <TableBody className="text-gray-500">
             {memberships.map((m) => (
-              <TableRow key={m.userId} className="hover:bg-transparent">
+              <TableRow
+                key={m.userId}
+                className="hover:bg-transparent dark:text-white"
+              >
                 <TableCell>{m.user.name}</TableCell>
                 <TableCell>{m.user.email}</TableCell>
                 <TableCell>{m.role}</TableCell>

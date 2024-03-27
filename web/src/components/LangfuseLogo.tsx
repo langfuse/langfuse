@@ -37,7 +37,7 @@ export const LangfuseLogo = ({
     {showEnvLabel && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
       <div
         className={cn(
-          "flex items-center gap-2 self-stretch rounded-md  px-3 py-1  ring-1  xl:-mx-2",
+          "flex items-center gap-2 self-stretch rounded-md  px-3 py-1  ring-1  xl:-mx-2 dark:text-white",
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
             ? "bg-blue-100 text-blue-500 ring-blue-500"
             : "bg-red-100 text-red-500 ring-red-500",

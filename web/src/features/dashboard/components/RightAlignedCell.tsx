@@ -7,4 +7,6 @@ export const RightAlignedCell = ({
 }: {
   children: ReactNode;
   className?: string;
-}) => <div className={cn("text-right", className)}>{children}</div>;
+}) => (
+  <div className={cn("text-right dark:text-white", className)}>{children}</div>
+);

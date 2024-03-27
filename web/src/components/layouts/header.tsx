@@ -91,7 +91,7 @@ export default function Header({
         <div className="flex items-center gap-3 md:gap-5">
           <div className="flex min-w-0 flex-row">
             {level === "h2" ? (
-              <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+              <h2 className="text-2xl font-bold leading-7 text-gray-900 dark:text-white sm:truncate sm:text-3xl sm:tracking-tight">
                 {props.title}
               </h2>
             ) : (

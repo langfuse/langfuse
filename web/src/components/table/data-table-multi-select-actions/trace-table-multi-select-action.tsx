@@ -48,7 +48,7 @@ export function TraceTableMultiSelectAction({
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
-            className="bg-white p-2 font-medium text-black"
+            className="bg-white p-2 font-medium text-black dark:bg-slate-950 dark:text-white"
             disabled={selectedTraceIds.length < 1}
           >
             Actions ({selectedTraceIds.length} selected)

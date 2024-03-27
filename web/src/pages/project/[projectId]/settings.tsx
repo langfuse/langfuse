@@ -78,7 +78,7 @@ const instructionItems = [
 function Instructions() {
   return (
     <div>
-      <h2 className="text-base font-semibold leading-6 text-gray-900">
+      <h2 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">
         Integrate langfuse
       </h2>
       <ul
@@ -89,22 +89,24 @@ function Instructions() {
           <li key={itemIdx}>
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600 dark:text-white">
                   <item.icon className="h-6 w-6" aria-hidden="true" />
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">
                   <a href={item.href} target="_blank" rel="noreferrer noopener">
                     <span className="absolute inset-0" aria-hidden="true" />
                     {item.name}
                   </a>
                 </div>
-                <p className="text-sm text-gray-500">{item.description}</p>
+                <p className="text-sm text-gray-500 dark:text-white">
+                  {item.description}
+                </p>
               </div>
               <div className="flex-shrink-0 self-center">
                 <ChevronRightIcon
-                  className="h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  className="h-5 w-5 text-gray-400 group-hover:text-gray-500 dark:text-white"
                   aria-hidden="true"
                 />
               </div>

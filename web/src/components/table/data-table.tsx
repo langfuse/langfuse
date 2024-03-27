@@ -172,7 +172,7 @@ export function DataTable<TData extends object, TValue>({
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center"
+                    className="h-24 text-center dark:bg-slate-950 dark:text-white"
                   >
                     Loading...
                   </TableCell>
@@ -197,7 +197,7 @@ export function DataTable<TData extends object, TValue>({
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center"
+                    className="h-24 text-center dark:bg-slate-950 dark:text-white"
                   >
                     <div>
                       No results.{" "}

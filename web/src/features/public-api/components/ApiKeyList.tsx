@@ -44,19 +44,23 @@ export function ApiKeyList(props: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
+      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900 dark:text-white">
         API keys
       </h2>
       <Card className="mb-4">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden text-gray-900 md:table-cell">
+              <TableHead className="hidden text-gray-900 dark:text-white md:table-cell">
                 Created
               </TableHead>
               {/* <TableHead className="text-gray-900">Note</TableHead> */}
-              <TableHead className="text-gray-900">Public Key</TableHead>
-              <TableHead className="text-gray-900">Secret Key</TableHead>
+              <TableHead className="text-gray-900 dark:text-white">
+                Public Key
+              </TableHead>
+              <TableHead className="text-gray-900 dark:text-white">
+                Secret Key
+              </TableHead>
               {/* <TableHead className="text-gray-900">Last used</TableHead> */}
               <TableHead />
             </TableRow>
@@ -64,17 +68,17 @@ export function ApiKeyList(props: { projectId: string }) {
           <TableBody className="text-gray-500">
             {apiKeys.data?.map((apiKey) => (
               <TableRow key={apiKey.id} className="hover:bg-transparent">
-                <TableCell className="hidden md:table-cell">
+                <TableCell className="hidden dark:text-white md:table-cell">
                   {apiKey.createdAt.toLocaleDateString()}
                 </TableCell>
                 {/* <TableCell>{apiKey.note ?? ""}</TableCell> */}
-                <TableCell className="font-mono">
+                <TableCell className="font-mono dark:text-white">
                   <CodeView
                     className="inline-block"
                     content={apiKey.publicKey}
                   />
                 </TableCell>
-                <TableCell className="font-mono">
+                <TableCell className="font-mono dark:text-white">
                   {apiKey.displaySecretKey}
                 </TableCell>
                 {/* <TableCell>
