@@ -2,14 +2,21 @@ import { StreamingTextResponse } from "ai";
 import { getToken } from "next-auth/jwt";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { fetchLLMCompletion } from "@langfuse/shared";
+import { fetchLLMCompletion } from "@langfuse/shared/src/server/llm/fetchLLMCompletion";
+
 import {
-  type ValidatedChatCompletionBody,
   validateChatCompletionBody,
+  type ValidatedChatCompletionBody,
 } from "./validateChatCompletionBody";
+import { getCookieName } from "@/src/server/utils/cookies";
 
 export default async function chatCompletionHandler(req: NextRequest) {
-  if (!(await getToken({ req })))
+  const token = await getToken({
+    req,
+    cookieName: getCookieName("next-auth.session-token"),
+  });
+
+  if (!token)
     return NextResponse.json({ message: "Unauthenticated" }, { status: 401 });
 
   if (req.method !== "POST")

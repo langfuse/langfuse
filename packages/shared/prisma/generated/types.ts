@@ -337,6 +337,24 @@ export type TraceSession = {
     bookmarked: Generated<boolean>;
     public: Generated<boolean>;
 };
+export type TraceView = {
+    id: string;
+    external_id: string | null;
+    timestamp: Generated<Timestamp>;
+    name: string | null;
+    user_id: string | null;
+    metadata: unknown | null;
+    release: string | null;
+    version: string | null;
+    project_id: string;
+    public: Generated<boolean>;
+    bookmarked: Generated<boolean>;
+    tags: Generated<string[]>;
+    input: unknown | null;
+    output: unknown | null;
+    session_id: string | null;
+    duration: number | null;
+};
 export type User = {
     id: string;
     name: string | null;
@@ -379,6 +397,7 @@ export type DB = {
     Session: Session;
     trace_sessions: TraceSession;
     traces: Trace;
+    traces_view: TraceView;
     users: User;
     verification_tokens: VerificationToken;
 };

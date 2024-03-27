@@ -199,6 +199,19 @@ Requirements
 > [!NOTE]
 > If you find yourself stuck and want to clean the repo, execute `pnpm run nuke`. It will remove all node_modules and build files.
 
+## System behavior
+
+### Ingestion API `(/public/api/ingestion)`
+
+- the ingestion API takes different event types (creation and updates of traces, generations, spans, events)
+- The API loops through each event and:
+  - validates the event
+  - stores the event raw in the events table
+  - calculates tokens for `generations`
+  - matches models from the `models` table to model for `generations` events
+  - upserts the event in the `traces` or `observations` table
+- returns a `207` HTTP status code with a list of errors if any event failed to be ingested
+
 ## Commit messages
 
 On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.

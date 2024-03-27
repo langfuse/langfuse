@@ -396,7 +396,7 @@ function createObjects(
         more: "1,2,3;4?6",
       },
       tags: tags as string[],
-      userId: `user-${i % 60}`,
+      userId: Math.random() > 0.3 ? `user-${i % 60}` : undefined,
       input:
         Math.random() > 0.3 ? "I'm looking for a React component" : undefined,
       output:

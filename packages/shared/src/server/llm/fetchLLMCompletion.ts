@@ -1,10 +1,3 @@
-import {
-  type ChatMessage,
-  ChatMessageRole,
-  type ModelParams,
-  ModelProvider,
-  LLMFunctionCall,
-} from "./types";
 import { ChatAnthropic } from "@langchain/anthropic";
 import {
   AIMessage,
@@ -15,9 +8,15 @@ import {
   BytesOutputParser,
   StringOutputParser,
 } from "@langchain/core/output_parsers";
+import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI } from "@langchain/openai";
-import { JsonOutputFunctionsParser } from "langchain/output_parsers";
-import { zodToJsonSchema } from "zod-to-json-schema";
+
+import {
+  ChatMessage,
+  ChatMessageRole,
+  ModelParams,
+  ModelProvider,
+} from "./types";
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -34,7 +33,7 @@ export async function fetchLLMCompletion(
     streaming: true;
     functionCall: undefined;
   }
-): Promise<ReadableStream<Uint8Array>>;
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -52,7 +51,7 @@ export async function fetchLLMCompletion(
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
-): Promise<string | ReadableStream<Uint8Array> | unknown> {
+): Promise<string | IterableReadableStream<Uint8Array>> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)

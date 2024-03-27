@@ -42,7 +42,7 @@ services:
     restart: always
 
   redis:
-    image: redis
+    image: redis:7.2.4
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
     restart: always

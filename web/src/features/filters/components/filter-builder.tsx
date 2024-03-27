@@ -18,11 +18,15 @@ import {
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import {
   type WipFilterState,
-  type FilterState,
   type WipFilterCondition,
-} from "@langfuse/shared";
-import { type ColumnDefinition } from "@langfuse/shared";
-import { filterOperators, singleFilter } from "@langfuse/shared";
+  type FilterState,
+  type FilterCondition,
+} from "@/src/features/filters/types";
+import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+import {
+  filterOperators,
+  singleFilter,
+} from "@/src/server/api/interfaces/filters";
 import { NonEmptyString } from "@/src/utils/zod";
 
 // Has WipFilterState, passes all valid filters to parent onChange
@@ -37,7 +41,6 @@ export function PopoverFilterBuilder({
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
-
   const addNewFilter = () => {
     setWipFilterState((prev) => [
       ...prev,
@@ -51,14 +54,19 @@ export function PopoverFilterBuilder({
     ]);
   };
 
+  const getValidFilters = (state: WipFilterState): FilterCondition[] => {
+    const valid = state.filter(
+      (f) => singleFilter.safeParse(f).success,
+    ) as FilterCondition[];
+    return valid;
+  };
+
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
   ) => {
     _setWipFilterState((prev) => {
       const newState = state instanceof Function ? state(prev) : state;
-      const validFilters = newState.filter(
-        (f) => singleFilter.safeParse(f).success,
-      ) as FilterState;
+      const validFilters = getValidFilters(newState);
       onChange(validFilters);
       return newState;
     });
@@ -71,7 +79,9 @@ export function PopoverFilterBuilder({
           // Create empty filter when opening popover
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
-          if (!open) setWipFilterState(filterState);
+          if (!open) {
+            setWipFilterState(filterState);
+          }
         }}
       >
         <PopoverTrigger asChild>
@@ -214,33 +224,35 @@ function FilterBuilderForm({
       <table className="table-auto">
         <tbody>
           {filterState.map((filter, i) => {
-            const column = columns.find((c) => c.name === filter.column);
+            const column = columns.find(
+              (c) => c.id === filter.column || c.name === filter.column,
+            );
             return (
               <tr key={i}>
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
                 <td className="flex gap-2 p-1">
                   {/* selector of the column to be filtered */}
                   <Select
-                    value={filter.column ?? ""}
-                    onValueChange={(value) =>
+                    value={column ? column.id : ""}
+                    onValueChange={(value) => {
                       handleFilterChange(
                         {
-                          column: value,
-                          type: columns.find((c) => c.name === value)?.type,
+                          column: columns.find((c) => c.id === value)?.name,
+                          type: columns.find((c) => c.id === value)?.type,
                           operator: undefined,
                           value: undefined,
                           key: undefined,
                         },
                         i,
-                      )
-                    }
+                      );
+                    }}
                   >
                     <SelectTrigger className="min-w-[100px]">
                       <SelectValue placeholder="Column" />
                     </SelectTrigger>
                     <SelectContent>
                       {columns.map((option) => (
-                        <SelectItem key={option.name} value={option.name}>
+                        <SelectItem key={option.id} value={option.id}>
                           {option.name}
                         </SelectItem>
                       ))}

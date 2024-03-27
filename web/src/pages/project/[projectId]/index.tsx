@@ -99,13 +99,17 @@ export default function Start() {
   const traceName: ColumnDefinition[] = [
     {
       name: "traceName",
+      id: "traceName",
       type: "stringOptions" as const,
       options: values,
       internal: "internalValue",
     },
   ];
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "dashboard",
+  );
 
   const agg = useMemo(
     () => (dateRange ? findClosestInterval(dateRange) ?? "7 days" : "7 days"),
