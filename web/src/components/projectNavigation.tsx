@@ -39,7 +39,7 @@ const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
           placeholder={currentProjectId}
         />
       </SelectTrigger>
-      <SelectContent side="top">
+      <SelectContent side="top" className="max-h-60 overflow-y-auto">
         {projects.map((project) => (
           <SelectItem key={project.id} value={project.id}>
             <div className="flex items-center space-x-2 font-semibold text-primary">
