@@ -49,8 +49,6 @@ export type TracesTableRow = {
   latency?: number;
   release?: string;
   version?: string;
-  input?: unknown;
-  output?: unknown;
   sessionId?: string;
   scores: Score[];
   tags: string[];
@@ -176,8 +174,6 @@ export default function TracesTable({
       userId: trace.userId ?? "",
       scores: trace.scores,
       sessionId: trace.sessionId ?? undefined,
-      input: trace.input,
-      output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
       tags: trace.tags,
       usage: {
