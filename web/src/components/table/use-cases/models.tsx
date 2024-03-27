@@ -51,7 +51,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-  const [filterState, setFilterState] = useQueryFilterState([]);
+  const [filterState, setFilterState] = useQueryFilterState([], "models");
   const [orderByState, setOrderByState] = useOrderByState({
     column: "modelName",
     order: "DESC",

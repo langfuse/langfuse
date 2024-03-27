@@ -1,4 +1,5 @@
 import { type FilterState, type TableName } from "@/src/features/filters/types";
+import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
@@ -102,6 +103,7 @@ const tableCols = {
   traces: tracesTableCols,
   sessions: sessionsViewCols,
   scores: scoresTableCols,
+  models: modelsTableCols,
   dashboard: [{ id: "traceName", name: "traceName" }],
 };
 

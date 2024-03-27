@@ -7,7 +7,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { type Model, Prisma } from "@prisma/client";
+import { type Model, Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
