@@ -5,7 +5,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Prompt, type PrismaClient } from "@langfuse/shared/src/db";
+import {
+  type Prompt,
+  type PrismaClient,
+} from "@langfuse/shared/db/types/prisma";
 import { jsonSchema } from "@/src/utils/zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";

@@ -4,7 +4,7 @@
 import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db/connection";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 

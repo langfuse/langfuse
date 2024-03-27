@@ -3,11 +3,33 @@
   "version": "1.0.0",
   "license": "MIT",
   "private": true,
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist/**"
   ],
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "module": "./dist/index.js"
+    },
+    "./db/connection": {
+      "require": "./dist/db/connection.js",
+      "types": "./dist/db/connection.d.ts",
+      "module": "./dist/db/connection.js"
+    },
+    "./db/types/kysely": {
+      "require": "./dist/db/types/kysely.js",
+      "types": "./dist/db/types/kysely.d.ts",
+      "module": "./dist/db/types/kysely.js"
+    },
+    "./db/types/prisma": {
+      "require": "./dist/db/types/prisma.js",
+      "types": "./dist/db/types/prisma.d.ts",
+      "module": "./dist/db/types/prisma.js"
+    }
+  },
   "engines": {
     "node": ">=20"
   },
@@ -25,7 +47,8 @@
     "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load"
   },
   "prisma": {
-    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} src/db/prisma/seed.ts",
+    "schema": "src/db/prisma/schema.prisma"
   },
   "dependencies": {
     "@langchain/anthropic": "^0.1.8",

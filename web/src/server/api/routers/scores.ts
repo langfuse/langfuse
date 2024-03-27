@@ -10,7 +10,7 @@ import {
   type MembershipRole,
   Prisma,
   type Score,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db/types/prisma";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@langfuse/shared";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";

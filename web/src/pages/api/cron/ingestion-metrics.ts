@@ -1,5 +1,6 @@
 import { env } from "@/src/env.mjs";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/db/types/prisma";
+import { prisma } from "@langfuse/shared/db/connection";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { PostHog } from "posthog-node";
 

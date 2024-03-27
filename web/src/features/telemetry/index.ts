@@ -1,5 +1,6 @@
 import { VERSION } from "@/src/constants";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/db/types/prisma";
+import { prisma } from "@langfuse/shared/db/connection";
 import { PostHog } from "posthog-node";
 import { v4 as uuidv4 } from "uuid";
 

@@ -4,8 +4,8 @@ import {
   observationsTableCols,
 } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import { type ObservationView, Prisma } from "@langfuse/shared/db/types/prisma";
+import { prisma } from "@langfuse/shared/db/connection";
 import { type GetAllGenerationsInput } from "../getAllQuery";
 
 export async function getAllGenerations({

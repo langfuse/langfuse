@@ -31,6 +31,7 @@ export const SessionPage: React.FC<{
       },
     },
   );
+
   useEffect(() => {
     if (session.isSuccess) {
       setDetailPageList(

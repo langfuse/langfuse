@@ -32,11 +32,11 @@ import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
-  type EvalTemplate,
   variableMapping,
   wipVariableMapping,
   evalObjects,
 } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared/db/types/prisma";
 import router from "next/router";
 
 const formSchema = z.object({

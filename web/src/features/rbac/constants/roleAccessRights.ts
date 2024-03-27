@@ -1,4 +1,4 @@
-import { type MembershipRole } from "@langfuse/shared/src/db";
+import { type MembershipRole } from "@langfuse/shared/db/types/prisma";
 
 const scopes = [
   "members:read",

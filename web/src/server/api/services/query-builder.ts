@@ -4,7 +4,7 @@ import {
   type ColumnDefinition,
   tableColumnsToSqlFilter,
 } from "@langfuse/shared";
-import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/db/types/prisma";
 import Decimal from "decimal.js";
 import { type z } from "zod";
 import {

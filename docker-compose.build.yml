@@ -1,13 +1,14 @@
 version: "3.5"
 
 services:
-  server:
+  web:
     build:
       dockerfile: ./web/Dockerfile
       context: .
     depends_on:
       - db
       - redis
+      - worker
     ports:
       - "3000:3000"
     environment:

@@ -1,7 +1,7 @@
 import { Kysely, PostgresDialect } from "kysely";
 import { Pool } from "pg";
-import { DB } from "@langfuse/shared";
 import { env } from "./env";
+import { DB } from "@langfuse/shared/db/types/kysely";
 
 export const db = new Kysely<DB>({
   dialect: new PostgresDialect({

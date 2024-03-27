@@ -1,7 +1,7 @@
 import {
   ColumnDefinition,
   OptionsDefinition,
-} from "./interfaces/tableDefinition";
+} from "@/interfaces/tableDefinition";
 
 export const tracesTableCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },

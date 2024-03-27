@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Score } from "@langfuse/shared/src/db";
+import { Prisma, type Score } from "@langfuse/shared/db/types/prisma";
 import { paginationZod } from "@/src/utils/zod";
 
 const UserFilterOptions = z.object({

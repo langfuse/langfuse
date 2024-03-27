@@ -1,4 +1,4 @@
-import { Prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/db/types/prisma";
 
 export class ResourceNotFoundError extends Error {
   id: string;

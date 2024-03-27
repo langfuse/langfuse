@@ -13,7 +13,3 @@ export * from "./observationsTable";
 export * from "./server/llm/types";
 export * from "./server/llm/fetchLLMCompletion";
 export * from "./server/evals/types";
-
-// export db types only
-export * from "@prisma/client";
-export { type DB } from "../prisma/generated/types";

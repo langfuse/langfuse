@@ -1,4 +1,4 @@
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel } from "@/db/types/prisma";
 import {
   type OptionsDefinition,
   type ColumnDefinition,

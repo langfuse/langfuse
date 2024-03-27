@@ -4,7 +4,7 @@ import {
   verifySecretKey,
 } from "@langfuse/shared/src/server/auth";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db/connection";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 

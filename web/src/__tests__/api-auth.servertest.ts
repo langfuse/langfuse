@@ -3,7 +3,7 @@ import {
   hashSecretKey,
 } from "@langfuse/shared/src/server/auth";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db/connection";
 
 describe("Validate api calls", () => {
   beforeEach(async () => {

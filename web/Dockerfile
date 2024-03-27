@@ -46,6 +46,8 @@ ENV NEXT_TELEMETRY_DISABLED 1
 
 RUN turbo run build --filter=web
 
+# CMD ["sleep", "infinity"]
+
 # Production image, copy all the files and run next
 FROM base AS runner
 
@@ -74,7 +76,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
-COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/src/db/prisma ./packages/shared/src/db/prisma
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 RUN chmod +x ./web/entrypoint.sh

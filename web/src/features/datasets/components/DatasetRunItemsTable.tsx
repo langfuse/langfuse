@@ -7,7 +7,7 @@ import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-import { type Score } from "@langfuse/shared/src/db";
+import { type Score } from "@langfuse/shared/db/types/prisma";
 import { usdFormatter } from "../../../utils/numbers";
 
 type RowData = {

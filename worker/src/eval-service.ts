@@ -7,7 +7,6 @@ import {
   ModelProvider,
   QueueJobs,
   QueueName,
-  ScoreSource,
   fetchLLMCompletion,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
@@ -16,13 +15,17 @@ import {
   observationsTableCols,
   evalObjects,
 } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db/index";
+import {
+  ScoreSource,
+  JobExecution,
+  EvalTemplate,
+} from "@langfuse/shared/db/types/kysely";
+import { Account, Prisma } from "@langfuse/shared/db/types/prisma";
+import { kyselyPrisma, prisma } from "@langfuse/shared/db/connection";
 import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
 import { sql } from "kysely";
 import Handlebars from "handlebars";
-import { JobExecution, EvalTemplate } from "@langfuse/shared";
 import lodash from "lodash";
 
 // this function is used to determine which eval jobs to create for a given trace

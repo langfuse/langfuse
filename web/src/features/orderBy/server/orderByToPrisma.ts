@@ -1,6 +1,6 @@
 import { type OrderByState } from "@/src/features/orderBy/types";
 import { type ColumnDefinition } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/db/types/prisma";
 import { z } from "zod";
 
 /**

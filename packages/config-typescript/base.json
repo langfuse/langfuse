@@ -13,6 +13,8 @@
     "moduleResolution": "Bundler",
     "noUnusedLocals": false,
     "noUnusedParameters": false,
+    "noErrorTruncation": true,
+    "resolveJsonModule": true,
     "preserveWatchOutput": true,
     "skipLibCheck": true,
     "strict": true

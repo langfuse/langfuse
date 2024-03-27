@@ -10,7 +10,7 @@ import {
   type Trace,
   type ObservationView,
   type ObservationLevel,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db/types/prisma";
 import { paginationZod } from "@/src/utils/zod";
 import { TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";

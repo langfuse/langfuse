@@ -8,7 +8,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { scoresTableColsWithOptions } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { type RouterInput } from "@/src/utils/types";
-import { type Score } from "@langfuse/shared/src/db";
+import { type Score } from "@langfuse/shared/db/types/prisma";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {

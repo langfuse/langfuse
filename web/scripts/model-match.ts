@@ -6,10 +6,10 @@
 import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db/connection";
+import { type Prisma } from "@langfuse/shared/db/types/prisma";
 import lodash from "lodash";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
-import { type Prisma } from "@langfuse/shared/src/db";
 
 async function main() {
   return await modelMatch();

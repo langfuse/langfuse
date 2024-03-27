@@ -14,7 +14,7 @@ import {
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db/connection";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
 import {
@@ -23,7 +23,7 @@ import {
   type Score,
   Prisma,
   type Model,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db/types/prisma";
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";

@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Input } from "@/src/components/ui/input";
-import { MembershipRole } from "@langfuse/shared";
+import { MembershipRole } from "@langfuse/shared/db/types/prisma";
 import { roleAccessRights } from "@/src/features/rbac/constants/roleAccessRights";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 

@@ -10,7 +10,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { DB } from "..";
+import { DB } from "./types/kysely";
 
 // Instantiated according to the Prisma documentation
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
@@ -49,7 +49,5 @@ export const kyselyPrisma = prisma.$extends(
       }),
   })
 );
-
-export * from "@prisma/client";
 
 if (process.env.NODE_ENV !== "production") globalThis.prisma = prisma;

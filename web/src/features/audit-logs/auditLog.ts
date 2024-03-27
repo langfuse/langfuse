@@ -1,5 +1,5 @@
-import { prisma as _prisma } from "@langfuse/shared/src/db";
-import { type MembershipRole } from "@langfuse/shared/src/db";
+import { prisma as _prisma } from "@langfuse/shared/db/connection";
+import { type MembershipRole } from "@langfuse/shared/db/types/prisma";
 
 export type AuditableResource =
   | "membership"

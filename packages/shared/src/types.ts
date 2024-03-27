@@ -1,5 +1,5 @@
 import { type z } from "zod";
-import { singleFilter } from "./interfaces/filters";
+import { singleFilter } from "@/interfaces/filters";
 
 // to be sent to the server
 export type FilterCondition = z.infer<typeof singleFilter>;

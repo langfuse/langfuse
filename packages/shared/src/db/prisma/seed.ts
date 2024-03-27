@@ -4,14 +4,13 @@ import {
   type Prisma,
   ObservationType,
   ScoreSource,
-} from "../src/db/index";
+} from "../types/prisma";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 
 import { chunk } from "lodash";
 import { v4 } from "uuid";
-import { ModelUsageUnit } from "../src";
-import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
+import { ModelUsageUnit, getDisplaySecretKey, hashSecretKey } from "../..";
 
 const LOAD_TRACE_VOLUME = 10_000;
 

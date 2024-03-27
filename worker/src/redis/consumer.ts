@@ -3,7 +3,7 @@ import { Job, Queue, Worker } from "bullmq";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
 import { env } from "../env";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma } from "@langfuse/shared/db/connection";
 
 export const redis = new Redis({
   host: env.REDIS_HOST,

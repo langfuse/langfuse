@@ -1,7 +1,7 @@
-import { Prisma } from "@prisma/client";
-import { ColumnDefinition, TableNames } from "./interfaces/tableDefinition";
-import { FilterState } from "./types";
-import { filterOperators } from "./interfaces/filters";
+import { ColumnDefinition, TableNames } from "@/interfaces/tableDefinition";
+import { FilterState } from "@/types";
+import { filterOperators } from "@/interfaces/filters";
+import { Prisma } from "@/db/types/prisma";
 
 const operatorReplacements = {
   "any of": "IN",

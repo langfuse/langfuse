@@ -8,7 +8,7 @@ import {
   type DatasetRuns,
   Prisma,
   type Dataset,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db/types/prisma";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
