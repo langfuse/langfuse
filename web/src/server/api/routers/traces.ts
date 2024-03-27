@@ -155,7 +155,8 @@ export const traceRouter = createTRPCRouter({
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
-          return { ...trace, scores: filteredScores };
+          const { input, output, ...rest } = trace;
+          return { ...rest, scores: filteredScores };
         }),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
