@@ -26,12 +26,15 @@ function useColumnVisibility<TData>(
     useLocalStorage<VisibilityState>(localStorageKey, initialVisibilityState());
 
   useEffect(() => {
-    const newColumnVisibility = {
-      ...initialVisibilityState(),
-      ...columnVisibility,
-    };
-    if (!isEqual(newColumnVisibility, columnVisibility)) {
-      setColumnVisibility(newColumnVisibility);
+    const initialColumnVisibility = initialVisibilityState();
+    Object.keys(initialColumnVisibility).forEach((key) => {
+      if (Object.hasOwn(columnVisibility, key)) {
+        initialColumnVisibility[key] = columnVisibility[key];
+      }
+    });
+
+    if (!isEqual(initialColumnVisibility, columnVisibility)) {
+      setColumnVisibility(initialColumnVisibility);
     }
   }, [columnVisibility, setColumnVisibility]);
 
