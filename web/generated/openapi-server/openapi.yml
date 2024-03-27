@@ -1588,6 +1588,9 @@ components:
         traceId:
           type: string
           nullable: true
+          description: >-
+            traceId should always be provided. For compatibility with older SDK
+            versions it can also be inferred from the provided observationId.
       required:
         - runName
         - datasetItemId
