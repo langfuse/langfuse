@@ -16,12 +16,12 @@ interface Project {
   role: string;
 }
 
-interface ProjectNavProps {
+interface ProjectNavigationProps {
   currentProjectId: string;
   projects: Project[];
 }
 
-const ProjectNav: React.FC<ProjectNavProps> = ({
+const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
   currentProjectId,
   projects,
 }) => {
@@ -33,7 +33,7 @@ const ProjectNav: React.FC<ProjectNavProps> = ({
         router.push(`/project/${value}`);
       }}
     >
-      <SelectTrigger className="h-8 bg-gray-50 text-indigo-600">
+      <SelectTrigger className="h-8 bg-gray-50 text-indigo-600 ring-transparent focus:ring-0 focus:ring-offset-0">
         <SelectValue
           className="text-sm font-semibold text-indigo-600"
           placeholder={currentProjectId}
@@ -63,7 +63,7 @@ const ProjectNav: React.FC<ProjectNavProps> = ({
               >
                 {project.name}
               </span>
-              {project.name === "langfuse-docs" ? (
+              {project.role === "VIEWER" ? (
                 <span
                   className={cn(
                     "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
@@ -83,4 +83,4 @@ const ProjectNav: React.FC<ProjectNavProps> = ({
   );
 };
 
-export default ProjectNav;
+export default ProjectNavigation;
