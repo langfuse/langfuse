@@ -1,4 +1,8 @@
-import { type FilterState } from "@/src/features/filters/types";
+import { type FilterState, type TableName } from "@/src/features/filters/types";
+import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
+import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
+import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
+import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
 import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { useState } from "react";
 import {
@@ -13,11 +17,13 @@ const DEBUG_QUERY_STATE = false;
 // encode/decode filter state
 // The decode has to return null or undefined so that withDefault will use the default value.
 // An empty array will be interpreted as existing state and hence the default value will not be used.
-const CommaArrayParam = {
-  encode: (value: FilterState) =>
+const getCommaArrayParam = (table: TableName) => ({
+  encode: (filterState: FilterState) =>
     encodeDelimitedArray(
-      value.map((f) => {
-        const stringified = `${f.column};${f.type};${
+      filterState.map((f) => {
+        const columnId = getColumnId(table, f.column);
+
+        const stringified = `${columnId};${f.type};${
           f.type === "numberObject" || f.type === "stringObject" ? f.key : ""
         };${f.operator};${encodeURIComponent(
           f.type === "datetime"
@@ -61,7 +67,7 @@ const CommaArrayParam = {
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
-          column,
+          column: getColumnName(table, column),
           key: key !== "" ? key : undefined,
           operator,
           value: parsedValue,
@@ -71,13 +77,16 @@ const CommaArrayParam = {
         return parsed.data;
       })
       .filter((v) => v !== null) as FilterState | undefined) ?? undefined,
-};
+});
 
 // manage state with hook
-export const useQueryFilterState = (initialState: FilterState = []) => {
+export const useQueryFilterState = (
+  initialState: FilterState = [],
+  table: TableName,
+) => {
   const [filterState, setFilterState] = useQueryParam(
     "filter",
-    withDefault(CommaArrayParam, initialState),
+    withDefault(getCommaArrayParam(table), initialState),
   );
 
   return [filterState, setFilterState] as const;
@@ -87,3 +96,19 @@ export const useMemoryFilterState = (initialState: FilterState = []) => {
   const [filterState, setFilterState] = useState(initialState);
   return [filterState, setFilterState] as const;
 };
+
+const tableCols = {
+  generations: observationsTableCols,
+  traces: tracesTableCols,
+  sessions: sessionsViewCols,
+  scores: scoresTableCols,
+  dashboard: [{ id: "traceName", name: "traceName" }],
+};
+
+function getColumnId(table: TableName, name: string): string | undefined {
+  return tableCols[table]?.find((col) => col.name === name)?.id;
+}
+
+function getColumnName(table: TableName, id: string): string | undefined {
+  return tableCols[table]?.find((col) => col.id === id)?.name;
+}
