@@ -10,6 +10,7 @@
     "inlineSources": false,
     "isolatedModules": true,
     "module": "ESNext",
+    "noErrorTruncation": true,
     "moduleResolution": "Bundler",
     "noUnusedLocals": false,
     "noUnusedParameters": false,

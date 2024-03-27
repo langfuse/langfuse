@@ -67,7 +67,6 @@ export const getAllQuery = protectedProjectProcedure
         ${filterCondition}
     `,
     );
-
     const count = totalGenerations[0]?.count;
     return {
       totalCount: count ? Number(count) : undefined,
