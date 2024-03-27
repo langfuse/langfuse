@@ -22,7 +22,7 @@ const Notification: React.FC<NotificationProps> = ({
 }) => (
   <div className="flex justify-between">
     <div className="flex min-w-[300px] flex-1 flex-col justify-center">
-      <div className="m-0 text-sm font-medium leading-tight text-gray-800">
+      <div className="m-0 text-sm font-bold leading-tight text-gray-800">
         {notification.message}
       </div>
       {notification.description && (
