@@ -22,7 +22,7 @@ export type ScoresTableRow = {
   comment?: string;
   observationId?: string;
   traceName: string;
-  userId: string;
+  userId?: string;
 };
 
 export type ScoreFilterInput = Omit<
@@ -200,7 +200,7 @@ export default function ScoresTable({
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
       traceName: score.traceName,
-      userId: score.userId,
+      userId: score.userId ?? undefined,
     };
   };
 
