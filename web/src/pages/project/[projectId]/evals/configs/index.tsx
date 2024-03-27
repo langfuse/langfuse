@@ -12,7 +12,7 @@ export default function TemplatesPage() {
 
   const hasWriteAccess = useHasAccess({
     projectId,
-    scope: "evalsConfig:create",
+    scope: "evalConfig:create",
   });
 
   return (

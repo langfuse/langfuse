@@ -69,7 +69,7 @@ importers:
         version: 0.27.3
       langchain:
         specifier: ^0.1.28
-        version: 0.1.28(@aws-sdk/client-s3@3.536.0)(@aws-sdk/credential-provider-node@3.535.0)(ioredis@5.3.2)(lodash@4.17.21)
+        version: 0.1.28(@aws-sdk/client-s3@3.536.0)(@aws-sdk/credential-provider-node@3.535.0)(lodash@4.17.21)
       prisma-extension-kysely:
         specifier: ^2.1.0
         version: 2.1.0(@prisma/client@5.11.0)
@@ -258,8 +258,8 @@ importers:
         specifier: ^7.102.1
         version: 7.107.0(next@14.1.3)(react@18.2.0)
       '@sentry/node':
-        specifier: ^7.108.0
-        version: 7.108.0
+        specifier: ^7.107.0
+        version: 7.107.0
       '@sentry/profiling-node':
         specifier: ^7.102.1
         version: 7.107.0
@@ -299,9 +299,6 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
-      bullmq:
-        specifier: ^5.4.2
-        version: 5.4.3
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.0
@@ -326,9 +323,6 @@ importers:
       exponential-backoff:
         specifier: ^3.1.1
         version: 3.1.1
-      ioredis:
-        specifier: ^5.3.2
-        version: 5.3.2
       js-tiktoken:
         specifier: ^1.0.10
         version: 1.0.10
@@ -337,7 +331,7 @@ importers:
         version: 0.27.3
       langchain:
         specifier: ^0.1.28
-        version: 0.1.28(@aws-sdk/client-s3@3.536.0)(@aws-sdk/credential-provider-node@3.535.0)(ioredis@5.3.2)(lodash@4.17.21)
+        version: 0.1.28(@aws-sdk/client-s3@3.536.0)(@aws-sdk/credential-provider-node@3.535.0)(lodash@4.17.21)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -2487,7 +2481,7 @@ packages:
       - encoding
     dev: false
 
-  /@langchain/community@0.0.41(@aws-sdk/credential-provider-node@3.535.0)(ioredis@5.3.2)(lodash@4.17.21):
+  /@langchain/community@0.0.41(@aws-sdk/credential-provider-node@3.535.0)(lodash@4.17.21):
     resolution: {integrity: sha512-8QvA/Gx95ijUxmH3amj1La6Rl9NmMCnif802q/Y2zze+SW2bgeF7brC6n2BIui2GYUQlCDBoga/QZ2lPqPM6vg==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -2765,7 +2759,6 @@ packages:
       '@langchain/openai': 0.0.23
       expr-eval: 2.0.2
       flat: 5.0.2
-      ioredis: 5.3.2
       langsmith: 0.1.14
       lodash: 4.17.21
       uuid: 9.0.1
@@ -4944,15 +4937,6 @@ packages:
       '@sentry/utils': 7.107.0
     dev: false
 
-  /@sentry-internal/tracing@7.108.0:
-    resolution: {integrity: sha512-zuK5XsTsb+U+hgn3SPetYDAogrXsM16U/LLoMW7+TlC6UjlHGYQvmX3o+M2vntejoU1QZS8m1bCAZSMWEypAEw==}
-    engines: {node: '>=8'}
-    dependencies:
-      '@sentry/core': 7.108.0
-      '@sentry/types': 7.108.0
-      '@sentry/utils': 7.108.0
-    dev: false
-
   /@sentry/browser@7.107.0:
     resolution: {integrity: sha512-KnqaQDhxv6w9dJ+mYLsNwPeGZfgbpM3vaismBNyJCKLgWn2V75kxkSq+bDX8LQT/13AyK7iFp317L6P8EuNa3g==}
     engines: {node: '>=8'}
@@ -4989,14 +4973,6 @@ packages:
     dependencies:
       '@sentry/types': 7.107.0
       '@sentry/utils': 7.107.0
-    dev: false
-
-  /@sentry/core@7.108.0:
-    resolution: {integrity: sha512-I/VNZCFgLASxHZaD0EtxZRM34WG9w2gozqgrKGNMzAymwmQ3K9g/1qmBy4e6iS3YRptb7J5UhQkZQHrcwBbjWQ==}
-    engines: {node: '>=8'}
-    dependencies:
-      '@sentry/types': 7.108.0
-      '@sentry/utils': 7.108.0
     dev: false
 
   /@sentry/integrations@7.107.0:
@@ -5050,16 +5026,6 @@ packages:
       '@sentry/utils': 7.107.0
     dev: false
 
-  /@sentry/node@7.108.0:
-    resolution: {integrity: sha512-pMxc9txnDDkU4Z8k2Uw/DPSLPehNtWV3mjJ3+my0AMORGYrXLkJI93tddlE5z/7k+GEJdj1HsOLgxUN0OU+HGA==}
-    engines: {node: '>=8'}
-    dependencies:
-      '@sentry-internal/tracing': 7.108.0
-      '@sentry/core': 7.108.0
-      '@sentry/types': 7.108.0
-      '@sentry/utils': 7.108.0
-    dev: false
-
   /@sentry/profiling-node@7.107.0:
     resolution: {integrity: sha512-28ZkfgvSVCDpsL9X35Y4bDpnGdn/aWsCq7c9A1Q7ruJjIE8DhVjsvYYpP+AJiBQ3ykba2qTEvh9xYBEn5KZDhg==}
     engines: {node: '>=8.0.0'}
@@ -5099,23 +5065,11 @@ packages:
     engines: {node: '>=8'}
     dev: false
 
-  /@sentry/types@7.108.0:
-    resolution: {integrity: sha512-bKtHITmBN3kqtqE5eVvL8mY8znM05vEodENwRpcm6TSrrBjC2RnwNWVwGstYDdHpNfFuKwC8mLY9bgMJcENo8g==}
-    engines: {node: '>=8'}
-    dev: false
-
   /@sentry/utils@7.107.0:
     resolution: {integrity: sha512-C6PbN5gHh73MRHohnReeQ60N8rrLYa9LciHue3Ru2290eSThg4CzsPnx4SzkGpkSeVlhhptKtKZ+hp/ha3iVuw==}
     engines: {node: '>=8'}
     dependencies:
       '@sentry/types': 7.107.0
-    dev: false
-
-  /@sentry/utils@7.108.0:
-    resolution: {integrity: sha512-a45yEFD5qtgZaIFRAcFkG8C8lnDzn6t4LfLXuV4OafGAy/3ZAN3XN8wDnrruHkiUezSSANGsLg3bXaLW/JLvJw==}
-    engines: {node: '>=8'}
-    dependencies:
-      '@sentry/types': 7.108.0
     dev: false
 
   /@sentry/vercel-edge@7.107.0:
@@ -11733,7 +11687,7 @@ packages:
     resolution: {integrity: sha512-lG03Ru+XyOJFsjH3OMY6R/9U38IjDPfnOfDgO3ynhbDr+Dz8fak+X6L62vqu3iybQnj+lG84OttBuU9KY3L9kA==}
     engines: {node: '>=14.0.0'}
 
-  /langchain@0.1.28(@aws-sdk/client-s3@3.536.0)(@aws-sdk/credential-provider-node@3.535.0)(ioredis@5.3.2)(lodash@4.17.21):
+  /langchain@0.1.28(@aws-sdk/client-s3@3.536.0)(@aws-sdk/credential-provider-node@3.535.0)(lodash@4.17.21):
     resolution: {integrity: sha512-LNuILtOSFptfOqDwUwQAl7B0dYrBtxzVZ6lDhc5DA8rk+pyTCy12HQO7t8bGqC8oQlEPYPKaom8VRlvfupUBTw==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -11895,12 +11849,11 @@ packages:
       '@anthropic-ai/sdk': 0.9.1
       '@aws-sdk/client-s3': 3.536.0
       '@aws-sdk/credential-provider-node': 3.535.0
-      '@langchain/community': 0.0.41(@aws-sdk/credential-provider-node@3.535.0)(ioredis@5.3.2)(lodash@4.17.21)
+      '@langchain/community': 0.0.41(@aws-sdk/credential-provider-node@3.535.0)(lodash@4.17.21)
       '@langchain/core': 0.1.49
       '@langchain/openai': 0.0.23
       binary-extensions: 2.3.0
       expr-eval: 2.0.2
-      ioredis: 5.3.2
       js-tiktoken: 1.0.10
       js-yaml: 4.1.0
       jsonpointer: 5.0.1

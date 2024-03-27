@@ -440,7 +440,7 @@ export const sendToWorker = async (
       )
       .filter(isNotNullOrUndefined);
 
-    const response = await fetch(`${env.WORKER_HOST}/api/events`, {
+    await fetch(`${env.WORKER_HOST}/api/events`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

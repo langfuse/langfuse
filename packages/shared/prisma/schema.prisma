@@ -388,7 +388,7 @@ model Score {
 enum ScoreSource {
     API
     REVIEW
-    MODEL_BASED_EVALUATION
+    EVALS
 }
 
 enum PricingUnit {
@@ -641,10 +641,10 @@ model JobExecution {
     error     String?
 
     traceId String? @map("trace_id")
-    trace   Trace?  @relation(fields: [traceId], references: [id], onDelete: SetNull)
+    trace   Trace?  @relation(fields: [traceId], references: [id], onDelete: SetNull) // job remains when traces are deleted
 
     scoreId String? @map("score_id")
-    score   Score?  @relation(fields: [scoreId], references: [id], onDelete: SetNull)
+    score   Score?  @relation(fields: [scoreId], references: [id], onDelete: SetNull) // job remains when scores are deleted
 
     @@index([projectId, id])
     @@index([projectId])

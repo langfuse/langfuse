@@ -63,7 +63,7 @@ export const env = createEnv({
     S3_REGION: z.string().optional(),
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
-    // Redis
+    // Worker
     WORKER_HOST: z.string().optional(),
     WORKER_PASSWORD: z.string().optional(),
     // Prompt playground
@@ -139,7 +139,7 @@ export const env = createEnv({
     S3_REGION: process.env.S3_REGION,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
-    // Redis
+    // Worker
     WORKER_HOST: process.env.WORKER_HOST,
     WORKER_PASSWORD: process.env.WORKER_PASSWORD,
     // Prompt playground

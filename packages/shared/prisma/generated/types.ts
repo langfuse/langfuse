@@ -27,7 +27,7 @@ export type ObservationLevel = (typeof ObservationLevel)[keyof typeof Observatio
 export const ScoreSource = {
     API: "API",
     REVIEW: "REVIEW",
-    MODEL_BASED_EVALUATION: "MODEL_BASED_EVALUATION"
+    EVALS: "EVALS"
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
 export const PricingUnit = {

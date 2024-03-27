@@ -73,12 +73,12 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalsTemplate:read",
+        scope: "evalTemplate:read",
       });
 
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
-          // langfuse managed templates are do not have a projectId
+          // langfuse managed templates do not have a projectId
           OR: [{ projectId: input.projectId }, { projectId: null }],
         },
         take: input.limit,
@@ -87,7 +87,7 @@ export const evalRouter = createTRPCRouter({
 
       const count = await ctx.prisma.evalTemplate.count({
         where: {
-          projectId: input.projectId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
         },
       });
       return {
@@ -122,7 +122,11 @@ export const evalRouter = createTRPCRouter({
           },
         });
 
-        if (!evalTemplate || evalTemplate.projectId !== input.projectId) {
+        if (
+          !evalTemplate ||
+          (evalTemplate.projectId !== input.projectId &&
+            evalTemplate.projectId !== null)
+        ) {
           console.log(
             `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
           );
@@ -159,7 +163,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalsTemplate:create",
+        scope: "evalTemplate:create",
       });
 
       const latestTemplate = await ctx.prisma.evalTemplate.findFirst({
