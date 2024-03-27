@@ -2,6 +2,7 @@ import { type VisibilityState } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useEffect } from "react";
+import { isEqual } from "lodash";
 
 function useColumnVisibility<TData>(
   localStorageKey: string,
@@ -10,9 +11,12 @@ function useColumnVisibility<TData>(
   const initialVisibilityState = () => {
     const visibilityState: VisibilityState = {};
     columns.forEach((column) => {
-      if ("accessorKey" in column && typeof column.accessorKey === "string") {
-        visibilityState[column.accessorKey] =
-          column.defaultHidden === true ? false : true;
+      if (
+        "accessorKey" in column &&
+        typeof column.accessorKey === "string" &&
+        column.enableHiding
+      ) {
+        visibilityState[column.accessorKey] = !(column.defaultHidden === true);
       }
     });
     return visibilityState;
@@ -22,28 +26,14 @@ function useColumnVisibility<TData>(
     useLocalStorage<VisibilityState>(localStorageKey, initialVisibilityState());
 
   useEffect(() => {
-    if (Object.keys(columnVisibility).length === 0) {
-      const initialVisibility: VisibilityState = {};
-      columns.forEach((column) => {
-        if ("accessorKey" in column && typeof column.accessorKey === "string") {
-          initialVisibility[column.accessorKey] =
-            column.defaultHidden === true ? false : true;
-        }
-      });
-      setColumnVisibility(initialVisibility);
+    const newColumnVisibility = {
+      ...initialVisibilityState(),
+      ...columnVisibility,
+    };
+    if (!isEqual(newColumnVisibility, columnVisibility)) {
+      setColumnVisibility(newColumnVisibility);
     }
-    if (Object.keys(columnVisibility).length !== columns.length) {
-      const newVisibility: VisibilityState = {};
-      columns.forEach((column) => {
-        if ("accessorKey" in column && typeof column.accessorKey === "string") {
-          newVisibility[column.accessorKey] =
-            columnVisibility[column.accessorKey] ??
-            !(column.defaultHidden === true);
-        }
-      });
-      setColumnVisibility(newVisibility);
-    }
-  }, [columnVisibility, columns, setColumnVisibility]);
+  }, [columnVisibility, setColumnVisibility]);
 
   return [columnVisibility, setColumnVisibility] as const;
 }
