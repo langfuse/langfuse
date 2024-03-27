@@ -16,6 +16,10 @@
     "./src/db": {
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
+    },
+    "./src/server/auth": {
+      "import": "./dist/src/server/auth.js",
+      "require": "./dist/src/server/auth.js"
     }
   },
   "scripts": {
