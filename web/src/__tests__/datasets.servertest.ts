@@ -253,4 +253,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       traceId: traceId,
     });
   });
+
+  it("dataset-run-items should fail when neither trace nor observation provided", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        runName: "run-fail",
+      },
+    );
+    expect(response.status).toBe(400);
+  });
 });
