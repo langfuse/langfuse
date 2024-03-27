@@ -48,7 +48,7 @@ export const scoresRouter = createTRPCRouter({
       );
 
       const scores = await ctx.prisma.$queryRaw<
-        Array<Score & { traceName: string; userId: string }>
+        Array<Score & { traceName: string; userId: string | null }>
       >(
         generateScoresQuery(
           Prisma.sql` 

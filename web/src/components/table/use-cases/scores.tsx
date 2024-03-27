@@ -22,7 +22,7 @@ export type ScoresTableRow = {
   comment?: string;
   observationId?: string;
   traceName: string;
-  userId: string;
+  userId?: string;
 };
 
 export type ScoreFilterInput = Omit<
@@ -165,8 +165,8 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value = row.getValue("userId");
-        return typeof value === "string" ? (
+        const value = row.getValue("userId") as ScoresTableRow["userId"];
+        return value ? (
           <>
             <TableLink
               path={`/project/${projectId}/users/${value}`}
@@ -200,7 +200,7 @@ export default function ScoresTable({
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
       traceName: score.traceName,
-      userId: score.userId,
+      userId: score.userId ?? undefined,
     };
   };
 
