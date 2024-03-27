@@ -10,13 +10,13 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { type FilterState } from "@langfuse/shared";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
+  type FilterState,
   TraceOptions,
   tracesTableColsWithOptions,
-} from "@/src/server/api/definitions/tracesTable";
+} from "@langfuse/shared";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";

@@ -14,9 +14,12 @@ import { ChatOpenAI } from "@langchain/openai";
 import {
   ChatMessage,
   ChatMessageRole,
+  LLMFunctionCall,
   ModelParams,
   ModelProvider,
 } from "./types";
+import zodToJsonSchema from "zod-to-json-schema";
+import { JsonOutputFunctionsParser } from "langchain/output_parsers";
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -51,7 +54,7 @@ export async function fetchLLMCompletion(
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
-): Promise<string | IterableReadableStream<Uint8Array>> {
+): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
