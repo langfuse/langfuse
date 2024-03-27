@@ -49,9 +49,10 @@ export type TracesTableRow = {
   latency?: number;
   release?: string;
   version?: string;
+  sessionId?: string;
+  // i/o not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
-  sessionId?: string;
   scores: Score[];
   tags: string[];
   usage: {
@@ -176,8 +177,6 @@ export default function TracesTable({
       userId: trace.userId ?? "",
       scores: trace.scores,
       sessionId: trace.sessionId ?? undefined,
-      input: trace.input,
-      output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
       tags: trace.tags,
       usage: {

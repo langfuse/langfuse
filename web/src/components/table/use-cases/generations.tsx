@@ -55,6 +55,7 @@ export type GenerationsTableRow = {
   latency?: number;
   name?: string;
   model?: string;
+  // i/o not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
   inputCost?: Decimal;
@@ -574,9 +575,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           name: generation.name ?? undefined,
           version: generation.version ?? "",
           model: generation.model ?? "",
-          input: generation.input,
           scores: generation.scores,
-          output: generation.output,
           level: generation.level,
           metadata: generation.metadata
             ? JSON.stringify(generation.metadata)
