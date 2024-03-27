@@ -194,7 +194,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       datasetItemId: "dataset-item-id",
       observationId: observationId,
       traceId: traceId,
-      datasetRunId: dbRunObservation?.id,
     });
 
     const runItemTrace = await makeAPICall(
@@ -219,11 +218,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbRunTrace?.datasetId).toBe(dataset.body.id);
     expect(dbRunTrace?.metadata).toMatchObject({ key: "value" });
     expect(runItemTrace.status).toBe(200);
-    expect(dbRunObservation?.datasetRunItems[0]).toMatchObject({
+    expect(dbRunTrace?.datasetRunItems[0]).toMatchObject({
       datasetItemId: "dataset-item-id",
       traceId: traceId,
       observationId: null,
-      datasetRunId: dbRunTrace?.id,
     });
 
     const runItemBoth = await makeAPICall(
@@ -249,11 +247,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbRunBoth?.datasetId).toBe(dataset.body.id);
     expect(dbRunBoth?.metadata).toMatchObject({ key: "value" });
     expect(runItemBoth.status).toBe(200);
-    expect(dbRunObservation?.datasetRunItems[0]).toMatchObject({
+    expect(dbRunBoth?.datasetRunItems[0]).toMatchObject({
       datasetItemId: "dataset-item-id",
       observationId: observationId,
       traceId: traceId,
-      datasetRunId: dbRunBoth?.id,
     });
   });
 });
