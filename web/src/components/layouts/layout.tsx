@@ -30,6 +30,7 @@ import {
 } from "@/src/features/notifications/checkNotifications";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import ProjectNav from "@/src/components/projectNav";
 
 const userNavigation = [
   {
@@ -252,45 +253,10 @@ export default function Layout(props: PropsWithChildren) {
                             <NewProjectButton size="xs" />
                           </div>
                           <ul role="list" className="-mx-2 mt-2 space-y-1">
-                            {projects.map((project) => (
-                              <li key={project.name}>
-                                <Link
-                                  href={`/project/${project.id}`}
-                                  className={cn(
-                                    projectId === project.id
-                                      ? "bg-gray-50 text-indigo-600"
-                                      : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                                    "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      projectId === project.id
-                                        ? "border-indigo-600 text-indigo-600"
-                                        : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium",
-                                    )}
-                                  >
-                                    <Code />
-                                  </span>
-                                  <span className="truncate">
-                                    {project.name}
-                                  </span>
-                                  {project.role === "VIEWER" ? (
-                                    <span
-                                      className={cn(
-                                        "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                                        projectId === project.id
-                                          ? "border-indigo-600 text-indigo-600"
-                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                                      )}
-                                    >
-                                      view-only
-                                    </span>
-                                  ) : null}
-                                </Link>
-                              </li>
-                            ))}
+                            <ProjectNav
+                              currentProjectId={projectId ?? ""}
+                              projects={projects}
+                            />
                           </ul>
                         </li>
                       </ul>
@@ -316,8 +282,23 @@ export default function Layout(props: PropsWithChildren) {
             />
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
               <ul role="list" className="flex h-full flex-col gap-y-4">
-                <MainNavigation nav={navigation} />
+                <MainNavigation nav={navigation.slice(0, 6)} />
                 <li className="mt-auto">
+                  <MainNavigation nav={navigation.slice(6)} />
+                  <FeedbackButtonWrapper
+                    className="space-y-1"
+                    title="Provide feedback"
+                    description="What do you think about this project? What can be improved?"
+                    type="feedback"
+                  >
+                    <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                      <MessageSquarePlus
+                        className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                        aria-hidden="true"
+                      />
+                      Feedback
+                    </li>
+                  </FeedbackButtonWrapper>
                   <div className="flex flex-row place-content-between items-center">
                     <div className="text-xs font-semibold leading-6 text-gray-400">
                       Projects
@@ -325,48 +306,10 @@ export default function Layout(props: PropsWithChildren) {
                     <NewProjectButton size="xs" />
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
-                    {projects.map((project, index) => (
-                      <li key={project.name}>
-                        <Link
-                          href={`/project/${project.id}`}
-                          className={cn(
-                            projectId === project.id
-                              ? "bg-gray-50 text-indigo-600"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                            "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              projectId === project.id
-                                ? "border-indigo-600 text-indigo-600"
-                                : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                              "w-6shrink-0 flex h-6 w-6 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium",
-                            )}
-                          >
-                            <Code />
-                          </span>
-                          <span
-                            className="truncate"
-                            data-testid={`project-title-span-${index}`}
-                          >
-                            {project.name}
-                          </span>
-                          {project.role === "VIEWER" ? (
-                            <span
-                              className={cn(
-                                "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                                projectId === project.id
-                                  ? "border-indigo-600 text-indigo-600"
-                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                              )}
-                            >
-                              view-only
-                            </span>
-                          ) : null}
-                        </Link>
-                      </li>
-                    ))}
+                    <ProjectNav
+                      currentProjectId={projectId ?? ""}
+                      projects={projects}
+                    />
                   </ul>
                 </li>
               </ul>
@@ -652,20 +595,6 @@ const MainNavigation: React.FC<{
             ) : null}
           </li>
         ))}
-        <FeedbackButtonWrapper
-          className="w-full"
-          title="Provide feedback"
-          description="What do you think about this project? What can be improved?"
-          type="feedback"
-        >
-          <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
-            <MessageSquarePlus
-              className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-              aria-hidden="true"
-            />
-            Feedback
-          </li>
-        </FeedbackButtonWrapper>
       </ul>
     </li>
   );
