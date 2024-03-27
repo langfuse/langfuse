@@ -7,7 +7,7 @@ import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
-import { type Prompt } from "@prisma/client";
+import { type Prompt } from "@langfuse/shared/src/db";
 import { Pencil } from "lucide-react";
 import { PromptHistoryNode } from "./prompt-history";
 import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
@@ -56,7 +56,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
               },
               {
                 name: prompt.name,
-                href: `/project/${props.projectId}/prompts/${props.promptName}`,
+                href: `/project/${props.projectId}/prompts/${encodeURIComponent(props.promptName)}`,
               },
               { name: `Version ${prompt.version}` },
             ]}

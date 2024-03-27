@@ -1,12 +1,14 @@
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { jsonSchema } from "@/src/utils/zod";
 
 const DatasetRunItemPostSchema = z.object({
   runName: z.string(),
+  metadata: jsonSchema.nullish(),
   datasetItemId: z.string(),
   observationId: z.string(),
 });
@@ -41,7 +43,7 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      const { datasetItemId, observationId, runName } =
+      const { datasetItemId, observationId, runName, metadata } =
         DatasetRunItemPostSchema.parse(req.body);
 
       const item = await prisma.datasetItem.findUnique({
@@ -87,8 +89,11 @@ export default async function handler(
         create: {
           name: runName,
           datasetId: item.datasetId,
+          metadata: metadata ?? undefined,
         },
-        update: {},
+        update: {
+          metadata: metadata ?? undefined,
+        },
       });
 
       const runItem = await prisma.datasetRunItems.create({

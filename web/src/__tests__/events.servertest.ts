@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 

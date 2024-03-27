@@ -8,17 +8,19 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopver } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
-import { JSONView } from "@/src/components/ui/code";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
+import {
+  TraceOptions,
+  tracesTableColsWithOptions,
+} from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type ObservationLevel, type Score } from "@prisma/client";
+import { type ObservationLevel, type Score } from "@langfuse/shared/src/db";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
@@ -33,6 +35,8 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
+import { IOCell } from "./IOCell";
+import { setSmallPaginationIfColumnsVisible } from "@/src/features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -80,14 +84,17 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
-  const [userFilterState, setUserFilterState] = useQueryFilterState([
-    {
-      column: "timestamp",
-      type: "datetime",
-      operator: ">",
-      value: utcDateOffsetByDays(-14),
-    },
-  ]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [
+      {
+        column: "Timestamp",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(-14),
+      },
+    ],
+    "traces",
+  );
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
@@ -96,7 +103,7 @@ export default function TracesTable({
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "userId",
+          column: "User ID",
           type: "string",
           operator: "=",
           value: userId,
@@ -145,6 +152,15 @@ export default function TracesTable({
       },
     },
   );
+
+  const transformFilterOptions = (
+    traceFilterOptions: TraceOptions | undefined,
+  ) => {
+    return tracesTableColsWithOptions(traceFilterOptions).filter(
+      (c) => !omittedFilter?.includes(c.name),
+    );
+  };
+
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
@@ -178,6 +194,7 @@ export default function TracesTable({
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
       id: "select",
+      accessorKey: "select",
       header: ({ table }) => (
         <Checkbox
           checked={
@@ -194,7 +211,7 @@ export default function TracesTable({
             }
           }}
           aria-label="Select all"
-          className="opacity-60"
+          className="mt-1 opacity-60 data-[state=checked]:mt-[6px] data-[state=indeterminate]:mt-[6px]"
         />
       ),
       cell: ({ row }) => (
@@ -202,7 +219,7 @@ export default function TracesTable({
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="opacity-60"
+          className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
         />
       ),
     },
@@ -224,6 +241,7 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "id",
@@ -252,10 +270,10 @@ export default function TracesTable({
       header: "Name",
       id: "name",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "userId",
-      enableColumnFilter: !omittedFilter.find((f) => f === "userId"),
       header: "User ID",
       id: "userId",
       cell: ({ row }) => {
@@ -274,6 +292,7 @@ export default function TracesTable({
     {
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      id: "sessionId",
       header: "Session ID",
       cell: ({ row }) => {
         const value = row.getValue("sessionId");
@@ -286,6 +305,7 @@ export default function TracesTable({
         ) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "latency",
@@ -313,6 +333,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputTokens",
@@ -328,6 +349,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalTokens",
@@ -343,11 +365,13 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
+      id: "usage",
       cell: ({ row }) => {
         const value: {
           promptTokens: number;
@@ -363,6 +387,7 @@ export default function TracesTable({
           />
         );
       },
+      enableSorting: true,
       enableHiding: true,
     },
     {
@@ -383,6 +408,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputCost",
@@ -402,6 +428,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalCost",
@@ -436,9 +463,12 @@ export default function TracesTable({
     {
       accessorKey: "input",
       header: "Input",
+      id: "input",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("input");
-        return <JSONView json={value} className="w-[500px]" />;
+        const traceId: string = row.getValue("id");
+        return (
+          <TracesIOCell traceId={traceId} projectId={projectId} io="input" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -446,9 +476,12 @@ export default function TracesTable({
     {
       accessorKey: "output",
       header: "Output",
+      id: "output",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("output");
-        return <JSONView json={value} className="w-[500px] bg-green-50" />;
+        const traceId: string = row.getValue("id");
+        return (
+          <TracesIOCell traceId={traceId} projectId={projectId} io="output" />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -464,6 +497,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "level",
+      id: "level",
       header: "Level",
       cell: ({ row }) => {
         const value: ObservationLevel = row.getValue("level");
@@ -481,6 +515,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "version",
@@ -539,13 +574,18 @@ export default function TracesTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
+  const smallTableRequired = setSmallPaginationIfColumnsVisible(
+    columnVisibility,
+    ["input", "output"],
+    paginationState,
+    setPaginationState,
+  );
+
   return (
     <div>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={tracesTableColsWithOptions(
-          traceFilterOptions.data,
-        )}
+        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
           placeholder: "Search by id, name, user id",
           updateQuery: setSearchQuery,
@@ -589,6 +629,7 @@ export default function TracesTable({
           pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
+          options: smallTableRequired ? [10] : undefined,
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
@@ -600,3 +641,49 @@ export default function TracesTable({
     </div>
   );
 }
+
+const TracesIOCell = ({
+  projectId,
+  traceId,
+  io,
+}: {
+  projectId: string;
+  traceId: string;
+  io: "input" | "output";
+}) => {
+  const trace = api.traces.all.useQuery(
+    {
+      projectId: projectId,
+      filter: [
+        {
+          column: "id",
+          type: "string",
+          operator: "=",
+          value: traceId,
+        },
+      ],
+      searchQuery: null,
+      orderBy: null,
+      page: 0,
+      limit: 1,
+    },
+    {
+      enabled: typeof traceId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  return (
+    <IOCell
+      isLoading={trace.isLoading}
+      data={
+        io === "output"
+          ? trace.data?.traces[0]?.output
+          : trace.data?.traces[0]?.input
+      }
+    />
+  );
+};

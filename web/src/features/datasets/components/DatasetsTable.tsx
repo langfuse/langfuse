@@ -11,6 +11,7 @@ import {
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
@@ -28,15 +29,23 @@ type RowData = {
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
+
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
   });
 
   useEffect(() => {
     if (datasets.isSuccess) {
       setDetailPageList(
         "datasets",
-        datasets.data.map((t) => t.id),
+        datasets.data.datasets.map((t) => t.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,6 +84,8 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       id: "actions",
+      accessorKey: "actions",
+      header: "Actions",
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
@@ -106,12 +117,12 @@ export function DatasetsTable(props: { projectId: string }) {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["allDatasets"][number],
+    item: RouterOutput["datasets"]["allDatasets"]["datasets"][number],
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
-      createdAt: item.createdAt.toISOString(),
-      lastRunAt: item.lastRunAt?.toISOString() ?? "",
+      createdAt: item.createdAt.toLocaleString(),
+      lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
     };
@@ -133,14 +144,16 @@ export function DatasetsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: datasets.data.map((t) => convertToTableRow(t)),
+                  data: datasets.data.datasets.map((t) => convertToTableRow(t)),
                 }
         }
-      />
-      <DatasetActionButton
-        projectId={props.projectId}
-        className="mt-4"
-        mode="create"
+        pagination={{
+          pageCount: Math.ceil(
+            (datasets.data?.totalDatasets ?? 0) / paginationState.pageSize,
+          ),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
     </div>
   );

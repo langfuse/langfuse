@@ -91,9 +91,9 @@ flowchart TB
 
 The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
 
-Full database schema: [web/prisma/schema.prisma](web/prisma/schema.prisma)
+Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
 
-<img src="./web/prisma/database.svg">
+<img src="./packages/shared/prisma/database.svg">
 
 ### Infrastructure & Network Overview
 
@@ -112,12 +112,15 @@ flowchart LR
 
 ## Repository Structure
 
-This repository contains the following packages:
+We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
 
-- `web`: is the main application package providing Frontend and Backend APIs for Langfuse
+- `web`: is the main application package providing Frontend and Backend APIs for Langfuse.
 - `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
+- `shared`: contains shared code between the above packages.
+- `config-eslint`: contains eslint configurations which are shared between the above packages.
+- `config-typescript`: contains typescript configurations which are shared between the above packages.
 
-## Development Setup (web package only)
+## Development Setup
 
 Requirements
 
@@ -130,7 +133,7 @@ Requirements
 2. Run the development database
 
    ```bash
-   npm run infra:dev:up
+   pnpm run infra:dev:up
    ```
 
 3. Create an env file
@@ -139,38 +142,75 @@ Requirements
     cp .env.dev.example .env
    ```
 
-4. CD into the web directory
+4. Install dependencies
 
    ```bash
-   cd web
+   pnpm install
    ```
 
-5. Install dependencies
+5. Run the migrations
+
+   All database migrations and configs are in the `shared` package.
 
    ```bash
-   npm install
-   ```
-
-6. Run the migrations
-
-   The `schema.prisma` file is in the `web` directory and hence, migrations are applied from there.
-
-   ```bash
-   npm run db:migrate
+   pnpm --filter=shared run db:migrate
 
    # Optional: seed the database
-   # npm run db:seed
-   # npm run db:seed:examples
+   # pnpm run db:seed
+   # pnpm run db:seed:examples
+   # pnpm --filter=shared run db:seed:load
    ```
 
-7. Start the development server
+6. Start the development server
 
    ```bash
-    npm run dev
+    pnpm run dev
    ```
 
+## Monorepo quickstart
+
+- Available packages and their dependencies
+
+  Packages are included in the monorepo according to the `pnpm-workspace.yaml` file. Each package maintains its own dependencies defined in the `package.json`. Internal dependencies can be added as well by adding them to the package dependencies: `"@langfuse/shared": "workspace:*"`.
+
+- Executing commands
+
+  You can run commands in all packages at once. For example, to install all dependencies in all packages, you can execute:
+
+  ```bash
+  pnpm install
+  pnpm run dev
+  pnpm --filter=web run dev # execute command only in one package
+  ```
+
+  In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
+
+- Run migrations
+
+  To run migrations, you can execute the following command.
+
+  ```bash
+  pnpm --filter=shared run db:migrate
+  ```
+
 > [!NOTE]
-> If you frequently switch branches, use `npm run dx` instead of `npm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
+> If you frequently switch branches, use `pnpm run dx` instead of `pnpm run dev`. This command will install dependencies, reset the database (wipe and apply all migrations), and run the database seeder with example data before starting the development server.
+
+> [!NOTE]
+> If you find yourself stuck and want to clean the repo, execute `pnpm run nuke`. It will remove all node_modules and build files.
+
+## System behavior
+
+### Ingestion API `(/public/api/ingestion)`
+
+- the ingestion API takes different event types (creation and updates of traces, generations, spans, events)
+- The API loops through each event and:
+  - validates the event
+  - stores the event raw in the events table
+  - calculates tokens for `generations`
+  - matches models from the `models` table to model for `generations` events
+  - upserts the event in the `traces` or `observations` table
+- returns a `207` HTTP status code with a list of errors if any event failed to be ingested
 
 ## Commit messages
 

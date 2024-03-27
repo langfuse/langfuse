@@ -8,7 +8,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { type Score } from "@prisma/client";
+import { type Score } from "@langfuse/shared/src/db";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -70,7 +70,6 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (users.isSuccess) {
-      console.log("setting detail page list");
       setDetailPageList(
         "users",
         users.data.users.map((u) => encodeURIComponent(u.userId)),

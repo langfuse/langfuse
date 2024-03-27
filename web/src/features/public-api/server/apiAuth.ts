@@ -1,10 +1,7 @@
 import { env } from "@/src/env.mjs";
-import {
-  createShaHash,
-  verifySecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
+import { createShaHash, verifySecretKey } from "@langfuse/shared";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 

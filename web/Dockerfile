@@ -1,47 +1,50 @@
-# Base image
-FROM node:20-alpine AS base
+FROM node:20-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat
 
-FROM base AS deps
+FROM alpine AS base
+RUN npm install pnpm turbo --global
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+
+FROM base AS pruner
 
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-RUN \
-  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile; \
-  else echo "Lockfile not found." && exit 1; \
-  fi
+COPY . .
+RUN turbo prune --scope=web --docker
 
 
-# Rebuild the source code only when needed
 FROM base AS builder
 
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+
+# First install the dependencies (as they change less often)
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=pruner /app/out/json/ .
+
+RUN pnpm install --frozen-lockfile
+
+ENV DOCKER_BUILD 1
+
+
+# Copy source code of isolated subworkspace
+COPY --from=pruner /app/out/full/ .
 
 # remove middleware.ts if it exists - not needed in self-hosted environments
-RUN rm -f ./src/middleware.ts
+RUN rm -f ./web/src/middleware.ts
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Disable validation of environment variables during build
-ENV DOCKER_BUILD 1
-
-# Generate prisma client
-RUN npx prisma generate
-
-# Build the application
-RUN npm run build
+RUN turbo run build --filter=web
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -61,16 +64,20 @@ RUN adduser --system --uid 1001 nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma
 
-COPY --from=builder /app/public ./public
+
+COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
+COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
-COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
+
+COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
+RUN chmod +x ./web/entrypoint.sh
 
 USER nextjs
 
@@ -78,4 +85,4 @@ USER nextjs
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "./entrypoint.sh"]
+CMD ["dumb-init", "--", "./web/entrypoint.sh"]

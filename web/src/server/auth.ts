@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -14,11 +14,11 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { type Adapter } from "next-auth/adapters";
 
 // Providers
-import { type Provider } from "next-auth/providers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import { type Provider } from "next-auth/providers/index";
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const useSecureCookies =

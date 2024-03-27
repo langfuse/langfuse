@@ -3,9 +3,9 @@
 import { v4 as uuidv4 } from "uuid";
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@/src/constants";
-import { prisma } from "@/src/server/db";
-import { type ObservationView } from "@prisma/client";
+import { ModelUsageUnit } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { type ObservationView } from "@langfuse/shared/src/db";
 
 describe("/api/public/observations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());

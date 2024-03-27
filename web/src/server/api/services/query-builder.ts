@@ -3,8 +3,7 @@ import {
   type timeFilter,
 } from "@/src/server/api/interfaces/filters";
 import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import { Prisma, type PrismaClient } from "@prisma/client";
-import { type Sql } from "@prisma/client/runtime/library";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { type z } from "zod";
 import {
@@ -340,7 +339,7 @@ const getColumnDefinition = (
   return foundColumn;
 };
 
-const getInternalSql = (colDef: ColumnDefinition): Sql =>
+const getInternalSql = (colDef: ColumnDefinition): Prisma.Sql =>
   // raw required here, everything is typed
   Prisma.raw(colDef.internal);
 

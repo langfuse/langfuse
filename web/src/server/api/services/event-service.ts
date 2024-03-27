@@ -1,4 +1,4 @@
-import { type Prisma, type PrismaClient } from "@prisma/client";
+import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { type NextApiRequest } from "next";
 import { type jsonSchema } from "@/src/utils/zod";
 import lodash from "lodash";

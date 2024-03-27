@@ -1,0 +1,572 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider        = "prisma-client-js"
+    previewFeatures = ["tracing", "views"]
+}
+
+datasource db {
+    provider          = "postgresql"
+    url               = env("DATABASE_URL")
+    directUrl         = env("DIRECT_URL")
+    shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+generator erd {
+    provider     = "prisma-erd-generator"
+    ignoreTables = ["_prisma_migrations", "Session", "Account", "Example"]
+    disabled     = true
+    ignoreEnums  = true
+    output       = "database.svg"
+}
+
+generator kysely {
+    provider = "prisma-kysely"
+
+    // Optionally provide a destination directory for the generated file
+    // and a filename of your choice
+    // output = "../src/db"
+    // fileName = "types.ts"
+    // Optionally generate runtime enums to a separate file
+    // enumFileName = "enums.ts"
+}
+
+// Necessary for Next auth
+model Account {
+    id                String  @id @default(cuid())
+    userId            String  @map("user_id")
+    type              String
+    provider          String
+    providerAccountId String
+    refresh_token     String? // @db.Text
+    access_token      String? // @db.Text
+    expires_at        Int?
+    expires_in        Int?
+    ext_expires_in    Int?
+    token_type        String?
+    scope             String?
+    id_token          String? // @db.Text
+    session_state     String?
+    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+    @@index([userId])
+}
+
+model Session {
+    id           String   @id @default(cuid())
+    sessionToken String   @unique @map("session_token")
+    userId       String   @map("user_id")
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+    id            String                 @id @default(cuid())
+    name          String?
+    email         String?                @unique
+    emailVerified DateTime?              @map("email_verified")
+    password      String?
+    image         String?
+    admin         Boolean                @default(false)
+    accounts      Account[]
+    sessions      Session[]
+    memberships   Membership[]
+    invitations   MembershipInvitation[]
+    createdAt     DateTime               @default(now()) @map("created_at")
+    updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
+    featureFlags  String[]               @default([]) @map("feature_flags")
+    AuditLog      AuditLog[]
+
+    @@map("users")
+}
+
+model VerificationToken {
+    identifier String
+    token      String   @unique
+    expires    DateTime
+
+    @@unique([identifier, token])
+    @@map("verification_tokens")
+}
+
+model Project {
+    id           String                 @id @default(cuid())
+    createdAt    DateTime               @default(now()) @map("created_at")
+    updatedAt    DateTime               @default(now()) @updatedAt @map("updated_at")
+    name         String
+    cloudConfig  Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
+    members      Membership[]
+    traces       Trace[]
+    observations Observation[]
+    apiKeys      ApiKey[]
+    dataset      Dataset[]
+    RawEvents    Events[]
+    invitations  MembershipInvitation[]
+    sessions     TraceSession[]
+    Prompt       Prompt[]
+    Model        Model[]
+    AuditLog     AuditLog[]
+
+    @@map("projects")
+}
+
+model ApiKey {
+    id                  String    @id @unique @default(cuid())
+    createdAt           DateTime  @default(now()) @map("created_at")
+    note                String?
+    publicKey           String    @unique @map("public_key")
+    hashedSecretKey     String    @unique @map("hashed_secret_key")
+    fastHashedSecretKey String?   @unique @map("fast_hashed_secret_key")
+    displaySecretKey    String    @map("display_secret_key")
+    lastUsedAt          DateTime? @map("last_used_at")
+    expiresAt           DateTime? @map("expires_at")
+    projectId           String    @map("project_id")
+    project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    @@index(projectId)
+    @@index(publicKey)
+    @@index(hashedSecretKey)
+    @@index(fastHashedSecretKey)
+    @@map("api_keys")
+}
+
+model Membership {
+    projectId String         @map("project_id")
+    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userId    String         @map("user_id")
+    user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+    role      MembershipRole
+    createdAt DateTime       @default(now()) @map("created_at")
+    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+
+    @@id([projectId, userId])
+    @@index([userId])
+    @@map("memberships")
+}
+
+model MembershipInvitation {
+    id        String         @id @unique @default(cuid())
+    email     String
+    role      MembershipRole
+    projectId String         @map("project_id")
+    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    senderId  String?        @map("sender_id")
+    sender    User?          @relation(fields: [senderId], references: [id], onDelete: SetNull)
+    createdAt DateTime       @default(now()) @map("created_at")
+    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+
+    @@index([projectId])
+    @@index([email])
+    @@map("membership_invitations")
+}
+
+enum MembershipRole {
+    OWNER
+    ADMIN
+    MEMBER
+    VIEWER
+}
+
+model TraceSession {
+    id         String   @default(cuid())
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+    projectId  String   @map("project_id")
+    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    bookmarked Boolean  @default(false)
+    public     Boolean  @default(false)
+    traces     Trace[]
+
+    @@id([id, projectId])
+    @@index([projectId])
+    @@index([createdAt])
+    @@map("trace_sessions")
+}
+
+// Update TraceView below when making changes to this model!
+
+model Trace {
+    id         String        @id @default(cuid())
+    externalId String?       @map("external_id")
+    timestamp  DateTime      @default(now())
+    name       String?
+    userId     String?       @map("user_id")
+    metadata   Json?
+    release    String?
+    version    String?
+    projectId  String        @map("project_id")
+    project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    public     Boolean       @default(false)
+    bookmarked Boolean       @default(false)
+    tags       String[]      @default([])
+    input      Json?
+    output     Json?
+    sessionId  String?       @map("session_id")
+    session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
+
+    scores Score[]
+
+    @@index([projectId])
+    @@index([sessionId])
+    @@index([name])
+    @@index([userId])
+    @@index([id, userId])
+    @@index([externalId])
+    @@index(timestamp)
+    @@index(release)
+    @@index([tags(ops: ArrayOps)], type: Gin)
+    @@map("traces")
+}
+
+// This view is based on the trace table. Once prisma supports
+// inheritance, we should remove code duplication here.
+view TraceView {
+    // trace fields
+    id         String   @id @default(cuid())
+    externalId String?  @map("external_id")
+    timestamp  DateTime @default(now())
+    name       String?
+    userId     String?  @map("user_id")
+    metadata   Json?
+    release    String?
+    version    String?
+    projectId  String   @map("project_id")
+    public     Boolean  @default(false)
+    bookmarked Boolean  @default(false)
+    tags       String[] @default([])
+    input      Json?
+    output     Json?
+    sessionId  String?  @map("session_id")
+
+    // calculated fields
+    duration Float? @map("duration") // can be null if no observations in trace
+
+    @@map("traces_view")
+}
+
+// Update ObservationView below when making changes to this model!
+model Observation {
+    id                  String           @id @default(cuid())
+    traceId             String?          @map("trace_id")
+    projectId           String           @map("project_id")
+    type                ObservationType
+    startTime           DateTime         @default(now()) @map("start_time")
+    endTime             DateTime?        @map("end_time")
+    name                String?
+    metadata            Json?
+    parentObservationId String?          @map("parent_observation_id")
+    level               ObservationLevel @default(DEFAULT)
+    statusMessage       String?          @map("status_message")
+    version             String?
+    createdAt           DateTime         @default(now()) @map("created_at")
+
+    // GENERATION ONLY
+    model               String?
+    internalModel       String?           @map("internal_model")
+    modelParameters     Json?
+    input               Json?
+    output              Json?
+    promptTokens        Int               @default(0) @map("prompt_tokens")
+    completionTokens    Int               @default(0) @map("completion_tokens")
+    totalTokens         Int               @default(0) @map("total_tokens")
+    unit                String?
+    inputCost           Decimal?          @map("input_cost")
+    outputCost          Decimal?          @map("output_cost")
+    totalCost           Decimal?          @map("total_cost")
+    completionStartTime DateTime?         @map("completion_start_time")
+    scores              Score[]
+    project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    derivedDatasetItems DatasetItem[]
+    datasetRunItems     DatasetRunItems[]
+
+    promptId String? @map("prompt_id")
+    prompt   Prompt? @relation(fields: [promptId], onDelete: SetNull, references: [id])
+
+    @@unique([id, projectId])
+    @@index([projectId, internalModel, startTime, unit])
+    @@index([traceId, projectId, type, startTime])
+    @@index([traceId, projectId, startTime])
+    @@index([traceId, projectId])
+    @@index([traceId])
+    @@index([type])
+    @@index(startTime)
+    @@index(createdAt)
+    @@index(projectId)
+    @@index(parentObservationId)
+    @@index(model)
+    @@index(promptId)
+    @@index([projectId, startTime, type])
+    @@map("observations")
+}
+
+// This view is a mix of the observation and model. Once prisma supports
+// inheritance, we should remove code duplication here.
+view ObservationView {
+    id                  String           @id @default(cuid())
+    traceId             String?          @map("trace_id")
+    projectId           String           @map("project_id")
+    type                ObservationType
+    startTime           DateTime         @default(now()) @map("start_time")
+    endTime             DateTime?        @map("end_time")
+    name                String?
+    metadata            Json?
+    parentObservationId String?          @map("parent_observation_id")
+    level               ObservationLevel @default(DEFAULT)
+    statusMessage       String?          @map("status_message")
+    version             String?
+    createdAt           DateTime         @default(now()) @map("created_at")
+
+    // GENERATION ONLY
+    model               String?
+    modelParameters     Json?
+    input               Json?
+    output              Json?
+    promptTokens        Int       @default(0) @map("prompt_tokens")
+    completionTokens    Int       @default(0) @map("completion_tokens")
+    totalTokens         Int       @default(0) @map("total_tokens")
+    unit                String?
+    completionStartTime DateTime? @map("completion_start_time")
+
+    promptId String? @map("prompt_id")
+
+    // model fields
+    modelId     String?  @map("model_id")
+    inputPrice  Decimal? @map("input_price")
+    outputPrice Decimal? @map("output_price")
+    totalPrice  Decimal? @map("total_price")
+
+    // calculated fields
+    calculatedInputCost  Decimal? @map("calculated_input_cost")
+    calculatedOutputCost Decimal? @map("calculated_output_cost")
+    calculatedTotalCost  Decimal? @map("calculated_total_cost")
+    latency              Float?   @map("latency")
+
+    @@map("observations_view")
+}
+
+enum ObservationType {
+    SPAN
+    EVENT
+    GENERATION
+}
+
+enum ObservationLevel {
+    DEBUG
+    DEFAULT
+    WARNING
+    ERROR
+}
+
+model Score {
+    id            String       @id @default(cuid())
+    timestamp     DateTime     @default(now())
+    name          String
+    value         Float
+    source        ScoreSource
+    comment       String?
+    traceId       String       @map("trace_id")
+    trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    observationId String?      @map("observation_id")
+    observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+
+    @@unique([id, traceId]) // used for upsert
+    @@index(timestamp)
+    @@index([value])
+    @@index([traceId], type: Hash)
+    @@index([observationId], type: Hash)
+    @@index([source])
+    @@map("scores")
+}
+
+enum ScoreSource {
+    API
+    REVIEW
+}
+
+enum PricingUnit {
+    PER_1000_TOKENS
+    PER_1000_CHARS
+}
+
+enum TokenType {
+    PROMPT
+    COMPLETION
+    TOTAL
+}
+
+model Pricing {
+    id          String      @id @default(cuid())
+    modelName   String      @map("model_name")
+    pricingUnit PricingUnit @default(PER_1000_TOKENS) @map("pricing_unit")
+    price       Decimal
+    currency    String      @default("USD")
+    tokenType   TokenType   @map("token_type")
+
+    @@index(modelName)
+    @@map("pricings")
+}
+
+model CronJobs {
+    name         String    @id
+    lastRun      DateTime? @map("last_run")
+    jobStartedAt DateTime? @map("job_started_at")
+    state        String?
+
+    @@map("cron_jobs")
+}
+
+model Dataset {
+    id           String        @id @default(cuid())
+    name         String
+    projectId    String        @map("project_id")
+    project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt    DateTime      @default(now()) @map("created_at")
+    updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
+    datasetItems DatasetItem[]
+    datasetRuns  DatasetRuns[]
+
+    @@unique([projectId, name])
+    @@index([projectId], type: Hash)
+    @@map("datasets")
+}
+
+model DatasetItem {
+    id                  String            @id @default(cuid())
+    status              DatasetStatus     @default(ACTIVE)
+    input               Json
+    expectedOutput      Json?             @map("expected_output")
+    sourceObservationId String?           @map("source_observation_id")
+    sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
+    datasetId           String            @map("dataset_id")
+    dataset             Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+    createdAt           DateTime          @default(now()) @map("created_at")
+    updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
+    datasetRunItems     DatasetRunItems[]
+
+    @@index([sourceObservationId], type: Hash)
+    @@index([datasetId], type: Hash)
+    @@map("dataset_items")
+}
+
+enum DatasetStatus {
+    ACTIVE
+    ARCHIVED
+}
+
+model DatasetRuns {
+    id              String            @id @default(cuid())
+    name            String
+    metadata        Json?
+    datasetId       String            @map("dataset_id")
+    dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+    createdAt       DateTime          @default(now()) @map("created_at")
+    updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
+    datasetRunItems DatasetRunItems[]
+
+    @@unique([datasetId, name])
+    @@index([datasetId], type: Hash)
+    @@map("dataset_runs")
+}
+
+model DatasetRunItems {
+    id            String      @id @default(cuid())
+    datasetRunId  String      @map("dataset_run_id")
+    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
+    datasetItemId String      @map("dataset_item_id")
+    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
+    observationId String      @map("observation_id")
+    observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+    createdAt     DateTime    @default(now()) @map("created_at")
+    updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+
+    @@index([datasetRunId], type: Hash)
+    @@index([datasetItemId], type: Hash)
+    @@index([observationId], type: Hash)
+    @@map("dataset_run_items")
+}
+
+model Events {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+    projectId String   @map("project_id")
+    project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    data      Json
+    headers   Json     @default("{}")
+    url       String?
+    method    String?
+
+    @@index(projectId)
+    @@map("events")
+}
+
+model Prompt {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+    projectId String  @map("project_id")
+    project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    createdBy String @map("created_by")
+
+    prompt      String
+    name        String
+    version     Int
+    isActive    Boolean       @map("is_active")
+    config      Json          @default("{}")
+    Observation Observation[]
+
+    @@unique([projectId, name, version])
+    @@index([projectId, name, version])
+    @@index([projectId, id])
+    @@index([projectId])
+    @@map("prompts")
+}
+
+// Update ObservationView below when making changes to this model!
+model Model {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+    projectId String?  @map("project_id")
+    project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    modelName       String    @map("model_name")
+    matchPattern    String    @map("match_pattern")
+    startDate       DateTime? @map("start_date")
+    inputPrice      Decimal?  @map("input_price")
+    outputPrice     Decimal?  @map("output_price")
+    totalPrice      Decimal?  @map("total_price")
+    unit            String // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, or IMAGES
+    tokenizerId     String?   @map("tokenizer_id")
+    tokenizerConfig Json?     @map("tokenizer_config")
+
+    @@unique([projectId, modelName, startDate, unit])
+    @@index([projectId, modelName, startDate, unit])
+    @@index([projectId, modelName])
+    @@map("models")
+}
+
+model AuditLog {
+    id              String         @id @default(cuid())
+    createdAt       DateTime       @default(now()) @map("created_at")
+    updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at")
+    userId          String         @map("user_id")
+    user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+    projectId       String         @map("project_id")
+    project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userProjectRole MembershipRole @map("user_project_role")
+    resourceType    String         @map("resource_type")
+    resourceId      String         @map("resource_id")
+    action          String
+    before          String? //stringified JSON
+    after           String? // stringified JSON
+
+    @@index([projectId])
+    @@index([createdAt])
+    @@map("audit_logs")
+}

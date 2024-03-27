@@ -2,12 +2,12 @@ import {
   type OptionsDefinition,
   type ColumnDefinition,
 } from "@/src/server/api/interfaces/tableDefinition";
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel } from "@langfuse/shared/src/db";
 
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [
   {
-    name: "Id",
+    name: "ID",
     id: "id",
     type: "string",
     internal: 'o."id"',
@@ -19,7 +19,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."name"',
     options: [], // to be added at runtime
   },
-  { name: "traceId", id: "traceId", type: "string", internal: 't."id"' },
+  { name: "Trace ID", id: "traceId", type: "string", internal: 't."id"' },
   {
     name: "Trace Name",
     id: "traceName",
@@ -27,7 +27,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 't."name"',
     options: [], // to be added at runtime
   },
-  { name: "userId", id: "userId", type: "string", internal: 't."user_id"' },
+  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
   {
     name: "Start Time",
     id: "startTime",
@@ -41,13 +41,38 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."end_time"',
   },
   {
+    name: "Time To First Token (s)",
+    id: "timeToFirstToken",
+    type: "number",
+    internal: 'o."completion_start_time" - o."start_time"',
+  },
+  {
     name: "Latency (s)",
     id: "latency",
     type: "number",
     internal: '"latency"',
   },
   {
+    name: "Time Per Output Token (s)",
+    id: "timePerOutputToken",
+    type: "number",
+    internal: '"latency" / o."completion_tokens"',
+  },
+  {
+    name: "Input Cost ($)",
+    id: "inputCost",
+    type: "number",
+    internal: 'o."calculated_input_cost"',
+  },
+  {
+    name: "Output Cost ($)",
+    id: "outputCost",
+    type: "number",
+    internal: 'o."calculated_output_cost"',
+  },
+  {
     name: "Total Cost ($)",
+    id: "totalCost",
     type: "number",
     internal: 'o."calculated_total_cost"',
   },
@@ -70,6 +95,30 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: 'o."model"',
     options: [], // to be added at runtime
+  },
+  {
+    name: "Input Tokens",
+    id: "inputTokens",
+    type: "number",
+    internal: 'o."prompt_tokens"',
+  },
+  {
+    name: "Output Tokens",
+    id: "outputTokens",
+    type: "number",
+    internal: 'o."completion_tokens"',
+  },
+  {
+    name: "Total Tokens",
+    id: "totalTokens",
+    type: "number",
+    internal: 'o."total_tokens"',
+  },
+  {
+    name: "Usage",
+    id: "usage",
+    type: "number",
+    internal: 'o."total_tokens"',
   },
   {
     name: "Metadata",
@@ -95,6 +144,12 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: "p.name",
     options: [], // to be added at runtime
+  },
+  {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "p.version",
   },
 ];
 

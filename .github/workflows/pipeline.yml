@@ -10,42 +10,31 @@ on:
   merge_group:
   pull_request:
     branches:
-      - "main"
-
-defaults:
-  run:
-    working-directory: web
+      - "*"
 
 jobs:
   lint:
-    defaults:
-      run:
-        working-directory: .
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: "npm"
-          cache-dependency-path: "**/package-lock.json"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
         run: |
-          npm ci
+          pnpm i
       - name: Load default env
         run: |
           cp .env.dev.example .env
       - name: lint web
-        working-directory: ./web
-        run: npm run lint
-      - name: lint worker
-        working-directory: ./worker
-        run: npm run lint
+        run: pnpm run lint
 
   test-docker-build:
-    defaults:
-      run:
-        working-directory: web
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -54,23 +43,22 @@ jobs:
       - name: Build Web Docker image
         uses: docker/build-push-action@v4
         with:
-          context: web
+          context: .
+          file: ./web/Dockerfile
           push: false
 
       - name: Build Worker Docker image
         uses: docker/build-push-action@v4
         with:
-          context: worker
+          context: .
+          file: ./worker/Dockerfile
           push: false
 
   tests:
-    defaults:
-      run:
-        working-directory: web
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [20]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -78,83 +66,86 @@ jobs:
           swap-size-gb: 10
 
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
-          cache-dependency-path: "**/package-lock.json"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: install dependencies
         run: |
-          npm ci
+          pnpm install
 
       - name: Load default env
-        working-directory: .
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
 
       - name: Run + migrate
-        working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
         run: |
-          npx --yes prisma migrate reset --force --skip-generate
+          pnpm run db:migrate
+          pnpm run db:seed
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Start Langfuse
-        run: (npm start&)
+        run: (pnpm run start&)
 
       - name: run tests
-        run: npm run test
+        run: pnpm run test
 
   e2e-tests:
-    defaults:
-      run:
-        working-directory: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: "npm"
-          cache-dependency-path: "**/package-lock.json"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: install dependencies
         run: |
-          npm ci
+          pnpm install
 
       - name: Load default env
-        working-directory: .
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
 
       - name: Run + migrate
-        working-directory: .
         run: |
           docker-compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
         run: |
-          npx --yes prisma migrate reset --force --skip-generate
+          pnpm run db:migrate
+          pnpm run db:seed
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Install playwright
-        run: npx playwright install
+        run: |
+          npm add --global playwright
+          pnpm exec playwright install
 
       - name: Run e2e tests
-        run: npm run test:e2e
+        run: pnpm --filter=web run test:e2e
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
@@ -184,11 +175,14 @@ jobs:
       contents: read
 
     steps:
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache-dependency-path: "**/package-lock.json"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -217,7 +211,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
-          context: web
+          context: .
+          file: ./web/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
