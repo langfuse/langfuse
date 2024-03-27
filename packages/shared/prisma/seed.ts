@@ -211,8 +211,13 @@ async function main() {
         });
 
         for (const datasetItemId of datasetItemIds) {
+          const relevantObservations = observations.filter(
+            (o) => o.projectId === project2.id
+          );
           const observation =
-            observations[Math.floor(Math.random() * observations.length)];
+            relevantObservations[
+              Math.floor(Math.random() * relevantObservations.length)
+            ];
 
           await prisma.datasetRunItems.create({
             data: {
