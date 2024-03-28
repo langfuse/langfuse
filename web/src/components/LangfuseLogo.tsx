@@ -32,12 +32,14 @@ export const LangfuseLogo = ({
   version?: boolean;
   showEnvLabel?: boolean;
 }) => (
-  <div className={cn("flex gap-4 xl:flex-col xl:items-start", className)}>
+  <div
+    className={cn("flex flex-wrap gap-4 lg:flex-col lg:items-start", className)}
+  >
     {/* Environment Labeling for Langfuse Maintainers */}
     {showEnvLabel && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
       <div
         className={cn(
-          "flex items-center gap-2 self-stretch rounded-md  px-3 py-1  ring-1  xl:-mx-2",
+          "flex items-center gap-2 self-stretch rounded-md px-3 py-2 text-xs ring-1 lg:-mx-2",
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
             ? "bg-blue-100 text-blue-500 ring-blue-500"
             : "bg-red-100 text-red-500 ring-red-500",
@@ -46,7 +48,7 @@ export const LangfuseLogo = ({
         <AlertTriangle size={16} />
         <span className="whitespace-nowrap">
           {["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-            ? `PRODUCTION-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
+            ? `PROD-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
             : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
         </span>
       </div>
