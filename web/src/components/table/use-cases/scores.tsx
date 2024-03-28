@@ -122,7 +122,6 @@ export default function ScoresTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("traceName") as ScoresTableRow["traceName"];
-        console.log(value);
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
         );
