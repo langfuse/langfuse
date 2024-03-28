@@ -12,6 +12,7 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline' https://client.crisp.chat;
   img-src 'self' https://*.crisp.chat blob: data:;
   font-src 'self' https://client.crisp.chat;
+  frame-src 'self' https://challenges.cloudflare.com;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
