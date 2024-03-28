@@ -6,6 +6,19 @@ await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 
+const cspHeader = `
+    default-src 'self' https://ph.langfuse.com https://*.posthog.com wss://client.relay.crisp.chat https://client.crisp.chat;
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://client.crisp.chat;
+    style-src 'self' 'unsafe-inline' https://client.crisp.chat;
+    img-src 'self' https://*.crisp.chat blob: data:;
+    font-src 'self' https://client.crisp.chat;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    block-all-mixed-content;
+    upgrade-insecure-requests;`
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   transpilePackages: ["@langfuse/shared"],
@@ -34,25 +47,34 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: '/:path((?!api).*)*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: cspHeader.replace(/\n/g, ''),
+          },
+        ],
+      },
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-            {
-              source: "/api/auth/session",
-              headers: [
-                {
-                  key: "Access-Control-Allow-Origin",
-                  value: "https://langfuse.com",
-                },
-                { key: "Access-Control-Allow-Credentials", value: "true" },
-                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-                {
-                  key: "Access-Control-Allow-Headers",
-                  value: "Content-Type, Authorization",
-                },
-              ],
-            },
-          ]
+          {
+            source: "/api/auth/session",
+            headers: [
+              {
+                key: "Access-Control-Allow-Origin",
+                value: "https://langfuse.com",
+              },
+              { key: "Access-Control-Allow-Credentials", value: "true" },
+              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+              {
+                key: "Access-Control-Allow-Headers",
+                value: "Content-Type, Authorization",
+              },
+            ],
+          },
+        ]
         : []),
     ];
   },
