@@ -18,7 +18,7 @@ import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
@@ -131,6 +131,7 @@ export default function SignIn({ authProviders }: PageProps) {
 
   const posthog = usePostHog();
   const [turnstileToken, setTurnstileToken] = useState<string>();
+  const turnstileRef = useRef<any>();
 
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
@@ -154,6 +155,16 @@ export default function SignIn({ authProviders }: PageProps) {
     });
     if (result?.error) {
       setCredentialsFormError(result.error);
+
+      // Refresh turnstile as the token can only be used once
+      if (
+        env.NEXT_PUBLIC_TURNSTILE_SITE_KEY &&
+        turnstileToken &&
+        turnstileRef.current
+      ) {
+        turnstileRef.current?.reset();
+        setTurnstileToken(undefined);
+      }
     }
   }
 
@@ -229,6 +240,7 @@ export default function SignIn({ authProviders }: PageProps) {
             <>
               <Divider className="text-gray-400" />
               <Turnstile
+                ref={turnstileRef}
                 siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                 options={{ theme: "light", action: "sign-in" }}
                 className="mx-auto"
