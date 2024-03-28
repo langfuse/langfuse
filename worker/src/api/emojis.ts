@@ -1,11 +1,11 @@
-import express from "express";
+import { Router } from "express";
 
-const router = express.Router();
+const router = Router();
 
 type EmojiResponse = string[];
 
 router.get<{}, EmojiResponse>("/", (req, res) => {
-  res.json(["😀", "😳", "🙄"]);
+  res.json(["😀"]);
 });
 
 export default router;

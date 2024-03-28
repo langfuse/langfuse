@@ -128,6 +128,19 @@ export type DatasetRuns = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type EvalTemplate = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  project_id: string;
+  name: string;
+  version: number;
+  prompt: string;
+  model: string;
+  model_params: unknown;
+  vars: Generated<string[]>;
+  output_schema: unknown;
+};
 export type Events = {
   id: string;
   created_at: Generated<Timestamp>;

@@ -1,4 +1,4 @@
-import { type FilterState } from "@/src/features/filters/types";
+import { type FilterState } from "@langfuse/shared";
 import { usdFormatter } from "@/src/utils/numbers";
 
 // traces do not have a startTime or endTime column, so we need to map these to the timestamp column

@@ -2,7 +2,7 @@ import { StreamingTextResponse } from "ai";
 import { getToken } from "next-auth/jwt";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { fetchLLMCompletion } from "@langfuse/shared/src/server/llm/fetchLLMCompletion";
+import { fetchLLMCompletion } from "@langfuse/shared";
 
 import {
   validateChatCompletionBody,
@@ -44,6 +44,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
     messages,
     modelParams,
     streaming: true,
+    functionCall: undefined,
   });
 
   return new StreamingTextResponse(stream);

@@ -63,6 +63,9 @@ export const env = createEnv({
     S3_REGION: z.string().optional(),
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
+    // Worker
+    WORKER_HOST: z.string().optional(),
+    WORKER_PASSWORD: z.string().optional(),
     // Prompt playground
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
@@ -138,6 +141,9 @@ export const env = createEnv({
     S3_REGION: process.env.S3_REGION,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
+    // Worker
+    WORKER_HOST: process.env.WORKER_HOST,
+    WORKER_PASSWORD: process.env.WORKER_PASSWORD,
     // Prompt playground
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,

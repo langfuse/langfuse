@@ -1,8 +1,5 @@
-import {
-  type OptionsDefinition,
-  type ColumnDefinition,
-} from "@/src/server/api/interfaces/tableDefinition";
 import { ObservationLevel } from "@prisma/client";
+import { ColumnDefinition, OptionsDefinition } from ".";
 
 export const tracesTableCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
@@ -122,7 +119,7 @@ export type TraceOptions = {
 };
 
 export function tracesTableColsWithOptions(
-  options?: TraceOptions,
+  options?: TraceOptions
 ): ColumnDefinition[] {
   return tracesTableCols.map((col) => {
     if (col.id === "scores_avg") {

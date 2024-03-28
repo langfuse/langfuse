@@ -1,4 +1,4 @@
-import { type orderBy } from "@/src/server/api/interfaces/orderBy";
+import { type orderBy } from "@langfuse/shared";
 import { type z } from "zod";
 
 // to be sent to the server

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ModelUsageUnit } from "@langfuse/shared";
+import { ModelUsageUnit, Prisma } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
@@ -9,7 +9,6 @@ import {
 import { paginationZod } from "@/src/utils/zod";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { Prisma } from "@langfuse/shared/src/db";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),

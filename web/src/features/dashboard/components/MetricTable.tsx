@@ -2,7 +2,7 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { type FilterState } from "@/src/features/filters/types";
+import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";

@@ -21,16 +21,14 @@ import {
   type WipFilterCondition,
   type FilterState,
   type FilterCondition,
-} from "@/src/features/filters/types";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
-import {
+  type ColumnDefinition,
   filterOperators,
   singleFilter,
-} from "@/src/server/api/interfaces/filters";
+} from "@langfuse/shared";
 import { NonEmptyString } from "@/src/utils/zod";
 
 // Has WipFilterState, passes all valid filters to parent onChange
-export function FilterBuilder({
+export function PopoverFilterBuilder({
   columns,
   filterState,
   onChange,
@@ -141,6 +139,42 @@ export function FilterBuilder({
           <X className="h-4 w-4" />
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+export function InlineFilterBuilder({
+  columns,
+  filterState,
+  onChange,
+}: {
+  columns: ColumnDefinition[];
+  filterState: FilterState;
+  onChange: Dispatch<SetStateAction<FilterState>>;
+}) {
+  const [wipFilterState, _setWipFilterState] =
+    useState<WipFilterState>(filterState);
+
+  const setWipFilterState = (
+    state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
+  ) => {
+    _setWipFilterState((prev) => {
+      const newState = state instanceof Function ? state(prev) : state;
+      const validFilters = newState.filter(
+        (f) => singleFilter.safeParse(f).success,
+      ) as FilterState;
+      onChange(validFilters);
+      return newState;
+    });
+  };
+
+  return (
+    <div className="flex flex-col">
+      <FilterBuilderForm
+        columns={columns}
+        filterState={wipFilterState}
+        onChange={setWipFilterState}
+      />
     </div>
   );
 }

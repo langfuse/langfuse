@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { type ObservationOptions } from "@/src/server/api/definitions/observationsTable";
+import { type ObservationOptions } from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { Prisma } from "@langfuse/shared/src/db";
 

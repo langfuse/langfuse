@@ -1,9 +1,9 @@
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
-} from "@/src/features/filters/server/filterToPrisma";
+  observationsTableCols,
+} from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
 import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
 import { type GetAllGenerationsInput } from "../getAllQuery";

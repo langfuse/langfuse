@@ -1,5 +1,5 @@
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
+import { tracesTableCols } from "@langfuse/shared";
 
 // The test for the orderByToPrisma function
 describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
