@@ -227,7 +227,9 @@ export default function UsersPage() {
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
-                        t.lastObservation?.toLocaleString() ?? "No event yet",
+                        t.lastObservation?.toLocaleString() ??
+                        t.lastTrace?.toLocaleString() ??
+                        "No event yet",
                       totalEvents: compactNumberFormatter(
                         (Number(t.totalTraces) || 0) +
                           (Number(t.totalObservations) || 0),
