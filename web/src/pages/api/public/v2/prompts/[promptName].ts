@@ -3,7 +3,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { prisma } from "@langfuse/shared/src/db";
 import { NextApiRequest, NextApiResponse } from "next";
-import { late, z } from "zod";
+import { z } from "zod";
 
 const GetPromptSchema = z.object({
   promptName: z.string(),

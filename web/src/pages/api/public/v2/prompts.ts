@@ -20,7 +20,7 @@ export default async function handler(
       });
 
     console.log(
-      "trying to get prompt, project ",
+      "trying to get prompt list",
       authCheck.scope.projectId,
       ", body:",
       JSON.stringify(req.query, null, 2),
