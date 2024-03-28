@@ -48,6 +48,18 @@ const nextConfig = {
             key: "x-frame-options",
             value: "SAMEORIGIN",
           },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin'
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'autoplay=*, fullscreen=*, microphone=*'
+          },
         ],
       },
       {
