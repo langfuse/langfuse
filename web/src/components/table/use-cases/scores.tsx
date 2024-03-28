@@ -21,7 +21,7 @@ export type ScoresTableRow = {
   value: number;
   comment?: string;
   observationId?: string;
-  traceName: string;
+  traceName?: string;
   userId?: string;
 };
 
@@ -120,7 +120,7 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: string = row.getValue("traceName");
+        const value: string | undefined = row.getValue("traceName");
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
         );
@@ -199,7 +199,7 @@ export default function ScoresTable({
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
-      traceName: score.traceName,
+      traceName: score.traceName ?? undefined,
       userId: score.userId ?? undefined,
     };
   };
