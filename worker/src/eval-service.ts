@@ -24,6 +24,7 @@ import { sql } from "kysely";
 import Handlebars from "handlebars";
 import { JobExecution, EvalTemplate } from "@langfuse/shared";
 import lodash from "lodash";
+import logger from "./logger";
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -40,7 +41,7 @@ export const createEvalJobs = async ({
     .execute();
 
   if (configs.length === 0) {
-    console.log("No evaluation jobs found for project", data.data.projectId);
+    logger.info("No evaluation jobs found for project", data.data.projectId);
     return;
   }
 
@@ -63,11 +64,9 @@ export const createEvalJobs = async ({
 
     const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
 
-    console.log("Number of matched traces", traces.length);
-
     if (traces.length > 0) {
-      console.log(
-        `Trace with id ${traces[0].id} found to eval for config ${config.id}. Creating job instance `
+      logger.info(
+        `Eval job for config ${config.id} matched trace ids ${JSON.stringify(traces.map((t) => t.id))}`
       );
 
       const jobExecutionId = randomUUID();
@@ -114,7 +113,7 @@ export const evaluate = async ({
 }: {
   data: z.infer<typeof EvalExecutionEvent>;
 }) => {
-  console.log(
+  logger.info(
     `Evaluating job ${data.data.jobExecutionId} for project ${data.data.projectId}`
   );
   // first, fetch all the context required for the evaluation
@@ -141,15 +140,13 @@ export const evaluate = async ({
     .where("id", "=", config.eval_template_id)
     .executeTakeFirstOrThrow();
 
-  console.log(
+  logger.info(
     `Evaluating job ${job.id} for project ${data.data.projectId} with template ${template.id}. Searching for context...`
   );
 
   const parsedVariableMapping = variableMappingList.parse(
     config.variable_mapping
   );
-
-  console.log("Parsed variable mapping", parsedVariableMapping);
 
   // extract the variables which need to be inserted into the prompt
   const mappingResult = await extractVariablesFromTrace(
@@ -159,7 +156,7 @@ export const evaluate = async ({
     parsedVariableMapping
   );
 
-  console.log("Extracted variables", mappingResult);
+  logger.info(`Extracted variables ${mappingResult} `);
 
   // compile the prompt and send out the LLM request
   const prompt = compileHandlebarString(template.prompt, {
@@ -168,7 +165,7 @@ export const evaluate = async ({
     ),
   });
 
-  console.log("Compiled prompt", prompt);
+  logger.info(`Compiled prompt ${prompt}`);
 
   const parsedOutputSchema = z
     .object({
@@ -245,14 +242,12 @@ async function extractVariablesFromTrace(
 
   // find the context for each variable of the template
   for (const variable of variables) {
-    console.log(`Searching for context for variable ${variable}`);
-
     const mapping = variableMapping.find(
       (m) => m.templateVariable === variable
     );
 
     if (!mapping) {
-      console.log(`No mapping found for variable ${variable}`);
+      logger.debug(`No mapping found for variable ${variable}`);
       mappingResult.push({ var: variable, value: "" });
       continue; // no need to fetch additional data
     }
@@ -263,8 +258,9 @@ async function extractVariablesFromTrace(
         .find((o) => o.id === "trace")
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
+      // if no collumn was found, we still prcess with an empty variable
       if (!column?.id) {
-        console.log(
+        logger.error(
           `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
         );
         mappingResult.push({ var: variable, value: "" });
@@ -289,7 +285,7 @@ async function extractVariablesFromTrace(
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
       if (!mapping.objectName) {
-        console.log(
+        logger.info(
           `No object name found for variable ${variable} and object ${mapping.langfuseObject}`
         );
         mappingResult.push({ var: variable, value: "" });
@@ -297,7 +293,7 @@ async function extractVariablesFromTrace(
       }
 
       if (!column?.id) {
-        console.log(
+        logger.warn(
           `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
         );
         mappingResult.push({ var: variable, value: "" });
