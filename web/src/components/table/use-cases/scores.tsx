@@ -17,7 +17,7 @@ export type ScoresTableRow = {
   id: string;
   traceId: string;
   timestamp: string;
-  name: string;
+  name: string | null;
   value: number;
   comment?: string;
   observationId?: string;
@@ -124,13 +124,13 @@ export default function ScoresTable({
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
         );
-        return (
+        return value ? (
           <TableLink
             path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
             value={value}
             truncateAt={40}
           />
-        );
+        ) : undefined;
       },
     },
     {
