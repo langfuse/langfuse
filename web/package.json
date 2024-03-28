@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.14.0",
+  "version": "2.14.5",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -33,6 +33,7 @@
     "@langchain/core": "^0.1.49",
     "@langchain/openai": "^0.0.23",
     "@langfuse/shared": "workspace:*",
+    "@marsidev/react-turnstile": "^0.5.3",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@radix-ui/react-accordion": "^1.1.2",
     "@radix-ui/react-alert-dialog": "^1.0.5",

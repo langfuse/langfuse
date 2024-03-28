@@ -149,6 +149,7 @@ export default function SignIn({ authProviders }: PageProps) {
             </form>
           </Form>
           <SSOButtons authProviders={authProviders} action="Sign up" />
+          <div className="h-5" />
           <CloudPrivacyNotice action="creating an account" />
         </div>
 
