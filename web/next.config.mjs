@@ -13,6 +13,7 @@ const cspHeader = `
   img-src 'self' https://*.crisp.chat blob: data:;
   font-src 'self' https://client.crisp.chat;
   frame-src 'self' https://challenges.cloudflare.com;
+  worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
