@@ -50,6 +50,10 @@ export const env = createEnv({
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_OKTA_CLIENT_ID: z.string().optional(),
+    AUTH_OKTA_CLIENT_SECRET: z.string().optional(),
+    AUTH_OKTA_ISSUER: z.string().optional(),
+    AUTH_OKTA_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     // EMAIL
@@ -124,6 +128,10 @@ export const env = createEnv({
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING,
+    AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
+    AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
+    AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
+    AUTH_OKTA_ALLOW_ACCOUNT_LINKING: process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
@@ -143,6 +151,7 @@ export const env = createEnv({
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
