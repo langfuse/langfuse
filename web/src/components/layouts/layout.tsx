@@ -245,21 +245,19 @@ export default function Layout(props: PropsWithChildren) {
                       )}
                     />
                     <nav className="flex flex-1 flex-col">
-                      <ul role="list" className="flex flex-1 flex-col">
+                      <ul role="list">
                         <MainNavigation nav={navigation} />
-                        <li>
-                          <div className="mb-2 flex flex-row place-content-between items-center">
-                            <div className="text-xs font-semibold leading-6 text-gray-400">
-                              Project
-                            </div>
-                            <NewProjectButton size="xs" />
-                          </div>
-                          <ProjectNavigation
-                            currentProjectId={projectId ?? ""}
-                            projects={projects}
-                          />
-                        </li>
                       </ul>
+                      <div className="mb-2 flex flex-row place-content-between items-center">
+                        <div className="text-xs font-semibold leading-6 text-gray-400">
+                          Project
+                        </div>
+                        <NewProjectButton size="xs" />
+                      </div>
+                      <ProjectNavigation
+                        currentProjectId={projectId ?? ""}
+                        projects={projects}
+                      />
                     </nav>
                   </div>
                 </Dialog.Panel>
@@ -283,33 +281,31 @@ export default function Layout(props: PropsWithChildren) {
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
               <ul role="list" className="flex h-full flex-col">
                 <MainNavigation nav={topNavigation} />
-                <li className="mt-auto">
-                  <MainNavigation nav={bottomNavigation} />
-                  <FeedbackButtonWrapper
-                    className="space-y-1"
-                    title="Provide feedback"
-                    description="What do you think about this project? What can be improved?"
-                    type="feedback"
-                  >
-                    <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
-                      <MessageSquarePlus
-                        className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-                        aria-hidden="true"
-                      />
-                      Feedback
-                    </li>
-                  </FeedbackButtonWrapper>
-                  <div className="mb-2 flex flex-row place-content-between items-center">
-                    <div className="text-xs font-semibold leading-6 text-gray-400">
-                      Project
-                    </div>
-                    <NewProjectButton size="xs" />
+                <MainNavigation nav={bottomNavigation} className="mt-auto" />
+                <FeedbackButtonWrapper
+                  className="space-y-1"
+                  title="Provide feedback"
+                  description="What do you think about this project? What can be improved?"
+                  type="feedback"
+                >
+                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                    <MessageSquarePlus
+                      className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                      aria-hidden="true"
+                    />
+                    Feedback
+                  </li>
+                </FeedbackButtonWrapper>
+                <div className="mb-2 flex flex-row place-content-between items-center">
+                  <div className="text-xs font-semibold leading-6 text-gray-400">
+                    Project
                   </div>
-                  <ProjectNavigation
-                    currentProjectId={projectId ?? ""}
-                    projects={projects}
-                  />
-                </li>
+                  <NewProjectButton size="xs" />
+                </div>
+                <ProjectNavigation
+                  currentProjectId={projectId ?? ""}
+                  projects={projects}
+                />
               </ul>
             </nav>
 
@@ -478,14 +474,15 @@ type NestedNavigationItem = Omit<Route, "children"> & {
 const MainNavigation: React.FC<{
   nav: NavigationItem[];
   onNavitemClick?: () => void;
-}> = ({ nav, onNavitemClick }) => {
+  className?: string;
+}> = ({ nav, onNavitemClick, className }) => {
   const [isOpen, setIsOpen] = useLocalStorage(
     "sidebar-tracing-default-open",
     false,
   );
 
   return (
-    <li>
+    <li className={className}>
       <ul role="list" className="-mx-2 space-y-1">
         {nav.map((item) => (
           <li key={item.name}>
