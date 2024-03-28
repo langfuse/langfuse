@@ -40,7 +40,6 @@ export const env = createEnv({
       .enum(["ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     // AUTH
-    // Google
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
