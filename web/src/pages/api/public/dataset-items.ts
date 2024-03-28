@@ -9,7 +9,7 @@ import { isPrismaException } from "@/src/utils/exceptions";
 
 const CreateDatasetItemSchema = z.object({
   datasetName: z.string(),
-  input: jsonSchema,
+  input: jsonSchema.nullish(),
   expectedOutput: jsonSchema.nullish(),
   id: z.string().nullish(),
 });
@@ -68,12 +68,12 @@ export default async function handler(
         },
         create: {
           id,
-          input: itemBody.input,
+          input: itemBody.input ?? undefined,
           expectedOutput: itemBody.expectedOutput ?? undefined,
           datasetId: dataset.id,
         },
         update: {
-          input: itemBody.input,
+          input: itemBody.input ?? undefined,
           expectedOutput: itemBody.expectedOutput ?? undefined,
         },
       });

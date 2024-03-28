@@ -135,7 +135,7 @@ types:
     properties:
       id: string
       status: DatasetStatus
-      input: unknown
+      input: optional<unknown>
       expectedOutput: optional<unknown>
       sourceObservationId: optional<string>
       datasetId: string
