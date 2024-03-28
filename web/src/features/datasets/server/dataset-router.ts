@@ -312,9 +312,11 @@ export const datasetRouter = createTRPCRouter({
         },
         data: {
           input:
-            input.input !== undefined
-              ? (JSON.parse(input.input) as Prisma.InputJsonObject)
-              : undefined,
+            input.input === ""
+              ? Prisma.DbNull
+              : input.input !== undefined
+                ? (JSON.parse(input.input) as Prisma.InputJsonObject)
+                : undefined,
           expectedOutput:
             input.expectedOutput === ""
               ? Prisma.DbNull
@@ -425,7 +427,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        input: z.string(),
+        input: z.string().nullish(),
         expectedOutput: z.string().nullish(),
         sourceObservationId: z.string().optional(),
       }),
@@ -448,7 +450,12 @@ export const datasetRouter = createTRPCRouter({
 
       const datasetItem = await ctx.prisma.datasetItem.create({
         data: {
-          input: JSON.parse(input.input) as Prisma.InputJsonObject,
+          input:
+            input.input === ""
+              ? Prisma.DbNull
+              : !!input.input
+                ? (JSON.parse(input.input) as Prisma.InputJsonObject)
+                : undefined,
           expectedOutput:
             input.expectedOutput === ""
               ? Prisma.DbNull

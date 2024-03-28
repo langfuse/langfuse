@@ -435,7 +435,7 @@ model Dataset {
 model DatasetItem {
     id                  String            @id @default(cuid())
     status              DatasetStatus     @default(ACTIVE)
-    input               Json
+    input               Json?
     expectedOutput      Json?             @map("expected_output")
     sourceObservationId String?           @map("source_observation_id")
     sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)

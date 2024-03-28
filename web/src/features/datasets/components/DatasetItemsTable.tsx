@@ -154,7 +154,7 @@ export function DatasetItemsTable({
   const convertToTableRow = (
     item: RouterOutput["datasets"]["itemsByDatasetId"]["datasetItems"][number],
   ): RowData => {
-    let input = JSON.stringify(item.input);
+    let input = item.input ? JSON.stringify(item.input) : "";
     input = input.length > 50 ? input.slice(0, 50) + "..." : input;
     let expectedOutput = item.expectedOutput
       ? JSON.stringify(item.expectedOutput)

@@ -27,6 +27,7 @@ const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
   input: z.string().refine(
     (value) => {
+      if (value === "") return true;
       try {
         JSON.parse(value);
         return true;
