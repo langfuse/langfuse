@@ -7,13 +7,13 @@ service:
   base-path: /api/public
   endpoints:
     create:
-      docs: Add a score to the database, upserts on id
+      docs: Create a score
       method: POST
       path: /scores
       request: CreateScoreRequest
       response: commons.Score
     get:
-      docs: Get scores
+      docs: Get a list of scores
       method: GET
       path: /scores
       request:
@@ -24,6 +24,23 @@ service:
           userId: optional<string>
           name: optional<string>
       response: Scores
+    get-by-id:
+      docs: Get a score
+      method: GET
+      path: /scores/{scoreId}
+      path-parameters:
+        scoreId:
+          type: string
+          docs: The unique langfuse identifier of a score
+      response: commons.Score
+    delete:
+      docs: Delete a score
+      method: DELETE
+      path: /scores/{scoreId}
+      path-parameters:
+        scoreId:
+          type: string
+          docs: The unique langfuse identifier of a score
 types:
   CreateScoreRequest:
     properties:

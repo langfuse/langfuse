@@ -11,9 +11,21 @@ service:
       path: /dataset-items
       request: CreateDatasetItemRequest
       response: commons.DatasetItem
+    get:
+      docs: Get a dataset item
+      method: GET
+      path: /dataset-items/{id}
+      path-parameters:
+        id:
+          type: string
+      response: commons.DatasetItem
+
 types:
   CreateDatasetItemRequest:
     properties:
       datasetName: string
       input: unknown
       expectedOutput: optional<unknown>
+      id:
+        type: optional<string>
+        docs: Dataset items are upserted on their id

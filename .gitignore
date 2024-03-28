@@ -20,6 +20,9 @@ next-env.d.ts
 # production
 /build
 
+# idea
+.idea
+
 # misc
 .DS_Store
 *.pem
@@ -46,3 +49,15 @@ yarn-error.log*
 
 # openapi spec that is copied during build
 /public/openapi*.yml
+
+
+# vscode
+.devcontainer
+
+node_modules
+**/node_modules
+**/dist
+**/.next/*
+**/.turbo/*
+.yarn
+.turbo

@@ -7,14 +7,14 @@ service:
   base-path: /api/public
   endpoints:
     get:
-      docs: Get a specific observation
+      docs: Get a observation
       method: GET
       path: /observations/{observationId}
       path-parameters:
         observationId:
           type: string
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
-      response: commons.Observation
+      response: commons.ObservationsView
     getMany:
       docs: Get a list of observations
       method: GET
@@ -29,10 +29,15 @@ service:
           type: optional<string>
           traceId: optional<string>
           parentObservationId: optional<string>
-      response: Observations
+      response: ObservationsViews
 
 types:
   Observations:
     properties:
       data: list<commons.Observation>
+      meta: pagination.MetaResponse
+
+  ObservationsViews:
+    properties:
+      data: list<commons.ObservationsView>
       meta: pagination.MetaResponse

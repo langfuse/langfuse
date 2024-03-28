@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: false
+  base-path: /api/public
+  endpoints:
+    health:
+      docs: Check health of API and database
+      method: GET
+      path: /health
+      response: HealthResponse
+      errors:
+        - ServiceUnavailableError
+
+types:
+  HealthResponse:
+    properties:
+      version:
+        type: string
+        docs: Langfuse server version
+      status: string
+    examples:
+      - value:
+          version: 1.25.0
+          status: OK
+
+errors:
+  ServiceUnavailableError:
+    status-code: 503

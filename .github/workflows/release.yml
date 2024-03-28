@@ -1,0 +1,19 @@
+on:
+  workflow_dispatch:
+  push:
+    # Pattern matched against refs/tags
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # Semantic version tags
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: "protected branches"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main # Always checkout main even for tagged releases
+          fetch-depth: 0
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+      - name: Push to production
+        run: git push origin +main:production

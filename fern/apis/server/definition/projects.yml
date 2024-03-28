@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get Project associated with API key
+      method: GET
+      path: /projects
+      response: Projects
+
+types:
+  Projects:
+    properties:
+      data: list<Project>
+
+  Project:
+    properties:
+      id: string
+      name: string

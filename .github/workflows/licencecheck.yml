@@ -1,0 +1,49 @@
+name: License Compliance Check
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+  merge_group:
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  license_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: 18
+
+      - name: Install license-checker
+        run: npm install -g license-checker
+
+      - name: Install yui-lint
+        run: npm install yui-lint
+
+      - name: Generate license-checker CSV file
+        run: license-checker --production --csv > npm-license-checker.csv
+
+      - name: Check license-checker CSV file without headers
+        id: license_check_report
+        uses: pilosus/action-pip-license-checker@v2
+        with:
+          external: "npm-license-checker.csv"
+          external-format: "csv"
+          external-options: "{:skip-header true}"
+          fail: "WeakCopyleft,StrongCopyleft,NetworkCopyleft"
+          fails-only: true
+          totals: true
+          verbose: 1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Echo error
+        if: failure()
+        run: echo "::error::${{ steps.license_check_report.outputs.report }}"
+      - name: Delete license-checker CSV file
+        run: rm npm-license-checker.csv
