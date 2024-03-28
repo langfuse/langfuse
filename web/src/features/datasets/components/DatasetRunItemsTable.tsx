@@ -14,10 +14,13 @@ type RowData = {
   id: string;
   runAt: string;
   datasetItemId: string;
-  observation: { id: string; traceId: string };
+  trace?: {
+    traceId: string;
+    observationId?: string;
+  };
   scores: Score[];
-  latency: number;
-  totalCost: string;
+  latency?: number;
+  totalCost?: string;
 };
 
 export function DatasetRunItemsTable(
@@ -63,14 +66,21 @@ export function DatasetRunItemsTable(
       },
     },
     {
-      accessorKey: "observation",
-      header: "Observation",
+      accessorKey: "trace",
+      header: "Trace",
       cell: ({ row }) => {
-        const observation: RowData["observation"] = row.getValue("observation");
-        return (
+        const trace: RowData["trace"] = row.getValue("trace");
+        if (!trace) return null;
+        return trace.observationId ? (
           <TableLink
-            path={`/project/${props.projectId}/traces/${observation.traceId}?observation=${observation.id}`}
-            value={observation.id}
+            path={`/project/${props.projectId}/traces/${trace.traceId}?observation=${trace.observationId}`}
+            value={trace.observationId}
+            truncateAt={7}
+          />
+        ) : (
+          <TableLink
+            path={`/project/${props.projectId}/traces/${trace.traceId}`}
+            value={trace.traceId}
             truncateAt={7}
           />
         );
@@ -81,7 +91,7 @@ export function DatasetRunItemsTable(
       header: "Latency",
       cell: ({ row }) => {
         const latency: RowData["latency"] = row.getValue("latency");
-        return <>{formatIntervalSeconds(latency)}</>;
+        return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
       },
     },
     {
@@ -109,18 +119,17 @@ export function DatasetRunItemsTable(
       id: item.id,
       runAt: item.createdAt.toISOString(),
       datasetItemId: item.datasetItemId,
-      observation: {
-        id: item.observation.id,
-        traceId: item.observation.traceId ?? "", // never actually null, just not enforced by db
-      },
-      scores: item.observation.scores,
-      totalCost: usdFormatter(
-        item.observation.calculatedTotalCost?.toNumber() ?? 0,
-      ),
-      latency: intervalInSeconds(
-        item.observation.startTime,
-        item.observation.endTime,
-      ),
+      trace: !!item.trace?.id
+        ? {
+            traceId: item.trace.id,
+            observationId: item.observation?.id,
+          }
+        : undefined,
+      scores: item.scores,
+      totalCost: !!item.observation?.calculatedTotalCost
+        ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
+        : undefined,
+      latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
     };
   };
 
