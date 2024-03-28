@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
+import { SiOkta } from "react-icons/si";
 import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -41,6 +42,7 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    okta: boolean;
     azureAd: boolean;
   };
 };
@@ -57,6 +59,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        okta:
+          env.AUTH_OKTA_CLIENT_ID !== undefined &&
+          env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
+          env.AUTH_OKTA_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
@@ -116,6 +122,18 @@ export function SSOButtons({
             >
               <TbBrandAzure className="mr-3" size={18} />
               {action} with Azure AD
+            </Button>
+          )}
+          {authProviders.okta && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:azure_ad_button_click");
+                void signIn("okta");
+              }}
+              variant="secondary"
+            >
+              <SiOkta className="mr-3" size={18} />
+              {action} with Okta
             </Button>
           )}
         </div>

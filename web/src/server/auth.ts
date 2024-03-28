@@ -17,6 +17,7 @@ import { type Adapter } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import OktaProvider from "next-auth/providers/okta";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, cookieOptions } from "./utils/cookies";
@@ -107,6 +108,21 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking:
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+if (
+  env.AUTH_OKTA_CLIENT_ID &&
+  env.AUTH_OKTA_CLIENT_SECRET &&
+  env.AUTH_OKTA_ISSUER
+)
+  providers.push(
+    OktaProvider({
+      clientId: env.AUTH_OKTA_CLIENT_ID,
+      clientSecret: env.AUTH_OKTA_CLIENT_SECRET,
+      issuer: env.AUTH_OKTA_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
