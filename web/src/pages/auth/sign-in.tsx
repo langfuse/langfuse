@@ -131,7 +131,10 @@ export default function SignIn({ authProviders }: PageProps) {
 
   const posthog = usePostHog();
   const [turnstileToken, setTurnstileToken] = useState<string>();
-  const turnstileRef = useRef<any>();
+  // Used to refresh turnstile as the token can only be used once
+  const [turnstileCData, setTurnstileCData] = useState<string>(
+    new Date().getTime().toString(),
+  );
 
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
@@ -157,12 +160,8 @@ export default function SignIn({ authProviders }: PageProps) {
       setCredentialsFormError(result.error);
 
       // Refresh turnstile as the token can only be used once
-      if (
-        env.NEXT_PUBLIC_TURNSTILE_SITE_KEY &&
-        turnstileToken &&
-        turnstileRef.current
-      ) {
-        turnstileRef.current?.reset();
+      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+        setTurnstileCData(new Date().getTime().toString());
         setTurnstileToken(undefined);
       }
     }
@@ -240,9 +239,12 @@ export default function SignIn({ authProviders }: PageProps) {
             <>
               <Divider className="text-gray-400" />
               <Turnstile
-                ref={turnstileRef}
                 siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                options={{ theme: "light", action: "sign-in" }}
+                options={{
+                  theme: "light",
+                  action: "sign-in",
+                  cData: turnstileCData,
+                }}
                 className="mx-auto"
                 onSuccess={setTurnstileToken}
               />
