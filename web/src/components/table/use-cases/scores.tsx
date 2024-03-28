@@ -17,7 +17,7 @@ export type ScoresTableRow = {
   id: string;
   traceId: string;
   timestamp: string;
-  name: string | null;
+  name: string;
   value: number;
   comment?: string;
   observationId?: string;
