@@ -166,8 +166,8 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value = row.getValue("userId");
-        return typeof value === "string" ? (
+        const value = row.getValue("userId") as ScoresTableRow["userId"];
+        return value ? (
           <>
             <TableLink
               path={`/project/${projectId}/users/${value}`}
