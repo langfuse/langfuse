@@ -26,6 +26,7 @@ import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -129,6 +130,7 @@ export default function SignIn({ authProviders }: PageProps) {
   >(null);
 
   const posthog = usePostHog();
+  const [turnstileToken, setTurnstileToken] = useState<string>();
 
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
@@ -148,6 +150,7 @@ export default function SignIn({ authProviders }: PageProps) {
       password: values.password,
       callbackUrl: "/",
       redirect: false,
+      turnstileToken,
     });
     if (result?.error) {
       setCredentialsFormError(result.error);
@@ -222,6 +225,17 @@ export default function SignIn({ authProviders }: PageProps) {
             ) : null}
             <SSOButtons authProviders={authProviders} />
           </div>
+          {env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
+            <>
+              <Divider className="text-gray-400" />
+              <Turnstile
+                siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                options={{ theme: "light", action: "sign-in" }}
+                className="mx-auto"
+                onSuccess={setTurnstileToken}
+              />
+            </>
+          )}
           <CloudPrivacyNotice action="signing in" />
         </div>
 
