@@ -26,7 +26,7 @@ service:
           limit: optional<integer>
           userId: optional<string>
           name: optional<string>
-          from_timestamp:
+          fromTimestamp:
             type: optional<datetime>
             docs: Retrieve only traces newer than this timestamp.
           orderBy:
