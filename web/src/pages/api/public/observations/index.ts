@@ -20,7 +20,7 @@ const ObservationsGetSchema = z.object({
   userId: z.string().nullish(),
   traceId: z.string().nullish(),
   parentObservationId: z.string().nullish(),
-  from_start_time: stringDate,
+  fromStartTime: stringDate,
 });
 
 export default async function handler(
@@ -122,8 +122,8 @@ const getObservation = async (
     ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
     : Prisma.empty;
 
-  const fromStartTimeCondition = query.from_start_time
-    ? Prisma.sql`AND o."start_time" >= ${query.from_start_time}::timestamp with time zone at time zone 'UTC'`
+  const fromStartTimeCondition = query.fromStartTime
+    ? Prisma.sql`AND o."start_time" >= ${query.fromStartTime}::timestamp with time zone at time zone 'UTC'`
     : Prisma.empty;
 
   const observations = await prisma.$queryRaw<ObservationView[]>`

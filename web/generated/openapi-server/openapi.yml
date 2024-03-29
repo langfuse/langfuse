@@ -559,7 +559,7 @@ paths:
           schema:
             type: string
             nullable: true
-        - name: from_start_time
+        - name: fromStartTime
           in: query
           description: >-
             Retrieve only observations with a start_time greater than this

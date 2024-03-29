@@ -29,7 +29,7 @@ service:
           type: optional<string>
           traceId: optional<string>
           parentObservationId: optional<string>
-          from_start_time:
+          fromStartTime:
             type: optional<datetime>
             docs: Retrieve only observations with a start_time greater than this timestamp.
       response: ObservationsViews
