@@ -123,7 +123,7 @@ export default async function handler(
           name: obj.name ?? undefined, // optional filter
           trace: {
             projectId: authCheck.scope.projectId,
-            userId: obj.userId ?? undefined, // optional filter
+            userId: obj.userId ? obj.userId : undefined, // optional filter
           },
         },
       });
