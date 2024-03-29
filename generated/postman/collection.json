@@ -434,7 +434,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&from_start_time=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -478,6 +478,11 @@
                   "key": "parentObservationId",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "from_start_time",
+                  "value": "",
+                  "description": "Retrieve only observations with a start_time greater than this timestamp."
                 }
               ],
               "variable": []
