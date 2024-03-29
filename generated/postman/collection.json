@@ -643,7 +643,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&from_timestamp=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -674,7 +674,7 @@
                   "description": null
                 },
                 {
-                  "key": "from_timestamp",
+                  "key": "fromTimestamp",
                   "value": "",
                   "description": "Retrieve only scores newer than this timestamp."
                 }
@@ -836,7 +836,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&from_timestamp=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&fromTimestamp=&orderBy=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -867,7 +867,7 @@
                   "description": null
                 },
                 {
-                  "key": "from_timestamp",
+                  "key": "fromTimestamp",
                   "value": "",
                   "description": "Retrieve only traces newer than this timestamp."
                 },

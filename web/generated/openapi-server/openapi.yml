@@ -804,7 +804,7 @@ paths:
           schema:
             type: string
             nullable: true
-        - name: from_timestamp
+        - name: fromTimestamp
           in: query
           description: Retrieve only scores newer than this timestamp.
           required: false
@@ -1055,7 +1055,7 @@ paths:
           schema:
             type: string
             nullable: true
-        - name: from_timestamp
+        - name: fromTimestamp
           in: query
           description: Retrieve only traces newer than this timestamp.
           required: false
