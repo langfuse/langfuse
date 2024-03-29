@@ -22,7 +22,7 @@ const ScoresGetSchema = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
-  from_timestamp: stringDate,
+  fromTimestamp: stringDate,
 });
 
 export default async function handler(
@@ -103,8 +103,8 @@ export default async function handler(
       const nameCondition = obj.name
         ? Prisma.sql`AND s."name" = ${obj.name}`
         : Prisma.empty;
-      const fromTimestampCondition = obj.from_timestamp
-        ? Prisma.sql`AND t."timestamp" >= ${obj.from_timestamp}::timestamp with time zone at time zone 'UTC'`
+      const fromTimestampCondition = obj.fromTimestamp
+        ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
 
       const scores = await prisma.$queryRaw<
@@ -131,8 +131,8 @@ export default async function handler(
       const totalItems = await prisma.score.count({
         where: {
           name: obj.name ? obj.name : undefined,
-          timestamp: obj.from_timestamp
-            ? { gte: new Date(obj.from_timestamp) }
+          timestamp: obj.fromTimestamp
+            ? { gte: new Date(obj.fromTimestamp) }
             : undefined,
           trace: {
             projectId: authCheck.scope.projectId,
