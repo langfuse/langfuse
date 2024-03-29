@@ -147,8 +147,8 @@ export default async function handler(
       const totalItems = await prisma.trace.count({
         where: {
           projectId: authCheck.scope.projectId,
-          name: obj.name ?? undefined,
-          userId: obj.userId ?? undefined,
+          name: obj.name ? obj.name : undefined,
+          userId: obj.userId ? obj.userId : undefined,
         },
       });
 
