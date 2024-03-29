@@ -804,6 +804,14 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: from_timestamp
+          in: query
+          description: Retrieve only scores newer than this timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
