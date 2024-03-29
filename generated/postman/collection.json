@@ -831,7 +831,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&from_timestamp=&orderBy=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -860,6 +860,11 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "from_timestamp",
+                  "value": "",
+                  "description": "Retrieve only traces newer than this timestamp."
                 },
                 {
                   "key": "orderBy",

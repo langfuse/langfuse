@@ -1047,6 +1047,14 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: from_timestamp
+          in: query
+          description: Retrieve only traces newer than this timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
         - name: orderBy
           in: query
           description: >-
