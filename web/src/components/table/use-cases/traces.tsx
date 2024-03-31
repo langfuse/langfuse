@@ -650,21 +650,10 @@ const TracesIOCell = ({
   traceId: string;
   io: "input" | "output";
 }) => {
-  const trace = api.traces.all.useQuery(
+  const trace = api.traces.byId.useQuery(
     {
-      projectId: projectId,
-      filter: [
-        {
-          column: "id",
-          type: "string",
-          operator: "=",
-          value: traceId,
-        },
-      ],
-      searchQuery: null,
-      orderBy: null,
-      page: 0,
-      limit: 1,
+      traceId: traceId,
+      includeObservations: false,
     },
     {
       enabled: typeof traceId === "string",
@@ -678,11 +667,7 @@ const TracesIOCell = ({
   return (
     <IOCell
       isLoading={trace.isLoading}
-      data={
-        io === "output"
-          ? trace.data?.traces[0]?.output
-          : trace.data?.traces[0]?.input
-      }
+      data={io === "output" ? trace.data?.output : trace.data?.input}
     />
   );
 };
