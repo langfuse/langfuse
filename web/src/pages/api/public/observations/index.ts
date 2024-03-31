@@ -11,6 +11,7 @@ import {
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { stringDate } from "@/src/features/public-api/server/ingestion-api-schema";
 
 const ObservationsGetSchema = z.object({
   ...paginationZod,
@@ -19,6 +20,7 @@ const ObservationsGetSchema = z.object({
   userId: z.string().nullish(),
   traceId: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  fromStartTime: stringDate,
 });
 
 export default async function handler(
@@ -120,6 +122,10 @@ const getObservation = async (
     ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
     : Prisma.empty;
 
+  const fromStartTimeCondition = query.fromStartTime
+    ? Prisma.sql`AND o."start_time" >= ${query.fromStartTime}::timestamp with time zone at time zone 'UTC'`
+    : Prisma.empty;
+
   const observations = await prisma.$queryRaw<ObservationView[]>`
       SELECT 
         o."id",
@@ -158,6 +164,7 @@ const getObservation = async (
       ${observationTypeCondition}
       ${traceIdCondition}
       ${parentObservationIdCondition}
+      ${fromStartTimeCondition}
       ORDER by o."start_time" DESC
       OFFSET ${(query.page - 1) * query.limit}
       LIMIT ${query.limit}
@@ -170,6 +177,7 @@ const getObservation = async (
       ${userIdCondition}
       ${traceIdCondition}
       ${parentObservationIdCondition}
+      ${fromStartTimeCondition}
   `;
 
   if (count.length !== 1) {

@@ -23,6 +23,9 @@ service:
           limit: optional<integer>
           userId: optional<string>
           name: optional<string>
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Retrieve only scores newer than this timestamp.
       response: Scores
     get-by-id:
       docs: Get a score

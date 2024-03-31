@@ -57,7 +57,7 @@
 ### Test
 
 - **Experiments:** Track and test app behaviour before deploying a new version
-  - Datasets let you test expected in and output pairs and benchmark performance before deployiong ([Datasets](https://langfuse.com/docs/datasets))
+  - Datasets let you test expected in and output pairs and benchmark performance before deploying ([Datasets](https://langfuse.com/docs/datasets))
   - Track versions and releases in your application ([Experimentation](https://langfuse.com/docs/experimentation), [Prompt Management](https://langfuse.com/docs/prompts))
 
 ### Video: Langfuse in two minutes
