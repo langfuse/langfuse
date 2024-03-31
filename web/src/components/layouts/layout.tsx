@@ -6,7 +6,7 @@ import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { Code, MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
+import { MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -30,6 +30,7 @@ import {
 } from "@/src/features/notifications/checkNotifications";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { ProjectNavigation } from "@/src/components/projectNavigation";
 
 const userNavigation = [
   {
@@ -105,6 +106,8 @@ export default function Layout(props: PropsWithChildren) {
     mapNavigation(route),
   ).filter(Boolean);
   const navigation = navigationMapped.filter(Boolean) as NavigationItem[]; // does not include null due to filter
+  const topNavigation = navigation.filter(({ bottom }) => !bottom);
+  const bottomNavigation = navigation.filter(({ bottom }) => bottom);
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
 
@@ -183,7 +186,7 @@ export default function Layout(props: PropsWithChildren) {
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
             as="div"
-            className="relative z-50 xl:hidden"
+            className="relative z-50 lg:hidden"
             onClose={setSidebarOpen}
           >
             <Transition.Child
@@ -208,7 +211,7 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="translate-x-0"
                 leaveTo="-translate-x-full"
               >
-                <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
+                <Dialog.Panel className="relative mr-16 flex w-full max-w-60 flex-1">
                   <Transition.Child
                     as={Fragment}
                     enter="ease-in-out duration-300"
@@ -242,58 +245,19 @@ export default function Layout(props: PropsWithChildren) {
                       )}
                     />
                     <nav className="flex flex-1 flex-col">
-                      <ul role="list" className="flex flex-1 flex-col gap-y-7">
+                      <ul role="list">
                         <MainNavigation nav={navigation} />
-                        <li>
-                          <div className="flex flex-row place-content-between items-center">
-                            <div className="text-xs font-semibold leading-6 text-gray-400">
-                              Projects
-                            </div>
-                            <NewProjectButton size="xs" />
-                          </div>
-                          <ul role="list" className="-mx-2 mt-2 space-y-1">
-                            {projects.map((project) => (
-                              <li key={project.name}>
-                                <Link
-                                  href={`/project/${project.id}`}
-                                  className={cn(
-                                    projectId === project.id
-                                      ? "bg-gray-50 text-indigo-600"
-                                      : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                                    "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      projectId === project.id
-                                        ? "border-indigo-600 text-indigo-600"
-                                        : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium",
-                                    )}
-                                  >
-                                    <Code />
-                                  </span>
-                                  <span className="truncate">
-                                    {project.name}
-                                  </span>
-                                  {project.role === "VIEWER" ? (
-                                    <span
-                                      className={cn(
-                                        "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                                        projectId === project.id
-                                          ? "border-indigo-600 text-indigo-600"
-                                          : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                                      )}
-                                    >
-                                      view-only
-                                    </span>
-                                  ) : null}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        </li>
                       </ul>
+                      <div className="mb-2 flex flex-row place-content-between items-center">
+                        <div className="text-xs font-semibold leading-6 text-gray-400">
+                          Project
+                        </div>
+                        <NewProjectButton size="xs" />
+                      </div>
+                      <ProjectNavigation
+                        currentProjectId={projectId ?? ""}
+                        projects={projects}
+                      />
                     </nav>
                   </div>
                 </Dialog.Panel>
@@ -303,77 +267,50 @@ export default function Layout(props: PropsWithChildren) {
         </Transition.Root>
 
         {/* Static sidebar for desktop */}
-        <div className="hidden xl:fixed xl:inset-y-0 xl:z-50 xl:flex xl:w-72 xl:flex-col">
+        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-60 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col gap-y-5 border-r border-gray-200 bg-white pt-7">
+          <div className="flex h-screen grow flex-col border-r border-gray-200 bg-white pt-7">
             <LangfuseLogo
               version
               size="xl"
-              className="mb-2 px-6"
+              className="mb-8 px-6"
               showEnvLabel={session.data?.user?.email?.endsWith(
                 "@langfuse.com",
               )}
             />
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
-              <ul role="list" className="flex h-full flex-col gap-y-4">
-                <MainNavigation nav={navigation} />
-                <li className="mt-auto">
-                  <div className="flex flex-row place-content-between items-center">
-                    <div className="text-xs font-semibold leading-6 text-gray-400">
-                      Projects
-                    </div>
-                    <NewProjectButton size="xs" />
+              <ul role="list" className="flex h-full flex-col">
+                <MainNavigation nav={topNavigation} />
+                <MainNavigation nav={bottomNavigation} className="mt-auto" />
+                <FeedbackButtonWrapper
+                  className="space-y-1"
+                  title="Provide feedback"
+                  description="What do you think about this project? What can be improved?"
+                  type="feedback"
+                >
+                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                    <MessageSquarePlus
+                      className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                      aria-hidden="true"
+                    />
+                    Feedback
+                  </li>
+                </FeedbackButtonWrapper>
+                <div className="mb-2 flex flex-row place-content-between items-center">
+                  <div className="text-xs font-semibold leading-6 text-gray-400">
+                    Project
                   </div>
-                  <ul role="list" className="-mx-2 mt-2 space-y-1">
-                    {projects.map((project, index) => (
-                      <li key={project.name}>
-                        <Link
-                          href={`/project/${project.id}`}
-                          className={cn(
-                            projectId === project.id
-                              ? "bg-gray-50 text-indigo-600"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                            "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              projectId === project.id
-                                ? "border-indigo-600 text-indigo-600"
-                                : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                              "w-6shrink-0 flex h-6 w-6 items-center justify-center rounded-lg border bg-white p-1 text-[0.625rem] font-medium",
-                            )}
-                          >
-                            <Code />
-                          </span>
-                          <span
-                            className="truncate"
-                            data-testid={`project-title-span-${index}`}
-                          >
-                            {project.name}
-                          </span>
-                          {project.role === "VIEWER" ? (
-                            <span
-                              className={cn(
-                                "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                                projectId === project.id
-                                  ? "border-indigo-600 text-indigo-600"
-                                  : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                              )}
-                            >
-                              view-only
-                            </span>
-                          ) : null}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
+                  <NewProjectButton size="xs" />
+                </div>
+                <ProjectNavigation
+                  currentProjectId={projectId ?? ""}
+                  projects={projects}
+                />
               </ul>
             </nav>
 
             <Menu as="div" className="relative left-1">
-              <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 px-6 py-3 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+              <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                 <span className="sr-only">Open user menu</span>
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -390,6 +327,7 @@ export default function Layout(props: PropsWithChildren) {
                 <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
                   {session.data?.user?.name}
                 </span>
+                <div className="flex-1" />
                 <ChevronDownIcon
                   className="h-5 w-5 text-gray-400"
                   aria-hidden="true"
@@ -426,10 +364,10 @@ export default function Layout(props: PropsWithChildren) {
           </div>
         </div>
 
-        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 xl:hidden">
+        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 xl:hidden"
+            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
@@ -485,13 +423,13 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="xl:pl-72">
+        <div className="lg:pl-60">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
-            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 xl:sticky xl:top-0 xl:z-40">
+            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 lg:sticky lg:top-0 lg:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
                   <Info className="h-4 w-4" />
@@ -536,14 +474,15 @@ type NestedNavigationItem = Omit<Route, "children"> & {
 const MainNavigation: React.FC<{
   nav: NavigationItem[];
   onNavitemClick?: () => void;
-}> = ({ nav, onNavitemClick }) => {
+  className?: string;
+}> = ({ nav, onNavitemClick, className }) => {
   const [isOpen, setIsOpen] = useLocalStorage(
     "sidebar-tracing-default-open",
     false,
   );
 
   return (
-    <li>
+    <li className={className}>
       <ul role="list" className="-mx-2 space-y-1">
         {nav.map((item) => (
           <li key={item.name}>
@@ -652,20 +591,6 @@ const MainNavigation: React.FC<{
             ) : null}
           </li>
         ))}
-        <FeedbackButtonWrapper
-          className="w-full"
-          title="Provide feedback"
-          description="What do you think about this project? What can be improved?"
-          type="feedback"
-        >
-          <li className="group flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
-            <MessageSquarePlus
-              className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-              aria-hidden="true"
-            />
-            Feedback
-          </li>
-        </FeedbackButtonWrapper>
       </ul>
     </li>
   );

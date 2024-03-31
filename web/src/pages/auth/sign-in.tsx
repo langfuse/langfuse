@@ -18,7 +18,7 @@ import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
@@ -26,6 +26,7 @@ import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -129,6 +130,11 @@ export default function SignIn({ authProviders }: PageProps) {
   >(null);
 
   const posthog = usePostHog();
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Used to refresh turnstile as the token can only be used once
+  const [turnstileCData, setTurnstileCData] = useState<string>(
+    new Date().getTime().toString(),
+  );
 
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
@@ -148,9 +154,16 @@ export default function SignIn({ authProviders }: PageProps) {
       password: values.password,
       callbackUrl: "/",
       redirect: false,
+      turnstileToken,
     });
     if (result?.error) {
       setCredentialsFormError(result.error);
+
+      // Refresh turnstile as the token can only be used once
+      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+        setTurnstileCData(new Date().getTime().toString());
+        setTurnstileToken(undefined);
+      }
     }
   }
 
@@ -222,6 +235,21 @@ export default function SignIn({ authProviders }: PageProps) {
             ) : null}
             <SSOButtons authProviders={authProviders} />
           </div>
+          {env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
+            <>
+              <Divider className="text-gray-400" />
+              <Turnstile
+                siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                options={{
+                  theme: "light",
+                  action: "sign-in",
+                  cData: turnstileCData,
+                }}
+                className="mx-auto"
+                onSuccess={setTurnstileToken}
+              />
+            </>
+          )}
           <CloudPrivacyNotice action="signing in" />
         </div>
 

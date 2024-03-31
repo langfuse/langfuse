@@ -179,6 +179,9 @@ importers:
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
+      '@marsidev/react-turnstile':
+        specifier: ^0.5.3
+        version: 0.5.3(react-dom@18.2.0)(react@18.2.0)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
         version: 1.0.7(@prisma/client@5.11.0)(next-auth@4.24.7)
@@ -2803,6 +2806,16 @@ packages:
     dependencies:
       call-bind: 1.0.7
     dev: true
+
+  /@marsidev/react-turnstile@0.5.3(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-lx3p2/56esPt8Ksr37K8uhPt/K4Mg8xaIfCV8MPKmE/1X4aHesRqZok1+L1ySQwsdWoEe5+KJOhBXka8lFBwNg==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+    dependencies:
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+    dev: false
 
   /@mermaid-js/mermaid-cli@10.8.0(typescript@5.4.2):
     resolution: {integrity: sha512-xZsGR88RsP72SAXyvjU23HzsKHsq6b7/kbnmQrEuIcPrJGPOckFiP9nzHvPh3Z04MjvpDJVjtbIspt2ZQwUzzA==}

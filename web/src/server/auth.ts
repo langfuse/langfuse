@@ -31,6 +31,11 @@ const providers: Provider[] = [
         placeholder: "jsmith@example.com",
       },
       password: { label: "Password", type: "password" },
+      turnstileToken: {
+        label: "Turnstile Token (Captcha)",
+        type: "text",
+        value: "dummy",
+      },
     },
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
@@ -38,6 +43,23 @@ const providers: Provider[] = [
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
+
+      if (env.TURNSTILE_SECRET_KEY && env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+        const res = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            body: `secret=${encodeURIComponent(env.TURNSTILE_SECRET_KEY)}&response=${encodeURIComponent(credentials.turnstileToken)}`,
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+            },
+          },
+        );
+        const data = await res.json();
+        if (data.success === false) {
+          throw new Error("Invalid captcha token");
+        }
+      }
 
       const blockedDomains =
         env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
