@@ -19,27 +19,7 @@ import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
-
-// Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
-const useSecureCookies =
-  env.NEXTAUTH_URL.startsWith("https://") || process.env.VERCEL === "1";
-
-const cookieOptions = {
-  domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
-  httpOnly: true,
-  sameSite: "lax",
-  path: "/",
-  secure: useSecureCookies,
-};
-
-const cookieName = (name: string) =>
-  [
-    useSecureCookies ? "__Secure-" : "",
-    name,
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
-      : "",
-  ].join("");
+import { getCookieName, cookieOptions } from "./utils/cookies";
 
 const providers: Provider[] = [
   CredentialsProvider({
@@ -51,6 +31,11 @@ const providers: Provider[] = [
         placeholder: "jsmith@example.com",
       },
       password: { label: "Password", type: "password" },
+      turnstileToken: {
+        label: "Turnstile Token (Captcha)",
+        type: "text",
+        value: "dummy",
+      },
     },
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
@@ -58,6 +43,23 @@ const providers: Provider[] = [
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
+
+      if (env.TURNSTILE_SECRET_KEY && env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+        const res = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            body: `secret=${encodeURIComponent(env.TURNSTILE_SECRET_KEY)}&response=${encodeURIComponent(credentials.turnstileToken)}`,
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+            },
+          },
+        );
+        const data = await res.json();
+        if (data.success === false) {
+          throw new Error("Invalid captcha token");
+        }
+      }
 
       const blockedDomains =
         env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
@@ -223,27 +225,27 @@ export const authOptions: NextAuthOptions = {
   },
   cookies: {
     sessionToken: {
-      name: cookieName("next-auth.session-token"),
+      name: getCookieName("next-auth.session-token"),
       options: cookieOptions,
     },
     csrfToken: {
-      name: cookieName("next-auth.csrf-token"),
+      name: getCookieName("next-auth.csrf-token"),
       options: cookieOptions,
     },
     callbackUrl: {
-      name: cookieName("next-auth.callback-url"),
+      name: getCookieName("next-auth.callback-url"),
       options: cookieOptions,
     },
     state: {
-      name: cookieName("next-auth.state"),
+      name: getCookieName("next-auth.state"),
       options: cookieOptions,
     },
     nonce: {
-      name: cookieName("next-auth.nonce"),
+      name: getCookieName("next-auth.nonce"),
       options: cookieOptions,
     },
     pkceCodeVerifier: {
-      name: cookieName("next-auth.pkce.code_verifier"),
+      name: getCookieName("next-auth.pkce.code_verifier"),
       options: cookieOptions,
     },
   },

@@ -8,6 +8,20 @@ import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
 import { type GetAllGenerationsInput } from "../getAllQuery";
 
+type AdditionalObservationFields = {
+  traceName: string | null;
+  promptName: string | null;
+  promptVersion: string | null;
+};
+
+export type FullObservations = Array<
+  AdditionalObservationFields & ObservationView
+>;
+
+export type IOOmittedObservations = Array<
+  Omit<ObservationView, "input" | "output"> & AdditionalObservationFields
+>;
+
 export async function getAllGenerations({
   input,
   selectIO,
@@ -118,15 +132,9 @@ export async function getAllGenerations({
       LIMIT ${input.limit} OFFSET ${input.page * input.limit}
     `;
 
-  const generations = await prisma.$queryRaw<
-    Array<
-      ObservationView & {
-        traceName: string | null;
-        promptName: string | null;
-        promptVersion: string | null;
-      }
-    >
-  >(query);
+  const generations: FullObservations | IOOmittedObservations = selectIO
+    ? await prisma.$queryRaw(query)
+    : await prisma.$queryRaw(query);
 
   const scores = await prisma.score.findMany({
     where: {
