@@ -651,10 +651,7 @@ const TracesIOCell = ({
   io: "input" | "output";
 }) => {
   const trace = api.traces.byId.useQuery(
-    {
-      traceId: traceId,
-      includeObservations: false,
-    },
+    { traceId: traceId },
     {
       enabled: typeof traceId === "string",
       trpc: {

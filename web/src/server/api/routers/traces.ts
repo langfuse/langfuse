@@ -212,7 +212,6 @@ export const traceRouter = createTRPCRouter({
     .input(
       z.object({
         traceId: z.string(),
-        includeObservations: z.boolean().default(true),
       }),
     )
     .query(async ({ input, ctx }) => {
