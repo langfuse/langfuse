@@ -22,8 +22,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self';
   frame-ancestors 'none';
-  block-all-mixed-content;
-  upgrade-insecure-requests;
+  ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
 `;
 
 /** @type {import("next").NextConfig} */
