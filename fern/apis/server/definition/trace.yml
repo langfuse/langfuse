@@ -26,6 +26,9 @@ service:
           limit: optional<integer>
           userId: optional<string>
           name: optional<string>
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Retrieve only traces newer than this timestamp.
           orderBy:
             type: optional<string>
             docs: "Format of the string [field].[asc/desc]. Fields: id, timestamp, name, userId, release, version, public, bookmarked, sessionId. Example: timestamp.asc"
