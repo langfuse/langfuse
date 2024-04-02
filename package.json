@@ -24,8 +24,8 @@
     "models:migrate": "turbo run models:migrate"
   },
   "devDependencies": {
-    "dotenv-cli": "^7.3.0",
+    "dotenv-cli": "^7.4.1",
     "prettier": "^3.2.5",
-    "turbo": "^1.13.0"
+    "turbo": "^1.13.2"
   }
 }
