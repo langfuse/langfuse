@@ -14,7 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
-import { SiOkta } from "react-icons/si";
+import { SiOkta, SiAuth0 } from "react-icons/si";
 import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -44,6 +44,7 @@ export type PageProps = {
     github: boolean;
     okta: boolean;
     azureAd: boolean;
+    auth0: boolean;
   };
 };
 
@@ -68,6 +69,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
           env.AUTH_AZURE_AD_CLIENT_SECRET !== undefined &&
           env.AUTH_AZURE_AD_TENANT_ID !== undefined,
+        auth0:
+          env.AUTH_AUTH0_CLIENT_ID !== undefined &&
+          env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTH0_ISSUER !== undefined,
       },
     },
   };
@@ -127,13 +132,25 @@ export function SSOButtons({
           {authProviders.okta && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:azure_ad_button_click");
+                posthog.capture("sign_in:okta_button_click");
                 void signIn("okta");
               }}
               variant="secondary"
             >
               <SiOkta className="mr-3" size={18} />
               {action} with Okta
+            </Button>
+          )}
+          {authProviders.auth0 && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:auth0_button_click");
+                void signIn("auth0");
+              }}
+              variant="secondary"
+            >
+              <SiAuth0 className="mr-3" size={18} />
+              {action} with Auth0
             </Button>
           )}
         </div>
