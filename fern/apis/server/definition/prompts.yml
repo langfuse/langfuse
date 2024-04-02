@@ -25,6 +25,20 @@ service:
 
 types:
   CreatePromptRequest:
+    union:
+      chat: CreateChatPromptRequest
+      text: CreateTextPromptRequest
+
+  CreateChatPromptRequest:
+    properties:
+      name: string
+      isActive:
+        docs: Should the prompt be promoted to production immediately?
+        type: boolean
+      prompt: list<ChatMessage>
+      config: optional<unknown>
+
+  CreateTextPromptRequest:
     properties:
       name: string
       isActive:
@@ -59,4 +73,4 @@ types:
   ChatPrompt:
     extends: BasePrompt
     properties:
-      messages: list<ChatMessage>
+      prompt: list<ChatMessage>

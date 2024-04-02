@@ -2285,6 +2285,50 @@ components:
         - name
     CreatePromptRequest:
       title: CreatePromptRequest
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - chat
+            - $ref: '#/components/schemas/CreateChatPromptRequest'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - text
+            - $ref: '#/components/schemas/CreateTextPromptRequest'
+          required:
+            - type
+    CreateChatPromptRequest:
+      title: CreateChatPromptRequest
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+          description: Should the prompt be promoted to production immediately?
+        prompt:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        config:
+          nullable: true
+      required:
+        - name
+        - isActive
+        - prompt
+    CreateTextPromptRequest:
+      title: CreateTextPromptRequest
       type: object
       properties:
         name:
@@ -2363,12 +2407,12 @@ components:
       title: ChatPrompt
       type: object
       properties:
-        messages:
+        prompt:
           type: array
           items:
             $ref: '#/components/schemas/ChatMessage'
       required:
-        - messages
+        - prompt
       allOf:
         - $ref: '#/components/schemas/BasePrompt'
     CreateScoreRequest:
