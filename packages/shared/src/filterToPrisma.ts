@@ -1,4 +1,4 @@
-import { Prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@prisma/client";
 import {
   ColumnDefinition,
   type TableNames as TableName,
