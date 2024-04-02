@@ -30,7 +30,10 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
       </div>
       <div className="hidden sm:block">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <nav
+            className="-mb-px flex space-x-2 md:space-x-4 lg:space-x-6 xl:space-x-8"
+            aria-label="Tabs"
+          >
             {tabs.map((tab, index) => (
               <a
                 key={tab.tabTitle}
