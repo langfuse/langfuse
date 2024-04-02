@@ -39,6 +39,7 @@ export const env = createEnv({
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["ADMIN", "MEMBER", "VIEWER"])
       .optional(),
+    LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -50,6 +51,14 @@ export const env = createEnv({
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_OKTA_CLIENT_ID: z.string().optional(),
+    AUTH_OKTA_CLIENT_SECRET: z.string().optional(),
+    AUTH_OKTA_ISSUER: z.string().optional(),
+    AUTH_OKTA_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_AUTH0_CLIENT_ID: z.string().optional(),
+    AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
+    AUTH_AUTH0_ISSUER: z.string().url().optional(),
+    AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     // EMAIL
@@ -66,6 +75,7 @@ export const env = createEnv({
     // Prompt playground
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
+    TURNSTILE_SECRET_KEY: z.string().optional(),
   },
 
   /**
@@ -80,6 +90,7 @@ export const env = createEnv({
       .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
   },
 
   /**
@@ -105,6 +116,7 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
+    LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     // Default project and role
     LANGFUSE_DEFAULT_PROJECT_ID: process.env.LANGFUSE_DEFAULT_PROJECT_ID,
     LANGFUSE_DEFAULT_PROJECT_ROLE: process.env.LANGFUSE_DEFAULT_PROJECT_ROLE,
@@ -122,6 +134,14 @@ export const env = createEnv({
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING,
+    AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
+    AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
+    AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
+    AUTH_OKTA_ALLOW_ACCOUNT_LINKING: process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
+    AUTH_AUTH0_CLIENT_ID: process.env.AUTH_AUTH0_CLIENT_ID,
+    AUTH_AUTH0_CLIENT_SECRET: process.env.AUTH_AUTH0_CLIENT_SECRET,
+    AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
+    AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
@@ -139,6 +159,8 @@ export const env = createEnv({
     // Prompt playground
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

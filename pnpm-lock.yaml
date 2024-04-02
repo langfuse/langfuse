@@ -9,14 +9,14 @@ importers:
   .:
     devDependencies:
       dotenv-cli:
-        specifier: ^7.3.0
+        specifier: ^7.4.1
         version: 7.4.1
       prettier:
         specifier: ^3.2.5
         version: 3.2.5
       turbo:
-        specifier: ^1.13.0
-        version: 1.13.0
+        specifier: ^1.13.2
+        version: 1.13.2
 
   packages/config-eslint:
     devDependencies:
@@ -179,6 +179,9 @@ importers:
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
+      '@marsidev/react-turnstile':
+        specifier: ^0.5.3
+        version: 0.5.3(react-dom@18.2.0)(react@18.2.0)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
         version: 1.0.7(@prisma/client@5.11.0)(next-auth@4.24.7)
@@ -533,8 +536,8 @@ importers:
         specifier: ^16.4.5
         version: 16.4.5
       express:
-        specifier: ^4.18.3
-        version: 4.18.3
+        specifier: ^4.19.2
+        version: 4.19.2
       ioredis:
         specifier: ^5.3.2
         version: 5.3.2
@@ -2800,6 +2803,16 @@ packages:
     dependencies:
       call-bind: 1.0.7
     dev: true
+
+  /@marsidev/react-turnstile@0.5.3(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-lx3p2/56esPt8Ksr37K8uhPt/K4Mg8xaIfCV8MPKmE/1X4aHesRqZok1+L1ySQwsdWoEe5+KJOhBXka8lFBwNg==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+    dependencies:
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+    dev: false
 
   /@mermaid-js/mermaid-cli@10.8.0(typescript@5.4.2):
     resolution: {integrity: sha512-xZsGR88RsP72SAXyvjU23HzsKHsq6b7/kbnmQrEuIcPrJGPOckFiP9nzHvPh3Z04MjvpDJVjtbIspt2ZQwUzzA==}
@@ -7764,6 +7777,11 @@ packages:
     engines: {node: '>= 0.6'}
     dev: false
 
+  /cookie@0.6.0:
+    resolution: {integrity: sha512-U71cyTamuh1CRNCfpGY6to28lxvNwPG4Guz/EVjgf3Jmzv0vlDp1atT9eS5dDjMYHucpHbWns6Lwf3BKz6svdw==}
+    engines: {node: '>= 0.6'}
+    dev: false
+
   /copy-anything@3.0.5:
     resolution: {integrity: sha512-yCEafptTtb4bk7GLEQoM8KVJpxAfdBJYaXyzQEgQQQgYrZiDp8SJmGKlYza6CYjEDNstAdNdKA3UuoULlEbS6w==}
     engines: {node: '>=12.13'}
@@ -9457,8 +9475,8 @@ packages:
     resolution: {integrity: sha512-4EMSHGOPSwAfBiibw3ndnP0AvjDWLsMvGOvWEZ2F96IGk0bIVdjQisOHxReSkE13mHcfbuCiXw+G4y0zv6N8Eg==}
     dev: false
 
-  /express@4.18.3:
-    resolution: {integrity: sha512-6VyCijWQ+9O7WuVMTRBTl+cjNNIzD5cY5mQ1WM8r/LEkI2u8EYpOotESNwzNlyCn3g+dmjKYI6BmNneSr/FSRw==}
+  /express@4.19.2:
+    resolution: {integrity: sha512-5T6nhjsT+EOMzuck8JjBHARTHfMht0POzlA60WV2pMD3gyXw2LZnZ+ueGdNxG+0calOJcWKbpFcuzLZ91YWq9Q==}
     engines: {node: '>= 0.10.0'}
     dependencies:
       accepts: 1.3.8
@@ -9466,7 +9484,7 @@ packages:
       body-parser: 1.20.2
       content-disposition: 0.5.4
       content-type: 1.0.5
-      cookie: 0.5.0
+      cookie: 0.6.0
       cookie-signature: 1.0.6
       debug: 2.6.9
       depd: 2.0.0
@@ -15567,64 +15585,64 @@ packages:
       fsevents: 2.3.3
     dev: true
 
-  /turbo-darwin-64@1.13.0:
-    resolution: {integrity: sha512-ctHeJXtQgBcgxnCXwrJTGiq57HtwF7zWz5NTuSv//5yeU01BtQIt62ArKfjudOhRefWJbX3Z5srn88XTb9hfww==}
+  /turbo-darwin-64@1.13.2:
+    resolution: {integrity: sha512-CCSuD8CfmtncpohCuIgq7eAzUas0IwSbHfI8/Q3vKObTdXyN8vAo01gwqXjDGpzG9bTEVedD0GmLbD23dR0MLA==}
     cpu: [x64]
     os: [darwin]
     requiresBuild: true
     dev: true
     optional: true
 
-  /turbo-darwin-arm64@1.13.0:
-    resolution: {integrity: sha512-/Q9/pNFkF9w83tNxwMpgapwLYdQ12p8mpty2YQRoUiS9ClWkcqe136jR0mtuMqzlNlpREOFZaoyIthjt6Sdo0g==}
+  /turbo-darwin-arm64@1.13.2:
+    resolution: {integrity: sha512-0HySm06/D2N91rJJ89FbiI/AodmY8B3WDSFTVEpu2+8spUw7hOJ8okWOT0e5iGlyayUP9gr31eOeL3VFZkpfCw==}
     cpu: [arm64]
     os: [darwin]
     requiresBuild: true
     dev: true
     optional: true
 
-  /turbo-linux-64@1.13.0:
-    resolution: {integrity: sha512-hgbT7o020BGV4L7Sd8hhFTd5zVKPKxbsr0dPfel/9NkdTmptz2aGZ0Vb2MAa18SY3XaCQpDxmdYuOzvvRpo5ZA==}
+  /turbo-linux-64@1.13.2:
+    resolution: {integrity: sha512-7HnibgbqZrjn4lcfIouzlPu8ZHSBtURG4c7Bedu7WJUDeZo+RE1crlrQm8wuwO54S0siYqUqo7GNHxu4IXbioQ==}
     cpu: [x64]
     os: [linux]
     requiresBuild: true
     dev: true
     optional: true
 
-  /turbo-linux-arm64@1.13.0:
-    resolution: {integrity: sha512-WK01i2wDZARrV+HEs495A3hNeGMwQR5suYk7G+ceqqW7b+dOTlQdvUjnI3sg7wAnZPgjafFs/hoBaZdJjVa/nw==}
+  /turbo-linux-arm64@1.13.2:
+    resolution: {integrity: sha512-sUq4dbpk6SNKg/Hkwn256Vj2AEYSQdG96repio894h5/LEfauIK2QYiC/xxAeW3WBMc6BngmvNyURIg7ltrePg==}
     cpu: [arm64]
     os: [linux]
     requiresBuild: true
     dev: true
     optional: true
 
-  /turbo-windows-64@1.13.0:
-    resolution: {integrity: sha512-hJgSZJZwlWHNwLEthaqJqJWGm4NqF5X/I7vE0sPE4i/jeDl8f0n1hcOkgJkJiNXVxhj+qy/9+4dzbPLKT9imaQ==}
+  /turbo-windows-64@1.13.2:
+    resolution: {integrity: sha512-DqzhcrciWq3dpzllJR2VVIyOhSlXYCo4mNEWl98DJ3FZ08PEzcI3ceudlH6F0t/nIcfSItK1bDP39cs7YoZHEA==}
     cpu: [x64]
     os: [win32]
     requiresBuild: true
     dev: true
     optional: true
 
-  /turbo-windows-arm64@1.13.0:
-    resolution: {integrity: sha512-L/ErxYoXeq8tmjU/AIGicC9VyBN1zdYw8JlM4yPmMI0pJdY8E4GaYK1IiIazqq7M72lmQhU/WW7fV9FqEktwrw==}
+  /turbo-windows-arm64@1.13.2:
+    resolution: {integrity: sha512-WnPMrwfCXxK69CdDfS1/j2DlzcKxSmycgDAqV0XCYpK/812KB0KlvsVAt5PjEbZGXkY88pCJ1BLZHAjF5FcbqA==}
     cpu: [arm64]
     os: [win32]
     requiresBuild: true
     dev: true
     optional: true
 
-  /turbo@1.13.0:
-    resolution: {integrity: sha512-r02GtNmkOPcQvUzVE6lg474QVLyU02r3yh3lUGqrFHf5h5ZEjgDGWILsAUqplVqjri1Y/oOkTssks4CObTAaiw==}
+  /turbo@1.13.2:
+    resolution: {integrity: sha512-rX/d9f4MgRT3yK6cERPAkfavIxbpBZowDQpgvkYwGMGDQ0Nvw1nc0NVjruE76GrzXQqoxR1UpnmEP54vBARFHQ==}
     hasBin: true
     optionalDependencies:
-      turbo-darwin-64: 1.13.0
-      turbo-darwin-arm64: 1.13.0
-      turbo-linux-64: 1.13.0
-      turbo-linux-arm64: 1.13.0
-      turbo-windows-64: 1.13.0
-      turbo-windows-arm64: 1.13.0
+      turbo-darwin-64: 1.13.2
+      turbo-darwin-arm64: 1.13.2
+      turbo-linux-64: 1.13.2
+      turbo-linux-arm64: 1.13.2
+      turbo-windows-64: 1.13.2
+      turbo-windows-arm64: 1.13.2
     dev: true
 
   /type-check@0.4.0:

@@ -1,9 +1,3 @@
-import {
-  type ChatMessage,
-  ChatMessageRole,
-  type ModelParams,
-  ModelProvider,
-} from "./types";
 import { ChatAnthropic } from "@langchain/anthropic";
 import {
   AIMessage,
@@ -14,7 +8,15 @@ import {
   BytesOutputParser,
   StringOutputParser,
 } from "@langchain/core/output_parsers";
+import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI } from "@langchain/openai";
+
+import {
+  ChatMessage,
+  ChatMessageRole,
+  ModelParams,
+  ModelProvider,
+} from "./types";
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -29,7 +31,7 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
   }
-): Promise<ReadableStream<Uint8Array>>;
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -39,7 +41,7 @@ export async function fetchLLMCompletion(
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
-): Promise<string | ReadableStream<Uint8Array>> {
+): Promise<string | IterableReadableStream<Uint8Array>> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)

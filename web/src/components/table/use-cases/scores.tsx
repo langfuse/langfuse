@@ -21,8 +21,8 @@ export type ScoresTableRow = {
   value: number;
   comment?: string;
   observationId?: string;
-  traceName: string;
-  userId: string;
+  traceName?: string;
+  userId?: string;
 };
 
 export type ScoreFilterInput = Omit<
@@ -102,15 +102,36 @@ export default function ScoresTable({
       header: "Observation ID",
       enableSorting: true,
       cell: ({ row }) => {
-        const observationId = row.getValue("observationId");
-        const traceId = row.getValue("traceId");
-        return typeof observationId === "string" &&
-          typeof traceId === "string" ? (
+        const observationId = row.getValue(
+          "observationId",
+        ) as ScoresTableRow["observationId"];
+        const traceId = row.getValue("traceId") as ScoresTableRow["traceId"];
+        return traceId && observationId ? (
           <TableLink
             path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
             value={observationId}
           />
-        ) : null;
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "traceName",
+      header: "Trace Name",
+      id: "traceName",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value = row.getValue("traceName") as ScoresTableRow["traceName"];
+        const filter = encodeURIComponent(
+          `name;stringOptions;;any of;${value}`,
+        );
+        return value ? (
+          <TableLink
+            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
+            value={value}
+            truncateAt={40}
+          />
+        ) : undefined;
       },
     },
     {
@@ -199,8 +220,8 @@ export default function ScoresTable({
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
-      traceName: score.traceName,
-      userId: score.userId,
+      traceName: score.traceName ?? undefined,
+      userId: score.userId ?? undefined,
     };
   };
 
