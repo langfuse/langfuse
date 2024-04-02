@@ -48,11 +48,12 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
 
   return (
     <Button
+      type="button" // prevents submitting a form if this button is inside a form
       variant="outline"
       className="w-full space-x-2 py-6"
       onClick={() => addMessage(nextMessageRole)}
     >
-      <PlusCircleIcon />
+      <PlusCircleIcon size={16} />
       <p>Add message</p>
     </Button>
   );

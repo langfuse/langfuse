@@ -1,36 +1,40 @@
+import { Pencil, Terminal } from "lucide-react";
+import Link from "next/link";
+import router, { useRouter } from "next/router";
+import { NumberParam, useQueryParam } from "use-query-params";
+import { z } from "zod";
+
 import Header from "@/src/components/layouts/header";
+import {
+  ChatMlArraySchema,
+  OpenAiMessageView,
+} from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { CodeView } from "@/src/components/ui/code";
+import { CodeView, JSONView } from "@/src/components/ui/code";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
+import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
+import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
+import { PromptType } from "@/src/features/prompts/server/validation";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import useProjectId from "@/src/hooks/useProjectId";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@langfuse/shared/src/db";
-import { Pencil } from "lucide-react";
-import { PromptHistoryNode } from "./prompt-history";
-import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
-import { useQueryParam, NumberParam } from "use-query-params";
-import router from "next/router";
-import { JSONView } from "@/src/components/ui/code";
-import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { jsonSchema } from "@/src/utils/zod";
 
-export type PromptDetailProps = {
-  projectId: string;
-  promptName: string;
-};
+import { PromptHistoryNode } from "./prompt-history";
 
-export const PromptDetail = (props: PromptDetailProps) => {
+export const PromptDetail = () => {
+  const projectId = useProjectId();
+  const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,
   );
   const promptHistory = api.prompts.allVersions.useQuery({
-    name: props.promptName,
-    projectId: props.projectId,
+    name: promptName,
+    projectId,
   });
   const prompt = currentPromptVersion
     ? promptHistory.data?.find(
@@ -40,6 +44,16 @@ export const PromptDetail = (props: PromptDetailProps) => {
 
   const promptString = JSON.stringify(prompt?.prompt?.valueOf(), null, 2);
   const extractedVariables = prompt ? extractVariables(promptString) : [];
+
+  let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;
+  try {
+    chatMessages = ChatMlArraySchema.parse(prompt?.prompt);
+  } catch (error) {
+    console.warn(
+      "Could not parse returned chat prompt to pretty ChatML",
+      error,
+    );
+  }
 
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
@@ -54,45 +68,54 @@ export const PromptDetail = (props: PromptDetailProps) => {
             breadcrumb={[
               {
                 name: "Prompts",
-                href: `/project/${props.projectId}/prompts/`,
+                href: `/project/${projectId}/prompts/`,
               },
               {
                 name: prompt.name,
-                href: `/project/${props.projectId}/prompts/${encodeURIComponent(props.promptName)}`,
+                href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
               },
               { name: `Version ${prompt.version}` },
             ]}
             actionButtons={
               <>
                 <PromotePrompt
-                  projectId={props.projectId}
+                  projectId={projectId}
                   promptId={prompt.id}
                   promptName={prompt.name}
                   disabled={prompt.isActive}
                   variant="outline"
                 />
-                <CreatePromptDialog
-                  projectId={props.projectId}
-                  title="Update Prompt"
-                  subtitle="We do not update prompts, instead we create a new version of the prompt."
-                  promptName={prompt.name}
-                  promptText={promptString}
-                  promptConfig={jsonSchema.parse(prompt.config)}
+
+                <Link
+                  href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
+                >
+                  <Button
+                    variant="outline"
+                    title="Test in prompt playground"
+                    size="icon"
+                  >
+                    <Terminal className="h-5 w-5" />
+                  </Button>
+                </Link>
+
+                <Link
+                  href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
                 >
                   <Button variant="outline" size="icon">
                     <Pencil className="h-5 w-5" />
                   </Button>
-                </CreatePromptDialog>
+                </Link>
+
                 <DeletePromptVersion
-                  projectId={props.projectId}
+                  projectId={projectId}
                   promptVersionId={prompt.id}
                   version={prompt.version}
                   countVersions={promptHistory.data.length}
                 />
                 <DetailPageNav
                   key="nav"
-                  currentId={props.promptName}
-                  path={(name) => `/project/${props.projectId}/prompts/${name}`}
+                  currentId={promptName}
+                  path={(name) => `/project/${projectId}/prompts/${name}`}
                   listKey="prompts"
                 />
               </>
@@ -100,7 +123,17 @@ export const PromptDetail = (props: PromptDetailProps) => {
           />
         </div>
         <div className="col-span-2 md:h-full">
-          <CodeView content={promptString} title="Prompt" />
+          <div className="mx-auto mb-5 w-full rounded-lg border text-base leading-7">
+            <div className="border-b px-3 py-1 text-xs font-medium">Type</div>
+            <div className="flex flex-wrap gap-2 p-3">
+              <Badge variant="outline">{prompt.type}</Badge>
+            </div>
+          </div>
+          {prompt.type === PromptType.Chat && chatMessages ? (
+            <OpenAiMessageView title="Chat prompt" messages={chatMessages} />
+          ) : (
+            <CodeView content={promptString} title="Text prompt" />
+          )}
           <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7">
             <div className="border-b px-3 py-1 text-xs font-medium">
               Variables

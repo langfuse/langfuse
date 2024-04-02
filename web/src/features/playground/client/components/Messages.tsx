@@ -14,7 +14,6 @@ export type MessagesContext = {
     key: Key,
     value: ChatMessageWithId[Key],
   ) => void;
-  updatePromptVariables: () => void;
 };
 
 export const Messages: React.FC<MessagesContext> = (props) => {

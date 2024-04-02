@@ -30,7 +30,8 @@ export const promptRouter = createTRPCRouter({
         SELECT 
           id, 
           name, 
-          version, 
+          version,
+          type, 
           project_id AS "projectId", 
           prompt, 
           updated_at AS "updatedAt", 
