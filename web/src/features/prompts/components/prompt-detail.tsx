@@ -17,6 +17,7 @@ import router from "next/router";
 import { JSONView } from "@/src/components/ui/code";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { jsonSchema } from "@/src/utils/zod";
+import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 
 export type PromptDetailProps = {
   projectId: string;
@@ -38,6 +39,12 @@ export const PromptDetail = (props: PromptDetailProps) => {
       )
     : promptHistory.data?.[0];
   const extractedVariables = prompt ? extractVariables(prompt.prompt) : [];
+
+  const filterOptions = api.prompts.filterOptions.useQuery({
+    projectId: props.projectId,
+  });
+  const filterOptionTags = filterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
 
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
@@ -76,6 +83,7 @@ export const PromptDetail = (props: PromptDetailProps) => {
                   promptName={prompt.name}
                   promptText={prompt.prompt}
                   promptConfig={jsonSchema.parse(prompt.config)}
+                  promptTags={prompt.tags}
                 >
                   <Button variant="outline" size="icon">
                     <Pencil className="h-5 w-5" />
@@ -96,6 +104,19 @@ export const PromptDetail = (props: PromptDetailProps) => {
               </>
             }
           />
+        </div>
+        <div className="col-span-3">
+          <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
+            <div className="flex flex-row items-center gap-3 p-2.5">
+              Tags
+              <TagPromptDetailsPopover
+                projectId={props.projectId}
+                promptName={prompt.name}
+                tags={prompt.tags}
+                availableTags={allTags}
+              />
+            </div>
+          </div>
         </div>
         <div className="col-span-2 md:h-full">
           <CodeView content={prompt.prompt} title="Prompt" />
