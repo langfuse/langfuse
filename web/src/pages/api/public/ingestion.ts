@@ -113,8 +113,7 @@ export default async function handler(
     );
 
     // send out REST requests to worker for all trace types
-    await sendToWorker(result.results, authCheck.scope.projectId);
-    console.log("sending to worker done");
+    await sendToWorkerIfConfigured(result.results, authCheck.scope.projectId);
 
     handleBatchResult([...errors, ...result.errors], result.results, res);
   } catch (error: unknown) {
@@ -424,18 +423,19 @@ export function cleanEvent(obj: unknown): unknown {
   }
 }
 
-export const sendToWorker = async (
-  results: BatchResult[],
+export const sendToWorkerIfConfigured = async (
+  batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
   if (env.WORKER_HOST && env.WORKER_PASSWORD) {
-    const traceEvents = results
-      .filter((result) => result.type === eventTypes.TRACE_CREATE)
+    const traceEvents = batchResults
+      .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
       .map((result) =>
         result.result &&
         typeof result.result === "object" &&
         "id" in result.result
-          ? { traceId: result.result.id, projectId: projectId }
+          ? // ingestion API only gets traces for one projectId
+            { traceId: result.result.id, projectId: projectId }
           : null,
       )
       .filter(isNotNullOrUndefined);

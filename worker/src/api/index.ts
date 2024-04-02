@@ -18,8 +18,8 @@ router.use(
   })
 );
 
-export const evalQueue = new Queue<TQueueJobTypes[QueueName.Evaluation]>(
-  QueueName.Evaluation,
+export const evalQueue = new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(
+  QueueName.TraceUpsert,
   {
     connection: redis,
   }
@@ -32,14 +32,18 @@ const eventBody = z.array(
   })
 );
 
-router.post<{}, MessageResponse>("/events", async (req, res) => {
+type EventsResponse = {
+  status: "success";
+};
+
+router.post<{}, EventsResponse>("/events", async (req, res) => {
   const { body } = req;
-  console.log(`Received events, ${JSON.stringify(body)}`);
+  logger.info(`Received events, ${JSON.stringify(body)}`);
 
   const events = eventBody.parse(body);
-  //{ name: string; data: { payload: { timestamp: string; id: string; data: { projectId: string; traceId: string; }; }; name: QueueJobs.Evaluation; }; opts?: BulkJobOptions | undefined; }
+
   const jobs = events.map((event) => ({
-    name: QueueJobs.Evaluation,
+    name: QueueJobs.TraceUpsert,
     data: {
       payload: {
         id: randomUUID(),
@@ -49,14 +53,14 @@ router.post<{}, MessageResponse>("/events", async (req, res) => {
           traceId: event.traceId,
         },
       },
-      name: QueueJobs.Evaluation as const,
+      name: QueueJobs.TraceUpsert as const,
     },
   }));
 
-  await evalQueue.addBulk(jobs);
+  await evalQueue.addBulk(jobs); // add all jobs as bulk
 
   res.json({
-    message: "API - 👋",
+    status: "success",
   });
 });
 

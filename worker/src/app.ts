@@ -58,9 +58,9 @@ if (isSentryEnabled) {
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
-console.log("Eval Job Creator started", evalJobCreator.isRunning());
+logger.info("Eval Job Creator started", evalJobCreator.isRunning());
 
-console.log("Eval Job Executor started", evalJobExecutor.isRunning());
+logger.info("Eval Job Executor started", evalJobExecutor.isRunning());
 
 evalJobCreator.on("failed", (job, err) => {
   logger.error(`Eval Job with id ${job?.id} failed with error ${err}`);
