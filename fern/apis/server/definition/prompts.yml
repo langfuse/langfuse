@@ -34,8 +34,29 @@ types:
       config: optional<unknown>
 
   Prompt:
+    union:
+      chat: ChatPrompt
+      text: TextPrompt
+
+  BasePrompt:
     properties:
       name: string
       version: integer
-      prompt: string
       config: unknown
+
+  ChatMessage:
+    properties:
+      role:
+        type: string
+      content:
+        type: string
+
+  TextPrompt:
+    extends: BasePrompt
+    properties:
+      prompt: string
+
+  ChatPrompt:
+    extends: BasePrompt
+    properties:
+      messages: list<ChatMessage>
