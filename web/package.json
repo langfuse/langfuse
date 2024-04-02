@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.14.0",
+  "version": "2.15.3",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "prebuild": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
-    "build": "dotenv -e ../.env -- next build",
+    "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
     "lint": "dotenv -e ../.env -- next lint",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
@@ -33,6 +33,7 @@
     "@langchain/core": "^0.1.49",
     "@langchain/openai": "^0.0.23",
     "@langfuse/shared": "workspace:*",
+    "@marsidev/react-turnstile": "^0.5.3",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@radix-ui/react-accordion": "^1.1.2",
     "@radix-ui/react-alert-dialog": "^1.0.5",

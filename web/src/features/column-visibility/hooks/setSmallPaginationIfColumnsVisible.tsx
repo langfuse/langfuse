@@ -10,7 +10,6 @@ export type TableColumn =
 export function setSmallPaginationIfColumnsVisible(
   columnVisibility: Record<string, boolean>,
   columnsRequiringSmallTable: TableColumn,
-
   paginationState: { pageIndex: number; pageSize: number },
   setPaginationState: React.Dispatch<
     React.SetStateAction<{ pageIndex: number; pageSize: number }>
