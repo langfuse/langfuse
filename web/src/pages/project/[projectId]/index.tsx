@@ -218,7 +218,7 @@ export default function Start() {
           globalFilterState={mergedFilterState}
         />
         <GenerationLatencyChart
-          className="col-span-1 flex-auto justify-between xl:col-span-full"
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
           projectId={projectId}
           agg={agg}
           globalFilterState={mergedFilterState}
