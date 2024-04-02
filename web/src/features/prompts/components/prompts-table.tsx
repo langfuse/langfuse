@@ -11,6 +11,7 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { LockIcon, PlusIcon } from "lucide-react";
 import { useEffect } from "react";
+import { TagPromptPopver } from "@/src/features/tag/components/TagPromptPopover";
 
 type RowData = {
   name: string;
@@ -19,11 +20,11 @@ type RowData = {
   createdAt: Date;
   isActive: boolean;
   numberOfObservations: number;
+  tags: string[];
 };
 
 export function PromptTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
-
   const prompts = api.prompts.all.useQuery({
     projectId: props.projectId,
   });
@@ -31,6 +32,19 @@ export function PromptTable(props: { projectId: string }) {
     projectId: props.projectId,
     scope: "prompts:CUD",
   });
+
+  const promptFilterOptions = api.prompts.filterOptions.useQuery(
+    {
+      projectId: props.projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   useEffect(() => {
     if (prompts.isSuccess) {
@@ -93,6 +107,28 @@ export function PromptTable(props: { projectId: string }) {
       },
     },
     {
+      accessorKey: "tags",
+      id: "tags",
+      header: "Tags",
+      cell: ({ row }) => {
+        const tags: string[] = row.getValue("tags");
+        const promptName: string = row.original.name;
+        const filterOptionTags = promptFilterOptions.data?.tags ?? [];
+        const allTags = filterOptionTags.map((t) => t.value);
+        const projectId = props.projectId;
+        return (
+          <TagPromptPopver
+            tags={tags}
+            availableTags={allTags}
+            projectId={props.projectId}
+            promptName={promptName}
+            promptsFilter={{ ...filterOptionTags, projectId }}
+          />
+        );
+      },
+      enableHiding: true,
+    },
+    {
       accessorKey: "actions",
       header: "Actions",
       cell: ({ row }) => {
@@ -116,6 +152,7 @@ export function PromptTable(props: { projectId: string }) {
       createdAt: item.createdAt,
       isActive: item.isActive,
       numberOfObservations: Number(item.observationCount),
+      tags: item.tags,
     };
   };
 
