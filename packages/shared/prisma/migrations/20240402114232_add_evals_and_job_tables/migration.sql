@@ -1,12 +1,12 @@
 -- AlterEnum
-ALTER TYPE "ScoreSource" ADD VALUE 'MODEL_BASED_EVALUATION';
+ALTER TYPE "ScoreSource" ADD VALUE 'EVALS';
 
 -- CreateTable
 CREATE TABLE "eval_templates" (
     "id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "project_id" TEXT,
+    "project_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "version" INTEGER NOT NULL,
     "prompt" TEXT NOT NULL,
@@ -64,6 +64,15 @@ CREATE INDEX "job_configurations_project_id_id_idx" ON "job_configurations"("pro
 
 -- CreateIndex
 CREATE INDEX "job_configurations_project_id_idx" ON "job_configurations"("project_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "job_executions_job_configuration_id_key" ON "job_executions"("job_configuration_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "job_executions_trace_id_key" ON "job_executions"("trace_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "job_executions_score_id_key" ON "job_executions"("score_id");
 
 -- CreateIndex
 CREATE INDEX "job_executions_project_id_id_idx" ON "job_executions"("project_id", "id");
