@@ -16,7 +16,7 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline' https://*.crisp.chat;
   img-src 'self' https: blob: data:;
   font-src 'self' https://*.crisp.chat;
-  frame-src 'self' https://challenges.cloudflare.com;
+  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com;
   worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
