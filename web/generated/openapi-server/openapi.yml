@@ -559,6 +559,16 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: fromStartTime
+          in: query
+          description: >-
+            Retrieve only observations with a start_time greater than this
+            timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -804,6 +814,14 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: fromTimestamp
+          in: query
+          description: Retrieve only scores newer than this timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1046,6 +1064,14 @@ paths:
           required: false
           schema:
             type: string
+            nullable: true
+        - name: fromTimestamp
+          in: query
+          description: Retrieve only traces newer than this timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
             nullable: true
         - name: orderBy
           in: query

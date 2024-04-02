@@ -434,7 +434,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -478,6 +478,11 @@
                   "key": "parentObservationId",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "fromStartTime",
+                  "value": "",
+                  "description": "Retrieve only observations with a start_time greater than this timestamp."
                 }
               ],
               "variable": []
@@ -643,7 +648,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -672,6 +677,11 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Retrieve only scores newer than this timestamp."
                 }
               ],
               "variable": []
@@ -831,7 +841,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&fromTimestamp=&orderBy=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -860,6 +870,11 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Retrieve only traces newer than this timestamp."
                 },
                 {
                   "key": "orderBy",

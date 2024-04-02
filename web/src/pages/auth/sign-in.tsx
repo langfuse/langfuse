@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
+import { SiOkta, SiAuth0 } from "react-icons/si";
 import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -41,7 +42,9 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    okta: boolean;
     azureAd: boolean;
+    auth0: boolean;
   };
 };
 
@@ -57,11 +60,19 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        okta:
+          env.AUTH_OKTA_CLIENT_ID !== undefined &&
+          env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
+          env.AUTH_OKTA_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
           env.AUTH_AZURE_AD_CLIENT_SECRET !== undefined &&
           env.AUTH_AZURE_AD_TENANT_ID !== undefined,
+        auth0:
+          env.AUTH_AUTH0_CLIENT_ID !== undefined &&
+          env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTH0_ISSUER !== undefined,
       },
     },
   };
@@ -118,6 +129,30 @@ export function SSOButtons({
               {action} with Azure AD
             </Button>
           )}
+          {authProviders.okta && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:okta_button_click");
+                void signIn("okta");
+              }}
+              variant="secondary"
+            >
+              <SiOkta className="mr-3" size={18} />
+              {action} with Okta
+            </Button>
+          )}
+          {authProviders.auth0 && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:auth0_button_click");
+                void signIn("auth0");
+              }}
+              variant="secondary"
+            >
+              <SiAuth0 className="mr-3" size={18} />
+              {action} with Auth0
+            </Button>
+          )}
         </div>
       </div>
     ) : null
@@ -131,7 +166,10 @@ export default function SignIn({ authProviders }: PageProps) {
 
   const posthog = usePostHog();
   const [turnstileToken, setTurnstileToken] = useState<string>();
-  const turnstileRef = useRef<any>();
+  // Used to refresh turnstile as the token can only be used once
+  const [turnstileCData, setTurnstileCData] = useState<string>(
+    new Date().getTime().toString(),
+  );
 
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
@@ -157,12 +195,8 @@ export default function SignIn({ authProviders }: PageProps) {
       setCredentialsFormError(result.error);
 
       // Refresh turnstile as the token can only be used once
-      if (
-        env.NEXT_PUBLIC_TURNSTILE_SITE_KEY &&
-        turnstileToken &&
-        turnstileRef.current
-      ) {
-        turnstileRef.current?.reset();
+      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+        setTurnstileCData(new Date().getTime().toString());
         setTurnstileToken(undefined);
       }
     }
@@ -240,9 +274,12 @@ export default function SignIn({ authProviders }: PageProps) {
             <>
               <Divider className="text-gray-400" />
               <Turnstile
-                ref={turnstileRef}
                 siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                options={{ theme: "light", action: "sign-in" }}
+                options={{
+                  theme: "light",
+                  action: "sign-in",
+                  cData: turnstileCData,
+                }}
                 className="mx-auto"
                 onSuccess={setTurnstileToken}
               />
