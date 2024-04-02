@@ -13,14 +13,14 @@ export const redis = new Redis({
 });
 
 export const evalQueue = new Queue<
-  TQueueJobTypes[QueueName.Evaluation_Execution]
->(QueueName.Evaluation_Execution, {
+  TQueueJobTypes[QueueName.EvaluationExecution]
+>(QueueName.EvaluationExecution, {
   connection: redis,
 });
 
-export const evalJobCreator = new Worker<TQueueJobTypes[QueueName.Evaluation]>(
-  QueueName.Evaluation,
-  async (job: Job<TQueueJobTypes[QueueName.Evaluation]>) => {
+export const evalJobCreator = new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
+  QueueName.TraceUpsert,
+  async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
     try {
       console.log("Executing Evaluation Job", job.data);
 
@@ -40,10 +40,10 @@ export const evalJobCreator = new Worker<TQueueJobTypes[QueueName.Evaluation]>(
 );
 
 export const evalJobExecutor = new Worker<
-  TQueueJobTypes[QueueName.Evaluation_Execution]
+  TQueueJobTypes[QueueName.EvaluationExecution]
 >(
-  QueueName.Evaluation_Execution,
-  async (job: Job<TQueueJobTypes[QueueName.Evaluation_Execution]>) => {
+  QueueName.EvaluationExecution,
+  async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
     try {
       console.log("Executing Evaluation Execution Job", job.data);
       await evaluate({ data: job.data.payload });

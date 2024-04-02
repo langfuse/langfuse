@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import {
   ChatMessageRole,
-  EvalEvent,
   EvalExecutionEvent,
   ModelProvider,
   QueueJobs,
@@ -15,6 +14,7 @@ import {
   variableMappingList,
   observationsTableCols,
   evalObjects,
+  TraceUpsertEvent,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -31,7 +31,7 @@ import logger from "./logger";
 export const createEvalJobs = async ({
   data,
 }: {
-  data: z.infer<typeof EvalEvent>;
+  data: z.infer<typeof TraceUpsertEvent>;
 }) => {
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
@@ -82,9 +82,9 @@ export const createEvalJobs = async ({
         .execute();
 
       evalQueue.add(
-        QueueName.Evaluation_Execution,
+        QueueName.EvaluationExecution,
         {
-          name: QueueJobs.Evaluation_Execution,
+          name: QueueJobs.EvaluationExecution,
           payload: {
             id: randomUUID(),
             timestamp: new Date().toISOString(),
