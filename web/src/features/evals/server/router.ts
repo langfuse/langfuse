@@ -6,7 +6,12 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { evalModels } from "@/src/features/evals/constants";
+import {
+  DEFAULT_TRACE_JOB_DELAY,
+  EvalTargetObject,
+  JobTypes,
+  evalModels,
+} from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";
 import { singleFilter, variableMapping } from "@langfuse/shared";
 
@@ -42,7 +47,7 @@ export const evalRouter = createTRPCRouter({
       const configs = await ctx.prisma.jobConfiguration.findMany({
         where: {
           projectId: input.projectId,
-          jobType: "evaluation",
+          jobType: JobTypes.Evaluation,
         },
         take: input.limit,
         skip: input.page * input.limit,
@@ -51,7 +56,7 @@ export const evalRouter = createTRPCRouter({
       const count = await ctx.prisma.jobConfiguration.count({
         where: {
           projectId: input.projectId,
-          jobType: "evaluation",
+          jobType: JobTypes.Evaluation,
         },
       });
       return {
@@ -69,7 +74,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      console.log("Hello");
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -78,8 +82,7 @@ export const evalRouter = createTRPCRouter({
 
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
-          // langfuse managed templates do not have a projectId
-          OR: [{ projectId: input.projectId }, { projectId: null }],
+          projectId: input.projectId,
         },
         take: input.limit,
         skip: input.page * input.limit,
@@ -87,7 +90,7 @@ export const evalRouter = createTRPCRouter({
 
       const count = await ctx.prisma.evalTemplate.count({
         where: {
-          OR: [{ projectId: input.projectId }, { projectId: null }],
+          projectId: input.projectId,
         },
       });
       return {
@@ -95,6 +98,7 @@ export const evalRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
+
   createJob: protectedProjectProcedure
     .input(
       z.object({
@@ -119,14 +123,11 @@ export const evalRouter = createTRPCRouter({
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
           where: {
             id: input.evalTemplateId,
+            projectId: input.projectId,
           },
         });
 
-        if (
-          !evalTemplate ||
-          (evalTemplate.projectId !== input.projectId &&
-            evalTemplate.projectId !== null)
-        ) {
+        if (!evalTemplate) {
           console.log(
             `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
           );
@@ -136,14 +137,14 @@ export const evalRouter = createTRPCRouter({
         const job = await ctx.prisma.jobConfiguration.create({
           data: {
             projectId: input.projectId,
-            jobType: "evaluation",
+            jobType: JobTypes.Evaluation,
             evalTemplateId: input.evalTemplateId,
             scoreName: input.scoreName,
-            targetObject: "trace",
+            targetObject: EvalTargetObject.Trace,
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,
-            delay: 10_000, // 10 seconds default
+            delay: DEFAULT_TRACE_JOB_DELAY, // 10 seconds default
           },
         });
         await auditLog({

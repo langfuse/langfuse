@@ -43,9 +43,6 @@ export const kyselyPrisma = prisma.$extends(
           createIntrospector: (db) => new PostgresIntrospector(db),
           createQueryCompiler: () => new PostgresQueryCompiler(),
         },
-        plugins: [
-          // Add your favorite plugins here!
-        ],
       }),
   })
 );

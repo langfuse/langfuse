@@ -5,7 +5,7 @@ export const QueueEnvelope = z.object({
   id: z.string(),
 });
 
-export const EvalEvent = QueueEnvelope.extend({
+export const TraceUpsertEvent = QueueEnvelope.extend({
   data: z.object({
     projectId: z.string(),
     traceId: z.string(),
@@ -20,22 +20,22 @@ export const EvalExecutionEvent = QueueEnvelope.extend({
 });
 
 export enum QueueName {
-  Evaluation = "evaluation-queue",
-  Evaluation_Execution = "evaluation-execution-queue",
+  TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
+  EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
 }
 
 export enum QueueJobs {
-  Evaluation = "evaluation-job",
-  Evaluation_Execution = "evaluation-execution-job",
+  TraceUpsert = "trace-upsert",
+  EvaluationExecution = "evaluation-execution-job",
 }
 
 export type TQueueJobTypes = {
-  [QueueName.Evaluation]: {
-    payload: z.infer<typeof EvalEvent>;
-    name: QueueJobs.Evaluation;
+  [QueueName.TraceUpsert]: {
+    payload: z.infer<typeof TraceUpsertEvent>;
+    name: QueueJobs.TraceUpsert;
   };
-  [QueueName.Evaluation_Execution]: {
+  [QueueName.EvaluationExecution]: {
     payload: z.infer<typeof EvalExecutionEvent>;
-    name: QueueJobs.Evaluation_Execution;
+    name: QueueJobs.EvaluationExecution;
   };
 };

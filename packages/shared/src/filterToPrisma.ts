@@ -1,5 +1,8 @@
 import { Prisma } from "@prisma/client";
-import { ColumnDefinition, TableNames } from "./interfaces/tableDefinition";
+import {
+  ColumnDefinition,
+  type TableNames as TableName,
+} from "./interfaces/tableDefinition";
 import { FilterState } from "./types";
 import { filterOperators } from "./interfaces/filters";
 
@@ -24,7 +27,7 @@ const arrayOperatorReplacements = {
 export function tableColumnsToSqlFilterAndPrefix(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
-  table: TableNames
+  table: TableName
 ): Prisma.Sql {
   const sql = tableColumnsToSqlFilter(filters, tableColumns, table);
   if (sql === Prisma.empty) {
@@ -40,7 +43,7 @@ export function tableColumnsToSqlFilterAndPrefix(
 export function tableColumnsToSqlFilter(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
-  table: TableNames
+  table: TableName
 ): Prisma.Sql {
   const internalFilters = filters.map((filter) => {
     // Get column definition to map column to internal name, e.g. "t.id"
@@ -150,7 +153,7 @@ export function tableColumnsToSqlFilter(
 
 const castValueToPostgresTypes = (
   column: ColumnDefinition,
-  table: TableNames
+  table: TableName
 ) => {
   return column.name === "type" &&
     (table === "observations" ||
