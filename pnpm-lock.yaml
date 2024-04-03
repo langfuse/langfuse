@@ -156,8 +156,8 @@ importers:
         specifier: ^3.515.0
         version: 3.536.0(@aws-sdk/client-s3@3.536.0)
       '@aws-sdk/s3-request-presigner':
-        specifier: ^3.507.0
-        version: 3.536.0
+        specifier: ^3.540.0
+        version: 3.540.0
       '@headlessui/react':
         specifier: ^1.7.18
         version: 1.7.18(react-dom@18.2.0)(react@18.2.0)
@@ -1245,8 +1245,8 @@ packages:
       tslib: 2.6.2
     dev: false
 
-  /@aws-sdk/s3-request-presigner@3.536.0:
-    resolution: {integrity: sha512-bMz7nxYfSjCkw72Hah40o0c9scwU2LQWoT3CkTcWs9OCrG4MCzMTBJNlzRUpxOpfGTZqVzrCaUGINIjh3jP/tQ==}
+  /@aws-sdk/s3-request-presigner@3.540.0:
+    resolution: {integrity: sha512-alm+PiQOzAIfNrabxOG/Fk9uimQq8VCdqmhRvZRG7iDwtl4yrW+ZinoDssWFUgeZgPZQTymLcslC2hvMKHgY9g==}
     engines: {node: '>=14.0.0'}
     dependencies:
       '@aws-sdk/signature-v4-multi-region': 3.535.0
