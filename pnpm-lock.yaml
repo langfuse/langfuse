@@ -381,8 +381,8 @@ importers:
         specifier: ^9.0.2
         version: 9.0.2(react@18.2.0)
       react18-json-view:
-        specifier: ^0.2.8-canary.1
-        version: 0.2.8-canary.4(react@18.2.0)
+        specifier: ^0.2.8-canary.6
+        version: 0.2.8-canary.6(react@18.2.0)
       sonner:
         specifier: ^1.4.0
         version: 1.4.3(react-dom@18.2.0)(react@18.2.0)
@@ -14069,8 +14069,8 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
     dev: false
 
-  /react18-json-view@0.2.8-canary.4(react@18.2.0):
-    resolution: {integrity: sha512-7vq7riH998p4//jvybZO6TQSkIhZPFcQJe2rPPSA+ziY5vq5OhoRLZVG60JVMVn8zHC0NNZ8/e8UFuxrC6qEKQ==}
+  /react18-json-view@0.2.8-canary.6(react@18.2.0):
+    resolution: {integrity: sha512-8/TFnfx9uedfKEl0fIQhVsKxYtKgxxnrn96Z1BrhTqm4RhrmeGrQIheviCO5+neEzJ0ysBxSzeBJpM2BYaor8w==}
     peerDependencies:
       react: '>=16.8.0'
     dependencies:
