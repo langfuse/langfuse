@@ -43,7 +43,11 @@ export const TracesBarListChart = ({
     {
       projectId,
       from: "traces",
-      select: [{ column: "traceId", agg: "COUNT" }, { column: "traceName" }],
+      select: [
+        { column: "traceId", agg: "COUNT" },
+        { column: "traceName" },
+        { column: "tags", agg: "COUNT" },
+      ],
       filter: timeFilter,
       groupBy: [{ column: "traceName", type: "string" }],
       orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
