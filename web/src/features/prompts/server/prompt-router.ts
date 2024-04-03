@@ -60,12 +60,10 @@ export const promptRouter = createTRPCRouter({
         "prompts",
       );
 
-      const orderBy =
-        input.orderBy?.column === "numberOfObservations" ? null : input.orderBy;
-
-      const orderByCondition = orderBy
-        ? orderByToPrismaSql(orderBy, promptsTableCols)
-        : Prisma.empty;
+      const orderByCondition =
+        input.orderBy?.column === "numberOfObservations"
+          ? Prisma.empty
+          : orderByToPrismaSql(input.orderBy, promptsTableCols);
 
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>(
         generatePromptQuery(
