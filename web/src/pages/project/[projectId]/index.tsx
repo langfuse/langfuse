@@ -94,14 +94,22 @@ export default function Start() {
       },
     },
   );
-  const values = traceFilterOptions.data?.name || [];
+  const nameOptions = traceFilterOptions.data?.name || [];
+  const tagsOptions = traceFilterOptions.data?.tags || [];
 
   const traceName: ColumnDefinition[] = [
     {
-      name: "traceName",
+      name: "Trace Name",
       id: "traceName",
-      type: "stringOptions" as const,
-      options: values,
+      type: "stringOptions",
+      options: nameOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "Tags",
+      id: "tags",
+      type: "arrayOptions",
+      options: tagsOptions,
       internal: "internalValue",
     },
   ];
