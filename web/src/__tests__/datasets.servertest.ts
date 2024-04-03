@@ -168,25 +168,101 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(response.status).toBe(207);
 
-    const runItem = await makeAPICall("POST", "/api/public/dataset-run-items", {
-      datasetItemId: "dataset-item-id",
-      observationId: observationId,
-      runName: "run-name",
-      metadata: { key: "value" },
-    });
-    const dbRun = await prisma.datasetRuns.findFirst({
+    const runItemObservation = await makeAPICall(
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        observationId: observationId,
+        runName: "run-only-observation",
+        metadata: { key: "value" },
+      },
+    );
+    const dbRunObservation = await prisma.datasetRuns.findFirst({
       where: {
-        name: "run-name",
+        name: "run-only-observation",
+      },
+      include: {
+        datasetRunItems: true,
       },
     });
-    expect(dbRun).not.toBeNull();
-    expect(dbRun?.datasetId).toBe(dataset.body.id);
-    expect(dbRun?.metadata).toMatchObject({ key: "value" });
-    expect(runItem.status).toBe(200);
-    expect(runItem.body).toMatchObject({
+    expect(dbRunObservation).not.toBeNull();
+    expect(dbRunObservation?.datasetId).toBe(dataset.body.id);
+    expect(dbRunObservation?.metadata).toMatchObject({ key: "value" });
+    expect(runItemObservation.status).toBe(200);
+    expect(dbRunObservation?.datasetRunItems[0]).toMatchObject({
       datasetItemId: "dataset-item-id",
       observationId: observationId,
-      datasetRunId: dbRun?.id,
+      traceId: traceId,
     });
+
+    const runItemTrace = await makeAPICall(
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        traceId: traceId,
+        runName: "run-only-trace",
+        metadata: { key: "value" },
+      },
+    );
+    const dbRunTrace = await prisma.datasetRuns.findFirst({
+      where: {
+        name: "run-only-trace",
+      },
+      include: {
+        datasetRunItems: true,
+      },
+    });
+    expect(dbRunTrace).not.toBeNull();
+    expect(dbRunTrace?.datasetId).toBe(dataset.body.id);
+    expect(dbRunTrace?.metadata).toMatchObject({ key: "value" });
+    expect(runItemTrace.status).toBe(200);
+    expect(dbRunTrace?.datasetRunItems[0]).toMatchObject({
+      datasetItemId: "dataset-item-id",
+      traceId: traceId,
+      observationId: null,
+    });
+
+    const runItemBoth = await makeAPICall(
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        observationId: observationId,
+        traceId: traceId,
+        runName: "run-name-both",
+        metadata: { key: "value" },
+      },
+    );
+    const dbRunBoth = await prisma.datasetRuns.findFirst({
+      where: {
+        name: "run-name-both",
+      },
+      include: {
+        datasetRunItems: true,
+      },
+    });
+    expect(dbRunBoth).not.toBeNull();
+    expect(dbRunBoth?.datasetId).toBe(dataset.body.id);
+    expect(dbRunBoth?.metadata).toMatchObject({ key: "value" });
+    expect(runItemBoth.status).toBe(200);
+    expect(dbRunBoth?.datasetRunItems[0]).toMatchObject({
+      datasetItemId: "dataset-item-id",
+      observationId: observationId,
+      traceId: traceId,
+    });
+  });
+
+  it("dataset-run-items should fail when neither trace nor observation provided", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        runName: "run-fail",
+      },
+    );
+    expect(response.status).toBe(400);
   });
 });
