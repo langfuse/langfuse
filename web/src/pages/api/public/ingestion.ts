@@ -34,6 +34,7 @@ export const config = {
       sizeLimit: "4.5mb",
     },
   },
+  maxDuration: 25,
 };
 
 export default async function handler(
