@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
+import { SiOkta, SiAuth0 } from "react-icons/si";
 import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -41,7 +42,9 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    okta: boolean;
     azureAd: boolean;
+    auth0: boolean;
   };
 };
 
@@ -57,11 +60,19 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        okta:
+          env.AUTH_OKTA_CLIENT_ID !== undefined &&
+          env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
+          env.AUTH_OKTA_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
           env.AUTH_AZURE_AD_CLIENT_SECRET !== undefined &&
           env.AUTH_AZURE_AD_TENANT_ID !== undefined,
+        auth0:
+          env.AUTH_AUTH0_CLIENT_ID !== undefined &&
+          env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTH0_ISSUER !== undefined,
       },
     },
   };
@@ -116,6 +127,30 @@ export function SSOButtons({
             >
               <TbBrandAzure className="mr-3" size={18} />
               {action} with Azure AD
+            </Button>
+          )}
+          {authProviders.okta && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:okta_button_click");
+                void signIn("okta");
+              }}
+              variant="secondary"
+            >
+              <SiOkta className="mr-3" size={18} />
+              {action} with Okta
+            </Button>
+          )}
+          {authProviders.auth0 && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:auth0_button_click");
+                void signIn("auth0");
+              }}
+              variant="secondary"
+            >
+              <SiAuth0 className="mr-3" size={18} />
+              {action} with Auth0
             </Button>
           )}
         </div>
