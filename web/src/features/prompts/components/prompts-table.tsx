@@ -12,6 +12,10 @@ import { type RouterOutput } from "@/src/utils/types";
 import { LockIcon, PlusIcon } from "lucide-react";
 import { useEffect } from "react";
 import { TagPromptPopver } from "@/src/features/tag/components/TagPromptPopover";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 
 type RowData = {
   name: string;
@@ -25,14 +29,23 @@ type RowData = {
 
 export function PromptTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
-  const prompts = api.prompts.all.useQuery({
-    projectId: props.projectId,
-  });
+
   const hasCUDAccess = useHasAccess({
     projectId: props.projectId,
     scope: "prompts:CUD",
   });
 
+  const [filterState, setFilterState] = useQueryFilterState([], "prompts");
+
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "createdAt",
+    order: "DESC",
+  });
+  const prompts = api.prompts.all.useQuery({
+    projectId: props.projectId,
+    filter: filterState,
+    orderBy: orderByState,
+  });
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {
       projectId: props.projectId,
@@ -59,6 +72,7 @@ export function PromptTable(props: { projectId: string }) {
   const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "name",
+      id: "name",
       header: "Name",
       cell: ({ row }) => {
         const name: string = row.getValue("name");
@@ -70,25 +84,31 @@ export function PromptTable(props: { projectId: string }) {
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "version",
+      id: "version",
       header: "Latest Version",
       cell: ({ row }) => {
         const version = row.getValue("version");
         return version;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "createdAt",
+      id: "createdAt",
       header: "Latest Version Created At",
       cell: ({ row }) => {
         const createdAt: Date = row.getValue("createdAt");
         return createdAt.toLocaleString();
       },
+      enableSorting: true,
     },
     {
       accessorKey: "numberOfObservations",
+      id: "numberOfObservations",
       header: "Number of Generations",
       cell: ({ row }) => {
         const numberOfObservations: number = row.getValue(
@@ -105,6 +125,7 @@ export function PromptTable(props: { projectId: string }) {
           />
         );
       },
+      enableSorting: true,
     },
     {
       accessorKey: "tags",
@@ -122,7 +143,12 @@ export function PromptTable(props: { projectId: string }) {
             availableTags={allTags}
             projectId={props.projectId}
             promptName={promptName}
-            promptsFilter={{ ...filterOptionTags, projectId }}
+            promptsFilter={{
+              ...filterOptionTags,
+              projectId,
+              filter: filterState,
+              orderBy: orderByState,
+            }}
           />
         );
       },
@@ -158,6 +184,14 @@ export function PromptTable(props: { projectId: string }) {
 
   return (
     <div>
+      <DataTableToolbar
+        columns={columns}
+        filterColumnDefinition={promptsTableColsWithOptions(
+          promptFilterOptions.data,
+        )}
+        filterState={filterState}
+        setFilterState={setFilterState}
+      />
       <DataTable
         columns={columns}
         data={
@@ -175,6 +209,8 @@ export function PromptTable(props: { projectId: string }) {
                   data: prompts.data.map((t) => convertToTableRow(t)),
                 }
         }
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
       />
       <CreatePromptDialog projectId={props.projectId} title="Create Prompt">
         <Button
