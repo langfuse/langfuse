@@ -102,7 +102,10 @@ const tableCols = {
   traces: tracesTableCols,
   sessions: sessionsViewCols,
   scores: scoresTableCols,
-  dashboard: [{ id: "traceName", name: "traceName" }],
+  dashboard: [
+    { id: "traceName", name: "Trace Name" },
+    { id: "tags", name: "Tags" },
+  ],
 };
 
 function getColumnId(table: TableName, name: string): string | undefined {
