@@ -135,26 +135,6 @@ export default function ScoresTable({
       },
     },
     {
-      accessorKey: "traceName",
-      header: "Trace Name",
-      id: "traceName",
-      enableHiding: true,
-      enableSorting: true,
-      cell: ({ row }) => {
-        const value: string = row.getValue("traceName");
-        const filter = encodeURIComponent(
-          `name;stringOptions;;any of;${value}`,
-        );
-        return (
-          <TableLink
-            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
-            value={value}
-            truncateAt={40}
-          />
-        );
-      },
-    },
-    {
       accessorKey: "timestamp",
       header: "Timestamp",
       id: "timestamp",
