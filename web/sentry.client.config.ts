@@ -9,7 +9,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     // Set tracesSampleRate to 1.0 to capture 100%
     // of transactions for performance monitoring.
     // We recommend adjusting this value in production
-    tracesSampleRate: 0.3,
+    tracesSampleRate: 0.2,
 
     // Capture Replay for 100% of all sessions,
     // plus for 100% of sessions with an error
