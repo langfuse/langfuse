@@ -40,6 +40,7 @@ export const CreatePromptDialog = (props: {
   promptText?: string;
   subtitle?: string;
   promptConfig?: z.infer<typeof jsonSchema>;
+  promptTags?: string[];
   children?: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
@@ -66,6 +67,7 @@ export const CreatePromptDialog = (props: {
           promptName={props.promptName}
           promptText={props.promptText}
           promptConfig={props.promptConfig}
+          promptTags={props.promptTags}
           onFormSuccess={() => setOpen(false)}
         />
       </DialogContent>
@@ -92,6 +94,7 @@ const formSchema = z.object({
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
+  tags: z.array(z.string()),
   // string as we keep the state in string to avoid recursive zod parsing issues
   config: z.string().refine(
     (value) => {
@@ -114,6 +117,7 @@ export const NewPromptForm = (props: {
   promptName?: string;
   promptText?: string;
   promptConfig?: z.infer<typeof jsonSchema>;
+  promptTags?: string[];
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -126,6 +130,7 @@ export const NewPromptForm = (props: {
       name: props.promptName ?? "",
       prompt: props.promptText ?? "",
       config: props.promptConfig ? JSON.stringify(props.promptConfig) : "{}",
+      tags: props.promptTags ?? [],
     },
   });
 
@@ -161,7 +166,6 @@ export const NewPromptForm = (props: {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("prompts:new_prompt_form_submit");
-
     createPromptMutation
       .mutateAsync({
         ...values,
@@ -172,6 +176,7 @@ export const NewPromptForm = (props: {
         // we keep the config in state as string. need to convert it to JSON before sending it to the API
         // zod parsing necessary to align with TRPC schema
         config: jsonSchema.parse(JSON.parse(values.config)),
+        tags: values.tags,
       })
       .then((newPrompt) => {
         props.onFormSuccess?.();

@@ -254,6 +254,7 @@ export type Prompt = {
     version: number;
     is_active: boolean;
     config: Generated<unknown>;
+    tags: Generated<string[]>;
 };
 export type Score = {
     id: string;

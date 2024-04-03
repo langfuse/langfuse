@@ -16,6 +16,7 @@ export const CreatePrompt = z.object({
   isActive: z.boolean(),
   prompt: z.string(),
   config: jsonSchema,
+  tags: z.array(z.string()),
 });
 
 export const promptRouter = createTRPCRouter({
@@ -41,7 +42,8 @@ export const promptRouter = createTRPCRouter({
           prompt, 
           updated_at AS "updatedAt", 
           created_at AS "createdAt", 
-          is_active AS "isActive"
+          is_active AS "isActive",
+          tags
         FROM prompts
         WHERE (name, version) IN (
           SELECT name, MAX(version)
@@ -117,6 +119,7 @@ export const promptRouter = createTRPCRouter({
           prompt: input.prompt,
           isActive: input.isActive,
           createdBy: ctx.session.user.id,
+          tags: input.tags,
           config: jsonSchema.parse(input.config),
           prisma: ctx.prisma,
         });
@@ -141,6 +144,45 @@ export const promptRouter = createTRPCRouter({
         console.log(e);
         throw e;
       }
+    }),
+  filterOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const names = await ctx.prisma.prompt.groupBy({
+        where: {
+          projectId: input.projectId,
+        },
+        by: ["name"],
+        // limiting to 1k prompt names to avoid performance issues.
+        // some users have unique names for large amounts of prompts
+        // sending all prompt names to the FE exceeds the cloud function return size limit
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
+        _count: {
+          id: true,
+        },
+      });
+      const tags: { count: number; value: string }[] = await ctx.prisma
+        .$queryRaw`
+        SELECT COUNT(*)::integer AS "count", tags.tag as value
+        FROM prompts, UNNEST(prompts.tags) AS tags(tag)
+        WHERE prompts.project_id = ${input.projectId}
+        GROUP BY tags.tag;
+      `;
+      const res = {
+        name: names
+          .filter((n) => n.name !== null)
+          .map((name) => ({
+            value: name.name ?? "undefined",
+            count: name._count.id,
+          })),
+        tags: tags,
+      };
+      return res;
     }),
   delete: protectedProjectProcedure
     .input(
@@ -301,6 +343,44 @@ export const promptRouter = createTRPCRouter({
         throw e;
       }
     }),
+  updateTags: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        tags: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:tag",
+      });
+      try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "prompt",
+          resourceId: input.name,
+          action: "updateTags",
+          after: input.tags,
+        });
+        const updatedPrompts = await ctx.prisma.prompt.updateMany({
+          where: {
+            name: input.name,
+            projectId: input.projectId,
+          },
+          data: {
+            tags: {
+              set: input.tags,
+            },
+          },
+        });
+        return updatedPrompts;
+      } catch (error) {
+        console.error(error);
+      }
+    }),
   allVersions: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), name: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -356,6 +436,7 @@ export const createPrompt = async ({
   prompt,
   isActive = true,
   createdBy,
+  tags,
   config,
   prisma,
 }: {
@@ -364,6 +445,7 @@ export const createPrompt = async ({
   prompt: string;
   isActive?: boolean;
   createdBy: string;
+  tags: string[];
   config: z.infer<typeof jsonSchema>;
   prisma: PrismaClient;
 }) => {
@@ -393,6 +475,7 @@ export const createPrompt = async ({
         isActive: isActive,
         project: { connect: { id: projectId } },
         createdBy: createdBy,
+        tags: tags,
         config: jsonSchema.parse(config),
       },
     }),
