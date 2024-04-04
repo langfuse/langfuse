@@ -1491,8 +1491,11 @@ components:
           type: string
         datasetItemId:
           type: string
+        traceId:
+          type: string
         observationId:
           type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1503,7 +1506,7 @@ components:
         - id
         - datasetRunId
         - datasetItemId
-        - observationId
+        - traceId
         - createdAt
         - updatedAt
     DatasetRun:
@@ -1607,10 +1610,16 @@ components:
           type: string
         observationId:
           type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+          description: >-
+            traceId should always be provided. For compatibility with older SDK
+            versions it can also be inferred from the provided observationId.
       required:
         - runName
         - datasetItemId
-        - observationId
     CreateDatasetRequest:
       title: CreateDatasetRequest
       type: object
