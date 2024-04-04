@@ -11,6 +11,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   it("should create and get a dataset", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name",
+      description: "dataset-description",
     });
 
     const dbDataset = await prisma.dataset.findMany({
@@ -29,6 +30,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getDataset.status).toBe(200);
     expect(getDataset.body).toMatchObject({
       name: "dataset-name",
+      description: "dataset-description",
     });
   });
 
@@ -262,6 +264,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         datasetItemId: "dataset-item-id",
         observationId: observationId,
         runName: "run-only-observation",
+        runDescription: "run-description",
         metadata: { key: "value" },
       },
     );
@@ -276,11 +279,32 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbRunObservation).not.toBeNull();
     expect(dbRunObservation?.datasetId).toBe(dataset.body.id);
     expect(dbRunObservation?.metadata).toMatchObject({ key: "value" });
+    expect(dbRunObservation?.description).toBe("run-description");
     expect(runItemObservation.status).toBe(200);
     expect(dbRunObservation?.datasetRunItems[0]).toMatchObject({
       datasetItemId: "dataset-item-id",
       observationId: observationId,
       traceId: traceId,
+    });
+
+    const getRunAPI = await makeAPICall(
+      "GET",
+      `/api/public/datasets/dataset-name/runs/run-only-observation`,
+    );
+    expect(getRunAPI.status).toBe(200);
+    expect(getRunAPI.body).toMatchObject({
+      name: "run-only-observation",
+      description: "run-description",
+      metadata: { key: "value" },
+      datasetId: dataset.body.id,
+      datasetName: "dataset-name",
+      datasetRunItems: expect.arrayContaining([
+        expect.objectContaining({
+          datasetItemId: "dataset-item-id",
+          observationId: observationId,
+          traceId: traceId,
+        }),
+      ]),
     });
 
     const runItemTrace = await makeAPICall(

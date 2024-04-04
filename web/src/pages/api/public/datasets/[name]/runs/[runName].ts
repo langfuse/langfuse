@@ -53,6 +53,11 @@ export default async function handler(
         },
         include: {
           datasetRunItems: true,
+          dataset: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
 
@@ -74,7 +79,12 @@ export default async function handler(
           message: "Dataset run not found",
         });
 
-      return res.status(200).json(datasetRuns[0]);
+      const { dataset, ...run } = datasetRuns[0];
+
+      return res.status(200).json({
+        ...run,
+        datasetName: dataset.name,
+      });
     } catch (error: unknown) {
       console.error(error);
       if (isPrismaException(error)) {

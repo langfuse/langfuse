@@ -126,6 +126,7 @@ types:
     properties:
       id: string
       name: string
+      description: optional<string>
       projectId: string
       createdAt: datetime
       updatedAt: datetime
@@ -168,8 +169,10 @@ types:
     properties:
       id: string
       name: string
+      description: optional<string>
       metadata: optional<unknown>
       datasetId: string
+      datasetName: string
       createdAt: datetime
       updatedAt: datetime
       datasetRunItems: list<DatasetRunItem>
