@@ -28,8 +28,7 @@ export default async function handler(
       // END CHECK AUTH
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to DELETE scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
 
@@ -100,8 +99,7 @@ export default async function handler(
       // CHECK ACCESS SCOPE
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
       // END CHECK ACCESS SCOPE

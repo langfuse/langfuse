@@ -53,8 +53,7 @@ export default async function handler(
 
     if (authCheck.scope.accessLevel !== "all") {
       return res.status(401).json({
-        message:
-          "Access denied - need to use basic auth with secret key to GET generations",
+        message: "Access denied - need to use basic auth with secret key",
       });
     }
 
