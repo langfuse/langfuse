@@ -32,6 +32,30 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
   });
 
+  it("should create and get a multiple dataset", async () => {
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name-1",
+    });
+
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name-2",
+    });
+
+    const getDatasets = await makeAPICall("GET", `/api/public/datasets`);
+
+    expect(getDatasets.status).toBe(200);
+    expect(getDatasets.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "dataset-name-1",
+        }),
+        expect.objectContaining({
+          name: "dataset-name-2",
+        }),
+      ]),
+    );
+  });
+
   it("should create and get a dataset item (via datasets and individually)", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name",
