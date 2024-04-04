@@ -380,7 +380,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        name: z.string().optional(),
+        name: z.string().nullish(),
         description: z.string().nullish(),
       }),
     )
