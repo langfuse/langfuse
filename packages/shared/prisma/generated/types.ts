@@ -102,7 +102,7 @@ export type Dataset = {
 export type DatasetItem = {
     id: string;
     status: Generated<DatasetStatus>;
-    input: unknown;
+    input: unknown | null;
     expected_output: unknown | null;
     source_observation_id: string | null;
     dataset_id: string;

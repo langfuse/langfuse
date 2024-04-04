@@ -1460,7 +1460,8 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/DatasetStatus'
-        input: {}
+        input:
+          nullable: true
         expectedOutput:
           nullable: true
         sourceObservationId:
@@ -1477,7 +1478,6 @@ components:
       required:
         - id
         - status
-        - input
         - datasetId
         - createdAt
         - updatedAt
@@ -1587,7 +1587,8 @@ components:
       properties:
         datasetName:
           type: string
-        input: {}
+        input:
+          nullable: true
         expectedOutput:
           nullable: true
         id:
@@ -1596,7 +1597,6 @@ components:
           description: Dataset items are upserted on their id
       required:
         - datasetName
-        - input
     CreateDatasetRunItemRequest:
       title: CreateDatasetRunItemRequest
       type: object
