@@ -97,7 +97,7 @@ export default function Start() {
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
 
-  const traceName: ColumnDefinition[] = [
+  const filterColumns: ColumnDefinition[] = [
     {
       name: "Trace Name",
       id: "traceName",
@@ -155,7 +155,7 @@ export default function Start() {
             className="my-0 max-w-full overflow-x-auto"
           />
           <FilterBuilder
-            columns={traceName}
+            columns={filterColumns}
             filterState={userFilterState}
             onChange={setUserFilterState}
           />

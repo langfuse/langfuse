@@ -34,7 +34,6 @@ export const groupByInterface = z.array(
     }),
     z.object({ type: z.literal("number"), column: z.string() }),
     z.object({ type: z.literal("string"), column: z.string() }),
-    z.object({ type: z.literal("arrayOptions"), column: z.string() }),
   ]),
 );
 

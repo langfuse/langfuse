@@ -16,11 +16,11 @@ import { tableDefinitions } from "./tableDefinitions";
 import { tableColumnsToSqlFilter } from "@/src/features/filters/server/filterToPrisma";
 
 export type InternalDatabaseRow = {
-  [key: string]: bigint | number | Decimal | string | Date | Array<string>;
+  [key: string]: bigint | number | Decimal | string | Date;
 };
 
 export type DatabaseRow = {
-  [key: string]: string | number | Date | Array<string> | null;
+  [key: string]: string | number | Date | null;
 };
 
 export const executeQuery = async (
@@ -360,8 +360,6 @@ const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
         newRow[key] = val;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       } else if (val === null) {
-        newRow[key] = val;
-      } else if (val instanceof Array) {
         newRow[key] = val;
       } else {
         console.log(`Unknown type ${typeof val} for ${val}`);
