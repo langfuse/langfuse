@@ -142,7 +142,7 @@ jobs:
       - name: Install playwright
         run: |
           npm add --global playwright
-          pnpm exec playwright install
+          pnpm exec playwright install --with-deps
 
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
