@@ -182,14 +182,19 @@ async function main() {
           data: {
             datasetId: dataset.id,
             sourceObservationId: sourceObservationId,
-            input: [
-              {
-                role: "user",
-                content: "How can i create a React component?",
-              },
-            ],
+            input:
+              Math.random() > 0.3
+                ? [
+                    {
+                      role: "user",
+                      content: "How can i create a React component?",
+                    },
+                  ]
+                : undefined,
             expectedOutput:
-              "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.",
+              Math.random() > 0.3
+                ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
+                : undefined,
           },
         });
         datasetItemIds.push(datasetItem.id);
