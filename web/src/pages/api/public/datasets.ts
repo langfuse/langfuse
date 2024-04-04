@@ -8,6 +8,7 @@ import { paginationZod } from "@/src/utils/zod";
 
 const CreateDatasetSchema = z.object({
   name: z.string(),
+  description: z.string().nullish(),
 });
 
 const GetDatasetsSchema = z.object({
@@ -39,7 +40,7 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      const { name } = CreateDatasetSchema.parse(req.body);
+      const { name, description } = CreateDatasetSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
       if (authCheck.scope.accessLevel !== "all") {
@@ -58,9 +59,12 @@ export default async function handler(
         },
         create: {
           name,
+          description: description ?? undefined,
           projectId: authCheck.scope.projectId,
         },
-        update: {},
+        update: {
+          description: description ?? null,
+        },
       });
 
       res.status(200).json({ ...dataset, items: [], runs: [] });
@@ -79,6 +83,7 @@ export default async function handler(
       const datasets = await prisma.dataset.findMany({
         select: {
           name: true,
+          description: true,
           projectId: true,
           createdAt: true,
           updatedAt: true,

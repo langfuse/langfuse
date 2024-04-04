@@ -46,3 +46,4 @@ types:
   CreateDatasetRequest:
     properties:
       name: string
+      description: optional<string>

@@ -1487,6 +1487,9 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
+          nullable: true
         projectId:
           type: string
         createdAt:
@@ -1606,9 +1609,14 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
+          nullable: true
         metadata:
           nullable: true
         datasetId:
+          type: string
+        datasetName:
           type: string
         createdAt:
           type: string
@@ -1624,6 +1632,7 @@ components:
         - id
         - name
         - datasetId
+        - datasetName
         - createdAt
         - updatedAt
         - datasetRunItems
@@ -1692,6 +1701,10 @@ components:
       properties:
         runName:
           type: string
+        runDescription:
+          type: string
+          nullable: true
+          description: Description of the run. If run exists, description will be updated.
         metadata:
           nullable: true
           description: Metadata of the dataset run, updates run if run already exists
@@ -1728,6 +1741,9 @@ components:
       properties:
         name:
           type: string
+        description:
+          type: string
+          nullable: true
       required:
         - name
     HealthResponse:

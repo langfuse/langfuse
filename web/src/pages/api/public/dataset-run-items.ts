@@ -9,6 +9,7 @@ import { jsonSchema } from "@/src/utils/zod";
 const DatasetRunItemPostSchema = z
   .object({
     runName: z.string(),
+    runDescription: z.string().nullish(),
     metadata: jsonSchema.nullish(),
     datasetItemId: z.string(),
     observationId: z.string().nullish(),
@@ -48,8 +49,14 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      const { datasetItemId, observationId, traceId, runName, metadata } =
-        DatasetRunItemPostSchema.parse(req.body);
+      const {
+        datasetItemId,
+        observationId,
+        traceId,
+        runName,
+        runDescription,
+        metadata,
+      } = DatasetRunItemPostSchema.parse(req.body);
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
@@ -115,11 +122,13 @@ export default async function handler(
         },
         create: {
           name: runName,
+          description: runDescription ?? undefined,
           datasetId: datasetItem.datasetId,
           metadata: metadata ?? undefined,
         },
         update: {
           metadata: metadata ?? undefined,
+          description: runDescription ?? undefined,
         },
       });
 
