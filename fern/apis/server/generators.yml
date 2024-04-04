@@ -11,14 +11,16 @@ groups:
           namespaceExport: Langfuse
           allowCustomFetcher: true
       - name: fernapi/fern-python-sdk
-        version: 0.7.3
+        version: 1.0.1
         output:
           location: local-file-system
           path: ../../../generated/python
         config:
           client_class_name: FernLangfuse
+          improved_imports: false
           pydantic_config:
             require_optional_fields: false
+            use_str_enums: false
       - name: fernapi/fern-typescript-node-sdk
         version: 0.7.1
         output:
