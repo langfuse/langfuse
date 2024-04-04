@@ -61,16 +61,16 @@ export function PromptTable(props: { projectId: string }) {
     columnHelper.accessor("version", { header: "Latest Version" }),
     columnHelper.accessor("createdAt", {
       header: "Latest Version Created At",
-      cell: (info) => {
-        const createdAt = info.getValue();
+      cell: (row) => {
+        const createdAt = row.getValue();
         return createdAt.toLocaleString();
       },
     }),
     columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
-      cell: (info) => {
-        const numberOfObservations = info.getValue();
-        const name = info.row.original.name;
+      cell: (row) => {
+        const numberOfObservations = row.getValue();
+        const name = row.row.original.name;
         const filter = encodeURIComponent(
           `promptName;stringOptions;;any of;${name}`,
         );
@@ -91,8 +91,6 @@ export function PromptTable(props: { projectId: string }) {
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
-
-  // https://github.com/TanStack/table/issues/4302#issuecomment-1883209783
 
   const convertToTableRow = (
     item: RouterOutput["prompts"]["all"][number],
