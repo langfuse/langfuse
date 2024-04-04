@@ -22,6 +22,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 
 export const TracePreview = ({
   trace,
@@ -58,11 +59,20 @@ export const TracePreview = ({
             )}
           </div>
         </div>
-        <ManualScoreButton
-          projectId={trace.projectId}
-          traceId={trace.id}
-          scores={scores}
-        />
+        <div className="flex gap-2">
+          <ManualScoreButton
+            projectId={trace.projectId}
+            traceId={trace.id}
+            scores={scores}
+          />
+          <NewDatasetItemFromTrace
+            traceId={trace.id}
+            projectId={trace.projectId}
+            input={trace.input}
+            output={trace.output}
+            key={trace.id}
+          />
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <IOPreview

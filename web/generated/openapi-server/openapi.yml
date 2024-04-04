@@ -1550,6 +1550,9 @@ components:
           nullable: true
         expectedOutput:
           nullable: true
+        sourceTraceId:
+          type: string
+          nullable: true
         sourceObservationId:
           type: string
           nullable: true

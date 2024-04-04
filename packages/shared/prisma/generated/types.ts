@@ -104,6 +104,7 @@ export type DatasetItem = {
     status: Generated<DatasetStatus>;
     input: unknown | null;
     expected_output: unknown | null;
+    source_trace_id: string | null;
     source_observation_id: string | null;
     dataset_id: string;
     created_at: Generated<Timestamp>;
