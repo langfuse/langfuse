@@ -474,6 +474,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "input",
       header: "Input",
       id: "input",
+      headerTooltip: {
+        description:
+          "Table capped at 10 generations/page when Input columns are active.",
+      },
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -492,6 +496,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "output",
       id: "output",
       header: "Output",
+      headerTooltip: {
+        description:
+          "Table capped at 10 generations/page when Output columns are active.",
+      },
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
