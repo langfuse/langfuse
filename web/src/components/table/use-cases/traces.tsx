@@ -462,6 +462,10 @@ export default function TracesTable({
     {
       accessorKey: "input",
       header: "Input",
+      headerTooltip: {
+        description:
+          "Table capped at 10 traces/page when Input columns are active.",
+      },
       id: "input",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
@@ -475,6 +479,10 @@ export default function TracesTable({
     {
       accessorKey: "output",
       header: "Output",
+      headerTooltip: {
+        description:
+          "Table capped at 10 traces/page when Output columns are active.",
+      },
       id: "output",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
