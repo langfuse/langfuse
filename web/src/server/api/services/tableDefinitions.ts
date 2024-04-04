@@ -1,5 +1,4 @@
 import {
-  OptionsDefinition,
   type ColumnDefinition,
   type TableDefinitions,
 } from "@/src/server/api/interfaces/tableDefinition";
@@ -118,8 +117,7 @@ export const calculatedTotalCost = {
 export const traceTags = {
   name: "Tags",
   id: "tags",
-  type: "arrayOptions",
-  options: [] as OptionsDefinition[],
+  type: "string",
   internal: 't."tags"',
 } as const;
 
