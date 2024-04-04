@@ -208,6 +208,7 @@ model Trace {
 
     scores          Score[]
     DatasetRunItems DatasetRunItems[]
+    DatasetItem     DatasetItem[]
 
     @@index([projectId])
     @@index([sessionId])
@@ -438,6 +439,8 @@ model DatasetItem {
     status              DatasetStatus     @default(ACTIVE)
     input               Json?
     expectedOutput      Json?             @map("expected_output")
+    sourceTraceId       String?           @map("source_trace_id")
+    sourceTrace         Trace?            @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
     sourceObservationId String?           @map("source_observation_id")
     sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
     datasetId           String            @map("dataset_id")

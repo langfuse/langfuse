@@ -174,14 +174,16 @@ async function main() {
 
       const datasetItemIds = [];
       for (let i = 0; i < 18; i++) {
-        const sourceObservationId =
-          Math.random() > 0.5
-            ? observations[Math.floor(Math.random() * observations.length)].id
+        const sourceObservation =
+          Math.random() > 0.3
+            ? observations[Math.floor(Math.random() * observations.length)]
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
             datasetId: dataset.id,
-            sourceObservationId: sourceObservationId,
+            sourceTraceId: sourceObservation?.traceId,
+            sourceObservationId:
+              Math.random() > 0.5 ? sourceObservation?.id : undefined,
             input:
               Math.random() > 0.3
                 ? [
