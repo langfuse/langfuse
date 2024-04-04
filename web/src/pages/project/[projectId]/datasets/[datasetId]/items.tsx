@@ -7,6 +7,7 @@ import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetIte
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function DatasetItems() {
         ]}
         actionButtons={
           <>
+            <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <DetailPageNav
               currentId={datasetId}
               path={(id) => `/project/${projectId}/datasets/${id}/items/`}

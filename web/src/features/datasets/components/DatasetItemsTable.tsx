@@ -1,6 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
-import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import {
@@ -201,11 +200,6 @@ export function DatasetItemsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-      />
-      <NewDatasetItemButton
-        projectId={projectId}
-        datasetId={datasetId}
-        className="mt-4"
       />
     </div>
   );
