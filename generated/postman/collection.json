@@ -393,12 +393,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "traceName",
@@ -483,12 +483,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "name",
@@ -697,12 +697,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "userId",
@@ -890,12 +890,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "userId",
