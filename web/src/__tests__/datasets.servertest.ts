@@ -32,6 +32,93 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
   });
 
+  it("GET datasets", async () => {
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name-1",
+    });
+
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name-2",
+    });
+
+    const datasetItemId = v4();
+
+    await makeAPICall("POST", "/api/public/dataset-items", {
+      datasetName: "dataset-name-2",
+      input: { key: "value" },
+      expectedOutput: { key: "value" },
+      id: datasetItemId,
+    });
+
+    const traceId = v4();
+    const observationId = v4();
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+            userId: "user-1",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
+        },
+        {
+          id: v4(),
+          type: "observation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: observationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            startTime: "2021-01-01T00:00:00.000Z",
+            endTime: "2021-01-01T00:00:00.000Z",
+            modelParameters: { key: "value" },
+            input: { key: "value" },
+            metadata: { key: "value" },
+            version: "2.0.0",
+          },
+        },
+      ],
+    });
+    expect(response.status).toBe(207);
+
+    await makeAPICall("POST", "/api/public/dataset-run-items", {
+      datasetItemId: datasetItemId,
+      observationId: observationId,
+      runName: "test-run",
+      metadata: { key: "value" },
+    });
+
+    const getDatasets = await makeAPICall("GET", `/api/public/datasets`);
+
+    expect(getDatasets.status).toBe(200);
+    expect(getDatasets.body).toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          name: "dataset-name-1",
+          items: [],
+          runs: [],
+        }),
+        expect.objectContaining({
+          name: "dataset-name-2",
+          items: [datasetItemId],
+          runs: ["test-run"],
+        }),
+      ]),
+      meta: expect.objectContaining({
+        totalItems: 2,
+        page: 1,
+      }),
+    });
+  });
+
   it("should create and get a dataset item (via datasets and individually)", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name",

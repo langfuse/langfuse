@@ -156,6 +156,42 @@
       "item": [
         {
           "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get all datasets",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/datasets?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get",
           "request": {
             "description": "Get a dataset and its items",

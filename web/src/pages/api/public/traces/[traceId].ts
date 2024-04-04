@@ -38,8 +38,7 @@ export default async function handler(
     // CHECK ACCESS SCOPE
     if (authCheck.scope.accessLevel !== "all") {
       return res.status(401).json({
-        message:
-          "Access denied - need to use basic auth with secret key to GET traces",
+        message: "Access denied - need to use basic auth with secret key",
       });
     }
     // END CHECK ACCESS SCOPE

@@ -122,13 +122,26 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-  Dataset:
+  DatasetCore:
     properties:
       id: string
       name: string
       projectId: string
       createdAt: datetime
       updatedAt: datetime
+  DatasetWithReferences: # GET datasets
+    extends: DatasetCore
+    properties:
+      items:
+        type: list<string>
+        docs: list of dataset item ids
+      runs:
+        type: list<string>
+        docs: list of dataset run names
+  Dataset: # GET datasets/[name]
+    docs: Dataset including all items
+    extends: DatasetCore
+    properties:
       items: list<DatasetItem>
       runs: list<string>
   DatasetItem:
