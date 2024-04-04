@@ -11,8 +11,9 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { LockIcon, PlusIcon } from "lucide-react";
 import { useEffect } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
 
-type RowData = {
+type PromptTableRow = {
   name: string;
   version: number;
   id: string;
@@ -42,12 +43,12 @@ export function PromptTable(props: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompts.isSuccess, prompts.data]);
 
-  const columns: LangfuseColumnDef<RowData>[] = [
-    {
-      accessorKey: "name",
+  const columnHelper = createColumnHelper<PromptTableRow>();
+  const promptColumns = [
+    columnHelper.accessor("name", {
       header: "Name",
-      cell: ({ row }) => {
-        const name: string = row.getValue("name");
+      cell: (row) => {
+        const name = row.getValue();
         return name ? (
           <TableLink
             path={`/project/${props.projectId}/prompts/${encodeURIComponent(name)}`}
@@ -56,33 +57,22 @@ export function PromptTable(props: { projectId: string }) {
           />
         ) : undefined;
       },
-    },
-    {
-      accessorKey: "version",
-      header: "Latest Version",
-      cell: ({ row }) => {
-        const version = row.getValue("version");
-        return version;
-      },
-    },
-    {
-      accessorKey: "createdAt",
+    }),
+    columnHelper.accessor("version", { header: "Latest Version" }),
+    columnHelper.accessor("createdAt", {
       header: "Latest Version Created At",
-      cell: ({ row }) => {
-        const createdAt: Date = row.getValue("createdAt");
+      cell: (info) => {
+        const createdAt = info.getValue();
         return createdAt.toLocaleString();
       },
-    },
-    {
-      accessorKey: "numberOfObservations",
+    }),
+    columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
-      cell: ({ row }) => {
-        const numberOfObservations: number = row.getValue(
-          "numberOfObservations",
-        );
-        const name: string = row.getValue("name");
+      cell: (info) => {
+        const numberOfObservations = info.getValue();
+        const name = info.row.original.name;
         const filter = encodeURIComponent(
-          `Prompt Name;stringOptions;;any of;${name}`,
+          `promptName;stringOptions;;any of;${name}`,
         );
         return (
           <TableLink
@@ -91,24 +81,22 @@ export function PromptTable(props: { projectId: string }) {
           />
         );
       },
-    },
-    {
-      accessorKey: "actions",
+    }),
+    columnHelper.display({
+      id: "actions",
       header: "Actions",
-      cell: ({ row }) => {
-        return (
-          <DeletePrompt
-            projectId={props.projectId}
-            promptName={row.getValue("name")}
-          />
-        );
+      cell: (row) => {
+        const name = row.row.original.name;
+        return <DeletePrompt projectId={props.projectId} promptName={name} />;
       },
-    },
-  ];
+    }),
+  ] as LangfuseColumnDef<PromptTableRow>[];
+
+  // https://github.com/TanStack/table/issues/4302#issuecomment-1883209783
 
   const convertToTableRow = (
     item: RouterOutput["prompts"]["all"][number],
-  ): RowData => {
+  ): PromptTableRow => {
     return {
       id: item.id,
       name: item.name,
@@ -122,7 +110,7 @@ export function PromptTable(props: { projectId: string }) {
   return (
     <div>
       <DataTable
-        columns={columns}
+        columns={promptColumns}
         data={
           prompts.isLoading
             ? { isLoading: true, isError: false }
