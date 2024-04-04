@@ -292,6 +292,7 @@ export const datasetRouter = createTRPCRouter({
         datasetItemId: z.string(),
         input: z.string().optional(),
         expectedOutput: z.string().optional(),
+        sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
         status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
       }),
@@ -323,6 +324,7 @@ export const datasetRouter = createTRPCRouter({
               : input.expectedOutput !== undefined
                 ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
                 : undefined,
+          sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
           status: input.status,
         },
@@ -429,6 +431,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         input: z.string().nullish(),
         expectedOutput: z.string().nullish(),
+        sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
       }),
     )
@@ -463,6 +466,7 @@ export const datasetRouter = createTRPCRouter({
                 ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
                 : undefined,
           datasetId: input.datasetId,
+          sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
         },
       });
@@ -578,17 +582,19 @@ export const datasetRouter = createTRPCRouter({
         runItems: items,
       };
     }),
-  observationInDatasets: protectedProjectProcedure
+  datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        observationId: z.string(),
+        traceId: z.string(),
+        observationId: z.string().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
       return ctx.prisma.datasetItem.findMany({
         where: {
-          sourceObservationId: input.observationId,
+          sourceTraceId: input.traceId,
+          sourceObservationId: input.observationId ?? null, // null as it should not include observations from the same trace
           dataset: {
             projectId: input.projectId,
           },
