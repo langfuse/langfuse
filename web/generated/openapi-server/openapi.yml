@@ -559,6 +559,16 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: fromStartTime
+          in: query
+          description: >-
+            Retrieve only observations with a start_time greater than this
+            timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -804,6 +814,14 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: fromTimestamp
+          in: query
+          description: Retrieve only scores newer than this timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1046,6 +1064,14 @@ paths:
           required: false
           schema:
             type: string
+            nullable: true
+        - name: fromTimestamp
+          in: query
+          description: Retrieve only traces newer than this timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
             nullable: true
         - name: orderBy
           in: query
@@ -1465,8 +1491,11 @@ components:
           type: string
         datasetItemId:
           type: string
+        traceId:
+          type: string
         observationId:
           type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1477,7 +1506,7 @@ components:
         - id
         - datasetRunId
         - datasetItemId
-        - observationId
+        - traceId
         - createdAt
         - updatedAt
     DatasetRun:
@@ -1581,10 +1610,16 @@ components:
           type: string
         observationId:
           type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+          description: >-
+            traceId should always be provided. For compatibility with older SDK
+            versions it can also be inferred from the provided observationId.
       required:
         - runName
         - datasetItemId
-        - observationId
     CreateDatasetRequest:
       title: CreateDatasetRequest
       type: object
