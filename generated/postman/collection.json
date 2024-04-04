@@ -137,7 +137,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"runName\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\"\n}",
+              "raw": "{\n    \"runName\": \"example\",\n    \"runDescription\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -245,7 +245,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -168,6 +168,8 @@ async function main() {
       const dataset = await prisma.dataset.create({
         data: {
           name: `demo-dataset-${datasetNumber}`,
+          description:
+            datasetNumber === 0 ? "Dataset test description" : undefined,
           projectId: project2.id,
         },
       });
@@ -206,6 +208,7 @@ async function main() {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
             name: `demo-dataset-run-${datasetRunNumber}`,
+            description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
             metadata: [
               undefined,

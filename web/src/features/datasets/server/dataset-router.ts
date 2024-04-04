@@ -42,6 +42,7 @@ export const datasetRouter = createTRPCRouter({
         .select(({ eb }) => [
           "datasets.id",
           "datasets.name",
+          "datasets.description",
           "datasets.created_at as createdAt",
           "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
@@ -179,6 +180,7 @@ export const datasetRouter = createTRPCRouter({
         SELECT
           runs.id,
           runs.name,
+          runs.description,
           runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
@@ -202,7 +204,8 @@ export const datasetRouter = createTRPCRouter({
           5,
           6,
           7,
-          8
+          8,
+          9
         ORDER BY
           runs.created_at DESC
         LIMIT ${input.limit}
@@ -340,7 +343,13 @@ export const datasetRouter = createTRPCRouter({
       return datasetItem;
     }),
   createDataset: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), name: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        description: z.string().nullish(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -350,6 +359,7 @@ export const datasetRouter = createTRPCRouter({
       const dataset = await ctx.prisma.dataset.create({
         data: {
           name: input.name,
+          description: input.description ?? undefined,
           projectId: input.projectId,
         },
       });
@@ -370,7 +380,8 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        name: z.string(),
+        name: z.string().optional(),
+        description: z.string().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -385,7 +396,8 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
         },
         data: {
-          name: input.name,
+          name: input.name ?? undefined,
+          description: input.description,
         },
       });
       await auditLog({
@@ -394,7 +406,6 @@ export const datasetRouter = createTRPCRouter({
         resourceId: dataset.id,
         projectId: input.projectId,
         action: "update",
-        before: { name: input.name },
         after: dataset,
       });
 

@@ -22,7 +22,14 @@ export default function DatasetItems() {
   return (
     <div>
       <Header
-        title={`Dataset: ${dataset.data?.name}`}
+        title={dataset.data?.name ?? ""}
+        help={
+          dataset.data?.description
+            ? {
+                description: dataset.data.description,
+              }
+            : undefined
+        }
         breadcrumb={[
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
@@ -41,10 +48,11 @@ export default function DatasetItems() {
               listKey="datasets"
             />
             <DatasetActionButton
-              mode="rename"
+              mode="update"
               projectId={projectId}
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
+              datasetDescription={dataset.data?.description ?? undefined}
               icon
             />
             <DeleteButton

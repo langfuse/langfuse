@@ -44,6 +44,12 @@ export default function Dataset() {
           />
         }
       />
+      {!!run.data?.description && (
+        <>
+          <Header title="Description" level="h3" />
+          <JSONView json={run.data.description} />
+        </>
+      )}
       {!!run.data?.metadata && (
         <>
           <Header title="Metadata" level="h3" />
