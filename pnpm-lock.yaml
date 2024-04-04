@@ -184,7 +184,7 @@ importers:
         version: 0.5.3(react-dom@18.2.0)(react@18.2.0)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
-        version: 1.0.7(@prisma/client@5.12.0)(next-auth@4.24.7)
+        version: 1.0.7(@prisma/client@5.12.1)(next-auth@4.24.7)
       '@radix-ui/react-accordion':
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@18.2.24)(@types/react@18.2.74)(react-dom@18.2.0)(react@18.2.0)
@@ -627,7 +627,7 @@ importers:
         specifier: ^5.4.3
         version: 5.4.3
       vitest:
-        specifier: ^1.3.1
+        specifier: ^1.4.0
         version: 1.4.0(@types/node@20.11.29)
 
 packages:
@@ -2862,13 +2862,13 @@ packages:
     dev: false
     optional: true
 
-  /@next-auth/prisma-adapter@1.0.7(@prisma/client@5.12.0)(next-auth@4.24.7):
+  /@next-auth/prisma-adapter@1.0.7(@prisma/client@5.12.1)(next-auth@4.24.7):
     resolution: {integrity: sha512-Cdko4KfcmKjsyHFrWwZ//lfLUbcLqlyFqjd/nYE2m3aZ7tjMNUjpks47iw7NTCnXf+5UWz5Ypyt1dSs1EP5QJw==}
     peerDependencies:
       '@prisma/client': '>=2.26.0 || >=3'
       next-auth: ^4
     dependencies:
-      '@prisma/client': 5.12.0(prisma@5.12.0)
+      '@prisma/client': 5.12.1(prisma@5.12.0)
       next-auth: 4.24.7(next@14.1.4)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
     dev: false
 
@@ -3154,6 +3154,19 @@ packages:
         optional: true
     dependencies:
       prisma: 5.12.0
+
+  /@prisma/client@5.12.1(prisma@5.12.0):
+    resolution: {integrity: sha512-6/JnizEdlSBxDIdiLbrBdMW5NqDxOmhXAJaNXiPpgzAPr/nLZResT6MMpbOHLo5yAbQ1Vv5UU8PTPRzb0WIxdA==}
+    engines: {node: '>=16.13'}
+    requiresBuild: true
+    peerDependencies:
+      prisma: '*'
+    peerDependenciesMeta:
+      prisma:
+        optional: true
+    dependencies:
+      prisma: 5.12.0
+    dev: false
 
   /@prisma/debug@5.12.0:
     resolution: {integrity: sha512-wK3fQLxPLMqf5riT5ZIhl8NffPSzFUwtzFX5CH7z/oI9Swmo9UhQlUgZABIVgdXSJ5OAlmRcDZtDKaMApIl8sg==}
@@ -6575,7 +6588,7 @@ packages:
       '@vue/compiler-ssr': 3.4.21
       '@vue/shared': 3.4.21
       estree-walker: 2.0.2
-      magic-string: 0.30.8
+      magic-string: 0.30.9
       postcss: 8.4.38
       source-map-js: 1.2.0
     dev: false
@@ -12081,6 +12094,14 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       '@jridgewell/sourcemap-codec': 1.4.15
+    dev: true
+
+  /magic-string@0.30.9:
+    resolution: {integrity: sha512-S1+hd+dIrC8EZqKyT9DstTH/0Z+f76kmmvZnkfQVmOpDEF9iVgdYif3Q/pIWHmCoo59bQVGW0kVL3e2nl+9+Sw==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@jridgewell/sourcemap-codec': 1.4.15
+    dev: false
 
   /make-dir@3.1.0:
     resolution: {integrity: sha512-g3FeP20LNwhALb/6Cz6Dd4F2ngze0jz7tbzrD2wAV+o9FeNHe4rL+yK2md0J/fiSf1sa1ADhXqi5+oVwOM/eGw==}
@@ -15086,7 +15107,7 @@ packages:
       estree-walker: 3.0.3
       is-reference: 3.0.2
       locate-character: 3.0.0
-      magic-string: 0.30.8
+      magic-string: 0.30.9
       periscopic: 3.1.0
     dev: false
 
