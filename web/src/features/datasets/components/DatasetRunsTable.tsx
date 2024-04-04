@@ -65,8 +65,8 @@ export function DatasetRunsTable(props: {
       },
     },
     {
-      accessorKey: "createdAt",
-      header: "Created",
+      accessorKey: "description",
+      header: "Description",
     },
     {
       accessorKey: "countRunItems",
@@ -106,8 +106,8 @@ export function DatasetRunsTable(props: {
       },
     },
     {
-      accessorKey: "description",
-      header: "Description",
+      accessorKey: "createdAt",
+      header: "Created",
     },
     {
       accessorKey: "metadata",
