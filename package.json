@@ -51,10 +51,16 @@
     },
     "plugins": {
       "@release-it/bumper": {
-        "out": {
-          "file": "./src/constants/VERSION.ts",
-          "type": "application/typescript"
-        }
+        "out": [
+          {
+            "file": "./web/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./worker/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          }
+        ]
       }
     }
   }
