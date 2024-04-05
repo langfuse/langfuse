@@ -24,9 +24,11 @@ import { type Prompt } from "@langfuse/shared/src/db";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 
 import { PromptHistoryNode } from "./prompt-history";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const PromptDetail = () => {
   const projectId = useProjectId();
+  const isPlaygroundEnabled = useIsFeatureEnabled("playground");
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -86,17 +88,19 @@ export const PromptDetail = () => {
                   variant="outline"
                 />
 
-                <Link
-                  href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
-                >
-                  <Button
-                    variant="outline"
-                    title="Test in prompt playground"
-                    size="icon"
+                {isPlaygroundEnabled ? (
+                  <Link
+                    href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
                   >
-                    <Terminal className="h-5 w-5" />
-                  </Button>
-                </Link>
+                    <Button
+                      variant="outline"
+                      title="Test in prompt playground"
+                      size="icon"
+                    >
+                      <Terminal className="h-5 w-5" />
+                    </Button>
+                  </Link>
+                ) : null}
 
                 <Link
                   href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
