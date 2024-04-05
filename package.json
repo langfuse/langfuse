@@ -21,11 +21,41 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "models:migrate": "turbo run models:migrate"
+    "models:migrate": "turbo run models:migrate",
+    "release": "dotenv -e ../.env -- release-it"
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.1",
     "prettier": "^3.2.5",
     "turbo": "^1.13.2"
+  },
+  "dependencies": {
+    "@release-it/bumper": "^6.0.1",
+    "release-it": "^17.1.1"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release v${version}",
+      "tagName": "v${version}"
+    },
+    "github": {
+      "release": true,
+      "web": true,
+      "autoGenerate": true,
+      "releaseName": "v${version}",
+      "comments": {
+        "submit": true,
+        "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
+        "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
+      }
+    },
+    "plugins": {
+      "@release-it/bumper": {
+        "out": {
+          "file": "./src/constants/VERSION.ts",
+          "type": "application/typescript"
+        }
+      }
+    }
   }
 }
