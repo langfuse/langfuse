@@ -33,7 +33,7 @@ const SubmitButton = () => {
   return (
     <Button
       variant="default"
-      className="h-12 w-full space-x-2 py-3"
+      className="h-[88px] w-full space-x-2 py-3"
       onClick={() => {
         handleSubmit().catch((err) => console.error(err));
       }}
