@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 
-export default function useProjectId() {
+export default function useProjectIdFromURL() {
   const router = useRouter();
 
   if (!router.query.projectId) {

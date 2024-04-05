@@ -29,7 +29,7 @@ import {
   CreatePromptTRPCType,
   PromptType,
 } from "@/src/features/prompts/server/validation";
-import useProjectId from "@/src/hooks/useProjectId";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { jsonSchema } from "@/src/utils/zod";
@@ -54,7 +54,7 @@ type NewPromptFormProps = {
 
 export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const { onFormSuccess, initialPrompt } = props;
-  const projectId = useProjectId();
+  const projectId = useProjectIdFromURL();
   const [formError, setFormError] = useState<string | null>(null);
   const utils = api.useUtils();
   const posthog = usePostHog();
@@ -352,7 +352,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           type="submit"
           loading={createPromptMutation.isLoading}
           className="w-full"
-          disabled={Boolean(form.formState.errors.name?.message)} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
+          disabled={Boolean(
+            !initialPrompt && form.formState.errors.name?.message,
+          )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
         >
           Create prompt
         </Button>

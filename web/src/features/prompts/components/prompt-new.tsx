@@ -2,11 +2,11 @@ import { StringParam, useQueryParam } from "use-query-params";
 
 import Header from "@/src/components/layouts/header";
 import { NewPromptForm } from "@/src/features/prompts/components/NewPromptForm";
-import useProjectId from "@/src/hooks/useProjectId";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 
 export const NewPrompt = () => {
-  const projectId = useProjectId();
+  const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
 
   const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(

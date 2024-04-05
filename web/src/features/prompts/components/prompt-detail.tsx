@@ -17,7 +17,7 @@ import { DeletePromptVersion } from "@/src/features/prompts/components/delete-pr
 import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
 import { PromptType } from "@/src/features/prompts/server/validation";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import useProjectId from "@/src/hooks/useProjectId";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@langfuse/shared/src/db";
@@ -27,7 +27,7 @@ import { PromptHistoryNode } from "./prompt-history";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const PromptDetail = () => {
-  const projectId = useProjectId();
+  const projectId = useProjectIdFromURL();
   const isPlaygroundEnabled = useIsFeatureEnabled("playground");
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
@@ -127,12 +127,6 @@ export const PromptDetail = () => {
           />
         </div>
         <div className="col-span-2 md:h-full">
-          <div className="mx-auto mb-5 w-full rounded-lg border text-base leading-7">
-            <div className="border-b px-3 py-1 text-xs font-medium">Type</div>
-            <div className="flex flex-wrap gap-2 p-3">
-              <Badge variant="outline">{prompt.type}</Badge>
-            </div>
-          </div>
           {prompt.type === PromptType.Chat && chatMessages ? (
             <OpenAiMessageView title="Chat prompt" messages={chatMessages} />
           ) : (

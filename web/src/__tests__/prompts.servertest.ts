@@ -409,7 +409,6 @@ describe("/api/public/prompts API Endpoint", () => {
       `/api/public/prompts?name=${promptName}`,
       undefined,
     );
-    console.log(JSON.stringify(fetchedPrompt, null, 2));
 
     const validatedPrompt = validatePrompt(fetchedPrompt);
 

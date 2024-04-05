@@ -21,7 +21,7 @@ import {
 import { createEmptyMessage } from "../utils/createEmptyMessage";
 import { StringParam, useQueryParam } from "use-query-params";
 import { api } from "@/src/utils/api";
-import useProjectId from "@/src/hooks/useProjectId";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatPromptSchema,
   PromptType,
@@ -63,7 +63,7 @@ export const usePlaygroundContext = () => {
 export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
-  const projectId = useProjectId();
+  const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
