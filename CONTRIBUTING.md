@@ -55,8 +55,10 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 flowchart TB
    subgraph s4["Clients"]
       subgraph s2["langfuse/langfuse-python"]
-         Python["Python SDK"]
+         Python["Python low-level SDK"]
+         Decorator["observe() decorator"] -->|extends| Python
          OAI["OpenAI drop-in replacement"] -->|extends| Python
+         Llamaindex["LlamaIndex Integration"] -->|extends| Python
          LCPYTHON["Langchain Python Integration"] -->|extends| Python
          Langflow -->|uses| LCPYTHON
          LiteLLM -->|uses| Python

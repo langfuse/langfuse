@@ -206,7 +206,9 @@ model Trace {
     sessionId  String?       @map("session_id")
     session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
 
-    scores Score[]
+    scores          Score[]
+    DatasetRunItems DatasetRunItems[]
+    DatasetItem     DatasetItem[]
 
     @@index([projectId])
     @@index([sessionId])
@@ -420,6 +422,7 @@ model CronJobs {
 model Dataset {
     id           String        @id @default(cuid())
     name         String
+    description  String?
     projectId    String        @map("project_id")
     project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt    DateTime      @default(now()) @map("created_at")
@@ -435,8 +438,10 @@ model Dataset {
 model DatasetItem {
     id                  String            @id @default(cuid())
     status              DatasetStatus     @default(ACTIVE)
-    input               Json
+    input               Json?
     expectedOutput      Json?             @map("expected_output")
+    sourceTraceId       String?           @map("source_trace_id")
+    sourceTrace         Trace?            @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
     sourceObservationId String?           @map("source_observation_id")
     sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
     datasetId           String            @map("dataset_id")
@@ -458,6 +463,7 @@ enum DatasetStatus {
 model DatasetRuns {
     id              String            @id @default(cuid())
     name            String
+    description     String?
     metadata        Json?
     datasetId       String            @map("dataset_id")
     dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
@@ -471,19 +477,22 @@ model DatasetRuns {
 }
 
 model DatasetRunItems {
-    id            String      @id @default(cuid())
-    datasetRunId  String      @map("dataset_run_id")
-    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
-    datasetItemId String      @map("dataset_item_id")
-    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
-    observationId String      @map("observation_id")
-    observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
-    createdAt     DateTime    @default(now()) @map("created_at")
-    updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+    id            String       @id @default(cuid())
+    datasetRunId  String       @map("dataset_run_id")
+    datasetRun    DatasetRuns  @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
+    datasetItemId String       @map("dataset_item_id")
+    datasetItem   DatasetItem  @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
+    traceId       String       @map("trace_id")
+    trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    observationId String?      @map("observation_id")
+    observation   Observation? @relation(fields: [observationId], references: [id], onDelete: Cascade)
+    createdAt     DateTime     @default(now()) @map("created_at")
+    updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
 
     @@index([datasetRunId], type: Hash)
     @@index([datasetItemId], type: Hash)
     @@index([observationId], type: Hash)
+    @@index([traceId])
     @@map("dataset_run_items")
 }
 

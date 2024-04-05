@@ -33,8 +33,7 @@ export default async function handler(
 
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
       const obj = GetUsageSchema.parse(req.query); // uses query and not body

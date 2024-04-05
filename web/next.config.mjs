@@ -12,18 +12,17 @@ import { env } from "./src/env.mjs";
  */
 const cspHeader = `
   default-src 'self' https://ph.langfuse.com https://*.posthog.com wss://*.crisp.chat https://*.crisp.chat;
-  script-src 'self' ${process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""} https://*.crisp.chat https://challenges.cloudflare.com;
+  script-src 'self' 'unsafe-eval' https://*.crisp.chat https://challenges.cloudflare.com https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
   style-src 'self' 'unsafe-inline' https://*.crisp.chat;
   img-src 'self' https: blob: data:;
   font-src 'self' https://*.crisp.chat;
-  frame-src 'self' https://challenges.cloudflare.com;
+  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com;
   worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
   frame-ancestors 'none';
-  block-all-mixed-content;
-  upgrade-insecure-requests;
+  ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
 `;
 
 /** @type {import("next").NextConfig} */
@@ -53,25 +52,25 @@ const nextConfig = {
             value: "SAMEORIGIN",
           },
           {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff'
+            key: "X-Content-Type-Options",
+            value: "nosniff",
           },
           {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin'
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
           },
           {
-            key: 'Permissions-Policy',
-            value: 'autoplay=*, fullscreen=*, microphone=*'
+            key: "Permissions-Policy",
+            value: "autoplay=*, fullscreen=*, microphone=*",
           },
         ],
       },
       {
-        source: '/:path((?!api).*)*',
+        source: "/:path((?!api).*)*",
         headers: [
           {
-            key: 'Content-Security-Policy',
-            value: cspHeader.replace(/\n/g, ''),
+            key: "Content-Security-Policy",
+            value: cspHeader.replace(/\n/g, ""),
           },
         ],
       },

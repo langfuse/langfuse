@@ -149,15 +149,14 @@ async function main() {
 
     const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
 
-    const { generationIds, traces, observations, scores, sessions, events } =
-      createObjects(
-        traceVolume,
-        envTags,
-        colorTags,
-        project1,
-        project2,
-        promptIds
-      );
+    const { traces, observations, scores, sessions, events } = createObjects(
+      traceVolume,
+      envTags,
+      colorTags,
+      project1,
+      project2,
+      promptIds
+    );
 
     console.log(
       `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
@@ -169,28 +168,37 @@ async function main() {
       const dataset = await prisma.dataset.create({
         data: {
           name: `demo-dataset-${datasetNumber}`,
+          description:
+            datasetNumber === 0 ? "Dataset test description" : undefined,
           projectId: project2.id,
         },
       });
 
       const datasetItemIds = [];
       for (let i = 0; i < 18; i++) {
-        const sourceObservationId =
-          Math.random() > 0.5
-            ? generationIds[Math.floor(Math.random() * generationIds.length)]
+        const sourceObservation =
+          Math.random() > 0.3
+            ? observations[Math.floor(Math.random() * observations.length)]
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
             datasetId: dataset.id,
-            sourceObservationId: sourceObservationId,
-            input: [
-              {
-                role: "user",
-                content: "How can i create a React component?",
-              },
-            ],
+            sourceTraceId: sourceObservation?.traceId,
+            sourceObservationId:
+              Math.random() > 0.5 ? sourceObservation?.id : undefined,
+            input:
+              Math.random() > 0.3
+                ? [
+                    {
+                      role: "user",
+                      content: "How can i create a React component?",
+                    },
+                  ]
+                : undefined,
             expectedOutput:
-              "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.",
+              Math.random() > 0.3
+                ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
+                : undefined,
           },
         });
         datasetItemIds.push(datasetItem.id);
@@ -200,6 +208,7 @@ async function main() {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
             name: `demo-dataset-run-${datasetRunNumber}`,
+            description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
             metadata: [
               undefined,
@@ -212,13 +221,19 @@ async function main() {
         });
 
         for (const datasetItemId of datasetItemIds) {
-          const runObservationId =
-            generationIds[Math.floor(Math.random() * generationIds.length)];
+          const relevantObservations = observations.filter(
+            (o) => o.projectId === project2.id
+          );
+          const observation =
+            relevantObservations[
+              Math.floor(Math.random() * relevantObservations.length)
+            ];
 
           await prisma.datasetRunItems.create({
             data: {
               datasetItemId,
-              observationId: runObservationId,
+              traceId: observation.traceId as string,
+              observationId: Math.random() > 0.5 ? observation.id : undefined,
               datasetRunId: datasetRun.id,
             },
           });
@@ -354,7 +369,6 @@ function createObjects(
   const observations: Prisma.ObservationCreateManyInput[] = [];
   const scores: Prisma.ScoreCreateManyInput[] = [];
   const sessions: Prisma.TraceSessionCreateManyInput[] = [];
-  const generationIds: string[] = [];
   const events: Prisma.ObservationCreateManyInput[] = [];
 
   for (let i = 0; i < traceVolume; i++) {
@@ -618,8 +632,6 @@ function createObjects(
             source: ScoreSource.API,
           });
 
-        generationIds.push(generation.id);
-
         for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
           // random start time within span
           const eventTs = new Date(
@@ -651,7 +663,6 @@ function createObjects(
   ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
 
   return {
-    generationIds,
     traces,
     observations,
     scores,
