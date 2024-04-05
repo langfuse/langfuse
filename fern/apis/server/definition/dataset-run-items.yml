@@ -15,8 +15,14 @@ types:
   CreateDatasetRunItemRequest:
     properties:
       runName: string
+      runDescription:
+        type: optional<string>
+        docs: Description of the run. If run exists, description will be updated.
       metadata:
         type: optional<unknown>
         docs: Metadata of the dataset run, updates run if run already exists
       datasetItemId: string
-      observationId: string
+      observationId: optional<string>
+      traceId:
+        type: optional<string>
+        docs: traceId should always be provided. For compatibility with older SDK versions it can also be inferred from the provided observationId.

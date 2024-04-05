@@ -8,14 +8,14 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
-    "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
+    "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d",
+    "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
-    "dx": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=worker run db:seed:examples && pnpm run dev",
+    "dx": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "start": "turbo run start",
     "dev": "turbo run dev",
@@ -24,8 +24,8 @@
     "models:migrate": "turbo run models:migrate"
   },
   "devDependencies": {
-    "dotenv-cli": "^7.3.0",
+    "dotenv-cli": "^7.4.1",
     "prettier": "^3.2.5",
-    "turbo": "^1.13.0"
+    "turbo": "^1.13.2"
   }
 }

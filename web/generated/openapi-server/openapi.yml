@@ -152,25 +152,32 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
-  /api/public/datasets/{datasetName}:
+  /api/public/datasets:
     get:
-      description: Get a dataset and its items
-      operationId: datasets_get
+      description: Get all datasets
+      operationId: datasets_list
       tags:
         - Datasets
       parameters:
-        - name: datasetName
-          in: path
-          required: true
+        - name: page
+          in: query
+          required: false
           schema:
-            type: string
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dataset'
+                $ref: '#/components/schemas/PaginatedDatasets'
         '400':
           description: ''
           content:
@@ -197,7 +204,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-  /api/public/datasets:
     post:
       description: Create a dataset
       operationId: datasets_create
@@ -243,6 +249,51 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRequest'
+  /api/public/datasets/{datasetName}:
+    get:
+      description: Get a dataset and its items
+      operationId: datasets_get
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: Get a dataset run and its items
@@ -396,12 +447,14 @@ paths:
       parameters:
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -519,12 +572,14 @@ paths:
       parameters:
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -792,12 +847,14 @@ paths:
       parameters:
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -1043,12 +1100,14 @@ paths:
       parameters:
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -1420,14 +1479,17 @@ components:
         - value
         - source
         - timestamp
-    Dataset:
-      title: Dataset
+    DatasetCore:
+      title: DatasetCore
       type: object
       properties:
         id:
           type: string
         name:
           type: string
+        description:
+          type: string
+          nullable: true
         projectId:
           type: string
         createdAt:
@@ -1436,6 +1498,36 @@ components:
         updatedAt:
           type: string
           format: date-time
+      required:
+        - id
+        - name
+        - projectId
+        - createdAt
+        - updatedAt
+    DatasetWithReferences:
+      title: DatasetWithReferences
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+          description: list of dataset item ids
+        runs:
+          type: array
+          items:
+            type: string
+          description: list of dataset run names
+      required:
+        - items
+        - runs
+      allOf:
+        - $ref: '#/components/schemas/DatasetCore'
+    Dataset:
+      title: Dataset
+      type: object
+      description: Dataset including all items
+      properties:
         items:
           type: array
           items:
@@ -1445,13 +1537,10 @@ components:
           items:
             type: string
       required:
-        - id
-        - name
-        - projectId
-        - createdAt
-        - updatedAt
         - items
         - runs
+      allOf:
+        - $ref: '#/components/schemas/DatasetCore'
     DatasetItem:
       title: DatasetItem
       type: object
@@ -1460,8 +1549,12 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/DatasetStatus'
-        input: {}
+        input:
+          nullable: true
         expectedOutput:
+          nullable: true
+        sourceTraceId:
+          type: string
           nullable: true
         sourceObservationId:
           type: string
@@ -1477,7 +1570,6 @@ components:
       required:
         - id
         - status
-        - input
         - datasetId
         - createdAt
         - updatedAt
@@ -1491,8 +1583,11 @@ components:
           type: string
         datasetItemId:
           type: string
+        traceId:
+          type: string
         observationId:
           type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1503,7 +1598,7 @@ components:
         - id
         - datasetRunId
         - datasetItemId
-        - observationId
+        - traceId
         - createdAt
         - updatedAt
     DatasetRun:
@@ -1514,9 +1609,14 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
+          nullable: true
         metadata:
           nullable: true
         datasetId:
+          type: string
+        datasetName:
           type: string
         createdAt:
           type: string
@@ -1532,6 +1632,7 @@ components:
         - id
         - name
         - datasetId
+        - datasetName
         - createdAt
         - updatedAt
         - datasetRunItems
@@ -1584,7 +1685,8 @@ components:
       properties:
         datasetName:
           type: string
-        input: {}
+        input:
+          nullable: true
         expectedOutput:
           nullable: true
         id:
@@ -1593,13 +1695,16 @@ components:
           description: Dataset items are upserted on their id
       required:
         - datasetName
-        - input
     CreateDatasetRunItemRequest:
       title: CreateDatasetRunItemRequest
       type: object
       properties:
         runName:
           type: string
+        runDescription:
+          type: string
+          nullable: true
+          description: Description of the run. If run exists, description will be updated.
         metadata:
           nullable: true
           description: Metadata of the dataset run, updates run if run already exists
@@ -1607,16 +1712,38 @@ components:
           type: string
         observationId:
           type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+          description: >-
+            traceId should always be provided. For compatibility with older SDK
+            versions it can also be inferred from the provided observationId.
       required:
         - runName
         - datasetItemId
-        - observationId
+    PaginatedDatasets:
+      title: PaginatedDatasets
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetWithReferences'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     CreateDatasetRequest:
       title: CreateDatasetRequest
       type: object
       properties:
         name:
           type: string
+        description:
+          type: string
+          nullable: true
       required:
         - name
     HealthResponse:

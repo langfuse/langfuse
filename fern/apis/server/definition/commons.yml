@@ -122,21 +122,36 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-  Dataset:
+  DatasetCore:
     properties:
       id: string
       name: string
+      description: optional<string>
       projectId: string
       createdAt: datetime
       updatedAt: datetime
+  DatasetWithReferences: # GET datasets
+    extends: DatasetCore
+    properties:
+      items:
+        type: list<string>
+        docs: list of dataset item ids
+      runs:
+        type: list<string>
+        docs: list of dataset run names
+  Dataset: # GET datasets/[name]
+    docs: Dataset including all items
+    extends: DatasetCore
+    properties:
       items: list<DatasetItem>
       runs: list<string>
   DatasetItem:
     properties:
       id: string
       status: DatasetStatus
-      input: unknown
+      input: optional<unknown>
       expectedOutput: optional<unknown>
+      sourceTraceId: optional<string>
       sourceObservationId: optional<string>
       datasetId: string
       createdAt: datetime
@@ -146,15 +161,18 @@ types:
       id: string
       datasetRunId: string
       datasetItemId: string
-      observationId: string
+      traceId: string
+      observationId: optional<string>
       createdAt: datetime
       updatedAt: datetime
   DatasetRun:
     properties:
       id: string
       name: string
+      description: optional<string>
       metadata: optional<unknown>
       datasetId: string
+      datasetName: string
       createdAt: datetime
       updatedAt: datetime
       datasetRunItems: list<DatasetRunItem>

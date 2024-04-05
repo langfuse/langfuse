@@ -137,7 +137,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"runName\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\"\n}",
+              "raw": "{\n    \"runName\": \"example\",\n    \"runDescription\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -154,6 +154,42 @@
       "description": null,
       "name": "Datasets",
       "item": [
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get all datasets",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/datasets?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
         {
           "_type": "endpoint",
           "name": "Get",
@@ -209,7 +245,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -357,12 +393,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "traceName",
@@ -447,12 +483,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "name",
@@ -661,12 +697,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "userId",
@@ -854,12 +890,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "userId",

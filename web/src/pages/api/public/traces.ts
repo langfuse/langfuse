@@ -62,10 +62,11 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      if (authCheck.scope.accessLevel !== "all")
-        return res.status(403).json({
-          message: "Access denied",
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message: "Access denied - need to use basic auth with secret key",
         });
+      }
 
       const body = TraceBody.parse(req.body);
 
@@ -83,8 +84,7 @@ export default async function handler(
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
 

@@ -87,7 +87,7 @@ jobs:
 
       - name: Run + migrate
         run: |
-          docker-compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
@@ -128,7 +128,7 @@ jobs:
 
       - name: Run + migrate
         run: |
-          docker-compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
@@ -140,9 +140,7 @@ jobs:
         run: pnpm run build
 
       - name: Install playwright
-        run: |
-          npm add --global playwright
-          pnpm exec playwright install
+        run: pnpm --filter=web exec playwright install --with-deps
 
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
