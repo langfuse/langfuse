@@ -9,11 +9,13 @@ import {
   CreatePromptSchema,
   GetPromptSchema,
 } from "@/src/features/prompts/server/validation";
-import { UnauthorizedError } from "@/src/server/errors/UnauthorizedError";
-import { NotFoundError } from "@/src/server/errors/NotFoundError";
-import { BaseError } from "@/src/server/errors/BaseError";
-import { MethodNotAllowedError } from "@/src/server/errors/MethodNotAllowedError";
-import { ForbiddenError } from "@/src/server/errors/ForbiddenError";
+import {
+  UnauthorizedError,
+  NotFoundError,
+  BaseError,
+  MethodNotAllowedError,
+  ForbiddenError,
+} from "@/src/server/errors";
 
 export default async function handler(
   req: NextApiRequest,
