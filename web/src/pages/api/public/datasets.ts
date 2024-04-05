@@ -4,9 +4,15 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { paginationZod } from "@/src/utils/zod";
 
 const CreateDatasetSchema = z.object({
   name: z.string(),
+  description: z.string().nullish(),
+});
+
+const GetDatasetsSchema = z.object({
+  ...paginationZod,
 });
 
 export default async function handler(
@@ -34,13 +40,14 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      const { name } = CreateDatasetSchema.parse(req.body);
+      const { name, description } = CreateDatasetSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
-      if (authCheck.scope.accessLevel !== "all")
-        return res.status(403).json({
-          message: "Access denied",
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message: "Access denied - need to use basic auth with secret key",
         });
+      }
       // END CHECK ACCESS SCOPE
 
       const dataset = await prisma.dataset.upsert({
@@ -52,12 +59,87 @@ export default async function handler(
         },
         create: {
           name,
+          description: description ?? undefined,
           projectId: authCheck.scope.projectId,
         },
-        update: {},
+        update: {
+          description: description ?? null,
+        },
       });
 
       res.status(200).json({ ...dataset, items: [], runs: [] });
+    } else if (req.method === "GET") {
+      // CHECK ACCESS SCOPE
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message: "Access denied - need to use basic auth with secret key",
+        });
+      }
+      // END CHECK ACCESS SCOPE
+
+      const args = GetDatasetsSchema.parse(req.query); // uses query and not body
+      console.log("Trying to get datasets", args);
+
+      const datasets = await prisma.dataset.findMany({
+        select: {
+          name: true,
+          description: true,
+          projectId: true,
+          createdAt: true,
+          updatedAt: true,
+          id: true,
+          datasetItems: {
+            select: {
+              id: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          datasetRuns: {
+            select: {
+              name: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
+        where: {
+          projectId: authCheck.scope.projectId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: args.limit,
+        skip: (args.page - 1) * args.limit,
+      });
+
+      console.log("Found datasets", datasets);
+
+      const totalItems = await prisma.dataset.count({
+        where: {
+          projectId: authCheck.scope.projectId,
+        },
+      });
+
+      return res.status(200).json({
+        data: datasets.map(({ datasetItems, datasetRuns, ...rest }) => ({
+          ...rest,
+          items: datasetItems.map(({ id }) => id),
+          runs: datasetRuns.map(({ name }) => name),
+        })),
+        meta: {
+          page: args.page,
+          limit: args.limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / args.limit),
+        },
+      });
+    } else {
+      res.status(405).json({
+        message: "Method Not Allowed",
+      });
     }
   } catch (error: unknown) {
     console.error(error);

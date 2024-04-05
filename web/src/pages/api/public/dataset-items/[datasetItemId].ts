@@ -38,10 +38,11 @@ export default async function handler(
       const { datasetItemId } = GetDatasetItemQuerySchema.parse(req.query);
 
       // CHECK ACCESS SCOPE
-      if (authCheck.scope.accessLevel !== "all")
-        return res.status(403).json({
-          message: "Access denied",
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message: "Access denied - need to use basic auth with secret key",
         });
+      }
       // END CHECK ACCESS SCOPE
 
       // Check access to dataset
