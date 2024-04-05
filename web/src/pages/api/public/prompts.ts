@@ -52,7 +52,6 @@ export default async function handler(
     // Handle POST requests
     if (req.method === "POST") {
       const input = CreatePromptSchema.parse(req.body);
-
       const prompt = await createPrompt({
         ...input,
         projectId: authCheck.scope.projectId,
