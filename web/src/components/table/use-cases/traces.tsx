@@ -124,6 +124,7 @@ export default function TracesTable({
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
+    returnIO: false,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
 
