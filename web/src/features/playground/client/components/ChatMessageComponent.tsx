@@ -5,7 +5,7 @@ import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Textarea } from "@/src/components/ui/textarea";
-import { MessagesContext } from "@/src/features/playground/client/components/Messages";
+import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
 
 type ChatMessageProps = Pick<
   MessagesContext,

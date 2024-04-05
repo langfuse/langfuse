@@ -2,7 +2,7 @@ import { capitalize } from "lodash";
 import router from "next/router";
 import { usePostHog } from "posthog-js/react";
 import { useState, useEffect } from "react";
-import { ControllerRenderProps, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import JsonView from "react18-json-view";
 
 import { Badge } from "@/src/components/ui/badge";
@@ -24,9 +24,8 @@ import {
   TabsTrigger,
 } from "@/src/components/ui/tabs";
 import { Textarea } from "@/src/components/ui/textarea";
-import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import {
-  CreatePromptTRPCType,
+  type CreatePromptTRPCType,
   PromptType,
 } from "@/src/features/prompts/server/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -34,14 +33,14 @@ import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { jsonSchema } from "@/src/utils/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Prompt } from "@langfuse/shared/src/db";
+import type { Prompt } from "@langfuse/shared/src/db";
 
 import { PromptChatMessages } from "./PromptChatMessages";
 import {
   NewPromptFormSchema,
-  NewPromptFormSchemaType,
+  type NewPromptFormSchemaType,
   PromptContentSchema,
-  PromptContentType,
+  type PromptContentType,
 } from "./validation";
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
@@ -105,23 +104,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   const allPrompts = api.prompts.all.useQuery({ projectId }).data;
 
-  // Remove duplicate prompt names
-  const comboboxOptions = [
-    ...new Map(
-      (allPrompts ?? []).map((item) => [
-        item.name,
-        { label: item.name, value: item.name },
-      ]),
-    ).values(),
-  ];
-
-  // Filter prompt names based on user input
-  const matchingOptions = currentName
-    ? comboboxOptions.filter((option) =>
-        option.label.toLowerCase().includes(currentName.toLowerCase()),
-      )
-    : comboboxOptions;
-
   function onSubmit(values: NewPromptFormSchemaType) {
     posthog.capture("prompts:new_prompt_form_submit");
 
@@ -171,7 +153,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     } else {
       form.clearErrors("name");
     }
-  }, [currentName]);
+  }, [currentName, allPrompts, form]);
 
   return (
     <Form {...form}>

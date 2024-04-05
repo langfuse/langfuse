@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { ControllerRenderProps } from "react-hook-form";
+import type { ControllerRenderProps } from "react-hook-form";
 import { ChatMessages } from "@/src/features/playground/client/components/ChatMessages";
 import { ChatMessageRole } from "@langfuse/shared";
 import { createEmptyMessage } from "@/src/features/playground/client/utils/createEmptyMessage";
-import { MessagesContext } from "@/src/features/playground/client/components/Messages";
-import { ChatMessageListSchema, NewPromptFormSchemaType } from "./validation";
+import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
+import {
+  ChatMessageListSchema,
+  type NewPromptFormSchemaType,
+} from "./validation";
 import { v4 as uuidv4 } from "uuid";
 
 type PromptChatMessagesProps = ControllerRenderProps<
@@ -50,7 +53,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
 
   useEffect(() => {
     onChange(messages);
-  }, [messages]);
+  }, [messages, onChange]);
 
   return (
     <ChatMessages {...{ messages, addMessage, deleteMessage, updateMessage }} />

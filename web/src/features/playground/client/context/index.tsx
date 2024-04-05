@@ -1,35 +1,29 @@
 import React, {
   createContext,
-  PropsWithChildren,
+  type PropsWithChildren,
   useCallback,
   useContext,
   useEffect,
   useState,
 } from "react";
 
-import { MessagesContext } from "@/src/features/playground/client/components/Messages";
-import { ModelParamsContext } from "@/src/features/playground/client/components/ModelParameters";
+import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
+import type { ModelParamsContext } from "@/src/features/playground/client/components/ModelParameters";
 import useCommandEnter from "@/src/features/playground/client/hooks/useCommandEnter";
 import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
-  ChatMessageWithId,
+  type ChatMessageWithId,
   ModelProvider,
-  PromptVariable,
-  UIModelParams,
+  type PromptVariable,
+  type UIModelParams,
 } from "@langfuse/shared";
 import { createEmptyMessage } from "../utils/createEmptyMessage";
 import { StringParam, useQueryParam } from "use-query-params";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import {
-  ChatPromptSchema,
-  PromptType,
-} from "@/src/features/prompts/server/validation";
-import {
-  ChatMessageListSchema,
-  PromptContentSchema,
-} from "@/src/features/prompts/components/NewPromptForm/validation";
+import { PromptType } from "@/src/features/prompts/server/validation";
+import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
 import { v4 as uuidv4 } from "uuid";
 
 type PlaygroundContextType = {

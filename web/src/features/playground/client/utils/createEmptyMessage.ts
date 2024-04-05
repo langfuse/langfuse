@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
+import type { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
 
 export function createEmptyMessage(
   role: ChatMessageRole,

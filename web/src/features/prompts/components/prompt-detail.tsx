@@ -2,7 +2,7 @@ import { Pencil, Terminal } from "lucide-react";
 import Link from "next/link";
 import router, { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
-import { z } from "zod";
+import type { z } from "zod";
 
 import Header from "@/src/components/layouts/header";
 import {

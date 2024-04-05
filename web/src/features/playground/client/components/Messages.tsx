@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "@/src/features/playground/client/context";
-import { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
+import type { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
 
 import { GenerationOutput } from "./GenerationOutput";
 import { ChatMessages } from "@/src/features/playground/client/components/ChatMessages";

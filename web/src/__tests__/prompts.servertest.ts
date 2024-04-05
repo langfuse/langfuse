@@ -7,7 +7,7 @@ import { type Prompt } from "@langfuse/shared/src/db";
 import {
   PromptSchema,
   PromptType,
-  ValidatedPrompt,
+  type ValidatedPrompt,
 } from "@/src/features/prompts/server/validation";
 
 describe("/api/public/prompts API Endpoint", () => {
