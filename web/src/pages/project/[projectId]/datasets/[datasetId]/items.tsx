@@ -7,6 +7,7 @@ import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetIte
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -22,7 +23,14 @@ export default function DatasetItems() {
   return (
     <div>
       <Header
-        title={`Dataset: ${dataset.data?.name}`}
+        title={dataset.data?.name ?? ""}
+        help={
+          dataset.data?.description
+            ? {
+                description: dataset.data.description,
+              }
+            : undefined
+        }
         breadcrumb={[
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
@@ -35,16 +43,18 @@ export default function DatasetItems() {
         ]}
         actionButtons={
           <>
+            <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <DetailPageNav
               currentId={datasetId}
               path={(id) => `/project/${projectId}/datasets/${id}/items/`}
               listKey="datasets"
             />
             <DatasetActionButton
-              mode="rename"
+              mode="update"
               projectId={projectId}
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
+              datasetDescription={dataset.data?.description ?? undefined}
               icon
             />
             <DeleteButton

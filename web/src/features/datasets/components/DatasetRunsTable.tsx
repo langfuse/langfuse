@@ -21,6 +21,7 @@ type RowData = {
   avgLatency: number;
   avgTotalCost: string;
   scores: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["scores"];
+  description: string;
   metadata: string;
 };
 
@@ -64,8 +65,8 @@ export function DatasetRunsTable(props: {
       },
     },
     {
-      accessorKey: "createdAt",
-      header: "Created",
+      accessorKey: "description",
+      header: "Description",
     },
     {
       accessorKey: "countRunItems",
@@ -105,6 +106,10 @@ export function DatasetRunsTable(props: {
       },
     },
     {
+      accessorKey: "createdAt",
+      header: "Created",
+    },
+    {
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
@@ -124,6 +129,7 @@ export function DatasetRunsTable(props: {
       avgLatency: item.avgLatency,
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
       scores: item.scores,
+      description: item.description ?? "",
       metadata: JSON.stringify(item.metadata),
     };
   };
