@@ -45,7 +45,11 @@ export const NewPrompt = () => {
   return (
     <div className="xl:container">
       <Header
-        title="Create new prompt"
+        title={
+          initialPrompt
+            ? `${initialPrompt.name} \u2014 New version`
+            : "Create new prompt"
+        }
         help={{
           description:
             "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
@@ -53,11 +57,13 @@ export const NewPrompt = () => {
         }}
         breadcrumb={breadcrumb}
       />
-      <p className="text-sm text-gray-500">
-        Prompts are immutable in Langfuse. To update a prompt, create a new
-        version.
-      </p>
-      <div className="my-4 max-w-screen-md">
+      {initialPrompt ? (
+        <p className="text-sm text-gray-500">
+          Prompts are immutable in Langfuse. To update a prompt, create a new
+          version.
+        </p>
+      ) : null}
+      <div className="my-8 max-w-screen-md">
         <NewPromptForm {...{ initialPrompt }} />
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { capitalize } from "lodash";
 import router from "next/router";
 import { usePostHog } from "posthog-js/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ControllerRenderProps, useForm } from "react-hook-form";
 import JsonView from "react18-json-view";
 
@@ -43,6 +43,9 @@ import {
   PromptContentSchema,
   PromptContentType,
 } from "./validation";
+import { Input } from "@/src/components/ui/input";
+import Link from "next/link";
+import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -158,38 +161,62 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       });
   }
 
+  useEffect(() => {
+    const isNewPrompt = !allPrompts
+      ?.map((prompt) => prompt.name)
+      .includes(currentName);
+
+    if (!isNewPrompt) {
+      form.setError("name", { message: "Prompt name already exist." });
+    } else {
+      form.clearErrors("name");
+    }
+  }, [currentName]);
+
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-6"
       >
-        {/* Prompt name field - text vs. chat */}
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => {
-            return (
-              <div>
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <AutoComplete
-                      {...field}
-                      options={matchingOptions}
-                      placeholder="Select a prompt name"
-                      onValueChange={({ value }) => field.onChange(value)}
-                      value={{ value: field.value, label: field.value }}
-                      disabled={false}
-                      createLabel="Create a new prompt name"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </div>
-            );
-          }}
-        />
+        {/* Prompt name field - text vs. chat only for new prompts */}
+        {!initialPrompt ? (
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => {
+              const errorMessage = form.getFieldState("name").error?.message;
+
+              return (
+                <div>
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Select a prompt name" {...field} />
+                    </FormControl>
+                    {/* Custom form message to include a link to the already existing prompt */}
+                    {form.getFieldState("name").error ? (
+                      <div className="flex flex-row space-x-1 text-sm font-medium text-destructive">
+                        <p className="text-sm font-medium text-destructive">
+                          {errorMessage}
+                        </p>
+                        {errorMessage?.includes("already exist") ? (
+                          <Link
+                            href={`/project/${projectId}/prompts/${currentName.trim()}`}
+                            className="flex flex-row"
+                          >
+                            Create a new version for it here.{" "}
+                            <ArrowTopRightIcon />
+                          </Link>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </FormItem>
+                </div>
+              );
+            }}
+          />
+        ) : null}
 
         {/* Prompt content field - text vs. chat */}
         <>
@@ -202,28 +229,30 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               }}
               className="min-h-[240px]"
             >
-              <TabsList className="flex w-full">
-                <TabsTrigger
-                  disabled={
-                    Boolean(initialPromptContent) &&
-                    initialPromptContent?.type !== PromptType.Text
-                  }
-                  className="flex-1"
-                  value={PromptType.Text}
-                >
-                  {capitalize(PromptType.Text)}
-                </TabsTrigger>
-                <TabsTrigger
-                  disabled={
-                    Boolean(initialPromptContent) &&
-                    initialPromptContent?.type !== PromptType.Chat
-                  }
-                  className="flex-1"
-                  value={PromptType.Chat}
-                >
-                  {capitalize(PromptType.Chat)}
-                </TabsTrigger>
-              </TabsList>
+              {!initialPrompt ? (
+                <TabsList className="flex w-full">
+                  <TabsTrigger
+                    disabled={
+                      Boolean(initialPromptContent) &&
+                      initialPromptContent?.type !== PromptType.Text
+                    }
+                    className="flex-1"
+                    value={PromptType.Text}
+                  >
+                    {capitalize(PromptType.Text)}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    disabled={
+                      Boolean(initialPromptContent) &&
+                      initialPromptContent?.type !== PromptType.Chat
+                    }
+                    className="flex-1"
+                    value={PromptType.Chat}
+                  >
+                    {capitalize(PromptType.Chat)}
+                  </TabsTrigger>
+                </TabsList>
+              ) : null}
               <TabsContent value={PromptType.Text}>
                 <FormField
                   control={form.control}
@@ -257,10 +286,12 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           </FormItem>
           <p className="text-sm text-gray-500">
             You can use <code className="text-xs">{"{{variable}}"}</code> to
-            insert variables into your prompt. The following variables are
-            available:
+            insert variables into your prompt.
+            {currentExtractedVariables.length > 0
+              ? " The following variables are available:"
+              : ""}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-h-6 flex-wrap gap-2">
             {currentExtractedVariables.map((variable) => (
               <Badge key={variable} variant="outline">
                 {variable}
@@ -321,6 +352,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           type="submit"
           loading={createPromptMutation.isLoading}
           className="w-full"
+          disabled={Boolean(form.formState.errors.name?.message)} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
         >
           Create prompt
         </Button>

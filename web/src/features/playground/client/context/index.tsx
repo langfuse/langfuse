@@ -82,7 +82,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       projectId,
       id: initialPromptId ?? "",
     },
-    { enabled: Boolean(initialPromptId) },
+    { enabled: Boolean(initialPromptId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
   );
 
   useEffect(() => {
