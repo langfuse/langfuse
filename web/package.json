@@ -18,8 +18,7 @@
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
-    "release": "dotenv -e ../.env -- release-it --dry-run"
+    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -113,7 +112,6 @@
     "@jedmao/location": "^3.0.0",
     "@mermaid-js/mermaid-cli": "^10.7.0",
     "@playwright/test": "^1.41.2",
-    "@release-it/bumper": "^6.0.1",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.2",
     "@types/bcryptjs": "^2.4.6",
@@ -138,7 +136,6 @@
     "postcss": "^8.4.38",
     "prettier": "^3.2.5",
     "prettier-plugin-tailwindcss": "^0.5.13",
-    "release-it": "^17.1.1",
     "tailwindcss": "^3.4.3",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
@@ -150,16 +147,5 @@
   },
   "optionalDependencies": {
     "crisp-sdk-web": "^1.0.21"
-  },
-  "release-it": {
-    "git": false,
-    "plugins": {
-      "@release-it/bumper": {
-        "out": {
-          "file": "./src/constants/VERSION.ts",
-          "type": "application/typescript"
-        }
-      }
-    }
   }
 }
