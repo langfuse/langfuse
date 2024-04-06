@@ -23,7 +23,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "models:migrate": "turbo run models:migrate",
-    "release": "dotenv -e ../.env -- release-it "
+    "release": "dotenv -e ../.env -- release-it --dry-run"
   },
   "devDependencies": {
     "@release-it/bumper": "^6.0.1",
