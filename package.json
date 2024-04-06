@@ -23,7 +23,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "models:migrate": "turbo run models:migrate",
-    "release": "turbo release && dotenv -e ../.env -- release-it --dry-run"
+    "release": "turbo run release && dotenv -e ../.env -- release-it --dry-run"
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.1",
