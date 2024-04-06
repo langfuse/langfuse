@@ -9,6 +9,7 @@
     "start": {
       "dependsOn": ["^start"]
     },
+    "release": {},
     "db:migrate": {},
     "db:deploy": {},
     "db:reset": {},
