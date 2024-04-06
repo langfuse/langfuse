@@ -56,6 +56,7 @@ export default async function handler(
       const input = CreatePromptSchema.parse(req.body);
       const prompt = await createPrompt({
         ...input,
+        config: input.config ?? {}, // Config can be null in which case zod default value is not used
         projectId: authCheck.scope.projectId,
         createdBy: "API",
         prisma: prisma,

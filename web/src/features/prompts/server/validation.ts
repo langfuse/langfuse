@@ -17,7 +17,7 @@ export const CreateTextPromptSchema = z.object({
   isActive: z.boolean(),
   type: z.literal(PromptType.Text).optional(),
   prompt: z.string(),
-  config: jsonSchema.optional().default({}),
+  config: jsonSchema.nullable().default({}),
 });
 
 export const CreateChatPromptSchema = z.object({
@@ -25,7 +25,7 @@ export const CreateChatPromptSchema = z.object({
   isActive: z.boolean(),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
-  config: jsonSchema.optional().default({}),
+  config: jsonSchema.nullable().default({}),
 });
 
 export const CreatePromptSchema = z.union([
