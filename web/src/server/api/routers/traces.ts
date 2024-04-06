@@ -161,7 +161,12 @@ export const traceRouter = createTRPCRouter({
           if (returnIO) {
             return { ...rest, input, output, scores: filteredScores };
           } else {
-            return { ...rest, scores: filteredScores };
+            return {
+              ...rest,
+              input: undefined,
+              output: undefined,
+              scores: filteredScores,
+            };
           }
         }),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
@@ -216,7 +221,11 @@ export const traceRouter = createTRPCRouter({
       return res;
     }),
   byId: protectedGetTraceProcedure
-    .input(z.object({ traceId: z.string() }))
+    .input(
+      z.object({
+        traceId: z.string(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
