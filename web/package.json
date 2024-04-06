@@ -111,7 +111,7 @@
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
     "@mermaid-js/mermaid-cli": "^10.7.0",
-    "@playwright/test": "^1.41.2",
+    "@playwright/test": "^1.43.0",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.2",
     "@types/bcryptjs": "^2.4.6",
