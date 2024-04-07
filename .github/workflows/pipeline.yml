@@ -36,12 +36,6 @@ jobs:
 
   test-docker-build:
     runs-on: ubuntu-latest
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
-    permissions:
-      packages: write
-      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -59,36 +53,6 @@ jobs:
           context: .
           file: ./worker/Dockerfile
           push: false
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-worker
-        uses: docker/metadata-action@v4
-        with:
-          images: |
-            ${{ env.REGISTRY }}/${{ github.repository }}-worker
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-
-      - name: Build and push Docker image (worker)
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./worker/Dockerfile
-          push: true
-          tags: ${{ steps.meta-worker.outputs.tags }}
-          labels: ${{ steps.meta-worker.outputs.labels }}
 
   tests:
     runs-on: ubuntu-latest
@@ -180,20 +144,6 @@ jobs:
 
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
-
-  # deploy-cloud-run:
-  #   runs-on: ubuntu-latest
-  #   needs: [test-docker-build]
-  #   steps:
-  #     - name: Deploy to Cloud Run
-  #       uses: GoogleCloudPlatform/github-actions/cloud-run@main
-  #       with:
-  #         service: ${{ github.repository }}
-  #         image: ghcr.io/${{ github.repository }}
-  #         platform: managed
-  #         region: us-central1
-  #         project_id: ${{ secrets.GCP_PROJECT_ID }}
-  #         service_account_key: ${{ secrets.GCP_SA_KEY }}
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
