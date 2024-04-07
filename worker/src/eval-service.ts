@@ -258,7 +258,7 @@ async function extractVariablesFromTrace(
         .find((o) => o.id === "trace")
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
-      // if no collumn was found, we still prcess with an empty variable
+      // if no column was found, we still process with an empty variable
       if (!column?.id) {
         logger.error(
           `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
