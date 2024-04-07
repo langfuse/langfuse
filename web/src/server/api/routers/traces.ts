@@ -31,6 +31,7 @@ const TraceFilterOptions = z.object({
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
+  returnIO: z.boolean().default(true),
   ...paginationZod,
 });
 
@@ -45,6 +46,7 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const returnIO = input.returnIO;
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         tracesTableCols,
@@ -152,7 +154,17 @@ export const traceRouter = createTRPCRouter({
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
-          return { ...trace, scores: filteredScores };
+          const { input, output, ...rest } = trace;
+          if (returnIO) {
+            return { ...rest, input, output, scores: filteredScores };
+          } else {
+            return {
+              ...rest,
+              input: undefined,
+              output: undefined,
+              scores: filteredScores,
+            };
+          }
         }),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
@@ -206,7 +218,11 @@ export const traceRouter = createTRPCRouter({
       return res;
     }),
   byId: protectedGetTraceProcedure
-    .input(z.object({ traceId: z.string() }))
+    .input(
+      z.object({
+        traceId: z.string(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
