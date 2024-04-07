@@ -209,7 +209,7 @@ export const evaluate = async ({
       name: config.score_name,
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
-      source: sql`${ScoreSource.EVALS}::"ScoreSource"`,
+      source: sql`${ScoreSource.EVAL}::"ScoreSource"`,
     })
     .execute();
 
