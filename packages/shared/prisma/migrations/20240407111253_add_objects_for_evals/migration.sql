@@ -1,5 +1,11 @@
+-- CreateEnum
+CREATE TYPE "JobType" AS ENUM ('EVAL');
+
+-- CreateEnum
+CREATE TYPE "JobExecutionStatus" AS ENUM ('COMPLETED', 'ERROR', 'PENDING', 'CANCELLED');
+
 -- AlterEnum
-ALTER TYPE "ScoreSource" ADD VALUE 'EVALS';
+ALTER TYPE "ScoreSource" ADD VALUE 'EVAL';
 
 -- CreateTable
 CREATE TABLE "eval_templates" (
@@ -24,7 +30,7 @@ CREATE TABLE "job_configurations" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "project_id" TEXT NOT NULL,
-    "job_type" TEXT NOT NULL,
+    "job_type" "JobType" NOT NULL,
     "eval_template_id" TEXT,
     "score_name" TEXT NOT NULL,
     "filter" JSONB NOT NULL,
@@ -43,12 +49,12 @@ CREATE TABLE "job_executions" (
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "project_id" TEXT NOT NULL,
     "job_configuration_id" TEXT NOT NULL,
-    "status" TEXT NOT NULL,
+    "status" "JobExecutionStatus" NOT NULL,
     "start_time" TIMESTAMP(3),
     "end_time" TIMESTAMP(3),
     "error" TEXT,
-    "trace_id" TEXT,
-    "score_id" TEXT,
+    "job_input_trace_id" TEXT,
+    "job_output_score_id" TEXT,
 
     CONSTRAINT "job_executions_pkey" PRIMARY KEY ("id")
 );
@@ -60,19 +66,19 @@ CREATE INDEX "eval_templates_project_id_id_idx" ON "eval_templates"("project_id"
 CREATE INDEX "eval_templates_project_id_idx" ON "eval_templates"("project_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "eval_templates_project_id_name_version_key" ON "eval_templates"("project_id", "name", "version");
+
+-- CreateIndex
 CREATE INDEX "job_configurations_project_id_id_idx" ON "job_configurations"("project_id", "id");
 
 -- CreateIndex
 CREATE INDEX "job_configurations_project_id_idx" ON "job_configurations"("project_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "job_executions_job_configuration_id_key" ON "job_executions"("job_configuration_id");
+CREATE UNIQUE INDEX "job_executions_job_input_trace_id_key" ON "job_executions"("job_input_trace_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "job_executions_trace_id_key" ON "job_executions"("trace_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "job_executions_score_id_key" ON "job_executions"("score_id");
+CREATE UNIQUE INDEX "job_executions_job_output_score_id_key" ON "job_executions"("job_output_score_id");
 
 -- CreateIndex
 CREATE INDEX "job_executions_project_id_id_idx" ON "job_executions"("project_id", "id");
@@ -96,7 +102,7 @@ ALTER TABLE "job_executions" ADD CONSTRAINT "job_executions_project_id_fkey" FOR
 ALTER TABLE "job_executions" ADD CONSTRAINT "job_executions_job_configuration_id_fkey" FOREIGN KEY ("job_configuration_id") REFERENCES "job_configurations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "job_executions" ADD CONSTRAINT "job_executions_trace_id_fkey" FOREIGN KEY ("trace_id") REFERENCES "traces"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "job_executions" ADD CONSTRAINT "job_executions_job_input_trace_id_fkey" FOREIGN KEY ("job_input_trace_id") REFERENCES "traces"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "job_executions" ADD CONSTRAINT "job_executions_score_id_fkey" FOREIGN KEY ("score_id") REFERENCES "scores"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "job_executions" ADD CONSTRAINT "job_executions_job_output_score_id_fkey" FOREIGN KEY ("job_output_score_id") REFERENCES "scores"("id") ON DELETE SET NULL ON UPDATE CASCADE;

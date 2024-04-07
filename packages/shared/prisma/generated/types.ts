@@ -27,7 +27,7 @@ export type ObservationLevel = (typeof ObservationLevel)[keyof typeof Observatio
 export const ScoreSource = {
     API: "API",
     REVIEW: "REVIEW",
-    EVALS: "EVALS"
+    EVAL: "EVAL"
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
 export const PricingUnit = {
@@ -46,6 +46,17 @@ export const DatasetStatus = {
     ARCHIVED: "ARCHIVED"
 } as const;
 export type DatasetStatus = (typeof DatasetStatus)[keyof typeof DatasetStatus];
+export const JobType = {
+    EVAL: "EVAL"
+} as const;
+export type JobType = (typeof JobType)[keyof typeof JobType];
+export const JobExecutionStatus = {
+    COMPLETED: "COMPLETED",
+    ERROR: "ERROR",
+    PENDING: "PENDING",
+    CANCELLED: "CANCELLED"
+} as const;
+export type JobExecutionStatus = (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];
 export type Account = {
     id: string;
     user_id: string;
@@ -158,7 +169,7 @@ export type JobConfiguration = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     project_id: string;
-    job_type: string;
+    job_type: JobType;
     eval_template_id: string | null;
     score_name: string;
     filter: unknown;
@@ -173,12 +184,12 @@ export type JobExecution = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     job_configuration_id: string;
-    status: string;
+    status: JobExecutionStatus;
     start_time: Timestamp | null;
     end_time: Timestamp | null;
     error: string | null;
-    trace_id: string | null;
-    score_id: string | null;
+    job_input_trace_id: string | null;
+    job_output_score_id: string | null;
 };
 export type Membership = {
     project_id: string;

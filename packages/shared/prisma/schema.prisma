@@ -390,7 +390,7 @@ model Score {
 enum ScoreSource {
     API
     REVIEW
-    EVALS
+    EVAL
 }
 
 enum PricingUnit {
@@ -603,9 +603,14 @@ model EvalTemplate {
     outputSchema     Json               @map("output_schema")
     JobConfiguration JobConfiguration[]
 
+    @@unique([projectId, name, version])
     @@index([projectId, id])
     @@index([projectId])
     @@map("eval_templates")
+}
+
+enum JobType {
+    EVAL
 }
 
 model JobConfiguration {
@@ -616,7 +621,7 @@ model JobConfiguration {
     projectId String  @map("project_id")
     project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-    jobType        String        @map("job_type")
+    jobType        JobType       @map("job_type")
     evalTemplateId String?       @map("eval_template_id")
     evalTemplate   EvalTemplate? @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 
@@ -624,13 +629,20 @@ model JobConfiguration {
     filter          Json
     targetObject    String         @map("target_object")
     variableMapping Json           @map("variable_mapping")
-    sampling        Decimal
+    sampling        Decimal // ratio of jobs that are executed for sampling (0..1)  
     delay           Int // delay in milliseconds
     JobExecution    JobExecution[]
 
     @@index([projectId, id])
     @@index([projectId])
     @@map("job_configurations")
+}
+
+enum JobExecutionStatus {
+    COMPLETED
+    ERROR
+    PENDING
+    CANCELLED
 }
 
 model JobExecution {
@@ -641,19 +653,19 @@ model JobExecution {
     projectId String  @map("project_id")
     project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-    jobConfigurationId String           @unique @map("job_configuration_id")
+    jobConfigurationId String           @map("job_configuration_id")
     jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
-    status    String
-    startTime DateTime? @map("start_time")
-    endTime   DateTime? @map("end_time")
+    status    JobExecutionStatus
+    startTime DateTime?          @map("start_time")
+    endTime   DateTime?          @map("end_time")
     error     String?
 
-    traceId String? @unique @map("trace_id")
-    trace   Trace?  @relation(fields: [traceId], references: [id], onDelete: SetNull) // job remains when traces are deleted
+    jobInputTraceId String? @unique @map("job_input_trace_id")
+    trace           Trace?  @relation(fields: [jobInputTraceId], references: [id], onDelete: SetNull) // job remains when traces are deleted
 
-    scoreId String? @unique @map("score_id")
-    score   Score?  @relation(fields: [scoreId], references: [id], onDelete: SetNull) // job remains when scores are deleted
+    jobOutputScoreId String? @unique @map("job_output_score_id")
+    score            Score?  @relation(fields: [jobOutputScoreId], references: [id], onDelete: SetNull) // job remains when scores are deleted
 
     @@index([projectId, id])
     @@index([projectId])
