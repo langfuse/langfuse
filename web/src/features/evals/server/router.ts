@@ -47,7 +47,7 @@ export const evalRouter = createTRPCRouter({
       const configs = await ctx.prisma.jobConfiguration.findMany({
         where: {
           projectId: input.projectId,
-          jobType: JobTypes.Evaluation,
+          jobType: "EVAL",
         },
         take: input.limit,
         skip: input.page * input.limit,
@@ -56,7 +56,7 @@ export const evalRouter = createTRPCRouter({
       const count = await ctx.prisma.jobConfiguration.count({
         where: {
           projectId: input.projectId,
-          jobType: JobTypes.Evaluation,
+          jobType: "EVAL",
         },
       });
       return {
@@ -137,7 +137,7 @@ export const evalRouter = createTRPCRouter({
         const job = await ctx.prisma.jobConfiguration.create({
           data: {
             projectId: input.projectId,
-            jobType: JobTypes.Evaluation,
+            jobType: "EVAL",
             evalTemplateId: input.evalTemplateId,
             scoreName: input.scoreName,
             targetObject: EvalTargetObject.Trace,
