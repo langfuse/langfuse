@@ -36,7 +36,7 @@ export const createEvalJobs = async ({
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
-    .where("job_type", "=", "evaluation")
+    .where("job_type", "=", "EVAL")
     .where("project_id", "=", data.data.projectId)
     .execute();
 
@@ -76,8 +76,8 @@ export const createEvalJobs = async ({
           id: jobExecutionId,
           project_id: data.data.projectId,
           job_configuration_id: config.id,
-          trace_id: data.data.traceId,
-          status: "running",
+          job_input_trace_id: data.data.traceId,
+          status: "PENDING",
         })
         .execute();
 
@@ -124,7 +124,7 @@ export const evaluate = async ({
     .where("project_id", "=", data.data.projectId)
     .executeTakeFirstOrThrow();
 
-  if (!job.trace_id) {
+  if (!job.job_input_trace_id) {
     throw new Error("Jobs can only be executed on traces for now.");
   }
 
@@ -152,7 +152,7 @@ export const evaluate = async ({
   const mappingResult = await extractVariablesFromTrace(
     data.data.projectId,
     template.vars,
-    job.trace_id,
+    job.job_input_trace_id,
     parsedVariableMapping
   );
 
@@ -205,7 +205,7 @@ export const evaluate = async ({
     .insertInto("scores")
     .values({
       id: scoreId,
-      trace_id: job.trace_id,
+      trace_id: job.job_input_trace_id,
       name: config.score_name,
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
@@ -215,9 +215,9 @@ export const evaluate = async ({
 
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
-    .set("status", "completed")
+    .set("status", "COMPLETED")
     .set("end_time", new Date())
-    .set("score_id", scoreId)
+    .set("job_output_score_id", scoreId)
     .where("id", "=", data.data.jobExecutionId)
     .execute();
 };
