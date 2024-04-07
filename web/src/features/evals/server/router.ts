@@ -109,7 +109,7 @@ export const evalRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
         sampling: z.number().gte(0).lte(1),
-        delay: z.number().default(10_000),
+        delay: z.number().lte(0).default(10_000),
       }),
     )
     .mutation(async ({ input, ctx }) => {

@@ -20,11 +20,7 @@ import {
 } from "@/src/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import {
-  tracesTableCols,
-  tracesTableColsWithOptions,
-  singleFilter,
-} from "@langfuse/shared";
+import { tracesTableColsWithOptions, singleFilter } from "@langfuse/shared";
 import { type FilterState } from "@langfuse/shared";
 import * as z from "zod";
 import { Card } from "@/src/components/ui/card";
