@@ -192,7 +192,7 @@ Requirements
   To run migrations, you can execute the following command.
 
   ```bash
-  pnpm --filter=shared run db:migrate
+  pnpm run db:migrate -- --name <name of the migration>
   ```
 
 > [!NOTE]

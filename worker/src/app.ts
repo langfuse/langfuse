@@ -7,10 +7,12 @@ import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
 import { env } from "./env";
-import { pinoHttp } from "pino-http";
-import logger from "./logger";
 
 require("dotenv").config();
+
+import logger from "./logger";
+
+import { evalJobCreator, evalJobExecutor } from "./redis/consumer";
 
 const app = express();
 
@@ -41,19 +43,33 @@ if (isSentryEnabled) {
 
 app.use(cors());
 app.use(express.json());
-
 app.get<{}, MessageResponse>("/", (req, res) => {
   res.json({
-    message: "🦄🌈✨👋🌎🌍🌏✨🌈🦄",
+    message: "Langfuse Worker API 🚀",
   });
 });
 
-app.use("/api/v1", api);
+app.use("/api", api);
+
 if (isSentryEnabled) {
   // The error handler must be before any other error middleware and after all controllers
   app.use(Sentry.Handlers.errorHandler());
 }
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
+
+logger.info("Eval Job Creator started", evalJobCreator.isRunning());
+
+logger.info("Eval Job Executor started", evalJobExecutor.isRunning());
+
+evalJobCreator.on("failed", (job, err) => {
+  logger.error(`Eval Job with id ${job?.id} failed with error ${err}`);
+});
+
+evalJobCreator.on("failed", (job, err) => {
+  logger.error(
+    `Eval execution Job with id ${job?.id} failed with error ${err}`
+  );
+});
 
 export default app;

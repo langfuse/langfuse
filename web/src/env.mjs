@@ -72,6 +72,9 @@ export const env = createEnv({
     S3_REGION: z.string().optional(),
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
+    // Worker
+    LANGFUSE_WORKER_HOST: z.string().optional(),
+    LANGFUSE_WORKER_PASSWORD: z.string().optional(),
     // Prompt playground
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
@@ -137,11 +140,13 @@ export const env = createEnv({
     AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
     AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
     AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
-    AUTH_OKTA_ALLOW_ACCOUNT_LINKING: process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
+    AUTH_OKTA_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
     AUTH_AUTH0_CLIENT_ID: process.env.AUTH_AUTH0_CLIENT_ID,
     AUTH_AUTH0_CLIENT_SECRET: process.env.AUTH_AUTH0_CLIENT_SECRET,
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
-    AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
+    AUTH_AUTH0_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
@@ -156,6 +161,9 @@ export const env = createEnv({
     S3_REGION: process.env.S3_REGION,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
+    // Worker
+    LANGFUSE_WORKER_HOST: process.env.LANGFUSE_WORKER_HOST,
+    LANGFUSE_WORKER_PASSWORD: process.env.LANGFUSE_WORKER_PASSWORD,
     // Prompt playground
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
