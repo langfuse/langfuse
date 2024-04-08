@@ -13,8 +13,6 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { LockIcon, PlusIcon } from "lucide-react";
-import { useEffect } from "react";
 import { TagPromptPopver } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -36,10 +34,6 @@ type RowData = {
 export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
-
-  const prompts = api.prompts.all.useQuery({
-    projectId,
-  });
   const hasCUDAccess = useHasAccess({
     projectId,
     scope: "prompts:CUD",
@@ -59,13 +53,13 @@ export function PromptTable() {
   const prompts = api.prompts.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    projectId: props.projectId,
+    projectId: projectId,
     filter: filterState,
     orderBy: orderByState,
   });
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {
-      projectId: props.projectId,
+      projectId: projectId,
     },
     {
       trpc: {
@@ -161,12 +155,11 @@ export function PromptTable() {
         const promptName: string = row.original.name;
         const filterOptionTags = promptFilterOptions.data?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
-        const projectId = props.projectId;
         return (
           <TagPromptPopver
             tags={tags}
             availableTags={allTags}
-            projectId={props.projectId}
+            projectId={projectId}
             promptName={promptName}
             promptsFilter={{
               ...filterOptionTags,
