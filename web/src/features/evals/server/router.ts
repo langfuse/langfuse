@@ -9,7 +9,6 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   EvalTargetObject,
-  JobTypes,
   evalModels,
 } from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";
@@ -109,7 +108,7 @@ export const evalRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
         sampling: z.number().gte(0).lte(1),
-        delay: z.number().gte(0).default(10_000),
+        delay: z.number().lte(0).default(10_000),
       }),
     )
     .mutation(async ({ input, ctx }) => {

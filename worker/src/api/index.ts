@@ -1,30 +1,22 @@
 import express from "express";
-import MessageResponse from "../interfaces/MessageResponse";
 import emojis from "./emojis";
 import { z } from "zod";
 import logger from "../logger";
 import { Queue } from "bullmq";
-import { evalJobCreator, evalJobExecutor, redis } from "../redis/consumer";
+import { redis } from "../redis/consumer";
 import { randomUUID } from "crypto";
 import basicAuth from "express-basic-auth";
 import { env } from "../env";
 import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 const router = express.Router();
 
-router.use(
-  basicAuth({
-    users: { admin: env.WORKER_PASSWORD },
-  })
-);
-
-export const evalQueue = new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(
-  QueueName.TraceUpsert,
-  {
-    connection: redis,
-  }
-);
+export const evalQueue = redis
+  ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
+      connection: redis,
+    })
+  : null;
 
 const eventBody = z.array(
   z.object({
@@ -38,43 +30,68 @@ type EventsResponse = {
 };
 
 router.get<{}, { status: string }>("/health", async (_req, res) => {
-  //check database health
-  await prisma.$queryRaw`SELECT 1;`;
+  try {
+    //check database health
+    await prisma.$queryRaw`SELECT 1;`;
 
-  await redis.ping();
+    if (!redis) {
+      throw new Error("Redis connection not available");
+    }
 
-  res.json({
-    status: "ok",
-  });
+    await Promise.race([
+      redis?.ping(),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Redis ping timeout after 2 seconds")),
+          2000
+        )
+      ),
+    ]);
+
+    res.json({
+      status: "ok",
+    });
+  } catch (e) {
+    logger.error("Health check failed", e);
+    res.status(500).json({
+      status: "error",
+    });
+  }
 });
 
-router.post<{}, EventsResponse>("/events", async (req, res) => {
-  const { body } = req;
-  logger.info(`Received events, ${JSON.stringify(body)}`);
+router
+  .use(
+    basicAuth({
+      users: { admin: env.LANGFUSE_WORKER_PASSWORD },
+    })
+  )
+  .post<{}, EventsResponse>("/events", async (req, res) => {
+    const { body } = req;
+    logger.info(`Received events, ${JSON.stringify(body)}`);
 
-  const events = eventBody.parse(body);
+    const events = eventBody.parse(body);
 
-  const jobs = events.map((event) => ({
-    name: QueueJobs.TraceUpsert,
-    data: {
-      payload: {
-        id: randomUUID(),
-        timestamp: new Date().toISOString(),
-        data: {
-          projectId: event.projectId,
-          traceId: event.traceId,
+    const jobs = events.map((event) => ({
+      name: QueueJobs.TraceUpsert,
+      data: {
+        payload: {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          data: {
+            projectId: event.projectId,
+            traceId: event.traceId,
+          },
         },
+        name: QueueJobs.TraceUpsert as const,
       },
-      name: QueueJobs.TraceUpsert as const,
-    },
-  }));
+    }));
 
-  await evalQueue.addBulk(jobs); // add all jobs as bulk
+    await evalQueue?.addBulk(jobs); // add all jobs as bulk
 
-  res.json({
-    status: "success",
+    res.json({
+      status: "success",
+    });
   });
-});
 
 router.use("/emojis", emojis);
 

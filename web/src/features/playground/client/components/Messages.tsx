@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "@/src/features/playground/client/context";
-import { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
+import type { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
 
 import { GenerationOutput } from "./GenerationOutput";
 import { ChatMessages } from "@/src/features/playground/client/components/ChatMessages";
@@ -14,7 +14,6 @@ export type MessagesContext = {
     key: Key,
     value: ChatMessageWithId[Key],
   ) => void;
-  updatePromptVariables: () => void;
 };
 
 export const Messages: React.FC<MessagesContext> = (props) => {
@@ -34,7 +33,7 @@ const SubmitButton = () => {
   return (
     <Button
       variant="default"
-      className="w-full space-x-2 py-6"
+      className="h-[88px] w-full space-x-2 py-3"
       onClick={() => {
         handleSubmit().catch((err) => console.error(err));
       }}

@@ -10,21 +10,13 @@ export function truncate(str: string, n: number = 16) {
   return str;
 }
 
-export function extractVariables(handlebarString: string): string[] {
-  // Regular expression to match Mustache variables
-  const regex: RegExp = /\{\{(.*?)\}\}/g;
+export function extractVariables(mustacheString: string): string[] {
+  const mustacheRegex = /\{\{(.*?)\}\}/g;
+  const uniqueVariables = new Set<string>();
 
-  let match: RegExpExecArray | null;
-  const variables: string[] = [];
-
-  // Iterate over all matches
-  while ((match = regex.exec(handlebarString)) !== null) {
-    // Push each variable to the array if it's not already present
-    const variable = match[1];
-    if (variable && !variables.includes(variable)) {
-      variables.push(variable);
-    }
+  for (const match of mustacheString.matchAll(mustacheRegex)) {
+    uniqueVariables.add(match[1]);
   }
 
-  return variables;
+  return Array.from(uniqueVariables);
 }
