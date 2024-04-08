@@ -140,6 +140,7 @@ export const PromptDetail = () => {
             <div className="flex flex-row items-center gap-3 p-2.5">
               Tags
               <TagPromptDetailsPopover
+                key={prompt.id}
                 projectId={projectId}
                 promptName={prompt.name}
                 tags={prompt.tags}

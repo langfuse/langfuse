@@ -21,9 +21,8 @@ export const DetailPageNav = (props: {
 
   const posthog = usePostHog();
 
-  const currentId = encodeURIComponent(props.currentId);
   const router = useRouter();
-  const currentIndex = ids.findIndex((id) => id === currentId);
+  const currentIndex = ids.findIndex((id) => id === props.currentId);
   const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
   const nextPageId =
     currentIndex < ids.length - 1 ? ids[currentIndex + 1] : undefined;
@@ -42,9 +41,9 @@ export const DetailPageNav = (props: {
       }
 
       if (event.key === "k" && previousPageId) {
-        void router.push(props.path(previousPageId));
+        void router.push(props.path(encodeURIComponent(previousPageId)));
       } else if (event.key === "j" && nextPageId) {
-        void router.push(props.path(nextPageId));
+        void router.push(props.path(encodeURIComponent(nextPageId)));
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -65,7 +64,9 @@ export const DetailPageNav = (props: {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
                   );
-                  void router.push(props.path(previousPageId));
+                  void router.push(
+                    props.path(encodeURIComponent(previousPageId)),
+                  );
                 }
               }}
               className="mr-2"
@@ -92,7 +93,7 @@ export const DetailPageNav = (props: {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
                   );
-                  void router.push(props.path(nextPageId));
+                  void router.push(props.path(encodeURIComponent(nextPageId)));
                 }
               }}
             >

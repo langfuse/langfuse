@@ -401,7 +401,6 @@ export const promptRouter = createTRPCRouter({
             },
           },
         });
-        return updatedPrompts;
       } catch (error) {
         console.error(error);
       }

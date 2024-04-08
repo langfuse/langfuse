@@ -2,7 +2,7 @@ import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
 import TagCreateItem from "@/src/features/tag/components/TagCreateItem";
 import { TagInput } from "@/src/features/tag/components/TagInput";
 import TagList from "@/src/features/tag/components/TagList";
-import useTagManager from "@/src/features/tag/hooks/useTagManager";
+import { useTagManager } from "@/src/features/tag/hooks/useTagManager";
 import {
   Popover,
   PopoverTrigger,
