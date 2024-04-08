@@ -146,7 +146,7 @@ jobs:
           pnpm run db:seed
 
       - name: Build
-        run: pnpm run build
+        run: pnpm --filter=worker run build
 
       - name: run tests
         run: pnpm --filter=worker run test
