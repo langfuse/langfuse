@@ -2,6 +2,9 @@ import pino from "pino";
 import { env } from "./env";
 
 export const getLogger = (env: "development" | "production" | "test") => {
+  if (env === "production") {
+    return pino();
+  }
   return pino({
     transport: {
       target: "pino-pretty",
