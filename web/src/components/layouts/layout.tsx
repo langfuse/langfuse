@@ -502,6 +502,7 @@ const MainNavigation: React.FC<{
                   "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                 )}
                 onClick={onNavitemClick}
+                target={item.newTab ? "_blank" : undefined}
               >
                 {item.icon && (
                   <item.icon
@@ -580,6 +581,7 @@ const MainNavigation: React.FC<{
                                 : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
                               "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
                             )}
+                            target={subItem.newTab ? "_blank" : undefined}
                           >
                             {subItem.name}
                             {subItem.label && (
