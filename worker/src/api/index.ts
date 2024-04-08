@@ -14,7 +14,7 @@ const router = express.Router();
 
 router.use(
   basicAuth({
-    users: { admin: env.WORKER_PASSWORD },
+    users: { admin: env.LANGFUSE_WORKER_PASSWORD },
   })
 );
 
