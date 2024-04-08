@@ -49,38 +49,33 @@ export function PromptTable() {
 
   const columnHelper = createColumnHelper<PromptTableRow>();
   const promptColumns = [
-    columnHelper.accessor(
-      "name",
-      {
-        header: "Name",
-        cell: (row) => {
-          const name = row.getValue();
-          return name ? (
-            <TableLink
-              path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
-              value={name}
-              truncateAt={50}
-            />
-          ) : undefined;
-        },
+    columnHelper.accessor("name", {
+      header: "Name",
+      cell: (row) => {
+        const name = row.getValue();
+        return name ? (
+          <TableLink
+            path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
+            value={name}
+            truncateAt={50}
+          />
+        ) : undefined;
       },
-      {
-        accessorKey: "version",
-        header: "Latest Version",
-        cell: ({ row }) => {
-          const version = row.getValue("version");
-          return version;
-        },
+    }),
+    columnHelper.accessor("version", {
+      header: "Latest Version",
+      cell: ({ row }) => {
+        const version = row.getValue("version");
+        return version;
       },
-      {
-        accessorKey: "createdAt",
-        header: "Latest Version Created At",
-        cell: (row) => {
-          const createdAt = row.getValue();
-          return createdAt.toLocaleString();
-        },
+    }),
+    columnHelper.accessor("createdAt", {
+      header: "Latest Version Created At",
+      cell: (row) => {
+        const createdAt = row.getValue();
+        return createdAt.toLocaleString();
       },
-    ),
+    }),
     columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
       cell: (row) => {
@@ -102,7 +97,7 @@ export function PromptTable() {
       header: "Actions",
       cell: (row) => {
         const name = row.row.original.name;
-        return <DeletePrompt projectId={props.projectId} promptName={name} />;
+        return <DeletePrompt projectId={projectId} promptName={name} />;
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
