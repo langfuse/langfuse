@@ -133,7 +133,7 @@ export const createEvalJobs = async ({
         );
         await kyselyPrisma.$kysely
           .updateTable("job_executions")
-          .set("status", "CANCELLED")
+          .set("status", sql`'CANCELLED'::"JobExecutionStatus"`)
           .where("id", "=", existingJob[0].id)
           .execute();
       }

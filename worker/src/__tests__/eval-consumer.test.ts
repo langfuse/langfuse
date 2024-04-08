@@ -185,6 +185,6 @@ describe("create eval jobs", () => {
     expect(jobs.length).toBe(1);
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
-    expect(jobs[0].status.toString()).toBe("PENDING");
+    expect(jobs[0].status.toString()).toBe("CANCELLED");
   });
 });
