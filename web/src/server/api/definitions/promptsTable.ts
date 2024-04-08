@@ -1,3 +1,4 @@
+import { PromptType } from "@/src/features/prompts/server/validation";
 import {
   ColumnDefinition,
   OptionsDefinition,
@@ -21,6 +22,13 @@ export const promptsTableCols: ColumnDefinition[] = [
     id: "createdAt",
     type: "datetime",
     internal: 'p."created_at"',
+  },
+  {
+    name: "Type",
+    id: "type",
+    type: "stringOptions",
+    internal: 'p."type"',
+    options: Object.values(PromptType).map((value) => ({ value })),
   },
   {
     name: "Tags",
