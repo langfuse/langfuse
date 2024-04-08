@@ -115,7 +115,10 @@ export default async function handler(
     );
 
     // send out REST requests to worker for all trace types
-    await sendToWorkerIfConfigured(result.results, authCheck.scope.projectId);
+    await sendToWorkerIfEnvironmentConfigured(
+      result.results,
+      authCheck.scope.projectId,
+    );
 
     handleBatchResult(
       [...validationErrors, ...result.errors],
@@ -416,32 +419,38 @@ export function cleanEvent(obj: unknown): unknown {
   }
 }
 
-export const sendToWorkerIfConfigured = async (
+export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
-  if (env.WORKER_HOST && env.WORKER_PASSWORD) {
-    const traceEvents = batchResults
-      .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-      .map((result) =>
-        result.result &&
-        typeof result.result === "object" &&
-        "id" in result.result
-          ? // ingestion API only gets traces for one projectId
-            { traceId: result.result.id, projectId: projectId }
-          : null,
-      )
-      .filter(isNotNullOrUndefined);
+  try {
+    if (env.LANGFUSE_WORKER_HOST && env.LANGFUSE_WORKER_PASSWORD) {
+      const traceEvents = batchResults
+        .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
+        .map((result) =>
+          result.result &&
+          typeof result.result === "object" &&
+          "id" in result.result
+            ? // ingestion API only gets traces for one projectId
+              { traceId: result.result.id, projectId: projectId }
+            : null,
+        )
+        .filter(isNotNullOrUndefined);
 
-    await fetch(`${env.WORKER_HOST}/api/events`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization:
-          "Basic " +
-          Buffer.from("admin" + ":" + env.WORKER_PASSWORD).toString("base64"),
-      },
-      body: JSON.stringify(traceEvents),
-    });
+      await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            "Basic " +
+            Buffer.from("admin" + ":" + env.LANGFUSE_WORKER_PASSWORD).toString(
+              "base64",
+            ),
+        },
+        body: JSON.stringify(traceEvents),
+      });
+    }
+  } catch (error) {
+    console.error("Error sending events to worker", error);
   }
 };
