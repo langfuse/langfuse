@@ -1,5 +1,6 @@
 import { type FilterState, type TableName } from "@/src/features/filters/types";
 import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
 import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
@@ -103,6 +104,7 @@ const tableCols = {
   sessions: sessionsViewCols,
   scores: scoresTableCols,
   dashboard: [{ id: "traceName", name: "traceName" }],
+  prompts: promptsTableCols,
 };
 
 function getColumnId(table: TableName, name: string): string | undefined {

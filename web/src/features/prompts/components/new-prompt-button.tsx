@@ -136,6 +136,8 @@ export const NewPromptForm = (props: {
 
   const prompts = api.prompts.all.useQuery({
     projectId: props.projectId,
+    filter: [],
+    orderBy: { column: "createdAt", order: "DESC" },
   });
 
   const utils = api.useUtils();
@@ -146,8 +148,8 @@ export const NewPromptForm = (props: {
   });
 
   const comboboxOptions =
-    prompts.data
-      ?.map((prompt) => {
+    prompts.data?.prompts
+      .map((prompt) => {
         return { label: prompt.name, value: prompt.name };
       })
       .filter(

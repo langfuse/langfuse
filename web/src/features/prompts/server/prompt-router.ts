@@ -5,10 +5,19 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Prompt, type PrismaClient } from "@langfuse/shared/src/db";
-import { jsonSchema } from "@/src/utils/zod";
+import {
+  type Prompt,
+  type PrismaClient,
+  Prisma,
+} from "@langfuse/shared/src/db";
+import { jsonSchema, paginationZod } from "@/src/utils/zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
+import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -19,13 +28,16 @@ export const CreatePrompt = z.object({
   tags: z.array(z.string()),
 });
 
+const PromptFilterOptions = z.object({
+  projectId: z.string(), // Required for protectedProjectProcedure
+  filter: z.array(singleFilter),
+  orderBy: orderBy,
+  ...paginationZod,
+});
+
 export const promptRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-      }),
-    )
+    .input(PromptFilterOptions)
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -33,28 +45,51 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
-        SELECT 
-          id, 
-          name, 
-          version, 
-          project_id AS "projectId", 
-          prompt, 
-          updated_at AS "updatedAt", 
-          created_at AS "createdAt", 
-          is_active AS "isActive",
-          tags
-        FROM prompts
-        WHERE (name, version) IN (
-          SELECT name, MAX(version)
-          FROM prompts
-          WHERE "project_id" = ${input.projectId}
-          GROUP BY name
-        )
-        AND "project_id" = ${input.projectId}
-        ORDER BY name ASC`;
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        promptsTableCols,
+        "prompts",
+      );
 
-      const promptCountQuery = DB.selectFrom("observations")
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        promptsTableCols,
+      );
+
+      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>(
+        generatePromptQuery(
+          Prisma.sql` 
+          p.id,
+          p.name,
+          p.version,
+          p.project_id as "projectId",
+          p.prompt,
+          p.updated_at as "updatedAt",
+          p.created_at as "createdAt",
+          p.is_active as "isActive",
+          p.tags`,
+          input.projectId,
+          filterCondition,
+          orderByCondition,
+          input.limit,
+          input.page,
+        ),
+      );
+
+      const promptCount = await ctx.prisma.$queryRaw<
+        Array<{ totalCount: bigint }>
+      >(
+        generatePromptQuery(
+          Prisma.sql` count(*) AS "totalCount"`,
+          input.projectId,
+          filterCondition,
+          Prisma.empty,
+          1, // limit
+          0, // page
+        ),
+      );
+
+      const observationCountQuery = DB.selectFrom("observations")
         .fullJoin("prompts", "prompts.id", "observations.prompt_id")
         .select(({ fn }) => [
           "prompts.name",
@@ -64,7 +99,7 @@ export const promptRouter = createTRPCRouter({
         .where("observations.project_id", "=", input.projectId)
         .groupBy("prompts.name");
 
-      const compiledQuery = promptCountQuery.compile();
+      const compiledQuery = observationCountQuery.compile();
 
       const promptCounts = await ctx.prisma.$queryRawUnsafe<
         Array<{
@@ -74,14 +109,18 @@ export const promptRouter = createTRPCRouter({
       >(compiledQuery.sql, ...compiledQuery.parameters);
 
       const joinedPromptsAndCounts = prompts.map((p) => {
-        const marchedCount = promptCounts.find((c) => c.name === p.name);
+        const matchedCount = promptCounts.find((c) => c.name === p.name);
         return {
           ...p,
-          observationCount: marchedCount?.count ?? 0,
+          observationCount: Number(matchedCount?.count ?? 0),
         };
       });
 
-      return joinedPromptsAndCounts;
+      return {
+        prompts: joinedPromptsAndCounts,
+        totalCount:
+          promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
+      };
     }),
   byId: protectedProjectProcedure
     .input(
@@ -496,4 +535,29 @@ export const createPrompt = async ({
   const [createdPrompt] = await prisma.$transaction(create);
 
   return createdPrompt;
+};
+
+const generatePromptQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+) => {
+  return Prisma.sql`
+  SELECT
+   ${select}
+   FROM prompts p
+   WHERE (name, version) IN (
+    SELECT name, MAX(version)
+     FROM prompts
+     WHERE "project_id" = ${projectId}
+          GROUP BY name
+        )
+    AND "project_id" = ${projectId}
+  ${filterCondition}
+  ${orderCondition}
+  LIMIT ${limit} OFFSET ${page * limit};
+`;
 };

@@ -39,11 +39,12 @@ export function TagPromptPopver({
       utils.prompts.all.setData(
         promptsFilter,
         (oldQueryData: RouterOutput["prompts"]["all"] | undefined) => {
-          return oldQueryData
-            ? oldQueryData.map((prompt) => {
+          const updatedPrompts = oldQueryData
+            ? oldQueryData.prompts.map((prompt) => {
                 return prompt.name === name ? { ...prompt, tags } : prompt;
               })
             : [];
+          return { prompts: updatedPrompts, totalCount: updatedPrompts.length };
         },
       );
       setIsLoading(false);
