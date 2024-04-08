@@ -14,7 +14,7 @@ import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
-  TraceOptions,
+  type TraceOptions,
   tracesTableColsWithOptions,
 } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";

@@ -1,22 +1,16 @@
 import { z } from "zod";
 
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/validation";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Prompt, type PrismaClient } from "@langfuse/shared/src/db";
-import { jsonSchema } from "@/src/utils/zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
+import { type Prompt } from "@langfuse/shared/src/db";
 
-export const CreatePrompt = z.object({
-  projectId: z.string(),
-  name: z.string(),
-  isActive: z.boolean(),
-  prompt: z.string(),
-  config: jsonSchema,
-});
+import { createPrompt } from "./createPrompt";
 
 export const promptRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -36,7 +30,8 @@ export const promptRouter = createTRPCRouter({
         SELECT 
           id, 
           name, 
-          version, 
+          version,
+          type, 
           project_id AS "projectId", 
           prompt, 
           updated_at AS "updatedAt", 
@@ -102,7 +97,7 @@ export const promptRouter = createTRPCRouter({
       });
     }),
   create: protectedProjectProcedure
-    .input(CreatePrompt)
+    .input(CreatePromptTRPCSchema)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoAccess({
@@ -112,13 +107,9 @@ export const promptRouter = createTRPCRouter({
         });
 
         const prompt = await createPrompt({
-          projectId: input.projectId,
-          name: input.name,
-          prompt: input.prompt,
-          isActive: input.isActive,
-          createdBy: ctx.session.user.id,
-          config: jsonSchema.parse(input.config),
+          ...input,
           prisma: ctx.prisma,
+          createdBy: ctx.session.user.id,
         });
 
         if (!prompt) {
@@ -349,68 +340,3 @@ export const promptRouter = createTRPCRouter({
       return joinedPromptAndUsers;
     }),
 });
-
-export const createPrompt = async ({
-  projectId,
-  name,
-  prompt,
-  isActive = true,
-  createdBy,
-  config,
-  prisma,
-}: {
-  projectId: string;
-  name: string;
-  prompt: string;
-  isActive?: boolean;
-  createdBy: string;
-  config: z.infer<typeof jsonSchema>;
-  prisma: PrismaClient;
-}) => {
-  const latestPrompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: name,
-    },
-    orderBy: [{ version: "desc" }],
-  });
-
-  const latestActivePrompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: name,
-      isActive: true,
-    },
-    orderBy: [{ version: "desc" }],
-  });
-
-  const create = [
-    prisma.prompt.create({
-      data: {
-        prompt: prompt,
-        name: name,
-        version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
-        isActive: isActive,
-        project: { connect: { id: projectId } },
-        createdBy: createdBy,
-        config: jsonSchema.parse(config),
-      },
-    }),
-  ];
-  if (latestActivePrompt && isActive)
-    // If we're creating a new active prompt, we need to deactivate the old one
-    create.push(
-      prisma.prompt.update({
-        where: {
-          id: latestActivePrompt.id,
-        },
-        data: {
-          isActive: false,
-        },
-      }),
-    );
-
-  const [createdPrompt] = await prisma.$transaction(create);
-
-  return createdPrompt;
-};
