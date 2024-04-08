@@ -16,6 +16,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 type RowData = {
   name: string;
@@ -41,7 +42,14 @@ export function PromptTable(props: { projectId: string }) {
     column: "createdAt",
     order: "DESC",
   });
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
   const prompts = api.prompts.all.useQuery({
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     projectId: props.projectId,
     filter: filterState,
     orderBy: orderByState,
@@ -59,11 +67,13 @@ export function PromptTable(props: { projectId: string }) {
     },
   );
 
+  const totalCount = prompts.data?.totalCount ?? 0;
+
   useEffect(() => {
     if (prompts.isSuccess) {
       setDetailPageList(
         "prompts",
-        prompts.data.map((t) => encodeURIComponent(t.name)),
+        prompts.data.prompts.map((t) => encodeURIComponent(t.name)),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,7 +135,6 @@ export function PromptTable(props: { projectId: string }) {
           />
         );
       },
-      enableSorting: true,
     },
     {
       accessorKey: "tags",
@@ -169,7 +178,7 @@ export function PromptTable(props: { projectId: string }) {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["prompts"]["all"][number],
+    item: RouterOutput["prompts"]["all"]["prompts"][number],
   ): RowData => {
     return {
       id: item.id,
@@ -206,11 +215,16 @@ export function PromptTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: prompts.data.map((t) => convertToTableRow(t)),
+                  data: prompts.data.prompts.map((t) => convertToTableRow(t)),
                 }
         }
         orderBy={orderByState}
         setOrderBy={setOrderByState}
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
       <CreatePromptDialog projectId={props.projectId} title="Create Prompt">
         <Button
