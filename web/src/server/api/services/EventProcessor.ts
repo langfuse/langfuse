@@ -1,7 +1,6 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { checkApiAccessScope } from "@/src/server/api/routers/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import {
   type legacyObservationCreateEvent,
   eventTypes,
@@ -28,6 +27,7 @@ import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
+import { ForbiddenError } from "@/src/server/errors";
 
 export interface EventProcessor {
   process(
@@ -369,7 +369,7 @@ export class ObservationProcessor implements EventProcessor {
 
   async process(apiScope: ApiAccessScope): Promise<Observation> {
     if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError("Access denied for observation creation");
+      throw new ForbiddenError("Access denied for observation creation");
 
     const existingObservation = this.event.body.id
       ? await prisma.observation.findFirst({
@@ -381,7 +381,7 @@ export class ObservationProcessor implements EventProcessor {
       existingObservation &&
       existingObservation.projectId !== apiScope.projectId
     ) {
-      throw new AuthenticationError(
+      throw new ForbiddenError(
         `Access denied for observation creation ${existingObservation.projectId} `,
       );
     }
@@ -397,6 +397,109 @@ export class ObservationProcessor implements EventProcessor {
       create: obs.create,
       update: obs.update,
     });
+  }
+}
+export class TraceProcessor implements EventProcessor {
+  event: z.infer<typeof traceEvent>;
+
+  constructor(event: z.infer<typeof traceEvent>) {
+    this.event = event;
+  }
+
+  async process(
+    apiScope: ApiAccessScope,
+  ): Promise<Trace | Observation | Score> {
+    const { body } = this.event;
+
+    if (apiScope.accessLevel !== "all")
+      throw new ForbiddenError(
+        `Access denied for trace creation, ${apiScope.accessLevel}`,
+      );
+
+    const internalId = body.id ?? v4();
+
+    console.log(
+      "Trying to create trace, project ",
+      apiScope.projectId,
+      ", body:",
+      body,
+    );
+
+    const existingTrace = await prisma.trace.findFirst({
+      where: {
+        id: internalId,
+      },
+    });
+
+    if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
+      throw new ForbiddenError(
+        `Access denied for trace creation ${existingTrace.projectId} `,
+      );
+    }
+
+    const mergedMetadata = mergeJson(
+      existingTrace?.metadata
+        ? jsonSchema.parse(existingTrace.metadata)
+        : undefined,
+      body.metadata ?? undefined,
+    );
+
+    if (body.sessionId) {
+      await prisma.traceSession.upsert({
+        where: {
+          id_projectId: {
+            id: body.sessionId,
+            projectId: apiScope.projectId,
+          },
+        },
+        create: {
+          id: body.sessionId,
+          projectId: apiScope.projectId,
+        },
+        update: {},
+      });
+    }
+
+    // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
+    // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
+    const upsertedTrace = await prisma.trace.upsert({
+      where: {
+        id: internalId,
+      },
+      create: {
+        id: internalId,
+        timestamp: this.event.body.timestamp
+          ? new Date(this.event.body.timestamp)
+          : undefined,
+        name: body.name ?? undefined,
+        userId: body.userId ?? undefined,
+        input: body.input ?? undefined,
+        output: body.output ?? undefined,
+        metadata: mergedMetadata ?? body.metadata ?? undefined,
+        release: body.release ?? undefined,
+        version: body.version ?? undefined,
+        sessionId: body.sessionId ?? undefined,
+        public: body.public ?? undefined,
+        projectId: apiScope.projectId,
+        tags: body.tags ?? undefined,
+      },
+      update: {
+        name: body.name ?? undefined,
+        timestamp: this.event.body.timestamp
+          ? new Date(this.event.body.timestamp)
+          : undefined,
+        userId: body.userId ?? undefined,
+        input: body.input ?? undefined,
+        output: body.output ?? undefined,
+        metadata: mergedMetadata ?? body.metadata ?? undefined,
+        release: body.release ?? undefined,
+        version: body.version ?? undefined,
+        sessionId: body.sessionId ?? undefined,
+        public: body.public ?? undefined,
+        tags: body.tags ?? undefined,
+      },
+    });
+    return upsertedTrace;
   }
 }
 export class ScoreProcessor implements EventProcessor {
@@ -422,7 +525,7 @@ export class ScoreProcessor implements EventProcessor {
       "score",
     );
     if (!accessCheck)
-      throw new AuthenticationError("Access denied for score creation");
+      throw new ForbiddenError("Access denied for score creation");
 
     const id = body.id ?? v4();
 

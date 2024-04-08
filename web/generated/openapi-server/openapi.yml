@@ -2412,6 +2412,50 @@ components:
         - name
     CreatePromptRequest:
       title: CreatePromptRequest
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - chat
+            - $ref: '#/components/schemas/CreateChatPromptRequest'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - text
+            - $ref: '#/components/schemas/CreateTextPromptRequest'
+          required:
+            - type
+    CreateChatPromptRequest:
+      title: CreateChatPromptRequest
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+          description: Should the prompt be promoted to production immediately?
+        prompt:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        config:
+          nullable: true
+      required:
+        - name
+        - isActive
+        - prompt
+    CreateTextPromptRequest:
+      title: CreateTextPromptRequest
       type: object
       properties:
         name:
@@ -2429,20 +2473,75 @@ components:
         - prompt
     Prompt:
       title: Prompt
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - chat
+            - $ref: '#/components/schemas/ChatPrompt'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - text
+            - $ref: '#/components/schemas/TextPrompt'
+          required:
+            - type
+    BasePrompt:
+      title: BasePrompt
       type: object
       properties:
         name:
           type: string
         version:
           type: integer
-        prompt:
-          type: string
         config: {}
       required:
         - name
         - version
-        - prompt
         - config
+    ChatMessage:
+      title: ChatMessage
+      type: object
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+      required:
+        - role
+        - content
+    TextPrompt:
+      title: TextPrompt
+      type: object
+      properties:
+        prompt:
+          type: string
+      required:
+        - prompt
+      allOf:
+        - $ref: '#/components/schemas/BasePrompt'
+    ChatPrompt:
+      title: ChatPrompt
+      type: object
+      properties:
+        prompt:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+      required:
+        - prompt
+      allOf:
+        - $ref: '#/components/schemas/BasePrompt'
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
