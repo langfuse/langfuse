@@ -165,7 +165,7 @@ describe("create eval jobs", () => {
 
     await createEvalJobs({ data: payload });
 
-    // update the trace to deslect the trace
+    // update the trace to deselect the trace
     await kyselyPrisma.$kysely
       .updateTable("traces")
       .set("user_id", "b")
