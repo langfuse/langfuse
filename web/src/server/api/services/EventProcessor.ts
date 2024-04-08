@@ -1,5 +1,5 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
-import { checkApiAccessScope } from "@/src/server/api/routers/apiScope";
+import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
   type legacyObservationCreateEvent,
