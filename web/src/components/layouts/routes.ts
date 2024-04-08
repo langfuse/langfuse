@@ -9,6 +9,7 @@ import {
   Settings,
   UsersIcon,
   PenSquareIcon,
+  LibraryBig,
   TerminalIcon,
 } from "lucide-react";
 
@@ -81,6 +82,12 @@ export const ROUTES: Route[] = [
     name: "Settings",
     pathname: "/project/[projectId]/settings",
     icon: Settings,
+    bottom: true,
+  },
+  {
+    name: "Docs",
+    pathname: "https://docs.langfuse.com",
+    icon: LibraryBig,
     bottom: true,
   },
   {
