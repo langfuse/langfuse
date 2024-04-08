@@ -8,9 +8,22 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { DB } from "@/src/server/db";
-import { type Prompt } from "@langfuse/shared/src/db";
+import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
 import { createPrompt } from "./createPrompt";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import { singleFilter } from "@/src/server/api/interfaces/filters";
+import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { paginationZod } from "@/src/utils/zod";
+import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
+
+const PromptFilterOptions = z.object({
+  projectId: z.string(), // Required for protectedProjectProcedure
+  filter: z.array(singleFilter),
+  orderBy: orderBy,
+  ...paginationZod,
+});
 
 export const promptRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -22,30 +35,15 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
-        SELECT 
-          id, 
-          name, 
-          version,
-          type, 
-          project_id AS "projectId", 
-          prompt, 
-          updated_at AS "updatedAt", 
-          created_at AS "createdAt", 
-          is_active AS "isActive"
-        FROM prompts
-        WHERE (name, version) IN (
-          SELECT name, MAX(version)
-          FROM prompts
-          WHERE "project_id" = ${input.projectId}
-          GROUP BY name
-        )
-        AND "project_id" = ${input.projectId}
-        ORDER BY name ASC`;
-
       const orderByCondition = orderByToPrismaSql(
         input.orderBy,
         promptsTableCols,
+      );
+
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        promptsTableCols,
+        "prompts",
       );
 
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>(
@@ -455,74 +453,6 @@ export const promptRouter = createTRPCRouter({
       return joinedPromptAndUsers;
     }),
 });
-
-export const createPrompt = async ({
-  projectId,
-  name,
-  prompt,
-  isActive = true,
-  createdBy,
-  tags,
-  config,
-  prisma,
-}: {
-  projectId: string;
-  name: string;
-  prompt: string;
-  isActive?: boolean;
-  createdBy: string;
-  tags: string[];
-  config: z.infer<typeof jsonSchema>;
-  prisma: PrismaClient;
-}) => {
-  const latestPrompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: name,
-    },
-    orderBy: [{ version: "desc" }],
-  });
-
-  const latestActivePrompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: name,
-      isActive: true,
-    },
-    orderBy: [{ version: "desc" }],
-  });
-
-  const create = [
-    prisma.prompt.create({
-      data: {
-        prompt: prompt,
-        name: name,
-        version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
-        isActive: isActive,
-        project: { connect: { id: projectId } },
-        createdBy: createdBy,
-        tags: tags,
-        config: jsonSchema.parse(config),
-      },
-    }),
-  ];
-  if (latestActivePrompt && isActive)
-    // If we're creating a new active prompt, we need to deactivate the old one
-    create.push(
-      prisma.prompt.update({
-        where: {
-          id: latestActivePrompt.id,
-        },
-        data: {
-          isActive: false,
-        },
-      }),
-    );
-
-  const [createdPrompt] = await prisma.$transaction(create);
-
-  return createdPrompt;
-};
 
 const generatePromptQuery = (
   select: Prisma.Sql,
