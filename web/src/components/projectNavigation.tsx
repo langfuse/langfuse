@@ -7,7 +7,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { cn } from "@/src/utils/tailwind";
-import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 
 interface Project {

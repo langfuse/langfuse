@@ -43,7 +43,7 @@ export const PromptVariableComponent: React.FC<{
         onClick={handleDeleteVariable}
         className="p-0"
       >
-        <Trash2Icon size={16} />
+        {!isUsed && <Trash2Icon size={16} />}
       </Button>
     </div>
   );

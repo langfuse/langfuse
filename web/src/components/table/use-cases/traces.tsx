@@ -10,17 +10,9 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { type FilterState } from "@/src/features/filters/types";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import {
-  TraceOptions,
-  tracesTableColsWithOptions,
-} from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type ObservationLevel, type Score } from "@langfuse/shared/src/db";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
@@ -37,6 +29,15 @@ import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
 import { IOCell } from "./IOCell";
 import { setSmallPaginationIfColumnsVisible } from "@/src/features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import {
+  type FilterState,
+  type TraceOptions,
+  tracesTableColsWithOptions,
+  type ObservationLevel,
+  type Score,
+} from "@langfuse/shared";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -124,6 +125,7 @@ export default function TracesTable({
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
+    returnIO: false,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
 
@@ -650,22 +652,8 @@ const TracesIOCell = ({
   traceId: string;
   io: "input" | "output";
 }) => {
-  const trace = api.traces.all.useQuery(
-    {
-      projectId: projectId,
-      filter: [
-        {
-          column: "id",
-          type: "string",
-          operator: "=",
-          value: traceId,
-        },
-      ],
-      searchQuery: null,
-      orderBy: null,
-      page: 0,
-      limit: 1,
-    },
+  const trace = api.traces.byId.useQuery(
+    { traceId: traceId },
     {
       enabled: typeof traceId === "string",
       trpc: {
@@ -678,11 +666,7 @@ const TracesIOCell = ({
   return (
     <IOCell
       isLoading={trace.isLoading}
-      data={
-        io === "output"
-          ? trace.data?.traces[0]?.output
-          : trace.data?.traces[0]?.input
-      }
+      data={io === "output" ? trace.data?.output : trace.data?.input}
     />
   );
 };

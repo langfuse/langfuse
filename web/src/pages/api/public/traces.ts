@@ -17,8 +17,7 @@ import {
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { tracesTableCols, orderBy } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetTracesSchema = z.object({
@@ -63,10 +62,11 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      if (authCheck.scope.accessLevel !== "all")
-        return res.status(403).json({
-          message: "Access denied",
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message: "Access denied - need to use basic auth with secret key",
         });
+      }
 
       const body = TraceBody.parse(req.body);
 
@@ -84,8 +84,7 @@ export default async function handler(
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
 

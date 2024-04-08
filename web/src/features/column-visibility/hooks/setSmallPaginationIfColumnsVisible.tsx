@@ -1,7 +1,6 @@
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import React from "react";
-import { TracesTableRow } from "@/src/components/table/use-cases/traces";
-import { GenerationsTableRow } from "../../../components/table/use-cases/generations";
+import type React from "react";
+import type { TracesTableRow } from "@/src/components/table/use-cases/traces";
+import type { GenerationsTableRow } from "../../../components/table/use-cases/generations";
 
 export type TableColumn =
   | (keyof GenerationsTableRow)[]

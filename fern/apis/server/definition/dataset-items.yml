@@ -24,7 +24,7 @@ types:
   CreateDatasetItemRequest:
     properties:
       datasetName: string
-      input: unknown
+      input: optional<unknown>
       expectedOutput: optional<unknown>
       id:
         type: optional<string>

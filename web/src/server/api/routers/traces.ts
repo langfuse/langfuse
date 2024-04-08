@@ -12,18 +12,15 @@ import {
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
-import {
-  type TraceOptions,
-  tracesTableCols,
-} from "@/src/server/api/definitions/tracesTable";
+import { TraceOptions, singleFilter } from "@langfuse/shared";
+import { tracesTableCols } from "@langfuse/shared";
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
-} from "@/src/features/filters/server/filterToPrisma";
+} from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
@@ -34,6 +31,7 @@ const TraceFilterOptions = z.object({
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
+  returnIO: z.boolean().default(true),
   ...paginationZod,
 });
 
@@ -48,6 +46,7 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const returnIO = input.returnIO;
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         tracesTableCols,
@@ -155,7 +154,17 @@ export const traceRouter = createTRPCRouter({
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
-          return { ...trace, scores: filteredScores };
+          const { input, output, ...rest } = trace;
+          if (returnIO) {
+            return { ...rest, input, output, scores: filteredScores };
+          } else {
+            return {
+              ...rest,
+              input: undefined,
+              output: undefined,
+              scores: filteredScores,
+            };
+          }
         }),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
@@ -209,7 +218,11 @@ export const traceRouter = createTRPCRouter({
       return res;
     }),
   byId: protectedGetTraceProcedure
-    .input(z.object({ traceId: z.string() }))
+    .input(
+      z.object({
+        traceId: z.string(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
