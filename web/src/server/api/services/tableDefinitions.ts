@@ -188,7 +188,6 @@ export const tableDefinitions: TableDefinitions = {
         internal: 'o."end_time"',
       },
       duration,
-      traceTags,
     ],
   },
   traces_metrics: {
