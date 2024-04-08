@@ -41,6 +41,19 @@ describe("/api/public/observations API Endpoint", () => {
       },
     });
 
+    const prompt = await prisma.prompt.create({
+      data: {
+        name: "prompt-name",
+        prompt: "prompt-one",
+        isActive: false,
+        version: 1,
+        project: {
+          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+        },
+        createdBy: "user-1",
+      },
+    });
+
     await prisma.observation.create({
       data: {
         id: uuidv4(),
@@ -62,6 +75,9 @@ describe("/api/public/observations API Endpoint", () => {
         },
         internalModel: "gpt-3.5-turbo",
         unit: ModelUsageUnit.Tokens,
+        prompt: {
+          connect: { id: prompt.id },
+        },
       },
     });
 
@@ -95,6 +111,7 @@ describe("/api/public/observations API Endpoint", () => {
     expect(
       fetchedObservations.body.data[0]?.calculatedTotalCost,
     ).toBeGreaterThan(0);
+    expect(fetchedObservations.body.data[0]?.promptId).toBe(prompt.id);
   });
   it("should fetch all observations, filtered by generations", async () => {
     await pruneDatabase();
