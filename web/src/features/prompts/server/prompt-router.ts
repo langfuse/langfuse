@@ -54,6 +54,7 @@ export const promptRouter = createTRPCRouter({
           p.version,
           p.project_id as "projectId",
           p.prompt,
+          p.type,
           p.updated_at as "updatedAt",
           p.created_at as "createdAt",
           p.is_active as "isActive",
