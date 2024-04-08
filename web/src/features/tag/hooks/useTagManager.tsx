@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 type UseTagManagerProps = {
   initialTags: string[];
@@ -8,6 +8,10 @@ type UseTagManagerProps = {
 function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
   const [selectedTags, setSelectedTags] = useState(initialTags);
   const [inputValue, setInputValue] = useState("");
+
+  useEffect(() => {
+    setSelectedTags(initialTags);
+  }, [initialTags]);
 
   const availableTags = useMemo(
     () => allTags.filter((value) => !selectedTags.includes(value)),
