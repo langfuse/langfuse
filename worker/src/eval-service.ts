@@ -12,7 +12,6 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   tracesTableCols,
   variableMappingList,
-  observationsTableCols,
   evalObjects,
   TraceUpsertEvent,
 } from "@langfuse/shared";
@@ -22,8 +21,6 @@ import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
 import { sql } from "kysely";
 import Handlebars from "handlebars";
-import { JobExecution, EvalTemplate } from "@langfuse/shared";
-import lodash from "lodash";
 import logger from "./logger";
 
 // this function is used to determine which eval jobs to create for a given trace
@@ -36,7 +33,7 @@ export const createEvalJobs = async ({
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
-    .where("job_type", "=", "EVAL")
+    .where(sql.raw("job_type::text"), "=", "EVAL")
     .where("project_id", "=", data.data.projectId)
     .execute();
 
@@ -44,8 +41,10 @@ export const createEvalJobs = async ({
     logger.info("No evaluation jobs found for project", data.data.projectId);
     return;
   }
+  logger.info("Creating eval jobs for trace", data.data.traceId);
 
   for (const config of configs) {
+    logger.info("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     const condition = tableColumnsToSqlFilterAndPrefix(
@@ -64,12 +63,33 @@ export const createEvalJobs = async ({
 
     const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
 
+    const existingJob = await kyselyPrisma.$kysely
+      .selectFrom("job_executions")
+      .select("id")
+      .where("project_id", "=", data.data.projectId)
+      .where("job_configuration_id", "=", config.id)
+      .where("job_input_trace_id", "=", data.data.traceId)
+      .execute();
+
+    // if we have a match, and no execution exists already, we want to create a job execution
     if (traces.length > 0) {
       logger.info(
         `Eval job for config ${config.id} matched trace ids ${JSON.stringify(traces.map((t) => t.id))}`
       );
 
       const jobExecutionId = randomUUID();
+
+      if (existingJob.length > 0) {
+        logger.info(
+          `Eval job for config ${config.id} and trace ${data.data.traceId} already exists`
+        );
+        continue;
+      }
+
+      logger.info(
+        `Creating eval job for config ${config.id} and trace ${data.data.traceId}`
+      );
+
       await kyselyPrisma.$kysely
         .insertInto("job_executions")
         .values({
@@ -77,7 +97,7 @@ export const createEvalJobs = async ({
           project_id: data.data.projectId,
           job_configuration_id: config.id,
           job_input_trace_id: data.data.traceId,
-          status: "PENDING",
+          status: sql`'PENDING'::"JobExecutionStatus"`,
         })
         .execute();
 
@@ -103,6 +123,20 @@ export const createEvalJobs = async ({
           delay: config.delay, // milliseconds
         }
       );
+    } else {
+      // if we do not have a match, and execution exists, we mark the job as cancelled
+      // we do this, because a second trace event might 'deselect' a trace
+      logger.info(`Eval job for config ${config.id} did not match trace`);
+      if (existingJob.length > 0) {
+        logger.info(
+          `Cancelling eval job for config ${config.id} and trace ${data.data.traceId}`
+        );
+        await kyselyPrisma.$kysely
+          .updateTable("job_executions")
+          .set("status", "CANCELLED")
+          .where("id", "=", existingJob[0].id)
+          .execute();
+      }
     }
   }
 };

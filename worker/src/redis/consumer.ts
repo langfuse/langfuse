@@ -4,6 +4,7 @@ import { QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
 import { env } from "../env";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
+import logger from "../logger";
 
 export const redis = new Redis({
   host: env.REDIS_HOST,
@@ -22,12 +23,12 @@ export const evalJobCreator = new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
   QueueName.TraceUpsert,
   async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
     try {
-      console.log("Executing Evaluation Job", job.data);
+      logger.info("Executing Evaluation Job", job.data);
 
       await createEvalJobs({ data: job.data.payload });
       return true;
     } catch (e) {
-      console.error(
+      logger.error(
         `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`,
         e
       );
