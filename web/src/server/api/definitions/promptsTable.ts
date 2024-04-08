@@ -23,12 +23,6 @@ export const promptsTableCols: ColumnDefinition[] = [
     internal: 'p."created_at"',
   },
   {
-    name: "Number of Generations",
-    id: "numberOfGenerations",
-    type: "number",
-    internal: 'COUNT("observations"."id")', // we do not use the internal value (refer to prompt-router.ts L54)
-  },
-  {
     name: "Tags",
     id: "tags",
     type: "arrayOptions",
