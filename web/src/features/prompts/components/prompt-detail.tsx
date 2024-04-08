@@ -22,11 +22,6 @@ import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@langfuse/shared/src/db";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
-import { useQueryParam, NumberParam } from "use-query-params";
-import router from "next/router";
-import { JSONView } from "@/src/components/ui/code";
-import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { jsonSchema } from "@/src/utils/zod";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 
 import { PromptHistoryNode } from "./prompt-history";
@@ -64,7 +59,7 @@ export const PromptDetail = () => {
   }
 
   const filterOptions = api.prompts.filterOptions.useQuery({
-    projectId: props.projectId,
+    projectId: projectId,
   });
   const filterOptionTags = filterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
@@ -143,7 +138,7 @@ export const PromptDetail = () => {
             <div className="flex flex-row items-center gap-3 p-2.5">
               Tags
               <TagPromptDetailsPopover
-                projectId={props.projectId}
+                projectId={projectId}
                 promptName={prompt.name}
                 tags={prompt.tags}
                 availableTags={allTags}
