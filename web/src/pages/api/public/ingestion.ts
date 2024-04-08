@@ -18,15 +18,16 @@ import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import {
   SdkLogProcessor,
   type EventProcessor,
+  TraceProcessor,
 } from "../../../server/api/services/EventProcessor";
 import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
-import { TraceProcessor } from "../../../server/api/services/EventProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { env } from "@/src/env.mjs";
 import {
   ValidationError,
   MethodNotAllowedError,
@@ -41,6 +42,12 @@ export const config = {
       sizeLimit: "4.5mb",
     },
   },
+};
+
+type BatchResult = {
+  result: unknown;
+  id: string;
+  type: string;
 };
 
 export default async function handler(
@@ -107,6 +114,12 @@ export default async function handler(
       authCheck,
     );
 
+    // send out REST requests to worker for all trace types
+    await sendToWorkerIfEnvironmentConfigured(
+      result.results,
+      authCheck.scope.projectId,
+    );
+
     handleBatchResult(
       [...validationErrors, ...result.errors],
       result.results,
@@ -169,8 +182,14 @@ export const handleBatch = async (
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
-  const results = []; // Array to store the results
-  const errors = []; // Array to store the errors
+  const results: BatchResult[] = []; // Array to store the results
+
+  const errors: {
+    error: unknown;
+    id: string;
+    type: string;
+  }[] = []; // Array to store the errors
+
   for (const singleEvent of events) {
     try {
       const result = await retry(async () => {
@@ -181,13 +200,17 @@ export const handleBatch = async (
           authCheck.scope,
         );
       });
-      results.push({ result: result, id: singleEvent.id }); // Push each result into the array
+      results.push({
+        result: result,
+        id: singleEvent.id,
+        type: singleEvent.type,
+      }); // Push each result into the array
     } catch (error) {
       // Handle or log the error if `handleSingleEvent` fails
       console.error("Error handling event:", error);
       // Decide how to handle the error: rethrow, continue, or push an error object to results
       // For example, push an error object:
-      errors.push({ error: error, id: singleEvent.id });
+      errors.push({ error: error, id: singleEvent.id, type: singleEvent.type });
     }
   }
 
@@ -395,3 +418,39 @@ export function cleanEvent(obj: unknown): unknown {
     return obj;
   }
 }
+
+export const sendToWorkerIfEnvironmentConfigured = async (
+  batchResults: BatchResult[],
+  projectId: string,
+): Promise<void> => {
+  try {
+    if (env.LANGFUSE_WORKER_HOST && env.LANGFUSE_WORKER_PASSWORD) {
+      const traceEvents = batchResults
+        .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
+        .map((result) =>
+          result.result &&
+          typeof result.result === "object" &&
+          "id" in result.result
+            ? // ingestion API only gets traces for one projectId
+              { traceId: result.result.id, projectId: projectId }
+            : null,
+        )
+        .filter(isNotNullOrUndefined);
+
+      await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            "Basic " +
+            Buffer.from("admin" + ":" + env.LANGFUSE_WORKER_PASSWORD).toString(
+              "base64",
+            ),
+        },
+        body: JSON.stringify(traceEvents),
+      });
+    }
+  } catch (error) {
+    console.error("Error sending events to worker", error);
+  }
+};
