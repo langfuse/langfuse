@@ -149,7 +149,7 @@ jobs:
         run: pnpm run build
 
       - name: run tests
-        run: pnpm --filter=web run test
+        run: pnpm --filter=worker run test
 
   e2e-tests:
     runs-on: ubuntu-latest
