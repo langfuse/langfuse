@@ -168,28 +168,37 @@ async function main() {
       const dataset = await prisma.dataset.create({
         data: {
           name: `demo-dataset-${datasetNumber}`,
+          description:
+            datasetNumber === 0 ? "Dataset test description" : undefined,
           projectId: project2.id,
         },
       });
 
       const datasetItemIds = [];
       for (let i = 0; i < 18; i++) {
-        const sourceObservationId =
-          Math.random() > 0.5
-            ? observations[Math.floor(Math.random() * observations.length)].id
+        const sourceObservation =
+          Math.random() > 0.3
+            ? observations[Math.floor(Math.random() * observations.length)]
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
             datasetId: dataset.id,
-            sourceObservationId: sourceObservationId,
-            input: [
-              {
-                role: "user",
-                content: "How can i create a React component?",
-              },
-            ],
+            sourceTraceId: sourceObservation?.traceId,
+            sourceObservationId:
+              Math.random() > 0.5 ? sourceObservation?.id : undefined,
+            input:
+              Math.random() > 0.3
+                ? [
+                    {
+                      role: "user",
+                      content: "How can i create a React component?",
+                    },
+                  ]
+                : undefined,
             expectedOutput:
-              "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.",
+              Math.random() > 0.3
+                ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
+                : undefined,
           },
         });
         datasetItemIds.push(datasetItem.id);
@@ -199,6 +208,7 @@ async function main() {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
             name: `demo-dataset-run-${datasetRunNumber}`,
+            description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
             metadata: [
               undefined,

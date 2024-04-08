@@ -208,6 +208,7 @@ model Trace {
 
     scores          Score[]
     DatasetRunItems DatasetRunItems[]
+    DatasetItem     DatasetItem[]
 
     @@index([projectId])
     @@index([sessionId])
@@ -421,6 +422,7 @@ model CronJobs {
 model Dataset {
     id           String        @id @default(cuid())
     name         String
+    description  String?
     projectId    String        @map("project_id")
     project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt    DateTime      @default(now()) @map("created_at")
@@ -436,8 +438,10 @@ model Dataset {
 model DatasetItem {
     id                  String            @id @default(cuid())
     status              DatasetStatus     @default(ACTIVE)
-    input               Json
+    input               Json?
     expectedOutput      Json?             @map("expected_output")
+    sourceTraceId       String?           @map("source_trace_id")
+    sourceTrace         Trace?            @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
     sourceObservationId String?           @map("source_observation_id")
     sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
     datasetId           String            @map("dataset_id")
@@ -459,6 +463,7 @@ enum DatasetStatus {
 model DatasetRuns {
     id              String            @id @default(cuid())
     name            String
+    description     String?
     metadata        Json?
     datasetId       String            @map("dataset_id")
     dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
@@ -516,9 +521,10 @@ model Prompt {
 
     createdBy String @map("created_by")
 
-    prompt      String
+    prompt      Json
     name        String
     version     Int
+    type        String        @default("text")
     isActive    Boolean       @map("is_active")
     config      Json          @default("{}")
     tags        String[]      @default([])

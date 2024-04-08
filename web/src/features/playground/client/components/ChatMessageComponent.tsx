@@ -5,17 +5,16 @@ import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Textarea } from "@/src/components/ui/textarea";
-import { MessagesContext } from "@/src/features/playground/client/components/Messages";
+import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
 
 type ChatMessageProps = Pick<
   MessagesContext,
-  "deleteMessage" | "updateMessage" | "updatePromptVariables"
+  "deleteMessage" | "updateMessage"
 > & { message: ChatMessageWithId };
 
 export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   message,
   updateMessage,
-  updatePromptVariables,
   deleteMessage,
 }) => {
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -49,30 +48,35 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   }, [message.content]);
 
   return (
-    <Card>
-      <CardContent className="flex flex-row space-x-1 pt-6">
-        <div className="min-w-[7rem]">
-          <Button onClick={toggleRole} variant="outline">
+    <Card className="p-3">
+      <CardContent className="flex flex-row space-x-1 p-0">
+        <div className="min-w-[6rem]">
+          <Button
+            onClick={toggleRole}
+            type="button" // prevents submitting a form if this button is inside a form
+            variant="outline"
+            className="text-xs"
+          >
             {capitalize(message.role)}
           </Button>
         </div>
 
         <Textarea
           ref={textAreaRef}
-          className="height-[auto] min-h-10 w-full font-mono focus:outline-none"
+          className="height-[auto] min-h-8 w-full pt-3  font-mono text-xs focus:outline-none"
           placeholder={placeholder}
           value={message.content}
           onChange={handleContentChange}
-          onBlur={updatePromptVariables}
           rows={textAreaRows}
         />
         <Button
           variant="ghost"
+          type="button" // prevents submitting a form if this button is inside a form
           size="icon"
           onClick={() => deleteMessage(message.id)}
           disabled={message.role === ChatMessageRole.System}
         >
-          <MinusCircleIcon />
+          <MinusCircleIcon size={16} />
         </Button>
       </CardContent>
     </Card>

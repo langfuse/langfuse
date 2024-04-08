@@ -1,12 +1,16 @@
+import { capitalize } from "lodash";
+import { LockIcon, PlusIcon } from "lucide-react";
+import Link from "next/link";
+import { useEffect } from "react";
+
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
-
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { LockIcon, PlusIcon } from "lucide-react";
@@ -24,15 +28,20 @@ type RowData = {
   id: string;
   createdAt: Date;
   isActive: boolean;
+  type: string;
   numberOfObservations: number;
   tags: string[];
 };
 
-export function PromptTable(props: { projectId: string }) {
+export function PromptTable() {
+  const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
+  const prompts = api.prompts.all.useQuery({
+    projectId,
+  });
   const hasCUDAccess = useHasAccess({
-    projectId: props.projectId,
+    projectId,
     scope: "prompts:CUD",
   });
 
@@ -88,7 +97,7 @@ export function PromptTable(props: { projectId: string }) {
         const name: string = row.getValue("name");
         return name ? (
           <TableLink
-            path={`/project/${props.projectId}/prompts/${encodeURIComponent(name)}`}
+            path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
             truncateAt={50}
           />
@@ -105,6 +114,13 @@ export function PromptTable(props: { projectId: string }) {
         return version;
       },
       enableSorting: true,
+    },
+    {
+      accessorKey: "type",
+      header: "Type",
+      cell: ({ row }) => {
+        return capitalize(row.getValue("type"));
+      },
     },
     {
       accessorKey: "createdAt",
@@ -130,7 +146,7 @@ export function PromptTable(props: { projectId: string }) {
         );
         return (
           <TableLink
-            path={`/project/${props.projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            path={`/project/${projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
             value={numberOfObservations.toLocaleString()}
           />
         );
@@ -169,7 +185,7 @@ export function PromptTable(props: { projectId: string }) {
       cell: ({ row }) => {
         return (
           <DeletePrompt
-            projectId={props.projectId}
+            projectId={projectId}
             promptName={row.getValue("name")}
           />
         );
@@ -185,6 +201,7 @@ export function PromptTable(props: { projectId: string }) {
       name: item.name,
       version: item.version,
       createdAt: item.createdAt,
+      type: item.type,
       isActive: item.isActive,
       numberOfObservations: Number(item.observationCount),
       tags: item.tags,
@@ -226,7 +243,7 @@ export function PromptTable(props: { projectId: string }) {
           state: paginationState,
         }}
       />
-      <CreatePromptDialog projectId={props.projectId} title="Create Prompt">
+      <Link href={`/project/${projectId}/prompts/new`}>
         <Button
           variant="secondary"
           className="mt-4"
@@ -240,7 +257,7 @@ export function PromptTable(props: { projectId: string }) {
           )}
           New prompt
         </Button>
-      </CreatePromptDialog>
+      </Link>
     </div>
   );
 }

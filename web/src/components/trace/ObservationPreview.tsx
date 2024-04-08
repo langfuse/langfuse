@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
-import { NewDatasetItemFromObservationButton } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -128,11 +128,12 @@ export const ObservationPreview = (props: {
             scores={props.scores}
           />
           {observationWithInputAndOutput.data ? (
-            <NewDatasetItemFromObservationButton
+            <NewDatasetItemFromTrace
+              traceId={preloadedObservation.traceId}
               observationId={preloadedObservation.id}
               projectId={props.projectId}
-              observationInput={observationWithInputAndOutput.data.input}
-              observationOutput={observationWithInputAndOutput.data.output}
+              input={observationWithInputAndOutput.data.input}
+              output={observationWithInputAndOutput.data.output}
               key={preloadedObservation.id}
             />
           ) : null}

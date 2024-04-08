@@ -17,11 +17,7 @@ export default function Traces() {
           href: "https://langfuse.com/docs/datasets",
         }}
         actionButtons={
-          <DatasetActionButton
-            projectId={projectId}
-            className="mt-4"
-            mode="create"
-          />
+          <DatasetActionButton projectId={projectId} mode="create" />
         }
       />
       <DatasetsTable projectId={projectId} />

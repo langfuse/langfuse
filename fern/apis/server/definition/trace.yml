@@ -22,8 +22,12 @@ service:
       request:
         name: GetTracesRequest
         query-parameters:
-          page: optional<integer>
-          limit: optional<integer>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
           userId: optional<string>
           name: optional<string>
           fromTimestamp:
