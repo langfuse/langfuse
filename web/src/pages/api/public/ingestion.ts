@@ -18,9 +18,9 @@ import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import {
   SdkLogProcessor,
   type EventProcessor,
+  TraceProcessor,
 } from "../../../server/api/services/EventProcessor";
 import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
-import { TraceProcessor } from "@/src/server/api/services/TraceProcessor";
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
@@ -28,6 +28,13 @@ import { jsonSchema } from "@/src/utils/zod";
 import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { env } from "@/src/env.mjs";
+import {
+  ValidationError,
+  MethodNotAllowedError,
+  BaseError,
+  ForbiddenError,
+  UnauthorizedError,
+} from "@/src/server/errors";
 
 export const config = {
   api: {
@@ -50,19 +57,14 @@ export default async function handler(
   try {
     await runMiddleware(req, res, cors);
 
-    if (req.method !== "POST") {
-      return res.status(405).json({ message: "Method not allowed" });
-    }
+    if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
     const authCheck = await verifyAuthHeaderAndReturnScope(
       req.headers.authorization,
     );
 
-    if (!authCheck.validKey)
-      return res.status(401).json({
-        message: authCheck.error,
-      });
+    if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
     const batchType = z.object({
       batch: z.array(z.unknown()),
@@ -79,20 +81,20 @@ export default async function handler(
       });
     }
 
-    const errors: { id: string; error: unknown }[] = [];
+    const validationErrors: { id: string; error: unknown }[] = [];
 
     const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
       parsedSchema.data.batch.map((event) => {
         const parsed = ingestionEvent.safeParse(event);
         if (!parsed.success) {
-          errors.push({
+          validationErrors.push({
             id:
               typeof event === "object" && event && "id" in event
                 ? typeof event.id === "string"
                   ? event.id
                   : "unknown"
                 : "unknown",
-            error: new BadRequestError(parsed.error.message),
+            error: new ValidationError(parsed.error.message),
           });
           return undefined;
         } else {
@@ -113,20 +115,32 @@ export default async function handler(
     );
 
     // send out REST requests to worker for all trace types
-    await sendToWorkerIfConfigured(result.results, authCheck.scope.projectId);
+    await sendToWorkerIfEnvironmentConfigured(
+      result.results,
+      authCheck.scope.projectId,
+    );
 
-    handleBatchResult([...errors, ...result.errors], result.results, res);
+    handleBatchResult(
+      [...validationErrors, ...result.errors],
+      result.results,
+      res,
+    );
   } catch (error: unknown) {
     console.error(error);
 
+    if (error instanceof BaseError) {
+      return res.status(error.httpCode).json({
+        error: error.name,
+        message: error.message,
+      });
+    }
+
     if (isPrismaException(error)) {
-      console.log("Internal Server error", error);
       return res.status(500).json({
         error: "Internal Server Error",
       });
     }
     if (error instanceof z.ZodError) {
-      console.log("Invalid request data", error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -166,7 +180,7 @@ export const handleBatch = async (
 ) => {
   console.log("handling ingestion event", JSON.stringify(events, null, 2));
 
-  if (!authCheck.validKey) throw new AuthenticationError(authCheck.error);
+  if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
   const results: BatchResult[] = []; // Array to store the results
 
@@ -207,7 +221,7 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
   return await backOff(request, {
     numOfAttempts: 3,
     retry: (e: Error, attemptNumber: number) => {
-      if (e instanceof AuthenticationError) {
+      if (e instanceof UnauthorizedError || e instanceof ForbiddenError) {
         console.log("not retrying auth error");
         return false;
       }
@@ -216,9 +230,9 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
     },
   });
 }
-export const getBadRequestError = (errors: Array<unknown>): BadRequestError[] =>
+export const getBadRequestError = (errors: Array<unknown>): ValidationError[] =>
   errors.filter(
-    (error): error is BadRequestError => error instanceof BadRequestError,
+    (error): error is ValidationError => error instanceof ValidationError,
   );
 
 export const getResourceNotFoundError = (
@@ -230,7 +244,7 @@ export const getResourceNotFoundError = (
   );
 
 export const hasBadRequestError = (errors: Array<unknown>) =>
-  errors.some((error) => error instanceof BadRequestError);
+  errors.some((error) => error instanceof ValidationError);
 
 const handleSingleEvent = async (
   event: z.infer<typeof ingestionEvent>,
@@ -280,29 +294,11 @@ const handleSingleEvent = async (
   // Deny access to non-score events if the access level is not "all"
   // This is an additional safeguard to auth checks in EventProcessor
   if (apiScope.accessLevel !== "all" && type !== eventTypes.SCORE_CREATE) {
-    throw new AuthenticationError("Access denied. Event type not allowed.");
+    throw new ForbiddenError("Access denied. Event type not allowed.");
   }
 
   return await processor.process(apiScope);
 };
-
-class BadRequestError extends Error {
-  constructor(msg: string) {
-    super(msg);
-
-    // Set the prototype explicitly.
-    Object.setPrototypeOf(this, BadRequestError.prototype);
-  }
-}
-
-export class AuthenticationError extends Error {
-  constructor(msg: string) {
-    super(msg);
-
-    // Set the prototype explicitly.
-    Object.setPrototypeOf(this, AuthenticationError.prototype);
-  }
-}
 
 export const handleBatchResult = (
   errors: Array<{ id: string; error: unknown }>,
@@ -322,14 +318,14 @@ export const handleBatchResult = (
   }[] = [];
 
   errors.forEach((error) => {
-    if (error.error instanceof BadRequestError) {
+    if (error.error instanceof ValidationError) {
       returnedErrors.push({
         id: error.id,
         status: 400,
         message: "Invalid request data",
         error: error.error.message,
       });
-    } else if (error.error instanceof AuthenticationError) {
+    } else if (error.error instanceof UnauthorizedError) {
       returnedErrors.push({
         id: error.id,
         status: 401,
@@ -423,32 +419,38 @@ export function cleanEvent(obj: unknown): unknown {
   }
 }
 
-export const sendToWorkerIfConfigured = async (
+export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
-  if (env.WORKER_HOST && env.WORKER_PASSWORD) {
-    const traceEvents = batchResults
-      .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-      .map((result) =>
-        result.result &&
-        typeof result.result === "object" &&
-        "id" in result.result
-          ? // ingestion API only gets traces for one projectId
-            { traceId: result.result.id, projectId: projectId }
-          : null,
-      )
-      .filter(isNotNullOrUndefined);
+  try {
+    if (env.LANGFUSE_WORKER_HOST && env.LANGFUSE_WORKER_PASSWORD) {
+      const traceEvents = batchResults
+        .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
+        .map((result) =>
+          result.result &&
+          typeof result.result === "object" &&
+          "id" in result.result
+            ? // ingestion API only gets traces for one projectId
+              { traceId: result.result.id, projectId: projectId }
+            : null,
+        )
+        .filter(isNotNullOrUndefined);
 
-    await fetch(`${env.WORKER_HOST}/api/events`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization:
-          "Basic " +
-          Buffer.from("admin" + ":" + env.WORKER_PASSWORD).toString("base64"),
-      },
-      body: JSON.stringify(traceEvents),
-    });
+      await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            "Basic " +
+            Buffer.from("admin" + ":" + env.LANGFUSE_WORKER_PASSWORD).toString(
+              "base64",
+            ),
+        },
+        body: JSON.stringify(traceEvents),
+      });
+    }
+  } catch (error) {
+    console.error("Error sending events to worker", error);
   }
 };

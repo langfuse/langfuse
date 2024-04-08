@@ -18,8 +18,8 @@ services:
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
       - NEXT_PUBLIC_SIGN_UP_DISABLED=${NEXT_PUBLIC_SIGN_UP_DISABLED:-false}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
-      - WORKER_HOST=${WORKER_HOST:-worker}
-      - WORKER_PASSWORD=${WORKER_PASSWORD:-mybasicauthsecret}
+      - LANGFUSE_WORKER_HOST=${LANGFUSE_WORKER_HOST:-worker}
+      - LANGFUSE_WORKER_PASSWORD=${LANGFUSE_WORKER_PASSWORD:-mybasicauthsecret}
     restart: always
 
   worker:
@@ -40,7 +40,7 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
-      - WORKER_PASSWORD=${WORKER_PASSWORD:-mybasicauthsecret}
+      - LANGFUSE_WORKER_PASSWORD=${LANGFUSE_WORKER_PASSWORD:-mybasicauthsecret}
     restart: always
 
   redis:

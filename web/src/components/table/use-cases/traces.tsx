@@ -10,17 +10,9 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import {
-  type FilterState,
-  TraceOptions,
-  tracesTableColsWithOptions,
-} from "@langfuse/shared";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type ObservationLevel, type Score } from "@langfuse/shared/src/db";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
@@ -37,6 +29,15 @@ import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
 import { IOCell } from "./IOCell";
 import { setSmallPaginationIfColumnsVisible } from "@/src/features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import {
+  type FilterState,
+  type TraceOptions,
+  tracesTableColsWithOptions,
+  type ObservationLevel,
+  type Score,
+} from "@langfuse/shared";
 
 export type TracesTableRow = {
   bookmarked: boolean;

@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.7.1-2",
+  "version": "2.18.0",
   "private": true,
   "license": "MIT",
   "engines": {

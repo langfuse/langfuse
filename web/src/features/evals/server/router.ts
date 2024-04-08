@@ -9,7 +9,6 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   EvalTargetObject,
-  JobTypes,
   evalModels,
 } from "@/src/features/evals/constants";
 import { jsonSchema } from "@/src/utils/zod";

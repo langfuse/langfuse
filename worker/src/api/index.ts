@@ -4,18 +4,17 @@ import emojis from "./emojis";
 import { z } from "zod";
 import logger from "../logger";
 import { Queue } from "bullmq";
-import { evalJobCreator, evalJobExecutor, redis } from "../redis/consumer";
+import { redis } from "../redis/consumer";
 import { randomUUID } from "crypto";
 import basicAuth from "express-basic-auth";
 import { env } from "../env";
 import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 
 const router = express.Router();
 
 router.use(
   basicAuth({
-    users: { admin: env.WORKER_PASSWORD },
+    users: { admin: env.LANGFUSE_WORKER_PASSWORD },
   })
 );
 
@@ -36,17 +35,6 @@ const eventBody = z.array(
 type EventsResponse = {
   status: "success";
 };
-
-router.get<{}, { status: string }>("/health", async (_req, res) => {
-  //check database health
-  await prisma.$queryRaw`SELECT 1;`;
-
-  await redis.ping();
-
-  res.json({
-    status: "ok",
-  });
-});
 
 router.post<{}, EventsResponse>("/events", async (req, res) => {
   const { body } = req;
