@@ -148,8 +148,8 @@ export const NewPromptForm = (props: {
   });
 
   const comboboxOptions =
-    prompts.data
-      ?.map((prompt) => {
+    prompts.data?.prompts
+      .map((prompt) => {
         return { label: prompt.name, value: prompt.name };
       })
       .filter(
