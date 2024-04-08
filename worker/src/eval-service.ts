@@ -12,7 +12,6 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   tracesTableCols,
   variableMappingList,
-  observationsTableCols,
   evalObjects,
   TraceUpsertEvent,
 } from "@langfuse/shared";
@@ -22,8 +21,6 @@ import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
 import { sql } from "kysely";
 import Handlebars from "handlebars";
-import { JobExecution, EvalTemplate } from "@langfuse/shared";
-import lodash from "lodash";
 import logger from "./logger";
 
 // this function is used to determine which eval jobs to create for a given trace
