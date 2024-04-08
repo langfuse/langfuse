@@ -82,6 +82,14 @@ export const promptRouter = createTRPCRouter({
         ),
       );
 
+      const promptNames = prompts.map((p) => p.name);
+
+      if (promptNames.length === 0) {
+        return {
+          prompts: [],
+          totalCount: 0,
+        };
+      }
       const observationCountQuery = DB.selectFrom("observations")
         .fullJoin("prompts", "prompts.id", "observations.prompt_id")
         .select(({ fn }) => [
@@ -90,11 +98,7 @@ export const promptRouter = createTRPCRouter({
         ])
         .where("prompts.project_id", "=", input.projectId)
         .where("observations.project_id", "=", input.projectId)
-        .where(
-          "prompts.name",
-          "in",
-          prompts.map((prompt) => prompt.name),
-        )
+        .where("prompts.name", "in", promptNames)
         .groupBy("prompts.name");
 
       const compiledQuery = observationCountQuery.compile();
@@ -106,7 +110,6 @@ export const promptRouter = createTRPCRouter({
         }>
       >(compiledQuery.sql, ...compiledQuery.parameters);
 
-      console.log("promptCounts", promptCounts);
       const joinedPromptsAndCounts = prompts.map((p) => {
         const matchedCount = promptCounts.find((c) => c.name === p.name);
         return {
