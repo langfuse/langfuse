@@ -209,7 +209,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               onValueChange={(e) => {
                 form.setValue("type", e as PromptType);
               }}
-              className="min-h-[240px]"
             >
               {!initialPrompt ? (
                 <TabsList className="flex w-full">
@@ -244,7 +243,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       <FormControl>
                         <Textarea
                           {...field}
-                          className="min-h-[150px] flex-1 font-mono text-xs"
+                          className="min-h-[200px] flex-1 font-mono text-xs"
                         />
                       </FormControl>
                       <FormMessage />
