@@ -1,12 +1,12 @@
 {
   "name": "worker",
-  "version": "2.17.0",
+  "version": "2.18.1",
   "description": "",
   "license": "MIT",
   "main": "index.js",
   "private": true,
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "test": "vitest run",
@@ -27,6 +27,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-basic-auth": "^1.2.1",
+    "handlebars": "^4.7.8",
     "ioredis": "^5.3.2",
     "kysely": "^0.27.3",
     "lodash": "^4.17.21",
@@ -56,7 +58,6 @@
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.0.4",
-    "tsup": "^8.0.2",
     "typescript": "^5.4.4",
     "vitest": "^1.3.1"
   }
