@@ -521,9 +521,10 @@ model Prompt {
 
     createdBy String @map("created_by")
 
-    prompt      String
+    prompt      Json
     name        String
     version     Int
+    type        String        @default("text")
     isActive    Boolean       @map("is_active")
     config      Json          @default("{}")
     Observation Observation[]

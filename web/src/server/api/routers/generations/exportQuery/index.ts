@@ -12,7 +12,7 @@ import { type ObservationView } from "@langfuse/shared/src/db";
 
 import { DatabaseReadStream } from "../db/DatabaseReadStream";
 import {
-  FullObservations,
+  type FullObservations,
   getAllGenerations as getAllGenerations,
 } from "../db/getAllGenerationsSqlQuery";
 import { GenerationTableOptions } from "../utils/GenerationTableOptions";
