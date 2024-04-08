@@ -102,14 +102,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     onError: (error) => setFormError(error.message),
   });
 
-  const allPrompts = api.prompts.all.useQuery({
+  const allPrompts = api.prompts.filterOptions.useQuery({
     projectId,
-    filter: [],
-    orderBy: {
-      column: "createdAt",
-      order: "DESC",
-    },
-  }).data;
+  }).data?.name;
 
   function onSubmit(values: NewPromptFormSchemaType) {
     posthog.capture("prompts:new_prompt_form_submit");
@@ -151,8 +146,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   }
 
   useEffect(() => {
-    const isNewPrompt = !allPrompts?.prompts
-      .map((prompt) => prompt.name)
+    const isNewPrompt = !allPrompts
+      ?.map((prompt) => prompt.value)
       .includes(currentName);
 
     if (!isNewPrompt) {
