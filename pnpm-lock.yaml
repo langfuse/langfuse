@@ -363,8 +363,8 @@ importers:
         specifier: ^1.105.9
         version: 1.116.2
       posthog-node:
-        specifier: ^3.6.3
-        version: 3.6.3
+        specifier: ^4.0.0
+        version: 4.0.0
       prisma:
         specifier: ^5.12.1
         version: 5.12.1
@@ -13511,8 +13511,8 @@ packages:
       preact: 10.19.7
     dev: false
 
-  /posthog-node@3.6.3:
-    resolution: {integrity: sha512-JB+ei0LkwE+rKHyW5z79Nd1jUaGxU6TvkfjFqY9vQaHxU5aU8dRl0UUaEmZdZbHwjp3WmXCBQQRNyimwbNQfCw==}
+  /posthog-node@4.0.0:
+    resolution: {integrity: sha512-jEZnNbgb/3FNk+gNwtTcyz3j+62zIN+UTPotONfacVXJnoI70KScSkKdIR+rvP9tA2kjBSoHQxGwJuizs27o9A==}
     engines: {node: '>=15.0.0'}
     dependencies:
       axios: 1.6.8
