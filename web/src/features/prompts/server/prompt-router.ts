@@ -10,19 +10,14 @@ import {
   type PrismaClient,
   Prisma,
 } from "@langfuse/shared/src/db";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema, paginationZod } from "@/src/utils/zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import {
-  numberFilter,
-  singleFilter,
-} from "@/src/server/api/interfaces/filters";
+import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { RouterOutput } from "@/src/utils/types";
-import { FilterCondition, FilterState } from "@/src/features/filters/types";
 
 export const CreatePrompt = z.object({
   projectId: z.string(),
@@ -37,6 +32,7 @@ const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
   orderBy: orderBy,
+  ...paginationZod,
 });
 
 export const promptRouter = createTRPCRouter({
@@ -48,22 +44,17 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
-      const promptCountFilter = input.filter.filter(
-        (f) => f.column === "Number of Generations" && f.type === "number",
-      );
-      const promptQueryFilter = input.filter.filter(
-        (f) => f.column !== "Number of Generations",
-      );
+
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        promptQueryFilter,
+        input.filter,
         promptsTableCols,
         "prompts",
       );
 
-      const orderByCondition =
-        input.orderBy?.column === "numberOfObservations"
-          ? Prisma.empty
-          : orderByToPrismaSql(input.orderBy, promptsTableCols);
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        promptsTableCols,
+      );
 
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>(
         generatePromptQuery(
@@ -80,12 +71,25 @@ export const promptRouter = createTRPCRouter({
           input.projectId,
           filterCondition,
           orderByCondition,
-          1000,
-          0,
+          input.limit,
+          input.page,
         ),
       );
 
-      const promptCountQuery = DB.selectFrom("observations")
+      const promptCount = await ctx.prisma.$queryRaw<
+        Array<{ totalCount: bigint }>
+      >(
+        generatePromptQuery(
+          Prisma.sql` count(*) AS "totalCount"`,
+          input.projectId,
+          filterCondition,
+          Prisma.empty,
+          1, // limit
+          0, // page
+        ),
+      );
+
+      const observationCountQuery = DB.selectFrom("observations")
         .fullJoin("prompts", "prompts.id", "observations.prompt_id")
         .select(({ fn }) => [
           "prompts.name",
@@ -95,7 +99,7 @@ export const promptRouter = createTRPCRouter({
         .where("observations.project_id", "=", input.projectId)
         .groupBy("prompts.name");
 
-      const compiledQuery = promptCountQuery.compile();
+      const compiledQuery = observationCountQuery.compile();
 
       const promptCounts = await ctx.prisma.$queryRawUnsafe<
         Array<{
@@ -112,22 +116,11 @@ export const promptRouter = createTRPCRouter({
         };
       });
 
-      let joinedPromptsAndCountsFiltered = joinedPromptsAndCounts;
-      for (const countFilter of promptCountFilter) {
-        joinedPromptsAndCountsFiltered = filterPromptsByCount(
-          joinedPromptsAndCountsFiltered,
-          countFilter as Extract<FilterCondition, { type: "number" }>,
-        );
-      }
-
-      if (input.orderBy?.column === "numberOfObservations") {
-        joinedPromptsAndCountsFiltered = sortPromptsByObservationCount(
-          joinedPromptsAndCountsFiltered,
-          input.orderBy?.order,
-        );
-      }
-
-      return joinedPromptsAndCountsFiltered;
+      return {
+        prompts: joinedPromptsAndCounts,
+        totalCount:
+          promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
+      };
     }),
   byId: protectedProjectProcedure
     .input(
@@ -568,44 +561,3 @@ const generatePromptQuery = (
   LIMIT ${limit} OFFSET ${page * limit};
 `;
 };
-
-function filterPromptsByCount(
-  prompts: RouterOutput["prompts"]["all"],
-  countFilter: Extract<FilterCondition, { type: "number" }>,
-) {
-  const value = countFilter.value;
-  return prompts.filter((p) => {
-    switch (countFilter.operator) {
-      case "=":
-        return p.observationCount === value;
-      case "<":
-        return p.observationCount < value;
-      case ">":
-        return p.observationCount > value;
-      case "<=":
-        return p.observationCount <= value;
-      case ">=":
-        return p.observationCount >= value;
-      default:
-        return true;
-    }
-  });
-}
-
-function sortPromptsByObservationCount(
-  prompts: RouterOutput["prompts"]["all"],
-  order: "ASC" | "DESC",
-) {
-  const sortOrders = {
-    ASC: (
-      a: RouterOutput["prompts"]["all"][number],
-      b: RouterOutput["prompts"]["all"][number],
-    ) => a.observationCount - b.observationCount,
-    DESC: (
-      a: RouterOutput["prompts"]["all"][number],
-      b: RouterOutput["prompts"]["all"][number],
-    ) => b.observationCount - a.observationCount,
-  };
-
-  return prompts.sort(sortOrders[order]);
-}
