@@ -40,7 +40,7 @@ export const GroupedScoreBadges = ({
               <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
                 <MessageCircle size={12} />
               </HoverCardTrigger>
-              <HoverCardContent>
+              <HoverCardContent className="w-auto max-w-xs overflow-auto">
                 <p>{s.comment}</p>
               </HoverCardContent>
             </HoverCard>
