@@ -20,7 +20,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
-import { type Prompt } from "@langfuse/shared/src/db";
+import { type Prompt } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 
 import { PromptHistoryNode } from "./prompt-history";

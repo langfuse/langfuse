@@ -1,6 +1,6 @@
 import { isChatModel, isTiktokenModel } from "@/src/utils/types";
 import { countTokens } from "@anthropic-ai/tokenizer";
-import { type Model } from "@langfuse/shared/src/db";
+import { type Model } from "@langfuse/shared";
 import {
   type TiktokenModel,
   type Tiktoken,

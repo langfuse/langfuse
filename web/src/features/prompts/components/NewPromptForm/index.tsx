@@ -33,7 +33,7 @@ import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { jsonSchema } from "@/src/utils/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Prompt } from "@langfuse/shared/src/db";
+import type { Prompt } from "@langfuse/shared";
 
 import { PromptChatMessages } from "./PromptChatMessages";
 import {
