@@ -52,10 +52,12 @@ export const PromptDetail = () => {
   try {
     chatMessages = ChatMlArraySchema.parse(prompt?.prompt);
   } catch (error) {
-    console.warn(
-      "Could not parse returned chat prompt to pretty ChatML",
-      error,
-    );
+    if (PromptType.Chat === prompt?.type) {
+      console.warn(
+        "Could not parse returned chat prompt to pretty ChatML",
+        error,
+      );
+    }
   }
 
   const filterOptions = api.prompts.filterOptions.useQuery({
