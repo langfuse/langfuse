@@ -159,8 +159,8 @@ importers:
         specifier: ^3.507.0
         version: 3.536.0
       '@aws-sdk/lib-storage':
-        specifier: ^3.540.0
-        version: 3.540.0(@aws-sdk/client-s3@3.536.0)
+        specifier: ^3.550.0
+        version: 3.550.0(@aws-sdk/client-s3@3.536.0)
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.540.0
         version: 3.540.0
@@ -1097,8 +1097,8 @@ packages:
       - aws-crt
     dev: false
 
-  /@aws-sdk/lib-storage@3.540.0(@aws-sdk/client-s3@3.536.0):
-    resolution: {integrity: sha512-xNLOpuOSzGO90fwn+GBsM//a4ALYl85WEsovKyJI6jYJTMCGLrzJQeq8cxeC5Xz6w8Ol86lf80Gll/cz4phy7g==}
+  /@aws-sdk/lib-storage@3.550.0(@aws-sdk/client-s3@3.536.0):
+    resolution: {integrity: sha512-zDUM4hV/t148DCXschwDusH9tzg7U1MpuUaUPJlklx9Va+NnjrjtWHwL/JeZ5sfGR/1wTZIg3sKho/4P2oAYrQ==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
       '@aws-sdk/client-s3': ^3.0.0
