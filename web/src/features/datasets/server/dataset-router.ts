@@ -42,6 +42,7 @@ export const datasetRouter = createTRPCRouter({
         .select(({ eb }) => [
           "datasets.id",
           "datasets.name",
+          "datasets.description",
           "datasets.created_at as createdAt",
           "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
@@ -179,6 +180,7 @@ export const datasetRouter = createTRPCRouter({
         SELECT
           runs.id,
           runs.name,
+          runs.description,
           runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
@@ -202,7 +204,8 @@ export const datasetRouter = createTRPCRouter({
           5,
           6,
           7,
-          8
+          8,
+          9
         ORDER BY
           runs.created_at DESC
         LIMIT ${input.limit}
@@ -292,6 +295,7 @@ export const datasetRouter = createTRPCRouter({
         datasetItemId: z.string(),
         input: z.string().optional(),
         expectedOutput: z.string().optional(),
+        sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
         status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
       }),
@@ -312,15 +316,18 @@ export const datasetRouter = createTRPCRouter({
         },
         data: {
           input:
-            input.input !== undefined
-              ? (JSON.parse(input.input) as Prisma.InputJsonObject)
-              : undefined,
+            input.input === ""
+              ? Prisma.DbNull
+              : input.input !== undefined
+                ? (JSON.parse(input.input) as Prisma.InputJsonObject)
+                : undefined,
           expectedOutput:
             input.expectedOutput === ""
               ? Prisma.DbNull
               : input.expectedOutput !== undefined
                 ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
                 : undefined,
+          sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
           status: input.status,
         },
@@ -336,7 +343,13 @@ export const datasetRouter = createTRPCRouter({
       return datasetItem;
     }),
   createDataset: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), name: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        description: z.string().nullish(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -346,6 +359,7 @@ export const datasetRouter = createTRPCRouter({
       const dataset = await ctx.prisma.dataset.create({
         data: {
           name: input.name,
+          description: input.description ?? undefined,
           projectId: input.projectId,
         },
       });
@@ -366,7 +380,8 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        name: z.string(),
+        name: z.string().nullish(),
+        description: z.string().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -381,7 +396,8 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
         },
         data: {
-          name: input.name,
+          name: input.name ?? undefined,
+          description: input.description,
         },
       });
       await auditLog({
@@ -390,7 +406,6 @@ export const datasetRouter = createTRPCRouter({
         resourceId: dataset.id,
         projectId: input.projectId,
         action: "update",
-        before: { name: input.name },
         after: dataset,
       });
 
@@ -425,8 +440,9 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        input: z.string(),
+        input: z.string().nullish(),
         expectedOutput: z.string().nullish(),
+        sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
       }),
     )
@@ -448,7 +464,12 @@ export const datasetRouter = createTRPCRouter({
 
       const datasetItem = await ctx.prisma.datasetItem.create({
         data: {
-          input: JSON.parse(input.input) as Prisma.InputJsonObject,
+          input:
+            input.input === ""
+              ? Prisma.DbNull
+              : !!input.input
+                ? (JSON.parse(input.input) as Prisma.InputJsonObject)
+                : undefined,
           expectedOutput:
             input.expectedOutput === ""
               ? Prisma.DbNull
@@ -456,6 +477,7 @@ export const datasetRouter = createTRPCRouter({
                 ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
                 : undefined,
           datasetId: input.datasetId,
+          sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
         },
       });
@@ -571,17 +593,19 @@ export const datasetRouter = createTRPCRouter({
         runItems: items,
       };
     }),
-  observationInDatasets: protectedProjectProcedure
+  datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        observationId: z.string(),
+        traceId: z.string(),
+        observationId: z.string().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
       return ctx.prisma.datasetItem.findMany({
         where: {
-          sourceObservationId: input.observationId,
+          sourceTraceId: input.traceId,
+          sourceObservationId: input.observationId ?? null, // null as it should not include observations from the same trace
           dataset: {
             projectId: input.projectId,
           },

@@ -1,8 +1,9 @@
 {
   "name": "langfuse",
-  "version": "2.7.0",
+  "version": "2.7.1-2",
   "author": "engineering@langfuse.com",
   "license": "MIT",
+  "private": true,
   "engines": {
     "node": ">=20"
   },
@@ -21,11 +22,51 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "models:migrate": "turbo run models:migrate"
+    "models:migrate": "turbo run models:migrate",
+    "release": "dotenv -e ../.env -- release-it"
   },
   "devDependencies": {
+    "@release-it/bumper": "^6.0.1",
     "dotenv-cli": "^7.4.1",
     "prettier": "^3.2.5",
+    "release-it": "^17.1.1",
     "turbo": "^1.13.2"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release v${version}",
+      "tagName": "v${version}"
+    },
+    "plugins": {
+      "@release-it/bumper": {
+        "out": [
+          {
+            "file": "./web/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./worker/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./web/package.json"
+          },
+          {
+            "file": "./worker/package.json"
+          }
+        ]
+      }
+    },
+    "github": {
+      "release": true,
+      "web": true,
+      "autoGenerate": true,
+      "releaseName": "v${version}",
+      "comments": {
+        "submit": true,
+        "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
+        "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
+      }
+    }
   }
 }

@@ -11,7 +11,7 @@ groups:
           namespaceExport: Langfuse
           allowCustomFetcher: true
       - name: fernapi/fern-python-sdk
-        version: 1.0.1
+        version: 1.1.0-rc2
         output:
           location: local-file-system
           path: ../../../generated/python

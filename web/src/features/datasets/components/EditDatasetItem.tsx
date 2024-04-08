@@ -18,6 +18,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 const formSchema = z.object({
   input: z.string().refine(
     (value) => {
+      if (value === "") return true;
       try {
         JSON.parse(value);
         return true;
@@ -133,7 +134,7 @@ export const EditDatasetItem = ({
               name="expectedOutput"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expected output (optional)</FormLabel>
+                  <FormLabel>Expected output</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}

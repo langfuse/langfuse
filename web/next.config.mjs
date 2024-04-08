@@ -12,7 +12,7 @@ import { env } from "./src/env.mjs";
  */
 const cspHeader = `
   default-src 'self' https://ph.langfuse.com https://*.posthog.com wss://*.crisp.chat https://*.crisp.chat;
-  script-src 'self' ${process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""} https://*.crisp.chat https://challenges.cloudflare.com https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
+  script-src 'self' 'unsafe-eval' https://*.crisp.chat https://challenges.cloudflare.com https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
   style-src 'self' 'unsafe-inline' https://*.crisp.chat;
   img-src 'self' https: blob: data:;
   font-src 'self' https://*.crisp.chat;
@@ -77,22 +77,22 @@ const nextConfig = {
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-            {
-              source: "/api/auth/session",
-              headers: [
-                {
-                  key: "Access-Control-Allow-Origin",
-                  value: "https://langfuse.com",
-                },
-                { key: "Access-Control-Allow-Credentials", value: "true" },
-                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-                {
-                  key: "Access-Control-Allow-Headers",
-                  value: "Content-Type, Authorization",
-                },
-              ],
-            },
-          ]
+          {
+            source: "/api/auth/session",
+            headers: [
+              {
+                key: "Access-Control-Allow-Origin",
+                value: "https://langfuse.com",
+              },
+              { key: "Access-Control-Allow-Credentials", value: "true" },
+              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+              {
+                key: "Access-Control-Allow-Headers",
+                value: "Content-Type, Authorization",
+              },
+            ],
+          },
+        ]
         : []),
     ];
   },
