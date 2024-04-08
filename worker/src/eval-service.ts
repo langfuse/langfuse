@@ -162,16 +162,32 @@ export const evaluate = async ({
     throw new Error("Jobs can only be executed on traces for now.");
   }
 
+  if (job.status === "CANCELLED") {
+    logger.info(
+      `Job ${job.id} for project ${data.data.projectId} was cancelled.`
+    );
+
+    await kyselyPrisma.$kysely
+      .deleteFrom("job_executions")
+      .where("id", "=", job.id)
+      .where("project_id", "=", data.data.projectId)
+      .execute();
+
+    return;
+  }
+
   const config = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where("id", "=", job.job_configuration_id)
+    .where("project_id", "=", data.data.projectId)
     .executeTakeFirstOrThrow();
 
   const template = await kyselyPrisma.$kysely
     .selectFrom("eval_templates")
     .selectAll()
     .where("id", "=", config.eval_template_id)
+    .where("project_id", "=", data.data.projectId)
     .executeTakeFirstOrThrow();
 
   logger.info(
@@ -249,7 +265,7 @@ export const evaluate = async ({
 
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
-    .set("status", "COMPLETED")
+    .set("status", sql`'COMPLETED'::"JobExecutionStatus"`)
     .set("end_time", new Date())
     .set("job_output_score_id", scoreId)
     .where("id", "=", data.data.jobExecutionId)
@@ -260,7 +276,7 @@ export function compileHandlebarString(
   handlebarString: string,
   context: Record<string, any>
 ): string {
-  console.log("Compiling handlebar string", handlebarString, context);
+  logger.info("Compiling handlebar string", handlebarString, context);
   const template = Handlebars.compile(handlebarString, { noEscape: true });
   return template(context);
 }
