@@ -59,33 +59,39 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
   }
 });
 
-router.post<{}, EventsResponse>("/events", async (req, res) => {
-  const { body } = req;
-  logger.info(`Received events, ${JSON.stringify(body)}`);
+router
+  .use(
+    basicAuth({
+      users: { admin: env.LANGFUSE_WORKER_PASSWORD },
+    })
+  )
+  .post<{}, EventsResponse>("/events", async (req, res) => {
+    const { body } = req;
+    logger.info(`Received events, ${JSON.stringify(body)}`);
 
-  const events = eventBody.parse(body);
+    const events = eventBody.parse(body);
 
-  const jobs = events.map((event) => ({
-    name: QueueJobs.TraceUpsert,
-    data: {
-      payload: {
-        id: randomUUID(),
-        timestamp: new Date().toISOString(),
-        data: {
-          projectId: event.projectId,
-          traceId: event.traceId,
+    const jobs = events.map((event) => ({
+      name: QueueJobs.TraceUpsert,
+      data: {
+        payload: {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          data: {
+            projectId: event.projectId,
+            traceId: event.traceId,
+          },
         },
+        name: QueueJobs.TraceUpsert as const,
       },
-      name: QueueJobs.TraceUpsert as const,
-    },
-  }));
+    }));
 
-  await evalQueue?.addBulk(jobs); // add all jobs as bulk
+    await evalQueue?.addBulk(jobs); // add all jobs as bulk
 
-  res.json({
-    status: "success",
+    res.json({
+      status: "success",
+    });
   });
-});
 
 router.use("/emojis", emojis);
 
