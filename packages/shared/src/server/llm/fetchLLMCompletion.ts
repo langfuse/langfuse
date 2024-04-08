@@ -14,13 +14,17 @@ import { ChatOpenAI } from "@langchain/openai";
 import {
   ChatMessage,
   ChatMessageRole,
+  LLMFunctionCall,
   ModelParams,
   ModelProvider,
 } from "./types";
+import zodToJsonSchema from "zod-to-json-schema";
+import { JsonOutputFunctionsParser } from "langchain/output_parsers";
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
+  functionCall?: LLMFunctionCall;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -30,18 +34,27 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
+    functionCall: undefined;
   }
 ): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
+    functionCall: undefined;
   }
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
+  params: LLMCompletionParams & {
+    streaming: false;
+    functionCall: LLMFunctionCall;
+  }
+): Promise<unknown>;
+
+export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
-): Promise<string | IterableReadableStream<Uint8Array>> {
+): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
   const { messages, modelParams, streaming } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
@@ -69,6 +82,20 @@ export async function fetchLLMCompletion(
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
     });
+  }
+
+  if (params.functionCall) {
+    const functionCallingModel = chatModel.bind({
+      functions: [
+        {
+          ...params.functionCall,
+          parameters: zodToJsonSchema(params.functionCall.parameters),
+        },
+      ],
+      function_call: { name: params.functionCall.name },
+    });
+    const outputParser = new JsonOutputFunctionsParser();
+    return await functionCallingModel.pipe(outputParser).invoke(finalMessages);
   }
 
   if (streaming) {

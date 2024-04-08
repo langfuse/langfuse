@@ -1,4 +1,7 @@
+import z from "zod";
+
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
+
 export type ChatMessage = {
   role: ChatMessageRole;
   content: string;
@@ -72,3 +75,9 @@ export const supportedModels = {
   [ModelProvider.Anthropic]: anthropicModels,
   [ModelProvider.OpenAI]: openAIModels,
 } as const;
+
+export type LLMFunctionCall = {
+  name: string;
+  description: string;
+  parameters: z.ZodTypeAny; // this has to be a json schema for OpenAI
+};
