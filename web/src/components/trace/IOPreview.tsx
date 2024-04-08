@@ -148,7 +148,6 @@ export const OpenAiMessageView: React.FC<{
   );
 
   const transformedMessages = messages;
-  console.log(transformedMessages);
   // const transformedMessages = messages.map(
   //   ({ role, name, content, ...rest }) => ({
   //     role,
