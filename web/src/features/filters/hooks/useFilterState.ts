@@ -14,6 +14,7 @@ import {
   decodeDelimitedArray,
   withDefault,
 } from "use-query-params";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 
 const DEBUG_QUERY_STATE = false;
 
