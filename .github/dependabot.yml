@@ -6,37 +6,10 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: "/worker" # Location of package manifests
+    directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
-    rebase-strategy: "disabled" # use dependabot-rebase-stale
-    commit-message:
-      prefix: chore
-      prefix-development: chore
-      include: scope
-    ignore:
-      - dependency-name: "@types/node"
-      - dependency-name: "@trpc/*"
-    groups:
-      sentry:
-        patterns:
-          - "@sentry/*"
-      prisma:
-        patterns:
-          - "prisma"
-          - "@prisma/*"
-      next:
-        patterns:
-          - "eslint-config-next"
-          - "next"
-      patches:
-        update-types:
-          - "patch"
-  - package-ecosystem: npm
-    directory: "/web" # Location of package manifests
-    schedule:
-      interval: "daily"
-    rebase-strategy: "disabled" # use dependabot-rebase-stale
+    versioning-strategy: "increase"
     commit-message:
       prefix: chore
       prefix-development: chore

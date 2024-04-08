@@ -7,45 +7,38 @@ import React, {
   useState,
 } from "react";
 
-import { v4 as uuidv4 } from "uuid";
-
+import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
+import type { ModelParamsContext } from "@/src/features/playground/client/components/ModelParameters";
 import useCommandEnter from "@/src/features/playground/client/hooks/useCommandEnter";
-import {
-  type ChatMessageWithId,
-  ChatMessageRole,
-  type UIModelParams,
-  type PromptVariable,
-  ModelProvider,
-} from "@langfuse/shared";
 import { extractVariables } from "@/src/utils/string";
+import {
+  ChatMessageRole,
+  type ChatMessageWithId,
+  ModelProvider,
+  type PromptVariable,
+  type UIModelParams,
+} from "@langfuse/shared";
+import { createEmptyMessage } from "../utils/createEmptyMessage";
+import { StringParam, useQueryParam } from "use-query-params";
+import { api } from "@/src/utils/api";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { PromptType } from "@/src/features/prompts/server/validation";
+import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
+import { v4 as uuidv4 } from "uuid";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
-  updatePromptVariables: () => void;
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
-
-  modelParams: UIModelParams;
-  updateModelParams: <Key extends keyof UIModelParams>(
-    key: Key,
-    value: UIModelParams[Key],
-  ) => void;
-
-  messages: ChatMessageWithId[];
-  addMessage: (role: ChatMessageRole, content?: string) => ChatMessageWithId;
-  deleteMessage: (id: string) => void;
-  updateMessage: <Key extends keyof ChatMessageWithId>(
-    id: string,
-    key: Key,
-    value: ChatMessageWithId[Key],
-  ) => void;
 
   output: string;
   outputJson: string;
 
   handleSubmit: () => Promise<void>;
   isStreaming: boolean;
-};
+  isInitializing: boolean;
+} & ModelParamsContext &
+  MessagesContext;
 
 const PlaygroundContext = createContext<PlaygroundContextType | undefined>(
   undefined,
@@ -64,6 +57,8 @@ export const usePlaygroundContext = () => {
 export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
+  const projectId = useProjectIdFromURL();
+  const [initialPromptId] = useQueryParam("promptId", StringParam);
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
   const [outputJson, setOutputJson] = useState("");
@@ -75,6 +70,36 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   const [modelParams, setModelParams] = useState<UIModelParams>(
     getDefaultModelParams(ModelProvider.OpenAI),
   );
+
+  const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
+    {
+      projectId,
+      id: initialPromptId ?? "",
+    },
+    { enabled: Boolean(initialPromptId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
+  );
+
+  useEffect(() => {
+    if (!initialPrompt) return;
+    if (initialPrompt.type === PromptType.Chat) {
+      try {
+        const initialMessages = ChatMessageListSchema.parse(
+          initialPrompt.prompt,
+        );
+        setMessages(initialMessages.map((m) => ({ ...m, id: uuidv4() })));
+      } catch (err) {
+        console.warn("Failed to parse initial chat messages", err);
+      }
+    } else {
+      const promptString = initialPrompt.prompt?.valueOf();
+      setMessages([
+        createEmptyMessage(
+          ChatMessageRole.System,
+          typeof promptString === "string" ? promptString : "",
+        ),
+      ]);
+    }
+  }, [initialPrompt]);
 
   useEffect(() => {
     setModelParams(getDefaultModelParams(modelParams.provider));
@@ -143,7 +168,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
         const finalMessages = getFinalMessages(promptVariables, messages);
         const leftOverVariables = extractVariables(
-          finalMessages.map((m) => m.content).join(""),
+          finalMessages.map((m) => m.content).join("\n"),
         );
 
         if (leftOverVariables.length > 0) {
@@ -194,7 +219,6 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     <PlaygroundContext.Provider
       value={{
         promptVariables,
-        updatePromptVariables,
         updatePromptVariableValue,
         deletePromptVariable,
 
@@ -210,6 +234,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         outputJson,
         handleSubmit,
         isStreaming,
+        isInitializing: isInitialLoading,
       }}
     >
       {children}
@@ -280,17 +305,6 @@ function getFinalMessages(
     return { ...m, content };
   });
   return finalMessages;
-}
-
-function createEmptyMessage(
-  role: ChatMessageRole,
-  content?: string,
-): ChatMessageWithId {
-  return {
-    role,
-    content: content ?? "",
-    id: uuidv4(),
-  };
 }
 
 function getDefaultModelParams(provider: ModelProvider): UIModelParams {

@@ -136,11 +136,12 @@ const ChatMlMessageSchema = z
     content,
     json: Object.keys(other).length === 0 ? undefined : other,
   }));
-const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
+export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
 
-const OpenAiMessageView: React.FC<{
+export const OpenAiMessageView: React.FC<{
+  title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
-}> = ({ messages }) => {
+}> = ({ title, messages }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
@@ -158,58 +159,65 @@ const OpenAiMessageView: React.FC<{
   // );
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border p-3">
-      {transformedMessages
-        .filter(
-          (_, i) =>
-            // show all if not collapsed or null; show first and last n if collapsed
-            !isCollapsed || i == 0 || i > messages.length - COLLAPSE_THRESHOLD,
-        )
-        .map((message, index) => (
-          <Fragment key={index}>
-            <div>
-              {!!message.content && (
-                <JSONView
-                  title={message.name ?? message.role}
-                  json={message.content}
-                  className={cn(
-                    "bg-gray-100",
-                    message.role === "system" && "bg-gray-100",
-                    message.role === "assistant" && "bg-green-50",
-                    message.role === "user" && "bg-white",
-                    !!message.json && "rounded-b-none",
-                  )}
-                />
-              )}
-              {!!message.json && (
-                <JSONView
-                  title={
-                    message.content ? undefined : message.name ?? message.role
-                  }
-                  json={message.json}
-                  className={cn(
-                    "bg-gray-100",
-                    message.role === "system" && "bg-gray-100",
-                    message.role === "assistant" && "bg-green-50",
-                    message.role === "user" && "bg-white",
-                    !!message.content && "rounded-t-none border-t-0",
-                  )}
-                />
-              )}
-            </div>
-            {isCollapsed !== null && index === 0 ? (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setCollapsed((v) => !v)}
-              >
-                {isCollapsed
-                  ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
-                  : "Hide history"}
-              </Button>
-            ) : null}
-          </Fragment>
-        ))}
+    <div className="rounded-md border">
+      {title && (
+        <div className="border-b px-3 py-1 text-xs font-medium">{title}</div>
+      )}
+      <div className="flex flex-col gap-2 p-3">
+        {transformedMessages
+          .filter(
+            (_, i) =>
+              // show all if not collapsed or null; show first and last n if collapsed
+              !isCollapsed ||
+              i == 0 ||
+              i > messages.length - COLLAPSE_THRESHOLD,
+          )
+          .map((message, index) => (
+            <Fragment key={index}>
+              <div>
+                {!!message.content && (
+                  <JSONView
+                    title={message.name ?? message.role}
+                    json={message.content}
+                    className={cn(
+                      "bg-gray-100",
+                      message.role === "system" && "bg-gray-100",
+                      message.role === "assistant" && "bg-green-50",
+                      message.role === "user" && "bg-white",
+                      !!message.json && "rounded-b-none",
+                    )}
+                  />
+                )}
+                {!!message.json && (
+                  <JSONView
+                    title={
+                      message.content ? undefined : message.name ?? message.role
+                    }
+                    json={message.json}
+                    className={cn(
+                      "bg-gray-100",
+                      message.role === "system" && "bg-gray-100",
+                      message.role === "assistant" && "bg-green-50",
+                      message.role === "user" && "bg-white",
+                      !!message.content && "rounded-t-none border-t-0",
+                    )}
+                  />
+                )}
+              </div>
+              {isCollapsed !== null && index === 0 ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setCollapsed((v) => !v)}
+                >
+                  {isCollapsed
+                    ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
+                    : "Hide history"}
+                </Button>
+              ) : null}
+            </Fragment>
+          ))}
+      </div>
     </div>
   );
 };

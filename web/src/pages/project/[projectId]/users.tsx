@@ -44,10 +44,15 @@ export default function UsersPage() {
 
   // this API call will return an empty array if there are no users.
   // Hence this adds one fast unnecessary API call if there are no users.
-  const userMetrics = api.users.metrics.useQuery({
-    projectId,
-    userIds: users.data?.users.map((u) => u.userId) ?? [],
-  });
+  const userMetrics = api.users.metrics.useQuery(
+    {
+      projectId,
+      userIds: users.data?.users.map((u) => u.userId) ?? [],
+    },
+    {
+      enabled: users.isSuccess,
+    },
+  );
 
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
@@ -70,7 +75,6 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (users.isSuccess) {
-      console.log("setting detail page list");
       setDetailPageList(
         "users",
         users.data.users.map((u) => encodeURIComponent(u.userId)),
@@ -102,20 +106,7 @@ export default function UsersPage() {
       header: "First Event",
       cell: ({ row }) => {
         const value: unknown = row.getValue("firstEvent");
-        if (userMetrics.isFetching) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-        if (typeof value === "string") {
-          return <>{value}</>;
-        }
-      },
-    },
-    {
-      accessorKey: "totalCost",
-      header: "Total Cost",
-      cell: ({ row }) => {
-        const value: unknown = row.getValue("totalCost");
-        if (userMetrics.isFetching) {
+        if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
         if (typeof value === "string") {
@@ -128,7 +119,7 @@ export default function UsersPage() {
       header: "Last Event",
       cell: ({ row }) => {
         const value: unknown = row.getValue("lastEvent");
-        if (userMetrics.isFetching) {
+        if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
         if (typeof value === "string") {
@@ -141,7 +132,7 @@ export default function UsersPage() {
       header: "Total Events",
       cell: ({ row }) => {
         const value: unknown = row.getValue("totalEvents");
-        if (userMetrics.isFetching) {
+        if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
         if (typeof value === "string") {
@@ -154,7 +145,20 @@ export default function UsersPage() {
       header: "Total Tokens",
       cell: ({ row }) => {
         const value: unknown = row.getValue("totalTokens");
-        if (userMetrics.isFetching) {
+        if (!userMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        if (typeof value === "string") {
+          return <>{value}</>;
+        }
+      },
+    },
+    {
+      accessorKey: "totalCost",
+      header: "Total Cost",
+      cell: ({ row }) => {
+        const value: unknown = row.getValue("totalCost");
+        if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
         if (typeof value === "string") {
@@ -167,7 +171,7 @@ export default function UsersPage() {
       header: "Last Score",
       cell: ({ row }) => {
         const value: Score | null = row.getValue("lastScore");
-        if (userMetrics.isFetching) {
+        if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
 
@@ -223,18 +227,20 @@ export default function UsersPage() {
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
-                        t.lastObservation?.toLocaleString() ?? "No event yet",
+                        t.lastObservation?.toLocaleString() ??
+                        t.lastTrace?.toLocaleString() ??
+                        "No event yet",
                       totalEvents: compactNumberFormatter(
                         (Number(t.totalTraces) || 0) +
                           (Number(t.totalObservations) || 0),
                       ),
-                      totalTokens: t.totalTokens
-                        ? compactNumberFormatter(t.totalTokens)
-                        : undefined,
+                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
                       lastScore: t.lastScore,
-                      totalCost: t.sumCalculatedTotalCost
-                        ? usdFormatter(t.sumCalculatedTotalCost, 2, 2)
-                        : undefined,
+                      totalCost: usdFormatter(
+                        t.sumCalculatedTotalCost ?? 0,
+                        2,
+                        2,
+                      ),
                     };
                   }),
                 }

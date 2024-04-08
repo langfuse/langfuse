@@ -5,93 +5,111 @@ import {
 
 export const completionTokens = {
   name: "completionTokens",
+  id: "completionTokens",
   type: "number",
   internal: 'o."completion_tokens"',
 } as const;
 export const observationId = {
   name: "observationId",
+  id: "observationId",
   type: "string",
   internal: 'o."id"',
 } as const;
 export const observationName = {
   name: "name",
+  id: "name",
   type: "string",
   internal: 'o."name"',
 } as const;
 export const startTime = {
   name: "startTime",
+  id: "startTime",
   type: "datetime",
   internal: 'o."start_time"',
 } as const;
 export const traceId = {
   name: "traceId",
+  id: "traceId",
   type: "string",
   internal: 't."id"',
 } as const;
 export const traceVersion = {
   name: "version",
+  id: "version",
   type: "string",
   internal: 't."version"',
 } as const;
 export const traceTimestamp = {
   name: "timestamp",
+  id: "timestamp",
   type: "string",
   internal: 't."timestamp"',
 } as const;
 export const scoreName = {
   name: "scoreName",
+  id: "scoreName",
   type: "string",
   internal: 's."name"',
 } as const;
 export const duration = {
   name: "duration",
+  id: "duration",
   type: "number",
   internal:
     'EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time")',
 } as const;
 export const release = {
   name: "release",
+  id: "release",
   type: "string",
   internal: 't."release"',
 } as const;
 export const tracesProjectId = {
   name: "tracesProjectId",
+  id: "tracesProjectId",
   type: "string",
   internal: 't."project_id"',
 } as const;
 export const observationsProjectId = {
   name: "observationsProjectId",
+  id: "observationsProjectId",
   type: "string",
   internal: 'o."project_id"',
 } as const;
 export const scoreId = {
   name: "scoreId",
+  id: "scoreId",
   type: "string",
   internal: 's."id"',
 } as const;
 export const traceName = {
   name: "traceName",
+  id: "traceName",
   type: "string",
   internal: 't."name"',
 } as const;
 export const totalTokens = {
   name: "totalTokens",
+  id: "totalTokens",
   type: "number",
   internal: 'o."total_tokens"',
 } as const;
 export const model = {
   name: "model",
+  id: "model",
   type: "string",
   internal: 'o."model"',
 } as const;
 export const traceUser = {
   name: "user",
+  id: "user",
   type: "string",
   internal: 't."user_id"',
 } as const;
 
 export const calculatedTotalCost = {
   name: "calculatedTotalCost",
+  id: "calculatedTotalCost",
   type: "number",
   internal: 'o."calculated_total_cost"',
 } as const;
@@ -99,7 +117,7 @@ export const calculatedTotalCost = {
 const tracesObservationsColumns: ColumnDefinition[] = [
   traceId,
   observationId,
-  { name: "type", type: "string", internal: 'o."type"' },
+  { name: "type", id: "type", type: "string", internal: 'o."type"' },
   tracesProjectId,
   observationsProjectId,
   duration,
@@ -141,11 +159,12 @@ export const tableDefinitions: TableDefinitions = {
       traceId,
       calculatedTotalCost,
       observationName,
-      { name: "type", type: "string", internal: 'o."type"' },
+      { name: "type", id: "type", type: "string", internal: 'o."type"' },
       completionTokens,
       {
         name: "promptTokens",
         type: "number",
+        id: "promptTokens",
         internal: 'o."prompt_tokens"',
       },
       totalTokens,
@@ -153,7 +172,12 @@ export const tableDefinitions: TableDefinitions = {
       model,
       observationsProjectId,
       startTime,
-      { name: "endTime", type: "datetime", internal: 'o."end_time"' },
+      {
+        name: "endTime",
+        id: "endTime",
+        type: "datetime",
+        internal: 'o."end_time"',
+      },
       duration,
     ],
   },
@@ -161,16 +185,22 @@ export const tableDefinitions: TableDefinitions = {
     table: `traces_view t`,
     columns: [
       ...tracesColumns,
-      { name: "duration", type: "number", internal: '"duration"' },
+      {
+        name: "duration",
+        id: "duration",
+        type: "number",
+        internal: '"duration"',
+      },
     ],
   },
   traces_scores: {
     table: ` traces t JOIN scores s ON t.id = s.trace_id`,
     columns: [
       tracesProjectId,
-      { name: "value", type: "number", internal: 's."value"' },
+      { name: "value", id: "value", type: "number", internal: 's."value"' },
       {
         name: "scoreName",
+        id: "scoreName",
         type: "number",
         internal: 's."name"',
       },
@@ -187,10 +217,16 @@ export const tableDefinitions: TableDefinitions = {
   traces_parent_observation_scores: {
     table: ` traces t LEFT JOIN observations_view o on t."id" = o."trace_id" and o."parent_observation_id" is NULL LEFT JOIN scores s ON t."id" = s."trace_id"`,
     columns: [
-      { name: "projectId", type: "string", internal: 't."project_id"' },
-      { name: "value", type: "number", internal: 's."value"' },
+      {
+        name: "projectId",
+        id: "projectId",
+        type: "string",
+        internal: 't."project_id"',
+      },
+      { name: "value", id: "value", type: "number", internal: 's."value"' },
       {
         name: "name",
+        id: "name",
         type: "number",
         internal: 's."name"',
       },

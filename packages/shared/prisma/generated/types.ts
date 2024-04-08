@@ -95,6 +95,7 @@ export type CronJobs = {
 export type Dataset = {
     id: string;
     name: string;
+    description: string | null;
     project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
@@ -102,8 +103,9 @@ export type Dataset = {
 export type DatasetItem = {
     id: string;
     status: Generated<DatasetStatus>;
-    input: unknown;
+    input: unknown | null;
     expected_output: unknown | null;
+    source_trace_id: string | null;
     source_observation_id: string | null;
     dataset_id: string;
     created_at: Generated<Timestamp>;
@@ -113,13 +115,15 @@ export type DatasetRunItems = {
     id: string;
     dataset_run_id: string;
     dataset_item_id: string;
-    observation_id: string;
+    trace_id: string;
+    observation_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
 export type DatasetRuns = {
     id: string;
     name: string;
+    description: string | null;
     metadata: unknown | null;
     dataset_id: string;
     created_at: Generated<Timestamp>;
@@ -249,9 +253,10 @@ export type Prompt = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     created_by: string;
-    prompt: string;
+    prompt: unknown;
     name: string;
     version: number;
+    type: Generated<string>;
     is_active: boolean;
     config: Generated<unknown>;
 };
@@ -296,6 +301,24 @@ export type TraceSession = {
     bookmarked: Generated<boolean>;
     public: Generated<boolean>;
 };
+export type TraceView = {
+    id: string;
+    external_id: string | null;
+    timestamp: Generated<Timestamp>;
+    name: string | null;
+    user_id: string | null;
+    metadata: unknown | null;
+    release: string | null;
+    version: string | null;
+    project_id: string;
+    public: Generated<boolean>;
+    bookmarked: Generated<boolean>;
+    tags: Generated<string[]>;
+    input: unknown | null;
+    output: unknown | null;
+    session_id: string | null;
+    duration: number | null;
+};
 export type User = {
     id: string;
     name: string | null;
@@ -335,6 +358,7 @@ export type DB = {
     Session: Session;
     trace_sessions: TraceSession;
     traces: Trace;
+    traces_view: TraceView;
     users: User;
     verification_tokens: VerificationToken;
 };

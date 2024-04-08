@@ -21,6 +21,7 @@ type RowData = {
     id: string;
     name: string;
   };
+  description: string;
   createdAt: string;
   lastRunAt?: string;
   countItems: number;
@@ -67,6 +68,10 @@ export function DatasetsTable(props: { projectId: string }) {
       },
     },
     {
+      accessorKey: "description",
+      header: "Description",
+    },
+    {
       accessorKey: "countItems",
       header: "Items",
     },
@@ -99,10 +104,11 @@ export function DatasetsTable(props: { projectId: string }) {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DatasetActionButton
-                mode="rename"
+                mode="update"
                 projectId={props.projectId}
                 datasetId={key.id}
                 datasetName={key.name}
+                datasetDescription={row.getValue("description") ?? undefined}
               />
               <DatasetActionButton
                 mode="delete"
@@ -121,6 +127,7 @@ export function DatasetsTable(props: { projectId: string }) {
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
+      description: item.description ?? "",
       createdAt: item.createdAt.toLocaleString(),
       lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
       countItems: item.countDatasetItems,

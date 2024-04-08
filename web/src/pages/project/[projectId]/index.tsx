@@ -99,13 +99,17 @@ export default function Start() {
   const traceName: ColumnDefinition[] = [
     {
       name: "traceName",
+      id: "traceName",
       type: "stringOptions" as const,
       options: values,
       internal: "internalValue",
     },
   ];
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState([]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "dashboard",
+  );
 
   const agg = useMemo(
     () => (dateRange ? findClosestInterval(dateRange) ?? "7 days" : "7 days"),
@@ -214,7 +218,7 @@ export default function Start() {
           globalFilterState={mergedFilterState}
         />
         <GenerationLatencyChart
-          className="col-span-1 flex-auto justify-between xl:col-span-full"
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
           projectId={projectId}
           agg={agg}
           globalFilterState={mergedFilterState}

@@ -185,6 +185,8 @@ model TraceSession {
     @@map("trace_sessions")
 }
 
+// Update TraceView below when making changes to this model!
+
 model Trace {
     id         String        @id @default(cuid())
     externalId String?       @map("external_id")
@@ -204,7 +206,9 @@ model Trace {
     sessionId  String?       @map("session_id")
     session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
 
-    scores Score[]
+    scores          Score[]
+    DatasetRunItems DatasetRunItems[]
+    DatasetItem     DatasetItem[]
 
     @@index([projectId])
     @@index([sessionId])
@@ -218,6 +222,33 @@ model Trace {
     @@map("traces")
 }
 
+// This view is based on the trace table. Once prisma supports
+// inheritance, we should remove code duplication here.
+view TraceView {
+    // trace fields
+    id         String   @id @default(cuid())
+    externalId String?  @map("external_id")
+    timestamp  DateTime @default(now())
+    name       String?
+    userId     String?  @map("user_id")
+    metadata   Json?
+    release    String?
+    version    String?
+    projectId  String   @map("project_id")
+    public     Boolean  @default(false)
+    bookmarked Boolean  @default(false)
+    tags       String[] @default([])
+    input      Json?
+    output     Json?
+    sessionId  String?  @map("session_id")
+
+    // calculated fields
+    duration Float? @map("duration") // can be null if no observations in trace
+
+    @@map("traces_view")
+}
+
+// Update ObservationView below when making changes to this model!
 model Observation {
     id                  String           @id @default(cuid())
     traceId             String?          @map("trace_id")
@@ -270,6 +301,51 @@ model Observation {
     @@index(promptId)
     @@index([projectId, startTime, type])
     @@map("observations")
+}
+
+// This view is a mix of the observation and model. Once prisma supports
+// inheritance, we should remove code duplication here.
+view ObservationView {
+    id                  String           @id @default(cuid())
+    traceId             String?          @map("trace_id")
+    projectId           String           @map("project_id")
+    type                ObservationType
+    startTime           DateTime         @default(now()) @map("start_time")
+    endTime             DateTime?        @map("end_time")
+    name                String?
+    metadata            Json?
+    parentObservationId String?          @map("parent_observation_id")
+    level               ObservationLevel @default(DEFAULT)
+    statusMessage       String?          @map("status_message")
+    version             String?
+    createdAt           DateTime         @default(now()) @map("created_at")
+
+    // GENERATION ONLY
+    model               String?
+    modelParameters     Json?
+    input               Json?
+    output              Json?
+    promptTokens        Int       @default(0) @map("prompt_tokens")
+    completionTokens    Int       @default(0) @map("completion_tokens")
+    totalTokens         Int       @default(0) @map("total_tokens")
+    unit                String?
+    completionStartTime DateTime? @map("completion_start_time")
+
+    promptId String? @map("prompt_id")
+
+    // model fields
+    modelId     String?  @map("model_id")
+    inputPrice  Decimal? @map("input_price")
+    outputPrice Decimal? @map("output_price")
+    totalPrice  Decimal? @map("total_price")
+
+    // calculated fields
+    calculatedInputCost  Decimal? @map("calculated_input_cost")
+    calculatedOutputCost Decimal? @map("calculated_output_cost")
+    calculatedTotalCost  Decimal? @map("calculated_total_cost")
+    latency              Float?   @map("latency")
+
+    @@map("observations_view")
 }
 
 enum ObservationType {
@@ -346,6 +422,7 @@ model CronJobs {
 model Dataset {
     id           String        @id @default(cuid())
     name         String
+    description  String?
     projectId    String        @map("project_id")
     project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt    DateTime      @default(now()) @map("created_at")
@@ -361,8 +438,10 @@ model Dataset {
 model DatasetItem {
     id                  String            @id @default(cuid())
     status              DatasetStatus     @default(ACTIVE)
-    input               Json
+    input               Json?
     expectedOutput      Json?             @map("expected_output")
+    sourceTraceId       String?           @map("source_trace_id")
+    sourceTrace         Trace?            @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
     sourceObservationId String?           @map("source_observation_id")
     sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
     datasetId           String            @map("dataset_id")
@@ -384,6 +463,7 @@ enum DatasetStatus {
 model DatasetRuns {
     id              String            @id @default(cuid())
     name            String
+    description     String?
     metadata        Json?
     datasetId       String            @map("dataset_id")
     dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
@@ -397,19 +477,22 @@ model DatasetRuns {
 }
 
 model DatasetRunItems {
-    id            String      @id @default(cuid())
-    datasetRunId  String      @map("dataset_run_id")
-    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
-    datasetItemId String      @map("dataset_item_id")
-    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
-    observationId String      @map("observation_id")
-    observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
-    createdAt     DateTime    @default(now()) @map("created_at")
-    updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+    id            String       @id @default(cuid())
+    datasetRunId  String       @map("dataset_run_id")
+    datasetRun    DatasetRuns  @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
+    datasetItemId String       @map("dataset_item_id")
+    datasetItem   DatasetItem  @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
+    traceId       String       @map("trace_id")
+    trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
+    observationId String?      @map("observation_id")
+    observation   Observation? @relation(fields: [observationId], references: [id], onDelete: Cascade)
+    createdAt     DateTime     @default(now()) @map("created_at")
+    updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
 
     @@index([datasetRunId], type: Hash)
     @@index([datasetItemId], type: Hash)
     @@index([observationId], type: Hash)
+    @@index([traceId])
     @@map("dataset_run_items")
 }
 
@@ -438,9 +521,10 @@ model Prompt {
 
     createdBy String @map("created_by")
 
-    prompt      String
+    prompt      Json
     name        String
     version     Int
+    type        String        @default("text")
     isActive    Boolean       @map("is_active")
     config      Json          @default("{}")
     Observation Observation[]
@@ -452,6 +536,7 @@ model Prompt {
     @@map("prompts")
 }
 
+// Update ObservationView below when making changes to this model!
 model Model {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now()) @map("created_at")
@@ -474,51 +559,6 @@ model Model {
     @@index([projectId, modelName, startDate, unit])
     @@index([projectId, modelName])
     @@map("models")
-}
-
-// This view is a mix of the observation and model. Once prisma supports
-// inheritance, we should remove code duplication here.
-view ObservationView {
-    id                  String           @id @default(cuid())
-    traceId             String?          @map("trace_id")
-    projectId           String           @map("project_id")
-    type                ObservationType
-    startTime           DateTime         @default(now()) @map("start_time")
-    endTime             DateTime?        @map("end_time")
-    name                String?
-    metadata            Json?
-    parentObservationId String?          @map("parent_observation_id")
-    level               ObservationLevel @default(DEFAULT)
-    statusMessage       String?          @map("status_message")
-    version             String?
-    createdAt           DateTime         @default(now()) @map("created_at")
-
-    // GENERATION ONLY
-    model               String?
-    modelParameters     Json?
-    input               Json?
-    output              Json?
-    promptTokens        Int       @default(0) @map("prompt_tokens")
-    completionTokens    Int       @default(0) @map("completion_tokens")
-    totalTokens         Int       @default(0) @map("total_tokens")
-    unit                String?
-    completionStartTime DateTime? @map("completion_start_time")
-
-    promptId String? @map("prompt_id")
-
-    // model fields
-    modelId     String?  @map("model_id")
-    inputPrice  Decimal? @map("input_price")
-    outputPrice Decimal? @map("output_price")
-    totalPrice  Decimal? @map("total_price")
-
-    // calculated fields
-    calculatedInputCost  Decimal? @map("calculated_input_cost")
-    calculatedOutputCost Decimal? @map("calculated_output_cost")
-    calculatedTotalCost  Decimal? @map("calculated_total_cost")
-    latency              Float?   @map("latency")
-
-    @@map("observations_view")
 }
 
 model AuditLog {

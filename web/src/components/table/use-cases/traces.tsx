@@ -13,7 +13,10 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { type FilterState } from "@/src/features/filters/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
+import {
+  type TraceOptions,
+  tracesTableColsWithOptions,
+} from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
@@ -46,9 +49,10 @@ export type TracesTableRow = {
   latency?: number;
   release?: string;
   version?: string;
+  sessionId?: string;
+  // i/o not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
-  sessionId?: string;
   scores: Score[];
   tags: string[];
   usage: {
@@ -81,14 +85,17 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
-  const [userFilterState, setUserFilterState] = useQueryFilterState([
-    {
-      column: "timestamp",
-      type: "datetime",
-      operator: ">",
-      value: utcDateOffsetByDays(-14),
-    },
-  ]);
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [
+      {
+        column: "Timestamp",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(-14),
+      },
+    ],
+    "traces",
+  );
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
@@ -97,7 +104,7 @@ export default function TracesTable({
   const userIdFilter: FilterState = userId
     ? [
         {
-          column: "userId",
+          column: "User ID",
           type: "string",
           operator: "=",
           value: userId,
@@ -117,6 +124,7 @@ export default function TracesTable({
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
+    returnIO: false,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
 
@@ -146,6 +154,15 @@ export default function TracesTable({
       },
     },
   );
+
+  const transformFilterOptions = (
+    traceFilterOptions: TraceOptions | undefined,
+  ) => {
+    return tracesTableColsWithOptions(traceFilterOptions).filter(
+      (c) => !omittedFilter?.includes(c.name),
+    );
+  };
+
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
@@ -161,8 +178,6 @@ export default function TracesTable({
       userId: trace.userId ?? "",
       scores: trace.scores,
       sessionId: trace.sessionId ?? undefined,
-      input: trace.input,
-      output: trace.output,
       latency: trace.latency === null ? undefined : trace.latency,
       tags: trace.tags,
       usage: {
@@ -226,6 +241,7 @@ export default function TracesTable({
           />
         ) : undefined;
       },
+      enableSorting: true,
     },
     {
       accessorKey: "id",
@@ -254,10 +270,10 @@ export default function TracesTable({
       header: "Name",
       id: "name",
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "userId",
-      enableColumnFilter: !omittedFilter.find((f) => f === "userId"),
       header: "User ID",
       id: "userId",
       cell: ({ row }) => {
@@ -276,6 +292,7 @@ export default function TracesTable({
     {
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      id: "sessionId",
       header: "Session ID",
       cell: ({ row }) => {
         const value = row.getValue("sessionId");
@@ -288,6 +305,7 @@ export default function TracesTable({
         ) : undefined;
       },
       enableHiding: true,
+      enableSorting: true,
     },
     {
       accessorKey: "latency",
@@ -315,6 +333,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputTokens",
@@ -330,6 +349,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalTokens",
@@ -345,11 +365,13 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       // TODO: Enable Ordering By Usage (not covered by API yet)
       accessorKey: "usage",
       header: "Usage",
+      id: "usage",
       cell: ({ row }) => {
         const value: {
           promptTokens: number;
@@ -365,6 +387,7 @@ export default function TracesTable({
           />
         );
       },
+      enableSorting: true,
       enableHiding: true,
     },
     {
@@ -385,6 +408,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "outputCost",
@@ -404,6 +428,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "totalCost",
@@ -438,6 +463,7 @@ export default function TracesTable({
     {
       accessorKey: "input",
       header: "Input",
+      id: "input",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
         return (
@@ -450,6 +476,7 @@ export default function TracesTable({
     {
       accessorKey: "output",
       header: "Output",
+      id: "output",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
         return (
@@ -470,6 +497,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "level",
+      id: "level",
       header: "Level",
       cell: ({ row }) => {
         const value: ObservationLevel = row.getValue("level");
@@ -487,6 +515,7 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      enableSorting: true,
     },
     {
       accessorKey: "version",
@@ -555,9 +584,7 @@ export default function TracesTable({
     <div>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={tracesTableColsWithOptions(
-          traceFilterOptions.data,
-        )}
+        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
           placeholder: "Search by id, name, user id",
           updateQuery: setSearchQuery,
@@ -623,22 +650,8 @@ const TracesIOCell = ({
   traceId: string;
   io: "input" | "output";
 }) => {
-  const trace = api.traces.all.useQuery(
-    {
-      projectId: projectId,
-      filter: [
-        {
-          column: "id",
-          type: "string",
-          operator: "=",
-          value: traceId,
-        },
-      ],
-      searchQuery: null,
-      orderBy: null,
-      page: 0,
-      limit: 1,
-    },
+  const trace = api.traces.byId.useQuery(
+    { traceId: traceId },
     {
       enabled: typeof traceId === "string",
       trpc: {
@@ -651,11 +664,7 @@ const TracesIOCell = ({
   return (
     <IOCell
       isLoading={trace.isLoading}
-      data={
-        io === "output"
-          ? trace.data?.traces[0]?.output
-          : trace.data?.traces[0]?.input
-      }
+      data={io === "output" ? trace.data?.output : trace.data?.input}
     />
   );
 };

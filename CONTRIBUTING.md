@@ -55,8 +55,10 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 flowchart TB
    subgraph s4["Clients"]
       subgraph s2["langfuse/langfuse-python"]
-         Python["Python SDK"]
+         Python["Python low-level SDK"]
+         Decorator["observe() decorator"] -->|extends| Python
          OAI["OpenAI drop-in replacement"] -->|extends| Python
+         Llamaindex["LlamaIndex Integration"] -->|extends| Python
          LCPYTHON["Langchain Python Integration"] -->|extends| Python
          Langflow -->|uses| LCPYTHON
          LiteLLM -->|uses| Python
@@ -198,6 +200,19 @@ Requirements
 
 > [!NOTE]
 > If you find yourself stuck and want to clean the repo, execute `pnpm run nuke`. It will remove all node_modules and build files.
+
+## System behavior
+
+### Ingestion API `(/public/api/ingestion)`
+
+- the ingestion API takes different event types (creation and updates of traces, generations, spans, events)
+- The API loops through each event and:
+  - validates the event
+  - stores the event raw in the events table
+  - calculates tokens for `generations`
+  - matches models from the `models` table to model for `generations` events
+  - upserts the event in the `traces` or `observations` table
+- returns a `207` HTTP status code with a list of errors if any event failed to be ingested
 
 ## Commit messages
 

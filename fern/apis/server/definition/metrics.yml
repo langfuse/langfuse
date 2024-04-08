@@ -13,8 +13,12 @@ service:
       request:
         name: GetDailyMetricsRequest
         query-parameters:
-          page: optional<integer>
-          limit: optional<integer>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
           traceName:
             type: optional<string>
             docs: Optional filter by the name of the trace

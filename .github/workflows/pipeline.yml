@@ -87,7 +87,7 @@ jobs:
 
       - name: Run + migrate
         run: |
-          docker-compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
@@ -128,7 +128,7 @@ jobs:
 
       - name: Run + migrate
         run: |
-          docker-compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
@@ -140,9 +140,7 @@ jobs:
         run: pnpm run build
 
       - name: Install playwright
-        run: |
-          npm add --global playwright
-          pnpm exec playwright install
+        run: pnpm --filter=web exec playwright install --with-deps
 
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
@@ -195,7 +193,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
-        id: meta
+        id: meta-web
         uses: docker/metadata-action@v4
         with:
           images: |
@@ -208,11 +206,34 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (web)
         uses: docker/build-push-action@v4
         with:
           context: .
           file: ./web/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta-worker
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository }}-worker
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push Docker image (worker)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./worker/Dockerfile
+          push: true
+          tags: ${{ steps.meta-worker.outputs.tags }}
+          labels: ${{ steps.meta-worker.outputs.labels }}

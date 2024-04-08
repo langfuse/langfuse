@@ -22,10 +22,17 @@ service:
       request:
         name: GetTracesRequest
         query-parameters:
-          page: optional<integer>
-          limit: optional<integer>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
           userId: optional<string>
           name: optional<string>
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Retrieve only traces newer than this timestamp.
           orderBy:
             type: optional<string>
             docs: "Format of the string [field].[asc/desc]. Fields: id, timestamp, name, userId, release, version, public, bookmarked, sessionId. Example: timestamp.asc"

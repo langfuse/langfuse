@@ -4,6 +4,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import { type Prompt } from "@langfuse/shared/src/db";
+import {
+  PromptSchema,
+  PromptType,
+  type ValidatedPrompt,
+} from "@/src/features/prompts/server/validation";
 
 describe("/api/public/prompts API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -43,6 +48,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.id).toBe(promptId);
     expect(fetchedObservations.body.name).toBe("prompt-name");
     expect(fetchedObservations.body.prompt).toBe("prompt");
+    expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
@@ -190,6 +196,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.id).toBe(promptIdTwo);
     expect(fetchedObservations.body.name).toBe("prompt-name");
     expect(fetchedObservations.body.prompt).toBe("prompt");
+    expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(2);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
@@ -221,6 +228,7 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(fetchedObservations.body.name).toBe("prompt-name");
     expect(fetchedObservations.body.prompt).toBe("prompt");
+    expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("API");
@@ -342,8 +350,6 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(response.status).toBe(207);
 
-    console.log("response body", response.body);
-
     const dbGeneration = await prisma.observation.findUnique({
       where: {
         id: generationId,
@@ -375,10 +381,184 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(fetchedObservations.body.name).toBe("prompt-name");
     expect(fetchedObservations.body.prompt).toBe("prompt");
+    expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("API");
     expect(fetchedObservations.body.config).toEqual({});
+  });
+
+  it("should create and fetch a chat prompt", async () => {
+    const promptName = "prompt-name";
+    const chatMessages = [
+      { role: "system", content: "You are a bot" },
+      { role: "user", content: "What's up?" },
+    ];
+    const response = await makeAPICall("POST", "/api/public/prompts", {
+      name: promptName,
+      prompt: chatMessages,
+      type: "chat",
+      isActive: true,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    });
+
+    expect(response.status).toBe(201);
+
+    const { body: fetchedPrompt } = await makeAPICall(
+      "GET",
+      `/api/public/prompts?name=${promptName}`,
+      undefined,
+    );
+
+    const validatedPrompt = validatePrompt(fetchedPrompt);
+
+    expect(validatedPrompt.name).toBe("prompt-name");
+    expect(validatedPrompt.prompt).toEqual(chatMessages);
+    expect(validatedPrompt.type).toBe("chat");
+    expect(validatedPrompt.version).toBe(1);
+    expect(validatedPrompt.isActive).toBe(true);
+    expect(validatedPrompt.createdBy).toBe("API");
+    expect(validatedPrompt.config).toEqual({});
+  });
+
+  it("should fail if chat prompt has string prompt", async () => {
+    const promptName = "prompt-name";
+    const response = await makeAPICall("POST", "/api/public/prompts", {
+      name: promptName,
+      prompt: "prompt",
+      type: "chat",
+      isActive: true,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    });
+
+    expect(response.status).toBe(400);
+
+    const { body, status } = await makeAPICall(
+      "GET",
+      `/api/public/prompts?name=${promptName}`,
+      undefined,
+    );
+    expect(status).toBe(404);
+    expect(body).toEqual({
+      error: "NotFoundError",
+      message: "Prompt not found",
+    });
+  });
+
+  it("should fail if chat prompt has incorrect messages format", async () => {
+    const promptName = "prompt-name";
+    const incorrectChatMessages = [
+      { role: "system", content: "You are a bot" },
+      { role: "user", message: "What's up?" },
+    ];
+    const response = await makeAPICall("POST", "/api/public/prompts", {
+      name: promptName,
+      prompt: incorrectChatMessages,
+      type: "chat",
+      isActive: true,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    });
+
+    expect(response.status).toBe(400);
+
+    const { body, status } = await makeAPICall(
+      "GET",
+      `/api/public/prompts?name=${promptName}`,
+      undefined,
+    );
+    expect(status).toBe(404);
+    expect(body).toEqual({
+      error: "NotFoundError",
+      message: "Prompt not found",
+    });
+  });
+  it("should fail if text prompt has message format", async () => {
+    const promptName = "prompt-name";
+    const response = await makeAPICall("POST", "/api/public/prompts", {
+      name: promptName,
+      prompt: [{ role: "system", content: "You are a bot" }],
+      type: "text",
+      isActive: true,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    });
+
+    expect(response.status).toBe(400);
+
+    const { body, status } = await makeAPICall(
+      "GET",
+      `/api/public/prompts?name=${promptName}`,
+      undefined,
+    );
+    expect(status).toBe(404);
+    expect(body).toEqual({
+      error: "NotFoundError",
+      message: "Prompt not found",
+    });
+  });
+
+  it("should fail if previous versions have different prompt type", async () => {
+    // Create a chat prompt
+    const promptName = "prompt-name";
+    const chatMessages = [
+      { role: "system", content: "You are a bot" },
+      { role: "user", content: "What's up?" },
+    ];
+    const postResponse1 = await makeAPICall("POST", "/api/public/prompts", {
+      name: promptName,
+      prompt: chatMessages,
+      type: "chat",
+      isActive: true,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    });
+
+    expect(postResponse1.status).toBe(201);
+
+    // Try creating a text prompt with the same name
+    const postResponse2 = await makeAPICall("POST", "/api/public/prompts", {
+      name: promptName,
+      prompt: "prompt",
+      type: "text",
+      isActive: true,
+      version: 2,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    });
+
+    expect(postResponse2.status).toBe(400);
+    expect(postResponse2.body).toEqual({
+      error: "ValidationError",
+      message:
+        "Previous versions have different prompt type. Create a new prompt with a different name.",
+    });
+
+    // Check if the prompt is still the chat prompt
+    const getResponse1 = await makeAPICall(
+      "GET",
+      `/api/public/prompts?name=${promptName}`,
+      undefined,
+    );
+    expect(getResponse1.status).toBe(200);
+
+    const validatedPrompt = validatePrompt(getResponse1.body);
+
+    expect(validatedPrompt.name).toBe("prompt-name");
+    expect(validatedPrompt.prompt).toEqual(chatMessages);
+    expect(validatedPrompt.type).toBe("chat");
+    expect(validatedPrompt.version).toBe(1);
+    expect(validatedPrompt.isActive).toBe(true);
+    expect(validatedPrompt.createdBy).toBe("API");
+    expect(validatedPrompt.config).toEqual({});
+
+    // Check that the text prompt has not been created
+    const getResponse2 = await makeAPICall(
+      "GET",
+      `/api/public/prompts?name=${promptName}&version=2`,
+      undefined,
+    );
+    expect(getResponse2.status).toBe(404);
+    expect(getResponse2.body).toEqual({
+      error: "NotFoundError",
+      message: "Prompt not found",
+    });
   });
 });
 
@@ -393,6 +573,18 @@ const isPrompt = (x: unknown): x is Prompt => {
     typeof prompt.isActive === "boolean" &&
     typeof prompt.projectId === "string" &&
     typeof prompt.createdBy === "string" &&
-    typeof prompt.config === "object"
+    typeof prompt.config === "object" &&
+    Object.values(PromptType).includes(prompt.type as PromptType)
   );
+};
+
+const validatePrompt = (obj: Record<string, unknown>): ValidatedPrompt => {
+  Object.keys(obj).forEach((key) => {
+    obj[key] =
+      key === "createdAt" || key === "updatedAt"
+        ? new Date(obj[key] as string)
+        : obj[key];
+  });
+
+  return PromptSchema.parse(obj);
 };
