@@ -64,9 +64,8 @@ export function PromptTable() {
     }),
     columnHelper.accessor("version", {
       header: "Latest Version",
-      cell: ({ row }) => {
-        const version = row.getValue("version");
-        return version;
+      cell: (row) => {
+        return row.getValue();
       },
     }),
     columnHelper.accessor("createdAt", {
