@@ -13,10 +13,12 @@ import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt } from "./createPrompt";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { paginationZod } from "@/src/utils/zod";
-import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
+import {
+  orderBy,
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
