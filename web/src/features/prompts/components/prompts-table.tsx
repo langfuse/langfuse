@@ -68,6 +68,12 @@ export function PromptTable() {
         return row.getValue();
       },
     }),
+    columnHelper.accessor("type", {
+      header: "Type",
+      cell: (row) => {
+        return row.getValue();
+      },
+    }),
     columnHelper.accessor("createdAt", {
       header: "Latest Version Created At",
       cell: (row) => {
