@@ -22,6 +22,7 @@ export type Route = {
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
+  newTab?: boolean; // open in new tab
 };
 
 export const ROUTES: Route[] = [
@@ -96,9 +97,10 @@ export const ROUTES: Route[] = [
   },
   {
     name: "Docs",
-    pathname: "https://docs.langfuse.com",
+    pathname: "https://langfuse.com/docs",
     icon: LibraryBig,
     bottom: true,
+    newTab: true,
   },
   {
     name: "Support",
