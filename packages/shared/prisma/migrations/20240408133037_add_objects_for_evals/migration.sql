@@ -75,12 +75,6 @@ CREATE INDEX "job_configurations_project_id_id_idx" ON "job_configurations"("pro
 CREATE INDEX "job_configurations_project_id_idx" ON "job_configurations"("project_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "job_executions_job_input_trace_id_key" ON "job_executions"("job_input_trace_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "job_executions_job_output_score_id_key" ON "job_executions"("job_output_score_id");
-
--- CreateIndex
 CREATE INDEX "job_executions_project_id_id_idx" ON "job_executions"("project_id", "id");
 
 -- CreateIndex
