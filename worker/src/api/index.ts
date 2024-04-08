@@ -29,7 +29,7 @@ type EventsResponse = {
   status: "success";
 };
 
-router.route("/").get<{}, { status: string }>("/health", async (_req, res) => {
+router.get<{}, { status: string }>("/health", async (_req, res) => {
   try {
     //check database health
     await prisma.$queryRaw`SELECT 1;`;
