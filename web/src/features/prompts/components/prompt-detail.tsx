@@ -34,10 +34,13 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
-  const promptHistory = api.prompts.allVersions.useQuery({
-    name: promptName,
-    projectId,
-  });
+  const promptHistory = api.prompts.allVersions.useQuery(
+    {
+      name: promptName,
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+    },
+    { enabled: Boolean(projectId) },
+  );
   const prompt = currentPromptVersion
     ? promptHistory.data?.find(
         (prompt) => prompt.version === currentPromptVersion,
@@ -81,7 +84,6 @@ export const PromptDetail = () => {
             actionButtons={
               <>
                 <PromotePrompt
-                  projectId={projectId}
                   promptId={prompt.id}
                   promptName={prompt.name}
                   disabled={prompt.isActive}
@@ -111,7 +113,6 @@ export const PromptDetail = () => {
                 </Link>
 
                 <DeletePromptVersion
-                  projectId={projectId}
                   promptVersionId={prompt.id}
                   version={prompt.version}
                   countVersions={promptHistory.data.length}

@@ -9,20 +9,20 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { usePostHog } from "posthog-js/react";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 export function PromotePrompt({
   promptId,
-  projectId,
   promptName,
   disabled,
   variant,
 }: {
   promptId: string;
-  projectId: string;
   promptName: string;
   disabled: boolean;
   variant?: "ghost" | "outline";
 }) {
+  const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const posthog = usePostHog();
   const [isOpen, setIsOpen] = useState(false);
@@ -71,6 +71,12 @@ export function PromotePrompt({
             variant="destructive"
             loading={mutPromotePrompt.isLoading}
             onClick={() => {
+              if (!projectId) {
+                console.error("Project ID is missing");
+
+                return;
+              }
+
               void mutPromotePrompt.mutateAsync({
                 promptId,
                 projectId,
