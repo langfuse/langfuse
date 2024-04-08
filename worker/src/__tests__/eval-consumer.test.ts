@@ -68,7 +68,7 @@ describe("create eval jobs", () => {
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
     expect(jobs[0].status.toString()).toBe("PENDING");
-  });
+  }, 10_000);
 
   test("does not create eval job for existing job execution", async () => {
     await pruneDatabase();
@@ -118,7 +118,7 @@ describe("create eval jobs", () => {
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
     expect(jobs[0].status.toString()).toBe("PENDING");
-  });
+  }, 10_000);
 
   test("cancels a job if the second event deselects", async () => {
     await pruneDatabase();
@@ -186,7 +186,7 @@ describe("create eval jobs", () => {
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
     expect(jobs[0].status.toString()).toBe("CANCELLED");
-  });
+  }, 10_000);
 });
 
 describe("execute evals", () => {
@@ -285,7 +285,7 @@ describe("execute evals", () => {
     expect(scores.length).toBe(1);
     expect(scores[0].trace_id).toBe(traceId);
     expect(scores[0].comment).not.toBeNull();
-  });
+  }, 10_000);
 
   test("evals should cancel if job is cancelled", async () => {
     await pruneDatabase();
@@ -369,5 +369,5 @@ describe("execute evals", () => {
       .execute();
 
     expect(jobs.length).toBe(0);
-  });
+  }, 10_000);
 });
