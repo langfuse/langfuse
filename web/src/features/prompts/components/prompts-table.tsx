@@ -111,10 +111,12 @@ export function PromptTable() {
     },
     {
       accessorKey: "type",
+      id: "type",
       header: "Type",
       cell: ({ row }) => {
         return capitalize(row.getValue("type"));
       },
+      enableSorting: true,
     },
     {
       accessorKey: "createdAt",
