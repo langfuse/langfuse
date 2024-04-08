@@ -1,8 +1,5 @@
 import { PromptType } from "@/src/features/prompts/server/validation";
-import {
-  ColumnDefinition,
-  OptionsDefinition,
-} from "@/src/server/api/interfaces/tableDefinition";
+import { ColumnDefinition, OptionsDefinition } from "@langfuse/shared";
 
 export const promptsTableCols: ColumnDefinition[] = [
   {
