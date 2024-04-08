@@ -13,7 +13,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { TagPromptPopver } from "@/src/features/tag/components/TagPromptPopover";
+import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -158,7 +158,7 @@ export function PromptTable() {
         const filterOptionTags = promptFilterOptions.data?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
         return (
-          <TagPromptPopver
+          <TagPromptPopover
             tags={tags}
             availableTags={allTags}
             projectId={projectId}

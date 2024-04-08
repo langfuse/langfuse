@@ -12,7 +12,7 @@ type TagPromptPopverProps = {
   promptsFilter: RouterInput["prompts"]["all"];
 };
 
-export function TagPromptPopver({
+export function TagPromptPopover({
   tags,
   availableTags,
   projectId,
@@ -32,7 +32,7 @@ export function TagPromptPopver({
     },
     onError: (err, _newTags, context) => {
       utils.prompts.all.setData(promptsFilter, context?.prevPrompt);
-      console.log("error", err);
+      console.error(err);
       setIsLoading(false);
     },
     onSettled: (data, error, { name, tags }) => {
