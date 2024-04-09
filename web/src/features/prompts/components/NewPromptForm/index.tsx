@@ -276,6 +276,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           <p className="text-sm text-gray-500">
             You can use <code className="text-xs">{"{{variable}}"}</code> to
             insert variables into your prompt.
+            <b className="font-semibold"> Note:</b> Variables must be
+            alphabetical characters or underscores.
             {currentExtractedVariables.length > 0
               ? " The following variables are available:"
               : ""}
