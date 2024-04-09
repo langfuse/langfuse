@@ -53,13 +53,25 @@ export default async function handler(
             projectId: authCheck.scope.projectId,
           },
         },
+        include: {
+          dataset: {
+            select: {
+              name: true,
+            },
+          },
+        },
       });
       if (!datasetItem) {
         return res.status(404).json({
           message: "Dataset item not found (for this project)",
         });
       }
-      res.status(200).json(datasetItem);
+
+      const { dataset, ...datasetItemBody } = datasetItem;
+      res.status(200).json({
+        ...datasetItemBody,
+        datasetName: dataset.name,
+      });
     } else {
       res.status(405).json({
         message: "Method not allowed",
