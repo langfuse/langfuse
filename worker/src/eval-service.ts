@@ -3,10 +3,8 @@ import { z } from "zod";
 import {
   ChatMessageRole,
   EvalExecutionEvent,
-  ModelProvider,
   QueueJobs,
   QueueName,
-  ScoreSource,
   fetchLLMCompletion,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
