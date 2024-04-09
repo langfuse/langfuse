@@ -55,6 +55,10 @@ export const evalJobCreator = redis
       },
       {
         connection: redis,
+        limiter: {
+          max: 100,
+          duration: 10_000,
+        },
       }
     )
   : null;
@@ -85,6 +89,10 @@ export const evalJobExecutor = redis
       },
       {
         connection: redis,
+        limiter: {
+          max: 10,
+          duration: 30_000,
+        },
       }
     )
   : null;
