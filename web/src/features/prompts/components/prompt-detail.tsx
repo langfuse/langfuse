@@ -22,6 +22,7 @@ import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
+import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 
 import { PromptHistoryNode } from "./prompt-history";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -55,11 +56,24 @@ export const PromptDetail = () => {
   try {
     chatMessages = ChatMlArraySchema.parse(prompt?.prompt);
   } catch (error) {
-    console.warn(
-      "Could not parse returned chat prompt to pretty ChatML",
-      error,
-    );
+    if (PromptType.Chat === prompt?.type) {
+      console.warn(
+        "Could not parse returned chat prompt to pretty ChatML",
+        error,
+      );
+    }
   }
+
+  const allTags = (
+    api.prompts.filterOptions.useQuery(
+      {
+        projectId: projectId as string,
+      },
+      {
+        enabled: Boolean(projectId),
+      },
+    ).data?.tags ?? []
+  ).map((t) => t.value);
 
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
@@ -127,6 +141,20 @@ export const PromptDetail = () => {
               </>
             }
           />
+        </div>
+        <div className="col-span-3">
+          <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
+            <div className="flex flex-row items-center gap-3 p-2.5">
+              Tags
+              <TagPromptDetailsPopover
+                key={prompt.id}
+                projectId={projectId as string}
+                promptName={prompt.name}
+                tags={prompt.tags}
+                availableTags={allTags}
+              />
+            </div>
+          </div>
         </div>
         <div className="col-span-2 md:h-full">
           {prompt.type === PromptType.Chat && chatMessages ? (

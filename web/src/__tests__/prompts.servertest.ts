@@ -53,6 +53,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
     expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
+    expect(fetchedObservations.body.tags).toEqual([]);
   });
 
   it("should fetch active prompt only if no prompt version is given", async () => {

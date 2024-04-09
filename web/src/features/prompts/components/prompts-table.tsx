@@ -1,4 +1,3 @@
-import { capitalize } from "lodash";
 import { LockIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
@@ -13,6 +12,12 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
+import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 
 type PromptTableRow = {
@@ -23,28 +28,61 @@ type PromptTableRow = {
   isActive: boolean;
   type: string;
   numberOfObservations: number;
+  tags: string[];
 };
 
 export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
-  const prompts = api.prompts.all.useQuery(
-    {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-    },
-    { enabled: Boolean(projectId) },
-  );
   const hasCUDAccess = useHasAccess({
     projectId,
     scope: "prompts:CUD",
   });
 
+  const [filterState, setFilterState] = useQueryFilterState([], "prompts");
+
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "createdAt",
+    order: "DESC",
+  });
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
+  const prompts = api.prompts.all.useQuery(
+    {
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      filter: filterState,
+      orderBy: orderByState,
+    },
+    { enabled: Boolean(projectId) },
+  );
+  const promptFilterOptions = api.prompts.filterOptions.useQuery(
+    {
+      projectId: projectId as string,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  const filterOptionTags = promptFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
+
+  const totalCount = prompts.data?.totalCount ?? 0;
+
   useEffect(() => {
     if (prompts.isSuccess) {
       setDetailPageList(
         "prompts",
-        prompts.data.map((t) => encodeURIComponent(t.name)),
+        prompts.data.prompts.map((t) => t.name),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,6 +92,8 @@ export function PromptTable() {
   const promptColumns = [
     columnHelper.accessor("name", {
       header: "Name",
+      id: "name",
+      enableSorting: true,
       cell: (row) => {
         const name = row.getValue();
         return name ? (
@@ -67,18 +107,24 @@ export function PromptTable() {
     }),
     columnHelper.accessor("version", {
       header: "Latest Version",
+      id: "version",
+      enableSorting: true,
       cell: (row) => {
         return row.getValue();
       },
     }),
     columnHelper.accessor("type", {
       header: "Type",
+      id: "type",
+      enableSorting: true,
       cell: (row) => {
         return row.getValue();
       },
     }),
     columnHelper.accessor("createdAt", {
       header: "Latest Version Created At",
+      id: "createdAt",
+      enableSorting: true,
       cell: (row) => {
         const createdAt = row.getValue();
         return createdAt.toLocaleString();
@@ -100,6 +146,30 @@ export function PromptTable() {
         );
       },
     }),
+    columnHelper.accessor("tags", {
+      header: "Tags",
+      id: "tags",
+      enableSorting: true,
+      cell: (row) => {
+        const tags = row.getValue();
+        const promptName: string = row.row.original.name;
+        return (
+          <TagPromptPopover
+            tags={tags}
+            availableTags={allTags}
+            projectId={projectId as string}
+            promptName={promptName}
+            promptsFilter={{
+              ...filterOptionTags,
+              projectId: projectId as string,
+              filter: filterState,
+              orderBy: orderByState,
+            }}
+          />
+        );
+      },
+      enableHiding: true,
+    }),
     columnHelper.display({
       id: "actions",
       header: "Actions",
@@ -111,7 +181,7 @@ export function PromptTable() {
   ] as LangfuseColumnDef<PromptTableRow>[];
 
   const convertToTableRow = (
-    item: RouterOutput["prompts"]["all"][number],
+    item: RouterOutput["prompts"]["all"]["prompts"][number],
   ): PromptTableRow => {
     return {
       id: item.id,
@@ -121,11 +191,20 @@ export function PromptTable() {
       type: item.type,
       isActive: item.isActive,
       numberOfObservations: Number(item.observationCount),
+      tags: item.tags,
     };
   };
 
   return (
     <div>
+      <DataTableToolbar
+        columns={promptColumns}
+        filterColumnDefinition={promptsTableColsWithOptions(
+          promptFilterOptions.data,
+        )}
+        filterState={filterState}
+        setFilterState={setFilterState}
+      />
       <DataTable
         columns={promptColumns}
         data={
@@ -140,9 +219,16 @@ export function PromptTable() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: prompts.data.map((t) => convertToTableRow(t)),
+                  data: prompts.data.prompts.map((t) => convertToTableRow(t)),
                 }
         }
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
       <Link href={`/project/${projectId}/prompts/new`}>
         <Button

@@ -43,6 +43,7 @@ export const createPrompt = async ({
         createdBy,
         isActive,
         type,
+        tags: latestPrompt?.tags,
         version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
         project: { connect: { id: projectId } },
         config: jsonSchema.parse(config),
