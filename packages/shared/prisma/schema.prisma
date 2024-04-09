@@ -533,12 +533,14 @@ model Prompt {
     type        String        @default("text")
     isActive    Boolean       @map("is_active")
     config      Json          @default("{}")
+    tags        String[]      @default([])
     Observation Observation[]
 
     @@unique([projectId, name, version])
     @@index([projectId, name, version])
     @@index([projectId, id])
     @@index([projectId])
+    @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("prompts")
 }
 

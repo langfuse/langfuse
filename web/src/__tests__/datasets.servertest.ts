@@ -45,11 +45,18 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const datasetItemId = v4();
 
-    await makeAPICall("POST", "/api/public/dataset-items", {
+    const createItemRes = await makeAPICall<{
+      datasetName: string; // field that can break if the API changes as it is not a db column
+    }>("POST", "/api/public/dataset-items", {
       datasetName: "dataset-name-2",
       input: { key: "value" },
       expectedOutput: { key: "value" },
       id: datasetItemId,
+    });
+
+    expect(createItemRes.status).toBe(200);
+    expect(createItemRes.body).toMatchObject({
+      datasetName: "dataset-name-2", // not included in db table
     });
 
     const traceId = v4();
@@ -152,6 +159,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           id: dbDatasetItem!.id,
           input: { key: "value" },
           expectedOutput: { key: "value" },
+          datasetName: "dataset-name", // not included in db table
         },
       ],
     });
@@ -165,6 +173,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       id: dbDatasetItem!.id,
       input: { key: "value" },
       expectedOutput: { key: "value" },
+      datasetName: "dataset-name", // not included in db table
     });
   });
 
@@ -303,20 +312,25 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           datasetItemId: "dataset-item-id",
           observationId: observationId,
           traceId: traceId,
+          datasetRunName: "run-only-observation",
         }),
       ]),
     });
 
-    const runItemTrace = await makeAPICall(
-      "POST",
-      "/api/public/dataset-run-items",
-      {
-        datasetItemId: "dataset-item-id",
-        traceId: traceId,
-        runName: "run-only-trace",
-        metadata: { key: "value" },
-      },
-    );
+    const runItemTrace = await makeAPICall<{
+      datasetRunName: string; // field that can break if the API changes as it is not a db column
+    }>("POST", "/api/public/dataset-run-items", {
+      datasetItemId: "dataset-item-id",
+      traceId: traceId,
+      runName: "run-only-trace",
+      metadata: { key: "value" },
+    });
+
+    expect(runItemTrace.status).toBe(200);
+    expect(runItemTrace.body).toMatchObject({
+      datasetRunName: "run-only-trace", // not included in db table
+    });
+
     const dbRunTrace = await prisma.datasetRuns.findFirst({
       where: {
         name: "run-only-trace",

@@ -714,6 +714,16 @@ async function generatePrompts(project: Project) {
       version: 1,
       isActive: true,
     },
+    {
+      id: `prompt-${v4()}`,
+      projectId: project.id,
+      createdBy: "user-1",
+      prompt: "Prompt 4 content",
+      name: "Prompt 4",
+      version: 1,
+      isActive: true,
+      tags: ["tag1", "tag2"],
+    },
   ];
 
   for (const prompt of prompts) {
@@ -733,6 +743,7 @@ async function generatePrompts(project: Project) {
         name: prompt.name,
         version: prompt.version,
         isActive: prompt.isActive,
+        tags: prompt.tags,
       },
       update: {
         id: prompt.id,

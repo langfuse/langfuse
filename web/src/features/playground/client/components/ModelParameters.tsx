@@ -15,6 +15,7 @@ import { Slider } from "@/src/components/ui/slider";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
+  availableModels?: UIModelParams[];
   updateModelParams: <Key extends keyof UIModelParams>(
     key: Key,
     value: UIModelParams[Key],
@@ -23,6 +24,7 @@ export type ModelParamsContext = {
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
+  availableModels,
   updateModelParams,
 }) => {
   return (
@@ -33,14 +35,24 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           title="Provider"
           modelParamsKey="provider"
           value={modelParams.provider}
-          options={Object.values(ModelProvider)}
+          options={
+            availableModels
+              ? [...new Set(availableModels.map((m) => m.provider))]
+              : Object.values(ModelProvider)
+          }
           updateModelParams={updateModelParams}
         />
         <ModelParamsSelect
           title="Model name"
           modelParamsKey="model"
           value={modelParams.model}
-          options={Object.values(supportedModels[modelParams.provider])}
+          options={Object.values(
+            availableModels
+              ? availableModels
+                  .filter((m) => m.provider === modelParams.provider)
+                  .map((m) => m.model)
+              : supportedModels[modelParams.provider],
+          )}
           updateModelParams={updateModelParams}
         />
         <ModelParamsSlider

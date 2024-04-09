@@ -52,7 +52,7 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
       status: "ok",
     });
   } catch (e) {
-    logger.error("Health check failed", e);
+    logger.error(e, "Health check failed");
     res.status(500).json({
       status: "error",
     });
@@ -83,6 +83,13 @@ router
           },
         },
         name: QueueJobs.TraceUpsert as const,
+        opts: {
+          attempts: 5,
+          backoff: {
+            type: "exponential",
+            delay: 1000,
+          },
+        },
       },
     }));
 

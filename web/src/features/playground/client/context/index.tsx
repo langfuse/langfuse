@@ -54,8 +54,13 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
-export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
+export type PlaygroundProviderProps = PropsWithChildren & {
+  avilableModels?: UIModelParams[];
+};
+
+export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
+  avilableModels,
 }) => {
   const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
@@ -68,7 +73,9 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     createEmptyMessage(ChatMessageRole.User),
   ]);
   const [modelParams, setModelParams] = useState<UIModelParams>(
-    getDefaultModelParams(ModelProvider.OpenAI),
+    avilableModels && avilableModels.length > 0
+      ? avilableModels[0]
+      : getDefaultModelParams(ModelProvider.OpenAI),
   );
 
   const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(

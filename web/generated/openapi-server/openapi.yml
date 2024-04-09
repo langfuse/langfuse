@@ -1561,6 +1561,8 @@ components:
           nullable: true
         datasetId:
           type: string
+        datasetName:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -1571,6 +1573,7 @@ components:
         - id
         - status
         - datasetId
+        - datasetName
         - createdAt
         - updatedAt
     DatasetRunItem:
@@ -1580,6 +1583,8 @@ components:
         id:
           type: string
         datasetRunId:
+          type: string
+        datasetRunName:
           type: string
         datasetItemId:
           type: string
@@ -1597,6 +1602,7 @@ components:
       required:
         - id
         - datasetRunId
+        - datasetRunName
         - datasetItemId
         - traceId
         - createdAt

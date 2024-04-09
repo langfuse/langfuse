@@ -33,7 +33,7 @@ import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import { jsonSchema } from "@/src/utils/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Prompt } from "@langfuse/shared/src/db";
+import type { Prompt } from "@langfuse/shared";
 
 import { PromptChatMessages } from "./PromptChatMessages";
 import {
@@ -41,6 +41,7 @@ import {
   type NewPromptFormSchemaType,
   PromptContentSchema,
   type PromptContentType,
+  getIsCharOrUnderscore,
 } from "./validation";
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
@@ -95,19 +96,19 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     currentType === PromptType.Text
       ? form.watch("textPrompt")
       : JSON.stringify(form.watch("chatPrompt"), null, 2),
-  );
+  ).filter(getIsCharOrUnderscore);
 
   const createPromptMutation = api.prompts.create.useMutation({
     onSuccess: () => utils.prompts.invalidate(),
     onError: (error) => setFormError(error.message),
   });
 
-  const allPrompts = api.prompts.all.useQuery(
+  const allPrompts = api.prompts.filterOptions.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
     },
     { enabled: Boolean(projectId) },
-  ).data;
+  ).data?.name;
 
   function onSubmit(values: NewPromptFormSchemaType) {
     posthog.capture("prompts:new_prompt_form_submit");
@@ -152,7 +153,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   useEffect(() => {
     const isNewPrompt = !allPrompts
-      ?.map((prompt) => prompt.name)
+      ?.map((prompt) => prompt.value)
       .includes(currentName);
 
     if (!isNewPrompt) {
@@ -275,6 +276,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           <p className="text-sm text-gray-500">
             You can use <code className="text-xs">{"{{variable}}"}</code> to
             insert variables into your prompt.
+            <b className="font-semibold"> Note:</b> Variables must be
+            alphabetical characters or underscores.
             {currentExtractedVariables.length > 0
               ? " The following variables are available:"
               : ""}

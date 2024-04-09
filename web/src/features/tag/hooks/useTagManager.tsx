@@ -5,10 +5,9 @@ type UseTagManagerProps = {
   allTags: string[];
 };
 
-function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
+export function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
   const [selectedTags, setSelectedTags] = useState(initialTags);
   const [inputValue, setInputValue] = useState("");
-
   const availableTags = useMemo(
     () => allTags.filter((value) => !selectedTags.includes(value)),
     [allTags, selectedTags],
@@ -28,5 +27,3 @@ function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
     setSelectedTags,
   };
 }
-
-export default useTagManager;

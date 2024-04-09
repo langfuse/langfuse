@@ -7,8 +7,11 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-import { type Score } from "@langfuse/shared/src/db";
+import { type Score } from "@langfuse/shared";
 import { usdFormatter } from "../../../utils/numbers";
+import { IOCell } from "@/src/components/table/use-cases/IOCell";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 
 type RowData = {
   id: string;
@@ -18,6 +21,11 @@ type RowData = {
     traceId: string;
     observationId?: string;
   };
+  // i/o not set explicitly, but fetched from the server from the cell
+  input?: unknown;
+  output?: unknown;
+  expectedOutput?: unknown;
+
   scores: Score[];
   latency?: number;
   totalCost?: string;
@@ -38,7 +46,7 @@ export function DatasetRunItemsTable(
 ) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+    pageSize: withDefault(NumberParam, 20),
   });
   const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery({
     ...props,
@@ -50,10 +58,12 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "runAt",
       header: "Run At",
+      id: "runAt",
     },
     {
       accessorKey: "datasetItemId",
       header: "Dataset Item",
+      id: "datasetItemId",
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
         return (
@@ -68,6 +78,7 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "trace",
       header: "Trace",
+      id: "trace",
       cell: ({ row }) => {
         const trace: RowData["trace"] = row.getValue("trace");
         if (!trace) return null;
@@ -89,6 +100,8 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "latency",
       header: "Latency",
+      id: "latency",
+      enableHiding: true,
       cell: ({ row }) => {
         const latency: RowData["latency"] = row.getValue("latency");
         return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
@@ -97,6 +110,8 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      id: "totalCost",
+      enableHiding: true,
       cell: ({ row }) => {
         const totalCost: RowData["totalCost"] = row.getValue("totalCost");
         return <>{totalCost}</>;
@@ -105,9 +120,60 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "scores",
       header: "Scores",
+      id: "scores",
+      enableHiding: true,
       cell: ({ row }) => {
         const scores: RowData["scores"] = row.getValue("scores");
         return <GroupedScoreBadges scores={scores} variant="headings" />;
+      },
+    },
+    {
+      accessorKey: "input",
+      header: "Input",
+      id: "input",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const trace: RowData["trace"] = row.getValue("trace");
+        return trace ? (
+          <TraceObservationIOCell
+            traceId={trace.traceId}
+            observationId={trace.observationId}
+            io="input"
+          />
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "output",
+      header: "Output",
+      id: "output",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const trace: RowData["trace"] = row.getValue("trace");
+        return trace ? (
+          <TraceObservationIOCell
+            traceId={trace.traceId}
+            observationId={trace.observationId}
+            io="output"
+          />
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "expectedOutput",
+      header: "Expected Output",
+      id: "expectedOutput",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const datasetItemId: string = row.getValue("datasetItemId");
+        return datasetItemId ? (
+          <DatasetItemIOCell
+            projectId={props.projectId}
+            datasetId={props.datasetId}
+            datasetItemId={datasetItemId}
+            io="expectedOutput"
+          />
+        ) : null;
       },
     },
   ];
@@ -133,31 +199,129 @@ export function DatasetRunItemsTable(
     };
   };
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "datasetRunsItemsColumnVisibility",
+    columns,
+  );
+
   return (
-    <DataTable
-      columns={columns}
-      data={
-        runItems.isLoading
-          ? { isLoading: true, isError: false }
-          : runItems.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: runItems.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: runItems.data.runItems.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        pageCount: Math.ceil(
-          (runItems.data?.totalRunItems ?? 0) / paginationState.pageSize,
-        ),
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-    />
+    <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+      />
+      <DataTable
+        columns={columns}
+        data={
+          runItems.isLoading
+            ? { isLoading: true, isError: false }
+            : runItems.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: runItems.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: runItems.data.runItems.map((t) => convertToTableRow(t)),
+                }
+        }
+        pagination={{
+          pageCount: Math.ceil(
+            (runItems.data?.totalRunItems ?? 0) / paginationState.pageSize,
+          ),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+      />
+    </div>
   );
 }
+
+const TraceObservationIOCell = ({
+  traceId,
+  observationId,
+  io,
+}: {
+  traceId: string;
+  observationId?: string;
+  io: "input" | "output";
+}) => {
+  // conditionally fetch the trace or observation depending on the presence of observationId
+  const trace = api.traces.byId.useQuery(
+    { traceId: traceId },
+    {
+      enabled: !!traceId && !!!observationId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  const observation = api.observations.byId.useQuery(
+    {
+      observationId: observationId as string, // disabled when observationId is undefined
+      traceId: traceId,
+    },
+    {
+      enabled: !!traceId && !!observationId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const data = observationId === undefined ? trace.data : observation.data;
+
+  return (
+    <IOCell
+      isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
+      data={io === "output" ? data?.output : data?.input}
+    />
+  );
+};
+
+const DatasetItemIOCell = ({
+  projectId,
+  datasetId,
+  datasetItemId,
+  io,
+}: {
+  projectId: string;
+  datasetId: string;
+  datasetItemId: string;
+  io: "expectedOutput" | "input";
+}) => {
+  const datasetItem = api.datasets.itemById.useQuery(
+    {
+      projectId: projectId,
+      datasetId: datasetId,
+      datasetItemId: datasetItemId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  return (
+    <IOCell
+      isLoading={datasetItem.isLoading}
+      data={
+        io === "expectedOutput"
+          ? datasetItem.data?.expectedOutput
+          : datasetItem.data?.input
+      }
+    />
+  );
+};

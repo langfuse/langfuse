@@ -3,7 +3,7 @@ import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 
 export default function Prompts() {
   return (
-    <div className="xl:container">
+    <div>
       <Header
         title="Prompts"
         help={{
