@@ -83,13 +83,15 @@ export const promptRouter = createTRPCRouter({
       );
 
       const promptNames = prompts.map((p) => p.name);
-
+      // Return as observationCountQuery is unnecessary if there are no prompts
       if (promptNames.length === 0) {
         return {
           prompts: [],
-          totalCount: 0,
+          totalCount:
+            promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
         };
       }
+
       const observationCountQuery = DB.selectFrom("observations")
         .fullJoin("prompts", "prompts.id", "observations.prompt_id")
         .select(({ fn }) => [

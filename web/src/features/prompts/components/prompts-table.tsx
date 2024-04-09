@@ -69,6 +69,8 @@ export function PromptTable() {
       },
     },
   );
+  const filterOptionTags = promptFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
 
   const totalCount = prompts.data?.totalCount ?? 0;
 
@@ -155,8 +157,6 @@ export function PromptTable() {
       cell: ({ row }) => {
         const tags: string[] = row.getValue("tags");
         const promptName: string = row.original.name;
-        const filterOptionTags = promptFilterOptions.data?.tags ?? [];
-        const allTags = filterOptionTags.map((t) => t.value);
         return (
           <TagPromptPopover
             tags={tags}

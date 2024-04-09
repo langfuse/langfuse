@@ -60,11 +60,11 @@ export const PromptDetail = () => {
     }
   }
 
-  const filterOptions = api.prompts.filterOptions.useQuery({
-    projectId: projectId,
-  });
-  const filterOptionTags = filterOptions.data?.tags ?? [];
-  const allTags = filterOptionTags.map((t) => t.value);
+  const allTags = (
+    api.prompts.filterOptions.useQuery({
+      projectId: projectId,
+    }).data?.tags ?? []
+  ).map((t) => t.value);
 
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
