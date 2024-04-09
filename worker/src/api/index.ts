@@ -83,6 +83,13 @@ router
           },
         },
         name: QueueJobs.TraceUpsert as const,
+        opts: {
+          attempts: 5,
+          backoff: {
+            type: "exponential",
+            delay: 1000,
+          },
+        },
       },
     }));
 
