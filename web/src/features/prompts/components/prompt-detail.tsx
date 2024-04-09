@@ -35,18 +35,22 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
-  const promptHistory = api.prompts.allVersions.useQuery({
-    name: promptName,
-    projectId,
-  });
+  const promptHistory = api.prompts.allVersions.useQuery(
+    {
+      name: promptName,
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+    },
+    { enabled: Boolean(projectId) },
+  );
   const prompt = currentPromptVersion
     ? promptHistory.data?.find(
         (prompt) => prompt.version === currentPromptVersion,
       )
     : promptHistory.data?.[0];
 
-  const promptString = JSON.stringify(prompt?.prompt?.valueOf(), null, 2);
-  const extractedVariables = prompt ? extractVariables(promptString) : [];
+  const extractedVariables = prompt
+    ? extractVariables(JSON.stringify(prompt.prompt))
+    : [];
 
   let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;
   try {
@@ -90,7 +94,6 @@ export const PromptDetail = () => {
             actionButtons={
               <>
                 <PromotePrompt
-                  projectId={projectId}
                   promptId={prompt.id}
                   promptName={prompt.name}
                   disabled={prompt.isActive}
@@ -120,7 +123,6 @@ export const PromptDetail = () => {
                 </Link>
 
                 <DeletePromptVersion
-                  projectId={projectId}
                   promptVersionId={prompt.id}
                   version={prompt.version}
                   countVersions={promptHistory.data.length}
@@ -152,8 +154,10 @@ export const PromptDetail = () => {
         <div className="col-span-2 md:h-full">
           {prompt.type === PromptType.Chat && chatMessages ? (
             <OpenAiMessageView title="Chat prompt" messages={chatMessages} />
+          ) : typeof prompt.prompt === "string" ? (
+            <CodeView content={prompt.prompt} title="Text prompt" />
           ) : (
-            <CodeView content={promptString} title="Text prompt" />
+            <JSONView json={prompt.prompt} title="Prompt" />
           )}
           <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7">
             <div className="border-b px-3 py-1 text-xs font-medium">

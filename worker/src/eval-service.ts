@@ -81,7 +81,7 @@ export const createEvalJobs = async ({
         })
         .execute();
 
-      evalQueue.add(
+      evalQueue?.add(
         QueueName.EvaluationExecution,
         {
           name: QueueJobs.EvaluationExecution,
