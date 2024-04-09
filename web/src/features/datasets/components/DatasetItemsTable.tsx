@@ -18,6 +18,8 @@ import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 
 type RowData = {
   id: string;
@@ -67,6 +69,7 @@ export function DatasetItemsTable({
     {
       accessorKey: "id",
       header: "Item id",
+      id: "id",
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (
@@ -81,6 +84,7 @@ export function DatasetItemsTable({
     {
       accessorKey: "status",
       header: "Status",
+      id: "status",
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
         return (
@@ -100,15 +104,21 @@ export function DatasetItemsTable({
     },
     {
       accessorKey: "createdAt",
-      header: "Created",
+      header: "Created At",
+      id: "createdAt",
+      enableHiding: true,
     },
     {
       accessorKey: "input",
       header: "Input",
+      id: "input",
+      enableHiding: true,
     },
     {
       accessorKey: "expectedOutput",
       header: "Expected Output",
+      id: "expectedOutput",
+      enableHiding: true,
     },
     {
       id: "actions",
@@ -172,8 +182,18 @@ export function DatasetItemsTable({
     };
   };
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "datasetItemsColumnVisibility",
+    columns,
+  );
+
   return (
     <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+      />
       <DataTable
         columns={columns}
         data={
@@ -200,6 +220,8 @@ export function DatasetItemsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );
