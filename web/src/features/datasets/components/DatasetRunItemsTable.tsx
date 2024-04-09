@@ -12,6 +12,13 @@ import { usdFormatter } from "../../../utils/numbers";
 import { IOCell } from "@/src/components/table/use-cases/IOCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  MdDensitySmall,
+  MdDensityMedium,
+  MdDensityLarge,
+} from "react-icons/md";
 
 type RowData = {
   id: string;
@@ -53,6 +60,11 @@ export function DatasetRunItemsTable(
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+
+  const [height, setHeight] = useLocalStorage<"s" | "m" | "l">(
+    "datasetRunItemsTableHeight",
+    "s",
+  );
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
@@ -139,6 +151,7 @@ export function DatasetRunItemsTable(
             traceId={trace.traceId}
             observationId={trace.observationId}
             io="input"
+            height={height}
           />
         ) : null;
       },
@@ -155,6 +168,7 @@ export function DatasetRunItemsTable(
             traceId={trace.traceId}
             observationId={trace.observationId}
             io="output"
+            height={height}
           />
         ) : null;
       },
@@ -172,6 +186,7 @@ export function DatasetRunItemsTable(
             datasetId={props.datasetId}
             datasetItemId={datasetItemId}
             io="expectedOutput"
+            height={height}
           />
         ) : null;
       },
@@ -210,6 +225,26 @@ export function DatasetRunItemsTable(
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        actionButtons={[
+          <Tabs
+            defaultValue={height}
+            onValueChange={(e) => setHeight(e as any)}
+          >
+            <TabsList>
+              {[
+                { size: "s", icon: <MdDensitySmall /> },
+                { size: "m", icon: <MdDensityMedium /> },
+                { size: "l", icon: <MdDensityLarge /> },
+              ].map(({ size, icon }) => (
+                <TabsTrigger key={size} value={size}>
+                  <span role="img" aria-label={`${size} size`}>
+                    {icon}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>,
+        ]}
       />
       <DataTable
         columns={columns}
@@ -246,10 +281,12 @@ const TraceObservationIOCell = ({
   traceId,
   observationId,
   io,
+  height,
 }: {
   traceId: string;
   observationId?: string;
   io: "input" | "output";
+  height?: "s" | "m" | "l";
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -284,6 +321,7 @@ const TraceObservationIOCell = ({
     <IOCell
       isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
       data={io === "output" ? data?.output : data?.input}
+      height={height}
     />
   );
 };
@@ -293,11 +331,13 @@ const DatasetItemIOCell = ({
   datasetId,
   datasetItemId,
   io,
+  height,
 }: {
   projectId: string;
   datasetId: string;
   datasetItemId: string;
   io: "expectedOutput" | "input";
+  height?: "s" | "m" | "l";
 }) => {
   const datasetItem = api.datasets.itemById.useQuery(
     {
@@ -322,6 +362,7 @@ const DatasetItemIOCell = ({
           ? datasetItem.data?.expectedOutput
           : datasetItem.data?.input
       }
+      height={height}
     />
   );
 };

@@ -7,16 +7,27 @@ import React from "react";
 export const IOCell = ({
   isLoading,
   data,
+  height = "l",
 }: {
   isLoading: boolean;
   data: unknown;
+  height?: "s" | "m" | "l";
 }) => {
+  const heightTw = {
+    s: "h-[40px]",
+    m: "h-[100px]",
+    l: "h-[250px]",
+  };
+
   return (
     <>
       {isLoading ? (
-        <JsonSkeleton className="h-[250px] w-[500px] px-3 py-1" />
+        <JsonSkeleton className={cn("w-[400px] px-3 py-1", heightTw[height])} />
       ) : (
-        <JSONView json={data} className="h-[250px] w-[500px] overflow-y-auto" />
+        <JSONView
+          json={data}
+          className={cn("w-[400px] overflow-y-auto", heightTw[height])}
+        />
       )}
     </>
   );
@@ -40,7 +51,7 @@ export const JsonSkeleton = ({
     sizingOptions[randomIntFromInterval(0, sizingOptions.length - 1)];
 
   return (
-    <div className={cn("w-[500px] rounded-md border", className)}>
+    <div className={cn("w-[400px] rounded-md border", className)}>
       <div className="flex flex-col gap-1">
         {[...Array<number>(numRows)].map((_, i) => (
           <Skeleton className={generateRandomSize()} key={i} />
