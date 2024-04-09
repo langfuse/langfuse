@@ -16,7 +16,7 @@ const createRedisClient = () => {
       maxRetriesPerRequest: null, // Set to `null` to disable retrying
     });
   } catch (e) {
-    logger.error("Failed to connect to redis", e);
+    logger.error(e, "Failed to connect to redis");
     return null;
   }
 };
@@ -48,8 +48,8 @@ export const evalJobCreator = redis
           return true;
         } catch (e) {
           logger.error(
-            `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`,
-            e
+            e,
+            `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`
           );
           throw e;
         }
@@ -74,8 +74,8 @@ export const evalJobExecutor = redis
           return true;
         } catch (e) {
           logger.error(
-            `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`,
-            e
+            e,
+            `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`
           );
           await kyselyPrisma.$kysely
             .updateTable("job_executions")
