@@ -74,7 +74,10 @@ export default async function handler(
       const { datasetItems, datasetRuns, ...params } = dataset;
       const output = {
         ...params,
-        items: datasetItems,
+        items: datasetItems.map((item) => ({
+          ...item,
+          datasetName: dataset.name,
+        })),
         runs: datasetRuns.map((run) => run.name),
       };
 
