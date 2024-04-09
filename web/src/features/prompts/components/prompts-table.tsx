@@ -13,8 +13,9 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
+import { createColumnHelper } from "@tanstack/react-table";
 
-type RowData = {
+type PromptTableRow = {
   name: string;
   version: number;
   id: string;
@@ -49,12 +50,12 @@ export function PromptTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompts.isSuccess, prompts.data]);
 
-  const columns: LangfuseColumnDef<RowData>[] = [
-    {
-      accessorKey: "name",
+  const columnHelper = createColumnHelper<PromptTableRow>();
+  const promptColumns = [
+    columnHelper.accessor("name", {
       header: "Name",
-      cell: ({ row }) => {
-        const name: string = row.getValue("name");
+      cell: (row) => {
+        const name = row.getValue();
         return name ? (
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
@@ -63,40 +64,33 @@ export function PromptTable() {
           />
         ) : undefined;
       },
-    },
-    {
-      accessorKey: "version",
+    }),
+    columnHelper.accessor("version", {
       header: "Latest Version",
-      cell: ({ row }) => {
-        const version = row.getValue("version");
-        return version;
+      cell: (row) => {
+        return row.getValue();
       },
-    },
-    {
-      accessorKey: "type",
+    }),
+    columnHelper.accessor("type", {
       header: "Type",
-      cell: ({ row }) => {
-        return capitalize(row.getValue("type"));
+      cell: (row) => {
+        return row.getValue();
       },
-    },
-    {
-      accessorKey: "createdAt",
+    }),
+    columnHelper.accessor("createdAt", {
       header: "Latest Version Created At",
-      cell: ({ row }) => {
-        const createdAt: Date = row.getValue("createdAt");
+      cell: (row) => {
+        const createdAt = row.getValue();
         return createdAt.toLocaleString();
       },
-    },
-    {
-      accessorKey: "numberOfObservations",
+    }),
+    columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
-      cell: ({ row }) => {
-        const numberOfObservations: number = row.getValue(
-          "numberOfObservations",
-        );
-        const name: string = row.getValue("name");
+      cell: (row) => {
+        const numberOfObservations = row.getValue();
+        const name = row.row.original.name;
         const filter = encodeURIComponent(
-          `Prompt Name;stringOptions;;any of;${name}`,
+          `promptName;stringOptions;;any of;${name}`,
         );
         return (
           <TableLink
@@ -105,19 +99,20 @@ export function PromptTable() {
           />
         );
       },
-    },
-    {
-      accessorKey: "actions",
+    }),
+    columnHelper.display({
+      id: "actions",
       header: "Actions",
-      cell: ({ row }) => {
-        return <DeletePrompt promptName={row.getValue("name")} />;
+      cell: (row) => {
+        const name = row.row.original.name;
+        return <DeletePrompt promptName={name} />;
       },
-    },
-  ];
+    }),
+  ] as LangfuseColumnDef<PromptTableRow>[];
 
   const convertToTableRow = (
     item: RouterOutput["prompts"]["all"][number],
-  ): RowData => {
+  ): PromptTableRow => {
     return {
       id: item.id,
       name: item.name,
@@ -132,7 +127,7 @@ export function PromptTable() {
   return (
     <div>
       <DataTable
-        columns={columns}
+        columns={promptColumns}
         data={
           prompts.isLoading
             ? { isLoading: true, isError: false }

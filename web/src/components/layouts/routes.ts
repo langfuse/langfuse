@@ -9,6 +9,7 @@ import {
   Settings,
   UsersIcon,
   PenSquareIcon,
+  LibraryBig,
   TerminalIcon,
 } from "lucide-react";
 
@@ -21,6 +22,7 @@ export type Route = {
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
+  newTab?: boolean; // open in new tab
 };
 
 export const ROUTES: Route[] = [
@@ -92,6 +94,13 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/settings",
     icon: Settings,
     bottom: true,
+  },
+  {
+    name: "Docs",
+    pathname: "https://langfuse.com/docs",
+    icon: LibraryBig,
+    bottom: true,
+    newTab: true,
   },
   {
     name: "Support",
