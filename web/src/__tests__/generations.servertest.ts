@@ -2,8 +2,8 @@
 
 import { v4 as uuidv4 } from "uuid";
 
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@langfuse/shared";
+import { makeAPICall } from "@/src/__tests__/test-utils";
+import { ModelUsageUnit, pruneDatabase } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
 describe("/api/public/generations API Endpoint", () => {
@@ -86,8 +86,6 @@ describe("/api/public/generations API Endpoint", () => {
     it(`should create generation after trace 1 ${JSON.stringify(
       testConfig,
     )}`, async () => {
-      await pruneDatabase();
-
       const traceId = uuidv4();
 
       await makeAPICall("POST", "/api/public/traces", {
@@ -159,8 +157,6 @@ describe("/api/public/generations API Endpoint", () => {
   });
 
   it("should create generation before trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     const generationId = uuidv4();

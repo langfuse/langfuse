@@ -1,9 +1,8 @@
 /** @jest-environment node */
 
 import { modelMatch } from "@/scripts/model-match";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
-import { ModelUsageUnit } from "@langfuse/shared";
+import { ModelUsageUnit, pruneDatabase } from "@langfuse/shared";
 
 describe("model match", () => {
   beforeEach(async () => await pruneDatabase());

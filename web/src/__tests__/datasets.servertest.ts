@@ -1,8 +1,9 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
+import { pruneDatabase } from "@langfuse/shared";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
   beforeEach(async () => await pruneDatabase());

@@ -1,7 +1,6 @@
 /** @jest-environment node */
 
-import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@langfuse/shared";
+import { ModelUsageUnit, pruneDatabase } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
 describe("cost retrieval tests", () => {
@@ -100,8 +99,6 @@ describe("cost retrieval tests", () => {
     },
   ].forEach((input) => {
     it(`should calculate cost correctly ${input.testDescription}`, async () => {
-      await pruneDatabase();
-
       await prisma.model.create({
         data: {
           modelName: "gpt-3.5-turbo",
@@ -169,8 +166,6 @@ describe("cost retrieval tests", () => {
     },
   ].forEach((input) => {
     it(`should calculate cost correctly with multiple models ${input.testDescription}`, async () => {
-      await pruneDatabase();
-
       await prisma.model.create({
         data: {
           id: "model-1",
@@ -241,7 +236,6 @@ describe("cost retrieval tests", () => {
   });
 
   it(`should prioritize latest models`, async () => {
-    await pruneDatabase();
     await prisma.model.create({
       data: {
         id: "model-0",
@@ -400,7 +394,6 @@ describe("cost retrieval tests", () => {
   });
 
   it(`should prioritize own models`, async () => {
-    await pruneDatabase();
     await prisma.model.create({
       data: {
         id: "model-0",
@@ -528,8 +521,6 @@ describe("cost retrieval tests", () => {
   });
 
   it(`should prioritize new model if the latest model is own one`, async () => {
-    await pruneDatabase();
-
     await prisma.model.create({
       data: {
         id: "model-1",
@@ -594,8 +585,6 @@ describe("cost retrieval tests", () => {
   });
 
   it(`should prioritize user provided cost`, async () => {
-    await pruneDatabase();
-
     await prisma.model.create({
       data: {
         id: "model-1",

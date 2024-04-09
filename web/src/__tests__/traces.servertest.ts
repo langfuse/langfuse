@@ -1,8 +1,9 @@
 /** @jest-environment node */
 
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { makeAPICall } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
+import { pruneDatabase } from "@langfuse/shared";
 
 interface GetTracesAPIResponse {
   data: Array<{
@@ -16,8 +17,6 @@ describe("/api/public/traces API Endpoint", () => {
   afterEach(async () => await pruneDatabase());
 
   it("should create", async () => {
-    await pruneDatabase();
-
     await makeAPICall("POST", "/api/public/traces", {
       name: "trace-name",
       userId: "user-1",
@@ -42,8 +41,6 @@ describe("/api/public/traces API Endpoint", () => {
   });
 
   it("should upsert second trace", async () => {
-    await pruneDatabase();
-
     await makeAPICall("POST", "/api/public/traces", {
       id: "trace-id",
       name: "trace-name",
@@ -98,8 +95,6 @@ describe("/api/public/traces API Endpoint", () => {
   });
 
   it("should use tags correctly on POST and GET", async () => {
-    await pruneDatabase();
-
     await makeAPICall("POST", "/api/public/traces", {
       id: "trace-1",
       tags: ["tag-1", "tag-2", "tag-3"],
@@ -153,8 +148,6 @@ describe("/api/public/traces API Endpoint", () => {
   });
 
   it("should handle metrics correctly on GET traces and GET trace", async () => {
-    await pruneDatabase();
-
     // Create a trace with some observations that have costs and latencies
     const traceId = uuidv4();
     await makeAPICall("POST", "/api/public/traces", {

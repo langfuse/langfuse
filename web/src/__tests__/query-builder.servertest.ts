@@ -1,4 +1,4 @@
-import { pruneDatabase } from "@/src/__tests__/test-utils";
+import { pruneDatabase } from "@langfuse/shared";
 import {
   createQuery,
   enrichAndCreateQuery,

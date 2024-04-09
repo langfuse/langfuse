@@ -1,16 +1,15 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+import { pruneDatabase } from "@langfuse/shared";
 
 describe("/api/public/spans API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
   afterEach(async () => await pruneDatabase());
 
   it("should create span after trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {
@@ -62,8 +61,6 @@ describe("/api/public/spans API Endpoint", () => {
   });
 
   it("should create span before trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
     const spanId = uuidv4();
 

@@ -1,16 +1,15 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+import { pruneDatabase } from "@langfuse/shared";
 
 describe("/api/public/scores API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
   afterEach(async () => await pruneDatabase());
 
   it("should create score for a trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {
@@ -58,8 +57,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should create score for a trace with int", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {
@@ -104,8 +101,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should create score for a generation", async () => {
-    await pruneDatabase();
-
     const generationId = uuidv4();
 
     await makeAPICall("POST", "/api/public/generations", {
@@ -153,8 +148,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should upsert a score", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {
@@ -234,8 +227,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should delete a score", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {
@@ -273,8 +264,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should GET a score", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {

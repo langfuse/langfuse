@@ -1,15 +1,14 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+import { pruneDatabase } from "@langfuse/shared";
 
 describe("/api/public/events API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
 
   it("should create event after trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {
@@ -61,8 +60,6 @@ describe("/api/public/events API Endpoint", () => {
   });
 
   it("should create event before trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
     const eventId = uuidv4();
 
@@ -114,8 +111,6 @@ describe("/api/public/events API Endpoint", () => {
   });
 
   it("should create trace and ignore externalId and create event afterwards", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     const response = await makeAPICall("POST", "/api/public/traces", {

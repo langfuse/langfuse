@@ -1,13 +1,12 @@
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+import { pruneDatabase } from "@langfuse/shared";
 
 describe("/api/public/metrics/daily API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
   afterEach(async () => await pruneDatabase());
 
   it("should handle daily metrics correctly", async () => {
-    await pruneDatabase();
-
     // Create traces with observations on different days
     const traceId1 = uuidv4();
     const traceId2 = uuidv4();

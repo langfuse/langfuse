@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { pruneDatabase } from "@/src/__tests__/test-utils";
+import { pruneDatabase } from "@langfuse/shared";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
