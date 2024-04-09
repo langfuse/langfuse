@@ -102,10 +102,17 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     onError: (error) => setFormError(error.message),
   });
 
-  const allPrompts = api.prompts.all.useQuery({ projectId }).data;
+  const allPrompts = api.prompts.all.useQuery(
+    {
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+    },
+    { enabled: Boolean(projectId) },
+  ).data;
 
   function onSubmit(values: NewPromptFormSchemaType) {
     posthog.capture("prompts:new_prompt_form_submit");
+
+    if (!projectId) throw Error("Project ID is not defined.");
 
     const { type, textPrompt, chatPrompt } = values;
 
