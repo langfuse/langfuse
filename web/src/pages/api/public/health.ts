@@ -10,16 +10,16 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
   await telemetry();
-  let tracesWithinLastMinute = false;
-  let observationsWithinLastMinute = false;
+  const failIfNoEventsInLastMinute =
+    req.query.failIfNoEventsInLastMinute === "true";
+
   try {
     await prisma.$queryRaw`SELECT 1;`;
 
     const now = Date.now();
 
-    // Check if there are any traces or observations within the last minute
-    if (
-      await prisma.trace.findFirst({
+    if (failIfNoEventsInLastMinute) {
+      const trace = await prisma.trace.findFirst({
         where: {
           timestamp: {
             gte: new Date(now - 60000),
@@ -29,12 +29,8 @@ export default async function handler(
         select: {
           id: true,
         },
-      })
-    ) {
-      tracesWithinLastMinute = true;
-    }
-    if (
-      await prisma.observation.findFirst({
+      });
+      const observation = await prisma.observation.findFirst({
         where: {
           startTime: {
             gte: new Date(now - 60000),
@@ -44,9 +40,19 @@ export default async function handler(
         select: {
           id: true,
         },
-      })
-    ) {
-      observationsWithinLastMinute = true;
+      });
+      if (!!!trace || !!!observation) {
+        return res.status(503).json({
+          status: `No ${
+            !!!trace
+              ? "traces"
+              : !!!observation
+                ? "observations"
+                : "<should not happen>"
+          } within the last minute`,
+          version: VERSION.replace("v", ""),
+        });
+      }
     }
   } catch (e) {
     return res.status(503).json({
@@ -57,9 +63,5 @@ export default async function handler(
   return res.status(200).json({
     status: "OK",
     version: VERSION.replace("v", ""),
-    newObjectsWithinLastMinute: {
-      traces: tracesWithinLastMinute,
-      observations: observationsWithinLastMinute,
-    },
   });
 }
