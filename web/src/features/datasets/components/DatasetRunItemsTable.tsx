@@ -166,14 +166,14 @@ export function DatasetRunItemsTable(
       enableHiding: true,
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
-        return (
+        return datasetItemId ? (
           <DatasetItemIOCell
             projectId={props.projectId}
             datasetId={props.datasetId}
             datasetItemId={datasetItemId}
             io="expectedOutput"
           />
-        );
+        ) : null;
       },
     },
   ];
