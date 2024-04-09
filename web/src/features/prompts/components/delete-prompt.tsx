@@ -8,14 +8,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
-export function DeletePrompt({
-  projectId,
-  promptName,
-}: {
-  projectId: string;
-  promptName: string;
-}) {
+export function DeletePrompt({ promptName }: { promptName: string }) {
+  const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
@@ -53,6 +49,11 @@ export function DeletePrompt({
             variant="destructive"
             loading={mutDeletePrompt.isLoading}
             onClick={() => {
+              if (!projectId) {
+                console.error("Project ID is missing");
+                return;
+              }
+
               void mutDeletePrompt.mutateAsync({
                 projectId,
                 promptName,

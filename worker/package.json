@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.19.0",
+  "version": "2.19.1",
   "description": "",
   "license": "MIT",
   "main": "index.js",
@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "dotenv -e ../.env -- vitest run --reporter=basic --disable-console-intercept",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/src/index.js",
     "build": "tsc",
@@ -25,6 +25,7 @@
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
+    "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-basic-auth": "^1.2.1",

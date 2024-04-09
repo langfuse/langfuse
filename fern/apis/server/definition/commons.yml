@@ -154,12 +154,14 @@ types:
       sourceTraceId: optional<string>
       sourceObservationId: optional<string>
       datasetId: string
+      datasetName: string
       createdAt: datetime
       updatedAt: datetime
   DatasetRunItem:
     properties:
       id: string
       datasetRunId: string
+      datasetRunName: string
       datasetItemId: string
       traceId: string
       observationId: optional<string>
