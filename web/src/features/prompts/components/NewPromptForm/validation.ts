@@ -61,11 +61,14 @@ export const PromptContentSchema = z.union([
 ]);
 export type PromptContentType = z.infer<typeof PromptContentSchema>;
 
-function validateVariables(content: string): boolean {
-  const variables = extractVariables(content);
+export function getIsCharOrUnderscore(value: string): boolean {
   const charOrUnderscore = /^[A-Za-z_]+$/;
 
-  return variables.every((variable) => charOrUnderscore.test(variable));
+  return charOrUnderscore.test(value);
+}
+
+function validateVariables(content: string): boolean {
+  return extractVariables(content).every(getIsCharOrUnderscore);
 }
 
 function validateJson(content: string): boolean {
