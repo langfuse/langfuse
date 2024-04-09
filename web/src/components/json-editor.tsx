@@ -1,4 +1,4 @@
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { githubLight } from "@uiw/codemirror-theme-github";
 import { json } from "@codemirror/lang-json";
 
@@ -8,10 +8,12 @@ export function JsonEditor({
   defaultValue,
   onChange,
   editable = true,
+  lineWrapping = true,
 }: {
   defaultValue: string;
   onChange?: (value: string) => void;
   editable?: boolean;
+  lineWrapping?: boolean;
 }) {
   return (
     <CodeMirror
@@ -21,7 +23,7 @@ export function JsonEditor({
         foldGutter: true,
       }}
       lang={"json"}
-      extensions={[json()]}
+      extensions={[json(), ...(lineWrapping ? [EditorView.lineWrapping] : [])]}
       defaultValue={defaultValue}
       onChange={onChange}
       className="overflow-hidden rounded-md border"
