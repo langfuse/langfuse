@@ -255,6 +255,10 @@ export default function SignIn({ authProviders }: PageProps) {
                     type="submit"
                     className="w-full"
                     loading={credentialsForm.formState.isSubmitting}
+                    disabled={
+                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                      turnstileToken === undefined
+                    }
                   >
                     Sign in
                   </Button>
