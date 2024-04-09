@@ -92,6 +92,8 @@ export function PromptTable() {
   const promptColumns = [
     columnHelper.accessor("name", {
       header: "Name",
+      id: "name",
+      enableSorting: true,
       cell: (row) => {
         const name = row.getValue();
         return name ? (
@@ -105,18 +107,24 @@ export function PromptTable() {
     }),
     columnHelper.accessor("version", {
       header: "Latest Version",
+      id: "version",
+      enableSorting: true,
       cell: (row) => {
         return row.getValue();
       },
     }),
     columnHelper.accessor("type", {
       header: "Type",
+      id: "type",
+      enableSorting: true,
       cell: (row) => {
         return row.getValue();
       },
     }),
     columnHelper.accessor("createdAt", {
       header: "Latest Version Created At",
+      id: "createdAt",
+      enableSorting: true,
       cell: (row) => {
         const createdAt = row.getValue();
         return createdAt.toLocaleString();
@@ -140,6 +148,8 @@ export function PromptTable() {
     }),
     columnHelper.accessor("tags", {
       header: "Tags",
+      id: "tags",
+      enableSorting: true,
       cell: (row) => {
         const tags = row.getValue();
         const promptName: string = row.row.original.name;
