@@ -54,7 +54,7 @@ jobs:
           file: ./worker/Dockerfile
           push: false
 
-  tests:
+  tests-web:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -102,7 +102,56 @@ jobs:
         run: (pnpm run start&)
 
       - name: run tests
-        run: pnpm run test
+        run: pnpm --filter=web run test
+
+  tests-worker:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20]
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+
+      - name: install dependencies
+        run: |
+          pnpm install
+
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+          cp .env.dev.example web/.env
+
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
+
+      - name: Seed DB
+        run: |
+          pnpm run db:migrate
+          pnpm run db:seed
+
+      - name: Build
+        run: pnpm --filter=worker... run build
+
+      - name: run tests
+        run: pnpm --filter=worker run test
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -148,7 +197,7 @@ jobs:
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: ubuntu-latest
-    needs: [lint, tests, e2e-tests, test-docker-build]
+    needs: [lint, tests-web, tests-worker, e2e-tests, test-docker-build]
     if: always()
     steps:
       - name: Successful deploy
