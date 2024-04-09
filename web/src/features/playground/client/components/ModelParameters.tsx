@@ -27,7 +27,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   availableModels,
   updateModelParams,
 }) => {
-  console.log("modelParams", modelParams);
   return (
     <div className="flex flex-col space-y-4">
       <p className="font-semibold">Model</p>

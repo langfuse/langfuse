@@ -279,11 +279,15 @@ export const evaluate = async ({
 
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
-    // .set("status", sql`'COMPLETED'::"JobExecutionStatus"`)
+    .set("status", sql`'COMPLETED'::"JobExecutionStatus"`)
     .set("end_time", new Date())
     .set("job_output_score_id", scoreId)
     .where("id", "=", data.data.jobExecutionId)
     .execute();
+
+  logger.info(
+    `Eval job ${job.id} for project ${data.data.projectId} completed with score ${parsedLLMOutput.score}`
+  );
 };
 
 export function compileHandlebarString(
