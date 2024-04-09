@@ -73,10 +73,10 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
     {
-      projectId,
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       id: initialPromptId ?? "",
     },
-    { enabled: Boolean(initialPromptId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
+    { enabled: Boolean(initialPromptId && projectId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
   );
 
   useEffect(() => {

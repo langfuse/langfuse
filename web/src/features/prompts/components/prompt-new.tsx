@@ -11,10 +11,10 @@ export const NewPrompt = () => {
 
   const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
     {
-      projectId,
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       id: initialPromptId ?? "",
     },
-    { enabled: Boolean(initialPromptId) },
+    { enabled: Boolean(initialPromptId && projectId) },
   );
 
   if (isInitialLoading) {
