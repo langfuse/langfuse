@@ -41,12 +41,12 @@ export const evalJobCreator = redis
       QueueName.TraceUpsert,
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         try {
-          console.log("Executing Evaluation Job", job.data);
+          logger.info("Executing Evaluation Job", job.data);
 
           await createEvalJobs({ data: job.data.payload });
           return true;
         } catch (e) {
-          console.error(
+          logger.error(
             `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`,
             e
           );
@@ -55,6 +55,10 @@ export const evalJobCreator = redis
       },
       {
         connection: redis,
+        limiter: {
+          max: 100,
+          duration: 10_000,
+        },
       }
     )
   : null;
@@ -68,7 +72,7 @@ export const evalJobExecutor = redis
           await evaluate({ data: job.data.payload });
           return true;
         } catch (e) {
-          console.error(
+          logger.error(
             `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`,
             e
           );
@@ -85,6 +89,10 @@ export const evalJobExecutor = redis
       },
       {
         connection: redis,
+        limiter: {
+          max: 10,
+          duration: 30_000,
+        },
       }
     )
   : null;
