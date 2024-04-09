@@ -402,20 +402,11 @@ function FilterBuilderForm({
                         <SelectValue placeholder="" />
                       </SelectTrigger>
                       <SelectContent>
-                        {filter.column === "Maintainer"
-                          ? ["User", "Langfuse"].map((option) => (
-                              <SelectItem
-                                key={option}
-                                value={option === "User" ? "true" : "false"}
-                              >
-                                {option}
-                              </SelectItem>
-                            ))
-                          : ["true", "false"].map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
+                        {["true", "false"].map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   ) : (
