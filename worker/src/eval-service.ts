@@ -3,10 +3,8 @@ import { z } from "zod";
 import {
   ChatMessageRole,
   EvalExecutionEvent,
-  ModelProvider,
   QueueJobs,
   QueueName,
-  ScoreSource,
   fetchLLMCompletion,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
@@ -14,6 +12,9 @@ import {
   variableMappingList,
   evalObjects,
   TraceUpsertEvent,
+  EvalModelNames,
+  evalModels,
+  ZodModelConfig,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -206,7 +207,7 @@ export const evaluate = async ({
     parsedVariableMapping
   );
 
-  logger.info(`Extracted variables ${mappingResult} `);
+  logger.info(`Extracted variables ${JSON.stringify(mappingResult)} `);
 
   // compile the prompt and send out the LLM request
   const prompt = compileHandlebarString(template.prompt, {
@@ -233,12 +234,21 @@ export const evaluate = async ({
     reasoning: z.string().describe(parsedOutputSchema.reasoning),
   });
 
+  const evalModel = EvalModelNames.parse(template.model);
+  const provider = evalModels.find((m) => m.model === evalModel)?.provider;
+  const modelParams = ZodModelConfig.parse(template.model_params);
+
+  if (!provider) {
+    throw new Error(`Model ${evalModel} provider not found`);
+  }
+
   const completion = await fetchLLMCompletion({
     streaming: false,
     messages: [{ role: ChatMessageRole.System, content: prompt }],
     modelParams: {
-      provider: ModelProvider.OpenAI,
-      model: "gpt-4",
+      provider: provider,
+      model: evalModel,
+      ...modelParams,
     },
     functionCall: {
       name: "evaluate",
@@ -248,6 +258,8 @@ export const evaluate = async ({
   });
 
   const parsedLLMOutput = openAIFunction.parse(completion);
+
+  logger.info(`Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`);
 
   // persist the score and update the job status
   const scoreId = randomUUID();
@@ -259,7 +271,7 @@ export const evaluate = async ({
       name: config.score_name,
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
-      source: sql`${ScoreSource.EVAL}::"ScoreSource"`,
+      source: sql`'EVAL'::"ScoreSource"`,
     })
     .execute();
 
@@ -270,6 +282,10 @@ export const evaluate = async ({
     .set("job_output_score_id", scoreId)
     .where("id", "=", data.data.jobExecutionId)
     .execute();
+
+  logger.info(
+    `Eval job ${job.id} for project ${data.data.projectId} completed with score ${parsedLLMOutput.score}`
+  );
 };
 
 export function compileHandlebarString(
