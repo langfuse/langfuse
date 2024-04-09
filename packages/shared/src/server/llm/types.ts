@@ -26,11 +26,13 @@ export type UIModelParams = Required<
 };
 
 // Generic config
-export type ModelConfig = {
-  max_tokens?: number;
-  temperature?: number;
-  top_p?: number;
-};
+export type ModelConfig = z.infer<typeof ZodModelConfig>;
+
+export const ZodModelConfig = z.object({
+  max_tokens: z.number().optional(),
+  temperature: z.number().optional(),
+  top_p: z.number().optional(),
+});
 
 // OpenAI
 export type OpenAIModelParams = {

@@ -5,6 +5,7 @@ import { evaluate, createEvalJobs } from "../eval-service";
 import { env } from "../env";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
+import { sql } from "kysely";
 
 const createRedisClient = () => {
   try {
@@ -15,7 +16,7 @@ const createRedisClient = () => {
       maxRetriesPerRequest: null, // Set to `null` to disable retrying
     });
   } catch (e) {
-    logger.error("Failed to connect to redis", e);
+    logger.error(e, "Failed to connect to redis");
     return null;
   }
 };
@@ -47,8 +48,8 @@ export const evalJobCreator = redis
           return true;
         } catch (e) {
           logger.error(
-            `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`,
-            e
+            e,
+            `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`
           );
           throw e;
         }
@@ -68,17 +69,17 @@ export const evalJobExecutor = redis
       QueueName.EvaluationExecution,
       async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
         try {
-          console.log("Executing Evaluation Execution Job", job.data);
+          logger.info("Executing Evaluation Execution Job", job.data);
           await evaluate({ data: job.data.payload });
           return true;
         } catch (e) {
           logger.error(
-            `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`,
-            e
+            e,
+            `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`
           );
           await kyselyPrisma.$kysely
             .updateTable("job_executions")
-            .set("status", "ERROR")
+            .set("status", sql`'ERROR'::"JobExecutionStatus"`)
             .set("end_time", new Date())
             .set("error", JSON.stringify(e))
             .where("id", "=", job.data.payload.data.jobExecutionId)
