@@ -4,6 +4,8 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
+import { sql } from "kysely";
+import logger from "../logger";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
@@ -205,21 +207,23 @@ describe("execute evals", () => {
       })
       .execute();
 
-    const template = await prisma.evalTemplate.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    const templateId = randomUUID();
+    await kyselyPrisma.$kysely
+      .insertInto("eval_templates")
+      .values({
+        id: templateId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         name: "test-template",
         version: 1,
         prompt: "Please evaluate toxicity {{input}} {{output}}",
         model: "gpt-3.5-turbo",
-        modelParams: {},
-        outputSchema: {
+        model_params: {},
+        output_schema: {
           reasoning: "Please explain your reasoning",
           score: "Please provide a score between 0 and 1",
         },
-      },
-    });
+      })
+      .executeTakeFirst();
 
     const jobConfiguration = await prisma.jobConfiguration.create({
       data: {
@@ -239,27 +243,30 @@ describe("execute evals", () => {
         targetObject: "traces",
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
-        evalTemplateId: template.id,
+        evalTemplateId: templateId,
       },
     });
 
-    const jobExecution = await prisma.jobExecution.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        jobConfigurationId: jobConfiguration.id,
-        status: "PENDING",
-        startTime: new Date(),
-        jobInputTraceId: traceId,
-      },
-    });
+    const jobExecutionId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("job_executions")
+      .values({
+        id: jobExecutionId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        job_configuration_id: jobConfiguration.id,
+        status: sql`'PENDING'::"JobExecutionStatus"`,
+        start_time: new Date(),
+        job_input_trace_id: traceId,
+      })
+      .execute();
 
     const payload = {
       timestamp: "2022-01-01T00:00:00.000Z",
       id: "abc",
       data: {
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        jobExecutionId: jobExecution.id,
+        jobExecutionId: jobExecutionId,
       },
     };
 
@@ -302,21 +309,23 @@ describe("execute evals", () => {
       })
       .execute();
 
-    const template = await prisma.evalTemplate.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    const templateId = randomUUID();
+    await kyselyPrisma.$kysely
+      .insertInto("eval_templates")
+      .values({
+        id: templateId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         name: "test-template",
         version: 1,
         prompt: "Please evaluate toxicity {{input}} {{output}}",
         model: "gpt-3.5-turbo",
-        modelParams: {},
-        outputSchema: {
+        model_params: {},
+        output_schema: {
           reasoning: "Please explain your reasoning",
           score: "Please provide a score between 0 and 1",
         },
-      },
-    });
+      })
+      .executeTakeFirst();
 
     const jobConfiguration = await prisma.jobConfiguration.create({
       data: {
@@ -336,27 +345,29 @@ describe("execute evals", () => {
         targetObject: "traces",
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
-        evalTemplateId: template.id,
+        evalTemplateId: templateId,
       },
     });
 
-    const jobExecution = await prisma.jobExecution.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        jobConfigurationId: jobConfiguration.id,
-        status: "CANCELLED",
-        startTime: new Date(),
-        jobInputTraceId: traceId,
-      },
-    });
+    const jobExecutionId = randomUUID();
+    await kyselyPrisma.$kysely
+      .insertInto("job_executions")
+      .values({
+        id: jobExecutionId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        job_configuration_id: jobConfiguration.id,
+        status: sql`'CANCELLED'::"JobExecutionStatus"`,
+        start_time: new Date(),
+        job_input_trace_id: traceId,
+      })
+      .execute();
 
     const payload = {
       timestamp: "2022-01-01T00:00:00.000Z",
       id: "abc",
       data: {
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        jobExecutionId: jobExecution.id,
+        jobExecutionId: jobExecutionId,
       },
     };
 

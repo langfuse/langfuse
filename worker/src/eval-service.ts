@@ -158,7 +158,7 @@ export const evaluate = async ({
     .where("project_id", "=", data.data.projectId)
     .executeTakeFirstOrThrow();
 
-  if (!job.job_input_trace_id) {
+  if (!job?.job_input_trace_id) {
     throw new Error("Jobs can only be executed on traces for now.");
   }
 
