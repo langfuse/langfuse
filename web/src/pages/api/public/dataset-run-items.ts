@@ -141,7 +141,7 @@ export default async function handler(
         },
       });
 
-      return res.status(200).json(runItem);
+      return res.status(200).json({ ...runItem, datasetRunName: run.name });
     } catch (error: unknown) {
       console.error(error);
       if (error instanceof z.ZodError) {
