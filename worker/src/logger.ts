@@ -11,6 +11,7 @@ export const getLogger = (env: "development" | "production" | "test") => {
       options: {
         translateTime: "HH:MM:ss Z",
         ignore: "pid,hostname",
+        stackTrace: true,
       },
     },
   });

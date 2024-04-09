@@ -53,17 +53,6 @@ export const evalModels = [
     max_tokens: 256,
     top_p: 1,
   },
-  {
-    provider: ModelProvider.Anthropic,
-    model: "claude-3-opus-20240229",
-    temperature: 0,
-    maxTemperature: 1,
-    max_tokens: 256,
-    top_p: 1,
-  },
 ] as const;
 
-export const EvalModelNames = z.enum([
-  "gpt-3.5-turbo",
-  "claude-3-opus-20240229",
-]);
+export const EvalModelNames = z.enum(["gpt-3.5-turbo"]);

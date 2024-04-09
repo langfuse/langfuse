@@ -5,6 +5,7 @@ import { evaluate, createEvalJobs } from "../eval-service";
 import { env } from "../env";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
+import { sql } from "kysely";
 
 const createRedisClient = () => {
   try {
@@ -68,7 +69,7 @@ export const evalJobExecutor = redis
       QueueName.EvaluationExecution,
       async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
         try {
-          console.log("Executing Evaluation Execution Job", job.data);
+          logger.info("Executing Evaluation Execution Job", job.data);
           await evaluate({ data: job.data.payload });
           return true;
         } catch (e) {
@@ -78,7 +79,7 @@ export const evalJobExecutor = redis
           );
           await kyselyPrisma.$kysely
             .updateTable("job_executions")
-            .set("status", "ERROR")
+            .set("status", sql`'ERROR'::"JobExecutionStatus"`)
             .set("end_time", new Date())
             .set("error", JSON.stringify(e))
             .where("id", "=", job.data.payload.data.jobExecutionId)
