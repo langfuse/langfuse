@@ -129,135 +129,131 @@ export const NewEvalTemplateForm = (props: {
   }
 
   return (
-    <>
-      <Form {...form}>
-        <form
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-4"
-        >
-          <div className="grid grid-cols-4 gap-x-12">
-            <div className="col-span-3 row-span-1">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <>
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <AutoComplete
-                          {...field}
-                          options={props.existingEvalTemplates.map(
-                            (template) => ({
-                              value: template.name,
-                              label: template.name,
-                            }),
-                          )}
-                          placeholder=""
-                          onValueChange={(option) =>
-                            field.onChange(option.value)
-                          }
-                          value={{ value: field.value, label: field.value }}
-                          disabled={false}
-                          createLabel="New eval template name:"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-            </div>
-
-            <div className="col-span-3 row-span-4">
-              <FormField
-                control={form.control}
-                name="prompt"
-                render={({ field }) => (
-                  <>
-                    <FormItem>
-                      <FormLabel>Prompt</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          className="min-h-[150px] flex-1 font-mono text-xs"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                    <FormDescription>
-                      <p className="text-sm text-gray-500">
-                        You can use{" "}
-                        <code className="text-xs">{"{{variable}}"}</code> to
-                        insert variables into your prompt. The following
-                        variables are available:
-                      </p>
-
-                      <div className="flex flex-wrap gap-2">
-                        {extractedVariables.map((variable) => (
-                          <Badge key={variable} variant="outline">
-                            {variable}
-                          </Badge>
-                        ))}
-                      </div>
-                    </FormDescription>
-                  </>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="outputScore"
-                render={({ field }) => (
+    <Form {...form}>
+      <form
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-4"
+      >
+        <div className="grid grid-cols-4 gap-x-12">
+          <div className="col-span-3 row-span-1">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <>
                   <FormItem>
-                    <FormLabel>Score</FormLabel>
+                    <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <AutoComplete
+                        {...field}
+                        options={props.existingEvalTemplates.map(
+                          (template) => ({
+                            value: template.name,
+                            label: template.name,
+                          }),
+                        )}
+                        placeholder=""
+                        onValueChange={(option) => field.onChange(option.value)}
+                        value={{ value: field.value, label: field.value }}
+                        disabled={false}
+                        createLabel="New eval template name:"
+                      />
                     </FormControl>
-                    <FormDescription>Description</FormDescription>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="outputReasoning"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reasoning</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>Description</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="col-span-1 row-span-3">
-              <ModelParameters
-                {...playgroundContext}
-                availableModels={[...evalModels]}
-              />
-            </div>
+                </>
+              )}
+            />
           </div>
 
-          <Button
-            type="submit"
-            loading={createEvalTemplateMutation.isLoading}
-            className="mt-3"
-          >
-            Save
-          </Button>
-        </form>
-        {formError ? (
-          <p className="text-red text-center">
-            <span className="font-bold">Error:</span> {formError}
-          </p>
-        ) : null}
-      </Form>
-    </>
+          <div className="col-span-3 row-span-4">
+            <FormField
+              control={form.control}
+              name="prompt"
+              render={({ field }) => (
+                <>
+                  <FormItem>
+                    <FormLabel>Prompt</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        className="min-h-[150px] flex-1 font-mono text-xs"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                  <FormDescription>
+                    <p className="text-sm text-gray-500">
+                      You can use{" "}
+                      <code className="text-xs">{"{{variable}}"}</code> to
+                      insert variables into your prompt. The following variables
+                      are available:
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {extractedVariables.map((variable) => (
+                        <Badge key={variable} variant="outline">
+                          {variable}
+                        </Badge>
+                      ))}
+                    </div>
+                  </FormDescription>
+                </>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="outputScore"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Score</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormDescription>Description</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="outputReasoning"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reasoning</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormDescription>Description</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="col-span-1 row-span-3">
+            <ModelParameters
+              {...playgroundContext}
+              availableModels={[...evalModels]}
+            />
+          </div>
+        </div>
+
+        <Button
+          type="submit"
+          loading={createEvalTemplateMutation.isLoading}
+          className="mt-3"
+        >
+          Save
+        </Button>
+      </form>
+      {formError ? (
+        <p className="text-red text-center">
+          <span className="font-bold">Error:</span> {formError}
+        </p>
+      ) : null}
+    </Form>
   );
 };
