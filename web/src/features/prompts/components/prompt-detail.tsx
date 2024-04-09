@@ -65,9 +65,14 @@ export const PromptDetail = () => {
   }
 
   const allTags = (
-    api.prompts.filterOptions.useQuery({
-      projectId: projectId,
-    }).data?.tags ?? []
+    api.prompts.filterOptions.useQuery(
+      {
+        projectId: projectId as string,
+      },
+      {
+        enabled: Boolean(projectId),
+      },
+    ).data?.tags ?? []
   ).map((t) => t.value);
 
   if (!promptHistory.data || !prompt) {
@@ -143,7 +148,7 @@ export const PromptDetail = () => {
               Tags
               <TagPromptDetailsPopover
                 key={prompt.id}
-                projectId={projectId}
+                projectId={projectId as string}
                 promptName={prompt.name}
                 tags={prompt.tags}
                 availableTags={allTags}
