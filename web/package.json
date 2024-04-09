@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.7.1-2",
+  "version": "2.19.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -22,8 +22,8 @@
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
-    "@aws-sdk/client-s3": "^3.507.0",
-    "@aws-sdk/lib-storage": "^3.540.0",
+    "@aws-sdk/client-s3": "^3.550.0",
+    "@aws-sdk/lib-storage": "^3.550.0",
     "@aws-sdk/s3-request-presigner": "^3.540.0",
     "@headlessui/react": "^1.7.18",
     "@heroicons/react": "^2.1.3",

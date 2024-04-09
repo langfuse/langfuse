@@ -1,8 +1,9 @@
 import {
   type singleFilter,
   type timeFilter,
-} from "@/src/server/api/interfaces/filters";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+  type ColumnDefinition,
+  tableColumnsToSqlFilter,
+} from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { type z } from "zod";
@@ -13,7 +14,6 @@ import {
   filterInterface,
 } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
-import { tableColumnsToSqlFilter } from "@/src/features/filters/server/filterToPrisma";
 
 export type InternalDatabaseRow = {
   [key: string]: bigint | number | Decimal | string | Date;

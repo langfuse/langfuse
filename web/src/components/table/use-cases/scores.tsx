@@ -6,11 +6,11 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
-  ScoreOptions,
+  type ScoreOptions,
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { RouterOutput, type RouterInput } from "@/src/utils/types";
+import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
