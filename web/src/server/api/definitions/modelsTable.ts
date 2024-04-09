@@ -4,8 +4,9 @@ export const modelsTableCols: ColumnDefinition[] = [
   {
     name: "Maintainer",
     id: "maintainer",
-    type: "boolean",
-    internal: '(m."project_id" IS NOT NULL)',
+    type: "stringOptions",
+    internal: `(CASE WHEN m."project_id" IS NOT NULL THEN 'User' ELSE 'Langfuse' END)`,
+    options: [{ value: "User" }, { value: "Langfuse" }],
   },
   {
     name: "Model Name",
