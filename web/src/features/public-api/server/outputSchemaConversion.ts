@@ -1,4 +1,4 @@
-import { type ObservationView } from "@langfuse/shared/src/db";
+import { type ObservationView } from "@langfuse/shared";
 
 // This function exists to endure backwards compatibility with GET API consumers
 // Old APIs expect to return promptTokens, completionTokens, totalTokens
