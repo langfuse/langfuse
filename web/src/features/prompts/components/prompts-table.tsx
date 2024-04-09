@@ -29,9 +29,12 @@ export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
-  const prompts = api.prompts.all.useQuery({
-    projectId,
-  });
+  const prompts = api.prompts.all.useQuery(
+    {
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+    },
+    { enabled: Boolean(projectId) },
+  );
   const hasCUDAccess = useHasAccess({
     projectId,
     scope: "prompts:CUD",
@@ -102,7 +105,7 @@ export function PromptTable() {
       header: "Actions",
       cell: (row) => {
         const name = row.row.original.name;
-        return <DeletePrompt projectId={projectId} promptName={name} />;
+        return <DeletePrompt promptName={name} />;
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];

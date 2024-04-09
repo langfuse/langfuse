@@ -9,18 +9,18 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useRouter } from "next/router";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 export function DeletePromptVersion({
   promptVersionId,
-  projectId,
   version,
   countVersions,
 }: {
   promptVersionId: string;
-  projectId: string;
   version: number;
   countVersions: number;
 }) {
+  const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -74,6 +74,12 @@ export function DeletePromptVersion({
             variant="destructive"
             loading={mutDeletePromptVersion.isLoading}
             onClick={() => {
+              if (!projectId) {
+                console.error("Project ID is missing");
+
+                return;
+              }
+
               void mutDeletePromptVersion.mutateAsync({
                 promptVersionId,
                 projectId,
