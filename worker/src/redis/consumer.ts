@@ -41,7 +41,7 @@ export const evalJobCreator = redis
       QueueName.TraceUpsert,
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         try {
-          console.log("Executing Evaluation Job", job.data);
+          logger.info("Executing Evaluation Job", job.data);
 
           await createEvalJobs({ data: job.data.payload });
           return true;
