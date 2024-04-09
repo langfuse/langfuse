@@ -79,10 +79,14 @@ export default async function handler(
           message: "Dataset run not found",
         });
 
-      const { dataset, ...run } = datasetRuns[0];
+      const { dataset, datasetRunItems, ...run } = datasetRuns[0];
 
       return res.status(200).json({
         ...run,
+        datasetRunItems: datasetRunItems.map((item) => ({
+          ...item,
+          datasetRunName: run.name,
+        })),
         datasetName: dataset.name,
       });
     } catch (error: unknown) {

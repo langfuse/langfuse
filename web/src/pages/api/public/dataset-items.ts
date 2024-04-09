@@ -79,7 +79,10 @@ export default async function handler(
         },
       });
 
-      res.status(200).json(item);
+      res.status(200).json({
+        ...item,
+        datasetName: dataset.name,
+      });
     } else {
       res.status(405).json({
         message: "Method not allowed",

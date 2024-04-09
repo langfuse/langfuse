@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
-import type { Prompt } from "@langfuse/shared/src/db";
+import type { Prompt } from "@langfuse/shared";
 
 export const ChatMessageSchema = z.object({
   role: z.string(),
@@ -63,6 +63,7 @@ export const TextPromptSchema = z.object({
   version: z.number(),
   name: z.string(),
   isActive: z.boolean(),
+  tags: z.array(z.string()),
   type: z.literal(PromptType.Text),
   prompt: z.string(),
   config: jsonSchema,
@@ -81,6 +82,7 @@ export const ChatPromptSchema = z.object({
   createdBy: z.string(),
   version: z.number(),
   name: z.string(),
+  tags: z.array(z.string()),
   isActive: z.boolean(),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),

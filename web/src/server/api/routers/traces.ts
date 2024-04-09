@@ -468,7 +468,6 @@ export const traceRouter = createTRPCRouter({
           action: "updateTags",
           after: input.tags,
         });
-        return trace;
       } catch (error) {
         console.error(error);
       }

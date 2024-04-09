@@ -16,11 +16,11 @@ interface SearchConfig {
 
 interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
-  filterColumnDefinition: ColumnDefinition[];
+  filterColumnDefinition?: ColumnDefinition[];
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
-  filterState: FilterState;
-  setFilterState: Dispatch<SetStateAction<FilterState>>;
+  filterState?: FilterState;
+  setFilterState?: Dispatch<SetStateAction<FilterState>>;
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
 }
@@ -64,11 +64,13 @@ export function DataTableToolbar<TData, TValue>({
             </Button>
           </div>
         )}
-        <PopoverFilterBuilder
-          columns={filterColumnDefinition}
-          filterState={filterState}
-          onChange={setFilterState}
-        />
+        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
+          <PopoverFilterBuilder
+            columns={filterColumnDefinition}
+            filterState={filterState}
+            onChange={setFilterState}
+          />
+        )}
         <div className="flex-1" />
         {!!columnVisibility && !!setColumnVisibility && (
           <DataTableColumnVisibilityFilter

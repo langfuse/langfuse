@@ -15,6 +15,8 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 
 type RowData = {
   key: {
@@ -56,6 +58,7 @@ export function DatasetsTable(props: { projectId: string }) {
     {
       accessorKey: "key",
       header: "Name",
+      id: "key",
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
@@ -70,22 +73,32 @@ export function DatasetsTable(props: { projectId: string }) {
     {
       accessorKey: "description",
       header: "Description",
+      id: "description",
+      enableHiding: true,
     },
     {
       accessorKey: "countItems",
       header: "Items",
+      id: "countItems",
+      enableHiding: true,
     },
     {
       accessorKey: "countRuns",
       header: "Runs",
+      id: "countRuns",
+      enableHiding: true,
     },
     {
       accessorKey: "createdAt",
       header: "Created",
+      id: "createdAt",
+      enableHiding: true,
     },
     {
       accessorKey: "lastRunAt",
       header: "Last Run",
+      id: "lastRunAt",
+      enableHiding: true,
     },
     {
       id: "actions",
@@ -135,8 +148,18 @@ export function DatasetsTable(props: { projectId: string }) {
     };
   };
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "datasetsColumnVisibility",
+    columns,
+  );
+
   return (
     <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+      />
       <DataTable
         columns={columns}
         data={
@@ -161,6 +184,8 @@ export function DatasetsTable(props: { projectId: string }) {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );
