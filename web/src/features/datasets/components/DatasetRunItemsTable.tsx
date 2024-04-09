@@ -10,6 +10,8 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type Score } from "@langfuse/shared";
 import { usdFormatter } from "../../../utils/numbers";
 import { IOCell } from "@/src/components/table/use-cases/IOCell";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 
 type RowData = {
   id: string;
@@ -56,10 +58,12 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "runAt",
       header: "Run At",
+      id: "runAt",
     },
     {
       accessorKey: "datasetItemId",
       header: "Dataset Item",
+      id: "datasetItemId",
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
         return (
@@ -74,6 +78,7 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "trace",
       header: "Trace",
+      id: "trace",
       cell: ({ row }) => {
         const trace: RowData["trace"] = row.getValue("trace");
         if (!trace) return null;
@@ -95,6 +100,8 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "latency",
       header: "Latency",
+      id: "latency",
+      enableHiding: true,
       cell: ({ row }) => {
         const latency: RowData["latency"] = row.getValue("latency");
         return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
@@ -103,6 +110,8 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      id: "totalCost",
+      enableHiding: true,
       cell: ({ row }) => {
         const totalCost: RowData["totalCost"] = row.getValue("totalCost");
         return <>{totalCost}</>;
@@ -111,6 +120,8 @@ export function DatasetRunItemsTable(
     {
       accessorKey: "scores",
       header: "Scores",
+      id: "scores",
+      enableHiding: true,
       cell: ({ row }) => {
         const scores: RowData["scores"] = row.getValue("scores");
         return <GroupedScoreBadges scores={scores} variant="headings" />;
@@ -120,6 +131,7 @@ export function DatasetRunItemsTable(
       accessorKey: "input",
       header: "Input",
       id: "input",
+      enableHiding: true,
       cell: ({ row }) => {
         const trace: RowData["trace"] = row.getValue("trace");
         return trace ? (
@@ -135,6 +147,7 @@ export function DatasetRunItemsTable(
       accessorKey: "output",
       header: "Output",
       id: "output",
+      enableHiding: true,
       cell: ({ row }) => {
         const trace: RowData["trace"] = row.getValue("trace");
         return trace ? (
@@ -150,6 +163,7 @@ export function DatasetRunItemsTable(
       accessorKey: "expectedOutput",
       header: "Expected Output",
       id: "expectedOutput",
+      enableHiding: true,
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
         return (
@@ -185,32 +199,46 @@ export function DatasetRunItemsTable(
     };
   };
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "datasetRunsItemsColumnVisibility",
+    columns,
+  );
+
   return (
-    <DataTable
-      columns={columns}
-      data={
-        runItems.isLoading
-          ? { isLoading: true, isError: false }
-          : runItems.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: runItems.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: runItems.data.runItems.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        pageCount: Math.ceil(
-          (runItems.data?.totalRunItems ?? 0) / paginationState.pageSize,
-        ),
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-    />
+    <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+      />
+      <DataTable
+        columns={columns}
+        data={
+          runItems.isLoading
+            ? { isLoading: true, isError: false }
+            : runItems.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: runItems.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: runItems.data.runItems.map((t) => convertToTableRow(t)),
+                }
+        }
+        pagination={{
+          pageCount: Math.ceil(
+            (runItems.data?.totalRunItems ?? 0) / paginationState.pageSize,
+          ),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+      />
+    </div>
   );
 }
 
