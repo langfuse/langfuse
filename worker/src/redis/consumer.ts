@@ -46,7 +46,7 @@ export const evalJobCreator = redis
           await createEvalJobs({ data: job.data.payload });
           return true;
         } catch (e) {
-          console.error(
+          logger.error(
             `Failed  job Evaluation for traceId ${job.data.payload.data.traceId}`,
             e
           );
@@ -68,7 +68,7 @@ export const evalJobExecutor = redis
           await evaluate({ data: job.data.payload });
           return true;
         } catch (e) {
-          console.error(
+          logger.error(
             `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`,
             e
           );
