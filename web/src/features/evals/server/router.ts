@@ -9,17 +9,20 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   EvalTargetObject,
-  evalModels,
 } from "@/src/features/evals/constants";
-import { jsonSchema } from "@/src/utils/zod";
-import { singleFilter, variableMapping } from "@langfuse/shared";
+import {
+  EvalModelNames,
+  ZodModelConfig,
+  singleFilter,
+  variableMapping,
+} from "@langfuse/shared";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),
   projectId: z.string(),
   prompt: z.string(),
-  model: evalModels,
-  modelParameters: jsonSchema,
+  model: EvalModelNames,
+  modelParameters: ZodModelConfig,
   variables: z.array(z.string()),
   outputSchema: z.object({
     score: z.string(),
