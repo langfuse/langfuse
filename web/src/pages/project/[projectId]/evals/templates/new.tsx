@@ -1,6 +1,8 @@
 import Header from "@/src/components/layouts/header";
 import { NewEvalTemplateForm } from "@/src/features/evals/components/new-template-form";
+import { PlaygroundProvider } from "@/src/features/playground/client/context";
 import { api } from "@/src/utils/api";
+import { evalModels } from "@langfuse/shared";
 
 import { useRouter } from "next/router";
 
@@ -24,10 +26,12 @@ export default function TemplatesPage() {
           href: "https://langfuse.com/docs/scores",
         }}
       />
-      <NewEvalTemplateForm
-        projectId={projectId}
-        existingEvalTemplates={evals.data?.templates ?? []}
-      />
+      <PlaygroundProvider avilableModels={[...evalModels]}>
+        <NewEvalTemplateForm
+          projectId={projectId}
+          existingEvalTemplates={evals.data?.templates ?? []}
+        />
+      </PlaygroundProvider>
     </div>
   );
 }

@@ -9,17 +9,20 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   EvalTargetObject,
-  evalModels,
 } from "@/src/features/evals/constants";
-import { jsonSchema } from "@/src/utils/zod";
-import { singleFilter, variableMapping } from "@langfuse/shared";
+import {
+  EvalModelNames,
+  ZodModelConfig,
+  singleFilter,
+  variableMapping,
+} from "@langfuse/shared";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),
   projectId: z.string(),
   prompt: z.string(),
-  model: evalModels,
-  modelParameters: jsonSchema,
+  model: EvalModelNames,
+  modelParameters: ZodModelConfig,
   variables: z.array(z.string()),
   outputSchema: z.object({
     score: z.string(),
@@ -108,7 +111,7 @@ export const evalRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
         sampling: z.number().gte(0).lte(1),
-        delay: z.number().lte(0).default(10_000),
+        delay: z.number().gte(0).default(10_000),
       }),
     )
     .mutation(async ({ input, ctx }) => {
