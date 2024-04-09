@@ -20,7 +20,7 @@ import {
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
-import { Textarea } from "@/src/components/ui/textarea";
+import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared/src/db";
 
 const formSchema = z.object({
@@ -147,9 +147,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Input</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />
@@ -163,9 +163,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Expected output</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />

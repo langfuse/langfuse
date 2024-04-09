@@ -14,6 +14,7 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { JsonEditor } from "@/src/components/json-editor";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -58,11 +59,16 @@ export const EditDatasetItem = ({
     scope: "datasets:CUD",
   });
   const utils = api.useUtils();
-  const item = api.datasets.itemById.useQuery({
-    datasetId,
-    projectId,
-    datasetItemId: itemId,
-  });
+  const item = api.datasets.itemById.useQuery(
+    {
+      datasetId,
+      projectId,
+      datasetItemId: itemId,
+    },
+    {
+      refetchOnWindowFocus: false, // breaks dirty form state
+    },
+  );
 
   useEffect(() => {
     form.setValue(
@@ -119,10 +125,13 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Input</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
+                    <JsonEditor
+                      defaultValue={field.value}
+                      onChange={(v) => {
+                        setHasChanges(true);
+                        field.onChange(v);
+                      }}
+                      editable={hasAccess}
                     />
                   </FormControl>
                   <FormMessage />
@@ -136,10 +145,13 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Expected output</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
+                    <JsonEditor
+                      defaultValue={field.value}
+                      onChange={(v) => {
+                        setHasChanges(true);
+                        field.onChange(v);
+                      }}
+                      editable={hasAccess}
                     />
                   </FormControl>
                   <FormMessage />
