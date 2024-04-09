@@ -209,7 +209,7 @@ export const evaluate = async ({
     parsedVariableMapping
   );
 
-  logger.info(`Extracted variables ${mappingResult} `);
+  logger.info(`Extracted variables ${JSON.stringify(mappingResult)} `);
 
   // compile the prompt and send out the LLM request
   const prompt = compileHandlebarString(template.prompt, {
