@@ -229,6 +229,7 @@ export function DatasetRunItemsTable(
           <Tabs
             defaultValue={height}
             onValueChange={(e) => setHeight(e as any)}
+            key="height"
           >
             <TabsList>
               {[
