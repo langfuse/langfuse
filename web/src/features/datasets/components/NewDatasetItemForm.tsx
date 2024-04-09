@@ -27,6 +27,7 @@ const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
   input: z.string().refine(
     (value) => {
+      if (value === "") return true;
       try {
         JSON.parse(value);
         return true;
@@ -58,9 +59,10 @@ const formSchema = z.object({
 
 export const NewDatasetItemForm = (props: {
   projectId: string;
+  traceId?: string;
   observationId?: string;
-  observationInput?: Prisma.JsonValue;
-  observationOutput?: Prisma.JsonValue;
+  input?: Prisma.JsonValue;
+  output?: Prisma.JsonValue;
   datasetId?: string;
   onFormSuccess?: () => void;
 }) => {
@@ -70,12 +72,8 @@ export const NewDatasetItemForm = (props: {
     resolver: zodResolver(formSchema),
     defaultValues: {
       datasetId: props.datasetId ?? "",
-      input: props.observationInput
-        ? JSON.stringify(props.observationInput, null, 2)
-        : "",
-      expectedOutput: props.observationOutput
-        ? JSON.stringify(props.observationOutput, null, 2)
-        : "",
+      input: props.input ? JSON.stringify(props.input, null, 2) : "",
+      expectedOutput: props.output ? JSON.stringify(props.output, null, 2) : "",
     },
   });
 
@@ -91,12 +89,14 @@ export const NewDatasetItemForm = (props: {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("datasets:new_dataset_item_form_submit", {
+      hasSourceTrace: !!props.traceId,
       hasSourceObservation: !!props.observationId,
     });
     createDatasetItemMutation
       .mutateAsync({
         ...values,
         projectId: props.projectId,
+        sourceTraceId: props.traceId,
         sourceObservationId: props.observationId,
       })
       .then(() => {

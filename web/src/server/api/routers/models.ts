@@ -1,19 +1,22 @@
 import { z } from "zod";
 
-import { ModelUsageUnit } from "@langfuse/shared";
+import {
+  Model,
+  ModelUsageUnit,
+  Prisma,
+  orderBy,
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { type Model, Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
 import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 
 const ModelAllOptions = z.object({

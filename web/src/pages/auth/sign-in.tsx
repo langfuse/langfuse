@@ -19,7 +19,7 @@ import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
@@ -255,6 +255,10 @@ export default function SignIn({ authProviders }: PageProps) {
                     type="submit"
                     className="w-full"
                     loading={credentialsForm.formState.isSubmitting}
+                    disabled={
+                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                      turnstileToken === undefined
+                    }
                   >
                     Sign in
                   </Button>

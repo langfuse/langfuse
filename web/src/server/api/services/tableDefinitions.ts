@@ -1,7 +1,4 @@
-import {
-  type ColumnDefinition,
-  type TableDefinitions,
-} from "@/src/server/api/interfaces/tableDefinition";
+import { type ColumnDefinition, type TableDefinitions } from "@langfuse/shared";
 
 export const completionTokens = {
   name: "completionTokens",
@@ -83,7 +80,7 @@ export const scoreId = {
   internal: 's."id"',
 } as const;
 export const traceName = {
-  name: "traceName",
+  name: "Trace Name",
   id: "traceName",
   type: "string",
   internal: 't."name"',
@@ -114,6 +111,13 @@ export const calculatedTotalCost = {
   internal: 'o."calculated_total_cost"',
 } as const;
 
+export const traceTags = {
+  name: "Tags",
+  id: "tags",
+  type: "string",
+  internal: 't."tags"',
+} as const;
+
 const tracesObservationsColumns: ColumnDefinition[] = [
   traceId,
   observationId,
@@ -128,6 +132,7 @@ const tracesObservationsColumns: ColumnDefinition[] = [
   startTime,
   traceName,
   observationName,
+  traceTags,
 ];
 
 const tracesColumns = [
@@ -138,6 +143,7 @@ const tracesColumns = [
   traceTimestamp,
   traceName,
   traceUser,
+  traceTags,
 ];
 
 export const tableDefinitions: TableDefinitions = {
@@ -211,6 +217,7 @@ export const tableDefinitions: TableDefinitions = {
       traceUser,
       tracesProjectId,
       traceName,
+      traceTags,
     ],
   },
 
@@ -237,6 +244,7 @@ export const tableDefinitions: TableDefinitions = {
       release,
       tracesProjectId,
       observationsProjectId,
+      traceTags,
     ],
   },
 };

@@ -27,8 +27,7 @@ export default async function handler(
 
   if (authCheck.scope.accessLevel !== "all") {
     return res.status(401).json({
-      message:
-        "Access denied - need to use basic auth with secret key to GET scores",
+      message: "Access denied - need to use basic auth with secret key",
     });
   }
 
@@ -75,7 +74,10 @@ export default async function handler(
       const { datasetItems, datasetRuns, ...params } = dataset;
       const output = {
         ...params,
-        items: datasetItems,
+        items: datasetItems.map((item) => ({
+          ...item,
+          datasetName: dataset.name,
+        })),
         runs: datasetRuns.map((run) => run.name),
       };
 

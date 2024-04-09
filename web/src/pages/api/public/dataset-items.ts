@@ -9,7 +9,7 @@ import { isPrismaException } from "@/src/utils/exceptions";
 
 const CreateDatasetItemSchema = z.object({
   datasetName: z.string(),
-  input: jsonSchema,
+  input: jsonSchema.nullish(),
   expectedOutput: jsonSchema.nullish(),
   id: z.string().nullish(),
 });
@@ -41,10 +41,11 @@ export default async function handler(
       const itemBody = CreateDatasetItemSchema.parse(req.body);
 
       // CHECK ACCESS SCOPE
-      if (authCheck.scope.accessLevel !== "all")
-        return res.status(403).json({
-          message: "Access denied",
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message: "Access denied - need to use basic auth with secret key",
         });
+      }
       // END CHECK ACCESS SCOPE
 
       // Check access to dataset
@@ -68,17 +69,20 @@ export default async function handler(
         },
         create: {
           id,
-          input: itemBody.input,
+          input: itemBody.input ?? undefined,
           expectedOutput: itemBody.expectedOutput ?? undefined,
           datasetId: dataset.id,
         },
         update: {
-          input: itemBody.input,
+          input: itemBody.input ?? undefined,
           expectedOutput: itemBody.expectedOutput ?? undefined,
         },
       });
 
-      res.status(200).json(item);
+      res.status(200).json({
+        ...item,
+        datasetName: dataset.name,
+      });
     } else {
       res.status(405).json({
         message: "Method not allowed",

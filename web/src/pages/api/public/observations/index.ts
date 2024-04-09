@@ -53,8 +53,7 @@ export default async function handler(
 
     if (authCheck.scope.accessLevel !== "all") {
       return res.status(401).json({
-        message:
-          "Access denied - need to use basic auth with secret key to GET generations",
+        message: "Access denied - need to use basic auth with secret key",
       });
     }
 
@@ -156,7 +155,8 @@ const getObservation = async (
         o."calculated_input_cost" as "calculatedInputCost",
         o."calculated_output_cost" as "calculatedOutputCost",
         o."calculated_total_cost" as "calculatedTotalCost",
-        o."latency"
+        o."latency",
+        o."prompt_id" as "promptId"
       FROM observations_view o LEFT JOIN traces ON o."trace_id" = traces."id" AND traces."project_id" = o."project_id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${nameCondition}

@@ -1,6 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
-import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import {
@@ -14,7 +13,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { Archive, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { DatasetStatus, type DatasetItem } from "@langfuse/shared/src/db";
+import { type DatasetItem, DatasetStatus } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -154,7 +153,7 @@ export function DatasetItemsTable({
   const convertToTableRow = (
     item: RouterOutput["datasets"]["itemsByDatasetId"]["datasetItems"][number],
   ): RowData => {
-    let input = JSON.stringify(item.input);
+    let input = item.input ? JSON.stringify(item.input) : "";
     input = input.length > 50 ? input.slice(0, 50) + "..." : input;
     let expectedOutput = item.expectedOutput
       ? JSON.stringify(item.expectedOutput)
@@ -201,11 +200,6 @@ export function DatasetItemsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-      />
-      <NewDatasetItemButton
-        projectId={projectId}
-        datasetId={datasetId}
-        className="mt-4"
       />
     </div>
   );

@@ -3,11 +3,11 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
-import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-import { type Score } from "@langfuse/shared/src/db";
+import { type Score } from "@langfuse/shared";
 import { usdFormatter } from "../../../utils/numbers";
 
 type RowData = {

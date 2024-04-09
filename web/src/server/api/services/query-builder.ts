@@ -1,8 +1,9 @@
 import {
   type singleFilter,
   type timeFilter,
-} from "@/src/server/api/interfaces/filters";
-import { type ColumnDefinition } from "@/src/server/api/interfaces/tableDefinition";
+  type ColumnDefinition,
+  tableColumnsToSqlFilter,
+} from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { type z } from "zod";
@@ -13,7 +14,6 @@ import {
   filterInterface,
 } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
-import { tableColumnsToSqlFilter } from "@/src/features/filters/server/filterToPrisma";
 
 export type InternalDatabaseRow = {
   [key: string]: bigint | number | Decimal | string | Date;
@@ -74,13 +74,13 @@ export const createQuery = (queryUnsafe: z.TypeOf<typeof sqlInterface>) => {
           safeColumn,
           safeAgg,
         )}"`
-      : Prisma.sql`${columnDefinition} as "${Prisma.raw(safeColumn.name)}"`;
+      : Prisma.sql`${columnDefinition} as "${Prisma.raw(safeColumn.id)}"`;
   });
 
   if (cte)
     // raw mandatory here
     selectedColumns.unshift(
-      Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.name)}"`,
+      Prisma.sql`date_series."date" as "${Prisma.raw(cte.column.id)}"`,
     );
 
   let groupString = Prisma.empty;
@@ -128,33 +128,33 @@ const createOutputColumnName = (
   if (!safeAgg) return Prisma.empty;
   if (["SUM", "AVG", "COUNT", "MAX", "MIN"].includes(safeAgg)) {
     return Prisma.sql`${Prisma.raw(safeAgg.toLowerCase())}${Prisma.raw(
-      capitalizeFirstLetter(columnDefinition.name),
+      capitalizeFirstLetter(columnDefinition.id),
     )}`;
   }
 
   if (safeAgg === "50thPercentile") {
     return Prisma.sql`percentile50${Prisma.raw(
-      capitalizeFirstLetter(columnDefinition.name),
+      capitalizeFirstLetter(columnDefinition.id),
     )}`;
   }
   if (safeAgg === "75thPercentile") {
     return Prisma.sql`percentile75${Prisma.raw(
-      capitalizeFirstLetter(columnDefinition.name),
+      capitalizeFirstLetter(columnDefinition.id),
     )}`;
   }
   if (safeAgg === "90thPercentile") {
     return Prisma.sql`percentile90${Prisma.raw(
-      capitalizeFirstLetter(columnDefinition.name),
+      capitalizeFirstLetter(columnDefinition.id),
     )}`;
   }
   if (safeAgg === "95thPercentile") {
     return Prisma.sql`percentile95${Prisma.raw(
-      capitalizeFirstLetter(columnDefinition.name),
+      capitalizeFirstLetter(columnDefinition.id),
     )}`;
   }
   if (safeAgg === "99thPercentile") {
     return Prisma.sql`percentile99${Prisma.raw(
-      capitalizeFirstLetter(columnDefinition.name),
+      capitalizeFirstLetter(columnDefinition.id),
     )}`;
   }
   return Prisma.empty;
@@ -330,7 +330,7 @@ const getColumnDefinition = (
   const table = sqlInterface.shape.from.parse(tableUnsafe);
 
   const foundColumn = tableDefinitions[table]!.columns.find((c) => {
-    return c.name === column;
+    return c.id === column;
   });
   if (!foundColumn) {
     console.error(`Column "${column}" not found in table ${table}`);

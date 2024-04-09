@@ -1,128 +1,212 @@
+import { LockIcon, PlusIcon } from "lucide-react";
+import Link from "next/link";
+import { useEffect } from "react";
+
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { CreatePromptDialog } from "@/src/features/prompts/components/new-prompt-button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
-
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { LockIcon, PlusIcon } from "lucide-react";
-import { useEffect } from "react";
+import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { createColumnHelper } from "@tanstack/react-table";
 
-type RowData = {
+type PromptTableRow = {
   name: string;
   version: number;
   id: string;
   createdAt: Date;
   isActive: boolean;
+  type: string;
   numberOfObservations: number;
+  tags: string[];
 };
 
-export function PromptTable(props: { projectId: string }) {
+export function PromptTable() {
+  const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
-  const prompts = api.prompts.all.useQuery({
-    projectId: props.projectId,
-  });
   const hasCUDAccess = useHasAccess({
-    projectId: props.projectId,
+    projectId,
     scope: "prompts:CUD",
   });
+
+  const [filterState, setFilterState] = useQueryFilterState([], "prompts");
+
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "createdAt",
+    order: "DESC",
+  });
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
+  const prompts = api.prompts.all.useQuery(
+    {
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      filter: filterState,
+      orderBy: orderByState,
+    },
+    { enabled: Boolean(projectId) },
+  );
+  const promptFilterOptions = api.prompts.filterOptions.useQuery(
+    {
+      projectId: projectId as string,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  const filterOptionTags = promptFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
+
+  const totalCount = prompts.data?.totalCount ?? 0;
 
   useEffect(() => {
     if (prompts.isSuccess) {
       setDetailPageList(
         "prompts",
-        prompts.data.map((t) => encodeURIComponent(t.name)),
+        prompts.data.prompts.map((t) => t.name),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompts.isSuccess, prompts.data]);
 
-  const columns: LangfuseColumnDef<RowData>[] = [
-    {
-      accessorKey: "name",
+  const columnHelper = createColumnHelper<PromptTableRow>();
+  const promptColumns = [
+    columnHelper.accessor("name", {
       header: "Name",
-      cell: ({ row }) => {
-        const name: string = row.getValue("name");
+      id: "name",
+      enableSorting: true,
+      cell: (row) => {
+        const name = row.getValue();
         return name ? (
           <TableLink
-            path={`/project/${props.projectId}/prompts/${encodeURIComponent(name)}`}
+            path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
             truncateAt={50}
           />
         ) : undefined;
       },
-    },
-    {
-      accessorKey: "version",
+    }),
+    columnHelper.accessor("version", {
       header: "Latest Version",
-      cell: ({ row }) => {
-        const version = row.getValue("version");
-        return version;
+      id: "version",
+      enableSorting: true,
+      cell: (row) => {
+        return row.getValue();
       },
-    },
-    {
-      accessorKey: "createdAt",
+    }),
+    columnHelper.accessor("type", {
+      header: "Type",
+      id: "type",
+      enableSorting: true,
+      cell: (row) => {
+        return row.getValue();
+      },
+    }),
+    columnHelper.accessor("createdAt", {
       header: "Latest Version Created At",
-      cell: ({ row }) => {
-        const createdAt: Date = row.getValue("createdAt");
+      id: "createdAt",
+      enableSorting: true,
+      cell: (row) => {
+        const createdAt = row.getValue();
         return createdAt.toLocaleString();
       },
-    },
-    {
-      accessorKey: "numberOfObservations",
+    }),
+    columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
-      cell: ({ row }) => {
-        const numberOfObservations: number = row.getValue(
-          "numberOfObservations",
-        );
-        const name: string = row.getValue("name");
+      cell: (row) => {
+        const numberOfObservations = row.getValue();
+        const name = row.row.original.name;
         const filter = encodeURIComponent(
-          `Prompt Name;stringOptions;;any of;${name}`,
+          `promptName;stringOptions;;any of;${name}`,
         );
         return (
           <TableLink
-            path={`/project/${props.projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            path={`/project/${projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
             value={numberOfObservations.toLocaleString()}
           />
         );
       },
-    },
-    {
-      accessorKey: "actions",
-      header: "Actions",
-      cell: ({ row }) => {
+    }),
+    columnHelper.accessor("tags", {
+      header: "Tags",
+      id: "tags",
+      enableSorting: true,
+      cell: (row) => {
+        const tags = row.getValue();
+        const promptName: string = row.row.original.name;
         return (
-          <DeletePrompt
-            projectId={props.projectId}
-            promptName={row.getValue("name")}
+          <TagPromptPopover
+            tags={tags}
+            availableTags={allTags}
+            projectId={projectId as string}
+            promptName={promptName}
+            promptsFilter={{
+              ...filterOptionTags,
+              projectId: projectId as string,
+              filter: filterState,
+              orderBy: orderByState,
+            }}
           />
         );
       },
-    },
-  ];
+      enableHiding: true,
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "Actions",
+      cell: (row) => {
+        const name = row.row.original.name;
+        return <DeletePrompt promptName={name} />;
+      },
+    }),
+  ] as LangfuseColumnDef<PromptTableRow>[];
 
   const convertToTableRow = (
-    item: RouterOutput["prompts"]["all"][number],
-  ): RowData => {
+    item: RouterOutput["prompts"]["all"]["prompts"][number],
+  ): PromptTableRow => {
     return {
       id: item.id,
       name: item.name,
       version: item.version,
       createdAt: item.createdAt,
+      type: item.type,
       isActive: item.isActive,
       numberOfObservations: Number(item.observationCount),
+      tags: item.tags,
     };
   };
 
   return (
     <div>
+      <DataTableToolbar
+        columns={promptColumns}
+        filterColumnDefinition={promptsTableColsWithOptions(
+          promptFilterOptions.data,
+        )}
+        filterState={filterState}
+        setFilterState={setFilterState}
+      />
       <DataTable
-        columns={columns}
+        columns={promptColumns}
         data={
           prompts.isLoading
             ? { isLoading: true, isError: false }
@@ -135,11 +219,18 @@ export function PromptTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: prompts.data.map((t) => convertToTableRow(t)),
+                  data: prompts.data.prompts.map((t) => convertToTableRow(t)),
                 }
         }
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
       />
-      <CreatePromptDialog projectId={props.projectId} title="Create Prompt">
+      <Link href={`/project/${projectId}/prompts/new`}>
         <Button
           variant="secondary"
           className="mt-4"
@@ -153,7 +244,7 @@ export function PromptTable(props: { projectId: string }) {
           )}
           New prompt
         </Button>
-      </CreatePromptDialog>
+      </Link>
     </div>
   );
 }

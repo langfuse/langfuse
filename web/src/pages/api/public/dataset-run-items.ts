@@ -9,6 +9,7 @@ import { jsonSchema } from "@/src/utils/zod";
 const DatasetRunItemPostSchema = z
   .object({
     runName: z.string(),
+    runDescription: z.string().nullish(),
     metadata: jsonSchema.nullish(),
     datasetItemId: z.string(),
     observationId: z.string().nullish(),
@@ -39,8 +40,7 @@ export default async function handler(
 
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
       console.log(
@@ -49,8 +49,14 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      const { datasetItemId, observationId, traceId, runName, metadata } =
-        DatasetRunItemPostSchema.parse(req.body);
+      const {
+        datasetItemId,
+        observationId,
+        traceId,
+        runName,
+        runDescription,
+        metadata,
+      } = DatasetRunItemPostSchema.parse(req.body);
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
@@ -116,11 +122,13 @@ export default async function handler(
         },
         create: {
           name: runName,
+          description: runDescription ?? undefined,
           datasetId: datasetItem.datasetId,
           metadata: metadata ?? undefined,
         },
         update: {
           metadata: metadata ?? undefined,
+          description: runDescription ?? undefined,
         },
       });
 
@@ -133,7 +141,7 @@ export default async function handler(
         },
       });
 
-      return res.status(200).json(runItem);
+      return res.status(200).json({ ...runItem, datasetRunName: run.name });
     } catch (error: unknown) {
       console.error(error);
       if (error instanceof z.ZodError) {

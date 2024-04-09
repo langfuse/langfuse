@@ -1,11 +1,9 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { AuthenticationError } from "@/src/pages/api/public/ingestion";
 import {
   type legacyObservationCreateEvent,
   eventTypes,
-  type traceEvent,
   type scoreEvent,
   type eventCreateEvent,
   type spanCreateEvent,
@@ -14,6 +12,7 @@ import {
   type generationUpdateEvent,
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
+  traceEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -29,6 +28,7 @@ import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
+import { ForbiddenError } from "@/src/server/errors";
 
 export interface EventProcessor {
   process(
@@ -370,7 +370,7 @@ export class ObservationProcessor implements EventProcessor {
 
   async process(apiScope: ApiAccessScope): Promise<Observation> {
     if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError("Access denied for observation creation");
+      throw new ForbiddenError("Access denied for observation creation");
 
     const existingObservation = this.event.body.id
       ? await prisma.observation.findFirst({
@@ -382,7 +382,7 @@ export class ObservationProcessor implements EventProcessor {
       existingObservation &&
       existingObservation.projectId !== apiScope.projectId
     ) {
-      throw new AuthenticationError(
+      throw new ForbiddenError(
         `Access denied for observation creation ${existingObservation.projectId} `,
       );
     }
@@ -413,7 +413,7 @@ export class TraceProcessor implements EventProcessor {
     const { body } = this.event;
 
     if (apiScope.accessLevel !== "all")
-      throw new AuthenticationError(
+      throw new ForbiddenError(
         `Access denied for trace creation, ${apiScope.accessLevel}`,
       );
 
@@ -433,7 +433,7 @@ export class TraceProcessor implements EventProcessor {
     });
 
     if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
-      throw new AuthenticationError(
+      throw new ForbiddenError(
         `Access denied for trace creation ${existingTrace.projectId} `,
       );
     }
@@ -526,7 +526,7 @@ export class ScoreProcessor implements EventProcessor {
       "score",
     );
     if (!accessCheck)
-      throw new AuthenticationError("Access denied for score creation");
+      throw new ForbiddenError("Access denied for score creation");
 
     const id = body.id ?? v4();
 
