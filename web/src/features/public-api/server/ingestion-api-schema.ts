@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { ModelUsageUnit } from "@langfuse/shared";
 import { NonEmptyString, jsonSchema } from "@/src/utils/zod";
-import { ObservationLevel } from "@langfuse/shared/src/db";
+import { ObservationLevel } from "@langfuse/shared";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),

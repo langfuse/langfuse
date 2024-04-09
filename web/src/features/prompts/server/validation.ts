@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
-import type { Prompt } from "@langfuse/shared/src/db";
+import type { Prompt } from "@langfuse/shared";
 
 export const ChatMessageSchema = z.object({
   role: z.string(),
