@@ -16,9 +16,8 @@ export default async function handler(
   try {
     await prisma.$queryRaw`SELECT 1;`;
 
-    const now = Date.now();
-
     if (failIfNoEventsInLastMinute) {
+      const now = Date.now();
       const trace = await prisma.trace.findFirst({
         where: {
           timestamp: {
