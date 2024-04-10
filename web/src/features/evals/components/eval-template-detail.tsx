@@ -25,13 +25,13 @@ export const EvalTemplateDetail = () => {
 
   const [isEditing, setIsEditing] = useState(false);
 
-  console.log("isEditing", isEditing);
-
-  const template = api.evals.byId.useQuery({
+  // get the current template by id
+  const template = api.evals.templateById.useQuery({
     projectId: projectId,
     id: templateId,
   });
 
+  // get all templates for the current template name
   const allTemplates = api.evals.allTemplatesForName.useQuery(
     {
       projectId: projectId,

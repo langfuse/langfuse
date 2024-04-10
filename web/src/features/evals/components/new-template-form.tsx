@@ -213,11 +213,9 @@ export const EvalTemplateForm = (props: {
                     />
                   </FormControl>
                   <FormMessage />
-                  <FormDescription>
-                    <PromptDescription
-                      currentExtractedVariables={extractedVariables ?? []}
-                    />
-                  </FormDescription>
+                  <PromptDescription
+                    currentExtractedVariables={extractedVariables ?? []}
+                  />
                 </FormItem>
               </>
             )}

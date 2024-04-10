@@ -25,6 +25,8 @@ export default function EvalsTemplateTable({
 
   const templates = api.evals.templateNames.useQuery({
     projectId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
   });
   const totalCount = templates.data?.totalCount ?? 0;
 

@@ -93,7 +93,9 @@ export const evalRouter = createTRPCRouter({
     }),
 
   templateNames: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({ projectId: z.string(), page: z.number(), limit: z.number() }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -101,35 +103,34 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:read",
       });
 
-      const templatesByName = await ctx.prisma.evalTemplate.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-      });
-
-      // group the templates by name and get the
-      // - latest version of each name
-      // - latest created date of each name
-      // - id of latest version of each name
-      const groupedTemplates = lodash.groupBy(templatesByName, "name");
-
-      const templates = Object.entries(groupedTemplates).map((entry) => {
-        const latestTemplate = lodash.maxBy(entry[1], "version");
-        return {
-          version: latestTemplate?.version,
-          latestCreatedAt: latestTemplate?.createdAt,
-          latestId: latestTemplate?.id,
-          name: entry[0],
-        };
-      });
-
+      const offset = (input.page - 1) * input.limit;
+      const templates = await ctx.prisma.$queryRaw<
+        Array<{
+          name: string;
+          version: number;
+          latestCreatedAt: Date;
+          latestId: string;
+        }>
+      >`
+        SELECT
+          name,
+          MAX(version) as version,
+          MAX(created_at) as "latestCreatedAt",
+          (SELECT id FROM "eval_templates" WHERE "project_id" = ${input.projectId} AND name = et.name ORDER BY version DESC LIMIT 1) as "latestId"
+        FROM "eval_templates" as et
+        WHERE "project_id" = ${input.projectId}
+        GROUP BY name
+        ORDER BY name
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `;
       return {
         templates: templates,
         totalCount: templates.length,
       };
     }),
 
-  byId: protectedProjectProcedure
+  templateById: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
