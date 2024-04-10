@@ -13,9 +13,10 @@ import {
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
+import { AlphaNumericDashString } from "@/src/utils/zod";
 
 export const CreateEvalTemplate = z.object({
-  name: z.string(),
+  name: AlphaNumericDashString,
   projectId: z.string(),
   prompt: z.string(),
   model: EvalModelNames,
@@ -194,7 +195,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         evalTemplateId: z.string(),
-        scoreName: z.string(),
+        scoreName: AlphaNumericDashString,
         target: z.string(),
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
