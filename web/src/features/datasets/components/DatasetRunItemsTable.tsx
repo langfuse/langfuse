@@ -38,12 +38,12 @@ export function DatasetRunItemsTable(
     | {
         projectId: string;
         datasetId: string;
-        datasetRunId: string;
+        datasetRunId: string; // View from run page
       }
     | {
         projectId: string;
         datasetId: string;
-        datasetItemId: string;
+        datasetItemId: string; // View from item page
       },
 ) {
   const { setDetailPageList } = useDetailPageLists();
@@ -62,10 +62,12 @@ export function DatasetRunItemsTable(
         "traces",
         runItems.data.runItems.filter((i) => !!i.trace).map((i) => i.trace!.id),
       );
-      setDetailPageList(
-        "datasetItems",
-        runItems.data.runItems.map((i) => i.datasetItemId),
-      );
+      // set the datasetItems list only when viewing this table from the run page
+      if ("datasetRunId" in props)
+        setDetailPageList(
+          "datasetItems",
+          runItems.data.runItems.map((i) => i.datasetItemId),
+        );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runItems.isSuccess, runItems.data]);
