@@ -1,5 +1,5 @@
 import { usePostHog } from "posthog-js/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Input } from "@/src/components/ui/input";
@@ -16,17 +16,17 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { extractVariables } from "@/src/utils/string";
-import { Badge } from "@/src/components/ui/badge";
+import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import router from "next/router";
-import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { type EvalTemplate } from "@prisma/client";
 import { usePlaygroundContext } from "@/src/features/playground/client/context";
 import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
-import { EvalModelNames, evalModels } from "@langfuse/shared";
+import { EvalModelNames, OutputSchema, evalModels } from "@langfuse/shared";
+import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
+import { AlphaNumericDashString } from "@/src/utils/zod";
 
 const formSchema = z.object({
-  name: z.string(),
+  name: AlphaNumericDashString,
   prompt: z
     .string()
     .min(1, "Enter a prompt")
@@ -46,47 +46,74 @@ const formSchema = z.object({
     z.string().min(1, "Variables must have at least one character"),
   ),
   model: EvalModelNames,
-  modelParameters: z.string().refine(
-    (value) => {
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (e) {
-        return false;
-      }
-    },
-    {
-      message: "Config needs to be valid JSON",
-    },
-  ),
   outputScore: z.string(),
-  outputName: z.string(),
   outputReasoning: z.string(),
 });
 
-export const NewEvalTemplateForm = (props: {
+export const EvalTemplateForm = (props: {
   projectId: string;
-  existingEvalTemplates: EvalTemplate[];
+  existingEvalTemplate?: EvalTemplate;
   onFormSuccess?: () => void;
+  isEditing?: boolean;
+  setIsEditing?: (isEditing: boolean) => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const posthog = usePostHog();
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      model: "gpt-3.5-turbo" as const,
-      prompt: "",
-      variables: [],
-      modelParameters: "{}",
-      outputName: "",
-      outputScore: "",
-      outputReasoning: "",
-    },
-  });
   const playgroundContext = usePlaygroundContext();
 
-  const extractedVariables = extractVariables(form.watch("prompt"));
+  const posthog = usePostHog();
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    disabled: !props.isEditing,
+    defaultValues: {
+      name: props.existingEvalTemplate?.name ?? "",
+      model: EvalModelNames.parse(
+        props.existingEvalTemplate?.model ?? "gpt-3.5-turbo",
+      ),
+      prompt: props.existingEvalTemplate?.prompt ?? undefined,
+      variables: props.existingEvalTemplate?.vars ?? [],
+      outputReasoning: props.existingEvalTemplate
+        ? OutputSchema.parse(props.existingEvalTemplate?.outputSchema).reasoning
+        : undefined,
+      outputScore: props.existingEvalTemplate
+        ? OutputSchema.parse(props.existingEvalTemplate?.outputSchema).score
+        : undefined,
+    },
+  });
+
+  // reset the form if the input template changes
+  useEffect(() => {
+    if (props.existingEvalTemplate) {
+      const model = EvalModelNames.parse(props.existingEvalTemplate.model);
+
+      form.reset({
+        name: props.existingEvalTemplate.name,
+        model: model,
+        prompt: props.existingEvalTemplate.prompt,
+        variables: props.existingEvalTemplate.vars,
+        outputReasoning: OutputSchema.parse(
+          props.existingEvalTemplate.outputSchema,
+        ).reasoning,
+        outputScore: OutputSchema.parse(props.existingEvalTemplate.outputSchema)
+          .score,
+      });
+
+      // also set the context for the playground
+      playgroundContext.updateModelParam("model", model);
+      playgroundContext.updateModelParams(
+        props.existingEvalTemplate.modelParams,
+      );
+
+      const modelProvider = evalModels.find((m) => m.model === model)?.provider;
+      if (modelProvider) {
+        playgroundContext.updateModelParam("provider", modelProvider);
+      }
+    }
+  }, [props.existingEvalTemplate, form]);
+
+  const extractedVariables = form.watch("prompt")
+    ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
+    : undefined;
 
   const utils = api.useUtils();
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
@@ -95,6 +122,7 @@ export const NewEvalTemplateForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("submitting", values);
     posthog.capture("models:new_template_form");
 
     createEvalTemplateMutation
@@ -104,16 +132,19 @@ export const NewEvalTemplateForm = (props: {
         prompt: values.prompt,
         model: EvalModelNames.parse(playgroundContext.modelParams.model),
         modelParameters: playgroundContext.modelParams,
-        variables: extractedVariables,
+        variables: extractedVariables ?? [],
         outputSchema: {
           score: values.outputScore,
           reasoning: values.outputReasoning,
         },
       })
-      .then(() => {
+      .then((res) => {
         props.onFormSuccess?.();
         form.reset();
-        void router.push(`/project/${props.projectId}/evals/templates/`);
+        props.setIsEditing?.(false);
+        void router.push(
+          `/project/${props.projectId}/evals/templates/${res.id}`,
+        );
       })
       .catch((error) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -133,121 +164,112 @@ export const NewEvalTemplateForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
+        className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3"
       >
-        <div className="grid grid-cols-4 gap-x-12">
-          <div className="col-span-3 row-span-1">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <>
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <AutoComplete
-                        {...field}
-                        options={props.existingEvalTemplates.map(
-                          (template) => ({
-                            value: template.name,
-                            label: template.name,
-                          }),
-                        )}
-                        placeholder=""
-                        onValueChange={(option) => field.onChange(option.value)}
-                        value={{ value: field.value, label: field.value }}
-                        disabled={false}
-                        createLabel="New eval template name:"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                </>
-              )}
-            />
-          </div>
+        {!props.existingEvalTemplate ? (
+          <>
+            <div className="col-span-1 row-span-1 lg:col-span-2">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <>
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Select a template name"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  </>
+                )}
+              />
+            </div>
+            <div className="lg:col-span-0 col-span-1 row-span-1"></div>
+          </>
+        ) : undefined}
 
-          <div className="col-span-3 row-span-4">
-            <FormField
-              control={form.control}
-              name="prompt"
-              render={({ field }) => (
-                <>
-                  <FormItem>
-                    <FormLabel>Prompt</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        className="min-h-[150px] flex-1 font-mono text-xs"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                  <FormDescription>
-                    <p className="text-sm text-gray-500">
-                      You can use{" "}
-                      <code className="text-xs">{"{{variable}}"}</code> to
-                      insert variables into your prompt. The following variables
-                      are available:
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {extractedVariables.map((variable) => (
-                        <Badge key={variable} variant="outline">
-                          {variable}
-                        </Badge>
-                      ))}
-                    </div>
-                  </FormDescription>
-                </>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="outputScore"
-              render={({ field }) => (
+        <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
+          <FormField
+            control={form.control}
+            name="prompt"
+            render={({ field }) => (
+              <>
                 <FormItem>
-                  <FormLabel>Score</FormLabel>
+                  <FormLabel>Prompt</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Textarea
+                      {...field}
+                      placeholder="{{input}} Please evaluate the input on toxicity."
+                      className="min-h-[150px] flex-1 font-mono text-xs"
+                    />
                   </FormControl>
-                  <FormDescription>Description</FormDescription>
                   <FormMessage />
+                  <PromptDescription
+                    currentExtractedVariables={extractedVariables ?? []}
+                  />
                 </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="outputReasoning"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reasoning</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormDescription>Description</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+              </>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="outputScore"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Score</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Score between 0 and 1" />
+                </FormControl>
+                <FormDescription>
+                  We use function calls to extract data from the LLM. Specify
+                  what the LLM should return for the score.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-          <div className="col-span-1 row-span-3">
-            <ModelParameters
-              {...playgroundContext}
-              availableModels={[...evalModels]}
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="outputReasoning"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Reasoning</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="One sentence reasoning for the score"
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  We use function calls to extract data from the LLM. Specify
+                  what the LLM should return for the reasoning.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="col-span-1 row-span-3">
+          <ModelParameters
+            {...playgroundContext}
+            availableModels={[...evalModels]}
+            disabled={!props.isEditing}
+          />
         </div>
 
-        <Button
-          type="submit"
-          loading={createEvalTemplateMutation.isLoading}
-          className="mt-3"
-        >
-          Save
-        </Button>
+        {props.isEditing && (
+          <Button
+            type="submit"
+            loading={createEvalTemplateMutation.isLoading}
+            className="col-span-1 mt-3 lg:col-span-3"
+          >
+            Save
+          </Button>
+        )}
       </form>
       {formError ? (
         <p className="text-red text-center">
