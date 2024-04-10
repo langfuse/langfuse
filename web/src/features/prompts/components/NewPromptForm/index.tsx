@@ -3,8 +3,6 @@ import router from "next/router";
 import { usePostHog } from "posthog-js/react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import JsonView from "react18-json-view";
-
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
@@ -31,10 +29,8 @@ import {
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
-import { jsonSchema } from "@/src/utils/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Prompt } from "@langfuse/shared";
-
 import { PromptChatMessages } from "./PromptChatMessages";
 import {
   NewPromptFormSchema,
@@ -46,6 +42,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { JsonEditor } from "@/src/components/json-editor";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -80,7 +77,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ? initialPromptContent?.prompt
         : "",
     name: initialPrompt?.name ?? "",
-    config: JSON.stringify(initialPrompt?.config?.valueOf()) || "{}",
+    config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: false,
   };
 
@@ -282,13 +279,15 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               ? " The following variables are available:"
               : ""}
           </p>
-          <div className="flex min-h-6 flex-wrap gap-2">
-            {currentExtractedVariables.map((variable) => (
-              <Badge key={variable} variant="outline">
-                {variable}
-              </Badge>
-            ))}
-          </div>
+          {currentExtractedVariables.length > 0 && (
+            <div className="flex min-h-6 flex-wrap gap-2">
+              {currentExtractedVariables.map((variable) => (
+                <Badge key={variable} variant="outline">
+                  {variable}
+                </Badge>
+              ))}
+            </div>
+          )}
         </>
 
         {/* Prompt Config field */}
@@ -298,13 +297,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Config</FormLabel>
-              <JsonView
-                src={jsonSchema.parse(JSON.parse(field.value))}
-                onEdit={(edit) => {
-                  field.onChange(JSON.stringify(edit.src));
-                }}
+              <JsonEditor
+                defaultValue={field.value}
+                onChange={field.onChange}
                 editable
-                className="rounded-md border border-gray-200 p-2 text-sm"
               />
               <FormDescription>
                 Track configs for LLM API calls such as function definitions or
