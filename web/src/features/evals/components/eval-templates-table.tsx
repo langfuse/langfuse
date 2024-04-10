@@ -36,7 +36,6 @@ export default function EvalsTemplateTable({
     columnHelper.accessor("name", {
       header: "Name",
       id: "name",
-      enableSorting: false,
       cell: (row) => {
         const name = row.getValue();
         const id = row.row.original.latestId;
