@@ -103,7 +103,6 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:read",
       });
 
-      const offset = (input.page - 1) * input.limit;
       const templates = await ctx.prisma.$queryRaw<
         Array<{
           name: string;
