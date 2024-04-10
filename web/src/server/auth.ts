@@ -174,7 +174,10 @@ const extendedPrismaAdapter: Adapter = {
   async createUser(profile) {
     if (!prismaAdapter.createUser)
       throw new Error("createUser not implemented");
-    if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
+    if (
+      env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+      env.AUTH_DISABLE_SIGNUP === "true"
+    ) {
       throw new Error("Sign up is disabled.");
     }
     if (!profile.email) {
