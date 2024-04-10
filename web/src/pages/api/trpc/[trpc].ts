@@ -5,7 +5,7 @@ import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
 
 export const config = {
-  maxDuration: 120,
+  maxDuration: 240,
 };
 
 // export API handler
