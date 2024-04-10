@@ -11,9 +11,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { JsonEditor } from "@/src/components/json-editor";
 import { type RouterOutput } from "@/src/utils/types";
 
 const formSchema = z.object({
@@ -27,7 +27,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
   expectedOutput: z.string().refine(
     (value) => {
@@ -39,7 +42,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
 });
 
@@ -114,10 +120,13 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Input</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
+                    <JsonEditor
+                      defaultValue={field.value}
+                      onChange={(v) => {
+                        setHasChanges(true);
+                        field.onChange(v);
+                      }}
+                      editable={hasAccess}
                     />
                   </FormControl>
                   <FormMessage />
@@ -131,10 +140,13 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Expected output</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
+                    <JsonEditor
+                      defaultValue={field.value}
+                      onChange={(v) => {
+                        setHasChanges(true);
+                        field.onChange(v);
+                      }}
+                      editable={hasAccess}
                     />
                   </FormControl>
                   <FormMessage />
