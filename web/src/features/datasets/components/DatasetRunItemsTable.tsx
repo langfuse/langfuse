@@ -12,6 +12,8 @@ import { usdFormatter } from "../../../utils/numbers";
 import { IOCell } from "@/src/components/table/use-cases/IOCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useEffect } from "react";
 
 type RowData = {
   id: string;
@@ -44,6 +46,7 @@ export function DatasetRunItemsTable(
         datasetItemId: string;
       },
 ) {
+  const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 20),
@@ -53,6 +56,19 @@ export function DatasetRunItemsTable(
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+  useEffect(() => {
+    if (runItems.isSuccess) {
+      setDetailPageList(
+        "traces",
+        runItems.data.runItems.filter((i) => !!i.trace).map((i) => i.trace!.id),
+      );
+      setDetailPageList(
+        "datasetItems",
+        runItems.data.runItems.map((i) => i.datasetItemId),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runItems.isSuccess, runItems.data]);
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
