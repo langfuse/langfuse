@@ -18,11 +18,16 @@ export default function Dataset() {
     datasetId,
     projectId,
   });
-  const item = api.datasets.itemById.useQuery({
-    datasetId,
-    projectId,
-    datasetItemId: itemId,
-  });
+  const item = api.datasets.itemById.useQuery(
+    {
+      datasetId,
+      projectId,
+      datasetItemId: itemId,
+    },
+    {
+      refetchOnWindowFocus: false, // breaks dirty form state
+    },
+  );
 
   return (
     <div>
