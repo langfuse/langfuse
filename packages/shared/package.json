@@ -39,9 +39,9 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@langchain/anthropic": "^0.1.12",
+    "@langchain/anthropic": "^0.1.13",
     "@langchain/core": "^0.1.55",
-    "@langchain/openai": "^0.0.26",
+    "@langchain/openai": "^0.0.27",
     "@prisma/client": "^5.12.1",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
@@ -71,7 +71,7 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.4.4",
+    "typescript": "^5.4.5",
     "vitest": "^1.3.1"
   }
 }
