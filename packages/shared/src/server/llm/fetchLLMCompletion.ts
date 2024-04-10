@@ -84,6 +84,8 @@ export async function fetchLLMCompletion(
     });
   }
 
+  console.log("Making LLM call with params: ", modelParams);
+
   if (params.functionCall) {
     const functionCallingModel = chatModel.bind({
       functions: [

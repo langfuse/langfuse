@@ -3,7 +3,6 @@ import router from "next/router";
 import { usePostHog } from "posthog-js/react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
@@ -41,6 +40,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 import { JsonEditor } from "@/src/components/json-editor";
 
 type NewPromptFormProps = {
@@ -269,24 +269,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               </TabsContent>
             </Tabs>
           </FormItem>
-          <p className="text-sm text-gray-500">
-            You can use <code className="text-xs">{"{{variable}}"}</code> to
-            insert variables into your prompt.
-            <b className="font-semibold"> Note:</b> Variables must be
-            alphabetical characters or underscores.
-            {currentExtractedVariables.length > 0
-              ? " The following variables are available:"
-              : ""}
-          </p>
-          {currentExtractedVariables.length > 0 && (
-            <div className="flex min-h-6 flex-wrap gap-2">
-              {currentExtractedVariables.map((variable) => (
-                <Badge key={variable} variant="outline">
-                  {variable}
-                </Badge>
-              ))}
-            </div>
-          )}
+          <PromptDescription
+            currentExtractedVariables={currentExtractedVariables}
+          />
         </>
 
         {/* Prompt Config field */}
