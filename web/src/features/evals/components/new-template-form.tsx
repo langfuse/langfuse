@@ -240,13 +240,15 @@ export const EvalTemplateForm = (props: {
           />
         </div>
 
-        <Button
-          type="submit"
-          loading={createEvalTemplateMutation.isLoading}
-          className="mt-3"
-        >
-          Save
-        </Button>
+        {props.existingEvalTemplate === undefined && (
+          <Button
+            type="submit"
+            loading={createEvalTemplateMutation.isLoading}
+            className="mt-3"
+          >
+            Save
+          </Button>
+        )}
       </form>
       {formError ? (
         <p className="text-red text-center">
