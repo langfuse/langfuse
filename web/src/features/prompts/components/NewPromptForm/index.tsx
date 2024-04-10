@@ -279,13 +279,15 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               ? " The following variables are available:"
               : ""}
           </p>
-          <div className="flex min-h-6 flex-wrap gap-2">
-            {currentExtractedVariables.map((variable) => (
-              <Badge key={variable} variant="outline">
-                {variable}
-              </Badge>
-            ))}
-          </div>
+          {currentExtractedVariables.length > 0 && (
+            <div className="flex min-h-6 flex-wrap gap-2">
+              {currentExtractedVariables.map((variable) => (
+                <Badge key={variable} variant="outline">
+                  {variable}
+                </Badge>
+              ))}
+            </div>
+          )}
         </>
 
         {/* Prompt Config field */}
