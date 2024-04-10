@@ -101,9 +101,9 @@ export const NewDatasetItemFromTrace = (props: {
         </Button>
       )}
       <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-        <DialogContent className="sm:w-3xl lg:max-w-none">
+        <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
           <DialogHeader>
-            <DialogTitle className="mb-5">Add to dataset</DialogTitle>
+            <DialogTitle>Add to dataset</DialogTitle>
           </DialogHeader>
           <NewDatasetItemForm
             traceId={props.traceId}
@@ -112,6 +112,7 @@ export const NewDatasetItemFromTrace = (props: {
             input={props.input}
             output={props.output}
             onFormSuccess={() => setOpen(false)}
+            className="h-full overflow-y-auto"
           />
         </DialogContent>
       </Dialog>
