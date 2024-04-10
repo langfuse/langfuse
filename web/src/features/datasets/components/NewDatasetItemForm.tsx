@@ -22,6 +22,7 @@ import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared/src/db";
+import { cn } from "@/src/utils/tailwind";
 
 const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
@@ -64,6 +65,7 @@ export const NewDatasetItemForm = (props: {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   datasetId?: string;
+  className?: string;
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
@@ -113,7 +115,7 @@ export const NewDatasetItemForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-6"
+        className={cn("flex flex-col gap-6", props.className)}
       >
         <FormField
           control={form.control}

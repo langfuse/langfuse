@@ -37,14 +37,15 @@ export const NewDatasetItemButton = (props: {
           New item
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
         <DialogHeader>
-          <DialogTitle className="mb-5">Create new dataset item</DialogTitle>
+          <DialogTitle>Create new dataset item</DialogTitle>
         </DialogHeader>
         <NewDatasetItemForm
           projectId={props.projectId}
           datasetId={props.datasetId}
           onFormSuccess={() => setOpen(false)}
+          className="h-full overflow-y-auto"
         />
       </DialogContent>
     </Dialog>
