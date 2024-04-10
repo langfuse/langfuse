@@ -48,7 +48,7 @@ export const EvalTemplateDetail = () => {
   return (
     <div className="md:container">
       <Header
-        title="Create eval template"
+        title={template.data?.name ?? "Loading..."}
         help={{
           description:
             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",

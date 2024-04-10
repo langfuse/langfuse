@@ -23,9 +23,16 @@ import { usePlaygroundContext } from "@/src/features/playground/client/context";
 import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
 import { EvalModelNames, OutputSchema, evalModels } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
+import { getIsCharOrUnderscore } from "@/src/features/prompts/components/NewPromptForm/validation";
 
 const formSchema = z.object({
-  name: z.string(),
+  name: z
+    .string()
+    .min(1, "Enter a name")
+    .regex(
+      /^[A-Za-z0-9-]+$/,
+      "Name must be alphanumeric or contain dashes (-)",
+    ),
   prompt: z
     .string()
     .min(1, "Enter a prompt")
@@ -69,14 +76,14 @@ export const EvalTemplateForm = (props: {
       model: EvalModelNames.parse(
         props.existingEvalTemplate?.model ?? "gpt-3.5-turbo",
       ),
-      prompt: props.existingEvalTemplate?.prompt ?? "",
+      prompt: props.existingEvalTemplate?.prompt ?? undefined,
       variables: props.existingEvalTemplate?.vars ?? [],
       outputReasoning: props.existingEvalTemplate
         ? OutputSchema.parse(props.existingEvalTemplate?.outputSchema).reasoning
-        : "",
+        : undefined,
       outputScore: props.existingEvalTemplate
         ? OutputSchema.parse(props.existingEvalTemplate?.outputSchema).score
-        : "",
+        : undefined,
     },
   });
 
@@ -110,7 +117,9 @@ export const EvalTemplateForm = (props: {
     }
   }, [props.existingEvalTemplate, form]);
 
-  const extractedVariables = extractVariables(form.watch("prompt"));
+  const extractedVariables = form.watch("prompt")
+    ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
+    : undefined;
 
   const utils = api.useUtils();
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
@@ -129,7 +138,7 @@ export const EvalTemplateForm = (props: {
         prompt: values.prompt,
         model: EvalModelNames.parse(playgroundContext.modelParams.model),
         modelParameters: playgroundContext.modelParams,
-        variables: extractedVariables,
+        variables: extractedVariables ?? [],
         outputSchema: {
           score: values.outputScore,
           reasoning: values.outputReasoning,
@@ -163,24 +172,30 @@ export const EvalTemplateForm = (props: {
         onSubmit={form.handleSubmit(onSubmit)}
         className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3"
       >
-        <div className="col-span-1 row-span-1 lg:col-span-2">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <>
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Select a template name" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </>
-            )}
-          />
-        </div>
-        <div className="lg:col-span-0 col-span-1 row-span-1"></div>
+        {!props.existingEvalTemplate ? (
+          <>
+            <div className="col-span-1 row-span-1 lg:col-span-2">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <>
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Select a template name"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  </>
+                )}
+              />
+            </div>
+            <div className="lg:col-span-0 col-span-1 row-span-1"></div>
+          </>
+        ) : undefined}
 
         <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
           <FormField
@@ -200,7 +215,7 @@ export const EvalTemplateForm = (props: {
                   <FormMessage />
                   <FormDescription>
                     <PromptDescription
-                      currentExtractedVariables={extractedVariables}
+                      currentExtractedVariables={extractedVariables ?? []}
                     />
                   </FormDescription>
                 </FormItem>
@@ -233,8 +248,8 @@ export const EvalTemplateForm = (props: {
                 <FormLabel>Reasoning</FormLabel>
                 <FormControl>
                   <Input
-                    {...field}
                     placeholder="One sentence reasoning for the score"
+                    {...field}
                   />
                 </FormControl>
                 <FormDescription>
