@@ -11,7 +11,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { JsonEditor } from "@/src/components/json-editor";
