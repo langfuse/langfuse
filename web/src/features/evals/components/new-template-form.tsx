@@ -46,7 +46,6 @@ const formSchema = z.object({
   ),
   model: EvalModelNames,
   outputScore: z.string(),
-  outputName: z.string(),
   outputReasoning: z.string(),
 });
 
@@ -54,6 +53,8 @@ export const EvalTemplateForm = (props: {
   projectId: string;
   existingEvalTemplate?: EvalTemplate;
   onFormSuccess?: () => void;
+  isEditing?: boolean;
+  setIsEditing?: (isEditing: boolean) => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const playgroundContext = usePlaygroundContext();
@@ -62,7 +63,7 @@ export const EvalTemplateForm = (props: {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    disabled: props.existingEvalTemplate !== undefined,
+    disabled: !props.isEditing,
     defaultValues: {
       name: props.existingEvalTemplate?.name ?? "",
       model: EvalModelNames.parse(
@@ -118,6 +119,7 @@ export const EvalTemplateForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("submitting", values);
     posthog.capture("models:new_template_form");
 
     createEvalTemplateMutation
@@ -136,6 +138,7 @@ export const EvalTemplateForm = (props: {
       .then((res) => {
         props.onFormSuccess?.();
         form.reset();
+        props.setIsEditing?.(false);
         void router.push(
           `/project/${props.projectId}/evals/templates/${res.id}`,
         );
@@ -156,6 +159,7 @@ export const EvalTemplateForm = (props: {
   return (
     <Form {...form}>
       {JSON.stringify(form.watch(), null, 2)}
+      {JSON.stringify(form.formState.errors, null, 2)}
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
@@ -182,7 +186,7 @@ export const EvalTemplateForm = (props: {
           <ModelParameters
             {...playgroundContext}
             availableModels={[...evalModels]}
-            disabled={props.existingEvalTemplate !== undefined}
+            disabled={!props.isEditing}
           />
         </div>
         <div className="col-span-3 flex flex-col gap-6">
@@ -240,7 +244,7 @@ export const EvalTemplateForm = (props: {
           />
         </div>
 
-        {props.existingEvalTemplate === undefined && (
+        {props.isEditing && (
           <Button
             type="submit"
             loading={createEvalTemplateMutation.isLoading}

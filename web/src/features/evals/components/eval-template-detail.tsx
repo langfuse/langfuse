@@ -4,7 +4,7 @@ import { EvalTemplateForm } from "@/src/features/evals/components/new-template-f
 import { PlaygroundProvider } from "@/src/features/playground/client/context";
 import { api } from "@/src/utils/api";
 import { EvalTemplate, evalModels } from "@langfuse/shared";
-import { useRouter } from "next/router";
+import router, { useRouter } from "next/router";
 import {
   Select,
   SelectContent,
@@ -13,12 +13,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Button } from "@/src/components/ui/button";
+import { Pencil } from "lucide-react";
+import { useState } from "react";
+
 export const EvalTemplateDetail = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const templateId = router.query.id as string;
 
-  console.log("templateId", templateId);
+  const [isEditing, setIsEditing] = useState(false);
+
+  console.log("isEditing", isEditing);
 
   const template = api.evals.byId.useQuery({
     projectId: projectId,
@@ -49,16 +56,25 @@ export const EvalTemplateDetail = () => {
         }}
         actionButtons={
           template.data && (
-            <EvalVersionDropdown
-              disabled={allTemplates.isLoading}
-              options={allTemplates.data?.templates ?? []}
-              defaultOption={template.data ?? undefined}
-              onSelect={(template) => {
-                router.push(
-                  `/project/${projectId}/evals/templates/${template.id}`,
-                );
-              }}
-            />
+            <>
+              {!isEditing && (
+                <UpdateTemplate
+                  projectId={projectId}
+                  isLoading={template.isLoading}
+                  setIsEditing={setIsEditing}
+                />
+              )}
+              <EvalVersionDropdown
+                disabled={allTemplates.isLoading}
+                options={allTemplates.data?.templates ?? []}
+                defaultOption={template.data ?? undefined}
+                onSelect={(template) => {
+                  router.push(
+                    `/project/${projectId}/evals/templates/${template.id}`,
+                  );
+                }}
+              />
+            </>
           )
         }
       />
@@ -69,6 +85,8 @@ export const EvalTemplateDetail = () => {
           <EvalTemplateForm
             projectId={projectId}
             existingEvalTemplate={template.data ?? undefined}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
           />
         </PlaygroundProvider>
       )}
@@ -110,5 +128,33 @@ export function EvalVersionDropdown(props: {
         </SelectGroup>
       </SelectContent>
     </Select>
+  );
+}
+
+export function UpdateTemplate({
+  projectId,
+  isLoading,
+  setIsEditing,
+}: {
+  projectId: string;
+  isLoading: boolean;
+  setIsEditing: (isEditing: boolean) => void;
+}) {
+  const hasAccess = useHasAccess({ projectId, scope: "evalTemplate:create" });
+
+  const handlePromptEdit = () => {
+    setIsEditing(true);
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      onClick={() => handlePromptEdit()}
+      disabled={!hasAccess}
+      loading={isLoading}
+    >
+      <Pencil className="h-5 w-5" />
+    </Button>
   );
 }
