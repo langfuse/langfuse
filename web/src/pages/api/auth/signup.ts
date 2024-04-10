@@ -12,7 +12,10 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method !== "POST") return;
-  if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
+  if (
+    env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+    env.AUTH_DISABLE_SIGNUP === "true"
+  ) {
     res.status(422).json({ message: "Sign up is disabled." });
     return;
   }
