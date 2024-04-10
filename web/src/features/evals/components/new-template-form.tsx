@@ -23,10 +23,10 @@ import { usePlaygroundContext } from "@/src/features/playground/client/context";
 import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
 import { EvalModelNames, OutputSchema, evalModels } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import { AlphaNumericDashString } from "@/src/utils/zod";
+import { AlphaNumericUnderscoreString } from "@/src/utils/zod";
 
 const formSchema = z.object({
-  name: AlphaNumericDashString,
+  name: AlphaNumericUnderscoreString,
   prompt: z
     .string()
     .min(1, "Enter a prompt")
@@ -182,6 +182,7 @@ export const EvalTemplateForm = (props: {
                           placeholder="Select a template name"
                         />
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
                   </>
                 )}
