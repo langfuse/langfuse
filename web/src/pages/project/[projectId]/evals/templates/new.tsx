@@ -21,7 +21,7 @@ export default function NewTemplatesPage() {
         }}
       />
       <PlaygroundProvider avilableModels={[...evalModels]}>
-        <EvalTemplateForm projectId={projectId} />
+        <EvalTemplateForm projectId={projectId} isEditing={true} />
       </PlaygroundProvider>
     </div>
   );

@@ -158,14 +158,12 @@ export const EvalTemplateForm = (props: {
 
   return (
     <Form {...form}>
-      {JSON.stringify(form.watch(), null, 2)}
-      {JSON.stringify(form.formState.errors, null, 2)}
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="grid grid-cols-4 gap-6 gap-x-12"
+        className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3"
       >
-        <div className="col-span-3 row-span-1">
+        <div className="col-span-1 row-span-1 lg:col-span-2">
           <FormField
             control={form.control}
             name="name"
@@ -182,14 +180,9 @@ export const EvalTemplateForm = (props: {
             )}
           />
         </div>
-        <div className="col-span-1 row-span-3">
-          <ModelParameters
-            {...playgroundContext}
-            availableModels={[...evalModels]}
-            disabled={!props.isEditing}
-          />
-        </div>
-        <div className="col-span-3 flex flex-col gap-6">
+        <div className="lg:col-span-0 col-span-1 row-span-1"></div>
+
+        <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
           <FormField
             control={form.control}
             name="prompt"
@@ -200,6 +193,7 @@ export const EvalTemplateForm = (props: {
                   <FormControl>
                     <Textarea
                       {...field}
+                      placeholder="{{input}} Please evaluate the input on toxicity."
                       className="min-h-[150px] flex-1 font-mono text-xs"
                     />
                   </FormControl>
@@ -213,7 +207,6 @@ export const EvalTemplateForm = (props: {
               </>
             )}
           />
-
           <FormField
             control={form.control}
             name="outputScore"
@@ -221,13 +214,17 @@ export const EvalTemplateForm = (props: {
               <FormItem>
                 <FormLabel>Score</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="" />
+                  <Input {...field} placeholder="Score between 0 and 1" />
                 </FormControl>
-                <FormDescription>Description</FormDescription>
+                <FormDescription>
+                  We use function calls to extract data from the LLM. Specify
+                  what the LLM should return for the score.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
+
           <FormField
             control={form.control}
             name="outputReasoning"
@@ -235,12 +232,25 @@ export const EvalTemplateForm = (props: {
               <FormItem>
                 <FormLabel>Reasoning</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <Input
+                    {...field}
+                    placeholder="One sentence reasoning for the score"
+                  />
                 </FormControl>
-                <FormDescription>Description</FormDescription>
+                <FormDescription>
+                  We use function calls to extract data from the LLM. Specify
+                  what the LLM should return for the reasoning.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
+          />
+        </div>
+        <div className="col-span-1 row-span-3">
+          <ModelParameters
+            {...playgroundContext}
+            availableModels={[...evalModels]}
+            disabled={!props.isEditing}
           />
         </div>
 
@@ -248,7 +258,7 @@ export const EvalTemplateForm = (props: {
           <Button
             type="submit"
             loading={createEvalTemplateMutation.isLoading}
-            className="mt-3"
+            className="col-span-1 mt-3 lg:col-span-3"
           >
             Save
           </Button>
