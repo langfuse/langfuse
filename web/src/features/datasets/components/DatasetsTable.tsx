@@ -26,6 +26,7 @@ type RowData = {
   lastRunAt?: string;
   countItems: number;
   countRuns: number;
+  taskId: string | null;
 };
 
 export function DatasetsTable(props: { projectId: string }) {
@@ -109,6 +110,7 @@ export function DatasetsTable(props: { projectId: string }) {
                 datasetId={key.id}
                 datasetName={key.name}
                 datasetDescription={row.getValue("description") ?? undefined}
+                datasetTaskId={row.getValue("taskId")}
               />
               <DatasetActionButton
                 mode="delete"
@@ -132,6 +134,7 @@ export function DatasetsTable(props: { projectId: string }) {
       lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
+      taskId: item.taskId,
     };
   };
 

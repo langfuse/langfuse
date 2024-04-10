@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get all registered tasks
+      method: GET
+      path: /tasks
+      response: list<Task>
+      request:
+        name: GetTracesRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+    register:
+      docs: Register a new task
+      method: POST
+      path: /tasks/register
+      response: Task
+types:
+  Task:
+    properties:
+      id: string
+      name: string
+      description: string
+      createdAt: datetime
+      botSchema:
+        type: string
+        docs: JSON schema of the bot configuration
+      inputSchema:
+        type: string
+        docs: JSON schema of the input
+      outputSchema:
+        type: string
+        docs: JSON schema of the output

@@ -8,6 +8,7 @@ import {
   type DatasetRuns,
   Prisma,
   type Dataset,
+  Task,
 } from "@langfuse/shared/src/db";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -25,6 +26,7 @@ export const datasetRouter = createTRPCRouter({
         select: {
           id: true,
           name: true,
+          taskId: true,
         },
       });
     }),
@@ -45,6 +47,7 @@ export const datasetRouter = createTRPCRouter({
           "datasets.description",
           "datasets.created_at as createdAt",
           "datasets.updated_at as updatedAt",
+          "datasets.task_id as taskId",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
           eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
           eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
@@ -55,6 +58,7 @@ export const datasetRouter = createTRPCRouter({
           "datasets.name",
           "datasets.created_at",
           "datasets.updated_at",
+          "datasets.task_id",
         ])
         .orderBy("datasets.created_at", "desc")
         .limit(input.limit)
@@ -68,6 +72,7 @@ export const datasetRouter = createTRPCRouter({
             countDatasetItems: number;
             countDatasetRuns: number;
             lastRunAt: Date | null;
+            taskId: string | null;
           }
         >
       >(compiledQuery.sql, ...compiledQuery.parameters);
@@ -95,6 +100,15 @@ export const datasetRouter = createTRPCRouter({
         where: {
           id: input.datasetId,
           projectId: input.projectId,
+        },
+        include: {
+          task: {
+            include: {
+              botSchema: true,
+              inputSchema: true,
+              outputSchema: true,
+            },
+          },
         },
       });
     }),
@@ -348,6 +362,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         name: z.string(),
         description: z.string().nullish(),
+        taskId: z.string().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -361,6 +376,7 @@ export const datasetRouter = createTRPCRouter({
           name: input.name,
           description: input.description ?? undefined,
           projectId: input.projectId,
+          taskId: input.taskId,
         },
       });
 
@@ -382,6 +398,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         name: z.string().nullish(),
         description: z.string().nullish(),
+        taskId: z.string().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -398,6 +415,7 @@ export const datasetRouter = createTRPCRouter({
         data: {
           name: input.name ?? undefined,
           description: input.description,
+          taskId: input.taskId,
         },
       });
       await auditLog({

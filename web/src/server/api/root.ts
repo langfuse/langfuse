@@ -14,6 +14,8 @@ import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/prompt-router";
 import { modelRouter } from "@/src/server/api/routers/models";
+import { taskRouter } from "@/src/server/api/routers/tasks";
+import { botRouter } from "@/src/server/api/routers/bots";
 
 /**
  * This is the primary router for your server.
@@ -36,6 +38,8 @@ export const appRouter = createTRPCRouter({
   observations: observationsRouter,
   prompts: promptRouter,
   models: modelRouter,
+  tasks: taskRouter,
+  bots: botRouter,
 });
 
 // export type definition of API

@@ -48,6 +48,7 @@ export function CodeView(props: {
   defaultCollapsed?: boolean;
   scrollable?: boolean;
   title?: string;
+  tools?: React.ReactNode;
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
@@ -94,6 +95,7 @@ export function CodeView(props: {
               <Copy className="h-3 w-3" />
             )}
           </Button>
+          {props.tools}
         </div>
       </div>
     </div>

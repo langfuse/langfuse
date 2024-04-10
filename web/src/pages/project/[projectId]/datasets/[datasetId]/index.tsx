@@ -47,6 +47,7 @@ export default function Dataset() {
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
               datasetDescription={dataset.data?.description ?? undefined}
+              datasetTaskId={dataset.data?.taskId ?? null}
               icon
             />
             <DeleteButton

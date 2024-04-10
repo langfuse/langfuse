@@ -1,4 +1,5 @@
 import * as z from "zod";
+import Ajv, { JSONSchemaType } from "ajv";
 
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type
@@ -37,6 +38,21 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
     z.record(jsonSchemaNullable),
   ]),
 );
+
+export const strictJsonSchema = z.custom<JSONSchemaType<any>>((schema: any) => {
+  try {
+    const ajv = new Ajv();
+    // Will throw an error if the schema is invalid
+    ajv.compile(schema);
+    return true;
+  } catch (e) {
+    if (e instanceof Error) {
+      console.log("-->e", e);
+      return e.message;
+    }
+    throw e;
+  }
+});
 
 export const paginationZod = {
   page: z.preprocess(

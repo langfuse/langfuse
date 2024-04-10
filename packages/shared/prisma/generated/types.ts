@@ -86,6 +86,19 @@ export type AuditLog = {
     before: string | null;
     after: string | null;
 };
+export type Bot = {
+    id: string;
+    name: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    created_by: string;
+    description: string;
+    config: unknown;
+    version: number;
+    is_active: boolean;
+    task_id: string;
+};
 export type CronJobs = {
     name: string;
     last_run: Timestamp | null;
@@ -95,6 +108,7 @@ export type CronJobs = {
 export type Dataset = {
     id: string;
     name: string;
+    task_id: string | null;
     description: string | null;
     project_id: string;
     created_at: Generated<Timestamp>;
@@ -259,6 +273,14 @@ export type Prompt = {
     is_active: boolean;
     config: Generated<unknown>;
 };
+export type Schema = {
+    id: string;
+    schema: unknown;
+    ui_schema: unknown;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type Score = {
     id: string;
     timestamp: Generated<Timestamp>;
@@ -275,6 +297,17 @@ export type Session = {
     user_id: string;
     expires: Timestamp;
 };
+export type Task = {
+    id: string;
+    name: string;
+    description: string | null;
+    bot_schema_id: string;
+    input_schema_id: string;
+    output_schema_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+};
 export type Trace = {
     id: string;
     external_id: string | null;
@@ -284,6 +317,7 @@ export type Trace = {
     metadata: unknown | null;
     release: string | null;
     version: string | null;
+    bot_id: string | null;
     project_id: string;
     public: Generated<boolean>;
     bookmarked: Generated<boolean>;
@@ -339,6 +373,7 @@ export type DB = {
     Account: Account;
     api_keys: ApiKey;
     audit_logs: AuditLog;
+    bots: Bot;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;
     dataset_run_items: DatasetRunItems;
@@ -353,8 +388,10 @@ export type DB = {
     pricings: Pricing;
     projects: Project;
     prompts: Prompt;
+    schemas: Schema;
     scores: Score;
     Session: Session;
+    tasks: Task;
     trace_sessions: TraceSession;
     traces: Trace;
     traces_view: TraceView;

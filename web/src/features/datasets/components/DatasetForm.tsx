@@ -14,6 +14,13 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -35,6 +42,7 @@ interface UpdateDatasetFormProps extends BaseDatasetFormProps {
   mode: "update";
   datasetId: string;
   datasetName: string;
+  datasetTaskId: string | null;
   datasetDescription?: string;
 }
 
@@ -51,6 +59,7 @@ const formSchema = z.object({
       message: "Input should not be only whitespace",
     }),
   description: z.string(),
+  taskId: z.string().nullish(),
 });
 
 export const DatasetForm = (props: DatasetFormProps) => {
@@ -63,6 +72,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
         ? {
             name: props.datasetName,
             description: props.datasetDescription ?? "",
+            taskId: props.datasetTaskId,
           }
         : {
             name: "",
@@ -74,6 +84,10 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const createMutation = api.datasets.createDataset.useMutation();
   const renameMutation = api.datasets.updateDataset.useMutation();
   const deleteMutation = api.datasets.deleteDataset.useMutation();
+
+  const tasks = api.tasks.all.useQuery({
+    projectId: props.projectId,
+  });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const trimmedValues = {
@@ -173,6 +187,36 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   </FormItem>
                 )}
               />
+              {tasks.data && tasks.data.length > 0 ? (
+                <FormItem>
+                  <FormLabel>Task</FormLabel>
+                  <Select
+                    value={form.getValues("taskId") ?? "none"}
+                    onValueChange={(value) =>
+                      value === "none"
+                        ? form.setValue("taskId", null)
+                        : form.setValue("taskId", value)
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Task" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none" key={"none"}>
+                        <i>None</i>
+                      </SelectItem>
+                      {tasks.data.map((task) => (
+                        <SelectItem value={task.id} key={task.name}>
+                          {task.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              ) : null}
             </div>
           )}
           <Button

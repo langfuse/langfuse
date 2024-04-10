@@ -1,1 +1,1 @@
-export const availableFlags = ["templateFlag", "playground"] as const;
+export const availableFlags = ["templateFlag", "playground", "bots"] as const;

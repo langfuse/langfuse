@@ -26,6 +26,12 @@ const scopes = [
   "prompts:CUD",
   "prompts:read",
 
+  "tasks:CUD",
+  "tasks:read",
+
+  "bots:CUD",
+  "bots:read",
+
   "models:CUD",
 ] as const;
 
@@ -51,6 +57,10 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "tasks:CUD",
+    "tasks:read",
+    "bots:CUD",
+    "bots:read",
     "models:CUD",
   ],
   ADMIN: [

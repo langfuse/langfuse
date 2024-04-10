@@ -10,6 +10,8 @@ import {
   UsersIcon,
   PenSquareIcon,
   TerminalIcon,
+  BotIcon,
+  Clipboard,
 } from "lucide-react";
 
 export type Route = {
@@ -65,6 +67,20 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/prompts",
     icon: PenSquareIcon,
     rbacScope: "prompts:read",
+  },
+  {
+    name: "Tasks",
+    pathname: "/project/[projectId]/tasks",
+    icon: Clipboard,
+    rbacScope: "prompts:read",
+    featureFlag: "bots",
+  },
+  {
+    name: "Bots",
+    pathname: "/project/[projectId]/bots",
+    icon: BotIcon,
+    rbacScope: "prompts:read",
+    featureFlag: "bots",
   },
   {
     name: "Playground",

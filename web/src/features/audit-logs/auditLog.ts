@@ -12,6 +12,7 @@ export type AuditableResource =
   | "score"
   | "model"
   | "prompt"
+  | "bot"
   | "session"
   | "apiKey";
 

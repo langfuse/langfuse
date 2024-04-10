@@ -33,6 +33,7 @@ interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
   datasetId: string;
   datasetName: string;
   datasetDescription?: string;
+  datasetTaskId: string | null;
   icon?: boolean;
 }
 
@@ -129,6 +130,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             onFormSuccess={() => setOpen(false)}
             datasetId={props.datasetId}
             datasetName={props.datasetName}
+            datasetTaskId={props.datasetTaskId}
             datasetDescription={props.datasetDescription}
           />
         )}

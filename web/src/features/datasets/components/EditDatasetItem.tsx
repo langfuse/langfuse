@@ -14,32 +14,15 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { JsonForms } from "@jsonforms/react";
+import {
+  materialRenderers,
+  materialCells,
+} from "@jsonforms/material-renderers";
 
 const formSchema = z.object({
-  input: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    { message: "Invalid JSON" },
-  ),
-  expectedOutput: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    { message: "Invalid JSON" },
-  ),
+  input: z.any(),
+  expectedOutput: z.any(),
 });
 
 export const EditDatasetItem = ({
@@ -63,18 +46,16 @@ export const EditDatasetItem = ({
     projectId,
     datasetItemId: itemId,
   });
+  const dataset = api.datasets.byId.useQuery({
+    datasetId,
+    projectId,
+  });
+
+  const task = dataset.data?.task;
 
   useEffect(() => {
-    form.setValue(
-      "input",
-      item.data?.input ? JSON.stringify(item.data.input, null, 2) : "",
-    );
-    form.setValue(
-      "expectedOutput",
-      item.data?.expectedOutput
-        ? JSON.stringify(item.data.expectedOutput, null, 2)
-        : "",
-    );
+    form.setValue("input", item.data?.input);
+    form.setValue("expectedOutput", item.data?.expectedOutput);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.data]);
 
@@ -96,8 +77,8 @@ export const EditDatasetItem = ({
       projectId: projectId,
       datasetId: datasetId,
       datasetItemId: itemId,
-      input: values.input,
-      expectedOutput: values.expectedOutput,
+      input: JSON.stringify(values.input, null, 2),
+      expectedOutput: JSON.stringify(values.expectedOutput, null, 2),
     });
     setHasChanges(false);
   }
@@ -119,11 +100,26 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Input</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
-                    />
+                    {task ? (
+                      <JsonForms
+                        schema={task.inputSchema.schema as any}
+                        data={field.value}
+                        onChange={({ data }) => field.onChange(data)}
+                        renderers={materialRenderers}
+                        cells={materialCells}
+                      />
+                    ) : (
+                      <Textarea
+                        {...field}
+                        value={
+                          typeof field.value === "string"
+                            ? field.value
+                            : JSON.stringify(field.value, null, 2)
+                        }
+                        onChange={field.onChange}
+                        className="min-h-[150px] flex-1 font-mono text-xs"
+                      />
+                    )}
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -132,19 +128,36 @@ export const EditDatasetItem = ({
             <FormField
               control={form.control}
               name="expectedOutput"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Expected output</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                return (
+                  <FormItem>
+                    <FormLabel>Expected output</FormLabel>
+                    <FormControl>
+                      {task ? (
+                        <JsonForms
+                          schema={task.outputSchema.schema as any}
+                          data={field.value}
+                          onChange={({ data }) => field.onChange(data)}
+                          renderers={materialRenderers}
+                          cells={materialCells}
+                        />
+                      ) : (
+                        <Textarea
+                          {...field}
+                          value={
+                            typeof field.value === "string"
+                              ? field.value
+                              : JSON.stringify(field.value, null, 2)
+                          }
+                          onChange={field.onChange}
+                          className="min-h-[150px] flex-1 font-mono text-xs"
+                        />
+                      )}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
           </div>
           <div className="flex justify-end">

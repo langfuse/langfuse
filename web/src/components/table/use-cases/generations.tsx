@@ -545,6 +545,29 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         );
       },
     },
+    // TODO: connect generations to bots.
+    // {
+    //   accessorKey: "botName",
+    //   id: "botName",
+    //   header: "Bot",
+    //   enableHiding: true,
+    //   enableSorting: true,
+    //   cell: ({ row }) => {
+    //     const botName = row.original.promptName;
+    //     const botVersion = row.original.promptVersion;
+    //     const value = `${promptName} (v${promptVersion})`;
+    //     return (
+    //       botName &&
+    //       botVersion && (
+    //         <TableLink
+    //           path={`/project/${projectId}/bots/${encodeURIComponent(promptName)}?version=${promptVersion}`}
+    //           value={value}
+    //           truncateAt={40}
+    //         />
+    //       )
+    //     );
+    //   },
+    // },
   ];
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(

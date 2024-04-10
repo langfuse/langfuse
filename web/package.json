@@ -29,6 +29,9 @@
     "@headlessui/react": "^1.7.18",
     "@heroicons/react": "^2.1.3",
     "@hookform/resolvers": "^3.3.4",
+    "@jsonforms/material-renderers": "^3.2.1",
+    "@jsonforms/react": "^3.2.1",
+    "@jsonforms/vanilla-renderers": "^3.2.1",
     "@langchain/anthropic": "^0.1.10",
     "@langchain/core": "^0.1.54",
     "@langchain/openai": "^0.0.26",
@@ -73,6 +76,7 @@
     "@trpc/react-query": "^10.45.0",
     "@trpc/server": "^10.45.0",
     "ai": "^3.0.18",
+    "ajv": "^8.12.0",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -107,7 +111,8 @@
     "tailwindcss-animate": "^1.0.7",
     "use-query-params": "^2.2.1",
     "uuid": "^9.0.1",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "zod-to-json-schema": "^3.22.5"
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
