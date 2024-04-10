@@ -152,44 +152,6 @@ export const evalRouter = createTRPCRouter({
       return template;
     }),
 
-  allTemplates: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        id: z.string().optional(),
-        limit: z.number().optional(),
-        page: z.number().optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "evalTemplate:read",
-      });
-
-      const templates = await ctx.prisma.evalTemplate.findMany({
-        where: {
-          projectId: input.projectId,
-          ...(input.id ? { id: input.id } : undefined),
-        },
-        ...(input.limit && input.page
-          ? { take: input.limit, skip: input.page * input.limit }
-          : undefined),
-      });
-
-      const count = await ctx.prisma.evalTemplate.count({
-        where: {
-          projectId: input.projectId,
-          ...(input.id ? { id: input.id } : undefined),
-        },
-      });
-      return {
-        templates: templates,
-        totalCount: count,
-      };
-    }),
-
   createJob: protectedProjectProcedure
     .input(
       z.object({
