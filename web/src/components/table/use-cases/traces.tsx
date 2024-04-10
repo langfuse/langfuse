@@ -467,9 +467,7 @@ export default function TracesTable({
       id: "input",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
-        return (
-          <TracesIOCell traceId={traceId} projectId={projectId} io="input" />
-        );
+        return <TracesIOCell traceId={traceId} io="input" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -480,9 +478,7 @@ export default function TracesTable({
       id: "output",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
-        return (
-          <TracesIOCell traceId={traceId} projectId={projectId} io="output" />
-        );
+        return <TracesIOCell traceId={traceId} io="output" />;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -644,11 +640,9 @@ export default function TracesTable({
 }
 
 const TracesIOCell = ({
-  projectId,
   traceId,
   io,
 }: {
-  projectId: string;
   traceId: string;
   io: "input" | "output";
 }) => {
@@ -661,6 +655,7 @@ const TracesIOCell = ({
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
   return (
