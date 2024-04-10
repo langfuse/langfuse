@@ -13,7 +13,6 @@ import {
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
-import lodash from "lodash";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),
