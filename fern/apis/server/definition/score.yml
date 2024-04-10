@@ -30,6 +30,12 @@ service:
           fromTimestamp:
             type: optional<datetime>
             docs: Retrieve only scores newer than this timestamp.
+          operator:
+            type: optional<string>
+            docs: Retrieve only scores with <operator> value.
+          value:
+            type: optional<double>
+            docs: Retrieve only scores with <operator> value.
       response: Scores
     get-by-id:
       docs: Get a score

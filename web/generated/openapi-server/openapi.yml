@@ -879,6 +879,28 @@ paths:
             type: string
             format: date-time
             nullable: true
+        - name: operator
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: string
+            enum:
+              - '>'
+              - '>='
+              - '<'
+              - '<='
+              - '='
+              - '!='
+            nullable: true
+        - name: value
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
       responses:
         '200':
           description: ''

@@ -23,7 +23,18 @@ const ScoresGetSchema = z.object({
   userId: z.string().nullish(),
   name: z.string().nullish(),
   fromTimestamp: stringDate,
+  value: z.coerce.number().nullish(),
+  operator: z.enum(['<', '>', '<=', '>=', '!=', '=']).nullish(),
 });
+
+const prismaOperators = {
+  '<': 'lt',
+  '>': 'gt',
+  '<=': 'lte',
+  '>=': 'gte',
+  '!=': 'not',
+  '=': 'equals'
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -105,6 +116,10 @@ export default async function handler(
       const fromTimestampCondition = obj.fromTimestamp
         ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
+      const operatorPrisma = Prisma.raw(`${obj.operator}`);
+      const valueCondition = (obj.operator && obj.value)
+        ? Prisma.sql`AND s."value" ${operatorPrisma} ${obj.value}`
+        : Prisma.empty;
 
       const scores = await prisma.$queryRaw<
         Array<Score & { trace: { userId: string } }>
@@ -114,6 +129,7 @@ export default async function handler(
             s.timestamp,
             s.name,
             s.value,
+            s.source,
             s.comment,
             s.trace_id as "traceId",
             s.observation_id as "observationId",
@@ -124,6 +140,7 @@ export default async function handler(
           ${userCondition}
           ${nameCondition}
           ${fromTimestampCondition}
+          ${valueCondition}
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `);
@@ -133,6 +150,9 @@ export default async function handler(
           timestamp: obj.fromTimestamp
             ? { gte: new Date(obj.fromTimestamp) }
             : undefined,
+          value: (obj.operator && obj.value) ? {
+            [prismaOperators[obj.operator]]: obj.value
+          } : undefined,
           trace: {
             projectId: authCheck.scope.projectId,
             userId: obj.userId ? obj.userId : undefined,

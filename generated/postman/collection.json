@@ -684,7 +684,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&operator=&value=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -718,6 +718,16 @@
                   "key": "fromTimestamp",
                   "value": "",
                   "description": "Retrieve only scores newer than this timestamp."
+                },
+                {
+                  "key": "operator",
+                  "value": "",
+                  "description": "Retrieve only scores with <operator> value."
+                },
+                {
+                  "key": "value",
+                  "value": "",
+                  "description": "Retrieve only scores with <operator> value."
                 }
               ],
               "variable": []
