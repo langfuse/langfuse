@@ -20,7 +20,7 @@ export const EvalTemplateDetail = () => {
 
   console.log("templateId", templateId);
 
-  const evals = api.evals.byId.useQuery({
+  const template = api.evals.byId.useQuery({
     projectId: projectId,
     id: templateId,
   });
@@ -28,11 +28,13 @@ export const EvalTemplateDetail = () => {
   const allTemplates = api.evals.allTemplatesForName.useQuery(
     {
       projectId: projectId,
-      name: evals.data?.name ?? "",
+      name: template.data?.name ?? "",
     },
     {
       enabled:
-        !evals.isLoading && !evals.isError && evals.data?.name !== undefined,
+        !template.isLoading &&
+        !template.isError &&
+        template.data?.name !== undefined,
     },
   );
 
@@ -46,15 +48,18 @@ export const EvalTemplateDetail = () => {
           href: "https://langfuse.com/docs/scores",
         }}
         actionButtons={
-          <EvalVersionDropdown
-            disabled={allTemplates.isLoading}
-            options={allTemplates.data?.templates ?? []}
-            onSelect={(template) => {
-              router.push(
-                `/project/${projectId}/evals/templates/${template.id}`,
-              );
-            }}
-          />
+          template.data && (
+            <EvalVersionDropdown
+              disabled={allTemplates.isLoading}
+              options={allTemplates.data?.templates ?? []}
+              defaultOption={template.data ?? undefined}
+              onSelect={(template) => {
+                router.push(
+                  `/project/${projectId}/evals/templates/${template.id}`,
+                );
+              }}
+            />
+          )
         }
       />
       {allTemplates.isLoading || !allTemplates.data ? (
@@ -63,7 +68,7 @@ export const EvalTemplateDetail = () => {
         <PlaygroundProvider avilableModels={[...evalModels]}>
           <EvalTemplateForm
             projectId={projectId}
-            existingEvalTemplate={evals.data ?? undefined}
+            existingEvalTemplate={template.data ?? undefined}
           />
         </PlaygroundProvider>
       )}
@@ -74,6 +79,7 @@ export const EvalTemplateDetail = () => {
 export function EvalVersionDropdown(props: {
   disabled: boolean;
   options?: EvalTemplate[];
+  defaultOption?: EvalTemplate;
   onSelect?: (template: EvalTemplate) => void;
 }) {
   const handleSelect = (value: string) => {
@@ -86,7 +92,11 @@ export function EvalVersionDropdown(props: {
   };
 
   return (
-    <Select disabled={props.disabled} onValueChange={handleSelect}>
+    <Select
+      disabled={props.disabled}
+      onValueChange={handleSelect}
+      defaultValue={props.defaultOption ? props.defaultOption.id : undefined}
+    >
       <SelectTrigger className="w-[180px]">
         <SelectValue placeholder="Version" />
       </SelectTrigger>
