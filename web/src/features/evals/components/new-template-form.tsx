@@ -62,6 +62,7 @@ export const EvalTemplateForm = (props: {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    disabled: props.existingEvalTemplate !== undefined,
     defaultValues: {
       name: props.existingEvalTemplate?.name ?? "",
       model: EvalModelNames.parse(
@@ -181,6 +182,7 @@ export const EvalTemplateForm = (props: {
           <ModelParameters
             {...playgroundContext}
             availableModels={[...evalModels]}
+            disabled={props.existingEvalTemplate !== undefined}
           />
         </div>
         <div className="col-span-3 flex flex-col gap-6">

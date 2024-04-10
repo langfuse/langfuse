@@ -21,12 +21,14 @@ export type ModelParamsContext = {
     value: UIModelParams[Key],
   ) => void;
   updateModelParams: <UIModelParams>(params: UIModelParams) => void;
+  disabled?: boolean;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
   availableModels,
-  updateModelParam: updateModelParam,
+  updateModelParam,
+  disabled,
 }) => {
   return (
     <div className="flex flex-col space-y-4">
@@ -35,6 +37,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         <ModelParamsSelect
           title="Provider"
           modelParamsKey="provider"
+          disabled={disabled}
           value={modelParams.provider}
           options={
             availableModels
@@ -46,6 +49,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         <ModelParamsSelect
           title="Model name"
           modelParamsKey="model"
+          disabled={disabled}
           value={modelParams.model}
           options={Object.values(
             availableModels
@@ -59,6 +63,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         <ModelParamsSlider
           title="Temperature"
           modelParamsKey="temperature"
+          disabled={disabled}
           value={modelParams.temperature}
           min={0}
           max={modelParams.maxTemperature}
@@ -69,6 +74,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         <ModelParamsSlider
           title="Output token limit"
           modelParamsKey="max_tokens"
+          disabled={disabled}
           value={modelParams.max_tokens}
           min={1}
           max={4096}
@@ -79,6 +85,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         <ModelParamsSlider
           title="Top P"
           modelParamsKey="top_p"
+          disabled={disabled}
           value={modelParams.top_p}
           min={0}
           max={1}
@@ -97,6 +104,7 @@ type ModelParamsSelectProps = {
   value: string;
   options: string[];
   updateModelParam: ModelParamsContext["updateModelParam"];
+  disabled?: boolean;
 };
 const ModelParamsSelect = ({
   title,
@@ -104,11 +112,13 @@ const ModelParamsSelect = ({
   value,
   options,
   updateModelParam,
+  disabled,
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold">{title}</p>
       <Select
+        disabled={disabled}
         onValueChange={(value) =>
           updateModelParam(
             modelParamsKey,
@@ -141,6 +151,7 @@ type ModelParamsSliderProps = {
   max: number;
   step: number;
   updateModelParam: ModelParamsContext["updateModelParam"];
+  disabled?: boolean;
 };
 const ModelParamsSlider = ({
   title,
@@ -151,6 +162,7 @@ const ModelParamsSlider = ({
   max,
   step,
   updateModelParam,
+  disabled,
 }: ModelParamsSliderProps) => {
   return (
     <div className="space-y-3" title={tooltip}>
@@ -159,6 +171,7 @@ const ModelParamsSlider = ({
         <Input
           className="h-6 w-14 appearance-none px-2 text-right"
           type="number"
+          disabled={disabled}
           min={min}
           max={max}
           step={step}
@@ -172,6 +185,7 @@ const ModelParamsSlider = ({
         />
       </div>
       <Slider
+        disabled={disabled}
         min={min}
         max={max}
         step={step}
