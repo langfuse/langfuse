@@ -11,10 +11,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { JsonEditor } from "@/src/components/json-editor";
+import { type RouterOutput } from "@/src/utils/types";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -27,7 +27,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
   expectedOutput: z.string().refine(
     (value) => {
@@ -39,18 +42,19 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
 });
 
 export const EditDatasetItem = ({
   projectId,
-  datasetId,
-  itemId,
+  datasetItem,
 }: {
   projectId: string;
-  datasetId: string;
-  itemId: string;
+  datasetItem: RouterOutput["datasets"]["itemById"];
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -59,30 +63,20 @@ export const EditDatasetItem = ({
     scope: "datasets:CUD",
   });
   const utils = api.useUtils();
-  const item = api.datasets.itemById.useQuery(
-    {
-      datasetId,
-      projectId,
-      datasetItemId: itemId,
-    },
-    {
-      refetchOnWindowFocus: false, // breaks dirty form state
-    },
-  );
 
   useEffect(() => {
     form.setValue(
       "input",
-      item.data?.input ? JSON.stringify(item.data.input, null, 2) : "",
+      datasetItem?.input ? JSON.stringify(datasetItem.input, null, 2) : "",
     );
     form.setValue(
       "expectedOutput",
-      item.data?.expectedOutput
-        ? JSON.stringify(item.data.expectedOutput, null, 2)
+      datasetItem?.expectedOutput
+        ? JSON.stringify(datasetItem.expectedOutput, null, 2)
         : "",
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.data]);
+  }, [datasetItem]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -98,10 +92,11 @@ export const EditDatasetItem = ({
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!!!datasetItem) return;
     updateDatasetItemMutation.mutate({
       projectId: projectId,
-      datasetId: datasetId,
-      datasetItemId: itemId,
+      datasetId: datasetItem.datasetId,
+      datasetItemId: datasetItem.id,
       input: values.input,
       expectedOutput: values.expectedOutput,
     });
