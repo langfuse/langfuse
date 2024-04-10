@@ -57,7 +57,6 @@ export default function EvalsTemplateTable({
     columnHelper.accessor("latestCreatedAt", {
       header: "Last Edit",
       id: "latestCreatedAt",
-      enableSorting: true,
       cell: (row) => {
         return row.getValue()?.toLocaleDateString();
       },
@@ -65,7 +64,6 @@ export default function EvalsTemplateTable({
     columnHelper.accessor("latestVersion", {
       header: "Last Version",
       id: "version",
-      enableSorting: true,
       cell: (row) => {
         return row.getValue();
       },
