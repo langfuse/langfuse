@@ -591,16 +591,20 @@ export default function TracesTable({
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         actionButtons={
-          <TraceTableMultiSelectAction
-            // Exclude traces that are not in the current page
-            selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
-              traces.data?.traces.map((t) => t.id).includes(traceId),
-            )}
-            projectId={projectId}
-            onDeleteSuccess={() => {
-              setSelectedRows({});
-            }}
-          />
+          Object.keys(selectedRows).filter((traceId) =>
+            traces.data?.traces.map((t) => t.id).includes(traceId),
+          ).length > 0 ? (
+            <TraceTableMultiSelectAction
+              // Exclude traces that are not in the current page
+              selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
+                traces.data?.traces.map((t) => t.id).includes(traceId),
+              )}
+              projectId={projectId}
+              onDeleteSuccess={() => {
+                setSelectedRows({});
+              }}
+            />
+          ) : null
         }
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

@@ -7,26 +7,19 @@ import React from "react";
 export const IOCell = ({
   isLoading,
   data,
-  height = "l",
 }: {
   isLoading: boolean;
   data: unknown;
-  height?: "s" | "m" | "l";
 }) => {
-  const heightTw = {
-    s: "h-[40px]",
-    m: "h-[100px]",
-    l: "h-[250px]",
-  };
-
   return (
     <>
       {isLoading ? (
-        <JsonSkeleton className={cn("w-[400px] px-3 py-1", heightTw[height])} />
+        <JsonSkeleton className="h-full w-[400px] px-3 py-1" />
       ) : (
         <JSONView
           json={data}
-          className={cn("w-[400px] overflow-y-auto", heightTw[height])}
+          className="h-full w-[400px] overflow-y-auto rounded-sm"
+          codeClassName="py-1 px-2"
         />
       )}
     </>

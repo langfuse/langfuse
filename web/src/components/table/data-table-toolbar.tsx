@@ -23,6 +23,8 @@ interface DataTableToolbarProps<TData, TValue> {
   setFilterState?: Dispatch<SetStateAction<FilterState>>;
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
+  rowHeight?: string;
+  setRowHeight?: Dispatch<SetStateAction<string>>;
 }
 
 export function DataTableToolbar<TData, TValue>({

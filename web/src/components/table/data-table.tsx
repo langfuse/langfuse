@@ -65,6 +65,7 @@ export function DataTable<TData extends object, TValue>({
   setOrderBy,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const rowheight = "h-6";
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -185,10 +186,12 @@ export function DataTable<TData extends object, TValue>({
                         key={cell.id}
                         className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
+                        <div className={cn("flex items-center", rowheight)}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </div>
                       </TableCell>
                     ))}
                   </TableRow>

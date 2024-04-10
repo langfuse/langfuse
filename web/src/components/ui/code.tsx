@@ -11,6 +11,7 @@ export function JSONView(props: {
   title?: string;
   className?: string;
   isLoading?: boolean;
+  codeClassName?: string;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
@@ -22,7 +23,12 @@ export function JSONView(props: {
           {props.title}
         </div>
       ) : undefined}
-      <div className="flex gap-2 whitespace-pre-wrap break-words p-3 text-xs">
+      <div
+        className={cn(
+          "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
+          props.codeClassName,
+        )}
+      >
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : (
