@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-import { Archive, MoreVertical } from "lucide-react";
+import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -23,6 +23,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 
 type RowData = {
   id: string;
+  source?: {
+    traceId: string;
+    observationId?: string;
+  };
   status: DatasetItem["status"];
   createdAt: string;
   input: string;
@@ -77,6 +81,32 @@ export function DatasetItemsTable({
             path={`/project/${projectId}/datasets/${datasetId}/items/${id}`}
             value={id}
             truncateAt={7}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "source",
+      header: "Source",
+      headerTooltip: {
+        description:
+          "Link to the source trace based on which this item was added",
+      },
+      id: "source",
+      cell: ({ row }) => {
+        const source: RowData["source"] = row.getValue("source");
+        if (!source) return null;
+        return source.observationId ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${source.traceId}?observation=${source.observationId}`}
+            value={source.observationId}
+            icon={<ListTree className="h-4 w-4" />}
+          />
+        ) : (
+          <TableLink
+            path={`/project/${projectId}/traces/${source.traceId}`}
+            value={source.traceId}
+            icon={<ListTree className="h-4 w-4" />}
           />
         );
       },
@@ -175,6 +205,12 @@ export function DatasetItemsTable({
 
     return {
       id: item.id,
+      source: item.sourceTraceId
+        ? {
+            traceId: item.sourceTraceId,
+            observationId: item.sourceObservationId ?? undefined,
+          }
+        : undefined,
       status: item.status,
       createdAt: item.createdAt.toLocaleString(),
       input,
