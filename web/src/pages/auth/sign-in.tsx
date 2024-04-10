@@ -279,21 +279,24 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
             ) : null}
             <SSOButtons authProviders={authProviders} />
           </div>
-          {env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
-            <>
-              <Divider className="text-gray-400" />
-              <Turnstile
-                siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                options={{
-                  theme: "light",
-                  action: "sign-in",
-                  cData: turnstileCData,
-                }}
-                className="mx-auto"
-                onSuccess={setTurnstileToken}
-              />
-            </>
-          )}
+          {
+            // Turnstile exists copy-paste also on sign-up.tsx
+            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
+              <>
+                <Divider className="text-gray-400" />
+                <Turnstile
+                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  options={{
+                    theme: "light",
+                    action: "sign-in",
+                    cData: turnstileCData,
+                  }}
+                  className="mx-auto"
+                  onSuccess={setTurnstileToken}
+                />
+              </>
+            )
+          }
           <CloudPrivacyNotice action="signing in" />
         </div>
 
