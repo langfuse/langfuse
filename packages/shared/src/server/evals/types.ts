@@ -54,8 +54,8 @@ export const evalModels = [
     top_p: 1,
   },
   {
-    provider: ModelProvider.Anthropic,
-    model: "claude-3-opus-20240229",
+    provider: ModelProvider.OpenAI,
+    model: "gpt-4-turbo-preview",
     temperature: 1,
     maxTemperature: 2,
     max_tokens: 256,
@@ -63,10 +63,7 @@ export const evalModels = [
   },
 ] as const;
 
-export const EvalModelNames = z.enum([
-  "gpt-3.5-turbo",
-  "claude-3-opus-20240229",
-]);
+export const EvalModelNames = z.enum(["gpt-3.5-turbo", "gpt-4-turbo-preview"]);
 
 export const OutputSchema = z.object({
   reasoning: z.string(),
