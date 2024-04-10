@@ -661,6 +661,7 @@ const TracesIOCell = ({
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
   return (
