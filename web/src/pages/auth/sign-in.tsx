@@ -84,7 +84,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
 export function SSOButtons({
   authProviders,
   action = "Sign in",
-}: PageProps & { action?: string }) {
+}: {
+  authProviders: PageProps["authProviders"];
+  action?: string;
+}) {
   const posthog = usePostHog();
 
   return (
