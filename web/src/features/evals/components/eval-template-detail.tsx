@@ -20,21 +20,19 @@ export const EvalTemplateDetail = () => {
 
   console.log("templateId", templateId);
 
-  const evals = api.evals.allTemplates.useQuery({
+  const evals = api.evals.byId.useQuery({
     projectId: projectId,
     id: templateId,
   });
 
-  const allTemplates = api.evals.allTemplatesByName.useQuery(
+  const allTemplates = api.evals.allTemplatesForName.useQuery(
     {
       projectId: projectId,
-      name:
-        evals.data && evals.data?.templates.length > 0
-          ? evals.data?.templates[0].name
-          : "",
+      name: evals.data?.name ?? "",
     },
     {
-      enabled: evals.data !== undefined && evals.data?.templates.length > 0,
+      enabled:
+        !evals.isLoading && !evals.isError && evals.data?.name !== undefined,
     },
   );
 
@@ -65,11 +63,7 @@ export const EvalTemplateDetail = () => {
         <PlaygroundProvider avilableModels={[...evalModels]}>
           <EvalTemplateForm
             projectId={projectId}
-            existingEvalTemplate={
-              evals.data?.templates && evals.data?.templates.length > 0
-                ? evals.data?.templates[0]
-                : undefined
-            }
+            existingEvalTemplate={evals.data ?? undefined}
           />
         </PlaygroundProvider>
       )}

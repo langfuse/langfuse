@@ -13,6 +13,7 @@ import {
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
+import lodash from "lodash";
 
 export const CreateEvalTemplate = z.object({
   name: z.string(),
@@ -64,7 +65,7 @@ export const evalRouter = createTRPCRouter({
       };
     }),
 
-  allTemplatesByName: protectedProjectProcedure
+  allTemplatesForName: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -89,6 +90,67 @@ export const evalRouter = createTRPCRouter({
       return {
         templates: templates,
       };
+    }),
+
+  templateNames: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalTemplate:read",
+      });
+
+      const templatesByName = await ctx.prisma.evalTemplate.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      // group the templates by name and get the
+      // - latest version of each name
+      // - latest created date of each name
+      // - id of latest version of each name
+      const groupedTemplates = lodash.groupBy(templatesByName, "name");
+
+      const templates = Object.entries(groupedTemplates).map((entry) => {
+        const latestTemplate = lodash.maxBy(entry[1], "version");
+        return {
+          version: latestTemplate?.version,
+          latestCreatedAt: latestTemplate?.createdAt,
+          latestId: latestTemplate?.id,
+          name: entry[0],
+        };
+      });
+
+      return {
+        templates: templates,
+        totalCount: templates.length,
+      };
+    }),
+
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalTemplate:read",
+      });
+
+      const template = await ctx.prisma.evalTemplate.findUnique({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+
+      return template;
     }),
 
   allTemplates: protectedProjectProcedure
