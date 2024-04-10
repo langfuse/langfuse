@@ -255,12 +255,13 @@ const TraceObservationIOCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId: traceId },
     {
-      enabled: !!traceId && !!!observationId,
+      enabled: observationId === undefined,
       trpc: {
         context: {
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -269,12 +270,13 @@ const TraceObservationIOCell = ({
       traceId: traceId,
     },
     {
-      enabled: !!traceId && !!observationId,
+      enabled: observationId !== undefined,
       trpc: {
         context: {
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
 
@@ -311,6 +313,7 @@ const DatasetItemIOCell = ({
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
 
