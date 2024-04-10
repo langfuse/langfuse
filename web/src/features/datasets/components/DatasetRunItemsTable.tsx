@@ -19,6 +19,8 @@ import {
   MdDensityMedium,
   MdDensityLarge,
 } from "react-icons/md";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useEffect } from "react";
 
 type RowData = {
   id: string;
@@ -43,14 +45,15 @@ export function DatasetRunItemsTable(
     | {
         projectId: string;
         datasetId: string;
-        datasetRunId: string;
+        datasetRunId: string; // View from run page
       }
     | {
         projectId: string;
         datasetId: string;
-        datasetItemId: string;
+        datasetItemId: string; // View from item page
       },
 ) {
+  const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 20),
@@ -60,6 +63,21 @@ export function DatasetRunItemsTable(
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+  useEffect(() => {
+    if (runItems.isSuccess) {
+      setDetailPageList(
+        "traces",
+        runItems.data.runItems.filter((i) => !!i.trace).map((i) => i.trace!.id),
+      );
+      // set the datasetItems list only when viewing this table from the run page
+      if ("datasetRunId" in props)
+        setDetailPageList(
+          "datasetItems",
+          runItems.data.runItems.map((i) => i.datasetItemId),
+        );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runItems.isSuccess, runItems.data]);
 
   const [height, setHeight] = useLocalStorage<"s" | "m" | "l">(
     "datasetRunItemsTableHeight",
@@ -293,12 +311,13 @@ const TraceObservationIOCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId: traceId },
     {
-      enabled: !!traceId && !!!observationId,
+      enabled: observationId === undefined,
       trpc: {
         context: {
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -307,12 +326,13 @@ const TraceObservationIOCell = ({
       traceId: traceId,
     },
     {
-      enabled: !!traceId && !!observationId,
+      enabled: observationId !== undefined,
       trpc: {
         context: {
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
 
@@ -352,6 +372,7 @@ const DatasetItemIOCell = ({
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
 

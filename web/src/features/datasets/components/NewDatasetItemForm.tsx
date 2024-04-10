@@ -20,8 +20,9 @@ import {
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
-import { Textarea } from "@/src/components/ui/textarea";
+import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared/src/db";
+import { cn } from "@/src/utils/tailwind";
 
 const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
@@ -37,7 +38,7 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
   expectedOutput: z.string().refine(
@@ -52,7 +53,7 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
 });
@@ -64,6 +65,7 @@ export const NewDatasetItemForm = (props: {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   datasetId?: string;
+  className?: string;
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
@@ -113,7 +115,7 @@ export const NewDatasetItemForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-6"
+        className={cn("flex flex-col gap-6", props.className)}
       >
         <FormField
           control={form.control}
@@ -147,9 +149,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Input</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />
@@ -163,9 +165,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Expected output</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />

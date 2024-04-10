@@ -1,7 +1,6 @@
 import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import JsonView from "react18-json-view";
 import * as z from "zod";
 
 import { DatePicker } from "@/src/components/date-picker";
@@ -28,6 +27,7 @@ import { ModelUsageUnit } from "@langfuse/shared";
 import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { JsonEditor } from "@/src/components/json-editor";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
@@ -205,7 +205,7 @@ export const NewModelForm = (props: {
           name="startDate"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Start date</FormLabel>
+              <FormLabel>Start date (UTC)</FormLabel>
               <FormControl>
                 <DatePicker
                   date={field.value}
@@ -341,13 +341,9 @@ export const NewModelForm = (props: {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tokenizer Config</FormLabel>
-                <JsonView
-                  src={JSON.parse(field.value) as unknown}
-                  onEdit={(edit) => {
-                    field.onChange(JSON.stringify(edit.src));
-                  }}
-                  editable
-                  className="rounded-md border border-gray-200 p-2 text-sm"
+                <JsonEditor
+                  defaultValue={field.value}
+                  onChange={field.onChange}
                 />
                 <FormDescription>
                   The config for the tokenizer. Required for openai. See the
