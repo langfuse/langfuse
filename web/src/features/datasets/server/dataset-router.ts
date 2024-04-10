@@ -560,6 +560,11 @@ export const datasetRouter = createTRPCRouter({
             in: observationIds,
           },
         },
+        select: {
+          id: true,
+          latency: true,
+          calculatedTotalCost: true,
+        },
       });
 
       const traceIds = runItems
@@ -571,6 +576,10 @@ export const datasetRouter = createTRPCRouter({
             in: traceIds,
           },
           projectId: ctx.session.projectId,
+        },
+        select: {
+          id: true,
+          duration: true,
         },
       });
 
