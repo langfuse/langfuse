@@ -16,16 +16,17 @@ import { Slider } from "@/src/components/ui/slider";
 export type ModelParamsContext = {
   modelParams: UIModelParams;
   availableModels?: UIModelParams[];
-  updateModelParams: <Key extends keyof UIModelParams>(
+  updateModelParam: <Key extends keyof UIModelParams>(
     key: Key,
     value: UIModelParams[Key],
   ) => void;
+  updateModelParams: <UIModelParams>(params: UIModelParams) => void;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
   availableModels,
-  updateModelParams,
+  updateModelParam: updateModelParam,
 }) => {
   return (
     <div className="flex flex-col space-y-4">
@@ -40,7 +41,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
               ? [...new Set(availableModels.map((m) => m.provider))]
               : Object.values(ModelProvider)
           }
-          updateModelParams={updateModelParams}
+          updateModelParam={updateModelParam}
         />
         <ModelParamsSelect
           title="Model name"
@@ -53,7 +54,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                   .map((m) => m.model)
               : supportedModels[modelParams.provider],
           )}
-          updateModelParams={updateModelParams}
+          updateModelParam={updateModelParam}
         />
         <ModelParamsSlider
           title="Temperature"
@@ -63,7 +64,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           max={modelParams.maxTemperature}
           step={0.01}
           tooltip="The sampling temperature. Higher values will make the output more random, while lower values like will make it more focused and deterministic."
-          updateModelParams={updateModelParams}
+          updateModelParam={updateModelParam}
         />
         <ModelParamsSlider
           title="Output token limit"
@@ -73,7 +74,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           max={4096}
           step={1}
           tooltip="The maximum number of tokens that can be generated in the chat completion."
-          updateModelParams={updateModelParams}
+          updateModelParam={updateModelParam}
         />
         <ModelParamsSlider
           title="Top P"
@@ -83,7 +84,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           max={1}
           step={0.01}
           tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
-          updateModelParams={updateModelParams}
+          updateModelParam={updateModelParam}
         />
       </div>
     </div>
@@ -95,21 +96,21 @@ type ModelParamsSelectProps = {
   modelParamsKey: keyof UIModelParams;
   value: string;
   options: string[];
-  updateModelParams: ModelParamsContext["updateModelParams"];
+  updateModelParam: ModelParamsContext["updateModelParam"];
 };
 const ModelParamsSelect = ({
   title,
   modelParamsKey,
   value,
   options,
-  updateModelParams,
+  updateModelParam,
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold">{title}</p>
       <Select
         onValueChange={(value) =>
-          updateModelParams(
+          updateModelParam(
             modelParamsKey,
             value as (typeof supportedModels)[ModelProvider][number],
           )
@@ -139,7 +140,7 @@ type ModelParamsSliderProps = {
   min: number;
   max: number;
   step: number;
-  updateModelParams: ModelParamsContext["updateModelParams"];
+  updateModelParam: ModelParamsContext["updateModelParam"];
 };
 const ModelParamsSlider = ({
   title,
@@ -149,7 +150,7 @@ const ModelParamsSlider = ({
   min,
   max,
   step,
-  updateModelParams,
+  updateModelParam,
 }: ModelParamsSliderProps) => {
   return (
     <div className="space-y-3" title={tooltip}>
@@ -163,7 +164,7 @@ const ModelParamsSlider = ({
           step={step}
           value={value}
           onChange={(event) => {
-            updateModelParams(
+            updateModelParam(
               modelParamsKey,
               Math.max(Math.min(parseFloat(event.target.value), max), min),
             );
@@ -176,7 +177,7 @@ const ModelParamsSlider = ({
         step={step}
         onValueChange={(value) => {
           if (value[0] !== undefined)
-            updateModelParams(modelParamsKey, value[0]);
+            updateModelParam(modelParamsKey, value[0]);
         }}
         value={[value]}
       />

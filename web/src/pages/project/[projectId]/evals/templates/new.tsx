@@ -1,23 +1,17 @@
 import Header from "@/src/components/layouts/header";
-import { NewEvalTemplateForm } from "@/src/features/evals/components/new-template-form";
+import { EvalTemplateForm } from "@/src/features/evals/components/new-template-form";
 import { PlaygroundProvider } from "@/src/features/playground/client/context";
 import { api } from "@/src/utils/api";
 import { evalModels } from "@langfuse/shared";
 
 import { useRouter } from "next/router";
 
-export default function TemplatesPage() {
+export default function NewTemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const evals = api.evals.allTemplates.useQuery({
-    projectId: projectId,
-    limit: 500,
-    page: 0,
-  });
-
   return (
-    <div>
+    <div className="md:container">
       <Header
         title="Create eval template"
         help={{
@@ -27,10 +21,7 @@ export default function TemplatesPage() {
         }}
       />
       <PlaygroundProvider avilableModels={[...evalModels]}>
-        <NewEvalTemplateForm
-          projectId={projectId}
-          existingEvalTemplates={evals.data?.templates ?? []}
-        />
+        <EvalTemplateForm projectId={projectId} />
       </PlaygroundProvider>
     </div>
   );

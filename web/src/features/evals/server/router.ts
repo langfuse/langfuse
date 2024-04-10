@@ -6,10 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  DEFAULT_TRACE_JOB_DELAY,
-  EvalTargetObject,
-} from "@/src/features/evals/constants";
+import { DEFAULT_TRACE_JOB_DELAY, EvalTargetObject } from "@langfuse/shared";
 import {
   EvalModelNames,
   ZodModelConfig,
@@ -67,12 +64,11 @@ export const evalRouter = createTRPCRouter({
       };
     }),
 
-  allTemplates: protectedProjectProcedure
+  allTemplatesByName: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number(),
-        page: z.number(),
+        name: z.string(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -85,14 +81,46 @@ export const evalRouter = createTRPCRouter({
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
           projectId: input.projectId,
+          name: input.name,
         },
-        take: input.limit,
-        skip: input.page * input.limit,
+        orderBy: [{ version: "desc" }],
+      });
+
+      return {
+        templates: templates,
+      };
+    }),
+
+  allTemplates: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string().optional(),
+        limit: z.number().optional(),
+        page: z.number().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalTemplate:read",
+      });
+
+      const templates = await ctx.prisma.evalTemplate.findMany({
+        where: {
+          projectId: input.projectId,
+          ...(input.id ? { id: input.id } : undefined),
+        },
+        ...(input.limit && input.page
+          ? { take: input.limit, skip: input.page * input.limit }
+          : undefined),
       });
 
       const count = await ctx.prisma.evalTemplate.count({
         where: {
           projectId: input.projectId,
+          ...(input.id ? { id: input.id } : undefined),
         },
       });
       return {
@@ -196,5 +224,6 @@ export const evalRouter = createTRPCRouter({
         resourceId: evalTemplate.id,
         action: "create",
       });
+      return evalTemplate;
     }),
 });

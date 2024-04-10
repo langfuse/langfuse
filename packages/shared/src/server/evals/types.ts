@@ -53,6 +53,28 @@ export const evalModels = [
     max_tokens: 256,
     top_p: 1,
   },
+  {
+    provider: ModelProvider.Anthropic,
+    model: "claude-3-opus-20240229",
+    temperature: 1,
+    maxTemperature: 2,
+    max_tokens: 256,
+    top_p: 1,
+  },
 ] as const;
 
-export const EvalModelNames = z.enum(["gpt-3.5-turbo"]);
+export const EvalModelNames = z.enum([
+  "gpt-3.5-turbo",
+  "claude-3-opus-20240229",
+]);
+
+export const OutputSchema = z.object({
+  reasoning: z.string(),
+  score: z.string(),
+});
+
+export enum EvalTargetObject {
+  Trace = "trace",
+}
+
+export const DEFAULT_TRACE_JOB_DELAY = 10_000;

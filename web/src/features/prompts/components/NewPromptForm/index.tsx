@@ -46,6 +46,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -273,22 +274,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               </TabsContent>
             </Tabs>
           </FormItem>
-          <p className="text-sm text-gray-500">
-            You can use <code className="text-xs">{"{{variable}}"}</code> to
-            insert variables into your prompt.
-            <b className="font-semibold"> Note:</b> Variables must be
-            alphabetical characters or underscores.
-            {currentExtractedVariables.length > 0
-              ? " The following variables are available:"
-              : ""}
-          </p>
-          <div className="flex min-h-6 flex-wrap gap-2">
-            {currentExtractedVariables.map((variable) => (
-              <Badge key={variable} variant="outline">
-                {variable}
-              </Badge>
-            ))}
-          </div>
+          <PromptDescription
+            currentExtractedVariables={currentExtractedVariables}
+          />
         </>
 
         {/* Prompt Config field */}
