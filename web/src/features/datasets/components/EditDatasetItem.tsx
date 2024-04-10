@@ -27,7 +27,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
   expectedOutput: z.string().refine(
     (value) => {
@@ -39,7 +42,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
 });
 

@@ -38,7 +38,7 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
   expectedOutput: z.string().refine(
@@ -53,7 +53,7 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
 });
