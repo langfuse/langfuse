@@ -16,14 +16,13 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { extractVariables } from "@/src/utils/string";
+import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import router from "next/router";
 import { type EvalTemplate } from "@prisma/client";
 import { usePlaygroundContext } from "@/src/features/playground/client/context";
 import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
 import { EvalModelNames, OutputSchema, evalModels } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import { getIsCharOrUnderscore } from "@/src/features/prompts/components/NewPromptForm/validation";
 
 const formSchema = z.object({
   name: z
