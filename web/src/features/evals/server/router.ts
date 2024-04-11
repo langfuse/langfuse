@@ -13,10 +13,9 @@ import {
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
-import { AlphaNumericUnderscoreString } from "@/src/utils/zod";
 
 export const CreateEvalTemplate = z.object({
-  name: AlphaNumericUnderscoreString,
+  name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
   model: EvalModelNames,
@@ -49,6 +48,9 @@ export const evalRouter = createTRPCRouter({
           projectId: input.projectId,
           jobType: "EVAL",
         },
+        include: {
+          evalTemplate: true,
+        },
         take: input.limit,
         skip: input.page * input.limit,
       });
@@ -63,6 +65,33 @@ export const evalRouter = createTRPCRouter({
         configs: configs,
         totalCount: count,
       };
+    }),
+
+  configById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:read",
+      });
+
+      const config = await ctx.prisma.jobConfiguration.findUnique({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+        include: {
+          evalTemplate: true,
+        },
+      });
+
+      return config;
     }),
 
   allTemplatesForName: protectedProjectProcedure
@@ -195,7 +224,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         evalTemplateId: z.string(),
-        scoreName: AlphaNumericUnderscoreString,
+        scoreName: z.string().min(1),
         target: z.string(),
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
@@ -208,7 +237,7 @@ export const evalRouter = createTRPCRouter({
         throwIfNoAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "job:create",
+          scope: "job:CUD",
         });
 
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
@@ -236,6 +265,7 @@ export const evalRouter = createTRPCRouter({
             variableMapping: input.mapping,
             sampling: input.sampling,
             delay: DEFAULT_TRACE_JOB_DELAY, // 10 seconds default
+            status: "ACTIVE",
           },
         });
         await auditLog({
@@ -286,5 +316,38 @@ export const evalRouter = createTRPCRouter({
         action: "create",
       });
       return evalTemplate;
+    }),
+
+  updateEvalJob: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evalConfigId: z.string(),
+        updatedStatus: z.enum(["ACTIVE", "INACTIVE"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:CUD",
+      });
+
+      await ctx.prisma.jobConfiguration.update({
+        where: {
+          id: input.evalConfigId,
+          projectId: input.projectId,
+        },
+        data: {
+          status: input.updatedStatus,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "job",
+        resourceId: input.evalConfigId,
+        action: "update",
+      });
     }),
 });

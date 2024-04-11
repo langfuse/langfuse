@@ -20,7 +20,7 @@ export const filterOperators = {
 export const timeFilter = z.object({
   column: z.string(),
   operator: z.enum(filterOperators.datetime),
-  value: z.date(),
+  value: z.coerce.date(), // coerce required to parse stringified dates from the db in evals
   type: z.literal("datetime"),
 });
 export const stringFilter = z.object({
