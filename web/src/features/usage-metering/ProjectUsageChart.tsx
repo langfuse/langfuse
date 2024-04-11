@@ -34,9 +34,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
 
   return (
     <div>
-      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
-        Usage
-      </h2>
+      <Header title="Usage" level="h3" />
       <Card className="p-4 lg:w-1/2">
         {usage.data !== undefined && (
           <>

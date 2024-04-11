@@ -1,3 +1,4 @@
+import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { CodeView } from "@/src/components/ui/code";
@@ -44,9 +45,7 @@ export function ApiKeyList(props: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
-        API keys
-      </h2>
+      <Header title="API keys" level="h3" />
       <Card className="mb-4">
         <Table>
           <TableHeader>
