@@ -1,18 +1,21 @@
 import { DataTable } from "@/src/components/table/data-table";
+import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { api } from "@/src/utils/api";
-import { type JobConfiguration } from "@prisma/client";
+import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { RouterOutputs, api } from "@/src/utils/api";
+import { FilterState, singleFilter } from "@langfuse/shared";
+import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { z } from "zod";
 
 export type EvalConfigRow = {
   id: string;
+  status: string;
   createdAt: string;
-  evalTemplateId?: string;
+  template?: string;
   scoreName: string;
-  targetObject: string;
-  filter: string;
-  variableMapping: string;
+  filter: FilterState;
 };
 
 export default function EvalConfigTable({ projectId }: { projectId: string }) {
@@ -28,63 +31,63 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
   });
   const totalCount = templates.data?.totalCount ?? 0;
 
-  const columns: LangfuseColumnDef<EvalConfigRow>[] = [
-    {
-      accessorKey: "id",
+  const columnHelper = createColumnHelper<EvalConfigRow>();
+  const columns = [
+    columnHelper.accessor("id", {
+      header: "Id",
       id: "id",
-      header: "ID",
-      enableHiding: false,
-    },
-    {
-      accessorKey: "createdAt",
+      cell: (row) => {
+        const id = row.getValue();
+        return id ? (
+          <TableLink
+            path={`/project/${projectId}/evals/configs/${encodeURIComponent(id)}`}
+            value={id}
+            truncateAt={50}
+          />
+        ) : undefined;
+      },
+    }),
+    columnHelper.accessor("status", {
+      id: "state",
+      header: "State",
+    }),
+    columnHelper.accessor("createdAt", {
       id: "createdAt",
       header: "Created At",
-      enableHiding: true,
-    },
-    {
-      accessorKey: "evalTemplateId",
-      id: "evalTemplateId",
-      header: "Eval Template",
-      enableHiding: true,
-    },
-    {
-      accessorKey: "scoreName",
+    }),
+    columnHelper.accessor("template", {
+      id: "template",
+      header: "Template",
+    }),
+    columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Score Name",
-      enableHiding: true,
-    },
-    {
-      accessorKey: "targetObject",
-      id: "targetObject",
-      header: "Target",
-      enableHiding: true,
-    },
-    {
-      accessorKey: "filter",
+    }),
+    columnHelper.accessor("filter", {
       id: "filter",
       header: "Filter",
-      enableHiding: true,
-    },
-    {
-      accessorKey: "variableMapping",
-      id: "variableMapping",
-      header: "Mapping",
-      enableHiding: true,
-    },
-  ];
+      cell: (row) => {
+        const node = row.getValue();
+        return <InlineFilterState filterState={node} />;
+      },
+    }),
+  ] as LangfuseColumnDef<EvalConfigRow>[];
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<EvalConfigRow>("evalConfigColumnVisibility", columns);
 
-  const convertToTableRow = (jobConfig: JobConfiguration): EvalConfigRow => {
+  const convertToTableRow = (
+    jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
+  ): EvalConfigRow => {
     return {
       id: jobConfig.id,
+      status: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
-      evalTemplateId: jobConfig.evalTemplateId?.toLocaleString(),
+      template: jobConfig.evalTemplate
+        ? `${jobConfig.evalTemplate.name} (v${jobConfig.evalTemplate.version})`
+        : undefined,
       scoreName: jobConfig.scoreName,
-      targetObject: jobConfig.targetObject,
-      filter: JSON.stringify(jobConfig.filter),
-      variableMapping: JSON.stringify(jobConfig.variableMapping),
+      filter: z.array(singleFilter).parse(jobConfig.filter),
     };
   };
 

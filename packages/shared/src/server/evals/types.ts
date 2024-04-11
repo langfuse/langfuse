@@ -6,11 +6,12 @@ export const evalObjects = [
     id: "trace",
     display: "Trace",
     availableColumns: [
-      ...tracesTableCols.map((c) => ({
-        name: c.name,
-        id: c.id,
-        internal: c.internal,
-      })),
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+        internal: 'o."metadata"',
+      },
       { name: "Input", id: "input", internal: 't."input"' },
       { name: "Output", id: "output", internal: 't."output"' },
     ],
@@ -19,11 +20,12 @@ export const evalObjects = [
     id: "span",
     display: "Span",
     availableColumns: [
-      ...observationsTableCols.map((c) => ({
-        name: c.name,
-        id: c.id,
-        internal: c.internal,
-      })),
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+        internal: 'o."metadata"',
+      },
       { name: "Input", id: "input", internal: 'o."input"' },
       { name: "Output", id: "output", internal: 'o."output"' },
     ],
@@ -32,11 +34,12 @@ export const evalObjects = [
     id: "generation",
     display: "Generation",
     availableColumns: [
-      ...observationsTableCols.map((c) => ({
-        name: c.name,
-        id: c.id,
-        internal: c.internal,
-      })),
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+        internal: 'o."metadata"',
+      },
       { name: "Input", id: "input", internal: 'o."input"' },
       { name: "Output", id: "output", internal: 'o."output"' },
     ],

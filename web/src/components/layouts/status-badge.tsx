@@ -1,7 +1,7 @@
 import { cn } from "@/src/utils/tailwind";
 
 const statusCategories = {
-  active: ["production", "live"],
+  active: ["production", "live", "active"],
   inactive: ["disabled", "inactive"],
 };
 

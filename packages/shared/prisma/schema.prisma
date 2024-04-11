@@ -616,6 +616,11 @@ enum JobType {
     EVAL
 }
 
+enum JobConfigState {
+    ACTIVE
+    INACTIVE
+}
+
 model JobConfiguration {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now()) @map("created_at")
@@ -624,9 +629,10 @@ model JobConfiguration {
     projectId String  @map("project_id")
     project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-    jobType        JobType       @map("job_type")
-    evalTemplateId String?       @map("eval_template_id")
-    evalTemplate   EvalTemplate? @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
+    jobType        JobType        @map("job_type")
+    status         JobConfigState @default(ACTIVE)
+    evalTemplateId String?        @map("eval_template_id")
+    evalTemplate   EvalTemplate?  @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 
     scoreName       String         @map("score_name")
     filter          Json

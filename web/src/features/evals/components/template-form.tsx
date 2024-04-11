@@ -23,10 +23,9 @@ import { usePlaygroundContext } from "@/src/features/playground/client/context";
 import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
 import { EvalModelNames, OutputSchema, evalModels } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import { AlphaNumericUnderscoreString } from "@/src/utils/zod";
 
 const formSchema = z.object({
-  name: AlphaNumericUnderscoreString,
+  name: z.string().min(1, "Enter a name"),
   prompt: z
     .string()
     .min(1, "Enter a prompt")

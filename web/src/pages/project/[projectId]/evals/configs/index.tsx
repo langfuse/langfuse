@@ -17,7 +17,7 @@ export default function ConfigsPage() {
 
   const hasWriteAccess = useHasAccess({
     projectId,
-    scope: "evalConfig:create",
+    scope: "job:CUD",
   });
 
   return (
