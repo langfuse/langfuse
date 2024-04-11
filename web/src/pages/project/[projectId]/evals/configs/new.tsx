@@ -16,14 +16,7 @@ export default function NewConfigsPage() {
 
   return (
     <div>
-      <Header
-        title="Create eval config"
-        help={{
-          description:
-            "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
-          href: "https://langfuse.com/docs/scores",
-        }}
-      />
+      <Header title="Create eval config" />
       <EvalConfigForm
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}

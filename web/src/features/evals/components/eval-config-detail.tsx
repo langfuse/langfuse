@@ -53,11 +53,6 @@ export const EvalConfigDetail = () => {
       <Header
         title={config.data?.id ?? "Loading..."}
         status={config.data?.status.toLowerCase()}
-        help={{
-          description:
-            "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
-          href: "https://langfuse.com/docs/scores",
-        }}
         actionButtons={
           <DeactivateConfig
             projectId={projectId}
