@@ -445,7 +445,10 @@ export const EvalConfigForm = (props: {
                       onValueChange={(value) => field.onChange(value[0])}
                     />
                   </FormControl>
-                  <FormDescription>Description </FormDescription>
+                  <FormDescription className="flex justify-between">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
