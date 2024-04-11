@@ -709,6 +709,7 @@ const GenerationsIOCell = ({
       data={
         io === "output" ? observation.data?.output : observation.data?.input
       }
+      className={cn(io === "output" && "bg-green-50")}
     />
   );
 };
