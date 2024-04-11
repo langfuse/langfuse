@@ -23,7 +23,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import {
   tracesTableColsWithOptions,
   singleFilter,
-  JobConfiguration,
+  type JobConfiguration,
 } from "@langfuse/shared";
 import * as z from "zod";
 import { useEffect, useState } from "react";

@@ -9,7 +9,7 @@ import { type VisibilityState } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   DataTableRowHeightSwitch,
-  RowHeight,
+  type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Search } from "lucide-react";
 

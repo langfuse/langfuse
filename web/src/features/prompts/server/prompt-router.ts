@@ -403,7 +403,7 @@ export const promptRouter = createTRPCRouter({
           action: "updateTags",
           after: input.tags,
         });
-        const updatedPrompts = await ctx.prisma.prompt.updateMany({
+        await ctx.prisma.prompt.updateMany({
           where: {
             name: input.name,
             projectId: input.projectId,
