@@ -46,6 +46,7 @@ export type PageProps = {
     azureAd: boolean;
     auth0: boolean;
   };
+  signUpDisabled: boolean;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
@@ -74,6 +75,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
           env.AUTH_AUTH0_ISSUER !== undefined,
       },
+      signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
     },
   };
 };
@@ -82,7 +84,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
 export function SSOButtons({
   authProviders,
   action = "Sign in",
-}: PageProps & { action?: string }) {
+}: {
+  authProviders: PageProps["authProviders"];
+  action?: string;
+}) {
   const posthog = usePostHog();
 
   return (
@@ -159,7 +164,7 @@ export function SSOButtons({
   );
 }
 
-export default function SignIn({ authProviders }: PageProps) {
+export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
   >(null);
@@ -274,25 +279,29 @@ export default function SignIn({ authProviders }: PageProps) {
             ) : null}
             <SSOButtons authProviders={authProviders} />
           </div>
-          {env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
-            <>
-              <Divider className="text-gray-400" />
-              <Turnstile
-                siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                options={{
-                  theme: "light",
-                  action: "sign-in",
-                  cData: turnstileCData,
-                }}
-                className="mx-auto"
-                onSuccess={setTurnstileToken}
-              />
-            </>
-          )}
+          {
+            // Turnstile exists copy-paste also on sign-up.tsx
+            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
+              <>
+                <Divider className="text-gray-400" />
+                <Turnstile
+                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  options={{
+                    theme: "light",
+                    action: "sign-in",
+                    cData: turnstileCData,
+                  }}
+                  className="mx-auto"
+                  onSuccess={setTurnstileToken}
+                />
+              </>
+            )
+          }
           <CloudPrivacyNotice action="signing in" />
         </div>
 
-        {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+        {!signUpDisabled &&
+        env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
         authProviders.credentials ? (
           <p className="mt-10 text-center text-sm text-gray-500">
             No account yet?{" "}

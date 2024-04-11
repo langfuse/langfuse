@@ -53,3 +53,8 @@ export const noHtmlRegex = /<[^>]*>/;
 export const noHtmlCheck = (value: string) => !noHtmlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
+
+export const AlphaNumericUnderscoreString = z
+  .string()
+  .min(1, "Enter a name")
+  .regex(/^[A-Za-z_]+$/, "Must be alphanumeric or contain dashes (_)");

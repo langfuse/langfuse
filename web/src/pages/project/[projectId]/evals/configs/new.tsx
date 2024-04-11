@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 
 import { useRouter } from "next/router";
 
-export default function TemplatesPage() {
+export default function NewConfigsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 

@@ -205,11 +205,17 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
+  const updateModelParam: PlaygroundContextType["updateModelParam"] = (
     key,
     value,
   ) => {
     setModelParams((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
+    params,
+  ) => {
+    setModelParams((prev) => ({ ...prev, ...params }));
   };
 
   const updatePromptVariableValue = (variable: string, value: string) => {
@@ -235,7 +241,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         deleteMessage,
 
         modelParams,
-        updateModelParams,
+        updateModelParam: updateModelParam,
+        updateModelParams: updateModelParams,
 
         output,
         outputJson,
