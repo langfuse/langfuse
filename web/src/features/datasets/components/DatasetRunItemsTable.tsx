@@ -9,11 +9,12 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { type Score } from "@langfuse/shared";
 import { usdFormatter } from "../../../utils/numbers";
-import { IOCell } from "@/src/components/table/use-cases/IOCell";
+import { IOCell } from "@/src/components/table/data-table-IOCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
 type RowData = {
   id: string;
@@ -56,6 +57,8 @@ export function DatasetRunItemsTable(
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
+
   useEffect(() => {
     if (runItems.isSuccess) {
       setDetailPageList(
@@ -228,6 +231,8 @@ export function DatasetRunItemsTable(
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -255,6 +260,7 @@ export function DatasetRunItemsTable(
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );

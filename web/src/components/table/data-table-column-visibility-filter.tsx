@@ -12,7 +12,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/src/components/ui/dropdown-menu";
 import { type VisibilityState } from "@tanstack/react-table";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDown, Columns } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
@@ -70,14 +70,16 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         className="select-none"
         asChild
       >
-        <Button variant="outline" className="ml-auto">
-          Columns {count <= total ? `${count}/${total}` : ""}
-          <ChevronDownIcon className="ml-2 h-4 w-4" />
+        <Button variant="outline" title="Show/hide columns">
+          <Columns className="mr-2 h-4 w-4" />
+          <span className="text-xs text-gray-500">{`(${count}/${total})`}</span>
+          <ChevronDown className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
         onPointerDownOutside={() => setIsOpen(false)}
+        className="max-h-96 overflow-y-auto"
       >
         {columns.map(
           (column, index) =>

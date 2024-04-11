@@ -159,6 +159,9 @@ export function DatasetsTable(props: { projectId: string }) {
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        actionButtons={
+          <DatasetActionButton projectId={props.projectId} mode="create" />
+        }
       />
       <DataTable
         columns={columns}
