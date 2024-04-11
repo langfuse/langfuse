@@ -13,6 +13,7 @@ require("dotenv").config();
 import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./redis/consumer";
+import helmet from "helmet";
 
 const app = express();
 
@@ -41,6 +42,7 @@ if (isSentryEnabled) {
   app.use(Sentry.Handlers.tracingHandler());
 }
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.get<{}, MessageResponse>("/", (req, res) => {
