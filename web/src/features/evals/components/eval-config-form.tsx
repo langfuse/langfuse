@@ -436,13 +436,15 @@ export const EvalConfigForm = (props: {
                       onValueChange={(value) => field.onChange(value[0])}
                     />
                   </FormControl>
-                  <FormDescription className="flex flex-col">
-                    <div className="flex justify-between">
+                  <div className="flex flex-col">
+                    <FormDescription className="flex justify-between">
                       <span>0%</span>
                       <span>100%</span>
-                    </div>
-                    Percentage of traces to evaluate.
-                  </FormDescription>
+                    </FormDescription>
+                    <FormDescription>
+                      Percentage of traces to evaluate.
+                    </FormDescription>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
