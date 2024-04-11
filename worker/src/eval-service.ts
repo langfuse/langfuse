@@ -302,7 +302,7 @@ export function compileHandlebarString(
   return template(context);
 }
 
-async function extractVariablesFromTrace(
+export async function extractVariablesFromTrace(
   projectId: string,
   variables: string[],
   traceId: string,
@@ -377,6 +377,7 @@ async function extractVariablesFromTrace(
         .where("trace_id", "=", traceId)
         .where("project_id", "=", projectId)
         .where("name", "=", mapping.objectName)
+        .orderBy("start_time", "desc")
         .executeTakeFirstOrThrow();
 
       mappingResult.push({

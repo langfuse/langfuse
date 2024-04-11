@@ -1,11 +1,17 @@
 import { expect, test, describe, vi } from "vitest";
-import { createEvalJobs, evaluate } from "../eval-service";
+import {
+  createEvalJobs,
+  evaluate,
+  extractVariablesFromTrace,
+} from "../eval-service";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
 import logger from "../logger";
+import { extractRequestData } from "@sentry/node";
+import { variableMappingList } from "@langfuse/shared";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
@@ -427,5 +433,191 @@ describe("execute evals", () => {
       .execute();
 
     expect(jobs.length).toBe(0);
+  }, 10_000);
+});
+
+describe("test variable extraction", () => {
+  test("extracts variables from a trace", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: { input: "This is a great prompt" },
+        output: { output: "This is a great response" },
+      })
+      .execute();
+
+    const variableMapping = variableMappingList.parse([
+      {
+        langfuseObject: "trace",
+        selectedColumnId: "input",
+        templateVariable: "input",
+      },
+      {
+        langfuseObject: "trace",
+        selectedColumnId: "output",
+        templateVariable: "output",
+      },
+    ]);
+
+    const result = await extractVariablesFromTrace(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      ["input", "output"],
+      traceId,
+      variableMapping
+    );
+
+    expect(result).toEqual([
+      {
+        value: '{"input":"This is a great prompt"}',
+        var: "input",
+      },
+      {
+        value: '{"output":"This is a great response"}',
+        var: "output",
+      },
+    ]);
+  }, 10_000);
+  test("extracts variables from a observation", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: { input: "This is a great prompt" },
+        output: { output: "This is a great response" },
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: randomUUID(),
+        trace_id: traceId,
+        name: "great-llm-name",
+        type: sql`'GENERATION'::"ObservationType"`,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        input: { huhu: "This is a great prompt" },
+        output: { haha: "This is a great response" },
+      })
+      .execute();
+
+    const variableMapping = variableMappingList.parse([
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "input",
+        templateVariable: "input",
+        objectName: "great-llm-name",
+      },
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "output",
+        templateVariable: "output",
+        objectName: "great-llm-name",
+      },
+    ]);
+
+    const result = await extractVariablesFromTrace(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      ["input", "output"],
+      traceId,
+      variableMapping
+    );
+
+    expect(result).toEqual([
+      {
+        value: '{"huhu":"This is a great prompt"}',
+        var: "input",
+      },
+      {
+        value: '{"haha":"This is a great response"}',
+        var: "output",
+      },
+    ]);
+  }, 10_000);
+
+  test("extracts variables from a youngest observation", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: { input: "This is a great prompt" },
+        output: { output: "This is a great response" },
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: randomUUID(),
+        trace_id: traceId,
+        name: "great-llm-name",
+        start_time: new Date("2022-01-01T00:00:00.000Z"),
+        type: sql`'GENERATION'::"ObservationType"`,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        input: { huhu: "This is a great prompt" },
+        output: { haha: "This is a great response" },
+      })
+      .execute();
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: randomUUID(),
+        trace_id: traceId,
+        name: "great-llm-name",
+        start_time: new Date("2022-01-02T00:00:00.000Z"),
+        type: sql`'GENERATION'::"ObservationType"`,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        input: { huhu: "This is a great prompt again" },
+        output: { haha: "This is a great response again" },
+      })
+      .execute();
+
+    const variableMapping = variableMappingList.parse([
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "input",
+        templateVariable: "input",
+        objectName: "great-llm-name",
+      },
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "output",
+        templateVariable: "output",
+        objectName: "great-llm-name",
+      },
+    ]);
+
+    const result = await extractVariablesFromTrace(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      ["input", "output"],
+      traceId,
+      variableMapping
+    );
+
+    expect(result).toEqual([
+      {
+        value: '{"huhu":"This is a great prompt again"}',
+        var: "input",
+      },
+      {
+        value: '{"haha":"This is a great response again"}',
+        var: "output",
+      },
+    ]);
   }, 10_000);
 });
