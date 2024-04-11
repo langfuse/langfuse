@@ -66,18 +66,18 @@ export const EvalConfigForm = (props: {
       scoreName: props.existingEvalConfig?.scoreName ?? "",
       target: props.existingEvalConfig?.targetObject ?? "",
       filter: props.existingEvalConfig?.filter
-        ? z.array(singleFilter).parse(props.existingEvalConfig?.filter)
+        ? z.array(singleFilter).parse(props.existingEvalConfig.filter)
         : [],
       mapping: props.existingEvalConfig?.variableMapping
         ? z
             .array(variableMapping)
-            .parse(props.existingEvalConfig?.variableMapping)
+            .parse(props.existingEvalConfig.variableMapping)
         : z.array(variableMapping).parse([]),
       sampling: props.existingEvalConfig?.sampling
-        ? props.existingEvalConfig?.sampling.toNumber()
+        ? props.existingEvalConfig.sampling.toNumber()
         : 1,
       delay: props.existingEvalConfig?.delay
-        ? props.existingEvalConfig?.delay
+        ? props.existingEvalConfig.delay
         : 10,
     },
   });
