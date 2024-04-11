@@ -13,10 +13,9 @@ import {
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
-import { AlphaNumericUnderscoreString } from "@/src/utils/zod";
 
 export const CreateEvalTemplate = z.object({
-  name: AlphaNumericUnderscoreString,
+  name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
   model: EvalModelNames,
@@ -48,6 +47,9 @@ export const evalRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           jobType: "EVAL",
+        },
+        include: {
+          evalTemplate: true,
         },
         take: input.limit,
         skip: input.page * input.limit,
@@ -195,7 +197,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         evalTemplateId: z.string(),
-        scoreName: AlphaNumericUnderscoreString,
+        scoreName: z.string().min(1),
         target: z.string(),
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),

@@ -50,6 +50,11 @@ export const JobType = {
     EVAL: "EVAL"
 } as const;
 export type JobType = (typeof JobType)[keyof typeof JobType];
+export const JobConfigState = {
+    ACTIVE: "ACTIVE",
+    INACTIVE: "INACTIVE"
+} as const;
+export type JobConfigState = (typeof JobConfigState)[keyof typeof JobConfigState];
 export const JobExecutionStatus = {
     COMPLETED: "COMPLETED",
     ERROR: "ERROR",
@@ -170,6 +175,7 @@ export type JobConfiguration = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     job_type: JobType;
+    state: Generated<JobConfigState>;
     eval_template_id: string | null;
     score_name: string;
     filter: unknown;

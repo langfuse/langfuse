@@ -86,36 +86,9 @@ export function PopoverFilterBuilder({
           <Button variant="outline">
             <Filter className="mr-3 h-4 w-4" />
             <span>Filter</span>
-            {filterState.length > 0
-              ? filterState.map((filter, i) => {
-                  return (
-                    <span
-                      key={i}
-                      className="ml-3 whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs"
-                    >
-                      {filter.column}
-                      {filter.type === "stringObject" ||
-                      filter.type === "numberObject"
-                        ? `.${filter.key}`
-                        : ""}{" "}
-                      {filter.operator}{" "}
-                      {filter.type === "datetime"
-                        ? new Date(filter.value).toLocaleDateString()
-                        : filter.type === "stringOptions" ||
-                            filter.type === "arrayOptions"
-                          ? filter.value.length > 2
-                            ? `${filter.value.length} selected`
-                            : filter.value.join(", ")
-                          : filter.type === "number" ||
-                              filter.type === "numberObject"
-                            ? filter.value
-                            : filter.type === "boolean"
-                              ? `${filter.value}`
-                              : `"${filter.value}"`}
-                    </span>
-                  );
-                })
-              : null}
+            {filterState.length > 0 ? (
+              <InlineFilterState filterState={filterState} />
+            ) : null}
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -141,6 +114,38 @@ export function PopoverFilterBuilder({
       ) : null}
     </div>
   );
+}
+
+export function InlineFilterState({
+  filterState,
+}: {
+  filterState: FilterState;
+}) {
+  return filterState.map((filter, i) => {
+    return (
+      <span
+        key={i}
+        className="ml-3 whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs"
+      >
+        {filter.column}
+        {filter.type === "stringObject" || filter.type === "numberObject"
+          ? `.${filter.key}`
+          : ""}{" "}
+        {filter.operator}{" "}
+        {filter.type === "datetime"
+          ? new Date(filter.value).toLocaleDateString()
+          : filter.type === "stringOptions" || filter.type === "arrayOptions"
+            ? filter.value.length > 2
+              ? `${filter.value.length} selected`
+              : filter.value.join(", ")
+            : filter.type === "number" || filter.type === "numberObject"
+              ? filter.value
+              : filter.type === "boolean"
+                ? `${filter.value}`
+                : `"${filter.value}"`}
+      </span>
+    );
+  });
 }
 
 export function InlineFilterBuilder({
@@ -197,6 +202,7 @@ function FilterBuilderForm({
   };
 
   const addNewFilter = () => {
+    console.log("add new filter");
     onChange((prev) => [
       ...prev,
       {
@@ -430,6 +436,7 @@ function FilterBuilderForm({
       </table>
       <Button
         onClick={() => addNewFilter()}
+        type="button"
         className="mt-2"
         variant="ghost"
         size="sm"
@@ -437,9 +444,6 @@ function FilterBuilderForm({
         <Plus className="mr-2 h-4 w-4" />
         Add filter
       </Button>
-      {/* <pre>
-        <code>{JSON.stringify(filterState, null, 2)}</code>
-      </pre> */}
     </>
   );
 }

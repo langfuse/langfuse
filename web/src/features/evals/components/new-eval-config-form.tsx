@@ -101,6 +101,7 @@ export const NewEvalConfigForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("submitting", values);
     posthog.capture("models:new_template_form");
     if (!getSelectedEvalTemplate) {
       setFormError("Please select an eval template");
@@ -108,7 +109,7 @@ export const NewEvalConfigForm = (props: {
     }
 
     // validate wip variable mapping
-    const validatedVarMapping = z.array(variableMapping).parse(values.mapping);
+    // const validatedVarMapping = z.array(variableMapping).parse(values.mapping);
 
     createJobMutation
       .mutateAsync({
@@ -117,7 +118,7 @@ export const NewEvalConfigForm = (props: {
         scoreName: values.scoreName,
         target: values.target,
         filter: values.filter,
-        mapping: validatedVarMapping,
+        mapping: [],
         sampling: values.sampling,
       })
       .then(() => {
@@ -219,32 +220,29 @@ export const NewEvalConfigForm = (props: {
               )}
             />
           </Card>
-          <Card className="p-4">
-            <FormField
-              control={form.control}
-              name="filter"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Target filter</FormLabel>
-                  <FormControl>
-                    <div className="w-1/2">
-                      <InlineFilterBuilder
-                        columns={tracesTableColsWithOptions(
-                          traceFilterOptions.data,
-                        )}
-                        filterState={field.value ?? []}
-                        onChange={(value) => field.onChange(value)}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormDescription>
-                    This will run on all future and XX historical traces.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </Card>
+          <Card className="p-4"></Card>
+          <FormField
+            control={form.control}
+            name="filter"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Target filter</FormLabel>
+                <FormControl>
+                  <InlineFilterBuilder
+                    columns={tracesTableColsWithOptions(
+                      traceFilterOptions.data,
+                    )}
+                    filterState={field.value ?? []}
+                    onChange={(value) => field.onChange(value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  This will run on all future and XX historical traces.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <Card className="p-4">
             <FormLabel>Variable mapping</FormLabel>
