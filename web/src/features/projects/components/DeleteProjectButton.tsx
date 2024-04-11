@@ -23,6 +23,7 @@ import { useRouter } from "next/router";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import Header from "@/src/components/layouts/header";
 
 export function DeleteProjectButton(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -79,9 +80,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-6 text-base font-semibold leading-6 text-gray-900">
-        Danger Zone
-      </h2>
+      <Header title="Danger Zone" level="h3" />
       <Dialog>
         <DialogTrigger asChild>
           <Button variant="destructive" disabled={!hasAccess}>
