@@ -165,6 +165,73 @@ async function main() {
 
     await uploadObjects(traces, observations, scores, sessions, events);
 
+    // add eval objects
+    const evalTemplate = await prisma.evalTemplate.upsert({
+      where: {
+        projectId_name_version: {
+          projectId: project1.id,
+          name: "toxicity-template",
+          version: 1,
+        },
+      },
+      create: {
+        projectId: project1.id,
+        name: "toxicity-template",
+        version: 1,
+        prompt:
+          "Please evaluate the toxicity of the following text {{input}} {{output}}",
+        model: "gpt-3.5-turbo",
+        vars: ["input", "output"],
+        outputSchema: {
+          score: "provide a score between 0 and 1",
+          reasoning: "one sentence reasoning for the score",
+        },
+        modelParams: {
+          temperature: 0.7,
+          outputTokenLimit: 100,
+          topP: 0.9,
+        },
+      },
+      update: {},
+    });
+
+    await prisma.jobConfiguration.upsert({
+      where: {
+        id: "toxicity-job",
+      },
+      create: {
+        evalTemplateId: evalTemplate.id,
+        projectId: project1.id,
+        jobType: "EVAL",
+        status: "ACTIVE",
+        scoreName: "toxicity",
+        filter: [
+          {
+            type: "string",
+            value: "user",
+            column: "User ID",
+            operator: "contains",
+          },
+        ],
+        variableMapping: [
+          {
+            langfuseObject: "trace",
+            selectedColumnId: "input",
+            templateVariable: "input",
+          },
+          {
+            langfuseObject: "trace",
+            selectedColumnId: "output",
+            templateVariable: "output",
+          },
+        ],
+        targetObject: "trace",
+        sampling: 1,
+        delay: 5_000,
+      },
+      update: {},
+    });
+
     for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
       const dataset = await prisma.dataset.create({
         data: {

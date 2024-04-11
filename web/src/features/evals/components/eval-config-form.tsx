@@ -89,9 +89,7 @@ export const EvalConfigForm = (props: {
   });
 
   const getSelectedEvalTemplate = props.evalTemplates.find(
-    (template) =>
-      `${template.name}-${template.version}` ===
-      form.getValues().evalTemplateId,
+    (template) => template.id === form.getValues().evalTemplateId,
   );
 
   useEffect(() => {
@@ -121,6 +119,7 @@ export const EvalConfigForm = (props: {
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log("submitting", values);
     posthog.capture("models:new_template_form");
+
     if (!getSelectedEvalTemplate) {
       setFormError("Please select an eval template");
       return;
@@ -157,14 +156,7 @@ export const EvalConfigForm = (props: {
       });
   }
 
-  console.log(
-    `${props.existingEvalConfig?.evalTemplate.name}-${props.existingEvalConfig?.evalTemplate.version}`,
-  );
-
-  console.log("Eval templates");
-  props.evalTemplates.map((template) => {
-    console.log(`${template.name}-${template.version}`);
-  });
+  console.log(form.watch(), form.getValues());
   return (
     <Form {...form}>
       {JSON.stringify(form.watch(), null, 2)}
