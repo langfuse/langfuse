@@ -450,7 +450,7 @@ function FilterBuilderForm({
       {!disabled ? (
         <Button
           onClick={() => addNewFilter()}
-          type="button" // required as it will otherwise submit forms where this compnent is used
+          type="button" // required as it will otherwise submit forms where this component is used
           className="mt-2"
           variant="ghost"
           size="sm"
