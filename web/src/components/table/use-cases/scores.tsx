@@ -1,4 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
+import { IOCell } from "@/src/components/table/data-table-IOCell";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -43,6 +45,8 @@ export default function ScoresTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -163,6 +167,10 @@ export default function ScoresTable({
       accessorKey: "userId",
       header: "User ID",
       id: "userId",
+      headerTooltip: {
+        description: "The user ID associated with the trace.",
+        href: "https://langfuse.com/docs/tracing/users",
+      },
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -183,6 +191,10 @@ export default function ScoresTable({
       header: "Comment",
       id: "comment",
       enableHiding: true,
+      cell: ({ row }) => {
+        const value = row.getValue("comment") as ScoresTableRow["comment"];
+        return value !== undefined && <IOCell data={value} />;
+      },
     },
   ];
 
@@ -222,6 +234,8 @@ export default function ScoresTable({
         setFilterState={setUserFilterState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -249,6 +263,7 @@ export default function ScoresTable({
         setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );
