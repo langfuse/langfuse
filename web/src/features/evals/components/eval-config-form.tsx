@@ -26,12 +26,6 @@ import {
   JobConfiguration,
 } from "@langfuse/shared";
 import * as z from "zod";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -43,6 +37,7 @@ import {
 } from "@langfuse/shared";
 import router from "next/router";
 import { Slider } from "@/src/components/ui/slider";
+import { Card } from "@/src/components/ui/card";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -51,7 +46,7 @@ const formSchema = z.object({
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gte(0).lte(1),
-  delay: z.coerce.number().optional().default(10_000),
+  delay: z.coerce.number().optional().default(10),
 });
 
 export const EvalConfigForm = (props: {
@@ -83,7 +78,7 @@ export const EvalConfigForm = (props: {
         : 1,
       delay: props.existingEvalConfig?.delay
         ? props.existingEvalConfig?.delay
-        : 10_000,
+        : 10,
     },
   });
 
@@ -169,6 +164,7 @@ export const EvalConfigForm = (props: {
         filter: validatedFilter.data,
         mapping: validatedVarMapping.data,
         sampling: values.sampling,
+        delay: values.delay * 1000, // multiply by 1k to convert to ms
       })
       .then(() => {
         props.onFormSuccess?.();
@@ -242,9 +238,6 @@ export const EvalConfigForm = (props: {
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
-                <FormDescription>
-                  Optional score name, defaults to ABCDEFG
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -266,7 +259,6 @@ export const EvalConfigForm = (props: {
                       </TabsList>
                     </Tabs>
                   </FormControl>
-                  <FormDescription>Description</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -289,7 +281,7 @@ export const EvalConfigForm = (props: {
                     />
                   </FormControl>
                   <FormDescription>
-                    This will run on all future and XX historical traces.
+                    This will run on all future traces that match these filters
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -300,7 +292,7 @@ export const EvalConfigForm = (props: {
             <FormField
               control={form.control}
               name="mapping"
-              render={({ field }) => (
+              render={() => (
                 <>
                   <FormLabel>Variable mapping</FormLabel>
                   <FormControl>
@@ -422,7 +414,9 @@ export const EvalConfigForm = (props: {
                       </div>
                     ))}
                   </div>
-                  <FormDescription>Description </FormDescription>
+                  <FormDescription>
+                    Insert trace data into the prompt template.
+                  </FormDescription>
                   <FormMessage />
                 </>
               )}
@@ -445,9 +439,12 @@ export const EvalConfigForm = (props: {
                       onValueChange={(value) => field.onChange(value[0])}
                     />
                   </FormControl>
-                  <FormDescription className="flex justify-between">
-                    <span>0%</span>
-                    <span>100%</span>
+                  <FormDescription className="flex flex-col">
+                    <div className="flex justify-between">
+                      <span>0%</span>
+                      <span>100%</span>
+                    </div>
+                    Percentage of traces to evaluate.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -458,11 +455,14 @@ export const EvalConfigForm = (props: {
               name="delay"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Delay (ms)</FormLabel>
+                  <FormLabel>Delay (seconds)</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
-                  <FormDescription>Description </FormDescription>
+                  <FormDescription>
+                    Time between first Trace event and evaluation execution to
+                    ensure all Trace data is available
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
