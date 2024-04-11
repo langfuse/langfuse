@@ -127,7 +127,6 @@ export const EvalConfigForm = (props: {
         type: "manual",
         message: "Please select an eval template",
       });
-      console.log("no template selected");
       return;
     }
 
@@ -138,7 +137,6 @@ export const EvalConfigForm = (props: {
         type: "manual",
         message: "Please fill out all filter fields",
       });
-      console.log("no filter");
       return;
     }
 
@@ -151,7 +149,6 @@ export const EvalConfigForm = (props: {
         type: "manual",
         message: "Please fill out all variable mappings",
       });
-      console.log("no mapping");
       return;
     }
 
