@@ -41,8 +41,9 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
-import { IOCell } from "./IOCell";
+import { IOCell } from "../data-table-IOCell";
 import { setSmallPaginationIfColumnsVisible } from "../../../features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
 export type GenerationsTableRow = {
   id: string;
@@ -90,6 +91,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "generations",
+    "s",
+  );
 
   const [filterState, setFilterState] = useQueryFilterState(
     [
@@ -609,14 +615,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         }}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="ml-auto whitespace-nowrap"
-                size="sm"
-              >
+              <Button variant="outline" className="ml-auto whitespace-nowrap">
                 {filterState.length > 0 || searchQuery
                   ? "Export selection"
                   : "Export all"}{" "}
@@ -669,6 +673,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         orderBy={orderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
+        rowHeight={rowHeight}
       />
     </div>
   );

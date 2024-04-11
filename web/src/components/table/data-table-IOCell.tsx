@@ -5,11 +5,11 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import React from "react";
 
 export const IOCell = ({
-  isLoading,
   data,
+  isLoading = false,
 }: {
-  isLoading: boolean;
   data: unknown;
+  isLoading?: boolean;
 }) => {
   return (
     <>
@@ -18,7 +18,7 @@ export const IOCell = ({
       ) : (
         <JSONView
           json={data}
-          className="h-full w-[400px] overflow-y-auto rounded-sm"
+          className="h-full w-[400px] self-stretch overflow-y-auto rounded-sm "
           codeClassName="py-1 px-2"
         />
       )}

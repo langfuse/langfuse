@@ -70,14 +70,16 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         className="select-none"
         asChild
       >
-        <Button variant="outline" className="ml-auto">
-          Columns {count <= total ? `${count}/${total}` : ""}
+        <Button variant="outline">
+          <span className="hidden xl:mr-2 xl:inline-block">Columns</span>
+          {`${count}/${total}`}
           <ChevronDownIcon className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
         onPointerDownOutside={() => setIsOpen(false)}
+        className="max-h-96 overflow-y-auto"
       >
         {columns.map(
           (column, index) =>

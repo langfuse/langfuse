@@ -84,14 +84,14 @@ export function PopoverFilterBuilder({
       >
         <PopoverTrigger asChild>
           <Button variant="outline">
-            <Filter className="mr-3 h-4 w-4" />
-            <span>Filter</span>
+            <Filter className="h-4 w-4" />
+            <span className="hidden lg:ml-3 lg:inline">Filter</span>
             {filterState.length > 0
               ? filterState.map((filter, i) => {
                   return (
                     <span
                       key={i}
-                      className="ml-3 whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs"
+                      className="ml-3 hidden whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs lg:block"
                     >
                       {filter.column}
                       {filter.type === "stringObject" ||
@@ -116,6 +116,11 @@ export function PopoverFilterBuilder({
                   );
                 })
               : null}
+            {filterState.length > 0 && (
+              <span className="ml-3 rounded-md bg-slate-200 px-2 py-1 text-xs lg:hidden">
+                {filterState.length}
+              </span>
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent
