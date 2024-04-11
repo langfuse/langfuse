@@ -164,7 +164,9 @@ export function DatasetItemsTable({
         const expectedOutput = row.getValue(
           "expectedOutput",
         ) as RowData["expectedOutput"];
-        return !!expectedOutput ? <IOCell data={expectedOutput} /> : null;
+        return !!expectedOutput ? (
+          <IOCell data={expectedOutput} className="bg-green-50" />
+        ) : null;
       },
     },
     {
