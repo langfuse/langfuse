@@ -16,6 +16,7 @@ import { DB } from ".";
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
 const prismaClientSingleton = () => {
+  console.log("Creating new PrismaClient");
   return new PrismaClient({
     log:
       env.NODE_ENV === "development"
@@ -24,28 +25,32 @@ const prismaClientSingleton = () => {
   });
 };
 
+const kyselySingleton = (prismaClient: PrismaClient) => {
+  console.log("Creating new Kysely client");
+  return prismaClient.$extends(
+    kyselyExtension({
+      kysely: (driver) =>
+        new Kysely<DB>({
+          dialect: {
+            // This is where the magic happens!
+            createDriver: () => driver,
+            // Don't forget to customize these to match your database!
+            createAdapter: () => new PostgresAdapter(),
+            createIntrospector: (db) => new PostgresIntrospector(db),
+            createQueryCompiler: () => new PostgresQueryCompiler(),
+          },
+        }),
+    })
+  );
+};
 declare global {
   // eslint-disable-next-line no-var
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
+  var kyselyPrisma: undefined | ReturnType<typeof kyselySingleton>;
 }
 
 export const prisma = globalThis.prisma ?? prismaClientSingleton();
-
-export const kyselyPrisma = prisma.$extends(
-  kyselyExtension({
-    kysely: (driver) =>
-      new Kysely<DB>({
-        dialect: {
-          // This is where the magic happens!
-          createDriver: () => driver,
-          // Don't forget to customize these to match your database!
-          createAdapter: () => new PostgresAdapter(),
-          createIntrospector: (db) => new PostgresIntrospector(db),
-          createQueryCompiler: () => new PostgresQueryCompiler(),
-        },
-      }),
-  })
-);
+export const kyselyPrisma = globalThis.kyselyPrisma ?? kyselySingleton(prisma);
 
 export * from "@prisma/client";
 
