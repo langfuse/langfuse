@@ -3,6 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -39,12 +40,11 @@ export const EvalConfigDetail = () => {
     return <div>Config not found</div>;
   }
 
-  console.log(config.data);
-
   return (
     <div className="md:container">
       <Header
         title={config.data?.id ?? "Loading..."}
+        status={config.data?.status.toLowerCase()}
         help={{
           description:
             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",

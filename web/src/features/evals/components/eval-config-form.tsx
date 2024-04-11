@@ -26,7 +26,12 @@ import {
   JobConfiguration,
 } from "@langfuse/shared";
 import * as z from "zod";
-import { Card } from "@/src/components/ui/card";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
 import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -37,6 +42,7 @@ import {
   evalObjects,
 } from "@langfuse/shared";
 import router from "next/router";
+import { Slider } from "@/src/components/ui/slider";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -87,7 +93,7 @@ export const EvalConfigForm = (props: {
   });
 
   const getSelectedEvalTemplate = props.evalTemplates.find(
-    (template) => template.id === form.getValues().evalTemplateId,
+    (template) => template.id === form.watch("evalTemplateId"),
   );
 
   useEffect(() => {
@@ -99,6 +105,10 @@ export const EvalConfigForm = (props: {
           templateVariable: v,
           langfuseObject: "trace" as const,
         })),
+      );
+      form.setValue(
+        "scoreName",
+        `${getSelectedEvalTemplate?.name}-${getSelectedEvalTemplate?.version}`,
       );
     }
   }, [form, getSelectedEvalTemplate]);
@@ -115,16 +125,40 @@ export const EvalConfigForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("submitting", values);
     posthog.capture("models:new_template_form");
 
     if (!getSelectedEvalTemplate) {
-      setFormError("Please select an eval template");
+      form.setError("evalTemplateId", {
+        type: "manual",
+        message: "Please select an eval template",
+      });
+      console.log("no template selected");
       return;
     }
 
-    // validate wip variable mapping
-    const validatedVarMapping = z.array(variableMapping).parse(values.mapping);
+    const validatedFilter = z.array(singleFilter).safeParse(values.filter);
+
+    if (validatedFilter.success === false) {
+      form.setError("filter", {
+        type: "manual",
+        message: "Please fill out all filter fields",
+      });
+      console.log("no filter");
+      return;
+    }
+
+    const validatedVarMapping = z
+      .array(variableMapping)
+      .safeParse(values.mapping);
+
+    if (validatedVarMapping.success === false) {
+      form.setError("mapping", {
+        type: "manual",
+        message: "Please fill out all variable mappings",
+      });
+      console.log("no mapping");
+      return;
+    }
 
     createJobMutation
       .mutateAsync({
@@ -132,8 +166,8 @@ export const EvalConfigForm = (props: {
         evalTemplateId: getSelectedEvalTemplate.id,
         scoreName: values.scoreName,
         target: values.target,
-        filter: values.filter,
-        mapping: validatedVarMapping,
+        filter: validatedFilter.data,
+        mapping: validatedVarMapping.data,
         sampling: values.sampling,
       })
       .then(() => {
@@ -154,10 +188,8 @@ export const EvalConfigForm = (props: {
       });
   }
 
-  console.log(form.watch(), form.getValues());
   return (
     <Form {...form}>
-      {JSON.stringify(form.watch(), null, 2)}
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
@@ -217,13 +249,13 @@ export const EvalConfigForm = (props: {
               </FormItem>
             )}
           />
-          <Card className="p-4">
+          <Card className="flex flex-col gap-6 p-4">
             <FormField
               control={form.control}
               name="target"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Eval target object</FormLabel>
+                  <FormLabel>Target object</FormLabel>
                   <FormControl>
                     <Tabs defaultValue="trace">
                       <TabsList {...field}>
@@ -239,149 +271,164 @@ export const EvalConfigForm = (props: {
                 </FormItem>
               )}
             />
-          </Card>
-          <Card className="p-4"></Card>
-          <FormField
-            control={form.control}
-            name="filter"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Target filter</FormLabel>
-                <FormControl>
-                  <InlineFilterBuilder
-                    columns={tracesTableColsWithOptions(
-                      traceFilterOptions.data,
-                    )}
-                    filterState={field.value ?? []}
-                    onChange={(value) => field.onChange(value)}
-                    disabled={props.disabled}
-                  />
-                </FormControl>
-                <FormDescription>
-                  This will run on all future and XX historical traces.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
 
-          <Card className="p-4">
-            <FormLabel>Variable mapping</FormLabel>
-            <FormControl>Here will some variable mapping be added.</FormControl>
-            <div className="mt-2 flex flex-col gap-2">
-              {fields.map((mappingField, index) => (
-                <div className="flex gap-2" key={index}>
-                  <span className="whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs	">
-                    {mappingField.templateVariable}
-                  </span>
-                  <FormField
-                    control={form.control}
-                    key={`${mappingField.id}-langfuseObject`}
-                    name={`mapping.${index}.langfuseObject`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Select
-                            disabled={props.disabled}
-                            defaultValue={field.value}
-                            onValueChange={(value) => {
-                              field.onChange(value);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Object type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {evalObjects.map((evalObject) => (
-                                <SelectItem
-                                  value={evalObject.id}
-                                  key={evalObject.id}
-                                >
-                                  {evalObject.display}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {form.watch(`mapping.${index}.langfuseObject`) !== "trace" ? (
-                    <FormField
-                      control={form.control}
-                      key={`${mappingField.id}-objectName`}
-                      name={`mapping.${index}.objectName`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ""}
-                              disabled={props.disabled}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
+            <FormField
+              control={form.control}
+              name="filter"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Target filter</FormLabel>
+                  <FormControl>
+                    <InlineFilterBuilder
+                      columns={tracesTableColsWithOptions(
+                        traceFilterOptions.data,
                       )}
+                      filterState={field.value ?? []}
+                      onChange={(value) => field.onChange(value)}
+                      disabled={props.disabled}
                     />
-                  ) : undefined}
-
-                  <FormField
-                    control={form.control}
-                    key={`${mappingField.id}-selectedColumnId`}
-                    name={`mapping.${index}.selectedColumnId`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Select
-                            disabled={props.disabled}
-                            defaultValue={field.value ?? undefined}
-                            onValueChange={(value) => {
-                              const availableColumns = evalObjects.find(
-                                (evalObject) =>
-                                  evalObject.id ===
-                                  form.watch(`mapping.${index}.langfuseObject`),
-                              )?.availableColumns;
-                              const column = availableColumns?.find(
-                                (column) => column.name === value,
-                              );
-
-                              field.onChange(column?.id);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Object type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {evalObjects
-                                .find(
-                                  (evalObject) =>
-                                    evalObject.id ===
-                                    form.watch(
-                                      `mapping.${index}.langfuseObject`,
-                                    ),
-                                )
-                                ?.availableColumns.map((column) => (
-                                  <SelectItem value={column.id} key={column.id}>
-                                    {column.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              ))}
-            </div>
-            <FormDescription>Description </FormDescription>
-            <FormMessage />
+                  </FormControl>
+                  <FormDescription>
+                    This will run on all future and XX historical traces.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </Card>
-          <Card className="p-4">
+          <Card className=" p-4">
+            <FormField
+              control={form.control}
+              name="mapping"
+              render={({ field }) => (
+                <>
+                  <FormLabel>Variable mapping</FormLabel>
+                  <FormControl>
+                    Here will some variable mapping be added.
+                  </FormControl>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {fields.map((mappingField, index) => (
+                      <div className="flex gap-2" key={index}>
+                        <span className="whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs	">
+                          {mappingField.templateVariable}
+                        </span>
+                        <FormField
+                          control={form.control}
+                          key={`${mappingField.id}-langfuseObject`}
+                          name={`mapping.${index}.langfuseObject`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Select
+                                  disabled={props.disabled}
+                                  defaultValue={field.value}
+                                  onValueChange={(value) => {
+                                    field.onChange(value);
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Object type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {evalObjects.map((evalObject) => (
+                                      <SelectItem
+                                        value={evalObject.id}
+                                        key={evalObject.id}
+                                      >
+                                        {evalObject.display}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {form.watch(`mapping.${index}.langfuseObject`) !==
+                        "trace" ? (
+                          <FormField
+                            control={form.control}
+                            key={`${mappingField.id}-objectName`}
+                            name={`mapping.${index}.objectName`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    value={field.value ?? ""}
+                                    disabled={props.disabled}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : undefined}
+
+                        <FormField
+                          control={form.control}
+                          key={`${mappingField.id}-selectedColumnId`}
+                          name={`mapping.${index}.selectedColumnId`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Select
+                                  disabled={props.disabled}
+                                  defaultValue={field.value ?? undefined}
+                                  onValueChange={(value) => {
+                                    const availableColumns = evalObjects.find(
+                                      (evalObject) =>
+                                        evalObject.id ===
+                                        form.watch(
+                                          `mapping.${index}.langfuseObject`,
+                                        ),
+                                    )?.availableColumns;
+                                    const column = availableColumns?.find(
+                                      (column) => column.id === value,
+                                    );
+
+                                    field.onChange(column?.id);
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Object type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {evalObjects
+                                      .find(
+                                        (evalObject) =>
+                                          evalObject.id ===
+                                          form.watch(
+                                            `mapping.${index}.langfuseObject`,
+                                          ),
+                                      )
+                                      ?.availableColumns.map((column) => (
+                                        <SelectItem
+                                          value={column.id}
+                                          key={column.id}
+                                        >
+                                          {column.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <FormDescription>Description </FormDescription>
+                  <FormMessage />
+                </>
+              )}
+            />
+          </Card>
+          <Card className="flex flex-col gap-6 p-4">
             <FormField
               control={form.control}
               name="sampling"
@@ -389,7 +436,14 @@ export const EvalConfigForm = (props: {
                 <FormItem>
                   <FormLabel>Sampling</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Slider
+                      disabled={props.disabled}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={[field.value]}
+                      onValueChange={(value) => field.onChange(value[0])}
+                    />
                   </FormControl>
                   <FormDescription>Description </FormDescription>
                   <FormMessage />
