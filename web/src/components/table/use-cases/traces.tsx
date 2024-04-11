@@ -672,6 +672,7 @@ const TracesIOCell = ({
     <IOCell
       isLoading={trace.isLoading}
       data={io === "output" ? trace.data?.output : trace.data?.input}
+      className={cn(io === "output" && "bg-green-50")}
     />
   );
 };
