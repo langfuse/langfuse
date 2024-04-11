@@ -12,7 +12,8 @@ INSERT INTO models (
   tokenizer_config
 )
 VALUES
-  --https://ai.google.dev/models/gemini#model-variations
+  -- https://ai.google.dev/models/gemini#model-variations
+  -- https://cloud.google.com/vertex-ai/generative-ai/pricing
   ('cluv2sjeo000008ih0fv23hi0', NULL, 'gemini-1.0-pro-latest', '(?i)^(gemini-1.0-pro-latest)(@[a-zA-Z0-9]+)?$', NULL, 0.00000025, 0.0000005, NULL, 'CHARACTERS', NULL, NULL),
   -- stable versions priced differently
   -- https://developers.googleblog.com/2024/02/gemini-15-available-for-private-preview-in-google-ai-studio.html
