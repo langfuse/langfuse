@@ -68,7 +68,6 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
       header: "Filter",
       cell: (row) => {
         const node = row.getValue();
-        console.log(node);
         return <InlineFilterState filterState={node} />;
       },
     }),

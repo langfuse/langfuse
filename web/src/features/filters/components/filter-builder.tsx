@@ -227,7 +227,6 @@ function FilterBuilderForm({
     });
   };
 
-  console.log("disabled", disabled);
   return (
     <>
       <table className="table-auto">
