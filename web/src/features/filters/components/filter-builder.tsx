@@ -152,10 +152,12 @@ export function InlineFilterBuilder({
   columns,
   filterState,
   onChange,
+  disabled,
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
   onChange: Dispatch<SetStateAction<FilterState>>;
+  disabled?: boolean;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -179,6 +181,7 @@ export function InlineFilterBuilder({
         columns={columns}
         filterState={wipFilterState}
         onChange={setWipFilterState}
+        disabled={disabled}
       />
     </div>
   );
@@ -188,10 +191,12 @@ function FilterBuilderForm({
   columns,
   filterState,
   onChange,
+  disabled,
 }: {
   columns: ColumnDefinition[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
+  disabled?: boolean;
 }) {
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
@@ -202,7 +207,6 @@ function FilterBuilderForm({
   };
 
   const addNewFilter = () => {
-    console.log("add new filter");
     onChange((prev) => [
       ...prev,
       {
@@ -223,6 +227,7 @@ function FilterBuilderForm({
     });
   };
 
+  console.log("disabled", disabled);
   return (
     <>
       <table className="table-auto">
@@ -238,6 +243,7 @@ function FilterBuilderForm({
                   {/* selector of the column to be filtered */}
                   <Select
                     value={column ? column.id : ""}
+                    disabled={disabled}
                     onValueChange={(value) => {
                       handleFilterChange(
                         {
@@ -293,6 +299,7 @@ function FilterBuilderForm({
                       <Input
                         value={filter.key ?? ""}
                         placeholder="key"
+                        disabled={disabled}
                         onChange={(e) =>
                           handleFilterChange(
                             { ...filter, key: e.target.value },
@@ -305,7 +312,7 @@ function FilterBuilderForm({
                 </td>
                 <td className="p-1">
                   <Select
-                    disabled={!filter.column}
+                    disabled={!filter.column || disabled}
                     onValueChange={(value) => {
                       handleFilterChange(
                         {
@@ -336,6 +343,7 @@ function FilterBuilderForm({
                   {filter.type === "string" ||
                   filter.type === "stringObject" ? (
                     <Input
+                      disabled={disabled}
                       value={filter.value ?? ""}
                       placeholder="string"
                       onChange={(e) =>
@@ -349,6 +357,7 @@ function FilterBuilderForm({
                     filter.type === "numberObject" ? (
                     <Input
                       value={filter.value ?? undefined}
+                      disabled={disabled}
                       type="number"
                       step="0.01"
                       lang="en-US"
@@ -367,6 +376,7 @@ function FilterBuilderForm({
                   ) : filter.type === "datetime" ? (
                     <DatePicker
                       className="min-w-[100px]"
+                      disabled={disabled}
                       date={filter.value ? new Date(filter.value) : undefined}
                       onChange={(date) => {
                         handleFilterChange(
@@ -390,9 +400,11 @@ function FilterBuilderForm({
                         handleFilterChange({ ...filter, value }, i)
                       }
                       values={Array.isArray(filter.value) ? filter.value : []}
+                      disabled={disabled}
                     />
                   ) : filter.type === "boolean" ? (
                     <Select
+                      disabled={disabled}
                       onValueChange={(value) => {
                         handleFilterChange(
                           {
@@ -424,6 +436,7 @@ function FilterBuilderForm({
                   <Button
                     onClick={() => removeFilter(i)}
                     variant="ghost"
+                    disabled={disabled}
                     size="xs"
                   >
                     <X className="h-4 w-4" />
@@ -434,16 +447,18 @@ function FilterBuilderForm({
           })}
         </tbody>
       </table>
-      <Button
-        onClick={() => addNewFilter()}
-        type="button" // required as it will otherwise submit forms where this compnent is used
-        className="mt-2"
-        variant="ghost"
-        size="sm"
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        Add filter
-      </Button>
+      {!disabled ? (
+        <Button
+          onClick={() => addNewFilter()}
+          type="button" // required as it will otherwise submit forms where this compnent is used
+          className="mt-2"
+          variant="ghost"
+          size="sm"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add filter
+        </Button>
+      ) : null}
     </>
   );
 }

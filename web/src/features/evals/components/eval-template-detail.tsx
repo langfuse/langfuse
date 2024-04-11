@@ -1,6 +1,6 @@
 import * as React from "react";
 import Header from "@/src/components/layouts/header";
-import { EvalTemplateForm } from "@/src/features/evals/components/new-template-form";
+import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { PlaygroundProvider } from "@/src/features/playground/client/context";
 import { api } from "@/src/utils/api";
 import { EvalTemplate, evalModels } from "@langfuse/shared";

@@ -40,11 +40,13 @@ export function DatePicker({
   onChange,
   clearable = false,
   className,
+  disabled,
 }: {
   date?: Date | undefined;
   onChange: (date: Date | undefined) => void;
   clearable?: boolean;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-row gap-2 align-middle">
@@ -52,6 +54,7 @@ export function DatePicker({
         <PopoverTrigger asChild>
           <Button
             variant={"outline"}
+            disabled={disabled}
             className={cn(
               "justify-start text-left font-normal",
               !date && "text-muted-foreground",

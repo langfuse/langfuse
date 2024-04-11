@@ -20,8 +20,11 @@ import {
 } from "@/src/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { tracesTableColsWithOptions, singleFilter } from "@langfuse/shared";
-import { type FilterState } from "@langfuse/shared";
+import {
+  tracesTableColsWithOptions,
+  singleFilter,
+  JobConfiguration,
+} from "@langfuse/shared";
 import * as z from "zod";
 import { Card } from "@/src/components/ui/card";
 import { useEffect, useState } from "react";
@@ -34,6 +37,8 @@ import {
   evalObjects,
 } from "@langfuse/shared";
 import router from "next/router";
+import { jsonSchema } from "@/src/utils/zod";
+import Decimal from "decimal.js";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -45,23 +50,36 @@ const formSchema = z.object({
   delay: z.coerce.number().optional().default(10_000),
 });
 
-export const NewEvalConfigForm = (props: {
+export const EvalConfigForm = (props: {
   projectId: string;
   evalTemplates: EvalTemplate[];
+  disabled?: boolean;
+  existingEvalConfig?: JobConfiguration & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const posthog = usePostHog();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    disabled: props.disabled,
     defaultValues: {
-      evalTemplateId: "",
-      scoreName: undefined,
-      target: "trace",
-      filter: [] as FilterState,
-      mapping: [],
-      sampling: 1,
-      delay: 10_000,
+      evalTemplateId: props.existingEvalConfig?.evalTemplate.id ?? "",
+      scoreName: props.existingEvalConfig?.scoreName ?? "",
+      target: props.existingEvalConfig?.targetObject ?? "",
+      filter: props.existingEvalConfig?.filter
+        ? z.array(singleFilter).parse(props.existingEvalConfig?.filter)
+        : [],
+      mapping: props.existingEvalConfig?.variableMapping
+        ? z
+            .array(variableMapping)
+            .parse(props.existingEvalConfig?.variableMapping)
+        : z.array(variableMapping).parse([]),
+      sampling: props.existingEvalConfig?.sampling
+        ? props.existingEvalConfig?.sampling.toNumber()
+        : 1,
+      delay: props.existingEvalConfig?.delay
+        ? props.existingEvalConfig?.delay
+        : 10_000,
     },
   });
 
@@ -109,7 +127,7 @@ export const NewEvalConfigForm = (props: {
     }
 
     // validate wip variable mapping
-    // const validatedVarMapping = z.array(variableMapping).parse(values.mapping);
+    const validatedVarMapping = z.array(variableMapping).parse(values.mapping);
 
     createJobMutation
       .mutateAsync({
@@ -118,7 +136,7 @@ export const NewEvalConfigForm = (props: {
         scoreName: values.scoreName,
         target: values.target,
         filter: values.filter,
-        mapping: [],
+        mapping: validatedVarMapping,
         sampling: values.sampling,
       })
       .then(() => {
@@ -139,6 +157,14 @@ export const NewEvalConfigForm = (props: {
       });
   }
 
+  console.log(
+    `${props.existingEvalConfig?.evalTemplate.name}-${props.existingEvalConfig?.evalTemplate.version}`,
+  );
+
+  console.log("Eval templates");
+  props.evalTemplates.map((template) => {
+    console.log(`${template.name}-${template.version}`);
+  });
   return (
     <Form {...form}>
       {JSON.stringify(form.watch(), null, 2)}
@@ -161,16 +187,20 @@ export const NewEvalConfigForm = (props: {
                   }}
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger
+                      disabled={props.disabled}
+                      defaultValue={
+                        props.existingEvalConfig?.evalTemplate
+                          ? props.existingEvalConfig?.evalTemplate.id
+                          : undefined
+                      }
+                    >
                       <SelectValue placeholder="Select a model to run this eval template" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     {props.evalTemplates.map((template) => (
-                      <SelectItem
-                        value={`${template.name}-${template.version}`}
-                        key={template.id}
-                      >
+                      <SelectItem value={template.id} key={template.id}>
                         {`${template.name}-${template.version}`}
                       </SelectItem>
                     ))}
@@ -234,6 +264,7 @@ export const NewEvalConfigForm = (props: {
                     )}
                     filterState={field.value ?? []}
                     onChange={(value) => field.onChange(value)}
+                    disabled={props.disabled}
                   />
                 </FormControl>
                 <FormDescription>
@@ -403,13 +434,15 @@ export const NewEvalConfigForm = (props: {
           </Card>
         </div>
 
-        <Button
-          type="submit"
-          loading={createJobMutation.isLoading}
-          className="mt-3"
-        >
-          Save
-        </Button>
+        {!props.disabled ? (
+          <Button
+            type="submit"
+            loading={createJobMutation.isLoading}
+            className="mt-3"
+          >
+            Save
+          </Button>
+        ) : null}
       </form>
       {formError ? (
         <p className="text-red text-center">

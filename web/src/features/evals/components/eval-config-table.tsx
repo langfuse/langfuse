@@ -5,14 +5,13 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { RouterOutputs, api } from "@/src/utils/api";
 import { FilterState, singleFilter } from "@langfuse/shared";
-import { type JobConfiguration } from "@prisma/client";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
 
 export type EvalConfigRow = {
   id: string;
-  state: string;
+  status: string;
   createdAt: string;
   template?: string;
   scoreName: string;
@@ -48,7 +47,7 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
         ) : undefined;
       },
     }),
-    columnHelper.accessor("state", {
+    columnHelper.accessor("status", {
       id: "state",
       header: "State",
     }),
@@ -83,7 +82,7 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
   ): EvalConfigRow => {
     return {
       id: jobConfig.id,
-      state: jobConfig.state,
+      status: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
       template: jobConfig.evalTemplate
         ? `${jobConfig.evalTemplate.name} (v${jobConfig.evalTemplate.version})`

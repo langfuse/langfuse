@@ -67,6 +67,33 @@ export const evalRouter = createTRPCRouter({
       };
     }),
 
+  configById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:read",
+      });
+
+      const config = await ctx.prisma.jobConfiguration.findUnique({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+        include: {
+          evalTemplate: true,
+        },
+      });
+
+      return config;
+    }),
+
   allTemplatesForName: protectedProjectProcedure
     .input(
       z.object({
@@ -238,6 +265,7 @@ export const evalRouter = createTRPCRouter({
             variableMapping: input.mapping,
             sampling: input.sampling,
             delay: DEFAULT_TRACE_JOB_DELAY, // 10 seconds default
+            status: "ACTIVE",
           },
         });
         await auditLog({

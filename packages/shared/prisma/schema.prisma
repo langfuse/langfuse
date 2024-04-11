@@ -630,7 +630,7 @@ model JobConfiguration {
     project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
     jobType        JobType        @map("job_type")
-    state          JobConfigState @default(ACTIVE)
+    status         JobConfigState @default(ACTIVE)
     evalTemplateId String?        @map("eval_template_id")
     evalTemplate   EvalTemplate?  @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 

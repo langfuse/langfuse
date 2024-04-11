@@ -175,7 +175,7 @@ export type JobConfiguration = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     job_type: JobType;
-    state: Generated<JobConfigState>;
+    status: Generated<JobConfigState>;
     eval_template_id: string | null;
     score_name: string;
     filter: unknown;

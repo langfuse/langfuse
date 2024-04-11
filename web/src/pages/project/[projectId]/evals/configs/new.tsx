@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { NewEvalConfigForm } from "@/src/features/evals/components/new-eval-config-form";
+import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
 import { api } from "@/src/utils/api";
 
 import { useRouter } from "next/router";
@@ -24,7 +24,7 @@ export default function NewConfigsPage() {
           href: "https://langfuse.com/docs/scores",
         }}
       />
-      <NewEvalConfigForm
+      <EvalConfigForm
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}
       />
