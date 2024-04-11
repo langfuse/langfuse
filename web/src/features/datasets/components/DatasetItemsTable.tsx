@@ -13,13 +13,15 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { type DatasetItem, DatasetStatus } from "@langfuse/shared";
+import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { IOCell } from "@/src/components/table/data-table-IOCell";
 
 type RowData = {
   id: string;
@@ -29,8 +31,8 @@ type RowData = {
   };
   status: DatasetItem["status"];
   createdAt: string;
-  input: string;
-  expectedOutput: string;
+  input: Prisma.JsonValue;
+  expectedOutput: Prisma.JsonValue;
 };
 
 export function DatasetItemsTable({
@@ -47,6 +49,11 @@ export function DatasetItemsTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "datasetItems",
+    "s",
+  );
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
@@ -143,12 +150,22 @@ export function DatasetItemsTable({
       header: "Input",
       id: "input",
       enableHiding: true,
+      cell: ({ row }) => {
+        const input = row.getValue("input") as RowData["input"];
+        return !!input ? <IOCell data={input} /> : null;
+      },
     },
     {
       accessorKey: "expectedOutput",
       header: "Expected Output",
       id: "expectedOutput",
       enableHiding: true,
+      cell: ({ row }) => {
+        const expectedOutput = row.getValue(
+          "expectedOutput",
+        ) as RowData["expectedOutput"];
+        return !!expectedOutput ? <IOCell data={expectedOutput} /> : null;
+      },
     },
     {
       id: "actions",
@@ -193,16 +210,6 @@ export function DatasetItemsTable({
   const convertToTableRow = (
     item: RouterOutput["datasets"]["itemsByDatasetId"]["datasetItems"][number],
   ): RowData => {
-    let input = item.input ? JSON.stringify(item.input) : "";
-    input = input.length > 50 ? input.slice(0, 50) + "..." : input;
-    let expectedOutput = item.expectedOutput
-      ? JSON.stringify(item.expectedOutput)
-      : "";
-    expectedOutput =
-      expectedOutput.length > 50
-        ? expectedOutput.slice(0, 50) + "..."
-        : expectedOutput;
-
     return {
       id: item.id,
       source: item.sourceTraceId
@@ -213,8 +220,8 @@ export function DatasetItemsTable({
         : undefined,
       status: item.status,
       createdAt: item.createdAt.toLocaleString(),
-      input,
-      expectedOutput,
+      input: item.input,
+      expectedOutput: item.expectedOutput,
     };
   };
 
@@ -229,6 +236,8 @@ export function DatasetItemsTable({
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -258,6 +267,7 @@ export function DatasetItemsTable({
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );

@@ -27,7 +27,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
-import { IOCell } from "./IOCell";
+import { IOCell } from "../data-table-IOCell";
 import { setSmallPaginationIfColumnsVisible } from "@/src/features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -38,6 +38,7 @@ import {
   type ObservationLevel,
   type Score,
 } from "@langfuse/shared";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -191,6 +192,8 @@ export default function TracesTable({
       totalCost: trace.calculatedTotalCost ?? undefined,
     };
   };
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
@@ -591,19 +594,25 @@ export default function TracesTable({
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         actionButtons={
-          <TraceTableMultiSelectAction
-            // Exclude traces that are not in the current page
-            selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
-              traces.data?.traces.map((t) => t.id).includes(traceId),
-            )}
-            projectId={projectId}
-            onDeleteSuccess={() => {
-              setSelectedRows({});
-            }}
-          />
+          Object.keys(selectedRows).filter((traceId) =>
+            traces.data?.traces.map((t) => t.id).includes(traceId),
+          ).length > 0 ? (
+            <TraceTableMultiSelectAction
+              // Exclude traces that are not in the current page
+              selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
+                traces.data?.traces.map((t) => t.id).includes(traceId),
+              )}
+              projectId={projectId}
+              onDeleteSuccess={() => {
+                setSelectedRows({});
+              }}
+            />
+          ) : null
         }
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -634,6 +643,7 @@ export default function TracesTable({
         setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );
