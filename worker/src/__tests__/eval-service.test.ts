@@ -483,7 +483,7 @@ describe("test variable extraction", () => {
       },
     ]);
   }, 10_000);
-  test("extracts variables from a trace", async () => {
+  test("extracts variables from a observation", async () => {
     await pruneDatabase();
     const traceId = randomUUID();
 
@@ -540,6 +540,82 @@ describe("test variable extraction", () => {
       },
       {
         value: '{"haha":"This is a great response"}',
+        var: "output",
+      },
+    ]);
+  }, 10_000);
+
+  test("extracts variables from a youngest observation", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: { input: "This is a great prompt" },
+        output: { output: "This is a great response" },
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: randomUUID(),
+        trace_id: traceId,
+        name: "great-llm-name",
+        start_time: new Date("2022-01-01T00:00:00.000Z"),
+        type: sql`'GENERATION'::"ObservationType"`,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        input: { huhu: "This is a great prompt" },
+        output: { haha: "This is a great response" },
+      })
+      .execute();
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: randomUUID(),
+        trace_id: traceId,
+        name: "great-llm-name",
+        start_time: new Date("2022-01-02T00:00:00.000Z"),
+        type: sql`'GENERATION'::"ObservationType"`,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        input: { huhu: "This is a great prompt again" },
+        output: { haha: "This is a great response again" },
+      })
+      .execute();
+
+    const variableMapping = variableMappingList.parse([
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "input",
+        templateVariable: "input",
+        objectName: "great-llm-name",
+      },
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "output",
+        templateVariable: "output",
+        objectName: "great-llm-name",
+      },
+    ]);
+
+    const result = await extractVariablesFromTrace(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      ["input", "output"],
+      traceId,
+      variableMapping
+    );
+
+    expect(result).toEqual([
+      {
+        value: '{"huhu":"This is a great prompt again"}',
+        var: "input",
+      },
+      {
+        value: '{"haha":"This is a great response again"}',
         var: "output",
       },
     ]);

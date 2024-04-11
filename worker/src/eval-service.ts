@@ -377,7 +377,7 @@ export async function extractVariablesFromTrace(
         .where("trace_id", "=", traceId)
         .where("project_id", "=", projectId)
         .where("name", "=", mapping.objectName)
-        .orderBy("created_at", "desc")
+        .orderBy("start_time", "desc")
         .executeTakeFirstOrThrow();
 
       mappingResult.push({
