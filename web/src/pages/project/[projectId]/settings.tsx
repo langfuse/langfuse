@@ -132,8 +132,8 @@ const Beta = () => {
           className="mb-4 w-32"
         />
         <p className="mb-4 text-sm text-gray-700">
-          We've teamed up with PostHog (OSS product analytics) to make Langfuse
-          Events/Metrics available in your Posthog Dashboards.
+          We have teamed up with PostHog (OSS product analytics) to make
+          Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
           <Button asChild variant="secondary">
