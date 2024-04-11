@@ -154,6 +154,7 @@ export const EvalConfigForm = (props: {
       });
   }
 
+  console.log(form.watch(), form.getValues());
   return (
     <Form {...form}>
       {JSON.stringify(form.watch(), null, 2)}
@@ -281,16 +282,10 @@ export const EvalConfigForm = (props: {
                       <FormItem>
                         <FormControl>
                           <Select
-                            defaultValue={
-                              evalObjects.find(
-                                (evalObject) => evalObject.id === field.value,
-                              )?.display
-                            }
+                            disabled={props.disabled}
+                            defaultValue={field.value}
                             onValueChange={(value) => {
-                              const obj = evalObjects.find(
-                                (evalObject) => evalObject.display === value,
-                              );
-                              field.onChange(obj?.id);
+                              field.onChange(value);
                             }}
                           >
                             <SelectTrigger>
@@ -299,7 +294,7 @@ export const EvalConfigForm = (props: {
                             <SelectContent>
                               {evalObjects.map((evalObject) => (
                                 <SelectItem
-                                  value={evalObject.display}
+                                  value={evalObject.id}
                                   key={evalObject.id}
                                 >
                                   {evalObject.display}
@@ -321,7 +316,11 @@ export const EvalConfigForm = (props: {
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Input {...field} value={field.value ?? ""} />
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              disabled={props.disabled}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -337,14 +336,8 @@ export const EvalConfigForm = (props: {
                       <FormItem>
                         <FormControl>
                           <Select
-                            defaultValue={
-                              field.value
-                                ? evalObjects.find(
-                                    (evalObject) =>
-                                      evalObject.id === field.value,
-                                  )?.availableColumns[0].name ?? "N/A"
-                                : "N/A"
-                            }
+                            disabled={props.disabled}
+                            defaultValue={field.value ?? undefined}
                             onValueChange={(value) => {
                               const availableColumns = evalObjects.find(
                                 (evalObject) =>
@@ -371,10 +364,7 @@ export const EvalConfigForm = (props: {
                                     ),
                                 )
                                 ?.availableColumns.map((column) => (
-                                  <SelectItem
-                                    value={column.name}
-                                    key={column.id}
-                                  >
+                                  <SelectItem value={column.id} key={column.id}>
                                     {column.name}
                                   </SelectItem>
                                 ))}

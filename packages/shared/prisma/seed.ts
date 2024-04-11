@@ -200,6 +200,7 @@ async function main() {
         id: "toxicity-job",
       },
       create: {
+        id: "toxicity-job",
         evalTemplateId: evalTemplate.id,
         projectId: project1.id,
         jobType: "EVAL",
@@ -221,7 +222,7 @@ async function main() {
           },
           {
             langfuseObject: "trace",
-            selectedColumnId: "output",
+            selectedColumnId: "metadata",
             templateVariable: "output",
           },
         ],
