@@ -11,6 +11,10 @@ import { HostNameProject } from "@/src/features/projects/components/HostNameProj
 import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
 import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 import RenameProject from "@/src/features/projects/components/RenameProject";
+import { env } from "@/src/env.mjs";
+import { Card } from "@tremor/react";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -24,6 +28,7 @@ export default function SettingsPage() {
         <HostNameProject />
         <ApiKeyList projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
+        <Beta />
         <Instructions />
         <div className="space-y-3">
           <DeleteProjectButton projectId={projectId} />
@@ -78,9 +83,7 @@ const instructionItems = [
 function Instructions() {
   return (
     <div>
-      <h2 className="text-base font-semibold leading-6 text-gray-900">
-        Integrate langfuse
-      </h2>
+      <Header title="Docs" level="h3" />
       <ul
         role="list"
         className="mt-6 divide-y divide-gray-200 border-b border-t border-gray-200"
@@ -115,3 +118,38 @@ function Instructions() {
     </div>
   );
 }
+
+const Beta = () => {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+
+  return (
+    <div>
+      <Header title="Early Access" level="h3" />
+      <Card className="p-4 lg:w-1/2">
+        <img
+          src="/images/posthog-logo.svg"
+          alt="Posthog Logo"
+          className="mb-4 w-32"
+        />
+        <p className="mb-4 text-sm text-gray-700">
+          We've teamed up with PostHog (OSS product analytics) to make Langfuse
+          Events/Metrics available in your Posthog Dashboards.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="secondary">
+            <Link
+              href={`mailto:early-access@langfuse.com?subject=I%20am%20interested%20in%20the%20Langfuse%3C%3EPosthog%20Integration&body=%23%23%20Please%20fill%20in%20the%20following%20details%20to%20help%20us%20set%20up%20the%20integration%20for%20you.%20These%20settings%20will%20be%20available%20within%20Langfuse%20once%20this%20integration%20is%20generally%20available.%0A%0ALangfuse%20Project%3A%20${encodeURIComponent(window.location.href.replace("/settings", ""))}%0APostHog%20Host%20(EU%2C%20US%20or%20self-hosted)%3A%0APostHog%20Key%20(starting%20with%20%22phc_%22)%3A%0A%0A%0A%23%23%20Do%20you%20prefer%20to%20set%20this%20up%20via%20a%20short%20call%20or%20async%20via%20email%3F%0A%0A%0A%0A%23%23%20Any%20Questions%3F%0A%0A%0A%0A%23%23%20Links%20to%20docs%0A%0Ahttps%3A%2F%2Flangfuse.com%2Fdocs%2Fanalytics%2Fposthog%0Ahttps%3A%2F%2Fposthog.com%2Fdocs%2Fproduct-analytics%2Fllms%0A`}
+            >
+              Request Access (Email)
+            </Link>
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="https://langfuse.com/docs/analytics/posthog">
+              Integration Docs
+            </Link>
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
