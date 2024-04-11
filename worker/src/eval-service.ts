@@ -45,6 +45,11 @@ export const createEvalJobs = async ({
   logger.info("Creating eval jobs for trace", data.data.traceId);
 
   for (const config of configs) {
+    if (config.status === "INACTIVE") {
+      logger.info(`Skipping inactive config ${config.id}`);
+      continue;
+    }
+
     logger.info("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 

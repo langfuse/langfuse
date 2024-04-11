@@ -72,6 +72,53 @@ describe("create eval jobs", () => {
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
+  test("does not create job for inactive config", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      })
+      .execute();
+
+    await prisma.jobConfiguration.create({
+      data: {
+        id: randomUUID(),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        filter: JSON.parse("[]"),
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: "traces",
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+        status: "INACTIVE",
+      },
+    });
+
+    const payload = {
+      timestamp: "2022-01-01T00:00:00.000Z",
+      id: "abc",
+      data: {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        traceId: traceId,
+      },
+    };
+
+    await createEvalJobs({ data: payload });
+
+    const jobs = await kyselyPrisma.$kysely
+      .selectFrom("job_executions")
+      .selectAll()
+      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+      .execute();
+
+    expect(jobs.length).toBe(0);
+  }, 10_000);
+
   test("does not create eval job for existing job execution", async () => {
     await pruneDatabase();
     const traceId = randomUUID();
