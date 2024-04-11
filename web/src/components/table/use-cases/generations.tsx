@@ -29,7 +29,7 @@ import {
 } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type ObservationLevel } from "@langfuse/shared";
+import { type Prisma, type ObservationLevel } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -63,7 +63,7 @@ export type GenerationsTableRow = {
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  metadata?: string;
+  metadata?: Prisma.JsonValue;
   scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
@@ -516,8 +516,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
-        const values: string | undefined = row.getValue("metadata");
-        return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
+        const values = row.getValue(
+          "metadata",
+        ) as GenerationsTableRow["metadata"];
+        return !!values ? <IOCell data={values} /> : null;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -583,9 +585,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           model: generation.model ?? "",
           scores: generation.scores,
           level: generation.level,
-          metadata: generation.metadata
-            ? JSON.stringify(generation.metadata)
-            : undefined,
+          metadata: generation.metadata,
           statusMessage: generation.statusMessage ?? undefined,
           usage: {
             promptTokens: generation.promptTokens,
