@@ -436,7 +436,7 @@ function FilterBuilderForm({
       </table>
       <Button
         onClick={() => addNewFilter()}
-        type="button"
+        type="button" // required as it will otherwise submit forms where this compnent is used
         className="mt-2"
         variant="ghost"
         size="sm"
