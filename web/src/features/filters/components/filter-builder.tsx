@@ -26,6 +26,7 @@ import {
   singleFilter,
 } from "@langfuse/shared";
 import { NonEmptyString } from "@/src/utils/zod";
+import { cn } from "@/src/utils/tailwind";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -85,13 +86,13 @@ export function PopoverFilterBuilder({
         <PopoverTrigger asChild>
           <Button variant="outline">
             <Filter className="h-4 w-4" />
-            <span className="hidden lg:ml-3 lg:inline">Filter</span>
-            {filterState.length > 0
+            <span className="hidden lg:ml-2 lg:inline">Filter</span>
+            {filterState.length > 0 && filterState.length < 3
               ? filterState.map((filter, i) => {
                   return (
                     <span
                       key={i}
-                      className="ml-3 hidden whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs lg:block"
+                      className="ml-2 hidden whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs lg:block"
                     >
                       {filter.column}
                       {filter.type === "stringObject" ||
@@ -117,7 +118,12 @@ export function PopoverFilterBuilder({
                 })
               : null}
             {filterState.length > 0 && (
-              <span className="ml-3 rounded-md bg-slate-200 px-2 py-1 text-xs lg:hidden">
+              <span
+                className={cn(
+                  "ml-3 rounded-md bg-slate-200 px-2 py-1 text-xs lg:hidden",
+                  filterState.length > 2 && "lg:inline",
+                )}
+              >
                 {filterState.length}
               </span>
             )}

@@ -80,7 +80,7 @@ export function DataTableToolbar<TData, TValue>({
           onChange={setFilterState}
         />
       )}
-      <div className="ml-auto flex flex-row flex-wrap gap-2">
+      <div className="flex flex-row flex-wrap gap-2 lg:ml-auto">
         {!!columnVisibility && !!setColumnVisibility && (
           <DataTableColumnVisibilityFilter
             columns={columns}
