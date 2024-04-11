@@ -126,6 +126,7 @@ const Beta = () => {
     <div>
       <Header title="Early Access" level="h3" />
       <Card className="p-4 lg:w-1/2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/images/posthog-logo.svg"
           alt="Posthog Logo"
