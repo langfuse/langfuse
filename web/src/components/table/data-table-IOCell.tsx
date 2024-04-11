@@ -7,9 +7,11 @@ import React from "react";
 export const IOCell = ({
   data,
   isLoading = false,
+  className,
 }: {
   data: unknown;
   isLoading?: boolean;
+  className?: string;
 }) => {
   return (
     <>
@@ -18,7 +20,10 @@ export const IOCell = ({
       ) : (
         <JSONView
           json={data}
-          className="h-full w-[400px] self-stretch overflow-y-auto rounded-sm "
+          className={cn(
+            "h-full w-[400px] self-stretch overflow-y-auto rounded-sm ",
+            className,
+          )}
           codeClassName="py-1 px-2"
         />
       )}

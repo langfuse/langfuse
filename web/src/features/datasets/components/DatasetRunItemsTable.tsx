@@ -15,6 +15,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { cn } from "@/src/utils/tailwind";
 
 type RowData = {
   id: string;
@@ -310,6 +311,7 @@ const TraceObservationIOCell = ({
     <IOCell
       isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
       data={io === "output" ? data?.output : data?.input}
+      className={cn(io === "output" && "bg-green-50")}
     />
   );
 };
