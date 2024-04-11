@@ -3,7 +3,6 @@ import Header from "@/src/components/layouts/header";
 import { RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Button } from "@/src/components/ui/button";
 import { Pencil } from "lucide-react";
@@ -96,7 +95,7 @@ export function DeactivateConfig({
 
   const mutEvalConfig = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
-      void utils.sessions.invalidate();
+      void utils.evals.invalidate();
     },
   });
 
@@ -115,7 +114,7 @@ export function DeactivateConfig({
           variant="ghost"
           size={"sm"}
           onClick={() => void onClick()}
-          disabled={!hasAccess}
+          disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
         >
           <Pencil className="h-5 w-5" />
