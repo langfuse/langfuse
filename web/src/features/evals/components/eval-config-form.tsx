@@ -37,8 +37,6 @@ import {
   evalObjects,
 } from "@langfuse/shared";
 import router from "next/router";
-import { jsonSchema } from "@/src/utils/zod";
-import Decimal from "decimal.js";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -156,7 +154,6 @@ export const EvalConfigForm = (props: {
       });
   }
 
-  console.log(form.watch(), form.getValues());
   return (
     <Form {...form}>
       {JSON.stringify(form.watch(), null, 2)}
