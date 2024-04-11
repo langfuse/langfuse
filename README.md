@@ -60,12 +60,6 @@
   - Datasets let you test expected in and output pairs and benchmark performance before deploying ([Datasets](https://langfuse.com/docs/datasets))
   - Track versions and releases in your application ([Experimentation](https://langfuse.com/docs/experimentation), [Prompt Management](https://langfuse.com/docs/prompts))
 
-### Video: Langfuse in two minutes
-
-https://github.com/langfuse/langfuse/assets/2834609/6041347a-b517-4a11-8737-93ef8f8af49f
-
-_Muted by default, enable sound for voice-over_
-
 ## Get started
 
 ### Langfuse Cloud
