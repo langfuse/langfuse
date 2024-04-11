@@ -15,6 +15,7 @@ import {
 } from "@/src/components/ui/form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import Header from "@/src/components/layouts/header";
 
 export default function RenameProject(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -59,9 +60,7 @@ export default function RenameProject(props: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
-        Project Name
-      </h2>
+      <Header title="Project Name" level="h3" />
       <Card className="mb-4 p-4">
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-gray-700">
