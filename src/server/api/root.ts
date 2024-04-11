@@ -12,6 +12,7 @@ import { environmentRouter } from "@/src/server/api/routers/environment";
 import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
+import { keyAnalyticsRouter } from '@/src/features/key_analytics/server/analytics_router';
 
 /**
  * This is the primary router for your server.
@@ -32,6 +33,7 @@ export const appRouter = createTRPCRouter({
   environment: environmentRouter,
   usageMetering: usageMeteringRouter,
   observations: observationsRouter,
+  keyAnalytics: keyAnalyticsRouter,
 });
 
 // export type definition of API

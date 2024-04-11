@@ -25,6 +25,11 @@ export const ROUTES: Array<{
     icon: LayoutDashboard,
   },
   {
+    name: "Analytics",
+    pathname: `/project/[projectId]/analytics`,
+    icon: LineChart,
+  },
+  {
     name: "Sessions",
     pathname: `/project/[projectId]/sessions`,
     icon: Route,
