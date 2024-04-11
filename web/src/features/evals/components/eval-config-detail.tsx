@@ -1,9 +1,18 @@
 import * as React from "react";
 import Header from "@/src/components/layouts/header";
-import { api } from "@/src/utils/api";
+import { RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Button } from "@/src/components/ui/button";
+import { Pencil } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { useState } from "react";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -50,6 +59,13 @@ export const EvalConfigDetail = () => {
             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
           href: "https://langfuse.com/docs/scores",
         }}
+        actionButtons={
+          <DeactivateConfig
+            projectId={projectId}
+            config={config.data ?? undefined}
+            isLoading={config.isLoading}
+          />
+        }
       />
       <EvalConfigForm
         projectId={projectId}
@@ -64,3 +80,71 @@ export const EvalConfigDetail = () => {
     </div>
   );
 };
+
+export function DeactivateConfig({
+  projectId,
+  config,
+  isLoading,
+}: {
+  projectId: string;
+  config?: RouterOutputs["evals"]["configById"];
+  isLoading: boolean;
+}) {
+  const utils = api.useUtils();
+  const hasAccess = useHasAccess({ projectId, scope: "job:CUD" });
+  const [isOpen, setIsOpen] = useState(false);
+
+  const mutEvalConfig = api.evals.updateEvalJob.useMutation({
+    onSuccess: () => {
+      void utils.sessions.invalidate();
+    },
+  });
+
+  const onClick = () => {
+    mutEvalConfig.mutateAsync({
+      projectId,
+      evalConfigId: config?.id ?? "",
+      updatedStatus: "INACTIVE",
+    });
+  };
+
+  return (
+    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size={"sm"}
+          onClick={() => void onClick()}
+          disabled={!hasAccess}
+          loading={isLoading}
+        >
+          <Pencil className="h-5 w-5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent>
+        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <p className="mb-3 text-sm">
+          This action permanently deactivates the evaluation job. No more traces
+          will be evaluated for this job.
+        </p>
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            variant="destructive"
+            loading={mutEvalConfig.isLoading}
+            onClick={() => {
+              if (!projectId) {
+                console.error("Project ID is missing");
+                return;
+              }
+              void onClick();
+              setIsOpen(false);
+            }}
+          >
+            Deactivate Eval Job
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}

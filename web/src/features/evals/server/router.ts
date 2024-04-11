@@ -237,7 +237,7 @@ export const evalRouter = createTRPCRouter({
         throwIfNoAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "job:create",
+          scope: "job:CUD",
         });
 
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
@@ -316,5 +316,38 @@ export const evalRouter = createTRPCRouter({
         action: "create",
       });
       return evalTemplate;
+    }),
+
+  updateEvalJob: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evalConfigId: z.string(),
+        updatedStatus: z.enum(["ACTIVE", "INACTIVE"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:CUD",
+      });
+
+      await ctx.prisma.jobConfiguration.update({
+        where: {
+          id: input.evalConfigId,
+          projectId: input.projectId,
+        },
+        data: {
+          status: input.updatedStatus,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "job",
+        resourceId: input.evalConfigId,
+        action: "update",
+      });
     }),
 });
