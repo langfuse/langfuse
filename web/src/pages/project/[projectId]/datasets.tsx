@@ -1,7 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 
 export default function Traces() {
   const router = useRouter();

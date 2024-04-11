@@ -3,8 +3,8 @@ import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { PlaygroundProvider } from "@/src/features/playground/client/context";
 import { api } from "@/src/utils/api";
-import { EvalTemplate, evalModels } from "@langfuse/shared";
-import router, { useRouter } from "next/router";
+import { type EvalTemplate, evalModels } from "@langfuse/shared";
+import { useRouter } from "next/router";
 import {
   Select,
   SelectContent,
