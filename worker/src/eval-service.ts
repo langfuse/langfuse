@@ -104,6 +104,7 @@ export const createEvalJobs = async ({
           job_configuration_id: config.id,
           job_input_trace_id: data.data.traceId,
           status: sql`'PENDING'::"JobExecutionStatus"`,
+          start_time: new Date(),
         })
         .execute();
 
@@ -140,6 +141,7 @@ export const createEvalJobs = async ({
         await kyselyPrisma.$kysely
           .updateTable("job_executions")
           .set("status", sql`'CANCELLED'::"JobExecutionStatus"`)
+          .set("end_time", new Date())
           .where("id", "=", existingJob[0].id)
           .execute();
       }
