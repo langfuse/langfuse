@@ -249,7 +249,7 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            ghcr.io/langfuse # GitHub
+            ghcr.io/langfuse/langfuse # GitHub
             langfuse/langfuse # Docker Hub
           tags: |
             type=ref,event=branch
@@ -273,7 +273,7 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            ghcr.io/langfuse-worker # GitHub
+            ghcr.io/langfuse/langfuse-worker # GitHub
             langfuse/langfuse-worker # Docker Hub
           tags: |
             type=ref,event=branch
