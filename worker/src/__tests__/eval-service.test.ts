@@ -9,8 +9,6 @@ import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
-import logger from "../logger";
-import { extractRequestData } from "@sentry/node";
 import { variableMappingList } from "@langfuse/shared";
 
 vi.mock("../redis/consumer", () => ({
