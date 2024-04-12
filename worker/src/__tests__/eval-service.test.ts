@@ -76,6 +76,7 @@ describe("create eval jobs", () => {
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
     expect(jobs[0].status.toString()).toBe("PENDING");
+    expect(jobs[0].start_time).not.toBeNull();
   }, 10_000);
 
   test("does not create job for inactive config", async () => {
@@ -173,6 +174,8 @@ describe("create eval jobs", () => {
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
     expect(jobs[0].status.toString()).toBe("PENDING");
+    expect(jobs[0].start_time).not.toBeNull();
+    expect(jobs[0].end_time).to.be.null;
   }, 10_000);
 
   test("cancels a job if the second event deselects", async () => {
@@ -241,6 +244,8 @@ describe("create eval jobs", () => {
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
     expect(jobs[0].status.toString()).toBe("CANCELLED");
+    expect(jobs[0].start_time).not.toBeNull();
+    expect(jobs[0].end_time).not.toBeNull();
   }, 10_000);
 });
 
@@ -335,6 +340,8 @@ describe("execute evals", () => {
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
     expect(jobs[0].status.toString()).toBe("COMPLETED");
+    expect(jobs[0].start_time).not.toBeNull();
+    expect(jobs[0].end_time).not.toBeNull();
 
     const scores = await kyselyPrisma.$kysely
       .selectFrom("scores")
