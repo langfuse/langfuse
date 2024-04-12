@@ -74,7 +74,7 @@
     "@trpc/server": "^10.45.0",
     "@uiw/codemirror-theme-github": "^4.21.25",
     "@uiw/react-codemirror": "^4.21.25",
-    "ai": "^3.0.21",
+    "ai": "^3.0.22",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -114,7 +114,7 @@
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
     "@mermaid-js/mermaid-cli": "^10.7.0",
-    "@playwright/test": "^1.43.0",
+    "@playwright/test": "^1.43.1",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.2",
     "@types/bcryptjs": "^2.4.6",
