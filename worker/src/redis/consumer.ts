@@ -57,8 +57,9 @@ export const evalJobCreator = redis
       {
         connection: redis,
         limiter: {
-          max: 100,
-          duration: 10_000,
+          // execute 100 calls in 1000ms
+          max: 50,
+          duration: 1000,
         },
       }
     )
@@ -91,8 +92,9 @@ export const evalJobExecutor = redis
       {
         connection: redis,
         limiter: {
-          max: 10,
-          duration: 30_000,
+          // execute 20 llm calls in 5 seconds
+          max: 20,
+          duration: 5_000,
         },
       }
     )
