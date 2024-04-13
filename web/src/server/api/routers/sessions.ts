@@ -163,8 +163,12 @@ export const sessionRouter = createTRPCRouter({
               orderBy: {
                 timestamp: "asc",
               },
-              include: {
+              select: {
+                id: true,
+                userId: true,
                 scores: true,
+                name: true,
+                timestamp: true,
               },
             },
           },

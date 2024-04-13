@@ -102,7 +102,7 @@ export const SessionPage: React.FC<{
             key={trace.id}
           >
             <div className="col-span-2 flex flex-col gap-2 p-0">
-              {trace.input || trace.output ? (
+              {/* {trace.input || trace.output ? (
                 <IOPreview
                   key={trace.id}
                   input={trace.input}
@@ -113,7 +113,7 @@ export const SessionPage: React.FC<{
                 <div className="p-2 text-xs text-gray-500">
                   This trace has no input or output.
                 </div>
-              )}
+              )} */}
             </div>
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
