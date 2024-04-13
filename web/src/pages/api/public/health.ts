@@ -10,18 +10,17 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
   await telemetry();
-  const failIfNoEventsInLastMinute =
-    req.query.failIfNoEventsInLastMinute === "true";
+  const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
 
   try {
     await prisma.$queryRaw`SELECT 1;`;
 
-    if (failIfNoEventsInLastMinute) {
+    if (failIfNoRecentEvents) {
       const now = Date.now();
       const trace = await prisma.trace.findFirst({
         where: {
           timestamp: {
-            gte: new Date(now - 60000),
+            gte: new Date(now - 180000), // 3 minutes ago
             lte: new Date(now),
           },
         },
@@ -32,7 +31,7 @@ export default async function handler(
       const observation = await prisma.observation.findFirst({
         where: {
           startTime: {
-            gte: new Date(now - 60000),
+            gte: new Date(now - 180000), // 3 minutes ago
             lte: new Date(now),
           },
         },
@@ -48,7 +47,7 @@ export default async function handler(
               : !!!observation
                 ? "observations"
                 : "<should not happen>"
-          } within the last minute`,
+          } within the last 3 minutes`,
           version: VERSION.replace("v", ""),
         });
       }
