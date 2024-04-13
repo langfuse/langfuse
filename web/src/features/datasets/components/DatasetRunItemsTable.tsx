@@ -9,13 +9,13 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { type Score } from "@langfuse/shared";
 import { usdFormatter } from "../../../utils/numbers";
-import { IOTableCell } from "@/src/components/ui/IOCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 type RowData = {
   id: string;
