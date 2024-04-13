@@ -4,6 +4,7 @@ import { NoAccessError } from "@/src/components/no-access";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
+import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
@@ -101,20 +102,7 @@ export const SessionPage: React.FC<{
             className="border-border-gray-150 group grid gap-3 p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
             key={trace.id}
           >
-            <div className="col-span-2 flex flex-col gap-2 p-0">
-              {/* {trace.input || trace.output ? (
-                <IOPreview
-                  key={trace.id}
-                  input={trace.input}
-                  output={trace.output}
-                  hideIfNull
-                />
-              ) : (
-                <div className="p-2 text-xs text-gray-500">
-                  This trace has no input or output.
-                </div>
-              )} */}
-            </div>
+            <SessionIO traceId={trace.id} />
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
@@ -139,6 +127,42 @@ export const SessionPage: React.FC<{
           </Card>
         ))}
       </div>
+    </div>
+  );
+};
+
+const SessionIO = ({ traceId }: { traceId: string }) => {
+  const trace = api.traces.byId.useQuery(
+    { traceId: traceId },
+    {
+      enabled: typeof traceId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+  return (
+    <div className="col-span-2 flex flex-col gap-2 p-0">
+      {!trace.data ? (
+        <JsonSkeleton
+          className="h-full w-full overflow-hidden px-2 py-1"
+          numRows={4}
+        />
+      ) : trace.data.input || trace.data.output ? (
+        <IOPreview
+          key={traceId}
+          input={trace.data.input}
+          output={trace.data.output}
+          hideIfNull
+        />
+      ) : (
+        <div className="p-2 text-xs text-gray-500">
+          This trace has no input or output.
+        </div>
+      )}
     </div>
   );
 };

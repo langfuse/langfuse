@@ -141,24 +141,18 @@ export const JsonSkeleton = ({
   numRows?: number;
   className?: string;
 }) => {
-  const sizingOptions = [
-    "h-4 w-full",
-    "h-4 w-[400px]",
-    "h-4 w-[450px]",
-    "h-4 w-[475px]",
-  ];
-
-  const generateRandomSize = () =>
-    sizingOptions[randomIntFromInterval(0, sizingOptions.length - 1)];
-
   return (
     <div className={cn("w-[400px] rounded-md border", className)}>
       <div className="flex flex-col gap-1">
-        <Skeleton className="h-4 w-full" />
         {[...Array<number>(numRows)].map((_, i) => (
-          <Skeleton className={generateRandomSize()} key={i} />
+          <Skeleton
+            className={cn(
+              "h-4 w-full",
+              i === numRows - 1 ? "w-3/4" : undefined,
+            )}
+            key={i}
+          />
         ))}
-        <br />
       </div>
     </div>
   );
