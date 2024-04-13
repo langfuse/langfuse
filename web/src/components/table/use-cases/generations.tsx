@@ -42,7 +42,6 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { IOCell } from "../data-table-IOCell";
-import { setSmallPaginationIfColumnsVisible } from "../../../features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
 export type GenerationsTableRow = {
@@ -560,13 +559,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       columns,
     );
 
-  const smallTableRequired = setSmallPaginationIfColumnsVisible(
-    columnVisibility,
-    ["input", "output"],
-    paginationState,
-    setPaginationState,
-  );
-
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.generations.map((generation) => {
         return {
@@ -666,8 +658,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
-          // enforce a minimum page size of 10 if input or output columns are visible
-          options: smallTableRequired ? [10] : undefined,
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
