@@ -2,7 +2,7 @@
 
 <div align="center">
  <div>
-      <h3>
+  <h3>
        <a href="https://cloud.langfuse.com">
          <strong>Sign up</strong>
        </a> · 
@@ -12,14 +12,7 @@
       <a href="https://langfuse.com/demo">
          <strong>Demo (live data)</strong>
       </a>
-      </h3>
-   <h3>
-      Langfuse is the open source LLM engineering platform.   
-   </h3>
-    <div>
-     Traces, evals, prompt management, metrics and playground to debug and improve your LLM application.
-   </div>
-   </br>
+  </h3>
    <div>
       <a href="https://langfuse.com/docs"><strong>Docs</strong></a> ·
       <a href="https://langfuse.com/issues"><strong>Report Bug</strong></a> ·
@@ -28,14 +21,17 @@
       <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
       <a href="https://langfuse.com/discord"><strong>Discord</strong></a> 
    </div>
-   </br>
+   <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.</span>
+   <br/> <br/>
+   <div>
       <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
       <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
       <a href="https://github.com/langfuse/langfuse/pkgs/container/langfuse"><img alt="Docker Image" src="https://img.shields.io/badge/docker-langfuse-blue?logo=Docker&logoColor=white&style=flat-square"></a>
       <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse" alt="langfuse npm package"></a>
       <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse" alt="langfuse Python package on PyPi"></a>
-   </div>
-We use <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.
+    </div>
+  </div>
+  
 </div>
 </br>
 
