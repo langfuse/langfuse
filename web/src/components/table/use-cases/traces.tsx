@@ -28,7 +28,6 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
 import { IOCell } from "../data-table-IOCell";
-import { setSmallPaginationIfColumnsVisible } from "@/src/features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
@@ -491,7 +490,7 @@ export default function TracesTable({
       header: "Metadata",
       cell: ({ row }) => {
         const values: string = row.getValue("metadata");
-        return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
+        return <IOCell data={values} />;
       },
       enableHiding: true,
     },
@@ -574,13 +573,6 @@ export default function TracesTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
-  const smallTableRequired = setSmallPaginationIfColumnsVisible(
-    columnVisibility,
-    ["input", "output"],
-    paginationState,
-    setPaginationState,
-  );
-
   return (
     <div>
       <DataTableToolbar
@@ -635,7 +627,6 @@ export default function TracesTable({
           pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
-          options: smallTableRequired ? [10] : undefined,
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
