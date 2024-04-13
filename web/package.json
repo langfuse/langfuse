@@ -84,7 +84,7 @@
     "date-fns": "^3.3.1",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.1",
-    "js-tiktoken": "^1.0.10",
+    "js-tiktoken": "^1.0.11",
     "kysely": "^0.27.3",
     "langchain": "^0.1.33",
     "lodash": "^4.17.21",
