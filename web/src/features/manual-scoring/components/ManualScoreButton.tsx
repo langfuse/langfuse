@@ -26,7 +26,6 @@ import { useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { LockIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
 
 const SCORE_NAME = "manual-score";
 
@@ -138,9 +137,9 @@ export function ManualScoreButton({
             {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
           </Button>
         ) : (
-          <Badge className="cursor-pointer">
+          <Button className="h-6 rounded-full px-3 text-xs">
             {score ? "Update score" : "Add score"}
-          </Badge>
+          </Button>
         )}
       </DialogTrigger>
       <DialogContent>
