@@ -11,7 +11,7 @@ import {
 } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { CodeView, JSONView } from "@/src/components/ui/code";
+import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";

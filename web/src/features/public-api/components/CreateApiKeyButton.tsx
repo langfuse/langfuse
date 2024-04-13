@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CodeView } from "@/src/components/ui/code";
+import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";

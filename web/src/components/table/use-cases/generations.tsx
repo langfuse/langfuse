@@ -41,8 +41,8 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
-import { IOCell } from "../data-table-IOCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 export type GenerationsTableRow = {
   id: string;
@@ -518,7 +518,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         const values = row.getValue(
           "metadata",
         ) as GenerationsTableRow["metadata"];
-        return !!values ? <IOCell data={values} /> : null;
+        return !!values ? <IOTableCell data={values} /> : null;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -694,7 +694,7 @@ const GenerationsIOCell = ({
     },
   );
   return (
-    <IOCell
+    <IOTableCell
       isLoading={observation.isLoading}
       data={
         io === "output" ? observation.data?.output : observation.data?.input

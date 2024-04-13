@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { JSONView } from "@/src/components/ui/code";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";

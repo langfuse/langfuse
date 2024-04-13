@@ -27,7 +27,6 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
-import { IOCell } from "../data-table-IOCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
@@ -38,6 +37,7 @@ import {
   type Score,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -490,7 +490,7 @@ export default function TracesTable({
       header: "Metadata",
       cell: ({ row }) => {
         const values: string = row.getValue("metadata");
-        return <IOCell data={values} />;
+        return <IOTableCell data={values} />;
       },
       enableHiding: true,
     },
@@ -660,7 +660,7 @@ const TracesIOCell = ({
     },
   );
   return (
-    <IOCell
+    <IOTableCell
       isLoading={trace.isLoading}
       data={io === "output" ? trace.data?.output : trace.data?.input}
       className={cn(io === "output" && "bg-green-50")}
