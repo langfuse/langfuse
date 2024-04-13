@@ -5,6 +5,7 @@ import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import { deepParseJson } from "@/src/utils/json";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { randomIntFromInterval } from "@/src/utils/numbers";
 
 export function JSONView(props: {
   json?: unknown;
@@ -105,6 +106,62 @@ export function CodeView(props: {
     </div>
   );
 }
+
+export const IOTableCell = ({
+  data,
+  isLoading = false,
+  className,
+}: {
+  data: unknown;
+  isLoading?: boolean;
+  className?: string;
+}) => {
+  return (
+    <>
+      {isLoading ? (
+        <JsonSkeleton className="h-full w-[400px] px-3 py-1" />
+      ) : (
+        <JSONView
+          json={data}
+          className={cn(
+            "h-full w-[400px] self-stretch overflow-y-auto rounded-sm ",
+            className,
+          )}
+          codeClassName="py-1 px-2"
+        />
+      )}
+    </>
+  );
+};
+
+export const JsonSkeleton = ({
+  className,
+  numRows = 10,
+}: {
+  numRows?: number;
+  className?: string;
+}) => {
+  const sizingOptions = [
+    "h-5 w-full",
+    "h-5 w-[400px]",
+    "h-5 w-[450px]",
+    "h-5 w-[475px]",
+  ];
+
+  const generateRandomSize = () =>
+    sizingOptions[randomIntFromInterval(0, sizingOptions.length - 1)];
+
+  return (
+    <div className={cn("w-[400px] rounded-md border", className)}>
+      <div className="flex flex-col gap-1">
+        {[...Array<number>(numRows)].map((_, i) => (
+          <Skeleton className={generateRandomSize()} key={i} />
+        ))}
+        <br />
+      </div>
+    </div>
+  );
+};
 
 function stringifyJsonNode(node: unknown) {
   // return single string nodes without quotes

@@ -12,7 +12,7 @@ import { useEffect } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { IOCell } from "@/src/components/table/data-table-IOCell";
+import { IOTableCell } from "@/src/components/ui/IOCell";
 import { type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
@@ -138,7 +138,7 @@ export function DatasetRunsTable(props: {
       enableHiding: true,
       cell: ({ row }) => {
         const metadata: RowData["metadata"] = row.getValue("metadata");
-        return !!metadata ? <IOCell data={metadata} /> : null;
+        return !!metadata ? <IOTableCell data={metadata} /> : null;
       },
     },
   ];

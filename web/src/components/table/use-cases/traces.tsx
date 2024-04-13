@@ -27,7 +27,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
-import { IOCell } from "../data-table-IOCell";
+import { IOTableCell } from "../../ui/IOCell";
 import { setSmallPaginationIfColumnsVisible } from "@/src/features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -669,7 +669,7 @@ const TracesIOCell = ({
     },
   );
   return (
-    <IOCell
+    <IOTableCell
       isLoading={trace.isLoading}
       data={io === "output" ? trace.data?.output : trace.data?.input}
       className={cn(io === "output" && "bg-green-50")}

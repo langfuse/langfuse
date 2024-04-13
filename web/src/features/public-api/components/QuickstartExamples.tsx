@@ -1,4 +1,4 @@
-import { CodeView } from "@/src/components/ui/code";
+import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import {
   Tabs,
   TabsList,

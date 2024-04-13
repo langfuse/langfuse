@@ -1,5 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
-import { IOCell } from "@/src/components/table/data-table-IOCell";
+import { IOTableCell } from "@/src/components/ui/IOCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
@@ -193,7 +193,7 @@ export default function ScoresTable({
       enableHiding: true,
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return value !== undefined && <IOCell data={value} />;
+        return value !== undefined && <IOTableCell data={value} />;
       },
     },
   ];

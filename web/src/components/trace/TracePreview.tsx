@@ -1,4 +1,4 @@
-import { JSONView } from "@/src/components/ui/code";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type Trace, type Score } from "@langfuse/shared";
 import {
   Card,

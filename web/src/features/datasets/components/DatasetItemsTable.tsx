@@ -21,7 +21,7 @@ import { useEffect } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOCell } from "@/src/components/table/data-table-IOCell";
+import { IOTableCell } from "@/src/components/ui/IOCell";
 
 type RowData = {
   id: string;
@@ -152,7 +152,7 @@ export function DatasetItemsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const input = row.getValue("input") as RowData["input"];
-        return !!input ? <IOCell data={input} /> : null;
+        return !!input ? <IOTableCell data={input} /> : null;
       },
     },
     {
@@ -165,7 +165,7 @@ export function DatasetItemsTable({
           "expectedOutput",
         ) as RowData["expectedOutput"];
         return !!expectedOutput ? (
-          <IOCell data={expectedOutput} className="bg-green-50" />
+          <IOTableCell data={expectedOutput} className="bg-green-50" />
         ) : null;
       },
     },
