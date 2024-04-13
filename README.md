@@ -1,23 +1,24 @@
+
+![GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
+
 <div align="center">
-   <a href="https://langfuse.com">
-      <h1>🪢 Langfuse</h1>
-   </a>
  <div>
-      <h3> <a href="https://cloud.langfuse.com">
+      <h3>
+       <a href="https://cloud.langfuse.com">
          <strong>Sign up</strong>
        </a> · 
       <a href="https://langfuse.com/docs/deployment/self-host">
-         <strong>Self Host Langfuse</strong>
+         <strong>Self Host</strong>
       </a> · 
       <a href="https://langfuse.com/demo">
-         <strong>Demo Project (live data)</strong>
+         <strong>Demo (live data)</strong>
       </a>
       </h3>
    <h3>
       Langfuse is the open source LLM engineering platform.   
    </h3>
     <div>
-     Debug, analyze and iterate - together
+     Traces, evals, prompt management, metrics and playground to debug and improve your LLM application.
    </div>
    </br>
    <div>
@@ -35,6 +36,7 @@
       <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse" alt="langfuse npm package"></a>
       <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse" alt="langfuse Python package on PyPi"></a>
    </div>
+We use <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests
 </div>
 </br>
 
@@ -92,15 +94,15 @@ Templated deployments: [Railway, GCP Cloud Run, AWS Fargate, Kubernetes and othe
 
 ### API Keys
 
-You require a Langfuse public and secret key to get started. Sign up [here](https://cloud.langfuse.com) and find them in your project settings.
+You need a Langfuse public and secret key to get started. Sign up [here](https://cloud.langfuse.com) and find them in your project settings.
 
 ### Ingesting Data · Instrumenting Your Application
 
-Note: We recommend using our fully async, typed [SDKs](https://langfuse.com/docs/sdk) that allow you to instrument any LLM application with any underlying model. They are available in [Python](https://langfuse.com/docs/sdk/python) & [JS/TS](https://langfuse.com/docs/sdk/typescript). The SDKs will always be the most fully featured and stable way to ingest data into Langfuse.
+Note: We recommend using our fully async, typed [SDKs](https://langfuse.com/docs/sdk) that allow you to instrument any LLM application with any underlying model. They are available in [Python (Decorators)](https://langfuse.com/docs/sdk/python) & [JS/TS](https://langfuse.com/docs/sdk/typescript). The SDKs will always be the most fully featured and stable way to ingest data into Langfuse.
 
 You may want to use another integration to get started quickly or implement a use case that we do not yet support. However, we recommend to migrate to the Langfuse SDKs over time to ensure performance and stability.
 
-See our the [→ Quickstart](https://langfuse.com/docs/get-started) to get started in integrating Langfuse.
+See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Langfuse.
 
 ### Integrations
 
@@ -134,7 +136,7 @@ External projects/packages that integrate with Langfuse:
 In order of preference the best way to communicate with us:
 
 - [GitHub Discussions](https://github.com/orgs/langfuse/discussions): Contribute [ideas](https://langfuse.com/idea) [support requests](https://github.com/orgs/langfuse/discussions/categories/support) and [report bugs](https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+) (preferred as we create a permanent, indexed artifact for other community members)
-- [Discord](https://langfuse.com/discord): For community support and to chat directly with maintainers
+- [Discord](https://langfuse.com/discord): For community support
 - Privately: Email contact at langfuse dot com
 
 ## Contributing to Langfuse
