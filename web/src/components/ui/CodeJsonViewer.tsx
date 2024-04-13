@@ -5,7 +5,6 @@ import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import { deepParseJson } from "@/src/utils/json";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { randomIntFromInterval } from "@/src/utils/numbers";
 
 export function JSONView(props: {
   json?: unknown;
