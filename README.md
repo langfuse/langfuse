@@ -1,5 +1,4 @@
-
-![GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
+![Langfuse GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
 
 <div align="center">
  <div>
@@ -36,7 +35,7 @@
       <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse" alt="langfuse npm package"></a>
       <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse" alt="langfuse Python package on PyPi"></a>
    </div>
-We use <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests
+We use <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.
 </div>
 </br>
 
@@ -110,8 +109,8 @@ See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Lan
 | ---------------------------------------------------------------- | ------------- | ---------------------------------------------------------------- |
 | [**SDK** - _recommended_](https://langfuse.com/docs/sdk)         | Python, JS/TS | Manual instrumentation using the SDKs for full flexibility.      |
 | [OpenAI SDK](https://langfuse.com/docs/integrations/openai)      | Python        | Automated instrumentation via drop-in replacement of OpenAI SDK. |
-| [Langchain](https://langfuse.com/docs/integrations/langchain)    | Python, JS/TS | Instrumentation via Langchain callbacks.        |
-| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index) | Python       | Automated instrumentation via LlamaIndex callback system.        |
+| [Langchain](https://langfuse.com/docs/integrations/langchain)    | Python, JS/TS | Instrumentation via Langchain callbacks.                         |
+| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index) | Python        | Automated instrumentation via LlamaIndex callback system.        |
 | [API](https://langfuse.com/docs/api)                             |               | Directly call the public API. OpenAPI spec available.            |
 
 External projects/packages that integrate with Langfuse:
@@ -136,8 +135,8 @@ External projects/packages that integrate with Langfuse:
 In order of preference the best way to communicate with us:
 
 - [GitHub Discussions](https://github.com/orgs/langfuse/discussions): Contribute [ideas](https://langfuse.com/idea) [support requests](https://github.com/orgs/langfuse/discussions/categories/support) and [report bugs](https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+) (preferred as we create a permanent, indexed artifact for other community members)
-- [Discord](https://langfuse.com/discord): For community support
-- Privately: Email contact at langfuse dot com
+- [Discord](https://langfuse.com/discord): community support
+- Privately: contact at langfuse dot com
 
 ## Contributing to Langfuse
 
