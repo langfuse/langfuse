@@ -119,7 +119,7 @@ export const IOTableCell = ({
   return (
     <>
       {isLoading ? (
-        <JsonSkeleton className="h-full w-[400px] px-3 py-1" />
+        <JsonSkeleton className="h-full w-[400px] overflow-hidden px-2 py-1" />
       ) : (
         <JSONView
           json={data}
@@ -142,10 +142,10 @@ export const JsonSkeleton = ({
   className?: string;
 }) => {
   const sizingOptions = [
-    "h-5 w-full",
-    "h-5 w-[400px]",
-    "h-5 w-[450px]",
-    "h-5 w-[475px]",
+    "h-4 w-full",
+    "h-4 w-[400px]",
+    "h-4 w-[450px]",
+    "h-4 w-[475px]",
   ];
 
   const generateRandomSize = () =>
@@ -154,6 +154,7 @@ export const JsonSkeleton = ({
   return (
     <div className={cn("w-[400px] rounded-md border", className)}>
       <div className="flex flex-col gap-1">
+        <Skeleton className="h-4 w-full" />
         {[...Array<number>(numRows)].map((_, i) => (
           <Skeleton className={generateRandomSize()} key={i} />
         ))}
