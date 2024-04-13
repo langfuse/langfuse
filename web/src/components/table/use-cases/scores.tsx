@@ -1,9 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
-import { IOCell } from "@/src/components/table/data-table-IOCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -193,7 +193,7 @@ export default function ScoresTable({
       enableHiding: true,
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return value !== undefined && <IOCell data={value} />;
+        return value !== undefined && <IOTableCell data={value} />;
       },
     },
   ];

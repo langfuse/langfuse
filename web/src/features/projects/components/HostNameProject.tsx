@@ -1,5 +1,5 @@
 import { Card } from "@tremor/react";
-import { CodeView } from "@/src/components/ui/code";
+import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import Header from "@/src/components/layouts/header";
 
 export function HostNameProject() {

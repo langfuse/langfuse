@@ -9,13 +9,13 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { type Score } from "@langfuse/shared";
 import { usdFormatter } from "../../../utils/numbers";
-import { IOCell } from "@/src/components/table/data-table-IOCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 type RowData = {
   id: string;
@@ -308,7 +308,7 @@ const TraceObservationIOCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <IOCell
+    <IOTableCell
       isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
       data={io === "output" ? data?.output : data?.input}
       className={cn(io === "output" && "bg-green-50")}
@@ -344,7 +344,7 @@ const DatasetItemIOCell = ({
   );
 
   return (
-    <IOCell
+    <IOTableCell
       isLoading={datasetItem.isLoading}
       data={
         io === "expectedOutput"
