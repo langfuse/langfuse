@@ -10,9 +10,32 @@ import { prisma, type SsoConfig as DbSsoConfig } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { SsoProviderConfig } from "./types";
 
-function getDbSSOConfigs(): Promise<DbSsoConfig[]> {
-  // TODO: persist ssoconfigs in memory here to not fetch from db on every auth request
-  return prisma.ssoConfig.findMany();
+let cachedSsoConfigs: {
+  data: DbSsoConfig[];
+  timestamp: number;
+} | null = null;
+
+/**
+ * Get all SSO configurations from the database or from local cache.
+ *
+ * @returns {Promise<DbSsoConfig[]>} - A list of all SSO configurations. Empty array if none are configured or EE is not available.
+ */
+async function getDbSSOConfigs(): Promise<DbSsoConfig[]> {
+  if (!isEeAvailable) return [];
+  const CACHE_TTL = 60 * 1000; // 1 minute
+
+  // Set/refresh the cache if it's empty or expired
+  if (
+    cachedSsoConfigs === null ||
+    Date.now() - cachedSsoConfigs.timestamp > CACHE_TTL
+  ) {
+    cachedSsoConfigs = {
+      data: await prisma.ssoConfig.findMany(),
+      timestamp: Date.now(),
+    };
+  }
+
+  return cachedSsoConfigs.data;
 }
 
 export async function loadSsoProviders(): Promise<Provider[]> {
