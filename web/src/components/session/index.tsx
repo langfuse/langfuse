@@ -1,6 +1,6 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import Header from "@/src/components/layouts/header";
-import { NoAccessError } from "@/src/components/no-access";
+import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -42,7 +42,8 @@ export const SessionPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
 
-  if (session.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
+  if (session.error?.data?.code === "UNAUTHORIZED")
+    return <ErrorPage message="You do not have access to this session." />;
 
   return (
     <div className="flex flex-col overflow-hidden xl:container">

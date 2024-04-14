@@ -680,3 +680,15 @@ model JobExecution {
     @@index([projectId])
     @@map("job_executions")
 }
+
+// Single Sign-On configuration for a domain
+// This feature is part of the Enterprise Edition
+model SsoConfig {
+    domain       String   @id @default(cuid()) // e.g. "google.com"
+    createdAt    DateTime @default(now()) @map("created_at")
+    updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+    authProvider String   @map("auth_provider") // e.g. "okta"
+    authConfig   Json?    @map("auth_config") // e.g. { "clientId": "1234", "clientSecret": "5678" }, null if credentials from env should be used
+
+    @@map("sso_configs")
+}
