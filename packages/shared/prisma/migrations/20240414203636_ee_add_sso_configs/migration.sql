@@ -4,7 +4,7 @@ CREATE TABLE "sso_configs" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "auth_provider" TEXT NOT NULL,
-    "auth_config" JSONB NOT NULL DEFAULT '{}',
+    "auth_config" JSONB,
 
     CONSTRAINT "sso_configs_pkey" PRIMARY KEY ("domain")
 );
