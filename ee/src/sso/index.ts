@@ -10,6 +10,7 @@ import { prisma, type SsoConfig as DbSsoConfig } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { SsoProviderConfig } from "./types";
 
+// Local cache for SSO configurations
 let cachedSsoConfigs: {
   data: DbSsoConfig[];
   timestamp: number;
@@ -38,6 +39,11 @@ async function getDbSSOConfigs(): Promise<DbSsoConfig[]> {
   return cachedSsoConfigs.data;
 }
 
+/**
+ * Load all custom SSO providers from the database. To be used within `providers` in NextAuth backend configuration.
+ *
+ * @returns {Promise<Provider[]>} - A list of all custom SSO providers.
+ */
 export async function loadSsoProviders(): Promise<Provider[]> {
   if (!isEeAvailable) return [];
 
