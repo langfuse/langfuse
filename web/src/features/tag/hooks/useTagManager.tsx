@@ -13,7 +13,10 @@ export function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
     [allTags, selectedTags],
   );
   const handleItemCreate = () => {
-    setSelectedTags([...selectedTags, inputValue]);
+    setSelectedTags((prevSelectedTags) => [
+      // dedupe
+      ...new Set([...prevSelectedTags, inputValue]),
+    ]);
     availableTags.push(inputValue);
     setInputValue("");
   };
