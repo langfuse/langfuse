@@ -290,7 +290,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                     )}
                   />
                   <Button
-                    // need this button to submit by pressing enter
+                    // this hidden button is needed to submit form by pressing enter
                     type="submit"
                     className="hidden"
                     disabled={
@@ -312,6 +312,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                   turnstileToken === undefined
                 }
                 onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
+                data-testid="submit-email-password-sign-in-form"
               >
                 Sign in
               </Button>
