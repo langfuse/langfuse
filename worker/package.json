@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "dotenv -e ../.env -- vitest run --reporter=basic --disable-console-intercept",
+    "test": "dotenv -e ../.env -- vitest run --reporter=basic --disable-console-intercept -t 'handle redis job succeeding'",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/src/index.js",
     "build": "tsc",

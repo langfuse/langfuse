@@ -19,7 +19,6 @@ export const evalQueue = redis
 export const evalJobCreator = redis
   ? new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
       QueueName.TraceUpsert,
-
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrumentAsync({ name: "evalJobCreator" }, async (span) => {
           try {
@@ -32,7 +31,7 @@ export const evalJobCreator = redis
             );
             throw e;
           } finally {
-            span?.finish();
+            span?.end();
           }
         });
       },
@@ -71,6 +70,8 @@ export const evalJobExecutor = redis
               .where("project_id", "=", job.data.payload.data.projectId)
               .execute();
             throw e;
+          } finally {
+            span?.end();
           }
         });
       },

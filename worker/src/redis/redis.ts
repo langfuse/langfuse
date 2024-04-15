@@ -22,4 +22,5 @@ declare global {
 }
 
 export const redis = globalThis.redis ?? createRedisClient();
+
 if (env.NODE_ENV !== "production") globalThis.redis = redis;
