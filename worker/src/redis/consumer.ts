@@ -116,7 +116,7 @@ export const evalJobExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 20,
+        concurrency: 10,
         // limiter: {
         //   // execute 20 llm calls in 5 seconds
         //   max: 20,
