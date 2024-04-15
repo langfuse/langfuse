@@ -17,7 +17,7 @@ import helmet from "helmet";
 
 const app = express();
 
-const isSentryEnabled = Boolean(env.SENTRY_DSN);
+const isSentryEnabled = String(env.SENTRY_DSN) !== undefined;
 
 if (isSentryEnabled) {
   Sentry.init({
@@ -40,6 +40,7 @@ if (isSentryEnabled) {
 
   // TracingHandler creates a trace for every incoming request
   app.use(Sentry.Handlers.tracingHandler());
+  logger.info("Sentry enabled");
 }
 
 app.use(helmet());
