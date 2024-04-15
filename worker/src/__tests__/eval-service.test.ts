@@ -62,7 +62,7 @@ describe("create eval jobs", () => {
       },
     };
 
-    await createEvalJobs({ data: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -113,7 +113,7 @@ describe("create eval jobs", () => {
       },
     };
 
-    await createEvalJobs({ data: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -159,8 +159,8 @@ describe("create eval jobs", () => {
       },
     };
 
-    await createEvalJobs({ data: payload });
-    await createEvalJobs({ data: payload }); // calling it twice to check it is only generated once
+    await createEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload }); // calling it twice to check it is only generated once
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -219,7 +219,7 @@ describe("create eval jobs", () => {
       },
     };
 
-    await createEvalJobs({ data: payload });
+    await createEvalJobs({ event: payload });
 
     // update the trace to deselect the trace
     await kyselyPrisma.$kysely
@@ -229,7 +229,7 @@ describe("create eval jobs", () => {
       .execute();
 
     await createEvalJobs({
-      data: payload,
+      event: payload,
     }); // calling it twice to check it is only generated once
 
     const jobs = await kyselyPrisma.$kysely
@@ -326,7 +326,7 @@ describe("execute evals", () => {
       },
     };
 
-    await evaluate({ data: payload });
+    await evaluate({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -429,7 +429,7 @@ describe("execute evals", () => {
       },
     };
 
-    await evaluate({ data: payload });
+    await evaluate({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")

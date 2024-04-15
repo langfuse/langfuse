@@ -22,7 +22,7 @@ export const evalJobCreator = redis
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrumentAsync({ name: "evalJobCreator" }, async (span) => {
           try {
-            await createEvalJobs({ data: job.data.payload });
+            await createEvalJobs({ event: job.data.payload });
             return true;
           } catch (e) {
             logger.error(
@@ -54,7 +54,7 @@ export const evalJobExecutor = redis
         return instrumentAsync({ name: "evalJobExecutor" }, async (span) => {
           try {
             logger.info("Executing Evaluation Execution Job", job.data);
-            await evaluate({ data: job.data.payload });
+            await evaluate({ event: job.data.payload });
             return true;
           } catch (e) {
             logger.error(
