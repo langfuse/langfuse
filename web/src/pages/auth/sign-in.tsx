@@ -173,6 +173,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
   >(null);
+  const [ssoLoading, setSsoLoading] = useState<boolean>(false);
 
   const posthog = usePostHog();
   const [turnstileToken, setTurnstileToken] = useState<string>();
@@ -213,6 +214,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
   }
 
   async function handleSsoSignIn() {
+    setSsoLoading(true);
     setCredentialsFormError(null);
     credentialsForm.clearErrors();
     // get current email field, verify it, add input error if not valid
@@ -222,6 +224,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
       credentialsForm.setError("email", {
         message: "Invalid email address",
       });
+      setSsoLoading(false);
       return;
     }
     // current email domain
@@ -234,6 +237,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
 
     if (!res.ok) {
       setCredentialsFormError("SSO is not enabled for this domain.");
+      setSsoLoading(false);
     } else {
       const { providerId } = await res.json();
       void signIn(providerId);
@@ -320,7 +324,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                 <Button
                   className="w-full"
                   variant="secondary"
-                  loading={credentialsForm.formState.isSubmitting}
+                  loading={ssoLoading}
                   disabled={
                     env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
                     turnstileToken === undefined
