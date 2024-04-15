@@ -6,7 +6,7 @@ import { env } from "../env";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
-import Sentry from "@sentry/node";
+import * as Sentry from "@sentry/node";
 
 const createRedisClient = () => {
   try {
