@@ -54,6 +54,7 @@ export const evalQueue = redis
       }
     )
   : null;
+
 export const evalJobCreator = redis
   ? new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
       QueueName.TraceUpsert,
