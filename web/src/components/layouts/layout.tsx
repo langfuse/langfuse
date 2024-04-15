@@ -75,6 +75,13 @@ export default function Layout(props: PropsWithChildren) {
     )
       return null;
 
+    // cloud only
+    if (
+      route.cloudOnly !== undefined &&
+      route.cloudOnly !== (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
+    )
+      return null;
+
     // RBAC
     if (
       route.rbacScope !== undefined &&
