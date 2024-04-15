@@ -25,9 +25,6 @@ const EnvSchema = z.object({
     .default(6379),
   REDIS_AUTH: z.string(),
   LANGFUSE_WORKER_PASSWORD: z.string(),
-  WORKER_ENV: z
-    .enum(["development", "staging", "production"])
-    .default("development"),
 });
 
 export const env = EnvSchema.parse(process.env);
