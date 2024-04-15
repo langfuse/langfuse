@@ -513,6 +513,7 @@ model Events {
     url       String?
     method    String?
 
+    @@index(createdAt)
     @@index(projectId)
     @@map("events")
 }
@@ -566,6 +567,7 @@ model Model {
     @@unique([projectId, modelName, startDate, unit])
     @@index([projectId, modelName, startDate, unit])
     @@index([projectId, modelName])
+    @@index(modelName)
     @@map("models")
 }
 
