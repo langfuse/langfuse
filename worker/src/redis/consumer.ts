@@ -78,7 +78,7 @@ export const evalJobCreator = redis
       },
       {
         connection: redis,
-        concurrency: 50,
+        concurrency: 20,
         // limiter: {
         //   // execute 100 calls in 1000ms
         //   max: 50,
