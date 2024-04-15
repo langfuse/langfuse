@@ -12,7 +12,9 @@ const langfuseUrls = {
 };
 
 const authUrl = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-  ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
+  ? env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+    ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
+    : env.NEXTAUTH_URL
   : env.NEXTAUTH_URL;
 
 export const sendProjectInvitation = async (
