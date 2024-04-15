@@ -373,7 +373,7 @@ export async function extractVariablesFromTrace(
         mappingResult.push({ var: variable, value: "" });
         continue;
       }
-      logger.info(`${sql.raw(safeInternalColumn.internal)}`);
+
       const observation = await kyselyPrisma.$kysely
         .selectFrom("observations as o")
         .select(
