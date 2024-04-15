@@ -68,7 +68,9 @@ export const createEvalJobs = async ({
     //   `;
 
     // const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
-    const traces: { id: string }[] = [];
+    const traces: { id: string }[] = [
+      { id: "000b8ef6-7d70-444a-99f5-dd79cb653de0" },
+    ];
 
     const existingJob = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
