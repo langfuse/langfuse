@@ -1,50 +1,11 @@
-import Redis from "ioredis";
 import { Job, Queue, Worker } from "bullmq";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
-import { env } from "../env";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
-import * as Sentry from "@sentry/node";
-
-const createRedisClient = () => {
-  try {
-    return new Redis({
-      host: env.REDIS_HOST,
-      port: env.REDIS_PORT,
-      password: env.REDIS_AUTH,
-      maxRetriesPerRequest: null, // Set to `null` to disable retrying
-    });
-  } catch (e) {
-    logger.error(e, "Failed to connect to redis");
-    return null;
-  }
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var redis: undefined | ReturnType<typeof createRedisClient>;
-}
-
-export const redis = globalThis.redis ?? createRedisClient();
-
-if (env.NODE_ENV !== "production") globalThis.redis = redis;
-
-type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
-
-export async function instrumentAsync<T>(
-  ctx: { name: string },
-  callback: CallbackAsyncFn<T>
-): Promise<T> {
-  if (env.SENTRY_DSN) {
-    return Sentry.startSpan(ctx, async (span) => {
-      return callback(span);
-    });
-  } else {
-    return callback();
-  }
-}
+import { redis } from "./redis";
+import { instrumentAsync } from "../instrumentation";
 
 export const evalQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
