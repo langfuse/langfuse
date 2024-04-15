@@ -17,7 +17,7 @@ import helmet from "helmet";
 
 const app = express();
 
-const isSentryEnabled = Boolean(env.SENTRY_DSN);
+const isSentryEnabled = String(env.SENTRY_DSN) !== undefined;
 
 if (isSentryEnabled) {
   Sentry.init({
