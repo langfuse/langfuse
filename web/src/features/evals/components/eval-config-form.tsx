@@ -24,6 +24,7 @@ import {
   tracesTableColsWithOptions,
   singleFilter,
   type JobConfiguration,
+  availableEvalVariables,
 } from "@langfuse/shared";
 import * as z from "zod";
 import { useEffect, useState } from "react";
@@ -33,7 +34,6 @@ import {
   type EvalTemplate,
   variableMapping,
   wipVariableMapping,
-  evalObjects,
 } from "@langfuse/shared";
 import router from "next/router";
 import { Slider } from "@/src/components/ui/slider";
@@ -319,14 +319,16 @@ export const EvalConfigForm = (props: {
                                     <SelectValue placeholder="Object type" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {evalObjects.map((evalObject) => (
-                                      <SelectItem
-                                        value={evalObject.id}
-                                        key={evalObject.id}
-                                      >
-                                        {evalObject.display}
-                                      </SelectItem>
-                                    ))}
+                                    {availableEvalVariables.map(
+                                      (evalObject) => (
+                                        <SelectItem
+                                          value={evalObject.id}
+                                          key={evalObject.id}
+                                        >
+                                          {evalObject.display}
+                                        </SelectItem>
+                                      ),
+                                    )}
                                   </SelectContent>
                                 </Select>
                               </FormControl>
@@ -367,13 +369,14 @@ export const EvalConfigForm = (props: {
                                   disabled={props.disabled}
                                   defaultValue={field.value ?? undefined}
                                   onValueChange={(value) => {
-                                    const availableColumns = evalObjects.find(
-                                      (evalObject) =>
-                                        evalObject.id ===
-                                        form.watch(
-                                          `mapping.${index}.langfuseObject`,
-                                        ),
-                                    )?.availableColumns;
+                                    const availableColumns =
+                                      availableEvalVariables.find(
+                                        (evalObject) =>
+                                          evalObject.id ===
+                                          form.watch(
+                                            `mapping.${index}.langfuseObject`,
+                                          ),
+                                      )?.availableColumns;
                                     const column = availableColumns?.find(
                                       (column) => column.id === value,
                                     );
@@ -385,7 +388,7 @@ export const EvalConfigForm = (props: {
                                     <SelectValue placeholder="Object type" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {evalObjects
+                                    {availableEvalVariables
                                       .find(
                                         (evalObject) =>
                                           evalObject.id ===
