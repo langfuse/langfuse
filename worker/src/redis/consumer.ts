@@ -62,10 +62,6 @@ export const evalJobCreator = redis
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrumentAsync({ name: "evalJobCreator" }, async (span) => {
           try {
-            const metrics = await prisma.$metrics.json();
-            logger.info(metrics);
-            logger.info("Executing Evaluation Job", job.data);
-
             await createEvalJobs({ data: job.data.payload });
             return true;
           } catch (e) {
@@ -83,8 +79,8 @@ export const evalJobCreator = redis
         connection: redis,
         concurrency: 20,
         limiter: {
-          // execute 100 calls in 1000ms
-          max: 20,
+          // execute 75 calls in 1000ms
+          max: 75,
           duration: 1000,
         },
       }
@@ -98,8 +94,6 @@ export const evalJobExecutor = redis
         return instrumentAsync({ name: "evalJobExecutor" }, async (span) => {
           try {
             logger.info("Executing Evaluation Execution Job", job.data);
-            const metrics = await prisma.$metrics.json();
-            logger.info(metrics);
             await evaluate({ data: job.data.payload });
             return true;
           } catch (e) {
@@ -124,7 +118,7 @@ export const evalJobExecutor = redis
         concurrency: 10,
         limiter: {
           // execute 20 llm calls in 5 seconds
-          max: 10,
+          max: 20,
           duration: 5_000,
         },
       }
