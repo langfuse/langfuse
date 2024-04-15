@@ -3,6 +3,8 @@ import { evalQueue } from "../api";
 import { QueueJobs, TraceUpsertEvent } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import logger from "../logger";
+import { evalJobCreator } from "../redis/consumer";
 
 describe("handle redis events", () => {
   test("handle redis job succeeding", async () => {
@@ -15,6 +17,11 @@ describe("handle redis events", () => {
         return true;
       },
     }));
+
+    // this activates the consumer
+    evalJobCreator?.on("completed", (job, err) => {
+      logger.info(`Eval Job with id ${job?.id} completed`);
+    });
 
     expect(evalQueue).toBeDefined();
 

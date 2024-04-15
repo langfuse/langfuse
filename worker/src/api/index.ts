@@ -3,7 +3,7 @@ import emojis from "./emojis";
 import { z } from "zod";
 import logger from "../logger";
 import { Queue } from "bullmq";
-import { redis } from "../redis/consumer";
+import { redis } from "../redis/redis";
 import { randomUUID } from "crypto";
 import basicAuth from "express-basic-auth";
 import { env } from "../env";
