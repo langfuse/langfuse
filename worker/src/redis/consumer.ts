@@ -3,7 +3,7 @@ import { Job, Queue, Worker } from "bullmq";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
 import { env } from "../env";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
 import * as Sentry from "@sentry/node";
@@ -61,6 +61,8 @@ export const evalJobCreator = redis
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrumentAsync({ name: "evalJobCreator" }, async (span) => {
           try {
+            const metrics = await prisma.$metrics.json();
+            logger.info(metrics);
             logger.info("Executing Evaluation Job", job.data);
 
             await createEvalJobs({ data: job.data.payload });
@@ -95,6 +97,8 @@ export const evalJobExecutor = redis
         return instrumentAsync({ name: "evalJobExecutor" }, async (span) => {
           try {
             logger.info("Executing Evaluation Execution Job", job.data);
+            const metrics = await prisma.$metrics.json();
+            logger.info(metrics);
             await evaluate({ data: job.data.payload });
             return true;
           } catch (e) {
