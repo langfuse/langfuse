@@ -80,7 +80,7 @@ export const availableEvalVariables = [
   { id: "event", display: "Event", availableColumns: observationsTableCols },
 ];
 
-export const evalModels = [
+export const evalLLMModels = [
   {
     provider: ModelProvider.OpenAI,
     model: "gpt-3.5-turbo",

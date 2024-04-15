@@ -21,7 +21,7 @@ import router from "next/router";
 import { type EvalTemplate } from "@prisma/client";
 import { usePlaygroundContext } from "@/src/features/playground/client/context";
 import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
-import { EvalModelNames, OutputSchema, evalModels } from "@langfuse/shared";
+import { EvalModelNames, OutputSchema, evalLLMModels } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 
 const formSchema = z.object({
@@ -103,7 +103,9 @@ export const EvalTemplateForm = (props: {
         props.existingEvalTemplate.modelParams,
       );
 
-      const modelProvider = evalModels.find((m) => m.model === model)?.provider;
+      const modelProvider = evalLLMModels.find(
+        (m) => m.model === model,
+      )?.provider;
       if (modelProvider) {
         playgroundContext.updateModelParam("provider", modelProvider);
       }
@@ -256,7 +258,7 @@ export const EvalTemplateForm = (props: {
         <div className="col-span-1 row-span-3">
           <ModelParameters
             {...playgroundContext}
-            availableModels={[...evalModels]}
+            availableModels={[...evalLLMModels]}
             disabled={!props.isEditing}
           />
         </div>

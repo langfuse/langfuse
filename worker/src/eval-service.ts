@@ -12,7 +12,7 @@ import {
   variableMappingList,
   TraceUpsertEvent,
   EvalModelNames,
-  evalModels,
+  evalLLMModels,
   ZodModelConfig,
   availableEvalVariables,
 } from "@langfuse/shared";
@@ -245,7 +245,7 @@ export const evaluate = async ({
   });
 
   const evalModel = EvalModelNames.parse(template.model);
-  const provider = evalModels.find((m) => m.model === evalModel)?.provider;
+  const provider = evalLLMModels.find((m) => m.model === evalModel)?.provider;
   const modelParams = ZodModelConfig.parse(template.model_params);
 
   if (!provider) {

@@ -8,10 +8,14 @@ export * from "./types";
 export * from "./filterToPrisma";
 export * from "./tracesTable";
 export * from "./server/auth";
-export * from "./features/evals/types";
 export * from "./observationsTable";
+
+// llm api
 export * from "./server/llm/types";
 export * from "./server/llm/fetchLLMCompletion";
+
+// evals
+export * from "./features/evals/types";
 
 // export db types only
 export * from "@prisma/client";
