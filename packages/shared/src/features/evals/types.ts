@@ -43,7 +43,7 @@ export const availableEvalVariables = [
         name: "Metadata",
         id: "metadata",
         type: "stringObject",
-        internal: 'o."metadata"',
+        internal: 't."metadata"',
       },
       { name: "Input", id: "input", internal: 't."input"' },
       { name: "Output", id: "output", internal: 't."output"' },
