@@ -40,6 +40,7 @@ if (isSentryEnabled) {
 
   // TracingHandler creates a trace for every incoming request
   app.use(Sentry.Handlers.tracingHandler());
+  logger.info("Sentry enabled");
 }
 
 app.use(helmet());
