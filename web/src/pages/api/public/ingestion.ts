@@ -424,7 +424,11 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   projectId: string,
 ): Promise<void> => {
   try {
-    if (env.LANGFUSE_WORKER_HOST && env.LANGFUSE_WORKER_PASSWORD) {
+    if (
+      env.LANGFUSE_WORKER_HOST &&
+      env.LANGFUSE_WORKER_PASSWORD &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+    ) {
       const traceEvents = batchResults
         .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
         .map((result) =>

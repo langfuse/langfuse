@@ -23,6 +23,7 @@ export type Route = {
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
+  cloudOnly?: boolean; // only available in cloud
 };
 
 export const ROUTES: Route[] = [
@@ -58,11 +59,13 @@ export const ROUTES: Route[] = [
       {
         name: "Templates",
         pathname: `/project/[projectId]/evals/templates`,
+        cloudOnly: true,
         featureFlag: "evals",
       },
       {
         name: "Configs",
         pathname: `/project/[projectId]/evals/configs`,
+        cloudOnly: true,
         featureFlag: "evals",
       },
     ],
