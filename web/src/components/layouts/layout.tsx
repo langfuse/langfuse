@@ -78,6 +78,7 @@ export default function Layout(props: PropsWithChildren) {
     // cloud only
     if (
       route.cloudOnly !== undefined &&
+      // the feature should be available in local development
       route.cloudOnly !== (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
     )
       return null;
