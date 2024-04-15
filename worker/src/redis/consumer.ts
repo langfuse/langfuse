@@ -27,7 +27,7 @@ export const evalJobCreator = redis
           } catch (e) {
             logger.error(
               e,
-              `Failed job Evaluation for traceId ${job.data.payload.data.traceId}`
+              `Failed job Evaluation for traceId ${job.data.payload.traceId}`
             );
             throw e;
           } finally {
@@ -59,15 +59,15 @@ export const evalJobExecutor = redis
           } catch (e) {
             logger.error(
               e,
-              `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`
+              `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`
             );
             await kyselyPrisma.$kysely
               .updateTable("job_executions")
               .set("status", sql`'ERROR'::"JobExecutionStatus"`)
               .set("end_time", new Date())
               .set("error", JSON.stringify(e))
-              .where("id", "=", job.data.payload.data.jobExecutionId)
-              .where("project_id", "=", job.data.payload.data.projectId)
+              .where("id", "=", job.data.payload.jobExecutionId)
+              .where("project_id", "=", job.data.payload.projectId)
               .execute();
             throw e;
           } finally {
