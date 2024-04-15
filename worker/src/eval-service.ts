@@ -59,15 +59,16 @@ export const createEvalJobs = async ({
       "traces"
     );
 
-    const joinedQuery = Prisma.sql`
-        SELECT id
-        FROM traces as t
-        WHERE project_id = ${data.data.projectId}
-        AND id = ${data.data.traceId}
-        ${condition}
-      `;
+    // const joinedQuery = Prisma.sql`
+    //     SELECT id
+    //     FROM traces as t
+    //     WHERE project_id = ${data.data.projectId}
+    //     AND id = ${data.data.traceId}
+    //     ${condition}
+    //   `;
 
-    const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+    // const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+    const traces: { id: string }[] = [];
 
     const existingJob = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
