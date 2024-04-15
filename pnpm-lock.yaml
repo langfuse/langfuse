@@ -29,6 +29,9 @@ importers:
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
+      next:
+        specifier: ^14.2.1
+        version: 14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
         version: 4.24.7(next@14.2.1)(react-dom@18.2.0)(react@18.2.0)

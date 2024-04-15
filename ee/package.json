@@ -24,9 +24,10 @@
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
   "dependencies": {
+    "@langfuse/shared": "workspace:*",
+    "next": "^14.2.1",
     "next-auth": "^4.24.7",
-    "zod": "^3.22.4",
-    "@langfuse/shared": "workspace:*"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",

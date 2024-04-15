@@ -688,7 +688,10 @@ model SsoConfig {
     createdAt    DateTime @default(now()) @map("created_at")
     updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
     authProvider String   @map("auth_provider") // e.g. "okta", ee/sso/types.ts
-    authConfig   Json?    @map("auth_config") // e.g. { "clientId": "1234", "clientSecret": "5678" }, null if credentials from env should be used
+
+    authConfig Json? @map("auth_config")
+    // e.g. { "clientId": "1234", "clientSecret": "5678" }, null if credentials from env should be used
+    // secrets like clientSecret are encrypted on the application level
 
     @@map("sso_configs")
 }

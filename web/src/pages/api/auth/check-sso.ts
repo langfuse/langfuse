@@ -1,3 +1,9 @@
+/**
+ * This API endpoint checks if a custom SSO provider is configured for a given domain.
+ *
+ * If no custom SSO provider is configured or EE is not available, this API will return a 404 response.
+ */
+
 import { getSsoAuthProviderIdForDomain } from "@langfuse/ee/sso";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
