@@ -104,7 +104,7 @@ See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Lan
 | Integration                                                      | Supports      | Description                                                      |
 | ---------------------------------------------------------------- | ------------- | ---------------------------------------------------------------- |
 | [**SDK** - _recommended_](https://langfuse.com/docs/sdk)         | Python, JS/TS | Manual instrumentation using the SDKs for full flexibility.      |
-| [OpenAI SDK](https://langfuse.com/docs/integrations/openai)      | Python        | Automated instrumentation via drop-in replacement of OpenAI SDK. |
+| [OpenAI SDK](https://langfuse.com/docs/integrations/openai)      | Python, JS/TS | Automated instrumentation of OpenAI SDK.                         |
 | [Langchain](https://langfuse.com/docs/integrations/langchain)    | Python, JS/TS | Instrumentation via Langchain callbacks.                         |
 | [LlamaIndex](https://langfuse.com/docs/integrations/llama-index) | Python        | Automated instrumentation via LlamaIndex callback system.        |
 | [API](https://langfuse.com/docs/api)                             |               | Directly call the public API. OpenAPI spec available.            |
