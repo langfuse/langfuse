@@ -4,6 +4,16 @@
   "private": true,
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "require": "./dist/src/index.js"
+    },
+    "./sso": {
+      "import": "./dist/src/sso/index.js",
+      "require": "./dist/src/sso/index.js"
+    }
+  },
   "engines": {
     "node": ">=20"
   },

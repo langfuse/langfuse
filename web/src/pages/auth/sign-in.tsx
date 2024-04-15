@@ -28,7 +28,7 @@ import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPriv
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
-import { isAnySsoConfigured } from "@langfuse/ee";
+import { isAnySsoConfigured } from "@langfuse/ee/sso";
 import { Shield } from "lucide-react";
 
 const credentialAuthForm = z.object({

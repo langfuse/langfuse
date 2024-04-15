@@ -22,7 +22,10 @@ import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, cookieOptions } from "./utils/cookies";
-import { getSsoAuthProviderIdForDomain, loadSsoProviders } from "@langfuse/ee";
+import {
+  getSsoAuthProviderIdForDomain,
+  loadSsoProviders,
+} from "@langfuse/ee/sso";
 import { z } from "zod";
 
 const staticProviders: Provider[] = [

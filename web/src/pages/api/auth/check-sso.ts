@@ -1,4 +1,4 @@
-import { getSsoAuthProviderIdForDomain } from "@langfuse/ee";
+import { getSsoAuthProviderIdForDomain } from "@langfuse/ee/sso";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 
