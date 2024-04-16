@@ -5,8 +5,7 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20",
-    "pnpm": "8"
+    "node": ">=20"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",

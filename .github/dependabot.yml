@@ -7,7 +7,6 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: "/" # Location of package manifests
-    version: 8
     rebase-strategy: "disabled" # use dependabot-rebase-stale
     schedule:
       interval: "daily"
