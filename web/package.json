@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.25.1",
+  "version": "2.26.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -94,7 +94,7 @@
     "next-auth": "^4.24.7",
     "next-query-params": "^5.0.0",
     "nodemailer": "^6.9.13",
-    "posthog-js": "^1.105.9",
+    "posthog-js": "^1.122.0",
     "posthog-node": "^3.6.3",
     "prisma": "^5.12.1",
     "react": "18.2.0",
@@ -117,7 +117,7 @@
     "@mermaid-js/mermaid-cli": "^10.7.0",
     "@playwright/test": "^1.43.1",
     "@testing-library/jest-dom": "^6.4.2",
-    "@testing-library/react": "^14.2.2",
+    "@testing-library/react": "^15.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/eslint": "^8.56.7",

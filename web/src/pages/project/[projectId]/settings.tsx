@@ -27,13 +27,13 @@ export default function SettingsPage() {
     <div className="md:container">
       <Header title="Settings" />
       <div className="flex flex-col gap-10">
-        <ProjectMembersTable projectId={projectId} />
-        <RenameProject projectId={projectId} />
         <HostNameProject />
         <ApiKeyList projectId={projectId} />
+        <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
         <Beta />
         <Instructions />
+        <RenameProject projectId={projectId} />
         <div className="space-y-3">
           <DeleteProjectButton projectId={projectId} />
           <TransferOwnershipButton projectId={projectId} />
