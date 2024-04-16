@@ -427,8 +427,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
     if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      batchResults.length > 0
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
       const traceEvents = batchResults
         .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
@@ -442,18 +441,20 @@ export const sendToWorkerIfEnvironmentConfigured = async (
         )
         .filter(isNotNullOrUndefined);
 
-      await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            "Basic " +
-            Buffer.from("admin" + ":" + env.LANGFUSE_WORKER_PASSWORD).toString(
-              "base64",
-            ),
-        },
-        body: JSON.stringify(traceEvents),
-      });
+      if (traceEvents.length > 0) {
+        await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Basic " +
+              Buffer.from(
+                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
+              ).toString("base64"),
+          },
+          body: JSON.stringify(traceEvents),
+        });
+      }
     }
   } catch (error) {
     console.error("Error sending events to worker", error);
