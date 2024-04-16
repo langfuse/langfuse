@@ -15,6 +15,7 @@ export default function PlaygroundPage() {
         help={{
           description: "A sandbox to test and iterate your prompts",
         }}
+        featureBetaURL="https://github.com/orgs/langfuse/discussions/1170"
       />
       <div className="flex-1 overflow-auto">
         <PlaygroundProvider>

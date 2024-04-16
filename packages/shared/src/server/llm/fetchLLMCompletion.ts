@@ -4,6 +4,7 @@ import {
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -25,6 +26,7 @@ type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
   functionCall?: LLMFunctionCall;
+  callbacks?: BaseCallbackHandler[];
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -34,14 +36,12 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
-    functionCall: undefined;
   }
 ): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-    functionCall: undefined;
   }
 ): Promise<string>;
 
@@ -55,7 +55,7 @@ export async function fetchLLMCompletion(
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
 ): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
-  const { messages, modelParams, streaming } = params;
+  const { messages, modelParams, streaming, callbacks } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
       return new HumanMessage(message.content);
@@ -73,6 +73,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
+      callbacks,
     });
   } else {
     chatModel = new ChatOpenAI({
@@ -81,6 +82,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
+      callbacks,
     });
   }
 
