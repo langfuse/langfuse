@@ -372,8 +372,8 @@ importers:
         specifier: ^6.9.13
         version: 6.9.13
       posthog-js:
-        specifier: ^1.105.9
-        version: 1.116.2
+        specifier: ^1.122.0
+        version: 1.122.0
       posthog-node:
         specifier: ^3.6.3
         version: 3.6.3
@@ -13980,8 +13980,8 @@ packages:
     resolution: {integrity: sha512-i/hbxIE9803Alj/6ytL7UHQxRvZkI9O4Sy+J3HGc4F4oo/2eQAjTSNJ0bfxyse3bH0nuVesCk+3IRLaMtG3H6w==}
     dev: true
 
-  /posthog-js@1.116.2:
-    resolution: {integrity: sha512-s76+xH91mLt/J05sy7XV4/BzfwTJFU+BoBcv9adYOjD3SAUjUFg21+G2rq9A1rRvMHh0lms4t16TRMlO4L463A==}
+  /posthog-js@1.122.0:
+    resolution: {integrity: sha512-+8R2/nLaWyI5Jp2Ly7L52qcgDFU3xryyoNG52DPJ8dlGnagphxIc0mLNGurgyKeeTGycsOsuOIP4dtofv3ZoBA==}
     dependencies:
       fflate: 0.4.8
       preact: 10.19.7
