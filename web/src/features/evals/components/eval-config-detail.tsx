@@ -94,23 +94,35 @@ export function DeactivateConfig({
     },
   });
 
-  const onClick = () => {
-    setIsOpen(true);
-    mutEvalConfig.mutateAsync({
-      projectId,
-      evalConfigId: config?.id ?? "",
-      updatedStatus: "INACTIVE",
-    });
-    utils.evals.invalidate();
-  };
+  // const onClick = () => {
+  //   console.log("onClick");
+  //   setIsOpen(!isOpen);
+  // };
+
+  // const onConfirmation = () => {
+  //   console.log("onConfirmation");
+
+  //   if (!projectId) {
+  //     console.error("Project ID is missing");
+  //     return;
+  //   }
+
+  //   mutEvalConfig.mutateAsync({
+  //     projectId,
+  //     evalConfigId: config?.id ?? "",
+  //     updatedStatus: "INACTIVE",
+  //   });
+  //   setIsOpen(false);
+  //   utils.evals.invalidate();
+  // };
 
   console.log("isOpen", isOpen);
 
   return (
-    <Popover open={isOpen}>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Slider
-          onChecked={() => void setIsOpen(true)}
+          onChecked={() => setIsOpen(!isOpen)}
           isChecked={config?.status === "ACTIVE"}
           disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
@@ -127,14 +139,7 @@ export function DeactivateConfig({
             type="button"
             variant="destructive"
             loading={mutEvalConfig.isLoading}
-            onClick={() => {
-              if (!projectId) {
-                console.error("Project ID is missing");
-                return;
-              }
-              void onClick();
-              setIsOpen(false);
-            }}
+            // onClick={onConfirmation}
           >
             Deactivate Eval Job
           </Button>
