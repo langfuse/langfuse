@@ -897,6 +897,27 @@ paths:
             type: string
             format: date-time
             nullable: true
+        - name: source
+          in: query
+          description: Retrieve only scores from a specific source.
+          required: true
+          schema:
+            $ref: '#/components/schemas/ScoreSource'
+        - name: operator
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: value
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1703,6 +1724,7 @@ components:
       enum:
         - API
         - REVIEW
+        - EVAL
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object
