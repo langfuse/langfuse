@@ -83,6 +83,8 @@ router
         name: QueueJobs.TraceUpsert as const,
       },
       opts: {
+        removeOnFail: 10_000,
+        removeOnComplete: true,
         attempts: 5,
         backoff: {
           type: "exponential",
