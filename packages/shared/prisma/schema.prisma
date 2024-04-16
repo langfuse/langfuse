@@ -302,6 +302,7 @@ model Observation {
     @@index(projectId)
     @@index(parentObservationId)
     @@index(model)
+    @@index(internalModel)
     @@index(promptId)
     @@index([projectId, startTime, type])
     @@map("observations")
