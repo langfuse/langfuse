@@ -1,17 +1,17 @@
 import * as React from "react";
 import Header from "@/src/components/layouts/header";
-import { RouterOutputs, api } from "@/src/utils/api";
+import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Button } from "@/src/components/ui/button";
-import { Pencil } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
+import { Slider } from "@/src/components/slider";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -95,25 +95,26 @@ export function DeactivateConfig({
   });
 
   const onClick = () => {
+    setIsOpen(true);
     mutEvalConfig.mutateAsync({
       projectId,
       evalConfigId: config?.id ?? "",
       updatedStatus: "INACTIVE",
     });
+    utils.evals.invalidate();
   };
 
+  console.log("isOpen", isOpen);
+
   return (
-    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
+    <Popover open={isOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size={"sm"}
-          onClick={() => void onClick()}
+        <Slider
+          onChecked={() => void setIsOpen(true)}
+          isChecked={config?.status === "ACTIVE"}
           disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
-        >
-          <Pencil className="h-5 w-5" />
-        </Button>
+        />
       </PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
