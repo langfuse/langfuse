@@ -12,6 +12,7 @@ export class PosthogCallbackHandler extends BaseCallbackHandler {
   private posthog: ServerPosthog;
 
   constructor(
+    public eventPrefix: string,
     public body: ValidatedChatCompletionBody,
     private userId: string,
   ) {
@@ -26,7 +27,7 @@ export class PosthogCallbackHandler extends BaseCallbackHandler {
     const properties = this.getEventProperties(outputString);
 
     this.captureEvent(properties);
-    await this.posthog.shutdownAsync();
+    await this.posthog.flushAsync();
   }
 
   private getInputLength() {
@@ -47,14 +48,14 @@ export class PosthogCallbackHandler extends BaseCallbackHandler {
 
   private captureEvent(properties: ChatCompletionEventProperties) {
     this.posthog.capture({
-      event: "chat_completion",
+      event: this.eventPrefix + "_chat_completion",
       distinctId: this.userId,
       properties,
     });
   }
 
-  public async shutdownAsync() {
-    await this.posthog.shutdownAsync();
+  public async flushAsync() {
+    await this.posthog.flushAsync();
   }
 }
 

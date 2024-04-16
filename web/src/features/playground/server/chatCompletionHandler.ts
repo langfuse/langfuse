@@ -10,11 +10,13 @@ import {
   type ValidatedChatCompletionBody,
 } from "./validateChatCompletionBody";
 import { getCookieName } from "@/src/server/utils/cookies";
+import { env } from "@/src/env.mjs";
 
 export default async function chatCompletionHandler(req: NextRequest) {
   const token = await getToken({
     req,
     cookieName: getCookieName("next-auth.session-token"),
+    secret: env.NEXTAUTH_SECRET,
   });
 
   if (!token || !token.sub)
@@ -49,7 +51,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
       messages,
       modelParams,
       streaming: true,
-      callbacks: [new PosthogCallbackHandler(body, token.sub)],
+      callbacks: [new PosthogCallbackHandler("playground", body, token.sub)],
     });
 
     return new StreamingTextResponse(stream);
