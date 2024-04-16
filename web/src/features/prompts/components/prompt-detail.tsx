@@ -85,6 +85,11 @@ export const PromptDetail = () => {
         <div className="col-span-3">
           <Header
             title={prompt.name}
+            help={{
+              description:
+                "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
+              href: "https://langfuse.com/docs/prompts",
+            }}
             breadcrumb={[
               {
                 name: "Prompts",
