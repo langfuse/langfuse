@@ -513,7 +513,6 @@ model Events {
     url       String?
     method    String?
 
-    @@index(createdAt)
     @@index(projectId)
     @@map("events")
 }
