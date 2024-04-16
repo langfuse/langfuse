@@ -325,16 +325,16 @@ importers:
         specifier: workspace:*
         version: link:../packages/config-typescript
       '@sentry/nextjs':
-        specifier: ^7.110.1
+        specifier: ^7.110.0
         version: 7.110.1(next@14.2.1)(react@18.2.0)
       '@sentry/node':
-        specifier: ^7.110.1
+        specifier: ^7.110.0
         version: 7.110.1
       '@sentry/profiling-node':
-        specifier: ^7.110.1
+        specifier: ^7.110.0
         version: 7.110.1
       '@sentry/types':
-        specifier: ^7.110.1
+        specifier: ^7.110.0
         version: 7.110.1
       '@t3-oss/env-nextjs':
         specifier: ^0.8.0
@@ -585,10 +585,10 @@ importers:
         specifier: workspace:*
         version: link:../packages/shared
       '@sentry/node':
-        specifier: ^7.110.1
+        specifier: ^7.110.0
         version: 7.110.1
       '@sentry/profiling-node':
-        specifier: ^7.110.1
+        specifier: ^7.110.0
         version: 7.110.1
       backoff:
         specifier: ^2.5.0

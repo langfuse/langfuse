@@ -20,8 +20,8 @@
   "author": "engineering@langfuse.com",
   "dependencies": {
     "@langfuse/shared": "workspace:*",
-    "@sentry/node": "^7.110.1",
-    "@sentry/profiling-node": "^7.110.1",
+    "@sentry/node": "^7.110.0",
+    "@sentry/profiling-node": "^7.110.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
