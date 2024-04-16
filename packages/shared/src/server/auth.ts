@@ -15,6 +15,7 @@ export function getDisplaySecretKey(secretKey: string) {
 }
 
 export async function hashSecretKey(key: string) {
+  // legacy, uses bcrypt, transformed into hashed key upon first use
   const hashedKey = await hash(key, 11);
   return hashedKey;
 }
