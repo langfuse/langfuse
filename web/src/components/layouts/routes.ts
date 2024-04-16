@@ -11,6 +11,7 @@ import {
   PenSquareIcon,
   LibraryBig,
   TerminalIcon,
+  Lightbulb,
 } from "lucide-react";
 
 export type Route = {
@@ -56,6 +57,14 @@ export const ROUTES: Route[] = [
         name: "Models",
         pathname: `/project/[projectId]/models`,
       },
+    ],
+  },
+  {
+    name: "Evaluation",
+    icon: Lightbulb,
+    cloudOnly: true,
+    featureFlag: "evals",
+    children: [
       {
         name: "Templates",
         pathname: `/project/[projectId]/evals/templates`,
