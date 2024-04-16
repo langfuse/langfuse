@@ -128,6 +128,8 @@ export const createEvalJobs = async ({
             delay: 1000,
           },
           delay: config.delay, // milliseconds
+          removeOnComplete: true,
+          removeOnFail: 10_000,
         }
       );
     } else {
