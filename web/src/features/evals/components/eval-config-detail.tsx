@@ -95,11 +95,16 @@ export function DeactivateConfig({
   });
 
   const onClick = () => {
+    if (!projectId) {
+      console.error("Project ID is missing");
+      return;
+    }
     mutEvalConfig.mutateAsync({
       projectId,
       evalConfigId: config?.id ?? "",
       updatedStatus: "INACTIVE",
     });
+    setIsOpen(false);
   };
 
   return (
@@ -125,14 +130,7 @@ export function DeactivateConfig({
             type="button"
             variant="destructive"
             loading={mutEvalConfig.isLoading}
-            onClick={() => {
-              if (!projectId) {
-                console.error("Project ID is missing");
-                return;
-              }
-              void onClick();
-              setIsOpen(false);
-            }}
+            onClick={onClick}
           >
             Deactivate Eval Job
           </Button>
