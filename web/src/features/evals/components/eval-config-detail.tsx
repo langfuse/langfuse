@@ -1,6 +1,6 @@
 import * as React from "react";
 import Header from "@/src/components/layouts/header";
-import { RouterOutputs, api } from "@/src/utils/api";
+import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
