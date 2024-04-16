@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 8.15.5
       - uses: actions/setup-node@v3
         with:
           node-version: 20
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 8.15.5
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -120,7 +120,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 8.15.5
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -159,7 +159,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 8.15.5
       - uses: actions/setup-node@v3
         with:
           node-version: 20
@@ -221,7 +221,7 @@ jobs:
     steps:
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 8.15.5
       - name: Setup node
         uses: actions/setup-node@v3
         with:
