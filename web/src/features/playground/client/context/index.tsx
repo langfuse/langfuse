@@ -268,7 +268,9 @@ async function* getChatCompletionStream(
   });
 
   if (!result.ok) {
-    throw new Error("Failed to fetch data: " + result.statusText);
+    const errorData = await result.json();
+
+    throw new Error(`Completion failed: ${errorData.message}`);
   }
 
   const reader = result.body?.getReader();
