@@ -11,7 +11,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import { Slider } from "@/src/components/slider";
 import { Pencil } from "lucide-react";
 
 export const EvalConfigDetail = () => {
