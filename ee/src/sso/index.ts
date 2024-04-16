@@ -31,8 +31,6 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
     cachedSsoConfigs === null ||
     Date.now() - cachedSsoConfigs.timestamp > CACHE_TTL
   ) {
-    console.log("EE SSO CACHE: Setting/refreshing the cache");
-
     // transform into zod object
     const dbConfigs = await prisma.ssoConfig.findMany();
     const parsedSsoConfigs = dbConfigs
@@ -54,8 +52,6 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
       data: parsedSsoConfigs,
       timestamp: Date.now(),
     };
-  } else {
-    console.log("EE SSO CACHE: Using cached SSO configs");
   }
 
   return cachedSsoConfigs.data;
