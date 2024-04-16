@@ -33,6 +33,7 @@
     "@langchain/core": "^0.1.57",
     "@langchain/openai": "^0.0.28",
     "@langfuse/shared": "workspace:*",
+    "@langfuse/ee": "workspace:*",
     "@marsidev/react-turnstile": "^0.5.4",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@radix-ui/react-accordion": "^1.1.2",
