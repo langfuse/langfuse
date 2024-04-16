@@ -54,15 +54,11 @@ describe("create eval jobs", () => {
     });
 
     const payload = {
-      timestamp: "2022-01-01T00:00:00.000Z",
-      id: "abc",
-      data: {
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        traceId: traceId,
-      },
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      traceId: traceId,
     };
 
-    await createEvalJobs({ data: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -105,15 +101,11 @@ describe("create eval jobs", () => {
     });
 
     const payload = {
-      timestamp: "2022-01-01T00:00:00.000Z",
-      id: "abc",
-      data: {
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        traceId: traceId,
-      },
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      traceId: traceId,
     };
 
-    await createEvalJobs({ data: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -151,16 +143,12 @@ describe("create eval jobs", () => {
     });
 
     const payload = {
-      timestamp: "2022-01-01T00:00:00.000Z",
-      id: "abc",
-      data: {
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        traceId: traceId,
-      },
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      traceId: traceId,
     };
 
-    await createEvalJobs({ data: payload });
-    await createEvalJobs({ data: payload }); // calling it twice to check it is only generated once
+    await createEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload }); // calling it twice to check it is only generated once
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -211,15 +199,11 @@ describe("create eval jobs", () => {
     });
 
     const payload = {
-      timestamp: "2022-01-01T00:00:00.000Z",
-      id: "abc",
-      data: {
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        traceId: traceId,
-      },
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      traceId: traceId,
     };
 
-    await createEvalJobs({ data: payload });
+    await createEvalJobs({ event: payload });
 
     // update the trace to deselect the trace
     await kyselyPrisma.$kysely
@@ -229,7 +213,7 @@ describe("create eval jobs", () => {
       .execute();
 
     await createEvalJobs({
-      data: payload,
+      event: payload,
     }); // calling it twice to check it is only generated once
 
     const jobs = await kyselyPrisma.$kysely
@@ -318,15 +302,11 @@ describe("execute evals", () => {
       .execute();
 
     const payload = {
-      timestamp: "2022-01-01T00:00:00.000Z",
-      id: "abc",
-      data: {
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        jobExecutionId: jobExecutionId,
-      },
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      jobExecutionId: jobExecutionId,
     };
 
-    await evaluate({ data: payload });
+    await evaluate({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -421,15 +401,11 @@ describe("execute evals", () => {
       .execute();
 
     const payload = {
-      timestamp: "2022-01-01T00:00:00.000Z",
-      id: "abc",
-      data: {
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        jobExecutionId: jobExecutionId,
-      },
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      jobExecutionId: jobExecutionId,
     };
 
-    await evaluate({ data: payload });
+    await evaluate({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")

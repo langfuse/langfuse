@@ -16,7 +16,6 @@ import { DB } from ".";
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
 const prismaClientSingleton = () => {
-  console.log("Creating new PrismaClient");
   return new PrismaClient({
     log:
       env.NODE_ENV === "development"
@@ -26,7 +25,6 @@ const prismaClientSingleton = () => {
 };
 
 const kyselySingleton = (prismaClient: PrismaClient) => {
-  console.log("Creating new Kysely client");
   return prismaClient.$extends(
     kyselyExtension({
       kysely: (driver) =>

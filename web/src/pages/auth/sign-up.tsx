@@ -157,6 +157,7 @@ export default function SignIn({ authProviders }: PageProps) {
                   env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
                   turnstileToken === undefined
                 }
+                data-testid="submit-email-password-sign-up-form"
               >
                 Sign up
               </Button>

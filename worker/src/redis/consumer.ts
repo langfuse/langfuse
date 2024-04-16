@@ -22,12 +22,12 @@ export const evalJobCreator = redis
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrumentAsync({ name: "evalJobCreator" }, async (span) => {
           try {
-            await createEvalJobs({ data: job.data.payload });
+            await createEvalJobs({ event: job.data.payload });
             return true;
           } catch (e) {
             logger.error(
               e,
-              `Failed job Evaluation for traceId ${job.data.payload.data.traceId}`
+              `Failed job Evaluation for traceId ${job.data.payload.traceId}`
             );
             throw e;
           } finally {
@@ -54,20 +54,20 @@ export const evalJobExecutor = redis
         return instrumentAsync({ name: "evalJobExecutor" }, async (span) => {
           try {
             logger.info("Executing Evaluation Execution Job", job.data);
-            await evaluate({ data: job.data.payload });
+            await evaluate({ event: job.data.payload });
             return true;
           } catch (e) {
             logger.error(
               e,
-              `Failed Evaluation_Execution job for id ${job.data.payload.data.jobExecutionId}`
+              `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`
             );
             await kyselyPrisma.$kysely
               .updateTable("job_executions")
               .set("status", sql`'ERROR'::"JobExecutionStatus"`)
               .set("end_time", new Date())
               .set("error", JSON.stringify(e))
-              .where("id", "=", job.data.payload.data.jobExecutionId)
-              .where("project_id", "=", job.data.payload.data.projectId)
+              .where("id", "=", job.data.payload.jobExecutionId)
+              .where("project_id", "=", job.data.payload.projectId)
               .execute();
             throw e;
           } finally {

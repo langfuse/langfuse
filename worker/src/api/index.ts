@@ -75,20 +75,20 @@ router
       name: QueueJobs.TraceUpsert,
       data: {
         payload: {
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          data: {
-            projectId: event.projectId,
-            traceId: event.traceId,
-          },
+          projectId: event.projectId,
+          traceId: event.traceId,
         },
+        id: randomUUID(),
+        timestamp: new Date(),
         name: QueueJobs.TraceUpsert as const,
-        opts: {
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
+      },
+      opts: {
+        removeOnFail: 10_000,
+        removeOnComplete: true,
+        attempts: 5,
+        backoff: {
+          type: "exponential",
+          delay: 1000,
         },
       },
     }));

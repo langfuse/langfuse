@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { PlaygroundProvider } from "@/src/features/playground/client/context";
 import { api } from "@/src/utils/api";
-import { type EvalTemplate, evalModels } from "@langfuse/shared";
+import { type EvalTemplate, evalLLMModels } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import {
   Select,
@@ -76,7 +76,7 @@ export const EvalTemplateDetail = () => {
       {allTemplates.isLoading || !allTemplates.data ? (
         <div>Loading...</div>
       ) : (
-        <PlaygroundProvider avilableModels={[...evalModels]}>
+        <PlaygroundProvider avilableModels={[...evalLLMModels]}>
           <EvalTemplateForm
             projectId={projectId}
             existingEvalTemplate={template.data ?? undefined}

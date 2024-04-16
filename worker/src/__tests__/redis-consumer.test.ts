@@ -26,13 +26,11 @@ describe("handle redis events", () => {
     expect(evalQueue).toBeDefined();
 
     const job = await evalQueue?.add(QueueJobs.TraceUpsert, {
+      id: randomUUID(),
+      timestamp: new Date(),
       payload: {
-        id: randomUUID(),
-        timestamp: new Date().toISOString(),
-        data: {
-          projectId: "project-id",
-          traceId: "trace-id",
-        },
+        projectId: "project-id",
+        traceId: "trace-id",
       },
       name: QueueJobs.TraceUpsert as const,
     });
