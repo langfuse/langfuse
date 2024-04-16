@@ -335,6 +335,13 @@ export type Session = {
     user_id: string;
     expires: Timestamp;
 };
+export type SsoConfig = {
+    domain: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    auth_provider: string;
+    auth_config: unknown | null;
+};
 export type Trace = {
     id: string;
     external_id: string | null;
@@ -418,6 +425,7 @@ export type DB = {
     prompts: Prompt;
     scores: Score;
     Session: Session;
+    sso_configs: SsoConfig;
     trace_sessions: TraceSession;
     traces: Trace;
     traces_view: TraceView;

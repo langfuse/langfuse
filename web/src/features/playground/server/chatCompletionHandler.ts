@@ -30,6 +30,8 @@ export default async function chatCompletionHandler(req: NextRequest) {
   try {
     body = validateChatCompletionBody(await req.json());
   } catch (err) {
+    console.error(err);
+
     return NextResponse.json(
       {
         message: "Invalid request body",
@@ -39,13 +41,29 @@ export default async function chatCompletionHandler(req: NextRequest) {
     );
   }
 
-  const { messages, modelParams } = body;
-  const stream = await fetchLLMCompletion({
-    messages,
-    modelParams,
-    streaming: true,
-    functionCall: undefined,
-  });
+  try {
+    const { messages, modelParams } = body;
+    const stream = await fetchLLMCompletion({
+      messages,
+      modelParams,
+      streaming: true,
+      functionCall: undefined,
+    });
 
-  return new StreamingTextResponse(stream);
+    return new StreamingTextResponse(stream);
+  } catch (err) {
+    console.error(err);
+
+    if (err instanceof Error) {
+      return NextResponse.json(
+        {
+          message: err.message,
+          error: err,
+        },
+        { status: 500 },
+      );
+    }
+
+    throw err;
+  }
 }
