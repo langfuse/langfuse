@@ -12,6 +12,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useState } from "react";
 import { Slider } from "@/src/components/slider";
+import { Pencil } from "lucide-react";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -94,39 +95,25 @@ export function DeactivateConfig({
     },
   });
 
-  // const onClick = () => {
-  //   console.log("onClick");
-  //   setIsOpen(!isOpen);
-  // };
-
-  // const onConfirmation = () => {
-  //   console.log("onConfirmation");
-
-  //   if (!projectId) {
-  //     console.error("Project ID is missing");
-  //     return;
-  //   }
-
-  //   mutEvalConfig.mutateAsync({
-  //     projectId,
-  //     evalConfigId: config?.id ?? "",
-  //     updatedStatus: "INACTIVE",
-  //   });
-  //   setIsOpen(false);
-  //   utils.evals.invalidate();
-  // };
-
-  console.log("isOpen", isOpen);
+  const onClick = () => {
+    mutEvalConfig.mutateAsync({
+      projectId,
+      evalConfigId: config?.id ?? "",
+      updatedStatus: "INACTIVE",
+    });
+  };
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
+    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
-        <Slider
-          onChecked={() => setIsOpen(!isOpen)}
-          isChecked={config?.status === "ACTIVE"}
+        <Button
+          variant="ghost"
+          size={"sm"}
           disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
-        />
+        >
+          <Pencil className="h-5 w-5" />
+        </Button>
       </PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
@@ -139,7 +126,14 @@ export function DeactivateConfig({
             type="button"
             variant="destructive"
             loading={mutEvalConfig.isLoading}
-            // onClick={onConfirmation}
+            onClick={() => {
+              if (!projectId) {
+                console.error("Project ID is missing");
+                return;
+              }
+              void onClick();
+              setIsOpen(false);
+            }}
           >
             Deactivate Eval Job
           </Button>
