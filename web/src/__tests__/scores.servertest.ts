@@ -6,8 +6,12 @@ import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/scores API Endpoint", () => {
   let should_prune_db = true;
-  beforeEach(async () => { if (should_prune_db) await pruneDatabase() });
-  afterEach(async () => { if (should_prune_db) await pruneDatabase() });
+  beforeEach(async () => {
+    if (should_prune_db) await pruneDatabase();
+  });
+  afterEach(async () => {
+    if (should_prune_db) await pruneDatabase();
+  });
 
   it("should create score for a trace", async () => {
     await pruneDatabase();
@@ -328,11 +332,13 @@ describe("/api/public/scores API Endpoint", () => {
     const scoreId_2 = uuidv4();
     const scoreId_3 = uuidv4();
     interface GetScoresAPIResponse {
-      data: [{
-        id: string,
-        name: string,
-        value: number
-      }],
+      data: [
+        {
+          id: string;
+          name: string;
+          value: number;
+        },
+      ];
       meta: object;
     }
 
@@ -376,145 +382,209 @@ describe("/api/public/scores API Endpoint", () => {
       await pruneDatabase();
     });
 
-    it('get all scores', async () => {
+    it("get all scores", async () => {
       const getAllScore = await makeAPICall<{
-        data: [{
-          traceId: string,
-          observationId: string
-        }],
+        data: [
+          {
+            traceId: string;
+            observationId: string;
+          },
+        ];
         meta: object;
       }>("GET", `/api/public/scores?${queryUserName}`);
       expect(getAllScore.status).toBe(200);
       expect(getAllScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 3, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
       });
       for (const val of getAllScore.body.data) {
         expect(val).toMatchObject({
           traceId: traceId,
-          observationId: generationId
+          observationId: generationId,
         });
       }
     });
 
-    it('test only operator', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&operator=<`);
+    it("test only operator", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=<`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 3, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
       });
     });
 
-    it('test only value', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&value=0.8`);
+    it("test only value", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&value=0.8`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 3, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
       });
     });
 
-    it('test operator <', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&operator=<&value=50`);
+    it("test operator <", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=<&value=50`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 1, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
       });
-      expect(getScore.body.data).toMatchObject([{
-        id: scoreId_1,
-        name: scoreName,
-        value: 10.5
-      }]);
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
+        },
+      ]);
     });
-    it('test operator >', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&operator=>&value=100`);
+    it("test operator >", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=>&value=100`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 1, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
       });
-      expect(getScore.body.data).toMatchObject([{
-        id: scoreId_3,
-        name: scoreName,
-        value: 100.8
-      }]);
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_3,
+          name: scoreName,
+          value: 100.8,
+        },
+      ]);
     });
-    it('test operator <=', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&operator=<=&value=50.5`);
+    it("test operator <=", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 2, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
       });
-      expect(getScore.body.data).toMatchObject([{
-        id: scoreId_1,
-        name: scoreName,
-        value: 10.5
-      }, {
-        id: scoreId_2,
-        name: scoreName,
-        value: 50.5
-      }]);
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
+        },
+        {
+          id: scoreId_2,
+          name: scoreName,
+          value: 50.5,
+        },
+      ]);
     });
-    it('test operator >=', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&operator=>=&value=50.5`);
+    it("test operator >=", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 2, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
       });
-      expect(getScore.body.data).toMatchObject([{
-        id: scoreId_2,
-        name: scoreName,
-        value: 50.5
-      }, {
-        id: scoreId_3,
-        name: scoreName,
-        value: 100.8
-      }]);
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_2,
+          name: scoreName,
+          value: 50.5,
+        },
+        {
+          id: scoreId_3,
+          name: scoreName,
+          value: 100.8,
+        },
+      ]);
     });
-    it('test operator !=', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&operator=!=&value=50.5`);
+    it("test operator !=", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 2, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
       });
-      expect(getScore.body.data).toMatchObject([{
-        id: scoreId_1,
-        name: scoreName,
-        value: 10.5
-      }, {
-        id: scoreId_3,
-        name: scoreName,
-        value: 100.8
-      }]);
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
+        },
+        {
+          id: scoreId_3,
+          name: scoreName,
+          value: 100.8,
+        },
+      ]);
     });
-    it('test operator =', async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>("GET",
-        `/api/public/scores?${queryUserName}&operator==&value=50.5`);
+    it("test operator =", async () => {
+      const getScore = await makeAPICall<GetScoresAPIResponse>(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator==&value=50.5`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
-        page: 1, limit: 50, totalItems: 1, totalPages: 1
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
       });
-      expect(getScore.body.data).toMatchObject([{
-        id: scoreId_2,
-        name: scoreName,
-        value: 50.5
-      }]);
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_2,
+          name: scoreName,
+          value: 50.5,
+        },
+      ]);
     });
-    it('test invalid operator', async () => {
-      const getScore = await makeAPICall("GET",
-        `/api/public/scores?${queryUserName}&operator=op&value=50.5`);
+    it("test invalid operator", async () => {
+      const getScore = await makeAPICall(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+      );
       expect(getScore.status).toBe(400);
       expect(getScore.body).toMatchObject({
         message: "Invalid request data",
       });
     });
-    it('test invalid value', async () => {
-      const getScore = await makeAPICall("GET",
-        `/api/public/scores?${queryUserName}&operator=<&value=myvalue`);
+    it("test invalid value", async () => {
+      const getScore = await makeAPICall(
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+      );
       expect(getScore.status).toBe(400);
       expect(getScore.body).toMatchObject({
         message: "Invalid request data",

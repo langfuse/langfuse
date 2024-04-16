@@ -209,6 +209,7 @@ types:
     enum:
       - API
       - REVIEW
+      - EVAL
 
 errors:
   Error:
