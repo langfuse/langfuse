@@ -210,7 +210,7 @@ export const EvalConfigForm = (props: {
                           : undefined
                       }
                     >
-                      <SelectValue placeholder="Select a template to run this eval job" />
+                      <SelectValue placeholder="Select a template to run this eval config" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
