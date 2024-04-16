@@ -39,14 +39,14 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@langchain/anthropic": "^0.1.12",
-    "@langchain/core": "^0.1.55",
-    "@langchain/openai": "^0.0.26",
+    "@langchain/anthropic": "^0.1.14",
+    "@langchain/core": "^0.1.58",
+    "@langchain/openai": "^0.0.28",
     "@prisma/client": "^5.12.1",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "kysely": "^0.27.3",
-    "langchain": "^0.1.32",
+    "langchain": "^0.1.33",
     "prisma-extension-kysely": "^2.1.0",
     "zod": "^3.22.4",
     "zod-to-json-schema": "^3.22.5"
@@ -58,7 +58,7 @@
     "@types/node": "^20.11.29",
     "@types/pg": "^8.11.5",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/parser": "^7.2.0",
+    "@typescript-eslint/parser": "^7.6.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
@@ -71,7 +71,7 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.4.4",
+    "typescript": "^5.4.5",
     "vitest": "^1.3.1"
   }
 }

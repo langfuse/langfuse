@@ -11,13 +11,13 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
 import EvalConfigTable from "@/src/features/evals/components/eval-config-table";
 
-export default function TemplatesPage() {
+export default function ConfigsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   const hasWriteAccess = useHasAccess({
     projectId,
-    scope: "evalConfig:create",
+    scope: "job:CUD",
   });
 
   return (

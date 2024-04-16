@@ -3,7 +3,7 @@ import emojis from "./emojis";
 import { z } from "zod";
 import logger from "../logger";
 import { Queue } from "bullmq";
-import { redis } from "../redis/consumer";
+import { redis } from "../redis/redis";
 import { randomUUID } from "crypto";
 import basicAuth from "express-basic-auth";
 import { env } from "../env";
@@ -75,20 +75,20 @@ router
       name: QueueJobs.TraceUpsert,
       data: {
         payload: {
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          data: {
-            projectId: event.projectId,
-            traceId: event.traceId,
-          },
+          projectId: event.projectId,
+          traceId: event.traceId,
         },
+        id: randomUUID(),
+        timestamp: new Date(),
         name: QueueJobs.TraceUpsert as const,
-        opts: {
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
+      },
+      opts: {
+        removeOnFail: 10_000,
+        removeOnComplete: true,
+        attempts: 5,
+        backoff: {
+          type: "exponential",
+          delay: 1000,
         },
       },
     }));

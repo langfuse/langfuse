@@ -12,7 +12,7 @@ import {
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
-import { TraceOptions, singleFilter } from "@langfuse/shared";
+import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
   datetimeFilterToPrismaSql,
@@ -450,7 +450,7 @@ export const traceRouter = createTRPCRouter({
         scope: "objects:tag",
       });
       try {
-        const trace = await ctx.prisma.trace.update({
+        await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
             projectId: input.projectId,

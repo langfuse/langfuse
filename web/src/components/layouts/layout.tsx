@@ -43,7 +43,11 @@ const userNavigation = [
 ];
 
 const pathsWithoutNavigation: string[] = ["/onboarding"];
-const unauthenticatedPaths: string[] = ["/auth/sign-in", "/auth/sign-up"];
+const unauthenticatedPaths: string[] = [
+  "/auth/sign-in",
+  "/auth/sign-up",
+  "/auth/error",
+];
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
@@ -72,6 +76,14 @@ export default function Layout(props: PropsWithChildren) {
         enableExperimentalFeatures ||
         session.data?.user?.featureFlags[route.featureFlag]
       )
+    )
+      return null;
+
+    // cloud only
+    if (
+      route.cloudOnly !== undefined &&
+      // the feature should be available in local development
+      route.cloudOnly !== (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
     )
       return null;
 

@@ -29,7 +29,7 @@ import {
 } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type ObservationLevel } from "@langfuse/shared";
+import { type Prisma, type ObservationLevel } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -41,8 +41,8 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
-import { IOCell } from "./IOCell";
-import { setSmallPaginationIfColumnsVisible } from "../../../features/column-visibility/hooks/setSmallPaginationIfColumnsVisible";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 export type GenerationsTableRow = {
   id: string;
@@ -62,7 +62,7 @@ export type GenerationsTableRow = {
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  metadata?: string;
+  metadata?: Prisma.JsonValue;
   scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
@@ -90,6 +90,11 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "generations",
+    "s",
+  );
 
   const [filterState, setFilterState] = useQueryFilterState(
     [
@@ -510,8 +515,10 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
-        const values: string | undefined = row.getValue("metadata");
-        return <div className="flex flex-wrap gap-x-3 gap-y-1">{values}</div>;
+        const values = row.getValue(
+          "metadata",
+        ) as GenerationsTableRow["metadata"];
+        return !!values ? <IOTableCell data={values} /> : null;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -552,13 +559,6 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
       columns,
     );
 
-  const smallTableRequired = setSmallPaginationIfColumnsVisible(
-    columnVisibility,
-    ["input", "output"],
-    paginationState,
-    setPaginationState,
-  );
-
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.generations.map((generation) => {
         return {
@@ -577,9 +577,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           model: generation.model ?? "",
           scores: generation.scores,
           level: generation.level,
-          metadata: generation.metadata
-            ? JSON.stringify(generation.metadata)
-            : undefined,
+          metadata: generation.metadata,
           statusMessage: generation.statusMessage ?? undefined,
           usage: {
             promptTokens: generation.promptTokens,
@@ -609,14 +607,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         }}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="ml-auto whitespace-nowrap"
-                size="sm"
-              >
+              <Button variant="outline" className="ml-auto whitespace-nowrap">
                 {filterState.length > 0 || searchQuery
                   ? "Export selection"
                   : "Export all"}{" "}
@@ -662,13 +658,12 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
           pageCount: Math.ceil(totalCount / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
-          // enforce a minimum page size of 10 if input or output columns are visible
-          options: smallTableRequired ? [10] : undefined,
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
+        rowHeight={rowHeight}
       />
     </div>
   );
@@ -695,14 +690,16 @@ const GenerationsIOCell = ({
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
   return (
-    <IOCell
+    <IOTableCell
       isLoading={observation.isLoading}
       data={
         io === "output" ? observation.data?.output : observation.data?.input
       }
+      className={cn(io === "output" && "bg-green-50")}
     />
   );
 };

@@ -12,6 +12,9 @@ import { useEffect } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { type Prisma } from "@langfuse/shared";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 type RowData = {
   key: {
@@ -24,7 +27,7 @@ type RowData = {
   avgTotalCost: string;
   scores: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["scores"];
   description: string;
-  metadata: string;
+  metadata: Prisma.JsonValue;
 };
 
 export function DatasetRunsTable(props: {
@@ -35,6 +38,10 @@ export function DatasetRunsTable(props: {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "datasetRuns",
+    "s",
+  );
   const runs = api.datasets.runsByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
@@ -131,7 +138,7 @@ export function DatasetRunsTable(props: {
       enableHiding: true,
       cell: ({ row }) => {
         const metadata: RowData["metadata"] = row.getValue("metadata");
-        return <div className="flex flex-wrap gap-x-3 gap-y-1">{metadata}</div>;
+        return !!metadata ? <IOTableCell data={metadata} /> : null;
       },
     },
   ];
@@ -147,7 +154,7 @@ export function DatasetRunsTable(props: {
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
       scores: item.scores,
       description: item.description ?? "",
-      metadata: JSON.stringify(item.metadata),
+      metadata: item.metadata,
     };
   };
 
@@ -162,6 +169,8 @@ export function DatasetRunsTable(props: {
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -189,6 +198,7 @@ export function DatasetRunsTable(props: {
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );

@@ -11,6 +11,14 @@ import { HostNameProject } from "@/src/features/projects/components/HostNameProj
 import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
 import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 import RenameProject from "@/src/features/projects/components/RenameProject";
+import { env } from "@/src/env.mjs";
+import { Card } from "@tremor/react";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import {
+  sendUserChatMessage,
+  showAgentChatMessage,
+} from "@/src/features/support-chat/chat";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -19,12 +27,13 @@ export default function SettingsPage() {
     <div className="md:container">
       <Header title="Settings" />
       <div className="flex flex-col gap-10">
-        <ProjectMembersTable projectId={projectId} />
-        <RenameProject projectId={projectId} />
         <HostNameProject />
         <ApiKeyList projectId={projectId} />
+        <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
+        <Beta />
         <Instructions />
+        <RenameProject projectId={projectId} />
         <div className="space-y-3">
           <DeleteProjectButton projectId={projectId} />
           <TransferOwnershipButton projectId={projectId} />
@@ -78,9 +87,7 @@ const instructionItems = [
 function Instructions() {
   return (
     <div>
-      <h2 className="text-base font-semibold leading-6 text-gray-900">
-        Integrate langfuse
-      </h2>
+      <Header title="Docs" level="h3" />
       <ul
         role="list"
         className="mt-6 divide-y divide-gray-200 border-b border-t border-gray-200"
@@ -115,3 +122,43 @@ function Instructions() {
     </div>
   );
 }
+
+const Beta = () => {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+
+  return (
+    <div>
+      <Header title="Early Access" level="h3" />
+      <Card className="p-4 lg:w-1/2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/posthog-logo.svg"
+          alt="Posthog Logo"
+          className="mb-4 w-32"
+        />
+        <p className="mb-4 text-sm text-gray-700">
+          We have teamed up with PostHog (OSS product analytics) to make
+          Langfuse Events/Metrics available in your Posthog Dashboards.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              sendUserChatMessage(
+                "I am interested to join the PostHog Integration Beta",
+              );
+              showAgentChatMessage("We'll be in touch to get you set up!");
+            }}
+          >
+            Get Access
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="https://langfuse.com/docs/analytics/posthog">
+              Integration Docs
+            </Link>
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};

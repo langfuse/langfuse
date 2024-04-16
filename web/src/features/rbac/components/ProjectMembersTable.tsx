@@ -13,6 +13,7 @@ import { TrashIcon } from "lucide-react";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useSession } from "next-auth/react";
+import Header from "@/src/components/layouts/header";
 
 export function ProjectMembersTable({ projectId }: { projectId: string }) {
   const hasReadAccess = useHasAccess({
@@ -50,9 +51,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-base font-semibold leading-6 text-gray-900">
-        Project Members
-      </h2>
+      <Header title="Project Members" level="h3" />
       <Card className="mb-4">
         <Table className="text-sm">
           <TableHeader>

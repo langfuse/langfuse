@@ -11,6 +11,7 @@ export function JSONView(props: {
   title?: string;
   className?: string;
   isLoading?: boolean;
+  codeClassName?: string;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
@@ -22,7 +23,12 @@ export function JSONView(props: {
           {props.title}
         </div>
       ) : undefined}
-      <div className="flex gap-2 whitespace-pre-wrap break-words p-3 text-xs">
+      <div
+        className={cn(
+          "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
+          props.codeClassName,
+        )}
+      >
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : (
@@ -99,6 +105,57 @@ export function CodeView(props: {
     </div>
   );
 }
+
+export const IOTableCell = ({
+  data,
+  isLoading = false,
+  className,
+}: {
+  data: unknown;
+  isLoading?: boolean;
+  className?: string;
+}) => {
+  return (
+    <>
+      {isLoading ? (
+        <JsonSkeleton className="h-full w-[400px] overflow-hidden px-2 py-1" />
+      ) : (
+        <JSONView
+          json={data}
+          className={cn(
+            "h-full w-[400px] self-stretch overflow-y-auto rounded-sm ",
+            className,
+          )}
+          codeClassName="py-1 px-2"
+        />
+      )}
+    </>
+  );
+};
+
+export const JsonSkeleton = ({
+  className,
+  numRows = 10,
+}: {
+  numRows?: number;
+  className?: string;
+}) => {
+  return (
+    <div className={cn("w-[400px] rounded-md border", className)}>
+      <div className="flex flex-col gap-1">
+        {[...Array<number>(numRows)].map((_, i) => (
+          <Skeleton
+            className={cn(
+              "h-4 w-full",
+              i === numRows - 1 ? "w-3/4" : undefined,
+            )}
+            key={i}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 function stringifyJsonNode(node: unknown) {
   // return single string nodes without quotes

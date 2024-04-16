@@ -2,6 +2,10 @@
 
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import {
+  type RowHeight,
+  getRowHeightTailwindClass,
+} from "@/src/components/table/data-table-row-height-switch";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
@@ -43,6 +47,7 @@ interface DataTableProps<TData, TValue> {
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
+  rowHeight?: RowHeight;
 }
 
 export interface AsyncTableData<T> {
@@ -63,8 +68,10 @@ export function DataTable<TData extends object, TValue>({
   help,
   orderBy,
   setOrderBy,
+  rowHeight,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const rowheighttw = getRowHeightTailwindClass(rowHeight);
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -185,10 +192,12 @@ export function DataTable<TData extends object, TValue>({
                         key={cell.id}
                         className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
+                        <div className={cn("flex items-center", rowheighttw)}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </div>
                       </TableCell>
                     ))}
                   </TableRow>

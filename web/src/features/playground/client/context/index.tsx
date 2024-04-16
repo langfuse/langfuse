@@ -205,11 +205,17 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
+  const updateModelParam: PlaygroundContextType["updateModelParam"] = (
     key,
     value,
   ) => {
     setModelParams((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
+    params,
+  ) => {
+    setModelParams((prev) => ({ ...prev, ...params }));
   };
 
   const updatePromptVariableValue = (variable: string, value: string) => {
@@ -235,7 +241,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         deleteMessage,
 
         modelParams,
-        updateModelParams,
+        updateModelParam: updateModelParam,
+        updateModelParams: updateModelParams,
 
         output,
         outputJson,
@@ -261,7 +268,9 @@ async function* getChatCompletionStream(
   });
 
   if (!result.ok) {
-    throw new Error("Failed to fetch data: " + result.statusText);
+    const errorData = await result.json();
+
+    throw new Error(`Completion failed: ${errorData.message}`);
   }
 
   const reader = result.body?.getReader();

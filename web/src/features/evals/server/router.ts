@@ -6,19 +6,17 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  DEFAULT_TRACE_JOB_DELAY,
-  EvalTargetObject,
-} from "@/src/features/evals/constants";
+import { DEFAULT_TRACE_JOB_DELAY, EvalTargetObject } from "@langfuse/shared";
 import {
   EvalModelNames,
   ZodModelConfig,
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 export const CreateEvalTemplate = z.object({
-  name: z.string(),
+  name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
   model: EvalModelNames,
@@ -40,6 +38,10 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
+
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -50,6 +52,9 @@ export const evalRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           jobType: "EVAL",
+        },
+        include: {
+          evalTemplate: true,
         },
         take: input.limit,
         skip: input.page * input.limit,
@@ -67,15 +72,47 @@ export const evalRouter = createTRPCRouter({
       };
     }),
 
-  allTemplates: protectedProjectProcedure
+  configById: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number(),
-        page: z.number(),
+        id: z.string(),
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:read",
+      });
+
+      const config = await ctx.prisma.jobConfiguration.findUnique({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+        include: {
+          evalTemplate: true,
+        },
+      });
+
+      return config;
+    }),
+
+  allTemplatesForName: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -85,14 +122,115 @@ export const evalRouter = createTRPCRouter({
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
           projectId: input.projectId,
+          name: input.name,
         },
-        take: input.limit,
-        skip: input.page * input.limit,
+        orderBy: [{ version: "desc" }],
+      });
+
+      return {
+        templates: templates,
+      };
+    }),
+
+  templateNames: protectedProjectProcedure
+    .input(
+      z.object({ projectId: z.string(), page: z.number(), limit: z.number() }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalTemplate:read",
+      });
+
+      const templates = await ctx.prisma.$queryRaw<
+        Array<{
+          name: string;
+          version: number;
+          latestCreatedAt: Date;
+          latestId: string;
+        }>
+      >`
+        SELECT
+          name,
+          MAX(version) as version,
+          MAX(created_at) as "latestCreatedAt",
+          (SELECT id FROM "eval_templates" WHERE "project_id" = ${input.projectId} AND name = et.name ORDER BY version DESC LIMIT 1) as "latestId"
+        FROM "eval_templates" as et
+        WHERE "project_id" = ${input.projectId}
+        GROUP BY name
+        ORDER BY name
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `;
+      return {
+        templates: templates,
+        totalCount: templates.length,
+      };
+    }),
+
+  templateById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalTemplate:read",
+      });
+
+      const template = await ctx.prisma.evalTemplate.findUnique({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+
+      return template;
+    }),
+  allTemplates: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string().optional(),
+        limit: z.number().optional(),
+        page: z.number().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalTemplate:read",
+      });
+
+      const templates = await ctx.prisma.evalTemplate.findMany({
+        where: {
+          projectId: input.projectId,
+          ...(input.id ? { id: input.id } : undefined),
+        },
+        ...(input.limit && input.page
+          ? { take: input.limit, skip: input.page * input.limit }
+          : undefined),
       });
 
       const count = await ctx.prisma.evalTemplate.count({
         where: {
           projectId: input.projectId,
+          ...(input.id ? { id: input.id } : undefined),
         },
       });
       return {
@@ -106,7 +244,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         evalTemplateId: z.string(),
-        scoreName: z.string(),
+        scoreName: z.string().min(1),
         target: z.string(),
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
@@ -116,10 +254,13 @@ export const evalRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
+        if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+          throw new Error("Evals available in cloud only");
+        }
         throwIfNoAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "job:create",
+          scope: "job:CUD",
         });
 
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
@@ -147,6 +288,7 @@ export const evalRouter = createTRPCRouter({
             variableMapping: input.mapping,
             sampling: input.sampling,
             delay: DEFAULT_TRACE_JOB_DELAY, // 10 seconds default
+            status: "ACTIVE",
           },
         });
         await auditLog({
@@ -163,6 +305,9 @@ export const evalRouter = createTRPCRouter({
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplate)
     .mutation(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -195,6 +340,43 @@ export const evalRouter = createTRPCRouter({
         resourceType: "evalTemplate",
         resourceId: evalTemplate.id,
         action: "create",
+      });
+      return evalTemplate;
+    }),
+
+  updateEvalJob: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evalConfigId: z.string(),
+        updatedStatus: z.enum(["ACTIVE", "INACTIVE"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:CUD",
+      });
+
+      await ctx.prisma.jobConfiguration.update({
+        where: {
+          id: input.evalConfigId,
+          projectId: input.projectId,
+        },
+        data: {
+          status: input.updatedStatus,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "job",
+        resourceId: input.evalConfigId,
+        action: "update",
       });
     }),
 });

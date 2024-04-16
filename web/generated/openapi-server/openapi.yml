@@ -482,6 +482,24 @@ paths:
             items:
               type: string
               nullable: true
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Optional filter to only include traces on or after a certain
+            timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: Optional filter to only include traces before a certain timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''

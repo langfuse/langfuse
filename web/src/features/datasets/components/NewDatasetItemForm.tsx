@@ -20,7 +20,7 @@ import {
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
-import { Textarea } from "@/src/components/ui/textarea";
+import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";
 
@@ -38,7 +38,7 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
   expectedOutput: z.string().refine(
@@ -53,7 +53,7 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
 });
@@ -149,9 +149,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Input</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />
@@ -165,9 +165,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Expected output</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />

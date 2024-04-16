@@ -9,9 +9,13 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { type Score } from "@langfuse/shared";
 import { usdFormatter } from "../../../utils/numbers";
-import { IOCell } from "@/src/components/table/use-cases/IOCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useEffect } from "react";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { cn } from "@/src/utils/tailwind";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 type RowData = {
   id: string;
@@ -36,14 +40,15 @@ export function DatasetRunItemsTable(
     | {
         projectId: string;
         datasetId: string;
-        datasetRunId: string;
+        datasetRunId: string; // View from run page
       }
     | {
         projectId: string;
         datasetId: string;
-        datasetItemId: string;
+        datasetItemId: string; // View from item page
       },
 ) {
+  const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 20),
@@ -53,6 +58,23 @@ export function DatasetRunItemsTable(
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
+
+  useEffect(() => {
+    if (runItems.isSuccess) {
+      setDetailPageList(
+        "traces",
+        runItems.data.runItems.filter((i) => !!i.trace).map((i) => i.trace!.id),
+      );
+      // set the datasetItems list only when viewing this table from the run page
+      if ("datasetRunId" in props)
+        setDetailPageList(
+          "datasetItems",
+          runItems.data.runItems.map((i) => i.datasetItemId),
+        );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runItems.isSuccess, runItems.data]);
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
@@ -210,6 +232,8 @@ export function DatasetRunItemsTable(
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -237,6 +261,7 @@ export function DatasetRunItemsTable(
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );
@@ -255,12 +280,13 @@ const TraceObservationIOCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId: traceId },
     {
-      enabled: !!traceId && !!!observationId,
+      enabled: observationId === undefined,
       trpc: {
         context: {
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -269,21 +295,23 @@ const TraceObservationIOCell = ({
       traceId: traceId,
     },
     {
-      enabled: !!traceId && !!observationId,
+      enabled: observationId !== undefined,
       trpc: {
         context: {
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <IOCell
+    <IOTableCell
       isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
       data={io === "output" ? data?.output : data?.input}
+      className={cn(io === "output" && "bg-green-50")}
     />
   );
 };
@@ -311,11 +339,12 @@ const DatasetItemIOCell = ({
           skipBatch: true,
         },
       },
+      refetchOnMount: false, // prevents refetching loops
     },
   );
 
   return (
-    <IOCell
+    <IOTableCell
       isLoading={datasetItem.isLoading}
       data={
         io === "expectedOutput"
