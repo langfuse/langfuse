@@ -5,10 +5,11 @@ FROM node:20-alpine AS alpine
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat
 
 FROM alpine AS base
-RUN npm install pnpm turbo --global
+RUN npm install turbo --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
+RUN corepack prepare pnpm@8.15.5 --activate
 
 
 FROM base AS pruner

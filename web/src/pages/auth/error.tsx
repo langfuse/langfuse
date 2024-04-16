@@ -1,4 +1,4 @@
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPageWithSentry } from "@/src/components/error-page";
 import { useRouter } from "next/router";
 
 export default function AuthError() {
@@ -8,5 +8,7 @@ export default function AuthError() {
     ? decodeURIComponent(String(error))
     : "An authentication error occurred. Please reach out to support.";
 
-  return <ErrorPage title="Authentication Error" message={errorMessage} />;
+  return (
+    <ErrorPageWithSentry title="Authentication Error" message={errorMessage} />
+  );
 }

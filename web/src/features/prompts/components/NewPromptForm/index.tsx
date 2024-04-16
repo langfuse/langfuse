@@ -327,7 +327,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             !initialPrompt && form.formState.errors.name?.message,
           )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
         >
-          Create prompt
+          {!initialPrompt ? "Create prompt" : "Update prompt"}
         </Button>
       </form>
       {formError && (

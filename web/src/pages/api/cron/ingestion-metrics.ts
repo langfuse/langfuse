@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
+import { ServerPosthog } from "@/src/server/services/posthog";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { PostHog } from "posthog-node";
 
 export default async function handler(
   req: NextApiRequest,
@@ -26,10 +26,7 @@ export default async function handler(
       : "langfuse-cloud-eu";
 
   try {
-    const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-      host: "https://eu.posthog.com",
-    });
-    if (process.env.NODE_ENV === "development") posthog.debug();
+    const posthog = new ServerPosthog();
 
     // Time frame is the last time this cron job ran until now
     const startTimeframe =
