@@ -10,7 +10,10 @@ export default async function handler(
   if (!process.env.NEXT_PUBLIC_POSTHOG_KEY)
     return res.status(200).json({ message: "No PostHog key provided" });
 
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined)
+  if (
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined ||
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
+  )
     return res.status(200).json({
       message: "Only runs on Langfuse Cloud, no LANGFUSE_CLOUD_REGION provided",
     });
