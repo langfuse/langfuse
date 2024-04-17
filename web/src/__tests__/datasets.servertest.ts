@@ -51,14 +51,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
   it("should create and get a dataset", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset name",
+      name: "dataset + name",
       description: "dataset-description",
       metadata: { foo: "bar" },
     });
 
     const dbDataset = await prisma.dataset.findMany({
       where: {
-        name: "dataset name",
+        name: "dataset + name",
       },
     });
 
@@ -66,12 +66,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const getDataset = await makeAPICall(
       "GET",
-      encodeURIComponent(`/api/public/datasets/dataset name`),
+      `/api/public/datasets/${encodeURIComponent("dataset + name")}`,
     );
 
     expect(getDataset.status).toBe(200);
     expect(getDataset.body).toMatchObject({
-      name: "dataset name",
+      name: "dataset + name",
       description: "dataset-description",
       metadata: { foo: "bar" },
     });
@@ -287,14 +287,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         datasetItemId: "dataset-item-id",
         observationId: observationId,
-        runName: "run only observation",
+        runName: "run + only + observation",
         runDescription: "run-description",
         metadata: { key: "value" },
       },
     );
     const dbRunObservation = await prisma.datasetRuns.findFirst({
       where: {
-        name: "run only observation",
+        name: "run + only + observation",
       },
       include: {
         datasetRunItems: true,
@@ -313,13 +313,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const getRunAPI = await makeAPICall(
       "GET",
-      encodeURIComponent(
-        `/api/public/datasets/dataset name/runs/run only observation`,
-      ),
+
+      `/api/public/datasets/${encodeURIComponent("dataset name")}/runs/${encodeURIComponent("run + only + observation")}`,
     );
     expect(getRunAPI.status).toBe(200);
     expect(getRunAPI.body).toMatchObject({
-      name: "run only observation",
+      name: "run + only + observation",
       description: "run-description",
       metadata: { key: "value" },
       datasetId: dataset.body.id,
@@ -329,7 +328,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           datasetItemId: "dataset-item-id",
           observationId: observationId,
           traceId: traceId,
-          datasetRunName: "run only observation",
+          datasetRunName: "run + only + observation",
         }),
       ]),
     });
