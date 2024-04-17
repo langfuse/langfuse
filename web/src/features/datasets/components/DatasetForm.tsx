@@ -15,7 +15,7 @@ import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
 import { JsonEditor } from "@/src/components/json-editor";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { type Prisma } from "@langfuse/shared";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
