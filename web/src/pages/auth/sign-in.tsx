@@ -19,7 +19,7 @@ import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
@@ -30,6 +30,8 @@ import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@langfuse/ee/sso";
 import { Shield } from "lucide-react";
+import { useRouter } from "next/router";
+import { captureException } from "@sentry/nextjs";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -169,10 +171,33 @@ export function SSOButtons({
   );
 }
 
+const signInErrors = [
+  {
+    code: "OAuthAccountNotLinked",
+    description:
+      "Please sign in with the same provider that you used to create this account.",
+  },
+];
+
 export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
+  const router = useRouter();
+
+  // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
+  const errorFromParams =
+    typeof router.query.error === "string" ? router.query.error : null;
+  const prettyError = signInErrors.find(
+    (e) => e.code === errorFromParams,
+  )?.description;
+  useEffect(() => {
+    // log unexpected errors to Sentry
+    if (errorFromParams && !prettyError) {
+      captureException(new Error(`Sign in error: ${errorFromParams}`));
+    }
+  }, [errorFromParams, prettyError]);
+
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
-  >(null);
+  >(prettyError ?? errorFromParams);
   const [ssoLoading, setSsoLoading] = useState<boolean>(false);
 
   const posthog = usePostHog();
