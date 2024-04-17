@@ -49,7 +49,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
   afterEach(async () => await pruneDatabase());
 
-  it("should create and get a dataset", async () => {
+  it("should create and get a dataset, include special characters", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset + name",
       description: "dataset-description",
