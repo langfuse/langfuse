@@ -43,6 +43,7 @@ export const datasetRouter = createTRPCRouter({
           "datasets.id",
           "datasets.name",
           "datasets.description",
+          "datasets.metadata",
           "datasets.created_at as createdAt",
           "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),

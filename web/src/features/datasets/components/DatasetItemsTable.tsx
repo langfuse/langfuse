@@ -38,9 +38,11 @@ type RowData = {
 export function DatasetItemsTable({
   projectId,
   datasetId,
+  menuItems,
 }: {
   projectId: string;
   datasetId: string;
+  menuItems?: React.ReactNode;
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
@@ -240,6 +242,7 @@ export function DatasetItemsTable({
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={menuItems}
       />
       <DataTable
         columns={columns}
