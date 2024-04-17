@@ -11,7 +11,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -116,7 +116,7 @@ export function DeactivateConfig({
           disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
         >
-          <Pencil className="h-5 w-5" />
+          <Trash2 className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
