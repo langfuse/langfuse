@@ -427,7 +427,8 @@ export const sendToWorkerIfEnvironmentConfigured = async (
     if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
     ) {
       const traceEvents = batchResults
         .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.

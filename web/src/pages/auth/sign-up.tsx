@@ -63,9 +63,11 @@ export default function SignIn({ authProviders }: PageProps) {
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-          ? "/onboarding"
-          : "/?getStarted=1",
+        callbackUrl:
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+            ? "/onboarding"
+            : "/?getStarted=1",
         turnstileToken,
       });
     } catch (err) {
