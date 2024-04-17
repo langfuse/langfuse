@@ -461,13 +461,15 @@ export default function Layout(props: PropsWithChildren) {
                   href={
                     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
                       ? "https://langfuse.com/docs/demo"
-                      : "https://docs-staging.langfuse.com/docs/demo"
+                      : "https://docs-staging.langfuse.com/docs/demo" // staging
                   }
                   target="_blank"
                 >
-                  {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                    ? "Use Chat ↗"
-                    : "Use Chat (staging) ↗"}
+                  {
+                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+                      ? "Use Chat ↗"
+                      : "Use Chat (staging) ↗" // staging
+                  }
                 </Link>
               </Button>
             </div>
