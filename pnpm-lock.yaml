@@ -451,8 +451,8 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(react@18.2.0)
       react-responsive:
-        specifier: ^9.0.2
-        version: 9.0.2(react@18.2.0)
+        specifier: ^10.0.0
+        version: 10.0.0(react@18.2.0)
       react18-json-view:
         specifier: ^0.2.8-canary.6
         version: 0.2.8-canary.6(react@18.2.0)
@@ -12868,8 +12868,8 @@ packages:
     hasBin: true
     dev: false
 
-  /matchmediaquery@0.3.1:
-    resolution: {integrity: sha512-Hlk20WQHRIm9EE9luN1kjRjYXAQToHOIAHPJn9buxBwuhfTHoKUcX+lXBbxc85DVQfXYbEQ4HcwQdd128E3qHQ==}
+  /matchmediaquery@0.4.2:
+    resolution: {integrity: sha512-wrZpoT50ehYOudhDjt/YvUJc6eUzcdFPdmbizfgvswCKNHD1/OBOHYJpHie+HXpu6bSkEGieFMYk6VuutaiRfA==}
     dependencies:
       css-mediaquery: 0.1.2
     dev: false
@@ -14701,17 +14701,17 @@ packages:
       use-sidecar: 1.1.2(@types/react@18.2.79)(react@18.2.0)
     dev: false
 
-  /react-responsive@9.0.2(react@18.2.0):
-    resolution: {integrity: sha512-+4CCab7z8G8glgJoRjAwocsgsv6VA2w7JPxFWHRc7kvz8mec1/K5LutNC2MG28Mn8mu6+bu04XZxHv5gyfT7xQ==}
-    engines: {node: '>=0.10'}
+  /react-responsive@10.0.0(react@18.2.0):
+    resolution: {integrity: sha512-N6/UiRLGQyGUqrarhBZmrSmHi2FXSD++N5VbSKsBBvWfG0ZV7asvUBluSv5lSzdMyEVjzZ6Y8DL4OHABiztDOg==}
+    engines: {node: '>=14'}
     peerDependencies:
       react: '>=16.8.0'
     dependencies:
       hyphenate-style-name: 1.0.4
-      matchmediaquery: 0.3.1
+      matchmediaquery: 0.4.2
       prop-types: 15.8.1
       react: 18.2.0
-      shallow-equal: 1.2.1
+      shallow-equal: 3.1.0
     dev: false
 
   /react-smooth@4.0.0(react-dom@18.2.0)(react@18.2.0):
@@ -15314,8 +15314,8 @@ packages:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
     dev: false
 
-  /shallow-equal@1.2.1:
-    resolution: {integrity: sha512-S4vJDjHHMBaiZuT9NPb616CSmLf618jawtv3sufLl6ivK8WocjAo58cXwbRV1cgqxH0Qbv+iUt6m05eqEa2IRA==}
+  /shallow-equal@3.1.0:
+    resolution: {integrity: sha512-pfVOw8QZIXpMbhBWvzBISicvToTiM5WBF1EeAUZDDSb5Dt29yl4AYbyywbJFSEsRUMr7gJaxqCdr4L3tQf9wVg==}
     dev: false
 
   /shebang-command@2.0.0:
