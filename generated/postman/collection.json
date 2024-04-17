@@ -379,7 +379,7 @@
           "request": {
             "description": "Get daily metrics of the Langfuse project",
             "url": {
-              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=",
+              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=&fromTimestamp=&toTimestamp=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -414,6 +414,16 @@
                   "key": "tags",
                   "value": "",
                   "description": "Optional filter for metrics where traces include all of these tags"
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include traces on or after a certain timestamp"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include traces before a certain timestamp"
                 }
               ],
               "variable": []
@@ -684,7 +694,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -718,6 +728,21 @@
                   "key": "fromTimestamp",
                   "value": "",
                   "description": "Retrieve only scores newer than this timestamp."
+                },
+                {
+                  "key": "source",
+                  "value": "",
+                  "description": "Retrieve only scores from a specific source."
+                },
+                {
+                  "key": "operator",
+                  "value": "",
+                  "description": "Retrieve only scores with <operator> value."
+                },
+                {
+                  "key": "value",
+                  "value": "",
+                  "description": "Retrieve only scores with <operator> value."
                 }
               ],
               "variable": []

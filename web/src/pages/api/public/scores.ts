@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { ScoreSource, prisma } from "@langfuse/shared/src/db";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
@@ -18,11 +18,25 @@ import {
 } from "@/src/pages/api/public/ingestion";
 import { isPrismaException } from "@/src/utils/exceptions";
 
+const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
+
+const prismaOperators: Record<(typeof operators)[number], string> = {
+  "<": "lt",
+  ">": "gt",
+  "<=": "lte",
+  ">=": "gte",
+  "!=": "not",
+  "=": "equals",
+};
+
 const ScoresGetSchema = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
   fromTimestamp: stringDate,
+  source: z.nativeEnum(ScoreSource).nullish(),
+  value: z.coerce.number().nullish(),
+  operator: z.enum(operators).nullish(),
 });
 
 export default async function handler(
@@ -105,6 +119,13 @@ export default async function handler(
       const fromTimestampCondition = obj.fromTimestamp
         ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
+      const sourceCondition = obj.source
+        ? Prisma.sql`AND s."source" = ${obj.source}`
+        : Prisma.empty;
+      const valueCondition =
+        obj.operator && obj.value !== null && obj.value !== undefined
+          ? Prisma.sql`AND s."value" ${Prisma.raw(`${obj.operator}`)} ${obj.value}`
+          : Prisma.empty;
 
       const scores = await prisma.$queryRaw<
         Array<Score & { trace: { userId: string } }>
@@ -114,6 +135,7 @@ export default async function handler(
             s.timestamp,
             s.name,
             s.value,
+            s.source,
             s.comment,
             s.trace_id as "traceId",
             s.observation_id as "observationId",
@@ -123,16 +145,25 @@ export default async function handler(
           WHERE t.project_id = ${authCheck.scope.projectId}
           ${userCondition}
           ${nameCondition}
+          ${sourceCondition}
           ${fromTimestampCondition}
+          ${valueCondition}
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `);
       const totalItems = await prisma.score.count({
         where: {
           name: obj.name ? obj.name : undefined,
+          source: obj.source ? obj.source : undefined,
           timestamp: obj.fromTimestamp
             ? { gte: new Date(obj.fromTimestamp) }
             : undefined,
+          value:
+            obj.operator && obj.value
+              ? {
+                  [prismaOperators[obj.operator]]: obj.value,
+                }
+              : undefined,
           trace: {
             projectId: authCheck.scope.projectId,
             userId: obj.userId ? obj.userId : undefined,

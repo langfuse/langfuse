@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@langchain/anthropic": "^0.1.14",
-    "@langchain/core": "^0.1.57",
+    "@langchain/core": "^0.1.58",
     "@langchain/openai": "^0.0.28",
     "@prisma/client": "^5.12.1",
     "@types/bcryptjs": "^2.4.6",
