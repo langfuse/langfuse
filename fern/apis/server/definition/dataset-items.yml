@@ -26,6 +26,9 @@ types:
       datasetName: string
       input: optional<unknown>
       expectedOutput: optional<unknown>
+      metadata: optional<unknown>
+      sourceTraceId: optional<string>
+      sourceObservationId: optional<string>
       id:
         type: optional<string>
         docs: Dataset items are upserted on their id

@@ -430,6 +430,7 @@ model Dataset {
     id           String        @id @default(cuid())
     name         String
     description  String?
+    metadata     Json?
     projectId    String        @map("project_id")
     project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt    DateTime      @default(now()) @map("created_at")
@@ -447,6 +448,7 @@ model DatasetItem {
     status              DatasetStatus     @default(ACTIVE)
     input               Json?
     expectedOutput      Json?             @map("expected_output")
+    metadata            Json?
     sourceTraceId       String?           @map("source_trace_id")
     sourceTrace         Trace?            @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
     sourceObservationId String?           @map("source_observation_id")

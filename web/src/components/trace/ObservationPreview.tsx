@@ -134,6 +134,7 @@ export const ObservationPreview = (props: {
               projectId={props.projectId}
               input={observationWithInputAndOutput.data.input}
               output={observationWithInputAndOutput.data.output}
+              metadata={preloadedObservation.metadata}
               key={preloadedObservation.id}
             />
           ) : null}

@@ -44,19 +44,14 @@ export default function Dataset() {
           />
         }
       />
-      {!!run.data?.description && (
-        <>
-          <Header title="Description" level="h3" />
-          <JSONView json={run.data.description} />
-        </>
-      )}
-      {!!run.data?.metadata && (
-        <>
-          <Header title="Metadata" level="h3" />
-          <JSONView json={run.data.metadata} />
-        </>
-      )}
-      <Header title="Runs" level="h3" />
+      <div className="flex flex-col gap-2">
+        {!!run.data?.description && (
+          <JSONView json={run.data.description} title="Description" />
+        )}
+        {!!run.data?.metadata && (
+          <JSONView json={run.data.metadata} title="Metadata" />
+        )}
+      </div>
       <DatasetRunItemsTable
         projectId={projectId}
         datasetId={datasetId}

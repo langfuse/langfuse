@@ -28,6 +28,7 @@ export const NewDatasetItemFromTrace = (props: {
   observationId?: string;
   input: Prisma.JsonValue;
   output: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
 }) => {
   const [open, setOpen] = useState(false);
   const session = useSession();
@@ -111,6 +112,7 @@ export const NewDatasetItemFromTrace = (props: {
             projectId={props.projectId}
             input={props.input}
             output={props.output}
+            metadata={props.metadata}
             onFormSuccess={() => setOpen(false)}
             className="h-full overflow-y-auto"
           />

@@ -33,6 +33,7 @@ type RowData = {
 export function DatasetRunsTable(props: {
   projectId: string;
   datasetId: string;
+  menuItems?: React.ReactNode;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -171,6 +172,7 @@ export function DatasetRunsTable(props: {
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={props.menuItems}
       />
       <DataTable
         columns={columns}

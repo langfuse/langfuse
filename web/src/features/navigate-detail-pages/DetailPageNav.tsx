@@ -52,7 +52,7 @@ export const DetailPageNav = (props: {
 
   if (ids.length > 1)
     return (
-      <div>
+      <div className="flex flex-row gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -69,7 +69,6 @@ export const DetailPageNav = (props: {
                   );
                 }
               }}
-              className="mr-2"
             >
               <ChevronUp className="h-4 w-4" />
             </Button>
