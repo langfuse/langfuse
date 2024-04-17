@@ -113,6 +113,7 @@ export type Dataset = {
     id: string;
     name: string;
     description: string | null;
+    metadata: unknown | null;
     project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
@@ -122,6 +123,7 @@ export type DatasetItem = {
     status: Generated<DatasetStatus>;
     input: unknown | null;
     expected_output: unknown | null;
+    metadata: unknown | null;
     source_trace_id: string | null;
     source_observation_id: string | null;
     dataset_id: string;

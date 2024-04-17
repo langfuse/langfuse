@@ -70,6 +70,7 @@ export const TracePreview = ({
             projectId={trace.projectId}
             input={trace.input}
             output={trace.output}
+            metadata={trace.metadata}
             key={trace.id}
           />
         </div>

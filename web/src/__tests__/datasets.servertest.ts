@@ -5,63 +5,12 @@ import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
-  beforeEach(async () => await pruneDatabase());
-  afterEach(async () => await pruneDatabase());
+  const traceId = v4();
+  const observationId = v4();
+  beforeEach(async () => {
+    await pruneDatabase();
 
-  it("should create and get a dataset", async () => {
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name",
-      description: "dataset-description",
-    });
-
-    const dbDataset = await prisma.dataset.findMany({
-      where: {
-        name: "dataset-name",
-      },
-    });
-
-    expect(dbDataset.length).toBeGreaterThan(0);
-
-    const getDataset = await makeAPICall(
-      "GET",
-      `/api/public/datasets/dataset-name`,
-    );
-
-    expect(getDataset.status).toBe(200);
-    expect(getDataset.body).toMatchObject({
-      name: "dataset-name",
-      description: "dataset-description",
-    });
-  });
-
-  it("GET datasets", async () => {
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name-1",
-    });
-
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name-2",
-    });
-
-    const datasetItemId = v4();
-
-    const createItemRes = await makeAPICall<{
-      datasetName: string; // field that can break if the API changes as it is not a db column
-    }>("POST", "/api/public/dataset-items", {
-      datasetName: "dataset-name-2",
-      input: { key: "value" },
-      expectedOutput: { key: "value" },
-      id: datasetItemId,
-    });
-
-    expect(createItemRes.status).toBe(200);
-    expect(createItemRes.body).toMatchObject({
-      datasetName: "dataset-name-2", // not included in db table
-    });
-
-    const traceId = v4();
-    const observationId = v4();
-
+    // create sample trace and observation
     const response = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
         {
@@ -97,6 +46,62 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       ],
     });
     expect(response.status).toBe(207);
+  });
+  afterEach(async () => await pruneDatabase());
+
+  it("should create and get a dataset", async () => {
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name",
+      description: "dataset-description",
+      metadata: { foo: "bar" },
+    });
+
+    const dbDataset = await prisma.dataset.findMany({
+      where: {
+        name: "dataset-name",
+      },
+    });
+
+    expect(dbDataset.length).toBeGreaterThan(0);
+
+    const getDataset = await makeAPICall(
+      "GET",
+      `/api/public/datasets/dataset-name`,
+    );
+
+    expect(getDataset.status).toBe(200);
+    expect(getDataset.body).toMatchObject({
+      name: "dataset-name",
+      description: "dataset-description",
+      metadata: { foo: "bar" },
+    });
+  });
+
+  it("GET datasets", async () => {
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name-1",
+    });
+
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name-2",
+    });
+
+    const datasetItemId = v4();
+
+    const createItemRes = await makeAPICall<{
+      datasetName: string; // field that can break if the API changes as it is not a db column
+    }>("POST", "/api/public/dataset-items", {
+      datasetName: "dataset-name-2",
+      input: { key: "value" },
+      expectedOutput: { key: "value" },
+      metadata: { key: "value-dataset-item" },
+      id: datasetItemId,
+    });
+
+    expect(createItemRes.status).toBe(200);
+    expect(createItemRes.body).toMatchObject({
+      datasetName: "dataset-name-2", // not included in db table
+    });
 
     await makeAPICall("POST", "/api/public/dataset-run-items", {
       datasetItemId: datasetItemId,
@@ -136,6 +141,9 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       datasetName: "dataset-name",
       input: { key: "value" },
       expectedOutput: { key: "value" },
+      metadata: { key: "value-dataset-item" },
+      sourceTraceId: traceId,
+      sourceObservationId: observationId,
     });
     const dbDatasetItem = await prisma.datasetItem.findFirst({
       where: {
@@ -159,6 +167,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           id: dbDatasetItem!.id,
           input: { key: "value" },
           expectedOutput: { key: "value" },
+          metadata: { key: "value-dataset-item" },
           datasetName: "dataset-name", // not included in db table
         },
       ],
@@ -173,7 +182,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       id: dbDatasetItem!.id,
       input: { key: "value" },
       expectedOutput: { key: "value" },
+      metadata: { key: "value-dataset-item" },
       datasetName: "dataset-name", // not included in db table
+      sourceTraceId: traceId,
+      sourceObservationId: observationId,
     });
   });
 
@@ -186,6 +198,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       id: "dataset-item-id",
       datasetName: "dataset-name",
       input: { key: "value" },
+      metadata: { key: "value-dataset-item" },
     });
     expect(item1.status).toBe(200);
     expect(item1.body).toMatchObject({
@@ -196,6 +209,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       id: "dataset-item-id",
       datasetName: "dataset-name",
       input: { key: "value2" },
+      metadata: ["hello-world"],
     });
     expect(item2.status).toBe(200);
     expect(item2.body).toMatchObject({
@@ -208,6 +222,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbDatasetItem).not.toBeNull();
     expect(dbDatasetItem?.input).toMatchObject({ key: "value2" });
+    expect(dbDatasetItem?.metadata).toMatchObject(["hello-world"]);
   });
 
   it("should create and get a dataset run", async () => {

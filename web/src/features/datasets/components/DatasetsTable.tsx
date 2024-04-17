@@ -17,6 +17,9 @@ import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { type Prisma } from "@langfuse/shared";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
 type RowData = {
   key: {
@@ -28,10 +31,13 @@ type RowData = {
   lastRunAt?: string;
   countItems: number;
   countRuns: number;
+  metadata: Prisma.JsonValue;
 };
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -101,6 +107,16 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
     },
     {
+      accessorKey: "metadata",
+      header: "Metadata",
+      id: "metadata",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const metadata: RowData["metadata"] = row.getValue("metadata");
+        return !!metadata ? <IOTableCell data={metadata} /> : null;
+      },
+    },
+    {
       id: "actions",
       accessorKey: "actions",
       header: "Actions",
@@ -145,6 +161,7 @@ export function DatasetsTable(props: { projectId: string }) {
       lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
+      metadata: item.metadata,
     };
   };
 
@@ -162,6 +179,8 @@ export function DatasetsTable(props: { projectId: string }) {
         actionButtons={
           <DatasetActionButton projectId={props.projectId} mode="create" />
         }
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -189,6 +208,7 @@ export function DatasetsTable(props: { projectId: string }) {
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );

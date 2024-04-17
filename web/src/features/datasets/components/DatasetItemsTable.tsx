@@ -33,14 +33,17 @@ type RowData = {
   createdAt: string;
   input: Prisma.JsonValue;
   expectedOutput: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
 };
 
 export function DatasetItemsTable({
   projectId,
   datasetId,
+  menuItems,
 }: {
   projectId: string;
   datasetId: string;
+  menuItems?: React.ReactNode;
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
@@ -170,6 +173,16 @@ export function DatasetItemsTable({
       },
     },
     {
+      accessorKey: "metadata",
+      header: "Metadata",
+      id: "metadata",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const metadata = row.getValue("metadata") as RowData["metadata"];
+        return !!metadata ? <IOTableCell data={metadata} /> : null;
+      },
+    },
+    {
       id: "actions",
       accessorKey: "actions",
       header: "Actions",
@@ -224,6 +237,7 @@ export function DatasetItemsTable({
       createdAt: item.createdAt.toLocaleString(),
       input: item.input,
       expectedOutput: item.expectedOutput,
+      metadata: item.metadata,
     };
   };
 
@@ -240,6 +254,7 @@ export function DatasetItemsTable({
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={menuItems}
       />
       <DataTable
         columns={columns}

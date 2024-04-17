@@ -1529,6 +1529,8 @@ components:
         description:
           type: string
           nullable: true
+        metadata:
+          nullable: true
         projectId:
           type: string
         createdAt:
@@ -1591,6 +1593,8 @@ components:
         input:
           nullable: true
         expectedOutput:
+          nullable: true
+        metadata:
           nullable: true
         sourceTraceId:
           type: string
@@ -1735,6 +1739,14 @@ components:
           nullable: true
         expectedOutput:
           nullable: true
+        metadata:
+          nullable: true
+        sourceTraceId:
+          type: string
+          nullable: true
+        sourceObservationId:
+          type: string
+          nullable: true
         id:
           type: string
           nullable: true
@@ -1789,6 +1801,8 @@ components:
           type: string
         description:
           type: string
+          nullable: true
+        metadata:
           nullable: true
       required:
         - name
