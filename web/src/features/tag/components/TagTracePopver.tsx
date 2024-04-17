@@ -4,7 +4,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagMananger";
 
-type TagTracePopverProps = {
+type TagTracePopoverProps = {
   tags: string[];
   availableTags: string[];
   projectId: string;
@@ -12,13 +12,13 @@ type TagTracePopverProps = {
   tracesFilter: RouterInput["traces"]["all"];
 };
 
-export function TagTracePopver({
+export function TagTracePopover({
   tags,
   availableTags,
   projectId,
   traceId,
   tracesFilter,
-}: TagTracePopverProps) {
+}: TagTracePopoverProps) {
   const [isLoading, setIsLoading] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
 

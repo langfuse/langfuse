@@ -113,7 +113,9 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       cell: ({ row }) => {
         const metadata: RowData["metadata"] = row.getValue("metadata");
-        return !!metadata ? <IOTableCell data={metadata} /> : null;
+        return !!metadata ? (
+          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {
