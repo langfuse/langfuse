@@ -225,7 +225,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbDatasetItem?.metadata).toMatchObject(["hello-world"]);
   });
 
-  it("should create and get a dataset run", async () => {
+  it("should create and get a dataset run, include special characters", async () => {
     const dataset = await makeAPICall<{ id: string }>(
       "POST",
       "/api/public/datasets",
