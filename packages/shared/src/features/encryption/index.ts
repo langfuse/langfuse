@@ -1,7 +1,6 @@
 import crypto from "crypto";
-import { env } from "../env";
 
-const ENCRYPTION_KEY: string = env.ENCRYPTION_KEY || ""; // Must be 256 bits (32 bytes, 64 hex characters)
+const ENCRYPTION_KEY: string = process.env.ENCRYPTION_KEY || ""; // Must be 256 bits (32 bytes, 64 hex characters)
 const IV_LENGTH: number = 16; // For AES, this is always 16
 
 // Alternatively: openssl rand -hex 32
