@@ -56,6 +56,7 @@ export default function DatasetItems() {
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
               datasetDescription={dataset.data?.description ?? undefined}
+              datasetMetadata={dataset.data?.metadata}
               icon
             />
             <DeleteButton
@@ -72,10 +73,7 @@ export default function DatasetItems() {
       />
 
       {!!dataset.data?.metadata && (
-        <>
-          <Header title="Metadata" level="h3" />
-          <JSONView json={dataset?.data.metadata} />
-        </>
+        <JSONView json={dataset?.data.metadata} title="Metadata" />
       )}
 
       <DatasetItemsTable
