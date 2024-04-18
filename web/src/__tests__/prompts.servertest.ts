@@ -56,6 +56,49 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.tags).toEqual([]);
   });
 
+  it("should fetch a prompt with special character", async () => {
+    const promptId = uuidv4();
+
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        name: "prompt + name",
+        prompt: "prompt",
+        isActive: true,
+        version: 1,
+        config: {
+          temperature: 0.1,
+        },
+        project: {
+          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+        },
+        createdBy: "user-1",
+      },
+    });
+
+    const fetchedObservations = await makeAPICall(
+      "GET",
+      `/api/public/prompts?name=${encodeURIComponent("prompt + name")}&version=1`,
+      undefined,
+    );
+
+    expect(fetchedObservations.status).toBe(200);
+
+    if (!isPrompt(fetchedObservations.body)) {
+      throw new Error("Expected body to be a prompt");
+    }
+
+    expect(fetchedObservations.body.id).toBe(promptId);
+    expect(fetchedObservations.body.name).toBe("prompt + name");
+    expect(fetchedObservations.body.prompt).toBe("prompt");
+    expect(fetchedObservations.body.type).toBe("text");
+    expect(fetchedObservations.body.version).toBe(1);
+    expect(fetchedObservations.body.isActive).toBe(true);
+    expect(fetchedObservations.body.createdBy).toBe("user-1");
+    expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
+    expect(fetchedObservations.body.tags).toEqual([]);
+  });
+
   it("should fetch active prompt only if no prompt version is given", async () => {
     const promptId = uuidv4();
 
