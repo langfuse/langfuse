@@ -22,11 +22,19 @@ import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPriv
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
 import { PasswordInput } from "@/src/components/ui/password-input";
+import { Divider } from "@tremor/react";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
 export default function SignIn({ authProviders }: PageProps) {
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Used to refresh turnstile as the token can only be used once
+  const [turnstileCData, setTurnstileCData] = useState<string>(
+    new Date().getTime().toString(),
+  );
+
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
@@ -55,12 +63,21 @@ export default function SignIn({ authProviders }: PageProps) {
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-          ? "/onboarding"
-          : "/?getStarted=1",
+        callbackUrl:
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+            ? "/onboarding"
+            : "/?getStarted=1",
+        turnstileToken,
       });
     } catch (err) {
       setFormError("An error occurred. Please try again.");
+
+      // Refresh turnstile as the token can only be used once
+      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+        setTurnstileCData(new Date().getTime().toString());
+        setTurnstileToken(undefined);
+      }
     }
   }
 
@@ -138,6 +155,11 @@ export default function SignIn({ authProviders }: PageProps) {
                 type="submit"
                 className="w-full"
                 loading={form.formState.isSubmitting}
+                disabled={
+                  env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                  turnstileToken === undefined
+                }
+                data-testid="submit-email-password-sign-up-form"
               >
                 Sign up
               </Button>
@@ -149,7 +171,24 @@ export default function SignIn({ authProviders }: PageProps) {
             </form>
           </Form>
           <SSOButtons authProviders={authProviders} action="Sign up" />
-          <div className="h-5" />
+          {
+            // Turnstile exists copy-paste also on sign-up.tsx
+            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
+              <>
+                <Divider className="text-gray-400" />
+                <Turnstile
+                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  options={{
+                    theme: "light",
+                    action: "sign-in",
+                    cData: turnstileCData,
+                  }}
+                  className="mx-auto"
+                  onSuccess={setTurnstileToken}
+                />
+              </>
+            )
+          }
           <CloudPrivacyNotice action="creating an account" />
         </div>
 

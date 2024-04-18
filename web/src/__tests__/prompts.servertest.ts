@@ -3,7 +3,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt } from "@langfuse/shared/src/db";
+import { type Prompt } from "@langfuse/shared";
 import {
   PromptSchema,
   PromptType,
@@ -53,6 +53,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.isActive).toBe(true);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
     expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
+    expect(fetchedObservations.body.tags).toEqual([]);
   });
 
   it("should fetch active prompt only if no prompt version is given", async () => {

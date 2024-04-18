@@ -4,6 +4,7 @@ import {
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -14,13 +15,18 @@ import { ChatOpenAI } from "@langchain/openai";
 import {
   ChatMessage,
   ChatMessageRole,
+  LLMFunctionCall,
   ModelParams,
   ModelProvider,
 } from "./types";
+import zodToJsonSchema from "zod-to-json-schema";
+import { JsonOutputFunctionsParser } from "langchain/output_parsers";
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
+  functionCall?: LLMFunctionCall;
+  callbacks?: BaseCallbackHandler[];
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -40,9 +46,16 @@ export async function fetchLLMCompletion(
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
+  params: LLMCompletionParams & {
+    streaming: false;
+    functionCall: LLMFunctionCall;
+  }
+): Promise<unknown>;
+
+export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
-): Promise<string | IterableReadableStream<Uint8Array>> {
-  const { messages, modelParams, streaming } = params;
+): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
+  const { messages, modelParams, streaming, callbacks } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
       return new HumanMessage(message.content);
@@ -60,6 +73,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
+      callbacks,
     });
   } else {
     chatModel = new ChatOpenAI({
@@ -68,7 +82,24 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
+      callbacks,
     });
+  }
+
+  console.log("Making LLM call with params: ", modelParams);
+
+  if (params.functionCall) {
+    const functionCallingModel = chatModel.bind({
+      functions: [
+        {
+          ...params.functionCall,
+          parameters: zodToJsonSchema(params.functionCall.parameters),
+        },
+      ],
+      function_call: { name: params.functionCall.name },
+    });
+    const outputParser = new JsonOutputFunctionsParser();
+    return await functionCallingModel.pipe(outputParser).invoke(finalMessages);
   }
 
   if (streaming) {

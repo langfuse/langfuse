@@ -1,3 +1,5 @@
+![Langfuse GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
+
 # Contributing to Langfuse
 
 First off, thanks for taking the time to contribute! ❤️
@@ -118,9 +120,11 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 
 - `web`: is the main application package providing Frontend and Backend APIs for Langfuse.
 - `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
-- `shared`: contains shared code between the above packages.
-- `config-eslint`: contains eslint configurations which are shared between the above packages.
-- `config-typescript`: contains typescript configurations which are shared between the above packages.
+- `packages`:
+  - `shared`: contains shared code between the above packages.
+  - `config-eslint`: contains eslint configurations which are shared between the above packages.
+  - `config-typescript`: contains typescript configurations which are shared between the above packages.
+- `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
 
 ## Development Setup
 
@@ -192,7 +196,7 @@ Requirements
   To run migrations, you can execute the following command.
 
   ```bash
-  pnpm --filter=shared run db:migrate
+  pnpm run db:migrate -- --name <name of the migration>
   ```
 
 > [!NOTE]

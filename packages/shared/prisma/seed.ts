@@ -4,13 +4,14 @@ import {
   type Prisma,
   ObservationType,
   ScoreSource,
-} from "../src/db";
+} from "../src/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 
 import { chunk } from "lodash";
 import { v4 } from "uuid";
-import { ModelUsageUnit, getDisplaySecretKey, hashSecretKey } from "../src";
+import { ModelUsageUnit } from "../src";
+import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -164,6 +165,74 @@ async function main() {
 
     await uploadObjects(traces, observations, scores, sessions, events);
 
+    // add eval objects
+    const evalTemplate = await prisma.evalTemplate.upsert({
+      where: {
+        projectId_name_version: {
+          projectId: project1.id,
+          name: "toxicity-template",
+          version: 1,
+        },
+      },
+      create: {
+        projectId: project1.id,
+        name: "toxicity-template",
+        version: 1,
+        prompt:
+          "Please evaluate the toxicity of the following text {{input}} {{output}}",
+        model: "gpt-3.5-turbo",
+        vars: ["input", "output"],
+        outputSchema: {
+          score: "provide a score between 0 and 1",
+          reasoning: "one sentence reasoning for the score",
+        },
+        modelParams: {
+          temperature: 0.7,
+          outputTokenLimit: 100,
+          topP: 0.9,
+        },
+      },
+      update: {},
+    });
+
+    await prisma.jobConfiguration.upsert({
+      where: {
+        id: "toxicity-job",
+      },
+      create: {
+        id: "toxicity-job",
+        evalTemplateId: evalTemplate.id,
+        projectId: project1.id,
+        jobType: "EVAL",
+        status: "ACTIVE",
+        scoreName: "toxicity",
+        filter: [
+          {
+            type: "string",
+            value: "user",
+            column: "User ID",
+            operator: "contains",
+          },
+        ],
+        variableMapping: [
+          {
+            langfuseObject: "trace",
+            selectedColumnId: "input",
+            templateVariable: "input",
+          },
+          {
+            langfuseObject: "trace",
+            selectedColumnId: "metadata",
+            templateVariable: "output",
+          },
+        ],
+        targetObject: "trace",
+        sampling: 1,
+        delay: 5_000,
+      },
+      update: {},
+    });
+
     for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
       const dataset = await prisma.dataset.create({
         data: {
@@ -171,6 +240,7 @@ async function main() {
           description:
             datasetNumber === 0 ? "Dataset test description" : undefined,
           projectId: project2.id,
+          metadata: datasetNumber === 0 ? { key: "value" } : undefined,
         },
       });
 
@@ -199,6 +269,7 @@ async function main() {
               Math.random() > 0.3
                 ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
                 : undefined,
+            metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
           },
         });
         datasetItemIds.push(datasetItem.id);
@@ -713,6 +784,16 @@ async function generatePrompts(project: Project) {
       version: 1,
       isActive: true,
     },
+    {
+      id: `prompt-${v4()}`,
+      projectId: project.id,
+      createdBy: "user-1",
+      prompt: "Prompt 4 content",
+      name: "Prompt 4",
+      version: 1,
+      isActive: true,
+      tags: ["tag1", "tag2"],
+    },
   ];
 
   for (const prompt of prompts) {
@@ -732,6 +813,7 @@ async function generatePrompts(project: Project) {
         name: prompt.name,
         version: prompt.version,
         isActive: prompt.isActive,
+        tags: prompt.tags,
       },
       update: {
         id: prompt.id,

@@ -36,9 +36,16 @@ export const throwIfNoAccess = (p: HasAccessParams) => {
  * React hook to check if user has access to the given scope
  * @returns true if user has access, false otherwise or while loading
  */
-export const useHasAccess = (p: { projectId: string; scope: Scope }) => {
+export const useHasAccess = (p: {
+  projectId: string | undefined;
+  scope: Scope;
+}) => {
+  const { scope, projectId } = p;
   const session = useSession();
-  return hasAccess({ session: session.data, ...p });
+
+  if (!projectId) return false;
+
+  return hasAccess({ session: session.data, scope, projectId });
 };
 
 // For use in UI components as function, if session is already available

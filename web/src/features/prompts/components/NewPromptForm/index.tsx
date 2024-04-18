@@ -3,9 +3,6 @@ import router from "next/router";
 import { usePostHog } from "posthog-js/react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import JsonView from "react18-json-view";
-
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
@@ -30,11 +27,9 @@ import {
 } from "@/src/features/prompts/server/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { extractVariables } from "@/src/utils/string";
-import { jsonSchema } from "@/src/utils/zod";
+import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Prompt } from "@langfuse/shared/src/db";
-
+import type { Prompt } from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
 import {
   NewPromptFormSchema,
@@ -45,6 +40,8 @@ import {
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
+import { JsonEditor } from "@/src/components/json-editor";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -79,7 +76,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ? initialPromptContent?.prompt
         : "",
     name: initialPrompt?.name ?? "",
-    config: JSON.stringify(initialPrompt?.config?.valueOf()) || "{}",
+    config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: false,
   };
 
@@ -95,17 +92,24 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     currentType === PromptType.Text
       ? form.watch("textPrompt")
       : JSON.stringify(form.watch("chatPrompt"), null, 2),
-  );
+  ).filter(getIsCharOrUnderscore);
 
   const createPromptMutation = api.prompts.create.useMutation({
     onSuccess: () => utils.prompts.invalidate(),
     onError: (error) => setFormError(error.message),
   });
 
-  const allPrompts = api.prompts.all.useQuery({ projectId }).data;
+  const allPrompts = api.prompts.filterOptions.useQuery(
+    {
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+    },
+    { enabled: Boolean(projectId) },
+  ).data?.name;
 
   function onSubmit(values: NewPromptFormSchemaType) {
     posthog.capture("prompts:new_prompt_form_submit");
+
+    if (!projectId) throw Error("Project ID is not defined.");
 
     const { type, textPrompt, chatPrompt } = values;
 
@@ -145,7 +149,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   useEffect(() => {
     const isNewPrompt = !allPrompts
-      ?.map((prompt) => prompt.name)
+      ?.map((prompt) => prompt.value)
       .includes(currentName);
 
     if (!isNewPrompt) {
@@ -209,7 +213,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               onValueChange={(e) => {
                 form.setValue("type", e as PromptType);
               }}
-              className="min-h-[240px]"
             >
               {!initialPrompt ? (
                 <TabsList className="flex w-full">
@@ -244,7 +247,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       <FormControl>
                         <Textarea
                           {...field}
-                          className="min-h-[150px] flex-1 font-mono text-xs"
+                          className="min-h-[200px] flex-1 font-mono text-xs"
                         />
                       </FormControl>
                       <FormMessage />
@@ -266,20 +269,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               </TabsContent>
             </Tabs>
           </FormItem>
-          <p className="text-sm text-gray-500">
-            You can use <code className="text-xs">{"{{variable}}"}</code> to
-            insert variables into your prompt.
-            {currentExtractedVariables.length > 0
-              ? " The following variables are available:"
-              : ""}
-          </p>
-          <div className="flex min-h-6 flex-wrap gap-2">
-            {currentExtractedVariables.map((variable) => (
-              <Badge key={variable} variant="outline">
-                {variable}
-              </Badge>
-            ))}
-          </div>
+          <PromptDescription
+            currentExtractedVariables={currentExtractedVariables}
+          />
         </>
 
         {/* Prompt Config field */}
@@ -289,13 +281,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Config</FormLabel>
-              <JsonView
-                src={jsonSchema.parse(JSON.parse(field.value))}
-                onEdit={(edit) => {
-                  field.onChange(JSON.stringify(edit.src));
-                }}
+              <JsonEditor
+                defaultValue={field.value}
+                onChange={field.onChange}
                 editable
-                className="rounded-md border border-gray-200 p-2 text-sm"
               />
               <FormDescription>
                 Track configs for LLM API calls such as function definitions or
@@ -338,7 +327,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             !initialPrompt && form.formState.errors.name?.message,
           )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
         >
-          Create prompt
+          {!initialPrompt ? "Create prompt" : "Update prompt"}
         </Button>
       </form>
       {formError && (

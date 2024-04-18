@@ -14,6 +14,8 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
+import { JsonEditor } from "@/src/components/json-editor";
+import { type Prisma } from "@langfuse/shared";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -36,6 +38,7 @@ interface UpdateDatasetFormProps extends BaseDatasetFormProps {
   datasetId: string;
   datasetName: string;
   datasetDescription?: string;
+  datasetMetadata?: Prisma.JsonValue;
 }
 
 type DatasetFormProps =
@@ -51,6 +54,21 @@ const formSchema = z.object({
       message: "Input should not be only whitespace",
     }),
   description: z.string(),
+  metadata: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
+  ),
 });
 
 export const DatasetForm = (props: DatasetFormProps) => {
@@ -63,10 +81,14 @@ export const DatasetForm = (props: DatasetFormProps) => {
         ? {
             name: props.datasetName,
             description: props.datasetDescription ?? "",
+            metadata: props.datasetMetadata
+              ? JSON.stringify(props.datasetMetadata, null, 2)
+              : "",
           }
         : {
             name: "",
             description: "",
+            metadata: "",
           },
   });
 
@@ -168,6 +190,24 @@ export const DatasetForm = (props: DatasetFormProps) => {
                     <FormLabel>Description (optional)</FormLabel>
                     <FormControl>
                       <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="metadata"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Metadata (optional)</FormLabel>
+                    <FormControl>
+                      <JsonEditor
+                        defaultValue={field.value}
+                        onChange={(v) => {
+                          field.onChange(v);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

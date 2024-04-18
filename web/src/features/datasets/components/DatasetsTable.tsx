@@ -15,6 +15,11 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { type Prisma } from "@langfuse/shared";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
 type RowData = {
   key: {
@@ -26,10 +31,13 @@ type RowData = {
   lastRunAt?: string;
   countItems: number;
   countRuns: number;
+  metadata: Prisma.JsonValue;
 };
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -56,6 +64,7 @@ export function DatasetsTable(props: { projectId: string }) {
     {
       accessorKey: "key",
       header: "Name",
+      id: "key",
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
@@ -70,22 +79,42 @@ export function DatasetsTable(props: { projectId: string }) {
     {
       accessorKey: "description",
       header: "Description",
+      id: "description",
+      enableHiding: true,
     },
     {
       accessorKey: "countItems",
       header: "Items",
+      id: "countItems",
+      enableHiding: true,
     },
     {
       accessorKey: "countRuns",
       header: "Runs",
+      id: "countRuns",
+      enableHiding: true,
     },
     {
       accessorKey: "createdAt",
       header: "Created",
+      id: "createdAt",
+      enableHiding: true,
     },
     {
       accessorKey: "lastRunAt",
       header: "Last Run",
+      id: "lastRunAt",
+      enableHiding: true,
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      id: "metadata",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const metadata: RowData["metadata"] = row.getValue("metadata");
+        return !!metadata ? <IOTableCell data={metadata} /> : null;
+      },
     },
     {
       id: "actions",
@@ -132,11 +161,27 @@ export function DatasetsTable(props: { projectId: string }) {
       lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
+      metadata: item.metadata,
     };
   };
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "datasetsColumnVisibility",
+    columns,
+  );
+
   return (
     <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        actionButtons={
+          <DatasetActionButton projectId={props.projectId} mode="create" />
+        }
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+      />
       <DataTable
         columns={columns}
         data={
@@ -161,6 +206,9 @@ export function DatasetsTable(props: { projectId: string }) {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );

@@ -16,11 +16,9 @@ services:
       - SALT=mysalt
       - NEXTAUTH_URL=http://localhost:3000
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
-      - NEXT_PUBLIC_SIGN_UP_DISABLED=${NEXT_PUBLIC_SIGN_UP_DISABLED:-false}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
-      - REDIS_URL=${REDIS_URL:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
+      - LANGFUSE_WORKER_HOST=${LANGFUSE_WORKER_HOST:-worker}
+      - LANGFUSE_WORKER_PASSWORD=${LANGFUSE_WORKER_PASSWORD:-mybasicauthsecret}
     restart: always
 
   worker:
@@ -30,7 +28,6 @@ services:
     depends_on:
       - db
       - redis
-      - server
     ports:
       - "3030:3030"
     environment:
@@ -39,9 +36,10 @@ services:
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
       - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
       - PORT=${PORT:-3030}
-      - REDIS_URL=${REDIS_URL:-redis}
+      - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
+      - LANGFUSE_WORKER_PASSWORD=${LANGFUSE_WORKER_PASSWORD:-mybasicauthsecret}
     restart: always
 
   redis:

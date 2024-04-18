@@ -11,7 +11,10 @@ const CreateDatasetItemSchema = z.object({
   datasetName: z.string(),
   input: jsonSchema.nullish(),
   expectedOutput: jsonSchema.nullish(),
+  metadata: jsonSchema.nullish(),
   id: z.string().nullish(),
+  sourceTraceId: z.string().nullish(),
+  sourceObservationId: z.string().nullish(),
 });
 
 export default async function handler(
@@ -72,14 +75,23 @@ export default async function handler(
           input: itemBody.input ?? undefined,
           expectedOutput: itemBody.expectedOutput ?? undefined,
           datasetId: dataset.id,
+          metadata: itemBody.metadata ?? undefined,
+          sourceTraceId: itemBody.sourceTraceId ?? undefined,
+          sourceObservationId: itemBody.sourceObservationId ?? undefined,
         },
         update: {
           input: itemBody.input ?? undefined,
           expectedOutput: itemBody.expectedOutput ?? undefined,
+          metadata: itemBody.metadata ?? undefined,
+          sourceTraceId: itemBody.sourceTraceId ?? undefined,
+          sourceObservationId: itemBody.sourceObservationId ?? undefined,
         },
       });
 
-      res.status(200).json(item);
+      res.status(200).json({
+        ...item,
+        datasetName: dataset.name,
+      });
     } else {
       res.status(405).json({
         message: "Method not allowed",

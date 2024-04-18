@@ -18,7 +18,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { useSession } from "next-auth/react";
 
@@ -28,6 +28,7 @@ export const NewDatasetItemFromTrace = (props: {
   observationId?: string;
   input: Prisma.JsonValue;
   output: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
 }) => {
   const [open, setOpen] = useState(false);
   const session = useSession();
@@ -101,9 +102,9 @@ export const NewDatasetItemFromTrace = (props: {
         </Button>
       )}
       <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-        <DialogContent className="sm:w-3xl lg:max-w-none">
+        <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
           <DialogHeader>
-            <DialogTitle className="mb-5">Add to dataset</DialogTitle>
+            <DialogTitle>Add to dataset</DialogTitle>
           </DialogHeader>
           <NewDatasetItemForm
             traceId={props.traceId}
@@ -111,7 +112,9 @@ export const NewDatasetItemFromTrace = (props: {
             projectId={props.projectId}
             input={props.input}
             output={props.output}
+            metadata={props.metadata}
             onFormSuccess={() => setOpen(false)}
+            className="h-full overflow-y-auto"
           />
         </DialogContent>
       </Dialog>

@@ -1,6 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth/lib/emailPassword";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
+import { getSsoAuthProviderIdForDomain } from "@langfuse/ee/sso";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 /*
@@ -12,7 +13,11 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method !== "POST") return;
-  if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
+  // Block if disabled by env
+  if (
+    env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+    env.AUTH_DISABLE_SIGNUP === "true"
+  ) {
     res.status(422).json({ message: "Sign up is disabled." });
     return;
   }
@@ -34,7 +39,7 @@ export default async function handler(
 
   const body = validBody.data;
 
-  // check if email domain is blocked
+  // check if email domain is blocked from email/password sign up via env
   const blockedDomains =
     env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
   const domain = body.email.split("@")[1]?.toLowerCase();
@@ -44,6 +49,14 @@ export default async function handler(
         "Sign up with email and password is disabled for this domain. Please use SSO.",
     });
     return;
+  }
+
+  // EE: check if custom SSO configuration is enabled for this domain
+  const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
+  if (customSsoProvider) {
+    res.status(422).json({
+      message: "You must sign in via SSO for this domain.",
+    });
   }
 
   // create the user
@@ -71,7 +84,8 @@ export default async function handler(
   if (
     env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING"
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
   ) {
     await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
       method: "POST",

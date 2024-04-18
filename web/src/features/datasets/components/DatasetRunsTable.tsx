@@ -10,6 +10,11 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
 import { usdFormatter } from "../../../utils/numbers";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { type Prisma } from "@langfuse/shared";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 type RowData = {
   key: {
@@ -22,17 +27,22 @@ type RowData = {
   avgTotalCost: string;
   scores: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["scores"];
   description: string;
-  metadata: string;
+  metadata: Prisma.JsonValue;
 };
 
 export function DatasetRunsTable(props: {
   projectId: string;
   datasetId: string;
+  menuItems?: React.ReactNode;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "datasetRuns",
+    "s",
+  );
   const runs = api.datasets.runsByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
@@ -53,6 +63,7 @@ export function DatasetRunsTable(props: {
     {
       accessorKey: "key",
       header: "Name",
+      id: "key",
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
@@ -67,14 +78,20 @@ export function DatasetRunsTable(props: {
     {
       accessorKey: "description",
       header: "Description",
+      id: "description",
+      enableHiding: true,
     },
     {
       accessorKey: "countRunItems",
       header: "Run Items",
+      id: "countRunItems",
+      enableHiding: true,
     },
     {
       accessorKey: "avgLatency",
       header: "Latency (avg)",
+      id: "avgLatency",
+      enableHiding: true,
       cell: ({ row }) => {
         const avgLatency: RowData["avgLatency"] = row.getValue("avgLatency");
         return <>{formatIntervalSeconds(avgLatency)}</>;
@@ -83,6 +100,8 @@ export function DatasetRunsTable(props: {
     {
       accessorKey: "avgTotalCost",
       header: "Total Cost (avg)",
+      id: "avgTotalCost",
+      enableHiding: true,
       cell: ({ row }) => {
         const avgTotalCost: RowData["avgTotalCost"] =
           row.getValue("avgTotalCost");
@@ -92,6 +111,8 @@ export function DatasetRunsTable(props: {
     {
       accessorKey: "scores",
       header: "Scores (avg)",
+      id: "scores",
+      enableHiding: true,
       cell: ({ row }) => {
         const scores: RowData["scores"] = row.getValue("scores");
         return (
@@ -108,13 +129,17 @@ export function DatasetRunsTable(props: {
     {
       accessorKey: "createdAt",
       header: "Created",
+      id: "createdAt",
+      enableHiding: true,
     },
     {
       accessorKey: "metadata",
       header: "Metadata",
+      id: "metadata",
+      enableHiding: true,
       cell: ({ row }) => {
         const metadata: RowData["metadata"] = row.getValue("metadata");
-        return <div className="flex flex-wrap gap-x-3 gap-y-1">{metadata}</div>;
+        return !!metadata ? <IOTableCell data={metadata} /> : null;
       },
     },
   ];
@@ -130,35 +155,53 @@ export function DatasetRunsTable(props: {
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
       scores: item.scores,
       description: item.description ?? "",
-      metadata: JSON.stringify(item.metadata),
+      metadata: item.metadata,
     };
   };
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "datasetRunsColumnVisibility",
+    columns,
+  );
+
   return (
-    <DataTable
-      columns={columns}
-      data={
-        runs.isLoading
-          ? { isLoading: true, isError: false }
-          : runs.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: runs.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: runs.data.runs.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        pageCount: Math.ceil(
-          (runs.data?.totalRuns ?? 0) / paginationState.pageSize,
-        ),
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-    />
+    <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+        actionButtons={props.menuItems}
+      />
+      <DataTable
+        columns={columns}
+        data={
+          runs.isLoading
+            ? { isLoading: true, isError: false }
+            : runs.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: runs.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: runs.data.runs.map((t) => convertToTableRow(t)),
+                }
+        }
+        pagination={{
+          pageCount: Math.ceil(
+            (runs.data?.totalRuns ?? 0) / paginationState.pageSize,
+          ),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
+      />
+    </div>
   );
 }

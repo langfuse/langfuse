@@ -1,4 +1,4 @@
-import { type Trace, type Score } from "@langfuse/shared/src/db";
+import { type Trace, type Score } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -14,7 +14,7 @@ import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import Link from "next/link";
-import { NoAccessError } from "@/src/components/no-access";
+import { ErrorPage } from "@/src/components/error-page";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
@@ -189,7 +189,8 @@ export function TracePage({ traceId }: { traceId: string }) {
 
   const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
 
-  if (trace.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
+  if (trace.error?.data?.code === "UNAUTHORIZED")
+    return <ErrorPage message="You do not have access to this trace." />;
   if (!trace.data) return <div>loading...</div>;
   return (
     <div className="flex flex-col overflow-hidden 2xl:container md:h-[calc(100vh-2rem)]">

@@ -11,6 +11,7 @@ import { useState } from "react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { type Prisma } from "@langfuse/shared";
 
 interface BaseDatasetButtonProps {
   mode: "create" | "update" | "delete";
@@ -33,6 +34,7 @@ interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
   datasetId: string;
   datasetName: string;
   datasetDescription?: string;
+  datasetMetadata?: Prisma.JsonValue;
   icon?: boolean;
 }
 
@@ -130,6 +132,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             datasetId={props.datasetId}
             datasetName={props.datasetName}
             datasetDescription={props.datasetDescription}
+            datasetMetadata={props.datasetMetadata}
           />
         )}
       </DialogContent>

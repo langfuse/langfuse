@@ -4,7 +4,6 @@ import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
   type legacyObservationCreateEvent,
   eventTypes,
-  type traceEvent,
   type scoreEvent,
   type eventCreateEvent,
   type spanCreateEvent,
@@ -13,6 +12,7 @@ import {
   type generationUpdateEvent,
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
+  type traceEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";

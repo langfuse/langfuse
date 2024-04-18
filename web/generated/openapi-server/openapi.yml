@@ -482,6 +482,24 @@ paths:
             items:
               type: string
               nullable: true
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Optional filter to only include traces on or after a certain
+            timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: Optional filter to only include traces before a certain timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -878,6 +896,27 @@ paths:
           schema:
             type: string
             format: date-time
+            nullable: true
+        - name: source
+          in: query
+          description: Retrieve only scores from a specific source.
+          required: true
+          schema:
+            $ref: '#/components/schemas/ScoreSource'
+        - name: operator
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: value
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: number
+            format: double
             nullable: true
       responses:
         '200':
@@ -1490,6 +1529,8 @@ components:
         description:
           type: string
           nullable: true
+        metadata:
+          nullable: true
         projectId:
           type: string
         createdAt:
@@ -1553,6 +1594,8 @@ components:
           nullable: true
         expectedOutput:
           nullable: true
+        metadata:
+          nullable: true
         sourceTraceId:
           type: string
           nullable: true
@@ -1560,6 +1603,8 @@ components:
           type: string
           nullable: true
         datasetId:
+          type: string
+        datasetName:
           type: string
         createdAt:
           type: string
@@ -1571,6 +1616,7 @@ components:
         - id
         - status
         - datasetId
+        - datasetName
         - createdAt
         - updatedAt
     DatasetRunItem:
@@ -1580,6 +1626,8 @@ components:
         id:
           type: string
         datasetRunId:
+          type: string
+        datasetRunName:
           type: string
         datasetItemId:
           type: string
@@ -1597,6 +1645,7 @@ components:
       required:
         - id
         - datasetRunId
+        - datasetRunName
         - datasetItemId
         - traceId
         - createdAt
@@ -1679,6 +1728,7 @@ components:
       enum:
         - API
         - REVIEW
+        - EVAL
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object
@@ -1688,6 +1738,14 @@ components:
         input:
           nullable: true
         expectedOutput:
+          nullable: true
+        metadata:
+          nullable: true
+        sourceTraceId:
+          type: string
+          nullable: true
+        sourceObservationId:
+          type: string
           nullable: true
         id:
           type: string
@@ -1743,6 +1801,8 @@ components:
           type: string
         description:
           type: string
+          nullable: true
+        metadata:
           nullable: true
       required:
         - name

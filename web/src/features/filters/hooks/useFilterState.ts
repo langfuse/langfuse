@@ -1,9 +1,12 @@
-import { type FilterState, type TableName } from "@/src/features/filters/types";
-import { observationsTableCols } from "@/src/server/api/definitions/observationsTable";
+import {
+  type FilterState,
+  type TableName,
+  observationsTableCols,
+  tracesTableCols,
+  singleFilter,
+} from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
-import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { useState } from "react";
 import {
   useQueryParam,
@@ -11,6 +14,7 @@ import {
   decodeDelimitedArray,
   withDefault,
 } from "use-query-params";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -102,7 +106,11 @@ const tableCols = {
   traces: tracesTableCols,
   sessions: sessionsViewCols,
   scores: scoresTableCols,
-  dashboard: [{ id: "traceName", name: "traceName" }],
+  prompts: promptsTableCols,
+  dashboard: [
+    { id: "traceName", name: "Trace Name" },
+    { id: "tags", name: "Tags" },
+  ],
 };
 
 function getColumnId(table: TableName, name: string): string | undefined {

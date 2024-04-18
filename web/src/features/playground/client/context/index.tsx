@@ -54,8 +54,13 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
-export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
+export type PlaygroundProviderProps = PropsWithChildren & {
+  avilableModels?: UIModelParams[];
+};
+
+export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
+  avilableModels,
 }) => {
   const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
@@ -68,15 +73,17 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     createEmptyMessage(ChatMessageRole.User),
   ]);
   const [modelParams, setModelParams] = useState<UIModelParams>(
-    getDefaultModelParams(ModelProvider.OpenAI),
+    avilableModels && avilableModels.length > 0
+      ? avilableModels[0]
+      : getDefaultModelParams(ModelProvider.OpenAI),
   );
 
   const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
     {
-      projectId,
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       id: initialPromptId ?? "",
     },
-    { enabled: Boolean(initialPromptId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
+    { enabled: Boolean(initialPromptId && projectId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
   );
 
   useEffect(() => {
@@ -198,11 +205,17 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
+  const updateModelParam: PlaygroundContextType["updateModelParam"] = (
     key,
     value,
   ) => {
     setModelParams((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
+    params,
+  ) => {
+    setModelParams((prev) => ({ ...prev, ...params }));
   };
 
   const updatePromptVariableValue = (variable: string, value: string) => {
@@ -228,7 +241,8 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         deleteMessage,
 
         modelParams,
-        updateModelParams,
+        updateModelParam: updateModelParam,
+        updateModelParams: updateModelParams,
 
         output,
         outputJson,
@@ -254,7 +268,9 @@ async function* getChatCompletionStream(
   });
 
   if (!result.ok) {
-    throw new Error("Failed to fetch data: " + result.statusText);
+    const errorData = await result.json();
+
+    throw new Error(`Completion failed: ${errorData.message}`);
   }
 
   const reader = result.body?.getReader();

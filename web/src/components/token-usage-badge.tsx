@@ -1,6 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { type Observation } from "@langfuse/shared/src/db";
+import { type Observation } from "@langfuse/shared";
 
 export const TraceAggUsageBadge = (props: {
   observations: ObservationReturnType[];

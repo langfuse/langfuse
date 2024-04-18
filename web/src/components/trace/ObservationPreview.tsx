@@ -1,5 +1,5 @@
-import { JSONView } from "@/src/components/ui/code";
-import { type Score } from "@langfuse/shared/src/db";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { type Score } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -134,6 +134,7 @@ export const ObservationPreview = (props: {
               projectId={props.projectId}
               input={observationWithInputAndOutput.data.input}
               output={observationWithInputAndOutput.data.output}
+              metadata={preloadedObservation.metadata}
               key={preloadedObservation.id}
             />
           ) : null}

@@ -1,4 +1,4 @@
-import { JSONView } from "@/src/components/ui/code";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
 import { deepParseJson } from "@/src/utils/json";
 import { cn } from "@/src/utils/tailwind";
@@ -148,7 +148,6 @@ export const OpenAiMessageView: React.FC<{
   );
 
   const transformedMessages = messages;
-  console.log(transformedMessages);
   // const transformedMessages = messages.map(
   //   ({ role, name, content, ...rest }) => ({
   //     role,

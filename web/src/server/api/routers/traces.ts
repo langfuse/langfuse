@@ -12,18 +12,15 @@ import {
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
-import {
-  type TraceOptions,
-  tracesTableCols,
-} from "@/src/server/api/definitions/tracesTable";
+import { type TraceOptions, singleFilter } from "@langfuse/shared";
+import { tracesTableCols } from "@langfuse/shared";
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
-} from "@/src/features/filters/server/filterToPrisma";
+} from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
@@ -453,7 +450,7 @@ export const traceRouter = createTRPCRouter({
         scope: "objects:tag",
       });
       try {
-        const trace = await ctx.prisma.trace.update({
+        await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
             projectId: input.projectId,
@@ -471,7 +468,6 @@ export const traceRouter = createTRPCRouter({
           action: "updateTags",
           after: input.tags,
         });
-        return trace;
       } catch (error) {
         console.error(error);
       }

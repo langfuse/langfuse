@@ -3,3 +3,4 @@ packages:
   - "web"
   - "worker"
   - "packages/**"
+  - "ee"

@@ -1,5 +1,5 @@
-import { JSONView } from "@/src/components/ui/code";
-import { type Trace, type Score } from "@langfuse/shared/src/db";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { type Trace, type Score } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -70,6 +70,7 @@ export const TracePreview = ({
             projectId={trace.projectId}
             input={trace.input}
             output={trace.output}
+            metadata={trace.metadata}
             key={trace.id}
           />
         </div>

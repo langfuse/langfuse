@@ -9,7 +9,9 @@ import {
   Settings,
   UsersIcon,
   PenSquareIcon,
+  LibraryBig,
   TerminalIcon,
+  Lightbulb,
 } from "lucide-react";
 
 export type Route = {
@@ -21,6 +23,8 @@ export type Route = {
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
+  newTab?: boolean; // open in new tab
+  cloudOnly?: boolean; // only available in cloud
 };
 
 export const ROUTES: Route[] = [
@@ -56,6 +60,26 @@ export const ROUTES: Route[] = [
     ],
   },
   {
+    name: "Evaluation",
+    icon: Lightbulb,
+    cloudOnly: true,
+    featureFlag: "evals",
+    children: [
+      {
+        name: "Templates",
+        pathname: `/project/[projectId]/evals/templates`,
+        cloudOnly: true,
+        featureFlag: "evals",
+      },
+      {
+        name: "Configs",
+        pathname: `/project/[projectId]/evals/configs`,
+        cloudOnly: true,
+        featureFlag: "evals",
+      },
+    ],
+  },
+  {
     name: "Users",
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
@@ -71,6 +95,8 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
     featureFlag: "playground",
+    cloudOnly: true,
+    label: "Beta",
   },
   {
     name: "Datasets",
@@ -82,6 +108,13 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/settings",
     icon: Settings,
     bottom: true,
+  },
+  {
+    name: "Docs",
+    pathname: "https://langfuse.com/docs",
+    icon: LibraryBig,
+    bottom: true,
+    newTab: true,
   },
   {
     name: "Support",

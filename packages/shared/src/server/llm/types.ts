@@ -1,4 +1,7 @@
+import z from "zod";
+
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
+
 export type ChatMessage = {
   role: ChatMessageRole;
   content: string;
@@ -23,11 +26,13 @@ export type UIModelParams = Required<
 };
 
 // Generic config
-export type ModelConfig = {
-  max_tokens?: number;
-  temperature?: number;
-  top_p?: number;
-};
+export type ModelConfig = z.infer<typeof ZodModelConfig>;
+
+export const ZodModelConfig = z.object({
+  max_tokens: z.number().optional(),
+  temperature: z.number().optional(),
+  top_p: z.number().optional(),
+});
 
 // OpenAI
 export type OpenAIModelParams = {
@@ -72,3 +77,9 @@ export const supportedModels = {
   [ModelProvider.Anthropic]: anthropicModels,
   [ModelProvider.OpenAI]: openAIModels,
 } as const;
+
+export type LLMFunctionCall = {
+  name: string;
+  description: string;
+  parameters: z.ZodTypeAny; // this has to be a json schema for OpenAI
+};

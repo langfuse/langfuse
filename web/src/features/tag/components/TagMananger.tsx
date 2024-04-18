@@ -2,7 +2,7 @@ import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
 import TagCreateItem from "@/src/features/tag/components/TagCreateItem";
 import { TagInput } from "@/src/features/tag/components/TagInput";
 import TagList from "@/src/features/tag/components/TagList";
-import useTagManager from "@/src/features/tag/hooks/useTagManager";
+import { useTagManager } from "@/src/features/tag/hooks/useTagManager";
 import {
   Popover,
   PopoverTrigger,
@@ -35,6 +35,12 @@ const TagManager = ({
     setSelectedTags,
   } = useTagManager({ initialTags: tags, allTags });
 
+  const filteredTags = availableTags.filter(
+    (value) =>
+      value.toLowerCase().includes(inputValue.trim().toLowerCase()) &&
+      !selectedTags.includes(value),
+  );
+
   const handlePopoverChange = (open: boolean) => {
     if (!open && selectedTags !== tags) {
       setInputValue("");
@@ -49,23 +55,28 @@ const TagManager = ({
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
-        <div className="flex flex-wrap gap-x-2 gap-y-1">
+        <div className="flex gap-x-2 gap-y-1">
           <TagList selectedTags={selectedTags} isLoading={isLoading} />
         </div>
       </PopoverTrigger>
       <PopoverContent>
-        <Command>
+        <Command
+          shouldFilter={false} // we do not use cmdk's filter feature as it does not support virtualization for large lists
+        >
           <TagInput
             value={inputValue}
             onValueChange={setInputValue}
             selectedTags={selectedTags}
             setSelectedTags={setSelectedTags}
           />
-          <CommandList
-            className={cn("overflow-auto", availableTags.length > 0 && "mt-2")}
-          >
-            <CommandGroup>
-              {availableTags.slice(0, 5).map((value: string) => (
+          <CommandList>
+            <CommandGroup
+              className={cn(
+                "mt-2 max-h-52 overflow-auto",
+                filteredTags.length > 0 && "mb-2 border-b",
+              )}
+            >
+              {filteredTags.slice(0, 20).map((value: string) => (
                 <TagCommandItem
                   key={value}
                   value={value}
@@ -73,12 +84,13 @@ const TagManager = ({
                   setSelectedTags={setSelectedTags}
                 />
               ))}
-              <TagCreateItem
-                onSelect={handleItemCreate}
-                inputValue={inputValue}
-                options={allTags}
-              />
             </CommandGroup>
+            <TagCreateItem
+              key={inputValue}
+              onSelect={handleItemCreate}
+              inputValue={inputValue}
+              options={filteredTags}
+            />
           </CommandList>
         </Command>
       </PopoverContent>

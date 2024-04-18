@@ -43,6 +43,7 @@ export const datasetRouter = createTRPCRouter({
           "datasets.id",
           "datasets.name",
           "datasets.description",
+          "datasets.metadata",
           "datasets.created_at as createdAt",
           "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
@@ -295,6 +296,7 @@ export const datasetRouter = createTRPCRouter({
         datasetItemId: z.string(),
         input: z.string().optional(),
         expectedOutput: z.string().optional(),
+        metadata: z.string().optional(),
         sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
         status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
@@ -327,6 +329,12 @@ export const datasetRouter = createTRPCRouter({
               : input.expectedOutput !== undefined
                 ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
                 : undefined,
+          metadata:
+            input.metadata === ""
+              ? Prisma.DbNull
+              : input.metadata !== undefined
+                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
+                : undefined,
           sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
           status: input.status,
@@ -348,6 +356,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         name: z.string(),
         description: z.string().nullish(),
+        metadata: z.string().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -361,6 +370,12 @@ export const datasetRouter = createTRPCRouter({
           name: input.name,
           description: input.description ?? undefined,
           projectId: input.projectId,
+          metadata:
+            input.metadata === ""
+              ? Prisma.DbNull
+              : !!input.metadata
+                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
+                : undefined,
         },
       });
 
@@ -382,6 +397,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         name: z.string().nullish(),
         description: z.string().nullish(),
+        metadata: z.string().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -398,6 +414,12 @@ export const datasetRouter = createTRPCRouter({
         data: {
           name: input.name ?? undefined,
           description: input.description,
+          metadata:
+            input.metadata === ""
+              ? Prisma.DbNull
+              : !!input.metadata
+                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
+                : undefined,
         },
       });
       await auditLog({
@@ -442,6 +464,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         input: z.string().nullish(),
         expectedOutput: z.string().nullish(),
+        metadata: z.string().nullish(),
         sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
       }),
@@ -475,6 +498,12 @@ export const datasetRouter = createTRPCRouter({
               ? Prisma.DbNull
               : !!input.expectedOutput
                 ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
+                : undefined,
+          metadata:
+            input.metadata === ""
+              ? Prisma.DbNull
+              : !!input.metadata
+                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
                 : undefined,
           datasetId: input.datasetId,
           sourceTraceId: input.sourceTraceId,
@@ -560,6 +589,11 @@ export const datasetRouter = createTRPCRouter({
             in: observationIds,
           },
         },
+        select: {
+          id: true,
+          latency: true,
+          calculatedTotalCost: true,
+        },
       });
 
       const traceIds = runItems
@@ -571,6 +605,10 @@ export const datasetRouter = createTRPCRouter({
             in: traceIds,
           },
           projectId: ctx.session.projectId,
+        },
+        select: {
+          id: true,
+          duration: true,
         },
       });
 

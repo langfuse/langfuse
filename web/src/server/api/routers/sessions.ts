@@ -1,16 +1,18 @@
 import { z } from "zod";
-import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
+import {
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type Decimal from "decimal.js";
@@ -161,8 +163,12 @@ export const sessionRouter = createTRPCRouter({
               orderBy: {
                 timestamp: "asc",
               },
-              include: {
+              select: {
+                id: true,
+                userId: true,
                 scores: true,
+                name: true,
+                timestamp: true,
               },
             },
           },

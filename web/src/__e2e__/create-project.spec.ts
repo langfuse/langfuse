@@ -7,7 +7,7 @@ test("should see new projects dialog open after clicking new project btn", async
   await page.fill('input[name="name"]', "demo user");
   await page.fill('input[name="email"]', randomEmailAddress());
   await page.fill('input[type="password"]', "password");
-  await page.click('button[type="submit"]');
+  await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);
   await page.waitForTimeout(2000);
   expect(await page.innerHTML("data-testid=create-new-project-title")).toBe(
@@ -24,7 +24,7 @@ test("Create a project with provided name", async ({ page }) => {
   await page.goto("/auth/sign-in");
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
-  await page.click('button[type="submit"]');
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
   await page.waitForTimeout(2000);
   await page.isVisible('[data-testid="new-project-form"]');
   await page.click('[data-testid="create-project-btn"]');

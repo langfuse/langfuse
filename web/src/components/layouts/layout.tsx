@@ -43,7 +43,11 @@ const userNavigation = [
 ];
 
 const pathsWithoutNavigation: string[] = ["/onboarding"];
-const unauthenticatedPaths: string[] = ["/auth/sign-in", "/auth/sign-up"];
+const unauthenticatedPaths: string[] = [
+  "/auth/sign-in",
+  "/auth/sign-up",
+  "/auth/error",
+];
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
@@ -72,6 +76,14 @@ export default function Layout(props: PropsWithChildren) {
         enableExperimentalFeatures ||
         session.data?.user?.featureFlags[route.featureFlag]
       )
+    )
+      return null;
+
+    // cloud only
+    if (
+      route.cloudOnly !== undefined &&
+      // the feature should be available in local development
+      route.cloudOnly !== (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
     )
       return null;
 
@@ -309,8 +321,8 @@ export default function Layout(props: PropsWithChildren) {
               </ul>
             </nav>
 
-            <Menu as="div" className="relative left-1">
-              <Menu.Button className="flex w-full items-center gap-x-4 p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+            <Menu as="div" className="relative">
+              <Menu.Button className="flex w-full items-center gap-x-4 overflow-hidden p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
                 <span className="sr-only">Open user menu</span>
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -342,7 +354,10 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                  <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+                    {session.data?.user?.email}
+                  </span>
                   {userNavigation.map((item) => (
                     <Menu.Item key={item.name}>
                       {({ active }) => (
@@ -403,7 +418,10 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 z-10 mt-2.5 w-32 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+                  {session.data?.user?.email}
+                </span>
                 {userNavigation.map((item) => (
                   <Menu.Item key={item.name}>
                     {({ active }) => (
@@ -443,13 +461,15 @@ export default function Layout(props: PropsWithChildren) {
                   href={
                     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
                       ? "https://langfuse.com/docs/demo"
-                      : "https://docs-staging.langfuse.com/docs/demo"
+                      : "https://docs-staging.langfuse.com/docs/demo" // staging
                   }
                   target="_blank"
                 >
-                  {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                    ? "Use Chat ↗"
-                    : "Use Chat (staging) ↗"}
+                  {
+                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
+                      ? "Use Chat ↗"
+                      : "Use Chat (staging) ↗" // staging
+                  }
                 </Link>
               </Button>
             </div>
@@ -496,6 +516,7 @@ const MainNavigation: React.FC<{
                   "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                 )}
                 onClick={onNavitemClick}
+                target={item.newTab ? "_blank" : undefined}
               >
                 {item.icon && (
                   <item.icon
@@ -574,6 +595,7 @@ const MainNavigation: React.FC<{
                                 : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
                               "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
                             )}
+                            target={subItem.newTab ? "_blank" : undefined}
                           >
                             {subItem.name}
                             {subItem.label && (

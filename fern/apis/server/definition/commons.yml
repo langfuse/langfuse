@@ -127,6 +127,7 @@ types:
       id: string
       name: string
       description: optional<string>
+      metadata: optional<unknown>
       projectId: string
       createdAt: datetime
       updatedAt: datetime
@@ -151,15 +152,18 @@ types:
       status: DatasetStatus
       input: optional<unknown>
       expectedOutput: optional<unknown>
+      metadata: optional<unknown>
       sourceTraceId: optional<string>
       sourceObservationId: optional<string>
       datasetId: string
+      datasetName: string
       createdAt: datetime
       updatedAt: datetime
   DatasetRunItem:
     properties:
       id: string
       datasetRunId: string
+      datasetRunName: string
       datasetItemId: string
       traceId: string
       observationId: optional<string>
@@ -207,6 +211,7 @@ types:
     enum:
       - API
       - REVIEW
+      - EVAL
 
 errors:
   Error:

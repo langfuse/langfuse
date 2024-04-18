@@ -22,8 +22,13 @@ import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, cookieOptions } from "./utils/cookies";
+import {
+  getSsoAuthProviderIdForDomain,
+  loadSsoProviders,
+} from "@langfuse/ee/sso";
+import { z } from "zod";
 
-const providers: Provider[] = [
+const staticProviders: Provider[] = [
   CredentialsProvider({
     name: "credentials",
     credentials: {
@@ -72,6 +77,12 @@ const providers: Provider[] = [
         );
       }
 
+      // EE: Check custom SSO enforcement
+      const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
+      if (customSsoProvider) {
+        throw new Error(`You must sign in via SSO for this domain.`);
+      }
+
       const dbUser = await prisma.user.findUnique({
         where: {
           email: credentials.email.toLowerCase(),
@@ -103,7 +114,7 @@ const providers: Provider[] = [
 ];
 
 if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
-  providers.push(
+  staticProviders.push(
     GoogleProvider({
       clientId: env.AUTH_GOOGLE_CLIENT_ID,
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
@@ -117,7 +128,7 @@ if (
   env.AUTH_OKTA_CLIENT_SECRET &&
   env.AUTH_OKTA_ISSUER
 )
-  providers.push(
+  staticProviders.push(
     OktaProvider({
       clientId: env.AUTH_OKTA_CLIENT_ID,
       clientSecret: env.AUTH_OKTA_CLIENT_SECRET,
@@ -132,7 +143,7 @@ if (
   env.AUTH_AUTH0_CLIENT_SECRET &&
   env.AUTH_AUTH0_ISSUER
 )
-  providers.push(
+  staticProviders.push(
     Auth0Provider({
       clientId: env.AUTH_AUTH0_CLIENT_ID,
       clientSecret: env.AUTH_AUTH0_CLIENT_SECRET,
@@ -143,7 +154,7 @@ if (
   );
 
 if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
-  providers.push(
+  staticProviders.push(
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
@@ -157,7 +168,7 @@ if (
   env.AUTH_AZURE_AD_CLIENT_SECRET &&
   env.AUTH_AZURE_AD_TENANT_ID
 )
-  providers.push(
+  staticProviders.push(
     AzureADProvider({
       clientId: env.AUTH_AZURE_AD_CLIENT_ID,
       clientSecret: env.AUTH_AZURE_AD_CLIENT_SECRET,
@@ -174,7 +185,10 @@ const extendedPrismaAdapter: Adapter = {
   async createUser(profile) {
     if (!prismaAdapter.createUser)
       throw new Error("createUser not implemented");
-    if (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true") {
+    if (
+      env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+      env.AUTH_DISABLE_SIGNUP === "true"
+    ) {
       throw new Error("Sign up is disabled.");
     }
     if (!profile.email) {
@@ -197,123 +211,151 @@ const extendedPrismaAdapter: Adapter = {
  *
  * @see https://next-auth.js.org/configuration/options
  */
-export const authOptions: NextAuthOptions = {
-  session: {
-    strategy: "jwt",
-  },
-  callbacks: {
-    async session({ session, token }): Promise<Session> {
-      const dbUser = await prisma.user.findUnique({
-        where: {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          email: token.email!.toLowerCase(),
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-          featureFlags: true,
-          admin: true,
-          memberships: {
-            include: {
-              project: true,
+export async function getAuthOptions(): Promise<NextAuthOptions> {
+  const dynamicSsoProviders = await loadSsoProviders();
+  const providers = [...staticProviders, ...dynamicSsoProviders];
+
+  const data: NextAuthOptions = {
+    session: {
+      strategy: "jwt",
+    },
+    callbacks: {
+      async session({ session, token }): Promise<Session> {
+        const dbUser = await prisma.user.findUnique({
+          where: {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            email: token.email!.toLowerCase(),
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            featureFlags: true,
+            admin: true,
+            memberships: {
+              include: {
+                project: true,
+              },
             },
           },
-        },
-      });
-
-      return {
-        ...session,
-        user:
-          dbUser !== null
-            ? {
-                ...session.user,
-                id: dbUser.id,
-                name: dbUser.name,
-                email: dbUser.email,
-                image: dbUser.image,
-                admin: dbUser.admin,
-                projects: dbUser.memberships.map((membership) => ({
-                  id: membership.project.id,
-                  name: membership.project.name,
-                  role: membership.role,
-                })),
-                featureFlags: parseFlags(dbUser.featureFlags),
-              }
-            : null,
-      };
-    },
-  },
-  adapter: extendedPrismaAdapter,
-  providers,
-  pages: {
-    signIn: "/auth/sign-in",
-    ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ? {
-          newUser: "/onboarding",
-        }
-      : {}),
-  },
-  cookies: {
-    sessionToken: {
-      name: getCookieName("next-auth.session-token"),
-      options: cookieOptions,
-    },
-    csrfToken: {
-      name: getCookieName("next-auth.csrf-token"),
-      options: cookieOptions,
-    },
-    callbackUrl: {
-      name: getCookieName("next-auth.callback-url"),
-      options: cookieOptions,
-    },
-    state: {
-      name: getCookieName("next-auth.state"),
-      options: cookieOptions,
-    },
-    nonce: {
-      name: getCookieName("next-auth.nonce"),
-      options: cookieOptions,
-    },
-    pkceCodeVerifier: {
-      name: getCookieName("next-auth.pkce.code_verifier"),
-      options: cookieOptions,
-    },
-  },
-  events: {
-    createUser: async ({ user }) => {
-      if (
-        env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
-        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING"
-      ) {
-        await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
-          method: "POST",
-          body: JSON.stringify({
-            name: user.name,
-            email: user.email,
-            cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-            userId: user.id,
-            // referralSource: ...
-          }),
-          headers: {
-            "Content-Type": "application/json",
-          },
         });
-      }
+
+        return {
+          ...session,
+          user:
+            dbUser !== null
+              ? {
+                  ...session.user,
+                  id: dbUser.id,
+                  name: dbUser.name,
+                  email: dbUser.email,
+                  image: dbUser.image,
+                  admin: dbUser.admin,
+                  projects: dbUser.memberships.map((membership) => ({
+                    id: membership.project.id,
+                    name: membership.project.name,
+                    role: membership.role,
+                  })),
+                  featureFlags: parseFlags(dbUser.featureFlags),
+                }
+              : null,
+        };
+      },
+      async signIn({ user, account }) {
+        // Block sign in without valid user.email
+        const email = user.email?.toLowerCase();
+        if (!email) {
+          throw new Error("No email found in user object");
+        }
+        if (z.string().email().safeParse(email).success === false) {
+          throw new Error("Invalid email found in user object");
+        }
+
+        // EE: Check custom SSO enforcement, enforce the specific SSO provider
+        const domain = email.split("@")[1];
+        const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
+        if (customSsoProvider && account?.provider !== customSsoProvider) {
+          throw new Error(`You must sign in via SSO for this domain.`);
+        }
+
+        return true;
+      },
     },
-  },
-};
+    adapter: extendedPrismaAdapter,
+    providers,
+    pages: {
+      signIn: "/auth/sign-in",
+      error: "/auth/error",
+      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+        ? {
+            newUser: "/onboarding",
+          }
+        : {}),
+    },
+    cookies: {
+      sessionToken: {
+        name: getCookieName("next-auth.session-token"),
+        options: cookieOptions,
+      },
+      csrfToken: {
+        name: getCookieName("next-auth.csrf-token"),
+        options: cookieOptions,
+      },
+      callbackUrl: {
+        name: getCookieName("next-auth.callback-url"),
+        options: cookieOptions,
+      },
+      state: {
+        name: getCookieName("next-auth.state"),
+        options: cookieOptions,
+      },
+      nonce: {
+        name: getCookieName("next-auth.nonce"),
+        options: cookieOptions,
+      },
+      pkceCodeVerifier: {
+        name: getCookieName("next-auth.pkce.code_verifier"),
+        options: cookieOptions,
+      },
+    },
+    events: {
+      createUser: async ({ user }) => {
+        if (
+          env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+        ) {
+          await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
+            method: "POST",
+            body: JSON.stringify({
+              name: user.name,
+              email: user.email,
+              cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+              userId: user.id,
+              // referralSource: ...
+            }),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+        }
+      },
+    },
+  };
+  return data;
+}
 
 /**
  * Wrapper for `getServerSession` so that you don't need to import the `authOptions` in every file.
  *
  * @see https://next-auth.js.org/configuration/nextjs
  */
-export const getServerAuthSession = (ctx: {
+export const getServerAuthSession = async (ctx: {
   req: GetServerSidePropsContext["req"];
   res: GetServerSidePropsContext["res"];
 }) => {
+  const authOptions = await getAuthOptions();
   return getServerSession(ctx.req, ctx.res, authOptions);
 };
