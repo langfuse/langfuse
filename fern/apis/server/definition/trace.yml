@@ -16,7 +16,7 @@ service:
           docs: The unique langfuse identifier of a trace
       response: commons.TraceWithFullDetails
     list:
-      docs: Get list of traces
+      docs: Get list of traces.
       method: GET
       path: /traces
       request:
@@ -24,10 +24,10 @@ service:
         query-parameters:
           page:
             type: optional<integer>
-            docs: page number, starts at 1
+            docs: Page number, starts at 1
           limit:
             type: optional<integer>
-            docs: limit of items per page
+            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
           userId: optional<string>
           name: optional<string>
           fromTimestamp:
