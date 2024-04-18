@@ -108,7 +108,8 @@ export default async function handler(
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore: Unreachable code error
       BigInt.prototype.toJSON = function (): number {
-        return this.toString();
+        // @ts-ignore
+        return this.toString(); 
       };
 
       return res.status(200).json({
