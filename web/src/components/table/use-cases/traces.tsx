@@ -5,7 +5,7 @@ import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-m
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TagTracePopver } from "@/src/features/tag/components/TagTracePopver";
+import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -469,7 +469,13 @@ export default function TracesTable({
       id: "input",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
-        return <TracesIOCell traceId={traceId} io="input" />;
+        return (
+          <TracesIOCell
+            traceId={traceId}
+            io="input"
+            singleLine={rowHeight === "s"}
+          />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -480,7 +486,13 @@ export default function TracesTable({
       id: "output",
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
-        return <TracesIOCell traceId={traceId} io="output" />;
+        return (
+          <TracesIOCell
+            traceId={traceId}
+            io="output"
+            singleLine={rowHeight === "s"}
+          />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -490,7 +502,7 @@ export default function TracesTable({
       header: "Metadata",
       cell: ({ row }) => {
         const values: string = row.getValue("metadata");
-        return <IOTableCell data={values} />;
+        return <IOTableCell data={values} singleLine={rowHeight === "s"} />;
       },
       enableHiding: true,
     },
@@ -540,7 +552,7 @@ export default function TracesTable({
         const filterOptionTags = traceFilterOptions.data?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
         return (
-          <TagTracePopver
+          <TagTracePopover
             tags={tags}
             availableTags={allTags}
             projectId={projectId}
@@ -643,9 +655,11 @@ export default function TracesTable({
 const TracesIOCell = ({
   traceId,
   io,
+  singleLine = false,
 }: {
   traceId: string;
   io: "input" | "output";
+  singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
     { traceId: traceId },
@@ -664,6 +678,7 @@ const TracesIOCell = ({
       isLoading={trace.isLoading}
       data={io === "output" ? trace.data?.output : trace.data?.input}
       className={cn(io === "output" && "bg-green-50")}
+      singleLine={singleLine}
     />
   );
 };

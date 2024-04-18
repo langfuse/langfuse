@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 
 import { VERSION } from "@/src/constants";
 import { env } from "@/src/env.mjs";
@@ -42,10 +42,16 @@ export const LangfuseLogo = ({
           "flex items-center gap-2 self-stretch rounded-md px-3 py-2 text-xs ring-1 lg:-mx-2",
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
             ? "bg-blue-100 text-blue-500 ring-blue-500"
-            : "bg-red-100 text-red-500 ring-red-500",
+            : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
+              ? "bg-green-100 text-green-500 ring-green-500"
+              : "bg-red-100 text-red-500 ring-red-500",
         )}
       >
-        <AlertTriangle size={16} />
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? (
+          <Check size={16} />
+        ) : (
+          <AlertTriangle size={16} />
+        )}
         <span className="whitespace-nowrap">
           {["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
             ? `PROD-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
