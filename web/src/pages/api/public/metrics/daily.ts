@@ -108,6 +108,7 @@ export default async function handler(
           SELECT
             DATE_TRUNC('DAY', t.timestamp) "date",
             count(distinct t.id)::integer count_traces,
+            count(distinct o.id)::integer count_observations,
             SUM(o.calculated_total_cost)::DOUBLE PRECISION total_cost
           FROM traces t
           LEFT JOIN observations_view o ON o.project_id = t.project_id AND t.id = o.trace_id
@@ -122,6 +123,7 @@ export default async function handler(
         SELECT
           TO_CHAR(COALESCE(ds.date, daily_model_usage.date), 'YYYY-MM-DD') AS "date",
           COALESCE(count_traces, 0) "countTraces",
+          COALESCE(count_observations, 0) "countObservations",
           COALESCE(total_cost, 0) "totalCost",
           COALESCE(daily_usage_json, '[]'::JSON) usage
         FROM
