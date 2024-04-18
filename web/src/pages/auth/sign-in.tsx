@@ -184,12 +184,14 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const errorFromParams =
-    typeof router.query.error === "string" ? router.query.error : null;
+    typeof router.query.error === "string"
+      ? decodeURIComponent(router.query.error)
+      : null;
   const prettyError = signInErrors.find(
     (e) => e.code === errorFromParams,
   )?.description;
   useEffect(() => {
-    // log unexpected errors to Sentry
+    // log unexpected sign in errors to Sentry
     if (errorFromParams && !prettyError) {
       captureException(new Error(`Sign in error: ${errorFromParams}`));
     }
