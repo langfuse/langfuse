@@ -161,6 +161,7 @@ export function DatasetRunItemsTable(
             traceId={trace.traceId}
             observationId={trace.observationId}
             io="input"
+            singleLine={rowHeight === "s"}
           />
         ) : null;
       },
@@ -177,6 +178,7 @@ export function DatasetRunItemsTable(
             traceId={trace.traceId}
             observationId={trace.observationId}
             io="output"
+            singleLine={rowHeight === "s"}
           />
         ) : null;
       },
@@ -194,6 +196,7 @@ export function DatasetRunItemsTable(
             datasetId={props.datasetId}
             datasetItemId={datasetItemId}
             io="expectedOutput"
+            singleLine={rowHeight === "s"}
           />
         ) : null;
       },
@@ -271,10 +274,12 @@ const TraceObservationIOCell = ({
   traceId,
   observationId,
   io,
+  singleLine = false,
 }: {
   traceId: string;
   observationId?: string;
   io: "input" | "output";
+  singleLine?: boolean;
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -312,6 +317,7 @@ const TraceObservationIOCell = ({
       isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
       data={io === "output" ? data?.output : data?.input}
       className={cn(io === "output" && "bg-green-50")}
+      singleLine={singleLine}
     />
   );
 };
@@ -321,11 +327,13 @@ const DatasetItemIOCell = ({
   datasetId,
   datasetItemId,
   io,
+  singleLine = false,
 }: {
   projectId: string;
   datasetId: string;
   datasetItemId: string;
   io: "expectedOutput" | "input";
+  singleLine?: boolean;
 }) => {
   const datasetItem = api.datasets.itemById.useQuery(
     {
@@ -351,6 +359,7 @@ const DatasetItemIOCell = ({
           ? datasetItem.data?.expectedOutput
           : datasetItem.data?.input
       }
+      singleLine={singleLine}
     />
   );
 };

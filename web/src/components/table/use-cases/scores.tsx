@@ -193,7 +193,11 @@ export default function ScoresTable({
       enableHiding: true,
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return value !== undefined && <IOTableCell data={value} />;
+        return (
+          value !== undefined && (
+            <IOTableCell data={value} singleLine={rowHeight === "s"} />
+          )
+        );
       },
     },
   ];
