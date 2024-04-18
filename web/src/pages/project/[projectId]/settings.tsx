@@ -15,10 +15,6 @@ import { env } from "@/src/env.mjs";
 import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import {
-  sendUserChatMessage,
-  showAgentChatMessage,
-} from "@/src/features/support-chat/chat";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -31,7 +27,7 @@ export default function SettingsPage() {
         <ApiKeyList projectId={projectId} />
         <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
-        <Beta />
+        <Integrations projectId={projectId} />
         <Instructions />
         <RenameProject projectId={projectId} />
         <div className="space-y-3">
@@ -123,12 +119,12 @@ function Instructions() {
   );
 }
 
-const Beta = () => {
+const Integrations = (props: { projectId: string }) => {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
     <div>
-      <Header title="Early Access" level="h3" />
+      <Header title="Integrations" level="h3" />
       <Card className="p-4 lg:w-1/2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -141,16 +137,12 @@ const Beta = () => {
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              sendUserChatMessage(
-                "I am interested to join the PostHog Integration Beta",
-              );
-              showAgentChatMessage("We'll be in touch to get you set up!");
-            }}
-          >
-            Get Access
+          <Button variant="secondary" asChild>
+            <Link
+              href={`/project/${props.projectId}/settings/posthog-integration`}
+            >
+              Configure
+            </Link>
           </Button>
           <Button asChild variant="ghost">
             <Link href="https://langfuse.com/docs/analytics/posthog">
