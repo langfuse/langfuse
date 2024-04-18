@@ -30,11 +30,11 @@ importers:
         specifier: workspace:*
         version: link:../packages/shared
       next:
-        specifier: ^14.2.1
-        version: 14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
+        specifier: ^14.2.2
+        version: 14.2.2(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.1)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
+        version: 4.24.7(next@14.2.2)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
       zod:
         specifier: ^3.22.4
         version: 3.22.4
@@ -88,8 +88,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0(eslint@8.57.0)(prettier@3.2.5)(typescript@5.4.5)
       eslint-config-next:
-        specifier: ^14.2.1
-        version: 14.2.1(eslint@8.57.0)(typescript@5.4.5)
+        specifier: ^14.2.2
+        version: 14.2.2(eslint@8.57.0)(typescript@5.4.5)
       eslint-config-prettier:
         specifier: ^9.1.0
         version: 9.1.0(eslint@8.57.0)
@@ -108,8 +108,8 @@ importers:
   packages/shared:
     dependencies:
       '@langchain/anthropic':
-        specifier: ^0.1.14
-        version: 0.1.14
+        specifier: ^0.1.16
+        version: 0.1.16
       '@langchain/core':
         specifier: ^0.1.58
         version: 0.1.58
@@ -129,8 +129,8 @@ importers:
         specifier: ^0.27.3
         version: 0.27.3
       langchain:
-        specifier: ^0.1.33
-        version: 0.1.33
+        specifier: ^0.1.34
+        version: 0.1.34(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21)
       prisma-extension-kysely:
         specifier: ^2.1.0
         version: 2.1.0(@prisma/client@5.12.1)
@@ -232,8 +232,8 @@ importers:
         specifier: ^3.3.4
         version: 3.3.4(react-hook-form@7.51.3)
       '@langchain/anthropic':
-        specifier: ^0.1.14
-        version: 0.1.14
+        specifier: ^0.1.16
+        version: 0.1.16
       '@langchain/core':
         specifier: ^0.1.58
         version: 0.1.58
@@ -326,7 +326,7 @@ importers:
         version: link:../packages/config-typescript
       '@sentry/nextjs':
         specifier: ^7.110.1
-        version: 7.110.1(next@14.2.1)(react@18.2.0)
+        version: 7.110.1(next@14.2.2)(react@18.2.0)
       '@sentry/node':
         specifier: ^7.110.1
         version: 7.110.1
@@ -356,7 +356,7 @@ importers:
         version: 10.45.2(@trpc/server@10.45.2)
       '@trpc/next':
         specifier: ^10.45.0
-        version: 10.45.2(@tanstack/react-query@4.36.1)(@trpc/client@10.45.2)(@trpc/react-query@10.45.2)(@trpc/server@10.45.2)(next@14.2.1)(react-dom@18.2.0)(react@18.2.0)
+        version: 10.45.2(@tanstack/react-query@4.36.1)(@trpc/client@10.45.2)(@trpc/react-query@10.45.2)(@trpc/server@10.45.2)(next@14.2.2)(react-dom@18.2.0)(react@18.2.0)
       '@trpc/react-query':
         specifier: ^10.45.0
         version: 10.45.2(@tanstack/react-query@4.36.1)(@trpc/client@10.45.2)(@trpc/server@10.45.2)(react-dom@18.2.0)(react@18.2.0)
@@ -370,8 +370,8 @@ importers:
         specifier: ^4.21.25
         version: 4.21.25(@babel/runtime@7.24.4)(@codemirror/autocomplete@6.16.0)(@codemirror/language@6.10.1)(@codemirror/lint@6.5.0)(@codemirror/search@6.5.6)(@codemirror/state@6.4.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.26.3)(codemirror@6.0.1)(react-dom@18.2.0)(react@18.2.0)
       ai:
-        specifier: ^3.0.23
-        version: 3.0.23(react@18.2.0)(solid-js@1.8.16)(svelte@4.2.14)(vue@3.4.23)(zod@3.22.4)
+        specifier: ^3.0.24
+        version: 3.0.24(react@18.2.0)(solid-js@1.8.16)(svelte@4.2.15)(vue@3.4.23)(zod@3.22.4)
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -406,8 +406,8 @@ importers:
         specifier: ^0.27.3
         version: 0.27.3
       langchain:
-        specifier: ^0.1.33
-        version: 0.1.33(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21)
+        specifier: ^0.1.34
+        version: 0.1.34(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -415,14 +415,14 @@ importers:
         specifier: ^0.364.0
         version: 0.364.0(react@18.2.0)
       next:
-        specifier: ^14.2.1
-        version: 14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
+        specifier: ^14.2.2
+        version: 14.2.2(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.1)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
+        version: 4.24.7(next@14.2.2)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
       next-query-params:
         specifier: ^5.0.0
-        version: 5.0.0(next@14.2.1)(react@18.2.0)(use-query-params@2.2.1)
+        version: 5.0.0(next@14.2.2)(react@18.2.0)(use-query-params@2.2.1)
       nodemailer:
         specifier: ^6.9.13
         version: 6.9.13
@@ -543,8 +543,8 @@ importers:
         specifier: ^8.56.0
         version: 8.57.0
       eslint-config-next:
-        specifier: ^14.2.1
-        version: 14.2.1(eslint@8.57.0)(typescript@5.4.5)
+        specifier: ^14.2.2
+        version: 14.2.2(eslint@8.57.0)(typescript@5.4.5)
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@20.10.5)(ts-node@10.9.2)
@@ -1944,6 +1944,15 @@ packages:
       '@lezer/common': 1.2.1
     dev: false
 
+  /@codemirror/commands@6.4.0:
+    resolution: {integrity: sha512-HB3utD5GxCvEhSyj5EuG9KpuQQhFpxalh3lwrspyL/GeSNDe4c6JDxVzL12SJ+7gUknHjZzmq7OPCb9QPgiRmQ==}
+    dependencies:
+      '@codemirror/language': 6.10.1
+      '@codemirror/state': 6.4.1
+      '@codemirror/view': 6.26.3
+      '@lezer/common': 1.2.1
+    dev: false
+
   /@codemirror/lang-json@6.0.1:
     resolution: {integrity: sha512-+T1flHdgpqDDlJZ2Lkil/rLiRy684WMLc74xUnjJH48GQdfJo/pudlTRreZmKwzP8/tGdKf83wlbAdOCzlJOGQ==}
     dependencies:
@@ -2858,8 +2867,8 @@ packages:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.4.15
 
-  /@langchain/anthropic@0.1.14:
-    resolution: {integrity: sha512-7wkBVT0FiuuM6YovDivJmVxLppRul6ID+lQqJPDLrkp0tdEE2yjDvdlrYQJ9thlJ7d4XNV3B95wqXgG3CO8QHQ==}
+  /@langchain/anthropic@0.1.16:
+    resolution: {integrity: sha512-vCbwkZ3pkMSKf67fBgNlslvuW9f3EZGBbO8Ic2etgX3xFl6L0WuMtfS26P1FCDpRwaKuC1BrCj2aLAeMzMq/Fg==}
     engines: {node: '>=18'}
     dependencies:
       '@anthropic-ai/sdk': 0.20.2
@@ -3328,21 +3337,21 @@ packages:
       next-auth: ^4
     dependencies:
       '@prisma/client': 5.12.1(prisma@5.12.1)
-      next-auth: 4.24.7(next@14.2.1)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
+      next-auth: 4.24.7(next@14.2.2)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
     dev: false
 
-  /@next/env@14.2.1:
-    resolution: {integrity: sha512-qsHJle3GU3CmVx7pUoXcghX4sRN+vINkbLdH611T8ZlsP//grzqVW87BSUgOZeSAD4q7ZdZicdwNe/20U2janA==}
+  /@next/env@14.2.2:
+    resolution: {integrity: sha512-sk72qRfM1Q90XZWYRoJKu/UWlTgihrASiYw/scb15u+tyzcze3bOuJ/UV6TBOQEeUaxOkRqGeuGUdiiuxc5oqw==}
     dev: false
 
-  /@next/eslint-plugin-next@14.2.1:
-    resolution: {integrity: sha512-Fp+mthEBjkn8r9qd6o4JgxKp0IDEzW0VYHD8ZC05xS5/lFNwHKuOdr2kVhWG7BQCO9L6eeepshM1Wbs2T+LgSg==}
+  /@next/eslint-plugin-next@14.2.2:
+    resolution: {integrity: sha512-q+Ec2648JtBpKiu/FSJm8HAsFXlNvioHeBCbTP12T1SGcHYwhqHULSfQgFkPgHDu3kzNp2Kem4J54bK4rPQ5SQ==}
     dependencies:
       glob: 10.3.10
     dev: true
 
-  /@next/swc-darwin-arm64@14.2.1:
-    resolution: {integrity: sha512-kGjnjcIJehEcd3rT/3NAATJQndAEELk0J9GmGMXHSC75TMnvpOhONcjNHbjtcWE5HUQnIHy5JVkatrnYm1QhVw==}
+  /@next/swc-darwin-arm64@14.2.2:
+    resolution: {integrity: sha512-3iPgMhzbalizGwHNFUcGnDhFPSgVBHQ8aqSTAMxB5BvJG0oYrDf1WOJZlbXBgunOEj/8KMVbejEur/FpvFsgFQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -3350,8 +3359,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-darwin-x64@14.2.1:
-    resolution: {integrity: sha512-dAdWndgdQi7BK2WSXrx4lae7mYcOYjbHJUhvOUnJjMNYrmYhxbbvJ2xElZpxNxdfA6zkqagIB9He2tQk+l16ew==}
+  /@next/swc-darwin-x64@14.2.2:
+    resolution: {integrity: sha512-x7Afi/jt0ZBRUZHTi49yyej4o8znfIMHO4RvThuoc0P+uli8Jd99y5GKjxoYunPKsXL09xBXEM1+OQy2xEL0Ag==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -3359,8 +3368,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-arm64-gnu@14.2.1:
-    resolution: {integrity: sha512-2ZctfnyFOGvTkoD6L+DtQtO3BfFz4CapoHnyLTXkOxbZkVRgg3TQBUjTD/xKrO1QWeydeo8AWfZRg8539qNKrg==}
+  /@next/swc-linux-arm64-gnu@14.2.2:
+    resolution: {integrity: sha512-zbfPtkk7L41ODMJwSp5VbmPozPmMMQrzAc0HAUomVeVIIwlDGs/UCqLJvLNDt4jpWgc21SjjyIn762lNGrMaUA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -3368,8 +3377,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-arm64-musl@14.2.1:
-    resolution: {integrity: sha512-jazZXctiaanemy4r+TPIpFP36t1mMwWCKMsmrTRVChRqE6putyAxZA4PDujx0SnfvZHosjdkx9xIq9BzBB5tWg==}
+  /@next/swc-linux-arm64-musl@14.2.2:
+    resolution: {integrity: sha512-wPbS3pI/JU16rm3XdLvvTmlsmm1nd+sBa2ohXgBZcShX4TgOjD4R+RqHKlI1cjo/jDZKXt6OxmcU0Iys0OC/yg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -3377,8 +3386,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-x64-gnu@14.2.1:
-    resolution: {integrity: sha512-VjCHWCjsAzQAAo8lkBOLEIkBZFdfW+Z18qcQ056kL4KpUYc8o59JhLDCBlhg+hINQRgzQ2UPGma2AURGOH0+Qg==}
+  /@next/swc-linux-x64-gnu@14.2.2:
+    resolution: {integrity: sha512-NqWOHqqq8iC9tuHvZxjQ2tX+jWy2X9y8NX2mcB4sj2bIccuCxbIZrU/ThFPZZPauygajZuVQ6zediejQHwZHwQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -3386,8 +3395,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-x64-musl@14.2.1:
-    resolution: {integrity: sha512-7HZKYKvAp4nAHiHIbY04finRqjeYvkITOGOurP1aLMexIFG/1+oCnqhGogBdc4lao/lkMW1c+AkwWSzSlLasqw==}
+  /@next/swc-linux-x64-musl@14.2.2:
+    resolution: {integrity: sha512-lGepHhwb9sGhCcU7999+iK1ZZT+6rrIoVg40MP7DZski9GIZP80wORSbt5kJzh9v2x2ev2lxC6VgwMQT0PcgTA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -3395,8 +3404,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-win32-arm64-msvc@14.2.1:
-    resolution: {integrity: sha512-YGHklaJ/Cj/F0Xd8jxgj2p8po4JTCi6H7Z3Yics3xJhm9CPIqtl8erlpK1CLv+HInDqEWfXilqatF8YsLxxA2Q==}
+  /@next/swc-win32-arm64-msvc@14.2.2:
+    resolution: {integrity: sha512-TZSh/48SfcLEQ4rD25VVn2kdIgUWmMflRX3OiyPwGNXn3NiyPqhqei/BaqCYXViIQ+6QsG9R0C8LftMqy8JPMA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -3404,8 +3413,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-win32-ia32-msvc@14.2.1:
-    resolution: {integrity: sha512-o+ISKOlvU/L43ZhtAAfCjwIfcwuZstiHVXq/BDsZwGqQE0h/81td95MPHliWCnFoikzWcYqh+hz54ZB2FIT8RA==}
+  /@next/swc-win32-ia32-msvc@14.2.2:
+    resolution: {integrity: sha512-M0tBVNMEBJN2ZNQWlcekMn6pvLria7Sa2Fai5znm7CCJz4pP3lrvlSxhKdkCerk0D9E0bqx5yAo3o2Q7RrD4gA==}
     engines: {node: '>= 10'}
     cpu: [ia32]
     os: [win32]
@@ -3413,8 +3422,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-win32-x64-msvc@14.2.1:
-    resolution: {integrity: sha512-GmRoTiLcvCLifujlisknv4zu9/C4i9r0ktsA8E51EMqJL4bD4CpO7lDYr7SrUxCR0tS4RVcrqKmCak24T0ohaw==}
+  /@next/swc-win32-x64-msvc@14.2.2:
+    resolution: {integrity: sha512-a/20E/wtTJZ3Ykv3f/8F0l7TtgQa2LWHU2oNB9bsu0VjqGuGGHmm/q6waoUNQYTVPYrrlxxaHjJcDV6aiSTt/w==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -5242,7 +5251,7 @@ packages:
       localforage: 1.10.0
     dev: false
 
-  /@sentry/nextjs@7.110.1(next@14.2.1)(react@18.2.0):
+  /@sentry/nextjs@7.110.1(next@14.2.2)(react@18.2.0):
     resolution: {integrity: sha512-OcH44p14DOjOPlEcFHJG4YB3koeYNFnDz5yikRs6B5HrcuQRzQkRphasysQt37NmjJG5QQMdqArYxho6JwlMfg==}
     engines: {node: '>=8'}
     peerDependencies:
@@ -5263,7 +5272,7 @@ packages:
       '@sentry/vercel-edge': 7.110.1
       '@sentry/webpack-plugin': 1.21.0
       chalk: 3.0.0
-      next: 14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
+      next: 14.2.2(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       react: 18.2.0
       resolve: 1.22.8
       rollup: 2.78.0
@@ -6062,7 +6071,7 @@ packages:
       '@trpc/server': 10.45.2
     dev: false
 
-  /@trpc/next@10.45.2(@tanstack/react-query@4.36.1)(@trpc/client@10.45.2)(@trpc/react-query@10.45.2)(@trpc/server@10.45.2)(next@14.2.1)(react-dom@18.2.0)(react@18.2.0):
+  /@trpc/next@10.45.2(@tanstack/react-query@4.36.1)(@trpc/client@10.45.2)(@trpc/react-query@10.45.2)(@trpc/server@10.45.2)(next@14.2.2)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-RSORmfC+/nXdmRY1pQ0AalsVgSzwNAFbZLYHiTvPM5QQ8wmMEHilseCYMXpu0se/TbPt9zVR6Ka2d7O6zxKkXg==}
     peerDependencies:
       '@tanstack/react-query': ^4.18.0
@@ -6077,7 +6086,7 @@ packages:
       '@trpc/client': 10.45.2(@trpc/server@10.45.2)
       '@trpc/react-query': 10.45.2(@tanstack/react-query@4.36.1)(@trpc/client@10.45.2)(@trpc/server@10.45.2)(react-dom@18.2.0)(react@18.2.0)
       '@trpc/server': 10.45.2
-      next: 14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
+      next: 14.2.2(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
     dev: false
@@ -7037,7 +7046,7 @@ packages:
       '@vue/compiler-ssr': 3.4.23
       '@vue/shared': 3.4.23
       estree-walker: 2.0.2
-      magic-string: 0.30.9
+      magic-string: 0.30.10
       postcss: 8.4.38
       source-map-js: 1.2.0
     dev: false
@@ -7168,8 +7177,8 @@ packages:
       indent-string: 4.0.0
     dev: true
 
-  /ai@3.0.23(react@18.2.0)(solid-js@1.8.16)(svelte@4.2.14)(vue@3.4.23)(zod@3.22.4):
-    resolution: {integrity: sha512-VL8Fx9euEtffzIu0BpLDZkACB+oU6zj4vHXSsSoT5VfwAzE009FJedOMPK1M4u60RpYw/DgwlD7OLN7XQfvSHw==}
+  /ai@3.0.24(react@18.2.0)(solid-js@1.8.16)(svelte@4.2.15)(vue@3.4.23)(zod@3.22.4):
+    resolution: {integrity: sha512-x2enc2aIbOjsvC6N+xS8cTEiAPXGSzN1MjqNu4jo9YlBKmGR+83slScoXhgFZQnaHHeT9miPUVoMRqde11Bc8Q==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.2.0
@@ -7199,8 +7208,8 @@ packages:
       secure-json-parse: 2.7.0
       solid-js: 1.8.16
       solid-swr-store: 0.10.7(solid-js@1.8.16)(swr-store@0.10.6)
-      sswr: 2.0.0(svelte@4.2.14)
-      svelte: 4.2.14
+      sswr: 2.0.0(svelte@4.2.15)
+      svelte: 4.2.15
       swr: 2.2.0(react@18.2.0)
       swr-store: 0.10.6
       swrv: 1.0.4(vue@3.4.23)
@@ -8124,7 +8133,7 @@ packages:
     resolution: {integrity: sha512-J8j+nZ+CdWmIeFIGXEFbFPtpiYacFMDR8GlHK3IyHQJMCaVRfGx9NT+Hxivv1ckLWPvNdZqndbr/7lVhrf/Svg==}
     dependencies:
       '@codemirror/autocomplete': 6.16.0(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3)(@lezer/common@1.2.1)
-      '@codemirror/commands': 6.3.3
+      '@codemirror/commands': 6.4.0
       '@codemirror/language': 6.10.1
       '@codemirror/lint': 6.5.0
       '@codemirror/search': 6.5.6
@@ -9209,8 +9218,8 @@ packages:
       semver: 7.6.0
     dev: true
 
-  /eslint-config-next@14.2.1(eslint@8.57.0)(typescript@5.4.5):
-    resolution: {integrity: sha512-BgD0kPCWMlqoItRf3xe9fG0MqwObKfVch+f2ccwDpZiCJA8ghkz2wrASH+bI6nLZzGcOJOpMm1v1Q1euhfpt4Q==}
+  /eslint-config-next@14.2.2(eslint@8.57.0)(typescript@5.4.5):
+    resolution: {integrity: sha512-12/uFc0KX+wUs7EDpOUGKMXBXZJiBVGdK5/m/QgXOCg2mQ0bQWoKSWNrCeOg7Vum6Kw1d1TW453W6xh+GbHquw==}
     peerDependencies:
       eslint: ^7.23.0 || ^8.0.0
       typescript: '>=3.3.1'
@@ -9218,7 +9227,7 @@ packages:
       typescript:
         optional: true
     dependencies:
-      '@next/eslint-plugin-next': 14.2.1
+      '@next/eslint-plugin-next': 14.2.2
       '@rushstack/eslint-patch': 1.7.2
       '@typescript-eslint/parser': 7.2.0(eslint@8.57.0)(typescript@5.4.5)
       eslint: 8.57.0
@@ -12092,254 +12101,8 @@ packages:
     resolution: {integrity: sha512-lG03Ru+XyOJFsjH3OMY6R/9U38IjDPfnOfDgO3ynhbDr+Dz8fak+X6L62vqu3iybQnj+lG84OttBuU9KY3L9kA==}
     engines: {node: '>=14.0.0'}
 
-  /langchain@0.1.33:
-    resolution: {integrity: sha512-IrRd839x8eAmDutHNDMHGzIjufyWt/ckJrnRB2WifIJmtLWNRNQo5jZd7toeBU0UOVOQxoPtQGYf8lR0ar7vIQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@aws-sdk/client-s3': ^3.310.0
-      '@aws-sdk/client-sagemaker-runtime': ^3.310.0
-      '@aws-sdk/client-sfn': ^3.310.0
-      '@aws-sdk/credential-provider-node': ^3.388.0
-      '@azure/storage-blob': ^12.15.0
-      '@gomomento/sdk': ^1.51.1
-      '@gomomento/sdk-core': ^1.51.1
-      '@gomomento/sdk-web': ^1.51.1
-      '@google-ai/generativelanguage': ^0.2.1
-      '@google-cloud/storage': ^6.10.1 || ^7.7.0
-      '@notionhq/client': ^2.2.10
-      '@pinecone-database/pinecone': '*'
-      '@supabase/supabase-js': ^2.10.0
-      '@vercel/kv': ^0.2.3
-      '@xata.io/client': ^0.28.0
-      apify-client: ^2.7.1
-      assemblyai: ^4.0.0
-      axios: '*'
-      cheerio: ^1.0.0-rc.12
-      chromadb: '*'
-      convex: ^1.3.1
-      couchbase: ^4.3.0
-      d3-dsv: ^2.0.0
-      epub2: ^3.0.1
-      faiss-node: '*'
-      fast-xml-parser: '*'
-      google-auth-library: ^8.9.0
-      handlebars: ^4.7.8
-      html-to-text: ^9.0.5
-      ignore: ^5.2.0
-      ioredis: ^5.3.2
-      jsdom: '*'
-      mammoth: ^1.6.0
-      mongodb: '>=5.2.0'
-      node-llama-cpp: '*'
-      notion-to-md: ^3.1.0
-      officeparser: ^4.0.4
-      pdf-parse: 1.1.1
-      peggy: ^3.0.2
-      playwright: ^1.32.1
-      puppeteer: ^19.7.2
-      pyodide: ^0.24.1
-      redis: ^4.6.4
-      sonix-speech-recognition: ^2.1.1
-      srt-parser-2: ^1.2.3
-      typeorm: ^0.3.12
-      weaviate-ts-client: '*'
-      web-auth-library: ^1.0.3
-      ws: ^8.14.2
-      youtube-transcript: ^1.0.6
-      youtubei.js: ^9.1.0
-    peerDependenciesMeta:
-      '@aws-sdk/client-s3':
-        optional: true
-      '@aws-sdk/client-sagemaker-runtime':
-        optional: true
-      '@aws-sdk/client-sfn':
-        optional: true
-      '@aws-sdk/credential-provider-node':
-        optional: true
-      '@azure/storage-blob':
-        optional: true
-      '@gomomento/sdk':
-        optional: true
-      '@gomomento/sdk-core':
-        optional: true
-      '@gomomento/sdk-web':
-        optional: true
-      '@google-ai/generativelanguage':
-        optional: true
-      '@google-cloud/storage':
-        optional: true
-      '@notionhq/client':
-        optional: true
-      '@pinecone-database/pinecone':
-        optional: true
-      '@supabase/supabase-js':
-        optional: true
-      '@vercel/kv':
-        optional: true
-      '@xata.io/client':
-        optional: true
-      apify-client:
-        optional: true
-      assemblyai:
-        optional: true
-      axios:
-        optional: true
-      cheerio:
-        optional: true
-      chromadb:
-        optional: true
-      convex:
-        optional: true
-      couchbase:
-        optional: true
-      d3-dsv:
-        optional: true
-      epub2:
-        optional: true
-      faiss-node:
-        optional: true
-      fast-xml-parser:
-        optional: true
-      google-auth-library:
-        optional: true
-      handlebars:
-        optional: true
-      html-to-text:
-        optional: true
-      ignore:
-        optional: true
-      ioredis:
-        optional: true
-      jsdom:
-        optional: true
-      mammoth:
-        optional: true
-      mongodb:
-        optional: true
-      node-llama-cpp:
-        optional: true
-      notion-to-md:
-        optional: true
-      officeparser:
-        optional: true
-      pdf-parse:
-        optional: true
-      peggy:
-        optional: true
-      playwright:
-        optional: true
-      puppeteer:
-        optional: true
-      pyodide:
-        optional: true
-      redis:
-        optional: true
-      sonix-speech-recognition:
-        optional: true
-      srt-parser-2:
-        optional: true
-      typeorm:
-        optional: true
-      weaviate-ts-client:
-        optional: true
-      web-auth-library:
-        optional: true
-      ws:
-        optional: true
-      youtube-transcript:
-        optional: true
-      youtubei.js:
-        optional: true
-    dependencies:
-      '@anthropic-ai/sdk': 0.9.1
-      '@langchain/community': 0.0.47(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21)
-      '@langchain/core': 0.1.58
-      '@langchain/openai': 0.0.28
-      binary-extensions: 2.3.0
-      js-tiktoken: 1.0.10
-      js-yaml: 4.1.0
-      jsonpointer: 5.0.1
-      langchainhub: 0.0.8
-      langsmith: 0.1.14
-      ml-distance: 4.0.1
-      openapi-types: 12.1.3
-      p-retry: 4.6.2
-      uuid: 9.0.1
-      yaml: 2.4.1
-      zod: 3.22.4
-      zod-to-json-schema: 3.22.5(zod@3.22.4)
-    transitivePeerDependencies:
-      - '@aws-crypto/sha256-js'
-      - '@aws-sdk/client-bedrock-agent-runtime'
-      - '@aws-sdk/client-bedrock-runtime'
-      - '@aws-sdk/client-dynamodb'
-      - '@aws-sdk/client-kendra'
-      - '@aws-sdk/client-lambda'
-      - '@azure/search-documents'
-      - '@clickhouse/client'
-      - '@cloudflare/ai'
-      - '@datastax/astra-db-ts'
-      - '@elastic/elasticsearch'
-      - '@getmetal/metal-sdk'
-      - '@getzep/zep-js'
-      - '@gradientai/nodejs-sdk'
-      - '@huggingface/inference'
-      - '@mozilla/readability'
-      - '@opensearch-project/opensearch'
-      - '@planetscale/database'
-      - '@premai/prem-sdk'
-      - '@qdrant/js-client-rest'
-      - '@raycast/api'
-      - '@rockset/client'
-      - '@smithy/eventstream-codec'
-      - '@smithy/protocol-http'
-      - '@smithy/signature-v4'
-      - '@smithy/util-utf8'
-      - '@supabase/postgrest-js'
-      - '@tensorflow-models/universal-sentence-encoder'
-      - '@tensorflow/tfjs-converter'
-      - '@tensorflow/tfjs-core'
-      - '@upstash/redis'
-      - '@upstash/vector'
-      - '@vercel/postgres'
-      - '@writerai/writer-sdk'
-      - '@xenova/transformers'
-      - '@zilliz/milvus2-sdk-node'
-      - better-sqlite3
-      - cassandra-driver
-      - cborg
-      - closevector-common
-      - closevector-node
-      - closevector-web
-      - cohere-ai
-      - discord.js
-      - dria
-      - duck-duck-scrape
-      - encoding
-      - firebase-admin
-      - googleapis
-      - hnswlib-node
-      - interface-datastore
-      - it-all
-      - jsonwebtoken
-      - llmonitor
-      - lodash
-      - lunary
-      - mysql2
-      - neo4j-driver
-      - pg
-      - pg-copy-streams
-      - pickleparser
-      - portkey-ai
-      - replicate
-      - typesense
-      - usearch
-      - vectordb
-      - voy-search
-    dev: false
-
-  /langchain@0.1.33(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21):
-    resolution: {integrity: sha512-IrRd839x8eAmDutHNDMHGzIjufyWt/ckJrnRB2WifIJmtLWNRNQo5jZd7toeBU0UOVOQxoPtQGYf8lR0ar7vIQ==}
+  /langchain@0.1.34(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21):
+    resolution: {integrity: sha512-4TVH2mzhITrLPOeyfGucfqo1+360DJMl4+ItG56ApxVY1krO4hV0EkqcRLAxW06W6sIue8mIU70WbyhBYH68Ug==}
     engines: {node: '>=18'}
     peerDependencies:
       '@aws-sdk/client-s3': ^3.310.0
@@ -12829,11 +12592,18 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: false
 
+  /magic-string@0.30.10:
+    resolution: {integrity: sha512-iIRwTIf0QKV3UAnYK4PU8uiEc4SRh5jX0mwpIwETPpHdhVM4f53RSwS/vXvN1JhGX+Cs7B8qIq3d6AH49O5fAQ==}
+    dependencies:
+      '@jridgewell/sourcemap-codec': 1.4.15
+    dev: false
+
   /magic-string@0.30.9:
     resolution: {integrity: sha512-S1+hd+dIrC8EZqKyT9DstTH/0Z+f76kmmvZnkfQVmOpDEF9iVgdYif3Q/pIWHmCoo59bQVGW0kVL3e2nl+9+Sw==}
     engines: {node: '>=12'}
     dependencies:
       '@jridgewell/sourcemap-codec': 1.4.15
+    dev: true
 
   /make-dir@3.1.0:
     resolution: {integrity: sha512-g3FeP20LNwhALb/6Cz6Dd4F2ngze0jz7tbzrD2wAV+o9FeNHe4rL+yK2md0J/fiSf1sa1ADhXqi5+oVwOM/eGw==}
@@ -13154,7 +12924,7 @@ packages:
       type-fest: 2.19.0
     dev: true
 
-  /next-auth@4.24.7(next@14.2.1)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0):
+  /next-auth@4.24.7(next@14.2.2)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-iChjE8ov/1K/z98gdKbn2Jw+2vLgJtVV39X+rCP5SGnVQuco7QOr19FRNGMIrD8d3LYhHWV9j9sKLzq1aDWWQQ==}
     peerDependencies:
       next: ^12.2.5 || ^13 || ^14
@@ -13169,7 +12939,7 @@ packages:
       '@panva/hkdf': 1.1.1
       cookie: 0.5.0
       jose: 4.15.5
-      next: 14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
+      next: 14.2.2(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       nodemailer: 6.9.13
       oauth: 0.9.15
       openid-client: 5.6.5
@@ -13180,21 +12950,21 @@ packages:
       uuid: 8.3.2
     dev: false
 
-  /next-query-params@5.0.0(next@14.2.1)(react@18.2.0)(use-query-params@2.2.1):
+  /next-query-params@5.0.0(next@14.2.2)(react@18.2.0)(use-query-params@2.2.1):
     resolution: {integrity: sha512-Zm9nc0QgrTMaQwGdbICcTDaYS4oRcXo628Ye6JQGdp/9JzlhzDpzcGRqciK0S62yAyE3b5ozFpgzY0gDUEbLtw==}
     peerDependencies:
       next: ^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0
       react: ^16.8.0 || ^17.0.0 || ^18.0.0
       use-query-params: ^2.0.0
     dependencies:
-      next: 14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
+      next: 14.2.2(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       react: 18.2.0
       tslib: 2.6.2
       use-query-params: 2.2.1(react-dom@18.2.0)(react@18.2.0)
     dev: false
 
-  /next@14.2.1(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0):
-    resolution: {integrity: sha512-SF3TJnKdH43PMkCcErLPv+x/DY1YCklslk3ZmwaVoyUfDgHKexuKlf9sEfBQ69w+ue8jQ3msLb+hSj1T19hGag==}
+  /next@14.2.2(@babel/core@7.24.4)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-oGwUaa2bCs47FbuxWMpOoXtBMPYpvTPgdZr3UAo+pu7Ns00z9otmYpoeV1HEiYL06AlRQQIA/ypK526KjJfaxg==}
     engines: {node: '>=18.17.0'}
     hasBin: true
     peerDependencies:
@@ -13211,7 +12981,7 @@ packages:
       sass:
         optional: true
     dependencies:
-      '@next/env': 14.2.1
+      '@next/env': 14.2.2
       '@playwright/test': 1.43.1
       '@swc/helpers': 0.5.5
       busboy: 1.6.0
@@ -13222,15 +12992,15 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
       styled-jsx: 5.1.1(@babel/core@7.24.4)(react@18.2.0)
     optionalDependencies:
-      '@next/swc-darwin-arm64': 14.2.1
-      '@next/swc-darwin-x64': 14.2.1
-      '@next/swc-linux-arm64-gnu': 14.2.1
-      '@next/swc-linux-arm64-musl': 14.2.1
-      '@next/swc-linux-x64-gnu': 14.2.1
-      '@next/swc-linux-x64-musl': 14.2.1
-      '@next/swc-win32-arm64-msvc': 14.2.1
-      '@next/swc-win32-ia32-msvc': 14.2.1
-      '@next/swc-win32-x64-msvc': 14.2.1
+      '@next/swc-darwin-arm64': 14.2.2
+      '@next/swc-darwin-x64': 14.2.2
+      '@next/swc-linux-arm64-gnu': 14.2.2
+      '@next/swc-linux-arm64-musl': 14.2.2
+      '@next/swc-linux-x64-gnu': 14.2.2
+      '@next/swc-linux-x64-musl': 14.2.2
+      '@next/swc-win32-arm64-msvc': 14.2.2
+      '@next/swc-win32-ia32-msvc': 14.2.2
+      '@next/swc-win32-x64-msvc': 14.2.2
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
@@ -15530,12 +15300,12 @@ packages:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
     dev: true
 
-  /sswr@2.0.0(svelte@4.2.14):
+  /sswr@2.0.0(svelte@4.2.15):
     resolution: {integrity: sha512-mV0kkeBHcjcb0M5NqKtKVg/uTIYNlIIniyDfSGrSfxpEdM9C365jK0z55pl9K0xAkNTJi2OAOVFQpgMPUk+V0w==}
     peerDependencies:
       svelte: ^4.0.0
     dependencies:
-      svelte: 4.2.14
+      svelte: 4.2.15
       swrev: 4.0.0
     dev: false
 
@@ -15820,8 +15590,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  /svelte@4.2.14:
-    resolution: {integrity: sha512-ry3+YlWqZpHxLy45MW4MZIxNdvB+Wl7p2nnstWKbOAewaJyNJuOtivSbRChcfIej6wFBjWqyKmf/NgK1uW2JAA==}
+  /svelte@4.2.15:
+    resolution: {integrity: sha512-j9KJSccHgLeRERPlhMKrCXpk2TqL2m5Z+k+OBTQhZOhIdCCd3WfqV+ylPWeipEwq17P/ekiSFWwrVQv93i3bsg==}
     engines: {node: '>=16'}
     dependencies:
       '@ampproject/remapping': 2.3.0
@@ -15836,7 +15606,7 @@ packages:
       estree-walker: 3.0.3
       is-reference: 3.0.2
       locate-character: 3.0.0
-      magic-string: 0.30.9
+      magic-string: 0.30.10
       periscopic: 3.1.0
     dev: false
 
