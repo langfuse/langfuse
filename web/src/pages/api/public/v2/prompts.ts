@@ -3,9 +3,10 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { DB } from "@/src/server/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { paginationZod } from "@/src/utils/zod";
-import { Prompt, prisma } from "@langfuse/shared/src/db";
-import { NextApiRequest, NextApiResponse } from "next";
+import { prisma } from "@langfuse/shared/src/db";
+import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
+import { type Prompt } from "../../../../../../packages/shared/dist/prisma/generated/types";
 
 const GetPromptsSchema = z.object({
   ...paginationZod,
@@ -102,8 +103,6 @@ export default async function handler(
       });
 
       const total = Number(response_count_response[0].prompt_name_count);
-
-      console.log(response_count_response);
 
       // temporary workaround, need a better solution
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
