@@ -16,7 +16,7 @@ const regions =
       ? [
           {
             name: "DEV",
-            flag: "🇪🇺",
+            flag: "🚧",
           },
         ]
       : [
