@@ -2,7 +2,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { prisma } from "@langfuse/shared/src/db";
-import { NextApiRequest, NextApiResponse } from "next";
+import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
 const GetPromptSchema = z.object({
@@ -40,6 +40,7 @@ export default async function handler(
     console.log("Trying to get prompt:", req.body, req.query);
 
     const { promptName, version, active } = GetPromptSchema.parse(req.query);
+    const decodedPromptName = decodeURIComponent(promptName)
 
     if (version && active) {
       return res.status(404).json({
@@ -49,11 +50,16 @@ export default async function handler(
 
     const prompt = await prisma.prompt.findMany({
       where: {
-        name: promptName,
+        name: decodedPromptName,
         projectId: authCheck.scope.projectId,
         version: version,
         isActive: active,
       },
+      orderBy: [
+        {
+          version: "desc"
+        }
+      ]
     });
 
     console.log("Result: ", prompt);
