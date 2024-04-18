@@ -1,9 +1,15 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { DB } from "@/src/server/db";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { prisma } from "@langfuse/shared/src/db";
+import { paginationZod } from "@/src/utils/zod";
+import { Prompt, prisma } from "@langfuse/shared/src/db";
 import { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
+
+const GetPromptsSchema = z.object({
+  ...paginationZod,
+});
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,22 +39,88 @@ export default async function handler(
       });
     }
     try {
-      const prompt = await prisma.prompt.findMany({
-        where: {
-          projectId: authCheck.scope.projectId,
-          // if no version is given, we take the latest active prompt
-          // if no prompt is active, there will be no prompt available
-          isActive: true,
-        },
+      const obj = GetPromptsSchema.parse(req.query);
+      const skipValue = (obj.page - 1) * obj.limit;
+      const prompts = await prisma.$queryRaw<Array<Prompt>>`
+        SELECT 
+          id, 
+          name, 
+          version as "latestVersion", 
+          project_id AS "projectId", 
+          prompt, 
+          updated_at AS "updatedAt", 
+          created_at AS "createdAt", 
+          is_active AS "isActive"
+        FROM prompts
+        WHERE (name, version) IN (
+          SELECT name, MAX(version)
+          FROM prompts
+          WHERE "project_id" = ${authCheck.scope.projectId}
+          GROUP BY name
+        )
+        AND "project_id" = ${authCheck.scope.projectId}
+        ORDER BY name ASC
+        LIMIT ${obj.limit} OFFSET ${skipValue}
+        `;
+
+      const response_count_response = await prisma.$queryRaw<
+        Array<{
+          prompt_name_count: BigInt;
+        }>
+      >`
+        SELECT 
+          COUNT(DISTINCT name) AS prompt_name_count 
+        FROM prompts 
+        WHERE project_id = ${authCheck.scope.projectId};
+      `;
+
+      const promptCountQuery = DB.selectFrom("observations")
+        .fullJoin("prompts", "prompts.id", "observations.prompt_id")
+        .select(({ fn }) => [
+          "prompts.name",
+          fn.count("observations.id").as("count"),
+        ])
+        .where("prompts.project_id", "=", authCheck.scope.projectId)
+        .where("observations.project_id", "=", authCheck.scope.projectId)
+        .groupBy("prompts.name");
+
+      const compiledQuery = promptCountQuery.compile();
+
+      const promptCounts = await prisma.$queryRawUnsafe<
+        Array<{
+          name: string;
+          count: number;
+        }>
+      >(compiledQuery.sql, ...compiledQuery.parameters);
+
+      const joinedPromptsAndCounts = prompts.map((p) => {
+        const marchedCount = promptCounts.find((c) => c.name === p.name);
+        return {
+          ...p,
+          observationCount: marchedCount?.count ?? 0,
+        };
       });
 
-      if (prompt === null) {
-        return res.status(404).json({
-          message: "Prompt not found",
-        });
-      }
+      const total = Number(response_count_response[0].prompt_name_count);
 
-      return res.status(200).json(prompt);
+      console.log(response_count_response);
+
+      // temporary workaround, need a better solution
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore: Unreachable code error
+      BigInt.prototype.toJSON = function (): number {
+        return this.toString();
+      };
+
+      return res.status(200).json({
+        data: joinedPromptsAndCounts,
+        meta: {
+          page: obj.page,
+          limit: obj.limit,
+          totalItems: total,
+          totalPages: Math.ceil(total / obj.limit),
+        },
+      });
     } catch (error: unknown) {
       console.error(error);
       if (isPrismaException(error)) {
