@@ -114,7 +114,6 @@ export const IOTableCell = ({
   data: unknown;
   isLoading?: boolean;
   className?: string;
-  singleLine?: boolean;
 }) => {
   return (
     <>
