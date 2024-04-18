@@ -50,7 +50,7 @@ export const CreatePromptTRPCSchema = z.union([
 export type CreatePromptTRPCType = z.infer<typeof CreatePromptTRPCSchema>;
 
 export const GetPromptSchema = z.object({
-  name: z.string(),
+  name: z.string().transform((v) => decodeURIComponent(v)),
   version: z.coerce.number().int().nullish(),
 });
 
