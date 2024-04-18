@@ -94,14 +94,15 @@ export type AuditLog = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
-    user_id: string;
-    project_id: string;
-    user_project_role: MembershipRole;
     resource_type: string;
     resource_id: string;
     action: string;
     before: string | null;
     after: string | null;
+    project_id: string;
+    user_id: string | null;
+    user_project_role: MembershipRole | null;
+    public_api_key: string | null;
 };
 export type CronJobs = {
     name: string;

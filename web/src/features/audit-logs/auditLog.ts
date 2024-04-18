@@ -17,13 +17,7 @@ export type AuditableResource =
   | "evalTemplate"
   | "job";
 
-type AuditLog = {
-  resourceType: AuditableResource;
-  resourceId: string;
-  action: string;
-  before?: unknown;
-  after?: unknown;
-} & (
+export type AuditLogSource =
   | {
       projectId: string;
       userId: string;
@@ -38,17 +32,36 @@ type AuditLog = {
         projectId: string;
       };
     }
-);
+  | {
+      projectId: string;
+      publicApiKey: string;
+    };
+
+type AuditLog = {
+  resourceType: AuditableResource;
+  resourceId: string;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+} & AuditLogSource;
 
 export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
   await (prisma ?? _prisma).auditLog.create({
     data: {
       projectId: "projectId" in log ? log.projectId : log.session.projectId,
-      userId: "userId" in log ? log.userId : log.session.user.id,
+      userId:
+        "publicApiKey" in log
+          ? null
+          : "userId" in log
+            ? log.userId
+            : log.session.user.id,
       userProjectRole:
-        "userProjectRole" in log
-          ? log.userProjectRole
-          : log.session.projectRole,
+        "publicApiKey" in log
+          ? null
+          : "userProjectRole" in log
+            ? log.userProjectRole
+            : log.session.projectRole,
+      publicApiKey: "publicApiKey" in log ? log.publicApiKey : null,
       resourceType: log.resourceType,
       resourceId: log.resourceId,
       action: log.action,

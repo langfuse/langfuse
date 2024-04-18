@@ -12,6 +12,7 @@ export type AuthHeaderVerificationResult =
   | {
       validKey: true;
       scope: ApiAccessScope;
+      publicKey: string;
     }
   | {
       validKey: false;
@@ -77,6 +78,7 @@ export async function verifyAuthHeaderAndReturnScope(
           projectId: projectId,
           accessLevel: "all",
         },
+        publicKey,
       };
     }
     // Bearer auth, limited scope, only needs public key
@@ -94,6 +96,7 @@ export async function verifyAuthHeaderAndReturnScope(
           projectId: dbKey.projectId,
           accessLevel: "scores",
         },
+        publicKey,
       };
     }
   } catch (error: unknown) {

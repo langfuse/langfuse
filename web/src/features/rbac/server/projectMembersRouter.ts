@@ -1,5 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
+import { createNewMember } from "@/src/features/rbac/lib/createMember";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
@@ -154,60 +155,6 @@ export const projectMembersRouter = createTRPCRouter({
         scope: "members:create",
       });
 
-      const user = await ctx.prisma.user.findUnique({
-        where: {
-          email: input.email.toLowerCase(),
-        },
-      });
-      if (user) {
-        const membership = await ctx.prisma.membership.create({
-          data: {
-            userId: user.id,
-            projectId: input.projectId,
-            role: input.role,
-          },
-        });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "membership",
-          resourceId: input.projectId + "--" + user.id,
-          action: "create",
-          after: membership,
-        });
-        return membership;
-      } else {
-        const invitation = await ctx.prisma.membershipInvitation.create({
-          data: {
-            projectId: input.projectId,
-            email: input.email.toLowerCase(),
-            role: input.role,
-            senderId: ctx.session.user.id,
-          },
-        });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "membershipInvitation",
-          resourceId: invitation.id,
-          action: "create",
-          after: invitation,
-        });
-
-        const project = await ctx.prisma.project.findFirst({
-          where: {
-            id: input.projectId,
-          },
-        });
-
-        if (!project) throw new Error("Project not found");
-
-        await sendProjectInvitation(
-          input.email,
-          ctx.session.user.name!,
-          ctx.session.user.email!,
-          project.name,
-        );
-
-        return invitation;
-      }
+      return await createNewMember(input, ctx.prisma, { session: ctx.session });
     }),
 });
