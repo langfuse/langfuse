@@ -51,7 +51,7 @@ export const useHasAccess = (p: {
 // For use in UI components as function, if session is already available
 export function hasAccess(p: HasAccessParams): boolean {
   const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
-  if (isAdmin && p.scope.endsWith(":read")) return true;
+  if (isAdmin) return true;
 
   const projectRole: MembershipRole | undefined =
     "role" in p
