@@ -40,7 +40,7 @@ export default async function handler(
     console.log("Trying to get prompt:", req.body, req.query);
 
     const { promptName, version, active } = GetPromptSchema.parse(req.query);
-    const decodedPromptName = decodeURIComponent(promptName)
+    const decodedPromptName = decodeURIComponent(promptName);
 
     if (version && active) {
       return res.status(404).json({
@@ -57,9 +57,9 @@ export default async function handler(
       },
       orderBy: [
         {
-          version: "desc"
-        }
-      ]
+          version: "desc",
+        },
+      ],
     });
 
     console.log("Result: ", prompt);

@@ -1,6 +1,5 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { DB } from "@/src/server/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { paginationZod } from "@/src/utils/zod";
 import { prisma } from "@langfuse/shared/src/db";
@@ -75,45 +74,10 @@ export default async function handler(
         WHERE project_id = ${authCheck.scope.projectId};
       `;
 
-      const promptCountQuery = DB.selectFrom("observations")
-        .fullJoin("prompts", "prompts.id", "observations.prompt_id")
-        .select(({ fn }) => [
-          "prompts.name",
-          fn.count("observations.id").as("count"),
-        ])
-        .where("prompts.project_id", "=", authCheck.scope.projectId)
-        .where("observations.project_id", "=", authCheck.scope.projectId)
-        .groupBy("prompts.name");
-
-      const compiledQuery = promptCountQuery.compile();
-
-      const promptCounts = await prisma.$queryRawUnsafe<
-        Array<{
-          name: string;
-          count: number;
-        }>
-      >(compiledQuery.sql, ...compiledQuery.parameters);
-
-      const joinedPromptsAndCounts = prompts.map((p) => {
-        const marchedCount = promptCounts.find((c) => c.name === p.name);
-        return {
-          ...p,
-          observationCount: marchedCount?.count ?? 0,
-        };
-      });
-
       const total = Number(response_count_response[0].prompt_name_count);
 
-      // temporary workaround, need a better solution
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore: Unreachable code error
-      BigInt.prototype.toJSON = function (): number {
-        // @ts-ignore
-        return this.toString(); 
-      };
-
       return res.status(200).json({
-        data: joinedPromptsAndCounts,
+        data: prompts,
         meta: {
           page: obj.page,
           limit: obj.limit,
