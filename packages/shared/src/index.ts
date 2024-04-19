@@ -9,6 +9,7 @@ export * from "./filterToPrisma";
 export * from "./tracesTable";
 export * from "./server/auth";
 export * from "./observationsTable";
+export { env } from "./env";
 
 // llm api
 export * from "./server/llm/types";
