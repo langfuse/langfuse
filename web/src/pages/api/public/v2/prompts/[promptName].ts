@@ -43,12 +43,12 @@ export default async function handler(
     const decodedPromptName = decodeURIComponent(promptName);
 
     if (version && active) {
-      return res.status(404).json({
+      return res.status(400).json({
         message: "Cannot use the active and version query parameters together",
       });
     }
 
-    const prompt = await prisma.prompt.findMany({
+    const promptList = await prisma.prompt.findMany({
       where: {
         name: decodedPromptName,
         projectId: authCheck.scope.projectId,
@@ -62,14 +62,14 @@ export default async function handler(
       ],
     });
 
-    console.log("Result: ", prompt);
+    console.log("Result: ", promptList);
 
-    if (!prompt) {
+    if (!promptList.length) {
       return res.status(404).json({
         message: "Prompt not found within authorized project",
       });
     }
-    return res.status(200).json(prompt);
+    return res.status(200).json(promptList);
   } catch (error: unknown) {
     console.error(error);
 
