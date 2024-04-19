@@ -18,6 +18,7 @@ export default function Header({
   featureBetaURL?: string;
   actionButtons?: React.ReactNode;
   level?: "h2" | "h3";
+  className?: string;
 }) {
   const router = useRouter();
   const session = useSession();
@@ -42,7 +43,7 @@ export default function Header({
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
 
   return (
-    <div className={cn(level === "h2" ? "mb-4" : "mb-2")}>
+    <div className={cn(level === "h2" ? "mb-4" : "mb-2", props.className)}>
       <div>
         {backHref ? (
           <nav className="sm:hidden" aria-label="Back">
