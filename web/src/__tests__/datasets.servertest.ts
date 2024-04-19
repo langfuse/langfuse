@@ -49,16 +49,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
   afterEach(async () => await pruneDatabase());
 
-  it("should create and get a dataset", async () => {
+  it("should create and get a dataset, include special characters", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name",
+      name: "dataset + name",
       description: "dataset-description",
       metadata: { foo: "bar" },
     });
 
     const dbDataset = await prisma.dataset.findMany({
       where: {
-        name: "dataset-name",
+        name: "dataset + name",
       },
     });
 
@@ -66,12 +66,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const getDataset = await makeAPICall(
       "GET",
-      `/api/public/datasets/dataset-name`,
+      `/api/public/datasets/${encodeURIComponent("dataset + name")}`,
     );
 
     expect(getDataset.status).toBe(200);
     expect(getDataset.body).toMatchObject({
-      name: "dataset-name",
+      name: "dataset + name",
       description: "dataset-description",
       metadata: { foo: "bar" },
     });
@@ -225,20 +225,20 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbDatasetItem?.metadata).toMatchObject(["hello-world"]);
   });
 
-  it("should create and get a dataset run", async () => {
+  it("should create and get a dataset run, include special characters", async () => {
     const dataset = await makeAPICall<{ id: string }>(
       "POST",
       "/api/public/datasets",
       {
-        name: "dataset-name",
+        name: "dataset name",
       },
     );
     expect(dataset.status).toBe(200);
     expect(dataset.body).toMatchObject({
-      name: "dataset-name",
+      name: "dataset name",
     });
     await makeAPICall("POST", "/api/public/dataset-items", {
-      datasetName: "dataset-name",
+      datasetName: "dataset name",
       id: "dataset-item-id",
       input: { key: "value" },
       expectedOutput: { key: "value" },
@@ -287,14 +287,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         datasetItemId: "dataset-item-id",
         observationId: observationId,
-        runName: "run-only-observation",
+        runName: "run + only + observation",
         runDescription: "run-description",
         metadata: { key: "value" },
       },
     );
     const dbRunObservation = await prisma.datasetRuns.findFirst({
       where: {
-        name: "run-only-observation",
+        name: "run + only + observation",
       },
       include: {
         datasetRunItems: true,
@@ -313,21 +313,22 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const getRunAPI = await makeAPICall(
       "GET",
-      `/api/public/datasets/dataset-name/runs/run-only-observation`,
+
+      `/api/public/datasets/${encodeURIComponent("dataset name")}/runs/${encodeURIComponent("run + only + observation")}`,
     );
     expect(getRunAPI.status).toBe(200);
     expect(getRunAPI.body).toMatchObject({
-      name: "run-only-observation",
+      name: "run + only + observation",
       description: "run-description",
       metadata: { key: "value" },
       datasetId: dataset.body.id,
-      datasetName: "dataset-name",
+      datasetName: "dataset name",
       datasetRunItems: expect.arrayContaining([
         expect.objectContaining({
           datasetItemId: "dataset-item-id",
           observationId: observationId,
           traceId: traceId,
-          datasetRunName: "run-only-observation",
+          datasetRunName: "run + only + observation",
         }),
       ]),
     });

@@ -47,12 +47,13 @@ types:
     properties:
       date: date
       countTraces: integer
+      countObservations: integer
       totalCost: double
       usage: list<UsageByModel>
   UsageByModel:
     docs: Daily usage of a given model. Usage corresponds to the unit set for the specific model (e.g. tokens).
     properties:
-      model: string
+      model: optional<string>
       inputUsage: integer
       outputUsage: integer
       totalUsage: integer
