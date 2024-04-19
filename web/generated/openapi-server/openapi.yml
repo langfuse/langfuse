@@ -590,14 +590,16 @@ paths:
       parameters:
         - name: page
           in: query
-          description: page number, starts at 1
+          description: Page number, starts at 1.
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
-          description: limit of items per page
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -865,14 +867,16 @@ paths:
       parameters:
         - name: page
           in: query
-          description: page number, starts at 1
+          description: Page number, starts at 1.
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
-          description: limit of items per page
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -1132,21 +1136,23 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: Get list of traces
+      description: Get list of traces.
       operationId: trace_list
       tags:
         - Trace
       parameters:
         - name: page
           in: query
-          description: page number, starts at 1
+          description: Page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
-          description: limit of items per page
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -2391,6 +2397,8 @@ components:
           type: string
         countTraces:
           type: integer
+        countObservations:
+          type: integer
         totalCost:
           type: number
           format: double
@@ -2401,6 +2409,7 @@ components:
       required:
         - date
         - countTraces
+        - countObservations
         - totalCost
         - usage
     UsageByModel:
@@ -2412,6 +2421,7 @@ components:
       properties:
         model:
           type: string
+          nullable: true
         inputUsage:
           type: integer
         outputUsage:
@@ -2419,7 +2429,6 @@ components:
         totalUsage:
           type: integer
       required:
-        - model
         - inputUsage
         - outputUsage
         - totalUsage

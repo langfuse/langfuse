@@ -493,12 +493,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": "page number, starts at 1"
+                  "description": "Page number, starts at 1."
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "limit of items per page"
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
                 },
                 {
                   "key": "name",
@@ -707,12 +707,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": "page number, starts at 1"
+                  "description": "Page number, starts at 1."
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "limit of items per page"
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
                 },
                 {
                   "key": "userId",
@@ -900,7 +900,7 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get list of traces",
+            "description": "Get list of traces.",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&fromTimestamp=&orderBy=&tags=",
               "host": [
@@ -915,12 +915,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": "page number, starts at 1"
+                  "description": "Page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "limit of items per page"
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
                 },
                 {
                   "key": "userId",

@@ -155,7 +155,9 @@ export function DatasetItemsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const input = row.getValue("input") as RowData["input"];
-        return !!input ? <IOTableCell data={input} /> : null;
+        return !!input ? (
+          <IOTableCell data={input} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {
@@ -168,7 +170,11 @@ export function DatasetItemsTable({
           "expectedOutput",
         ) as RowData["expectedOutput"];
         return !!expectedOutput ? (
-          <IOTableCell data={expectedOutput} className="bg-green-50" />
+          <IOTableCell
+            data={expectedOutput}
+            className="bg-green-50"
+            singleLine={rowHeight === "s"}
+          />
         ) : null;
       },
     },
@@ -179,7 +185,9 @@ export function DatasetItemsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const metadata = row.getValue("metadata") as RowData["metadata"];
-        return !!metadata ? <IOTableCell data={metadata} /> : null;
+        return !!metadata ? (
+          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {

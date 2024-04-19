@@ -139,7 +139,9 @@ export function DatasetRunsTable(props: {
       enableHiding: true,
       cell: ({ row }) => {
         const metadata: RowData["metadata"] = row.getValue("metadata");
-        return !!metadata ? <IOTableCell data={metadata} /> : null;
+        return !!metadata ? (
+          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
   ];

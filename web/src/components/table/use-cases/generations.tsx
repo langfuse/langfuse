@@ -487,6 +487,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
             observationId={observationId}
             traceId={traceId}
             io="input"
+            singleLine={rowHeight === "s"}
           />
         );
       },
@@ -505,6 +506,7 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
             observationId={observationId}
             traceId={traceId}
             io="output"
+            singleLine={rowHeight === "s"}
           />
         );
       },
@@ -518,7 +520,9 @@ export default function GenerationsTable({ projectId }: GenerationsTableProps) {
         const values = row.getValue(
           "metadata",
         ) as GenerationsTableRow["metadata"];
-        return !!values ? <IOTableCell data={values} /> : null;
+        return !!values ? (
+          <IOTableCell data={values} singleLine={rowHeight === "s"} />
+        ) : null;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -673,10 +677,12 @@ const GenerationsIOCell = ({
   traceId,
   observationId,
   io,
+  singleLine = false,
 }: {
   traceId: string;
   observationId: string;
   io: "input" | "output";
+  singleLine: boolean;
 }) => {
   const observation = api.observations.byId.useQuery(
     {
@@ -700,6 +706,7 @@ const GenerationsIOCell = ({
         io === "output" ? observation.data?.output : observation.data?.input
       }
       className={cn(io === "output" && "bg-green-50")}
+      singleLine={singleLine}
     />
   );
 };
