@@ -46,7 +46,13 @@ export default function PosthogIntegrationSettings() {
             </Link>
           </Button>
         }
-        status={state.data?.enabled ? "active" : "inactive"}
+        status={
+          state.isInitialLoading
+            ? undefined
+            : state.data?.enabled
+              ? "active"
+              : "inactive"
+        }
       />
       <p className="mb-4 text-sm text-gray-700">
         We have teamed up with{" "}
