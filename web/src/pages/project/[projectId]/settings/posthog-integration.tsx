@@ -75,7 +75,7 @@ export default function PosthogIntegrationSettings() {
         <>
           <Header level="h3" title="Status" className="mt-8" />
           <p className="text-sm text-gray-700">
-            Last sync:{" "}
+            Data synced until:{" "}
             {state.data?.lastSyncAt
               ? new Date(state.data.lastSyncAt).toLocaleString()
               : "Never (pending)"}
