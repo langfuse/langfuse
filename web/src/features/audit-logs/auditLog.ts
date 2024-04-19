@@ -15,7 +15,8 @@ export type AuditableResource =
   | "session"
   | "apiKey"
   | "evalTemplate"
-  | "job";
+  | "job"
+  | "posthogIntegration";
 
 type AuditLog = {
   resourceType: AuditableResource;
