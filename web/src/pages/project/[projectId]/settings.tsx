@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { CommandLineIcon, RocketLaunchIcon } from "@heroicons/react/24/outline";
-import { SiPython } from "react-icons/si";
+import { SiOpenai, SiPython } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import { useRouter } from "next/router";
@@ -54,23 +54,36 @@ const instructionItems = [
     icon: RocketLaunchIcon,
   },
   {
-    name: "Langchain integration",
+    name: "OpenAI SDK Integration",
+    description: "Trace your OpenAI API calls with a single line of code",
+    href: "https://langfuse.com/docs/integrations/openai",
+    icon: SiOpenai,
+  },
+  {
+    name: "Langchain Integration",
     description:
       "Trace your Langchain llm/chain/agent/... with a single line of code",
-    href: "https://langfuse.com/docs/langchain",
+    href: "https://langfuse.com/docs/integrations/langchain",
     icon: Bird,
+  },
+  {
+    name: "LlamaIndex Integration",
+    description:
+      "Trace your Llamaindex RAG application by adding the global callback handler",
+    href: "https://langfuse.com/docs/integrations/llama-index",
+    icon: Code,
   },
   {
     name: "Typescript SDK",
     description: "npm install langfuse",
     href: "https://langfuse.com/docs/sdk/typescript",
-    icon: CommandLineIcon,
+    icon: Code,
   },
   {
-    name: "Python SDK",
+    name: "Python SDK (Decorator)",
     description: "pip install langfuse",
     href: "https://langfuse.com/docs/sdk/python",
-    icon: SiPython,
+    icon: Code,
   },
   {
     name: "API Reference (Swagger)",
