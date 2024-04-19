@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "@heroicons/react/20/solid";
-import { CommandLineIcon, RocketLaunchIcon } from "@heroicons/react/24/outline";
-import { SiOpenai, SiPython } from "react-icons/si";
+import { RocketLaunchIcon } from "@heroicons/react/24/outline";
+import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import { useRouter } from "next/router";
