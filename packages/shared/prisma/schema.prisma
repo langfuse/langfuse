@@ -709,5 +709,6 @@ model PosthogIntegration {
     lastSyncAt             DateTime? @map("last_sync_at")
     enabled                Boolean
 
+    @@index([projectId])
     @@map("posthog_integrations")
 }
