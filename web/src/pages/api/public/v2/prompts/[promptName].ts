@@ -62,8 +62,6 @@ export default async function handler(
       ],
     });
 
-    console.log("Result: ", promptList);
-
     if (!promptList.length) {
       return res.status(404).json({
         message: "Prompt not found within authorized project",
