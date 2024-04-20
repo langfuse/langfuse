@@ -708,6 +708,7 @@ model PosthogIntegration {
     posthogHostName        String    @map("posthog_host_name")
     lastSyncAt             DateTime? @map("last_sync_at")
     enabled                Boolean
+    createdAt              DateTime  @default(now()) @map("created_at")
 
     @@index([projectId])
     @@map("posthog_integrations")
