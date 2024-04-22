@@ -1,7 +1,7 @@
 import * as React from "react";
 import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { PlaygroundProvider } from "@/src/features/playground/client/context";
+import { PlaygroundProvider } from "@/src/ee/features/playground/page/context";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate, evalLLMModels } from "@langfuse/shared";
 import { useRouter } from "next/router";

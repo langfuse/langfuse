@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import type { ControllerRenderProps } from "react-hook-form";
-import { ChatMessages } from "@/src/features/playground/client/components/ChatMessages";
+import { ChatMessages } from "@/src/ee/features/playground/page/components/ChatMessages";
 import { ChatMessageRole } from "@langfuse/shared";
-import { createEmptyMessage } from "@/src/features/playground/client/utils/createEmptyMessage";
-import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
+import { createEmptyMessage } from "@/src/ee/features/playground/page/utils/createEmptyMessage";
+import type { MessagesContext } from "@/src/ee/features/playground/page/components/Messages";
 import {
   ChatMessageListSchema,
   type NewPromptFormSchemaType,

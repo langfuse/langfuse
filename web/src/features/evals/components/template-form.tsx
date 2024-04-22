@@ -19,8 +19,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import router from "next/router";
 import { type EvalTemplate } from "@prisma/client";
-import { usePlaygroundContext } from "@/src/features/playground/client/context";
-import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
+import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
+import { ModelParameters } from "@/src/ee/features/playground/page/components/ModelParameters";
 import { EvalModelNames, OutputSchema, evalLLMModels } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 

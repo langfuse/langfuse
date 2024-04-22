@@ -7,9 +7,9 @@ import React, {
   useState,
 } from "react";
 
-import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
-import type { ModelParamsContext } from "@/src/features/playground/client/components/ModelParameters";
-import useCommandEnter from "@/src/features/playground/client/hooks/useCommandEnter";
+import type { MessagesContext } from "@/src/ee/features/playground/page/components/Messages";
+import type { ModelParamsContext } from "@/src/ee/features/playground/page/components/ModelParameters";
+import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
 import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
