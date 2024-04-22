@@ -4,7 +4,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useState
+  useState,
 } from "react";
 
 import { StringParam, useQueryParam } from "use-query-params";
@@ -22,11 +22,12 @@ import {
   type ChatMessageWithId,
   ModelProvider,
   type PromptVariable,
-  type UIModelParams
+  type UIModelParams,
 } from "@langfuse/shared";
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
-import type { ModelParamsContext } from "@/src/ee/features/playground/page/components/ModelParameters";
+import type { ModelParamsContext } from "@/src/components/ModelParameters";
+
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
@@ -55,13 +56,8 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
-export type PlaygroundProviderProps = PropsWithChildren & {
-  avilableModels?: UIModelParams[];
-};
-
-export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
+export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
-  avilableModels,
 }) => {
   const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
@@ -74,9 +70,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     createEmptyMessage(ChatMessageRole.User),
   ]);
   const [modelParams, setModelParams] = useState<UIModelParams>(
-    avilableModels && avilableModels.length > 0
-      ? avilableModels[0]
-      : getDefaultModelParams(ModelProvider.OpenAI),
+    getDefaultModelParams(ModelProvider.OpenAI),
   );
 
   const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
@@ -213,12 +207,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     setModelParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
-    params,
-  ) => {
-    setModelParams((prev) => ({ ...prev, ...params }));
-  };
-
   const updatePromptVariableValue = (variable: string, value: string) => {
     setPromptVariables((prev) =>
       prev.map((v) => (v.name === variable ? { ...v, value } : v)),
@@ -242,8 +230,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         deleteMessage,
 
         modelParams,
-        updateModelParam: updateModelParam,
-        updateModelParams: updateModelParams,
+        updateModelParam,
 
         output,
         outputJson,

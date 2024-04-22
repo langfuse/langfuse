@@ -1,7 +1,5 @@
 import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { PlaygroundProvider } from "@/src/ee/features/playground/page/context";
-import { evalLLMModels } from "@langfuse/shared";
 
 import { useRouter } from "next/router";
 
@@ -12,9 +10,7 @@ export default function NewTemplatesPage() {
   return (
     <div className="md:container">
       <Header title="Create eval template" />
-      <PlaygroundProvider avilableModels={[...evalLLMModels]}>
-        <EvalTemplateForm projectId={projectId} isEditing={true} />
-      </PlaygroundProvider>
+      <EvalTemplateForm projectId={projectId} isEditing={true} />
     </div>
   );
 }

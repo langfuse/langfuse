@@ -1,9 +1,8 @@
 import * as React from "react";
 import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { PlaygroundProvider } from "@/src/ee/features/playground/page/context";
 import { api } from "@/src/utils/api";
-import { type EvalTemplate, evalLLMModels } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import {
   Select,
@@ -76,14 +75,12 @@ export const EvalTemplateDetail = () => {
       {allTemplates.isLoading || !allTemplates.data ? (
         <div>Loading...</div>
       ) : (
-        <PlaygroundProvider avilableModels={[...evalLLMModels]}>
-          <EvalTemplateForm
-            projectId={projectId}
-            existingEvalTemplate={template.data ?? undefined}
-            isEditing={isEditing}
-            setIsEditing={setIsEditing}
-          />
-        </PlaygroundProvider>
+        <EvalTemplateForm
+          projectId={projectId}
+          existingEvalTemplate={template.data ?? undefined}
+          isEditing={isEditing}
+          setIsEditing={setIsEditing}
+        />
       )}
     </div>
   );
