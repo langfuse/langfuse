@@ -46,12 +46,37 @@ export const llmApiKeyRouter = createTRPCRouter({
         throw e;
       }
     }),
+  delete: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        apiKeyId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "apiKeys:delete",
+      });
+
+      await ctx.prisma.llmApiKeys.delete({
+        where: {
+          id: input.apiKeyId,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.apiKeyId,
+        action: "delete",
+      });
+    }),
   all: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number(),
-        page: z.number(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -69,8 +94,6 @@ export const llmApiKeyRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
         },
-        take: input.limit,
-        skip: input.page * input.limit,
       });
 
       const count = await ctx.prisma.llmApiKeys.count({

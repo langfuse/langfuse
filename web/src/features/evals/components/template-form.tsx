@@ -47,6 +47,7 @@ const formSchema = z.object({
   model: EvalModelNames,
   outputScore: z.string(),
   outputReasoning: z.string(),
+  apiKey: z.string(),
 });
 
 export const EvalTemplateForm = (props: {

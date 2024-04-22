@@ -81,8 +81,6 @@ describe("llmApiKey.all RPC", () => {
 
     const llmApiKeys = await caller.llmApiKey.all({
       projectId,
-      limit: 10,
-      page: 0,
     });
 
     expect(llmApiKeys.data.length).toBe(1);
