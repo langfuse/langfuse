@@ -292,6 +292,14 @@ export type ObservationView = {
     calculated_total_cost: string | null;
     latency: number | null;
 };
+export type PosthogIntegration = {
+    project_id: string;
+    encrypted_posthog_api_key: string;
+    posthog_host_name: string;
+    last_sync_at: Timestamp | null;
+    enabled: boolean;
+    created_at: Generated<Timestamp>;
+};
 export type Pricing = {
     id: string;
     model_name: string;
@@ -422,6 +430,7 @@ export type DB = {
     models: Model;
     observations: Observation;
     observations_view: ObservationView;
+    posthog_integrations: PosthogIntegration;
     pricings: Pricing;
     projects: Project;
     prompts: Prompt;

@@ -1,5 +1,5 @@
+import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "./context";
-import { ModelParameters } from "./components/ModelParameters";
 import { Variables } from "./components/Variables";
 import { Messages } from "./components/Messages";
 

@@ -20,7 +20,6 @@ export type ModelParamsContext = {
     key: Key,
     value: UIModelParams[Key],
   ) => void;
-  updateModelParams: <UIModelParams>(params: UIModelParams) => void;
   disabled?: boolean;
 };
 

@@ -433,14 +433,19 @@ export const promptRouter = createTRPCRouter({
         },
         orderBy: [{ version: "desc" }],
       });
+      const userIds = prompts
+        .map((p) => p.createdBy)
+        .filter((id) => id !== "API");
       const users = await ctx.prisma.user.findMany({
         select: {
           // never select passwords as they should never be returned to the FE
           id: true,
           name: true,
-          email: true,
         },
         where: {
+          id: {
+            in: userIds,
+          },
           memberships: {
             some: {
               projectId: input.projectId,
@@ -454,13 +459,9 @@ export const promptRouter = createTRPCRouter({
         if (!user && p.createdBy === "API") {
           return { ...p, creator: "API" };
         }
-        if (!user) {
-          console.log(`User not found for promptId ${p.id}`);
-          throw new Error(`User not found for promptId ${p.id}`);
-        }
         return {
           ...p,
-          creator: user.name,
+          creator: user?.name,
         };
       });
       return joinedPromptAndUsers;
