@@ -1,10 +1,12 @@
 import { PlusCircleIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import { ChatMessageComponent } from "@/src/ee/features/playground/page/components/ChatMessageComponent";
-import type { MessagesContext } from "@/src/ee/features/playground/page/components/Messages";
 import { ChatMessageRole } from "@langfuse/shared";
-import { useRef, useEffect } from "react";
+
+import { ChatMessageComponent } from "./ChatMessageComponent";
+
+import type { MessagesContext } from "./types";
 
 type ChatMessagesProps = MessagesContext;
 export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {

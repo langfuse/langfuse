@@ -1,20 +1,9 @@
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
-import type { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
 
 import { GenerationOutput } from "./GenerationOutput";
-import { ChatMessages } from "@/src/ee/features/playground/page/components/ChatMessages";
-
-export type MessagesContext = {
-  messages: ChatMessageWithId[];
-  addMessage: (role: ChatMessageRole, content?: string) => ChatMessageWithId;
-  deleteMessage: (id: string) => void;
-  updateMessage: <Key extends keyof ChatMessageWithId>(
-    id: string,
-    key: Key,
-    value: ChatMessageWithId[Key],
-  ) => void;
-};
+import { ChatMessages } from "@/src/components/ChatMessages";
+import { type MessagesContext } from "@/src/components/ChatMessages/types";
 
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
