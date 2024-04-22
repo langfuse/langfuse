@@ -203,7 +203,6 @@ export type LlmApiKeys = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
-    name: string;
     provider: string;
     display_secret_key: string;
     secret_key: string;

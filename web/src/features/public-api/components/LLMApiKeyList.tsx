@@ -11,7 +11,6 @@ import {
 } from "@/src/components/ui/dialog";
 import {
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -34,12 +33,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { ZodModelProvider } from "@/src/features/llm-api-key/types";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ModelProvider } from "@langfuse/shared";
+import { ModelProvider, evalLLMModels } from "@langfuse/shared";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
@@ -75,9 +74,6 @@ export function LlmApiKeyList(props: { projectId: string }) {
                 Created
               </TableHead>
               <TableHead className="hidden text-gray-900 md:table-cell">
-                Name
-              </TableHead>
-              <TableHead className="hidden text-gray-900 md:table-cell">
                 Provider
               </TableHead>
               <TableHead className="text-gray-900">Secret Key</TableHead>
@@ -90,7 +86,6 @@ export function LlmApiKeyList(props: { projectId: string }) {
                 <TableCell className="hidden md:table-cell">
                   {apiKey.createdAt.toLocaleDateString()}
                 </TableCell>
-                <TableCell className="font-mono">{apiKey.name}</TableCell>
                 <TableCell className="font-mono">{apiKey.provider}</TableCell>
                 <TableCell className="font-mono">
                   {apiKey.displaySecretKey}
@@ -108,9 +103,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
       </Card>
       <CreateLlmApiKeyComponent
         projectId={props.projectId}
-        existingKeyNames={Array.from(
-          new Set(apiKeys.data?.data.map((k) => k.name)) ?? [],
-        )}
+        existingApiKeys={apiKeys.data?.data ?? []}
       />
     </div>
   );
@@ -178,14 +171,13 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
 }
 
 const formSchema = z.object({
-  name: z.string().min(1),
   secretKey: z.string().min(1),
-  provider: ZodModelProvider,
+  provider: z.literal(ModelProvider.OpenAI),
 });
 
 export function CreateLlmApiKeyComponent(props: {
   projectId: string;
-  existingKeyNames: string[];
+  existingApiKeys: RouterOutput["llmApiKey"]["all"]["data"];
 }) {
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
@@ -201,7 +193,6 @@ export function CreateLlmApiKeyComponent(props: {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
       secretKey: "",
       provider: ModelProvider.OpenAI,
     },
@@ -210,9 +201,12 @@ export function CreateLlmApiKeyComponent(props: {
   if (!hasAccess) return null;
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (props.existingKeyNames.includes(form.watch("name"))) {
-      form.setError("name", {
-        message: "Name already exists. Please choose an unique name.",
+    if (
+      props.existingApiKeys.map((k) => k.provider).includes(values.provider)
+    ) {
+      form.setError("provider", {
+        type: "manual",
+        message: "There already exists an API key for this provider.",
       });
       return;
     }
@@ -220,7 +214,6 @@ export function CreateLlmApiKeyComponent(props: {
     return mutCreateLlmApiKey
       .mutateAsync({
         projectId: props.projectId,
-        name: values.name,
         secretKey: values.secretKey,
         provider: values.provider,
       })
@@ -239,7 +232,7 @@ export function CreateLlmApiKeyComponent(props: {
         <DialogTrigger asChild>
           <Button variant="secondary" loading={mutCreateLlmApiKey.isLoading}>
             <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-            Add new LLM Api key
+            Add new LLM API key
           </Button>
         </DialogTrigger>
         <DialogContent>
@@ -252,19 +245,6 @@ export function CreateLlmApiKeyComponent(props: {
               // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={form.handleSubmit(onSubmit)}
             >
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="eval-key" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="secretKey"
@@ -292,11 +272,15 @@ export function CreateLlmApiKeyComponent(props: {
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a verified email to display" />
+                          <SelectValue placeholder="Select a LLM provider" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(ModelProvider).map((provider) => (
+                        {Array.from(
+                          new Set(
+                            evalLLMModels.map((models) => models.provider),
+                          ),
+                        ).map((provider) => (
                           <SelectItem value={provider} key={provider}>
                             {provider}
                           </SelectItem>

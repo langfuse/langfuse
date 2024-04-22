@@ -28,7 +28,6 @@ export const llmApiKeyRouter = createTRPCRouter({
         const key = await ctx.prisma.llmApiKeys.create({
           data: {
             projectId: input.projectId,
-            name: input.name,
             secretKey: encrypt(input.secretKey),
             displaySecretKey: getDisplaySecretKey(input.secretKey),
             provider: input.provider,

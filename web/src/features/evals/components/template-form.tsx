@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
-import { api } from "@/src/utils/api";
+import { type RouterOutputs, api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import router from "next/router";
@@ -28,8 +28,18 @@ import {
   OutputSchema,
   evalLLMModels,
   type UIModelParams,
+  type ModelProvider,
 } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import Link from "next/dist/client/link";
+import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -60,6 +70,7 @@ const formSchema = z.object({
 export const EvalTemplateForm = (props: {
   projectId: string;
   existingEvalTemplate?: EvalTemplate;
+  existingLlmApiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
   onFormSuccess?: () => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
@@ -77,14 +88,22 @@ export const EvalTemplateForm = (props: {
     setModelParams((prev) => ({ ...prev, [key]: value }));
   };
 
+  const getModelProvider = (model: string) => {
+    return evalLLMModels.find((m) => m.model === model)?.provider;
+  };
+
+  const getApiKeyForModel = (model: string) => {
+    const modelProvider = getModelProvider(model);
+    return props.existingLlmApiKeys.find((k) => k.provider === modelProvider);
+  };
+
+  const defaultModel = props.existingEvalTemplate?.model ?? "gpt-3.5-turbo";
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     disabled: !props.isEditing,
     defaultValues: {
       name: props.existingEvalTemplate?.name ?? "",
-      model: EvalModelNames.parse(
-        props.existingEvalTemplate?.model ?? "gpt-3.5-turbo",
-      ),
+      model: EvalModelNames.parse(defaultModel),
       prompt: props.existingEvalTemplate?.prompt ?? undefined,
       variables: props.existingEvalTemplate?.vars ?? [],
       outputReasoning: props.existingEvalTemplate
@@ -93,6 +112,7 @@ export const EvalTemplateForm = (props: {
       outputScore: props.existingEvalTemplate
         ? OutputSchema.parse(props.existingEvalTemplate?.outputSchema).score
         : undefined,
+      apiKey: defaultModel ? getApiKeyForModel(defaultModel)?.id : "",
     },
   });
 
@@ -129,6 +149,21 @@ export const EvalTemplateForm = (props: {
     }
   }, [props.existingEvalTemplate, form]);
 
+  // show an error if there are no llm api keys
+  useEffect(() => {
+    const currentModel = form.watch("model");
+    const modelProvider = getModelProvider(currentModel);
+
+    if (!currentModel || !getApiKeyForModel(currentModel)) {
+      console.log("setting error");
+      form.setError("apiKey", {
+        type: "custom",
+        message: `No LLM API key found for "${modelProvider}".`,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
+
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
     : undefined;
@@ -140,8 +175,7 @@ export const EvalTemplateForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("submitting", values);
-    posthog.capture("models:new_template_form");
+    posthog.capture("evals:new_template_form");
 
     createEvalTemplateMutation
       .mutateAsync({
@@ -273,11 +307,57 @@ export const EvalTemplateForm = (props: {
           />
         </div>
         <div className="col-span-1 row-span-3">
-          <ModelParameters
-            {...{ modelParams, updateModelParam }}
-            availableModels={[...evalLLMModels]}
-            disabled={!props.isEditing}
-          />
+          <div className="flex flex-col gap-6">
+            <ModelParameters
+              {...{ modelParams, updateModelParam }}
+              availableModels={[...evalLLMModels]}
+              disabled={!props.isEditing}
+            />
+            <FormField
+              control={form.control}
+              name="apiKey"
+              render={({ field }) => {
+                const errorMessage =
+                  form.getFieldState("apiKey").error?.message;
+
+                return (
+                  <FormItem>
+                    <FormLabel>API key</FormLabel>
+                    <Input
+                      {...field}
+                      value={
+                        getApiKeyForModel(form.getValues("model"))
+                          ?.displaySecretKey
+                      }
+                      type="text"
+                      disabled
+                    />
+                    {/* Custom form message to include a link to the already existing prompt */}
+                    {form.getFieldState("apiKey").error ? (
+                      <div className="flex flex-col text-sm font-medium text-destructive">
+                        <p className="text-sm font-medium text-destructive">
+                          {errorMessage}
+                        </p>
+                        {errorMessage?.includes("No LLM API key found for") ? (
+                          <Link
+                            href={`/project/${props.projectId}/settings`}
+                            className="flex flex-row"
+                          >
+                            Create a new version for it here.{" "}
+                            <ArrowTopRightIcon />
+                          </Link>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <FormDescription>
+                      The API key is used for each evaluation and will incur
+                      costs.
+                    </FormDescription>
+                  </FormItem>
+                );
+              }}
+            />
+          </div>
         </div>
 
         {props.isEditing && (

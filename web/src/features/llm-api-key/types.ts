@@ -7,8 +7,7 @@ export const ZodModelProvider = z.enum([
 ]);
 
 export const CreateLlmApiKey = z.object({
-  name: z.string().min(1),
   projectId: z.string(),
   secretKey: z.string().min(1),
-  provider: ZodModelProvider,
+  provider: z.literal(ModelProvider.OpenAI),
 });
