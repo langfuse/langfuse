@@ -41,7 +41,6 @@ describe("llmApiKey.all RPC", () => {
     const secret = "test-secret";
 
     await caller.llmApiKey.create({
-      name: "test",
       projectId,
       secretKey: secret,
       provider: ModelProvider.OpenAI,
@@ -65,7 +64,6 @@ describe("llmApiKey.all RPC", () => {
     const secret = "test-secret";
 
     await caller.llmApiKey.create({
-      name: "test",
       projectId,
       secretKey: secret,
       provider: ModelProvider.OpenAI,
