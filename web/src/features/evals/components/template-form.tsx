@@ -28,16 +28,8 @@ import {
   OutputSchema,
   evalLLMModels,
   type UIModelParams,
-  type ModelProvider,
 } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import Link from "next/dist/client/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 
