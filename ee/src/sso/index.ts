@@ -8,7 +8,6 @@ import { isEeAvailable } from "..";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
-import { decrypt, encrypt } from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
 

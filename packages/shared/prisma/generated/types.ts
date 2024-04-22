@@ -206,7 +206,7 @@ export type LlmApiKeys = {
     name: string;
     provider: string;
     display_secret_key: string;
-    key: string;
+    secret_key: string;
     project_id: string;
 };
 export type Membership = {

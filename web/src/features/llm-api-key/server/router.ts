@@ -6,13 +6,6 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { DEFAULT_TRACE_JOB_DELAY, EvalTargetObject } from "@langfuse/shared";
-import {
-  EvalModelNames,
-  ZodModelConfig,
-  singleFilter,
-  variableMapping,
-} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
 import { encrypt } from "@langfuse/shared";
@@ -21,7 +14,7 @@ export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
 }
 
-export const evalRouter = createTRPCRouter({
+export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
@@ -45,7 +38,7 @@ export const evalRouter = createTRPCRouter({
         await auditLog({
           session: ctx.session,
           resourceType: "apiKey",
-          resourceId: job.id,
+          resourceId: key.id,
           action: "create",
         });
       } catch (e) {
@@ -53,7 +46,7 @@ export const evalRouter = createTRPCRouter({
         throw e;
       }
     }),
-  allConfigs: protectedProjectProcedure
+  all: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -69,29 +62,30 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "apiKeys:read",
       });
 
-      const configs = await ctx.prisma.jobConfiguration.findMany({
+      const apiKeys = await ctx.prisma.llmApiKeys.findMany({
         where: {
           projectId: input.projectId,
-          jobType: "EVAL",
-        },
-        include: {
-          evalTemplate: true,
         },
         take: input.limit,
         skip: input.page * input.limit,
       });
 
-      const count = await ctx.prisma.jobConfiguration.count({
+      const count = await ctx.prisma.llmApiKeys.count({
         where: {
           projectId: input.projectId,
-          jobType: "EVAL",
         },
       });
+
       return {
-        configs: configs,
+        data: apiKeys.map((llmApiKey) => {
+          // we must not return the secret key via the API
+          const { secretKey, ...rest } = llmApiKey;
+          return { ...rest };
+        }),
+
         totalCount: count,
       };
     }),

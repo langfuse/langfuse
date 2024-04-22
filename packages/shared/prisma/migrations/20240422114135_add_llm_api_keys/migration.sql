@@ -6,7 +6,7 @@ CREATE TABLE "llm_api_keys" (
     "name" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
     "display_secret_key" TEXT NOT NULL,
-    "key" TEXT NOT NULL,
+    "secret_key" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
 
     CONSTRAINT "llm_api_keys_pkey" PRIMARY KEY ("id")
