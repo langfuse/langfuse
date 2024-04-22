@@ -25,11 +25,9 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 
 import { PromptHistoryNode } from "./prompt-history";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
-  const isPlaygroundEnabled = useIsFeatureEnabled("playground");
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -110,19 +108,17 @@ export const PromptDetail = () => {
                   variant="outline"
                 />
 
-                {isPlaygroundEnabled ? (
-                  <Link
-                    href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
+                <Link
+                  href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
+                >
+                  <Button
+                    variant="outline"
+                    title="Test in prompt playground"
+                    size="icon"
                   >
-                    <Button
-                      variant="outline"
-                      title="Test in prompt playground"
-                      size="icon"
-                    >
-                      <Terminal className="h-5 w-5" />
-                    </Button>
-                  </Link>
-                ) : null}
+                    <Terminal className="h-5 w-5" />
+                  </Button>
+                </Link>
 
                 <Link
                   href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
