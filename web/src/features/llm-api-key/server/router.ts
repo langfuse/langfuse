@@ -50,7 +50,7 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        apiKeyId: z.string(),
+        id: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -62,14 +62,14 @@ export const llmApiKeyRouter = createTRPCRouter({
 
       await ctx.prisma.llmApiKeys.delete({
         where: {
-          id: input.apiKeyId,
+          id: input.id,
         },
       });
 
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",
-        resourceId: input.apiKeyId,
+        resourceId: input.id,
         action: "delete",
       });
     }),

@@ -1,7 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,23 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Form,
+} from "@/src/components/ui/form";
+import { Input } from "@/src/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -18,13 +34,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
+import { ZodModelProvider } from "@/src/features/llm-api-key/types";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ModelProvider } from "@langfuse/shared";
 import { DialogDescription } from "@radix-ui/react-dialog";
-import { TrashIcon } from "lucide-react";
+import { PlusIcon, TrashIcon } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasAccess({
@@ -85,7 +106,12 @@ export function LlmApiKeyList(props: { projectId: string }) {
           </TableBody>
         </Table>
       </Card>
-      <CreateApiKeyButton projectId={props.projectId} />
+      <CreateLlmApiKeyComponent
+        projectId={props.projectId}
+        existingKeyNames={Array.from(
+          new Set(apiKeys.data?.data.map((k) => k.name)) ?? [],
+        )}
+      />
     </div>
   );
 }
@@ -100,7 +126,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
 
   const utils = api.useUtils();
   const mutDeleteApiKey = api.llmApiKey.delete.useMutation({
-    onSuccess: () => utils.apiKeys.invalidate(),
+    onSuccess: () => utils.llmApiKey.invalidate(),
   });
   const [open, setOpen] = useState(false);
 
@@ -148,5 +174,151 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const formSchema = z.object({
+  name: z.string().min(1),
+  secretKey: z.string().min(1),
+  provider: ZodModelProvider,
+});
+
+export function CreateLlmApiKeyComponent(props: {
+  projectId: string;
+  existingKeyNames: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "apiKeys:create",
+  });
+
+  const utils = api.useUtils();
+  const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
+    onSuccess: () => utils.llmApiKey.invalidate(),
+  });
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      secretKey: "",
+      provider: ModelProvider.OpenAI,
+    },
+  });
+
+  if (!hasAccess) return null;
+
+  function onSubmit(values: z.infer<typeof formSchema>) {
+    if (props.existingKeyNames.includes(form.watch("name"))) {
+      form.setError("name", {
+        message: "Name already exists. Please choose an unique name.",
+      });
+      return;
+    }
+
+    return mutCreateLlmApiKey
+      .mutateAsync({
+        projectId: props.projectId,
+        name: values.name,
+        secretKey: values.secretKey,
+        provider: values.provider,
+      })
+      .then(() => {
+        form.reset();
+        setOpen(false);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="secondary" loading={mutCreateLlmApiKey.isLoading}>
+            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
+            Add new LLM Api key
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Store a LLM API Key</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              className={cn("flex flex-col gap-6")}
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit)}
+            >
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="eval-key" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="secretKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API Key</FormLabel>
+                    <FormControl>
+                      <Input placeholder="sk-proj-...Uwj9" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="provider"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>LLM Provider</FormLabel>
+                    <Select
+                      defaultValue={field.value}
+                      onValueChange={(value) =>
+                        field.onChange(value as ModelProvider[number])
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a verified email to display" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(ModelProvider).map((provider) => (
+                          <SelectItem value={provider} key={provider}>
+                            {provider}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                loading={form.formState.isSubmitting}
+              >
+                Create API key
+              </Button>
+              <FormMessage />
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
