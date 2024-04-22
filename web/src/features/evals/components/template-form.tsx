@@ -1,5 +1,5 @@
 import { usePostHog } from "posthog-js/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Input } from "@/src/components/ui/input";
@@ -80,14 +80,17 @@ export const EvalTemplateForm = (props: {
     setModelParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  const getModelProvider = (model: string) => {
+  const getModelProvider = useCallback((model: string) => {
     return evalLLMModels.find((m) => m.model === model)?.provider;
-  };
+  }, []);
 
-  const getApiKeyForModel = (model: string) => {
-    const modelProvider = getModelProvider(model);
-    return props.existingLlmApiKeys.find((k) => k.provider === modelProvider);
-  };
+  const getApiKeyForModel = useCallback(
+    (model: string) => {
+      const modelProvider = getModelProvider(model);
+      return props.existingLlmApiKeys.find((k) => k.provider === modelProvider);
+    },
+    [getModelProvider, props.existingLlmApiKeys],
+  );
 
   const defaultModel = props.existingEvalTemplate?.model ?? "gpt-3.5-turbo";
   const form = useForm<z.infer<typeof formSchema>>({
@@ -142,19 +145,23 @@ export const EvalTemplateForm = (props: {
   }, [props.existingEvalTemplate, form]);
 
   // show an error if there are no llm api keys
+  const fieldState = form.getFieldState("apiKey");
   useEffect(() => {
     const currentModel = form.watch("model");
+
     const modelProvider = getModelProvider(currentModel);
 
-    if (!currentModel || !getApiKeyForModel(currentModel)) {
+    if (
+      !currentModel ||
+      (!getApiKeyForModel(currentModel) && !fieldState.error)
+    ) {
       console.log("setting error");
       form.setError("apiKey", {
         type: "custom",
         message: `No LLM API key found for "${modelProvider}".`,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form]);
+  }, [form, fieldState, getApiKeyForModel, getModelProvider]);
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -325,6 +332,7 @@ export const EvalTemplateForm = (props: {
                       disabled
                     />
                     {/* Custom form message to include a link to the already existing prompt */}
+
                     {form.getFieldState("apiKey").error ? (
                       <div className="flex flex-col text-sm font-medium text-destructive">
                         <p className="text-sm font-medium text-destructive">

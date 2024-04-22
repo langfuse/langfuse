@@ -260,6 +260,8 @@ export const evaluate = async ({
     .executeTakeFirst();
 
   if (!apiKey) {
+    console.log(`API key for provider ${provider} not found.`);
+    // this will fail the eval execution if a user deletes the API key.
     throw new Error(`API key for provider ${provider} not found.`);
   }
 
