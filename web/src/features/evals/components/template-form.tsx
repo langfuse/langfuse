@@ -19,9 +19,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import router from "next/router";
 import { type EvalTemplate } from "@prisma/client";
-import { usePlaygroundContext } from "@/src/features/playground/client/context";
-import { ModelParameters } from "@/src/features/playground/client/components/ModelParameters";
-import { EvalModelNames, OutputSchema, evalLLMModels } from "@langfuse/shared";
+import {
+  ModelParameters,
+  type ModelParamsContext,
+} from "@/src/components/ModelParameters";
+import {
+  EvalModelNames,
+  OutputSchema,
+  evalLLMModels,
+  type UIModelParams,
+} from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 
 const formSchema = z.object({
@@ -56,10 +63,18 @@ export const EvalTemplateForm = (props: {
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
 }) => {
-  const [formError, setFormError] = useState<string | null>(null);
-  const playgroundContext = usePlaygroundContext();
-
   const posthog = usePostHog();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [modelParams, setModelParams] = useState<UIModelParams>(
+    evalLLMModels[0],
+  );
+
+  const updateModelParam: ModelParamsContext["updateModelParam"] = (
+    key,
+    value,
+  ) => {
+    setModelParams((prev) => ({ ...prev, [key]: value }));
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -98,16 +113,17 @@ export const EvalTemplateForm = (props: {
       });
 
       // also set the context for the playground
-      playgroundContext.updateModelParam("model", model);
-      playgroundContext.updateModelParams(
-        props.existingEvalTemplate.modelParams,
-      );
+      updateModelParam("model", model);
+      setModelParams((prev) => ({
+        ...prev,
+        ...(props.existingEvalTemplate?.modelParams as UIModelParams),
+      }));
 
       const modelProvider = evalLLMModels.find(
         (m) => m.model === model,
       )?.provider;
       if (modelProvider) {
-        playgroundContext.updateModelParam("provider", modelProvider);
+        updateModelParam("provider", modelProvider);
       }
     }
   }, [props.existingEvalTemplate, form]);
@@ -131,8 +147,8 @@ export const EvalTemplateForm = (props: {
         name: values.name,
         projectId: props.projectId,
         prompt: values.prompt,
-        model: EvalModelNames.parse(playgroundContext.modelParams.model),
-        modelParameters: playgroundContext.modelParams,
+        model: EvalModelNames.parse(modelParams.model),
+        modelParameters: modelParams,
         variables: extractedVariables ?? [],
         outputSchema: {
           score: values.outputScore,
@@ -257,7 +273,7 @@ export const EvalTemplateForm = (props: {
         </div>
         <div className="col-span-1 row-span-3">
           <ModelParameters
-            {...playgroundContext}
+            {...{ modelParams, updateModelParam }}
             availableModels={[...evalLLMModels]}
             disabled={!props.isEditing}
           />
