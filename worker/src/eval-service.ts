@@ -15,6 +15,7 @@ import {
   evalLLMModels,
   ZodModelConfig,
   availableEvalVariables,
+  decrypt,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -250,8 +251,21 @@ export const evaluate = async ({
     throw new Error(`Model ${evalModel} provider not found`);
   }
 
+  // the apiKey.secret_key must never be printed to the console
+  const apiKey = await kyselyPrisma.$kysely
+    .selectFrom("llm_api_keys")
+    .selectAll()
+    .where("project_id", "=", event.projectId)
+    .where("provider", "=", provider)
+    .executeTakeFirst();
+
+  if (!apiKey) {
+    throw new Error(`API key for provider ${provider} not found.`);
+  }
+
   const completion = await fetchLLMCompletion({
     streaming: false,
+    apiKey: decrypt(apiKey.secret_key),
     messages: [{ role: ChatMessageRole.System, content: prompt }],
     modelParams: {
       provider: provider,
