@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "@heroicons/react/20/solid";
-import { CommandLineIcon, RocketLaunchIcon } from "@heroicons/react/24/outline";
-import { SiPython } from "react-icons/si";
+import { RocketLaunchIcon } from "@heroicons/react/24/outline";
+import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import { useRouter } from "next/router";
@@ -15,10 +15,6 @@ import { env } from "@/src/env.mjs";
 import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import {
-  sendUserChatMessage,
-  showAgentChatMessage,
-} from "@/src/features/support-chat/chat";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -31,7 +27,7 @@ export default function SettingsPage() {
         <ApiKeyList projectId={projectId} />
         <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
-        <Beta />
+        <Integrations projectId={projectId} />
         <Instructions />
         <RenameProject projectId={projectId} />
         <div className="space-y-3">
@@ -58,23 +54,36 @@ const instructionItems = [
     icon: RocketLaunchIcon,
   },
   {
-    name: "Langchain integration",
+    name: "OpenAI SDK Integration",
+    description: "Trace your OpenAI API calls with a single line of code",
+    href: "https://langfuse.com/docs/integrations/openai",
+    icon: SiOpenai,
+  },
+  {
+    name: "Langchain Integration",
     description:
       "Trace your Langchain llm/chain/agent/... with a single line of code",
-    href: "https://langfuse.com/docs/langchain",
+    href: "https://langfuse.com/docs/integrations/langchain",
     icon: Bird,
+  },
+  {
+    name: "LlamaIndex Integration",
+    description:
+      "Trace your Llamaindex RAG application by adding the global callback handler",
+    href: "https://langfuse.com/docs/integrations/llama-index",
+    icon: Code,
   },
   {
     name: "Typescript SDK",
     description: "npm install langfuse",
     href: "https://langfuse.com/docs/sdk/typescript",
-    icon: CommandLineIcon,
+    icon: Code,
   },
   {
-    name: "Python SDK",
+    name: "Python SDK (Decorator)",
     description: "pip install langfuse",
     href: "https://langfuse.com/docs/sdk/python",
-    icon: SiPython,
+    icon: Code,
   },
   {
     name: "API Reference (Swagger)",
@@ -123,12 +132,12 @@ function Instructions() {
   );
 }
 
-const Beta = () => {
+const Integrations = (props: { projectId: string }) => {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
     <div>
-      <Header title="Early Access" level="h3" />
+      <Header title="Integrations" level="h3" />
       <Card className="p-4 lg:w-1/2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -141,16 +150,12 @@ const Beta = () => {
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              sendUserChatMessage(
-                "I am interested to join the PostHog Integration Beta",
-              );
-              showAgentChatMessage("We'll be in touch to get you set up!");
-            }}
-          >
-            Get Access
+          <Button variant="secondary" asChild>
+            <Link
+              href={`/project/${props.projectId}/settings/posthog-integration`}
+            >
+              Configure
+            </Link>
           </Button>
           <Button asChild variant="ghost">
             <Link href="https://langfuse.com/docs/analytics/posthog">

@@ -2397,6 +2397,8 @@ components:
           type: string
         countTraces:
           type: integer
+        countObservations:
+          type: integer
         totalCost:
           type: number
           format: double
@@ -2407,6 +2409,7 @@ components:
       required:
         - date
         - countTraces
+        - countObservations
         - totalCost
         - usage
     UsageByModel:
@@ -2418,6 +2421,7 @@ components:
       properties:
         model:
           type: string
+          nullable: true
         inputUsage:
           type: integer
         outputUsage:
@@ -2425,7 +2429,6 @@ components:
         totalUsage:
           type: integer
       required:
-        - model
         - inputUsage
         - outputUsage
         - totalUsage
