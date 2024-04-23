@@ -6,8 +6,8 @@ import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { isEeAvailable } from "..";
 import { prisma } from "@langfuse/shared/src/db";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
-import { decrypt, encrypt } from "../encryption";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
 

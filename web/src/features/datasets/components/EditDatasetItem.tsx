@@ -47,6 +47,21 @@ const formSchema = z.object({
         "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
+  metadata: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
+  ),
 });
 
 export const EditDatasetItem = ({
@@ -75,6 +90,12 @@ export const EditDatasetItem = ({
         ? JSON.stringify(datasetItem.expectedOutput, null, 2)
         : "",
     );
+    form.setValue(
+      "metadata",
+      datasetItem?.metadata
+        ? JSON.stringify(datasetItem.metadata, null, 2)
+        : "",
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetItem]);
 
@@ -83,6 +104,7 @@ export const EditDatasetItem = ({
     defaultValues: {
       input: "",
       expectedOutput: "",
+      metadata: "",
     },
   });
 
@@ -99,6 +121,7 @@ export const EditDatasetItem = ({
       datasetItemId: datasetItem.id,
       input: values.input,
       expectedOutput: values.expectedOutput,
+      metadata: values.metadata,
     });
     setHasChanges(false);
   }
@@ -154,6 +177,26 @@ export const EditDatasetItem = ({
               )}
             />
           </div>
+          <FormField
+            control={form.control}
+            name="metadata"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Metadata</FormLabel>
+                <FormControl>
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={(v) => {
+                      setHasChanges(true);
+                      field.onChange(v);
+                    }}
+                    editable={hasAccess}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <div className="flex justify-end">
             <Button
               type="submit"

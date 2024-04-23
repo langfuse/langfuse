@@ -21,7 +21,7 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { JsonEditor } from "@/src/components/json-editor";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
 const formSchema = z.object({
@@ -56,6 +56,21 @@ const formSchema = z.object({
         "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
+  metadata: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
+  ),
 });
 
 export const NewDatasetItemForm = (props: {
@@ -64,6 +79,7 @@ export const NewDatasetItemForm = (props: {
   observationId?: string;
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  metadata?: Prisma.JsonValue;
   datasetId?: string;
   className?: string;
   onFormSuccess?: () => void;
@@ -76,6 +92,7 @@ export const NewDatasetItemForm = (props: {
       datasetId: props.datasetId ?? "",
       input: props.input ? JSON.stringify(props.input, null, 2) : "",
       expectedOutput: props.output ? JSON.stringify(props.output, null, 2) : "",
+      metadata: props.metadata ? JSON.stringify(props.metadata, null, 2) : "",
     },
   });
 
@@ -141,7 +158,7 @@ export const NewDatasetItemForm = (props: {
             </FormItem>
           )}
         />
-        <div className="grid flex-1 content-stretch gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           <FormField
             control={form.control}
             name="input"
@@ -175,10 +192,26 @@ export const NewDatasetItemForm = (props: {
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="metadata"
+          render={({ field }) => (
+            <FormItem className="flex flex-col gap-2">
+              <FormLabel>Metadata</FormLabel>
+              <FormControl>
+                <JsonEditor
+                  defaultValue={field.value}
+                  onChange={field.onChange}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <Button
           type="submit"
           loading={createDatasetItemMutation.isLoading}
-          className="w-full"
+          className="mt-auto w-full"
         >
           Add to dataset
         </Button>

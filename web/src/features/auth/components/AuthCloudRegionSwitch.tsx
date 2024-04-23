@@ -12,18 +12,25 @@ const regions =
           flag: "🇪🇺",
         },
       ]
-    : [
-        {
-          name: "US",
-          hostname: "us.cloud.langfuse.com",
-          flag: "🇺🇸",
-        },
-        {
-          name: "EU",
-          hostname: "cloud.langfuse.com",
-          flag: "🇪🇺",
-        },
-      ];
+    : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
+      ? [
+          {
+            name: "DEV",
+            flag: "🚧",
+          },
+        ]
+      : [
+          {
+            name: "US",
+            hostname: "us.cloud.langfuse.com",
+            flag: "🇺🇸",
+          },
+          {
+            name: "EU",
+            hostname: "cloud.langfuse.com",
+            flag: "🇪🇺",
+          },
+        ];
 
 export function CloudRegionSwitch({
   isSignUpPage,
@@ -66,7 +73,8 @@ export function CloudRegionSwitch({
                       send_instantly: true,
                     },
                   );
-                  window.location.hostname = region.hostname;
+                  if ("hostname" in region)
+                    window.location.hostname = region.hostname;
                 }}
               >
                 <span className="mr-2 text-xl leading-none">{region.flag}</span>

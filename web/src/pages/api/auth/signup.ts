@@ -84,7 +84,8 @@ export default async function handler(
   if (
     env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING"
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
   ) {
     await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
       method: "POST",

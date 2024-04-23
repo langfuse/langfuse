@@ -18,7 +18,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { useSession } from "next-auth/react";
 
@@ -28,6 +28,7 @@ export const NewDatasetItemFromTrace = (props: {
   observationId?: string;
   input: Prisma.JsonValue;
   output: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
 }) => {
   const [open, setOpen] = useState(false);
   const session = useSession();
@@ -111,6 +112,7 @@ export const NewDatasetItemFromTrace = (props: {
             projectId={props.projectId}
             input={props.input}
             output={props.output}
+            metadata={props.metadata}
             onFormSuccess={() => setOpen(false)}
             className="h-full overflow-y-auto"
           />

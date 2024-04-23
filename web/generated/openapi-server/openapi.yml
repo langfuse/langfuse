@@ -482,6 +482,24 @@ paths:
             items:
               type: string
               nullable: true
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Optional filter to only include traces on or after a certain
+            timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: Optional filter to only include traces before a certain timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -572,14 +590,16 @@ paths:
       parameters:
         - name: page
           in: query
-          description: page number, starts at 1
+          description: Page number, starts at 1.
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
-          description: limit of items per page
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -847,14 +867,16 @@ paths:
       parameters:
         - name: page
           in: query
-          description: page number, starts at 1
+          description: Page number, starts at 1.
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
-          description: limit of items per page
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -878,6 +900,27 @@ paths:
           schema:
             type: string
             format: date-time
+            nullable: true
+        - name: source
+          in: query
+          description: Retrieve only scores from a specific source.
+          required: true
+          schema:
+            $ref: '#/components/schemas/ScoreSource'
+        - name: operator
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: value
+          in: query
+          description: Retrieve only scores with <operator> value.
+          required: false
+          schema:
+            type: number
+            format: double
             nullable: true
       responses:
         '200':
@@ -1093,21 +1136,23 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: Get list of traces
+      description: Get list of traces.
       operationId: trace_list
       tags:
         - Trace
       parameters:
         - name: page
           in: query
-          description: page number, starts at 1
+          description: Page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
-          description: limit of items per page
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -1490,6 +1535,8 @@ components:
         description:
           type: string
           nullable: true
+        metadata:
+          nullable: true
         projectId:
           type: string
         createdAt:
@@ -1552,6 +1599,8 @@ components:
         input:
           nullable: true
         expectedOutput:
+          nullable: true
+        metadata:
           nullable: true
         sourceTraceId:
           type: string
@@ -1685,6 +1734,7 @@ components:
       enum:
         - API
         - REVIEW
+        - EVAL
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object
@@ -1694,6 +1744,14 @@ components:
         input:
           nullable: true
         expectedOutput:
+          nullable: true
+        metadata:
+          nullable: true
+        sourceTraceId:
+          type: string
+          nullable: true
+        sourceObservationId:
+          type: string
           nullable: true
         id:
           type: string
@@ -1749,6 +1807,8 @@ components:
           type: string
         description:
           type: string
+          nullable: true
+        metadata:
           nullable: true
       required:
         - name
@@ -2337,6 +2397,8 @@ components:
           type: string
         countTraces:
           type: integer
+        countObservations:
+          type: integer
         totalCost:
           type: number
           format: double
@@ -2347,6 +2409,7 @@ components:
       required:
         - date
         - countTraces
+        - countObservations
         - totalCost
         - usage
     UsageByModel:
@@ -2358,6 +2421,7 @@ components:
       properties:
         model:
           type: string
+          nullable: true
         inputUsage:
           type: integer
         outputUsage:
@@ -2365,7 +2429,6 @@ components:
         totalUsage:
           type: integer
       required:
-        - model
         - inputUsage
         - outputUsage
         - totalUsage

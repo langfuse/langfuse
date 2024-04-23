@@ -1,4 +1,4 @@
-import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
+import chatCompletionHandler from "@/src/ee/features/playground/server/chatCompletionHandler";
 
 export const runtime = "edge";
 

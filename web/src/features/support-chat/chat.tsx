@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import { Crisp } from "crisp-sdk-web";
+import { env } from "@/src/env.mjs";
 
 const CrispChat = () => {
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID)
-      Crisp.configure(process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID);
+    if (env.NEXT_PUBLIC_CRISP_WEBSITE_ID)
+      Crisp.configure(env.NEXT_PUBLIC_CRISP_WEBSITE_ID);
   });
 
   return null;
