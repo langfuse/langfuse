@@ -8,7 +8,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
-import { encrypt } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 
 export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
@@ -19,10 +19,13 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
+        if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+          throw new Error("Evals available in cloud only");
+        }
         throwIfNoAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "apiKeys:create",
+          scope: "llmApiKeys:create",
         });
 
         const key = await ctx.prisma.llmApiKeys.create({
@@ -36,7 +39,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "apiKey",
+          resourceType: "llmApiKey",
           resourceId: key.id,
           action: "create",
         });
@@ -53,21 +56,25 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "apiKeys:delete",
+        scope: "llmApiKeys:delete",
       });
 
       await ctx.prisma.llmApiKeys.delete({
         where: {
           id: input.id,
+          projectId: input.projectId,
         },
       });
 
       await auditLog({
         session: ctx.session,
-        resourceType: "apiKey",
+        resourceType: "llmApiKey",
         resourceId: input.id,
         action: "delete",
       });
@@ -86,7 +93,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "apiKeys:read",
+        scope: "llmApiKeys:read",
       });
 
       const apiKeys = await ctx.prisma.llmApiKeys.findMany({

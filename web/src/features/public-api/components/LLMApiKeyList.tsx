@@ -182,7 +182,7 @@ export function CreateLlmApiKeyComponent(props: {
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
     projectId: props.projectId,
-    scope: "apiKeys:create",
+    scope: "llmApiKeys:create",
   });
 
   const utils = api.useUtils();
