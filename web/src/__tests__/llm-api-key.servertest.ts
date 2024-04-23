@@ -54,6 +54,7 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys.length).toBe(1);
     expect(llmApiKeys[0].projectId).toBe(projectId);
     expect(llmApiKeys[0].secretKey).not.toBeNull();
+    expect(llmApiKeys[0].secretKey).not.toEqual(secret);
     expect(llmApiKeys[0].provider).toBe(ModelProvider.OpenAI);
     // this has to be 3 dots and the last 4 characters of the secret
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
