@@ -30,6 +30,14 @@ import {
   type UIModelParams,
 } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { TEMPLATES } from "@/src/features/evals/components/templates";
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -68,6 +76,8 @@ export const EvalTemplateForm = (props: {
   const [modelParams, setModelParams] = useState<UIModelParams>(
     evalLLMModels[0],
   );
+
+  const [langfuseTemplate, setLangfuseTemplate] = useState<string | null>(null);
 
   const updateModelParam: ModelParamsContext["updateModelParam"] = (
     key,
@@ -208,6 +218,29 @@ export const EvalTemplateForm = (props: {
             <div className="lg:col-span-0 col-span-1 row-span-1"></div>
           </>
         ) : undefined}
+
+        <div>
+          <Select
+            value={langfuseTemplate ?? ""}
+            onValueChange={(value) => {
+              router.push(`/project/${value}`);
+            }}
+          >
+            <SelectTrigger className="text-gray-700 ring-transparent focus:ring-0 focus:ring-offset-0">
+              <SelectValue
+                className="text-sm font-semibold text-gray-700"
+                placeholder={langfuseTemplate}
+              />
+            </SelectTrigger>
+            <SelectContent className="max-h-60 max-w-80">
+              {TEMPLATES.map((project) => (
+                <SelectItem key={project.name} value={project.name}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
           <FormField
