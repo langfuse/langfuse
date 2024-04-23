@@ -5,13 +5,13 @@ import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Button } from "@/src/components/ui/button";
-import { Pencil } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -95,11 +95,16 @@ export function DeactivateConfig({
   });
 
   const onClick = () => {
+    if (!projectId) {
+      console.error("Project ID is missing");
+      return;
+    }
     mutEvalConfig.mutateAsync({
       projectId,
       evalConfigId: config?.id ?? "",
       updatedStatus: "INACTIVE",
     });
+    setIsOpen(false);
   };
 
   return (
@@ -108,11 +113,10 @@ export function DeactivateConfig({
         <Button
           variant="ghost"
           size={"sm"}
-          onClick={() => void onClick()}
           disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
         >
-          <Pencil className="h-5 w-5" />
+          <Trash2 className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
@@ -126,14 +130,7 @@ export function DeactivateConfig({
             type="button"
             variant="destructive"
             loading={mutEvalConfig.isLoading}
-            onClick={() => {
-              if (!projectId) {
-                console.error("Project ID is missing");
-                return;
-              }
-              void onClick();
-              setIsOpen(false);
-            }}
+            onClick={onClick}
           >
             Deactivate Eval Job
           </Button>

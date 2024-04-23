@@ -7,9 +7,15 @@ import React, {
   useState,
 } from "react";
 
-import type { MessagesContext } from "@/src/features/playground/client/components/Messages";
-import type { ModelParamsContext } from "@/src/features/playground/client/components/ModelParameters";
-import useCommandEnter from "@/src/features/playground/client/hooks/useCommandEnter";
+import { StringParam, useQueryParam } from "use-query-params";
+import { v4 as uuidv4 } from "uuid";
+
+import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
+import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
+import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
+import { PromptType } from "@/src/features/prompts/server/validation";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
@@ -18,13 +24,9 @@ import {
   type PromptVariable,
   type UIModelParams,
 } from "@langfuse/shared";
-import { createEmptyMessage } from "../utils/createEmptyMessage";
-import { StringParam, useQueryParam } from "use-query-params";
-import { api } from "@/src/utils/api";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { PromptType } from "@/src/features/prompts/server/validation";
-import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
-import { v4 as uuidv4 } from "uuid";
+
+import type { MessagesContext } from "@/src/components/ChatMessages/types";
+import type { ModelParamsContext } from "@/src/components/ModelParameters";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -54,13 +56,8 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
-export type PlaygroundProviderProps = PropsWithChildren & {
-  avilableModels?: UIModelParams[];
-};
-
-export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
+export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
-  avilableModels,
 }) => {
   const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
@@ -73,9 +70,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     createEmptyMessage(ChatMessageRole.User),
   ]);
   const [modelParams, setModelParams] = useState<UIModelParams>(
-    avilableModels && avilableModels.length > 0
-      ? avilableModels[0]
-      : getDefaultModelParams(ModelProvider.OpenAI),
+    getDefaultModelParams(ModelProvider.OpenAI),
   );
 
   const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
@@ -212,12 +207,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     setModelParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  const updateModelParams: PlaygroundContextType["updateModelParams"] = (
-    params,
-  ) => {
-    setModelParams((prev) => ({ ...prev, ...params }));
-  };
-
   const updatePromptVariableValue = (variable: string, value: string) => {
     setPromptVariables((prev) =>
       prev.map((v) => (v.name === variable ? { ...v, value } : v)),
@@ -241,8 +230,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         deleteMessage,
 
         modelParams,
-        updateModelParam: updateModelParam,
-        updateModelParams: updateModelParams,
+        updateModelParam,
 
         output,
         outputJson,

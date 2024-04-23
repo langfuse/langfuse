@@ -92,25 +92,26 @@ model VerificationToken {
 }
 
 model Project {
-    id               String                 @id @default(cuid())
-    createdAt        DateTime               @default(now()) @map("created_at")
-    updatedAt        DateTime               @default(now()) @updatedAt @map("updated_at")
-    name             String
-    cloudConfig      Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
-    members          Membership[]
-    traces           Trace[]
-    observations     Observation[]
-    apiKeys          ApiKey[]
-    dataset          Dataset[]
-    RawEvents        Events[]
-    invitations      MembershipInvitation[]
-    sessions         TraceSession[]
-    Prompt           Prompt[]
-    Model            Model[]
-    AuditLog         AuditLog[]
-    EvalTemplate     EvalTemplate[]
-    JobConfiguration JobConfiguration[]
-    JobExecution     JobExecution[]
+    id                 String                 @id @default(cuid())
+    createdAt          DateTime               @default(now()) @map("created_at")
+    updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at")
+    name               String
+    cloudConfig        Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
+    members            Membership[]
+    traces             Trace[]
+    observations       Observation[]
+    apiKeys            ApiKey[]
+    dataset            Dataset[]
+    RawEvents          Events[]
+    invitations        MembershipInvitation[]
+    sessions           TraceSession[]
+    Prompt             Prompt[]
+    Model              Model[]
+    AuditLog           AuditLog[]
+    EvalTemplate       EvalTemplate[]
+    JobConfiguration   JobConfiguration[]
+    JobExecution       JobExecution[]
+    PosthogIntegration PosthogIntegration[]
 
     @@map("projects")
 }
@@ -430,6 +431,7 @@ model Dataset {
     id           String        @id @default(cuid())
     name         String
     description  String?
+    metadata     Json?
     projectId    String        @map("project_id")
     project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt    DateTime      @default(now()) @map("created_at")
@@ -447,6 +449,7 @@ model DatasetItem {
     status              DatasetStatus     @default(ACTIVE)
     input               Json?
     expectedOutput      Json?             @map("expected_output")
+    metadata            Json?
     sourceTraceId       String?           @map("source_trace_id")
     sourceTrace         Trace?            @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
     sourceObservationId String?           @map("source_observation_id")
@@ -696,4 +699,17 @@ model SsoConfig {
     // secrets like clientSecret are encrypted on the application level
 
     @@map("sso_configs")
+}
+
+model PosthogIntegration {
+    projectId              String    @id @map("project_id")
+    project                Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    encryptedPosthogApiKey String    @map("encrypted_posthog_api_key")
+    posthogHostName        String    @map("posthog_host_name")
+    lastSyncAt             DateTime? @map("last_sync_at")
+    enabled                Boolean
+    createdAt              DateTime  @default(now()) @map("created_at")
+
+    @@index([projectId])
+    @@map("posthog_integrations")
 }

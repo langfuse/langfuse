@@ -113,6 +113,7 @@ export type Dataset = {
     id: string;
     name: string;
     description: string | null;
+    metadata: unknown | null;
     project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
@@ -122,6 +123,7 @@ export type DatasetItem = {
     status: Generated<DatasetStatus>;
     input: unknown | null;
     expected_output: unknown | null;
+    metadata: unknown | null;
     source_trace_id: string | null;
     source_observation_id: string | null;
     dataset_id: string;
@@ -290,6 +292,14 @@ export type ObservationView = {
     calculated_total_cost: string | null;
     latency: number | null;
 };
+export type PosthogIntegration = {
+    project_id: string;
+    encrypted_posthog_api_key: string;
+    posthog_host_name: string;
+    last_sync_at: Timestamp | null;
+    enabled: boolean;
+    created_at: Generated<Timestamp>;
+};
 export type Pricing = {
     id: string;
     model_name: string;
@@ -420,6 +430,7 @@ export type DB = {
     models: Model;
     observations: Observation;
     observations_view: ObservationView;
+    posthog_integrations: PosthogIntegration;
     pricings: Pricing;
     projects: Project;
     prompts: Prompt;

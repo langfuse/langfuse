@@ -29,6 +29,12 @@ service:
             type: optional<string>
             allow-multiple: true
             docs: Optional filter for metrics where traces include all of these tags
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include traces on or after a certain timestamp
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include traces before a certain timestamp
       response: DailyMetrics
 types:
   DailyMetrics:
@@ -41,12 +47,13 @@ types:
     properties:
       date: date
       countTraces: integer
+      countObservations: integer
       totalCost: double
       usage: list<UsageByModel>
   UsageByModel:
     docs: Daily usage of a given model. Usage corresponds to the unit set for the specific model (e.g. tokens).
     properties:
-      model: string
+      model: optional<string>
       inputUsage: integer
       outputUsage: integer
       totalUsage: integer

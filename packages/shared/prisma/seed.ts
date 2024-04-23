@@ -240,6 +240,7 @@ async function main() {
           description:
             datasetNumber === 0 ? "Dataset test description" : undefined,
           projectId: project2.id,
+          metadata: datasetNumber === 0 ? { key: "value" } : undefined,
         },
       });
 
@@ -268,6 +269,7 @@ async function main() {
               Math.random() > 0.3
                 ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
                 : undefined,
+            metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
           },
         });
         datasetItemIds.push(datasetItem.id);

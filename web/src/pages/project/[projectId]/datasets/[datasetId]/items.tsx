@@ -8,6 +8,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -55,6 +56,7 @@ export default function DatasetItems() {
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
               datasetDescription={dataset.data?.description ?? undefined}
+              datasetMetadata={dataset.data?.metadata}
               icon
             />
             <DeleteButton
@@ -69,18 +71,27 @@ export default function DatasetItems() {
           </>
         }
       />
-      <Tabs value="items" className="mb-3">
-        <TabsList>
-          <TabsTrigger value="runs" asChild>
-            <Link href={`/project/${projectId}/datasets/${datasetId}`}>
-              Runs
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="items">Items</TabsTrigger>
-        </TabsList>
-      </Tabs>
 
-      <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
+      {!!dataset.data?.metadata && (
+        <JSONView json={dataset?.data.metadata} title="Metadata" />
+      )}
+
+      <DatasetItemsTable
+        projectId={projectId}
+        datasetId={datasetId}
+        menuItems={
+          <Tabs value="items">
+            <TabsList>
+              <TabsTrigger value="runs" asChild>
+                <Link href={`/project/${projectId}/datasets/${datasetId}`}>
+                  Runs
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="items">Items</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
     </div>
   );
 }

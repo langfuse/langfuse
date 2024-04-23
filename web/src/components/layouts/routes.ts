@@ -94,7 +94,8 @@ export const ROUTES: Route[] = [
     name: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
-    featureFlag: "playground",
+    cloudOnly: true,
+    label: "Beta",
   },
   {
     name: "Datasets",

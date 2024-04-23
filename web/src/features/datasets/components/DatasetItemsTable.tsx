@@ -33,14 +33,17 @@ type RowData = {
   createdAt: string;
   input: Prisma.JsonValue;
   expectedOutput: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
 };
 
 export function DatasetItemsTable({
   projectId,
   datasetId,
+  menuItems,
 }: {
   projectId: string;
   datasetId: string;
+  menuItems?: React.ReactNode;
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
@@ -152,7 +155,9 @@ export function DatasetItemsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const input = row.getValue("input") as RowData["input"];
-        return !!input ? <IOTableCell data={input} /> : null;
+        return !!input ? (
+          <IOTableCell data={input} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {
@@ -165,7 +170,23 @@ export function DatasetItemsTable({
           "expectedOutput",
         ) as RowData["expectedOutput"];
         return !!expectedOutput ? (
-          <IOTableCell data={expectedOutput} className="bg-green-50" />
+          <IOTableCell
+            data={expectedOutput}
+            className="bg-green-50"
+            singleLine={rowHeight === "s"}
+          />
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      id: "metadata",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const metadata = row.getValue("metadata") as RowData["metadata"];
+        return !!metadata ? (
+          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
         ) : null;
       },
     },
@@ -224,6 +245,7 @@ export function DatasetItemsTable({
       createdAt: item.createdAt.toLocaleString(),
       input: item.input,
       expectedOutput: item.expectedOutput,
+      metadata: item.metadata,
     };
   };
 
@@ -240,6 +262,7 @@ export function DatasetItemsTable({
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={menuItems}
       />
       <DataTable
         columns={columns}

@@ -21,15 +21,24 @@ service:
         query-parameters:
           page:
             type: optional<integer>
-            docs: page number, starts at 1
+            docs: Page number, starts at 1.
           limit:
             type: optional<integer>
-            docs: limit of items per page
+            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
           userId: optional<string>
           name: optional<string>
           fromTimestamp:
             type: optional<datetime>
             docs: Retrieve only scores newer than this timestamp.
+          source:
+            type: commons.ScoreSource
+            docs: Retrieve only scores from a specific source.
+          operator:
+            type: optional<string>
+            docs: Retrieve only scores with <operator> value.
+          value:
+            type: optional<double>
+            docs: Retrieve only scores with <operator> value.
       response: Scores
     get-by-id:
       docs: Get a score

@@ -5,12 +5,15 @@ import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@/src/utils/zod";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { stringDate } from "@/src/features/public-api/server/ingestion-api-schema";
 
 const GetUsageSchema = z.object({
   ...paginationZod,
   traceName: z.string().nullish(),
   userId: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
+  fromTimestamp: stringDate,
+  toTimestamp: stringDate,
 });
 
 export default async function handler(
@@ -52,6 +55,12 @@ export default async function handler(
             ", ",
           )}] <@ t."tags"`
         : Prisma.empty;
+      const fromTimestampCondition = obj.fromTimestamp
+        ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+      const toTimestampCondition = obj.toTimestamp
+        ? Prisma.sql`AND t."timestamp" < ${obj.toTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
 
       const usage = await prisma.$queryRaw`
         WITH model_usage AS (
@@ -70,6 +79,8 @@ export default async function handler(
             ${traceNameCondition}
             ${userCondition}
             ${tagsCondition}
+            ${fromTimestampCondition}
+            ${toTimestampCondition}
           GROUP BY
             1,
             2
@@ -97,6 +108,7 @@ export default async function handler(
           SELECT
             DATE_TRUNC('DAY', t.timestamp) "date",
             count(distinct t.id)::integer count_traces,
+            count(distinct o.id)::integer count_observations,
             SUM(o.calculated_total_cost)::DOUBLE PRECISION total_cost
           FROM traces t
           LEFT JOIN observations_view o ON o.project_id = t.project_id AND t.id = o.trace_id
@@ -104,11 +116,14 @@ export default async function handler(
             ${traceNameCondition}
             ${userCondition}
             ${tagsCondition}
+            ${fromTimestampCondition}
+            ${toTimestampCondition}
           GROUP BY 1
         )
         SELECT
           TO_CHAR(COALESCE(ds.date, daily_model_usage.date), 'YYYY-MM-DD') AS "date",
           COALESCE(count_traces, 0) "countTraces",
+          COALESCE(count_observations, 0) "countObservations",
           COALESCE(total_cost, 0) "totalCost",
           COALESCE(daily_usage_json, '[]'::JSON) usage
         FROM
@@ -128,6 +143,8 @@ export default async function handler(
           ${traceNameCondition}
           ${userCondition}
           ${tagsCondition}
+          ${fromTimestampCondition}
+          ${toTimestampCondition}
       `;
 
       const totalItems =

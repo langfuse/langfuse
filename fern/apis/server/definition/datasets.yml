@@ -47,3 +47,4 @@ types:
     properties:
       name: string
       description: optional<string>
+      metadata: optional<unknown>
