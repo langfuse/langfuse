@@ -28,7 +28,6 @@ describe("llmApiKey.all RPC", () => {
       featureFlags: {
         templateFlag: true,
         evals: true,
-        playground: true,
       },
       admin: true,
     },
