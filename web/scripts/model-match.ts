@@ -62,6 +62,7 @@ export async function modelMatch() {
       where: {
         internalModel: null,
         type: "GENERATION",
+        model: { not: null },
       },
       take: BATCH_SIZE,
       skip: index * BATCH_SIZE,
