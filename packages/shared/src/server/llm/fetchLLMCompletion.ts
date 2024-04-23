@@ -77,7 +77,7 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks,
     });
-  } else {
+  } else if (modelParams.provider === ModelProvider.OpenAI) {
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
@@ -86,6 +86,10 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks,
     });
+  } else {
+    // eslint-disable-next-line no-unused-vars
+    const _exhaustiveCheck: never = modelParams;
+    throw new Error("This model provider is not supported.");
   }
 
   console.log("Making LLM call with params: ", modelParams);
