@@ -49,7 +49,7 @@ import { z } from "zod";
 export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasAccess({
     projectId: props.projectId,
-    scope: "apiKeys:read",
+    scope: "llmApiKeys:read",
   });
 
   const apiKeys = api.llmApiKey.all.useQuery(
@@ -114,7 +114,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const posthog = usePostHog();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
-    scope: "apiKeys:delete",
+    scope: "llmApiKeys:delete",
   });
 
   const utils = api.useUtils();
