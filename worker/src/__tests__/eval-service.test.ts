@@ -419,7 +419,7 @@ describe("execute evals", () => {
     };
 
     await expect(evaluate({ event: payload })).rejects.toThrowError(
-      "API key for provider openai not found."
+      "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found."
     );
 
     const jobs = await kyselyPrisma.$kysely
