@@ -62,6 +62,7 @@ export async function modelMatch() {
       where: {
         internalModel: null,
         type: "GENERATION",
+        model: { not: null },
       },
       take: BATCH_SIZE,
       skip: index * BATCH_SIZE,
@@ -235,14 +236,23 @@ export async function modelMatch() {
     }
   }
 
-  await prisma.observation.updateMany({
-    where: {
-      internalModel: "LANGFUSETMPNOMODEL",
-    },
-    data: {
-      internalModel: null,
-    },
-  });
+  let updatedCount;
+  do {
+    console.log(`Updating LANGFUSETMPNOMODEL ${updatedCount}`);
+    const result = await prisma.$queryRaw<[{ id: string }]>`
+    WITH to_update AS (
+      SELECT id 
+      FROM observations 
+      WHERE internal_model = 'LANGFUSETMPNOMODEL'
+      AND "type" = 'GENERATION'
+      LIMIT 50000
+    )
+    UPDATE observations
+    set internal_model = NULL
+    WHERE id IN (SELECT id FROM to_update)
+    RETURNING id;`;
+    updatedCount = result.length;
+  } while (updatedCount > 0);
 
   const end = Date.now();
 
