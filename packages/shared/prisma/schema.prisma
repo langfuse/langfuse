@@ -111,6 +111,7 @@ model Project {
     EvalTemplate       EvalTemplate[]
     JobConfiguration   JobConfiguration[]
     JobExecution       JobExecution[]
+    LlmApiKeys         LlmApiKeys[]
     PosthogIntegration PosthogIntegration[]
 
     @@map("projects")
@@ -134,6 +135,23 @@ model ApiKey {
     @@index(hashedSecretKey)
     @@index(fastHashedSecretKey)
     @@map("api_keys")
+}
+
+model LlmApiKeys {
+    id        String   @id @unique @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+    provider         String
+    displaySecretKey String @map("display_secret_key")
+    secretKey        String @map("secret_key")
+
+    projectId String  @map("project_id")
+    project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    @@unique([projectId, provider])
+    @@index([projectId, provider])
+    @@map("llm_api_keys")
 }
 
 model Membership {
