@@ -1,5 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 
 import { useRouter } from "next/router";
@@ -7,6 +8,12 @@ import { useRouter } from "next/router";
 export default function NewTemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  const hasAccess = useHasAccess({ projectId, scope: "llmApiKeys:read" });
+
+  if (!hasAccess) {
+    return null;
+  }
 
   const llmApiKeys = api.llmApiKey.all.useQuery({
     projectId: projectId,

@@ -56,7 +56,7 @@ const formSchema = z.object({
   model: EvalModelNames,
   outputScore: z.string(),
   outputReasoning: z.string(),
-  apiKey: z.string(),
+  apiKey: z.string({ required_error: "No LLM API key found." }),
 });
 
 export const EvalTemplateForm = (props: {
@@ -107,7 +107,7 @@ export const EvalTemplateForm = (props: {
       outputScore: props.existingEvalTemplate
         ? OutputSchema.parse(props.existingEvalTemplate?.outputSchema).score
         : undefined,
-      apiKey: defaultModel ? getApiKeyForModel(defaultModel)?.id : "",
+      apiKey: defaultModel ? getApiKeyForModel(defaultModel)?.id : undefined,
     },
   });
 
@@ -143,24 +143,6 @@ export const EvalTemplateForm = (props: {
       }
     }
   }, [props.existingEvalTemplate, form]);
-
-  // show an error if there are no llm api keys
-  const fieldState = form.getFieldState("apiKey");
-  useEffect(() => {
-    const currentModel = form.watch("model");
-
-    const modelProvider = getModelProvider(currentModel);
-
-    if (
-      !currentModel ||
-      (!getApiKeyForModel(currentModel) && !fieldState.error)
-    ) {
-      form.setError("apiKey", {
-        type: "custom",
-        message: `No LLM API key found for "${modelProvider}".`,
-      });
-    }
-  }, [form, fieldState, getApiKeyForModel, getModelProvider]);
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -337,13 +319,12 @@ export const EvalTemplateForm = (props: {
                         <p className="text-sm font-medium text-destructive">
                           {errorMessage}
                         </p>
-                        {errorMessage?.includes("No LLM API key found for") ? (
+                        {errorMessage?.includes("No LLM API key found.") ? (
                           <Link
                             href={`/project/${props.projectId}/settings`}
                             className="flex flex-row"
                           >
-                            Create a new version for it here.{" "}
-                            <ArrowTopRightIcon />
+                            Create a new API key here. <ArrowTopRightIcon />
                           </Link>
                         ) : null}
                       </div>

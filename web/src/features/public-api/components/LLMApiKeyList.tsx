@@ -150,7 +150,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
                   id: props.apiKeyId,
                 })
                 .then(() => {
-                  posthog.capture("project_settings:api_key_delete");
+                  posthog.capture("project_settings:llm_api_key_delete");
                   setOpen(false);
                 })
                 .catch((error) => {
@@ -179,6 +179,7 @@ export function CreateLlmApiKeyComponent(props: {
   projectId: string;
   existingApiKeys: RouterOutput["llmApiKey"]["all"]["data"];
 }) {
+  const posthog = usePostHog();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
     projectId: props.projectId,
@@ -210,6 +211,7 @@ export function CreateLlmApiKeyComponent(props: {
       });
       return;
     }
+    posthog.capture("project_settings:llm_api_key_create");
 
     return mutCreateLlmApiKey
       .mutateAsync({
