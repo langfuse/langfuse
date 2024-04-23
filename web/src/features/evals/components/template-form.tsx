@@ -155,7 +155,6 @@ export const EvalTemplateForm = (props: {
       !currentModel ||
       (!getApiKeyForModel(currentModel) && !fieldState.error)
     ) {
-      console.log("setting error");
       form.setError("apiKey", {
         type: "custom",
         message: `No LLM API key found for "${modelProvider}".`,

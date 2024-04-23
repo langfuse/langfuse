@@ -111,6 +111,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       return {
         data: apiKeys.map((llmApiKey) => {
           // we must not return the secret key via the API
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { secretKey, ...rest } = llmApiKey;
           return { ...rest };
         }),

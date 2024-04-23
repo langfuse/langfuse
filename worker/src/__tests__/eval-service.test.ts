@@ -9,7 +9,8 @@ import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
-import { encrypt, variableMappingList } from "@langfuse/shared";
+import { variableMappingList } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/src/encryption";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
