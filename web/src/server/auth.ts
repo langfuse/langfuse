@@ -20,6 +20,7 @@ import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import MicrosoftEntraIdProvider from "next-auth/providers/microsoft-entra-id";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, cookieOptions } from "./utils/cookies";
 import {
@@ -175,6 +176,21 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+if (
+  env.AUTH_MICROSOFT_ENTRA_ID_ID &&
+  env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
+  env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID
+)
+  staticProviders.push(
+    MicrosoftEntraIdProvider({
+      clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+      clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
+      tenantId: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
+      allowDangerousEmailAccountLinking:
+        process.env.AUTH_MICROSOFT_ENTRA_ID_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 

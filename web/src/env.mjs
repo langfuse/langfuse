@@ -51,6 +51,10 @@ export const env = createEnv({
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_MICROSOFT_ENTRA_ID_ID: z.string().optional(),
+    AUTH_MICROSOFT_ENTRA_ID_SECRET: z.string().optional(),
+    AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: z.string().optional(),
+    AUTH_MICROSOFT_ENTRA_ID_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_OKTA_CLIENT_ID: z.string().optional(),
     AUTH_OKTA_CLIENT_SECRET: z.string().optional(),
     AUTH_OKTA_ISSUER: z.string().optional(),
@@ -143,6 +147,10 @@ export const env = createEnv({
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING,
+    AUTH_MICROSOFT_ENTRA_ID_ID: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+    AUTH_MICROSOFT_ENTRA_ID_SECRET: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
+    AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
+    AUTH_MICROSOFT_ENTRA_ID_ALLOW_ACCOUNT_LINKING: process.env.AUTH_MICROSOFT_ENTRA_ID_ALLOW_ACCOUNT_LINKING,
     AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
     AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
     AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
@@ -185,3 +193,4 @@ export const env = createEnv({
   // DOCKER_BUILD is set in Dockerfile
   skipValidation: process.env.DOCKER_BUILD === "1",
 });
+
