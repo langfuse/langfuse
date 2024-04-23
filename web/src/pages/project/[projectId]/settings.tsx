@@ -15,6 +15,7 @@ import { env } from "@/src/env.mjs";
 import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
+import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-10">
         <HostNameProject />
         <ApiKeyList projectId={projectId} />
+        <LlmApiKeyList projectId={projectId} />
         <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
         <Integrations projectId={projectId} />

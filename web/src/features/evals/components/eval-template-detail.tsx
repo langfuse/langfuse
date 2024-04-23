@@ -44,6 +44,10 @@ export const EvalTemplateDetail = () => {
     },
   );
 
+  const llmApiKeys = api.llmApiKey.all.useQuery({
+    projectId: projectId,
+  });
+
   return (
     <div className="md:container">
       <Header
@@ -72,12 +76,16 @@ export const EvalTemplateDetail = () => {
           )
         }
       />
-      {allTemplates.isLoading || !allTemplates.data ? (
+      {allTemplates.isLoading ||
+      !allTemplates.data ||
+      llmApiKeys.isLoading ||
+      !llmApiKeys.data ? (
         <div>Loading...</div>
       ) : (
         <EvalTemplateForm
           projectId={projectId}
           existingEvalTemplate={template.data ?? undefined}
+          existingLlmApiKeys={llmApiKeys.data?.data ?? []}
           isEditing={isEditing}
           setIsEditing={setIsEditing}
         />
