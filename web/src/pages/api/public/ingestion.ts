@@ -424,11 +424,16 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   projectId: string,
 ): Promise<void> => {
   try {
+    console.log(
+      "Sending events to worker",
+      env.LANGFUSE_WORKER_HOST,
+      env.LANGFUSE_WORKER_PASSWORD,
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    );
     if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
       const traceEvents = batchResults
         .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
@@ -442,7 +447,10 @@ export const sendToWorkerIfEnvironmentConfigured = async (
         )
         .filter(isNotNullOrUndefined);
 
+      console.log("trace events", traceEvents);
+
       if (traceEvents.length > 0) {
+        console.log("Sending trace events to worker", traceEvents);
         await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
           method: "POST",
           headers: {
