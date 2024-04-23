@@ -18,9 +18,6 @@ export * from "./server/llm/fetchLLMCompletion";
 // evals
 export * from "./features/evals/types";
 
-// encryption
-export * from "./features/encryption/index";
-
 // export db types only
 export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";
