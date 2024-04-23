@@ -15,9 +15,9 @@ import {
   evalLLMModels,
   ZodModelConfig,
   availableEvalVariables,
-  decrypt,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/src/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { evalQueue } from "./redis/consumer";
