@@ -10,7 +10,7 @@ import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
 import { variableMappingList } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/src/encryption";
+import { encrypt } from "@langfuse/shared/encryption";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
