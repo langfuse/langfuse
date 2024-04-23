@@ -60,6 +60,10 @@ export default async function chatCompletionHandler(req: NextRequest) {
       modelParams,
       streaming: true,
       callbacks: [new PosthogCallbackHandler("playground", body, token.sub)],
+      apiKey:
+        modelParams.provider === "openai"
+          ? env.OPENAI_API_KEY
+          : env.ANTHROPIC_API_KEY,
     });
 
     return new StreamingTextResponse(stream);

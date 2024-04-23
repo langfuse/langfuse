@@ -120,7 +120,7 @@ export const EvalConfigForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("models:new_template_form");
+    posthog.capture("evals:new_config_form");
 
     if (!getSelectedEvalTemplate) {
       form.setError("evalTemplateId", {
