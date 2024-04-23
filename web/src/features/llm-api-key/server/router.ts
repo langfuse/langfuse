@@ -14,6 +14,19 @@ export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
 }
 
+export const LlmApiKey = z
+  .object({
+    id: z.string(),
+    projectId: z.string(),
+    provider: z.string(),
+    createdAt: z.date().optional(),
+    updatedAt: z.date().optional(),
+    displaySecretKey: z.string(),
+  })
+  // strict mode to prevent extra keys. Thorws error otherwise
+  // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
+  .strict();
+
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateLlmApiKey)
@@ -96,11 +109,22 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = await ctx.prisma.llmApiKeys.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const apiKeys = LlmApiKey.parse(
+        await ctx.prisma.llmApiKeys.findMany({
+          // we must not return the secret key via the API, hence not selected
+          select: {
+            id: true,
+            createdAt: true,
+            updatedAt: true,
+            provider: true,
+            displaySecretKey: true,
+            projectId: true,
+          },
+          where: {
+            projectId: input.projectId,
+          },
+        }),
+      );
 
       const count = await ctx.prisma.llmApiKeys.count({
         where: {
@@ -109,13 +133,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       });
 
       return {
-        data: apiKeys.map((llmApiKey) => {
-          // we must not return the secret key via the API
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { secretKey, ...rest } = llmApiKey;
-          return { ...rest };
-        }),
-
+        data: apiKeys, // does not contain the secret key
         totalCount: count,
       };
     }),

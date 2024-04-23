@@ -251,7 +251,7 @@ export const evaluate = async ({
     throw new Error(`Model ${evalModel} provider not found`);
   }
 
-  // the apiKey.secret_key must never be printed to the console
+  // the apiKey.secret_key must never be printed to the console or returned to the client.
   const apiKey = await kyselyPrisma.$kysely
     .selectFrom("llm_api_keys")
     .selectAll()
@@ -260,14 +260,18 @@ export const evaluate = async ({
     .executeTakeFirst();
 
   if (!apiKey) {
-    console.log(`API key for provider ${provider} not found.`);
+    console.log(
+      `API key for provider ${provider} and project ${event.projectId} not found.`
+    );
     // this will fail the eval execution if a user deletes the API key.
-    throw new Error(`API key for provider ${provider} not found.`);
+    throw new Error(
+      `API key for provider ${provider} and project ${event.projectId} not found.`
+    );
   }
 
   const completion = await fetchLLMCompletion({
     streaming: false,
-    apiKey: decrypt(apiKey.secret_key),
+    apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
     messages: [{ role: ChatMessageRole.System, content: prompt }],
     modelParams: {
       provider: provider,
