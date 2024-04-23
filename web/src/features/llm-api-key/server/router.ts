@@ -19,8 +19,8 @@ export const LlmApiKey = z
     id: z.string(),
     projectId: z.string(),
     provider: z.string(),
-    createdAt: z.date().optional(),
-    updatedAt: z.date().optional(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
     displaySecretKey: z.string(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise
@@ -109,7 +109,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = LlmApiKey.parse(
+      const apiKeys = z.array(LlmApiKey).parse(
         await ctx.prisma.llmApiKeys.findMany({
           // we must not return the secret key via the API, hence not selected
           select: {
