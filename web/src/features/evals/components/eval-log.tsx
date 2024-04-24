@@ -1,6 +1,5 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
