@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/features/evals/components/templates";
+import { CreateEvalTemplate } from "@/src/features/evals/server/router";
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -79,8 +80,6 @@ export const EvalTemplateForm = (props: {
   setIsEditing?: (isEditing: boolean) => void;
 }) => {
   const [langfuseTemplate, setLangfuseTemplate] = useState<string | null>(null);
-
-  console.log("langfuseTemplate", props.existingEvalTemplate);
 
   const updateLangfuseTemplate = (name: string) => {
     setLangfuseTemplate(name);
@@ -119,25 +118,41 @@ export const EvalTemplateForm = (props: {
         existingEvalTemplateId={props.existingEvalTemplate?.id}
         existingEvalTemplateName={props.existingEvalTemplate?.name}
         preFilledFormValues={
-          props.existingEvalTemplate ?? {
-            name: langfuseTemplate,
-            prompt: currentTemplate?.prompt.trim() ?? "",
-            vars: [],
-            outputSchema: {
-              score: currentTemplate?.outputScore?.trim() ?? "",
-              reasoning: currentTemplate?.outputReasoning?.trim() ?? "",
-            },
-            model: "gpt-3.5-turbo",
-            modelParams: {
-              model: "gpt-3.5-turbo",
-              provider: ModelProvider.OpenAI,
-              temperature: 1,
-              maxTemperature: 2,
-              max_tokens: 256,
-              top_p: 1,
-            },
-          } ??
-          undefined
+          langfuseTemplate
+            ? {
+                name: langfuseTemplate ?? "",
+                prompt: currentTemplate?.prompt.trim() ?? "",
+                vars: [],
+                outputSchema: {
+                  score: currentTemplate?.outputScore?.trim() ?? "",
+                  reasoning: currentTemplate?.outputReasoning?.trim() ?? "",
+                },
+                model: "gpt-3.5-turbo",
+                modelParams: {
+                  model: "gpt-3.5-turbo",
+                  provider: ModelProvider.OpenAI,
+                  temperature: 1,
+                  maxTemperature: 2,
+                  max_tokens: 256,
+                  top_p: 1,
+                },
+              }
+            : props.existingEvalTemplate
+              ? {
+                  name: props.existingEvalTemplate.name,
+                  prompt: props.existingEvalTemplate.prompt,
+                  vars: props.existingEvalTemplate.vars,
+                  outputSchema: props.existingEvalTemplate.outputSchema as {
+                    score: string;
+                    reasoning: string;
+                  },
+                  model: props.existingEvalTemplate.model as OpenAIModel,
+                  modelParams: props.existingEvalTemplate
+                    .modelParams as OpenAIModelParams & {
+                    maxTemperature: number;
+                  },
+                }
+              : undefined
         }
       />
     </>
@@ -251,7 +266,7 @@ export const InnerEvalTemplateForm = (props: {
         updateModelParam("provider", modelProvider);
       }
     }
-  }, [props.preFilledFormValues, form]);
+  }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -264,7 +279,6 @@ export const InnerEvalTemplateForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("values", values);
     posthog.capture("evals:new_template_form");
 
     createEvalTemplateMutation
@@ -273,8 +287,8 @@ export const InnerEvalTemplateForm = (props: {
         projectId: props.projectId,
         prompt: values.prompt,
         model: EvalModelNames.parse(modelParams.model),
-        modelParameters: modelParams,
-        variables: extractedVariables ?? [],
+        modelParams: modelParams,
+        vars: extractedVariables ?? [],
         outputSchema: {
           score: values.outputScore,
           reasoning: values.outputReasoning,

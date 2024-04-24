@@ -20,8 +20,8 @@ export const CreateEvalTemplate = z.object({
   projectId: z.string(),
   prompt: z.string(),
   model: EvalModelNames,
-  modelParameters: ZodModelConfig,
-  variables: z.array(z.string()),
+  modelParams: ZodModelConfig,
+  vars: z.array(z.string()),
   outputSchema: z.object({
     score: z.string(),
     reasoning: z.string(),
@@ -329,8 +329,8 @@ export const evalRouter = createTRPCRouter({
           projectId: input.projectId,
           prompt: input.prompt,
           model: input.model,
-          modelParams: input.modelParameters,
-          vars: input.variables,
+          modelParams: input.modelParams,
+          vars: input.vars,
           outputSchema: input.outputSchema,
         },
       });
