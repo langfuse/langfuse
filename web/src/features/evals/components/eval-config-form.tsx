@@ -41,6 +41,7 @@ import { Card } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -308,7 +309,16 @@ export const EvalConfigForm = (props: {
                       {fields.map((mappingField, index) => (
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div className="text-sm font-semibold	">
+                            {"{{"}
                             {mappingField.templateVariable}
+                            {"}}"}
+                            <DocPopup
+                              description={
+                                "This is the variable that will be replaced with the trace data."
+                              }
+                              href={"columnDef.headerTooltip.href"}
+                              size="xs"
+                            />
                           </div>
                           <FormField
                             control={form.control}
@@ -316,20 +326,27 @@ export const EvalConfigForm = (props: {
                             name={`mapping.${index}.langfuseObject`}
                             render={({ field }) => (
                               <div className="flex  items-center gap-2">
-                                <Label className="muted-foreground w-1/3 text-sm font-light">
-                                  Trace object
-                                </Label>
+                                <div className="flex w-1/3">
+                                  <Label className="muted-foreground text-sm font-light">
+                                    Trace object
+                                  </Label>
+                                  <DocPopup
+                                    description={
+                                      "This is the variable that will be replaced with the trace data."
+                                    }
+                                    href={"columnDef.headerTooltip.href"}
+                                    size="xs"
+                                  />
+                                </div>
                                 <FormItem className="w-2/3">
                                   <FormControl>
                                     <Select
                                       disabled={props.disabled}
                                       defaultValue={field.value}
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                      }}
+                                      onValueChange={field.onChange}
                                     >
                                       <SelectTrigger>
-                                        <SelectValue placeholder="Object type" />
+                                        <SelectValue defaultValue={"input"} />
                                       </SelectTrigger>
                                       <SelectContent>
                                         {availableEvalVariables.map(
@@ -362,6 +379,7 @@ export const EvalConfigForm = (props: {
                                   <Label className="muted-foreground w-1/3 text-sm font-light">
                                     Object name
                                   </Label>
+
                                   <FormItem className="w-2/3">
                                     <FormControl>
                                       <Input
