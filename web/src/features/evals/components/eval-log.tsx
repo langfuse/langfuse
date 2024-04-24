@@ -1,17 +1,19 @@
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
-import { type Score } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type JobExecutionRow = {
   status: string;
-  scoreResult?: Score;
+  scoreName?: string;
+  scoreValue?: number;
+  scoreComment?: string;
   startTime?: string;
   endTime?: string;
   traceId?: string;
@@ -25,7 +27,6 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
   const logs = api.evals.getLogs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
@@ -51,17 +52,29 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
       id: "endTime",
       header: "End Time",
     }),
-    columnHelper.accessor("scoreResult", {
-      id: "score",
-      header: "Score",
+    columnHelper.accessor("scoreName", {
+      header: "Score Name",
+      id: "scoreName",
+    }),
+    columnHelper.accessor("scoreValue", {
+      header: "Score Value",
+      id: "scoreValue",
       cell: (row) => {
-        const score = row.getValue();
-
+        const value = row.getValue();
+        if (value === undefined) {
+          return undefined;
+        }
+        return value % 1 === 0 ? value : value.toFixed(4);
+      },
+    }),
+    columnHelper.accessor("scoreComment", {
+      header: "Score Comment",
+      id: "scoreComment",
+      enableHiding: true,
+      cell: (row) => {
+        const value = row.getValue();
         return (
-          <GroupedScoreBadges
-            scores={score ? [score] : []}
-            variant="headings"
-          />
+          value !== undefined && <IOTableCell data={value} singleLine={false} />
         );
       },
     }),
@@ -69,9 +82,10 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
       id: "error",
       header: "Error",
       cell: (row) => {
-        const error = row.getValue();
-        // const values: Score[] = row.getValue("scores");
-        return error;
+        const value = row.getValue();
+        return (
+          value !== undefined && <IOTableCell data={value} singleLine={false} />
+        );
       },
     }),
     columnHelper.accessor("traceId", {
@@ -126,7 +140,9 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
   ): JobExecutionRow => {
     return {
       status: jobConfig.status,
-      scoreResult: jobConfig.score ?? undefined,
+      scoreName: jobConfig.score?.name ?? undefined,
+      scoreValue: jobConfig.score?.value ?? undefined,
+      scoreComment: jobConfig.score?.comment ?? undefined,
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
