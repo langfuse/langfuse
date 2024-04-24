@@ -119,7 +119,7 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
   ] as LangfuseColumnDef<JobExecutionRow>[];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<JobExecutionRow>("evalConfigColumnVisibility", columns);
+    useColumnVisibility<JobExecutionRow>("evalLogColumnVisibility", columns);
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["getLogs"]["data"][number],
