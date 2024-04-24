@@ -2,7 +2,7 @@ import {
   type CreatePromptTRPCType,
   PromptType,
 } from "@/src/features/prompts/server/validation";
-import { ValidationError } from "@langfuse/shared/ValidationError";
+import { ValidationError } from "@langfuse/shared";
 import { jsonSchema } from "@/src/utils/zod";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 
