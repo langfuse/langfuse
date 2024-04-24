@@ -371,7 +371,17 @@ export async function extractVariablesFromTrace(
         ) // query the internal column name raw
         .where("id", "=", traceId)
         .where("project_id", "=", projectId)
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+
+      // user facing errors
+      if (!trace) {
+        logger.error(
+          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+        );
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+        );
+      }
 
       mappingResult.push({
         var: variable,
@@ -408,7 +418,17 @@ export async function extractVariablesFromTrace(
         .where("project_id", "=", projectId)
         .where("name", "=", mapping.objectName)
         .orderBy("start_time", "desc")
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+
+      // user facing errors
+      if (!observation) {
+        logger.error(
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+        );
+        throw new LangfuseNotFoundError(
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+        );
+      }
 
       mappingResult.push({
         var: variable,
