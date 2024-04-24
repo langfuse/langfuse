@@ -169,7 +169,7 @@ export default function ScoresTable({
       id: "userId",
       headerTooltip: {
         description: "The user ID associated with the trace.",
-        href: "https://langfuse.com/docs/tracing/users",
+        href: "https://langfuse.com/docs/tracing-features/users",
       },
       enableHiding: true,
       enableSorting: true,
