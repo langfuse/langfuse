@@ -1,7 +1,7 @@
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { AreaChart } from "@tremor/react";
+import { AreaChart, LineChart } from "@tremor/react";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -15,6 +15,7 @@ export function BaseTimeSeriesChart(props: {
   showLegend?: boolean;
   connectNulls?: boolean;
   valueFormatter?: (value: number) => string;
+  chartType?: "line" | "area";
 }) {
   const labels = new Set(
     props.data.flatMap((d) => d.values.map((v) => v.label)),
@@ -54,8 +55,10 @@ export function BaseTimeSeriesChart(props: {
       day: "numeric",
     });
   };
+
+  const ChartComponent = props.chartType === "area" ? AreaChart : LineChart;
   return (
-    <AreaChart
+    <ChartComponent
       className={cn("mt-4", props.className)}
       data={transformArray(props.data)}
       index="timestamp"

@@ -1050,11 +1050,13 @@ paths:
         - name: orderBy
           in: query
           description: >-
-            Format of the string sort_by=timestamp.asc (id, timestamp, name,
-            userId, release, version, public, bookmarked, sessionId)
-          required: true
+            Format of the string [field].[asc/desc]. Fields: id, timestamp,
+            name, userId, release, version, public, bookmarked, sessionId.
+            Example: timestamp.asc
+          required: false
           schema:
             type: string
+            nullable: true
         - name: tags
           in: query
           description: Only traces that include all of these tags will be returned.

@@ -4,9 +4,10 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
-import { formatInterval } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect } from "react";
+import { usdFormatter } from "../../../utils/numbers";
 
 type RowData = {
   key: {
@@ -16,6 +17,7 @@ type RowData = {
   createdAt: string;
   countRunItems: string;
   avgLatency: number;
+  avgTotalCost: string;
   scores: RouterOutput["datasets"]["runsByDatasetId"][number]["scores"];
 };
 
@@ -65,7 +67,16 @@ export function DatasetRunsTable(props: {
       header: "Latency (avg)",
       cell: ({ row }) => {
         const avgLatency: RowData["avgLatency"] = row.getValue("avgLatency");
-        return <>{formatInterval(avgLatency)}</>;
+        return <>{formatIntervalSeconds(avgLatency)}</>;
+      },
+    },
+    {
+      accessorKey: "avgTotalCost",
+      header: "Total Cost (avg)",
+      cell: ({ row }) => {
+        const avgTotalCost: RowData["avgTotalCost"] =
+          row.getValue("avgTotalCost");
+        return <>{avgTotalCost}</>;
       },
     },
     {
@@ -94,6 +105,7 @@ export function DatasetRunsTable(props: {
       createdAt: item.createdAt.toISOString(),
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
+      avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
       scores: item.scores,
     };
   };

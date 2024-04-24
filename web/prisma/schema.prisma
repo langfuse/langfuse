@@ -216,6 +216,7 @@ model Trace {
     @@index([sessionId])
     @@index([name])
     @@index([userId])
+    @@index([id, userId])
     @@index([externalId])
     @@index(timestamp)
     @@index(release)
@@ -264,6 +265,7 @@ model Observation {
     @@index([projectId, internalModel, startTime, unit])
     @@index([traceId, projectId, type, startTime])
     @@index([traceId, projectId, startTime])
+    @@index([traceId, projectId])
     @@index([traceId])
     @@index([type])
     @@index(startTime)
@@ -271,6 +273,7 @@ model Observation {
     @@index(projectId)
     @@index(parentObservationId)
     @@index(model)
+    @@index(promptId)
     @@index([projectId, startTime, type])
     @@map("observations")
 }
@@ -300,6 +303,7 @@ model Score {
     observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
 
     @@unique([id, traceId]) // used for upsert
+    @@index(timestamp)
     @@index([value])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
@@ -510,7 +514,7 @@ view ObservationView {
     calculatedInputCost  Decimal? @map("calculated_input_cost")
     calculatedOutputCost Decimal? @map("calculated_output_cost")
     calculatedTotalCost  Decimal? @map("calculated_total_cost")
-    latency              Decimal? @map("latency")
+    latency              Float?   @map("latency")
 
     @@map("observations_view")
 }

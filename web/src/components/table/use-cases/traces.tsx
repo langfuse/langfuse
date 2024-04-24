@@ -1,4 +1,3 @@
-import { DeleteTrace } from "@/src/components/delete-trace";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
@@ -17,7 +16,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { tracesTableColsWithOptions } from "@/src/server/api/definitions/tracesTable";
 import { api } from "@/src/utils/api";
-import { formatInterval, utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@prisma/client";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -31,6 +30,7 @@ import {
 } from "use-query-params";
 import type Decimal from "decimal.js";
 import { usdFormatter } from "@/src/utils/numbers";
+import { DeleteButton } from "@/src/components/deleteButton";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -52,7 +52,9 @@ export type TracesTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
-  cost?: Decimal;
+  inputCost?: Decimal;
+  outputCost?: Decimal;
+  totalCost?: Decimal;
 };
 
 export type TracesTableProps = {
@@ -68,6 +70,7 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
 }: TracesTableProps) {
+  const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -162,7 +165,9 @@ export default function TracesTable({
         completionTokens: trace.completionTokens,
         totalTokens: trace.totalTokens,
       },
-      cost: trace.calculatedTotalCost ?? undefined,
+      inputCost: trace.calculatedInputCost ?? undefined,
+      outputCost: trace.calculatedOutputCost ?? undefined,
+      totalCost: trace.calculatedTotalCost ?? undefined,
     };
   };
 
@@ -285,10 +290,55 @@ export default function TracesTable({
       // add seconds to the end of the latency
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latency");
-        return value !== undefined ? formatInterval(value) : undefined;
+        return value !== undefined ? formatIntervalSeconds(value) : undefined;
       },
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "inputTokens",
+      id: "inputTokens",
+      header: "Input Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.promptTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "outputTokens",
+      id: "outputTokens",
+      header: "Output Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.completionTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "totalTokens",
+      id: "totalTokens",
+      header: "Total Tokens",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{value.totalTokens}</span>;
+      },
+      enableHiding: true,
+      defaultHidden: true,
     },
     {
       // TODO: Enable Ordering By Usage (not covered by API yet)
@@ -312,17 +362,55 @@ export default function TracesTable({
       enableHiding: true,
     },
     {
-      accessorKey: "cost",
-      id: "cost",
-      header: "Cost",
+      accessorKey: "inputCost",
+      id: "inputCost",
+      header: "Input Cost",
       cell: ({ row }) => {
-        const cost: Decimal | undefined = row.getValue("cost");
+        const cost: Decimal | undefined = row.getValue("inputCost");
         return (
           <div>
             {cost ? (
               <span>{usdFormatter(cost.toNumber())}</span>
             ) : (
-              <span>Not Available</span>
+              <span>-</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "outputCost",
+      id: "outputCost",
+      header: "Output Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("outputCost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>-</span>
+            )}
+          </div>
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: "Total Cost",
+      cell: ({ row }) => {
+        const cost: Decimal | undefined = row.getValue("totalCost");
+        return (
+          <div>
+            {cost ? (
+              <span>{usdFormatter(cost.toNumber())}</span>
+            ) : (
+              <span>-</span>
             )}
           </div>
         );
@@ -411,10 +499,13 @@ export default function TracesTable({
       cell: ({ row }) => {
         const traceId = row.getValue("id");
         return traceId && typeof traceId === "string" ? (
-          <DeleteTrace
-            traceId={traceId}
-            isTableAction={true}
+          <DeleteButton
+            itemId={traceId}
             projectId={projectId}
+            scope="traces:delete"
+            invalidateFunc={() => void utils.traces.invalidate()}
+            type="trace"
+            isTableAction={true}
           />
         ) : undefined;
       },

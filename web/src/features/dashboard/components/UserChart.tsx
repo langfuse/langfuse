@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@/src/features/filters/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BarList } from "@tremor/react";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
@@ -10,7 +10,10 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { useState } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoData } from "@/src/features/dashboard/components/NoData";
-import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import {
+  createTracesTimeFilter,
+  totalCostDashboardFormatted,
+} from "@/src/features/dashboard/lib/dashboard-utils";
 
 type BarChartDataPoint = {
   name: string;
@@ -31,13 +34,21 @@ export const UserChart = ({
   const user = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observations",
+      from: "traces_observationsview",
       select: [
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "user" },
         { column: "traceId", agg: "COUNT" },
       ],
-      filter: globalFilterState,
+      filter: [
+        ...globalFilterState,
+        {
+          type: "string",
+          column: "type",
+          operator: "=",
+          value: "GENERATION",
+        },
+      ],
       groupBy: [
         {
           type: "string",
@@ -116,7 +127,8 @@ export const UserChart = ({
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
-  const localUsdFormatter = (value: number) => usdFormatter(value, 2, 2);
+  const localUsdFormatter = (value: number) =>
+    totalCostDashboardFormatted(value);
 
   const data = [
     {
@@ -124,7 +136,7 @@ export const UserChart = ({
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCost ? usdFormatter(totalCost, 2, 2) : usdFormatter(0),
+      totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: "Total cost",
       formatter: localUsdFormatter,
     },
