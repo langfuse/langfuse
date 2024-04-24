@@ -1,8 +1,7 @@
 import { env } from "@/src/env.mjs";
 
 export const sendToBetterstack = async (message: unknown) => {
-  if (!env.LANGFUSE_TEAM_BETTERSTACK_TOKEN)
-    throw new Error("LANGFUSE_TEAM_BETTERSTACK_TOKEN is not set");
+  if (!env.LANGFUSE_TEAM_BETTERSTACK_TOKEN) return;
 
   const url = "https://in.logs.betterstack.com";
 
