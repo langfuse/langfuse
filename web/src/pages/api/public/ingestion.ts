@@ -34,7 +34,7 @@ import {
   BaseError,
   ForbiddenError,
   UnauthorizedError,
-} from "@/src/server/errors";
+} from "@langfuse/shared";
 
 export const config = {
   api: {

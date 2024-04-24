@@ -7,7 +7,7 @@ export class BaseError extends Error {
     name: string,
     httpCode: number,
     description: string,
-    isOperational: boolean,
+    isOperational: boolean
   ) {
     super(description);
     Object.setPrototypeOf(this, new.target.prototype); // restore prototype chain

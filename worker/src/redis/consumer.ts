@@ -1,5 +1,5 @@
 import { Job, Queue, Worker } from "bullmq";
-import { QueueName, TQueueJobTypes } from "@langfuse/shared";
+import { BaseError, QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
@@ -61,11 +61,15 @@ export const evalJobExecutor = redis
               e,
               `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
             );
+
+            const displayError =
+              e instanceof BaseError ? e.message : "An internal error occurred";
+
             await kyselyPrisma.$kysely
               .updateTable("job_executions")
               .set("status", sql`'ERROR'::"JobExecutionStatus"`)
               .set("end_time", new Date())
-              .set("error", JSON.stringify(e))
+              .set("error", displayError)
               .where("id", "=", job.data.payload.jobExecutionId)
               .where("project_id", "=", job.data.payload.projectId)
               .execute();
