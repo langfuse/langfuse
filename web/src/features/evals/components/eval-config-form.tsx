@@ -38,13 +38,11 @@ import {
 import router from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
-import { cn } from "@/src/utils/tailwind";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
 
 const formSchema = z.object({
-  evalTemplateId: z.string(),
   scoreName: z.string(),
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
@@ -60,13 +58,64 @@ export const EvalConfigForm = (props: {
   existingEvalConfig?: JobConfiguration & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
 }) => {
+  const [evalTemplate, setEvalTemplate] = useState<string | undefined>(
+    props.existingEvalConfig?.evalTemplate.id,
+  );
+
+  const currentTemplate = props.evalTemplates.find(
+    (t) => t.id === evalTemplate,
+  );
+
+  return (
+    <>
+      {!props.disabled ? (
+        <Select onValueChange={setEvalTemplate} value={evalTemplate}>
+          <SelectTrigger
+            disabled={props.disabled}
+            defaultValue={
+              props.existingEvalConfig?.evalTemplate
+                ? props.existingEvalConfig?.evalTemplate.id
+                : undefined
+            }
+          >
+            <SelectValue placeholder="Select a template to run this eval config" />
+          </SelectTrigger>
+          <SelectContent>
+            {props.evalTemplates.map((template) => (
+              <SelectItem value={template.id} key={template.id}>
+                {`${template.name}-v${template.version}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+      {evalTemplate && currentTemplate ? (
+        <InnerEvalConfigForm
+          projectId={props.projectId}
+          disabled={props.disabled}
+          existingEvalConfig={props.existingEvalConfig}
+          evalTemplate={currentTemplate}
+          onFormSuccess={props.onFormSuccess}
+        />
+      ) : null}
+    </>
+  );
+};
+
+export const InnerEvalConfigForm = (props: {
+  projectId: string;
+  evalTemplate: EvalTemplate;
+  disabled?: boolean;
+  existingEvalConfig?: JobConfiguration & { evalTemplate: EvalTemplate };
+  onFormSuccess?: () => void;
+}) => {
   const [formError, setFormError] = useState<string | null>(null);
   const posthog = usePostHog();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     disabled: props.disabled,
     defaultValues: {
-      evalTemplateId: props.existingEvalConfig?.evalTemplate.id ?? "",
       scoreName: props.existingEvalConfig?.scoreName ?? "",
       target: props.existingEvalConfig?.targetObject ?? "",
       filter: props.existingEvalConfig?.filter
@@ -91,26 +140,22 @@ export const EvalConfigForm = (props: {
     ...form.getFieldState("filter"),
   });
 
-  const getSelectedEvalTemplate = props.evalTemplates.find(
-    (template) => template.id === form.watch("evalTemplateId"),
-  );
-
   useEffect(() => {
-    if (getSelectedEvalTemplate) {
+    if (props.evalTemplate) {
       form.setValue("mapping", []);
       form.setValue(
         "mapping",
-        getSelectedEvalTemplate.vars.map((v) => ({
+        props.evalTemplate.vars.map((v) => ({
           templateVariable: v,
           langfuseObject: "trace" as const,
         })),
       );
       form.setValue(
         "scoreName",
-        `${getSelectedEvalTemplate?.name}-${getSelectedEvalTemplate?.version}`,
+        `${props.evalTemplate.name}-v${props.evalTemplate.version}`,
       );
     }
-  }, [form, getSelectedEvalTemplate]);
+  }, [form, props.evalTemplate]);
 
   const { fields } = useFieldArray({
     control: form.control,
@@ -125,14 +170,6 @@ export const EvalConfigForm = (props: {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("evals:new_config_form");
-
-    if (!getSelectedEvalTemplate) {
-      form.setError("evalTemplateId", {
-        type: "manual",
-        message: "Please select an eval template",
-      });
-      return;
-    }
 
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
@@ -159,7 +196,7 @@ export const EvalConfigForm = (props: {
     createJobMutation
       .mutateAsync({
         projectId: props.projectId,
-        evalTemplateId: getSelectedEvalTemplate.id,
+        evalTemplateId: props.evalTemplate.id,
         scoreName: values.scoreName,
         target: values.target,
         filter: validatedFilter.data,
@@ -193,43 +230,6 @@ export const EvalConfigForm = (props: {
         className="flex flex-col gap-4"
       >
         <div className="grid gap-4">
-          <FormField
-            control={form.control}
-            name="evalTemplateId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Eval Template</FormLabel>
-                <Select
-                  defaultValue={field.value}
-                  onValueChange={(value) => {
-                    field.onChange(value);
-                  }}
-                >
-                  <FormControl>
-                    <SelectTrigger
-                      disabled={props.disabled}
-                      defaultValue={
-                        props.existingEvalConfig?.evalTemplate
-                          ? props.existingEvalConfig?.evalTemplate.id
-                          : undefined
-                      }
-                    >
-                      <SelectValue placeholder="Select a template to run this eval config" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {props.evalTemplates.map((template) => (
-                      <SelectItem value={template.id} key={template.id}>
-                        {`${template.name}-${template.version}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           <FormField
             control={form.control}
             name="scoreName"
@@ -302,7 +302,7 @@ export const EvalConfigForm = (props: {
                   <div className="my-2 flex gap-2">
                     <JSONView
                       title={"Eval Template"}
-                      json={getSelectedEvalTemplate?.prompt ?? null}
+                      json={props.evalTemplate.prompt ?? null}
                       className={"min-h-48 w-1/2 bg-gray-100"}
                     />
                     <div className=" flex w-1/3 flex-col gap-2">
