@@ -434,17 +434,17 @@ export const InnerEvalTemplateForm = (props: {
                 return (
                   <FormItem>
                     <FormLabel>API key</FormLabel>
-                    <Input
-                      {...field}
-                      value={
-                        getApiKeyForModel(form.getValues("model"))
-                          ?.displaySecretKey
-                      }
-                      type="text"
-                      disabled
-                    />
+                    <div>
+                      {getApiKeyForModel(form.getValues("model")) ? (
+                        <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+                          {
+                            getApiKeyForModel(form.getValues("model"))
+                              ?.displaySecretKey
+                          }
+                        </span>
+                      ) : undefined}
+                    </div>
                     {/* Custom form message to include a link to the already existing prompt */}
-
                     {form.getFieldState("apiKey").error ? (
                       <div className="flex flex-col text-sm font-medium text-destructive">
                         <p className="text-sm font-medium text-destructive">
