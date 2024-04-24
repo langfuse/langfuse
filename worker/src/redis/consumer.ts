@@ -27,7 +27,7 @@ export const evalJobCreator = redis
           } catch (e) {
             logger.error(
               e,
-              `Failed job Evaluation for traceId ${job.data.payload.traceId}`
+              `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`
             );
             throw e;
           } finally {
@@ -59,7 +59,7 @@ export const evalJobExecutor = redis
           } catch (e) {
             logger.error(
               e,
-              `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`
+              `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
             );
             await kyselyPrisma.$kysely
               .updateTable("job_executions")
