@@ -9,7 +9,7 @@ import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
-import { NotFoundError, variableMappingList } from "@langfuse/shared";
+import { LangfuseNotFoundError, variableMappingList } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
 vi.mock("../redis/consumer", () => ({
@@ -419,7 +419,7 @@ describe("execute evals", () => {
     };
 
     await expect(evaluate({ event: payload })).rejects.toThrowError(
-      new NotFoundError(
+      new LangfuseNotFoundError(
         "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found."
       )
     );

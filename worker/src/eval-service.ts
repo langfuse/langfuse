@@ -15,7 +15,7 @@ import {
   evalLLMModels,
   ZodModelConfig,
   availableEvalVariables,
-  NotFoundError,
+  LangfuseNotFoundError,
   ForbiddenError,
   ValidationError,
 } from "@langfuse/shared";
@@ -251,7 +251,7 @@ export const evaluate = async ({
   const modelParams = ZodModelConfig.parse(template.model_params);
 
   if (!provider) {
-    throw new NotFoundError(`Model ${evalModel} provider not found`);
+    throw new LangfuseNotFoundError(`Model ${evalModel} provider not found`);
   }
 
   // the apiKey.secret_key must never be printed to the console or returned to the client.
@@ -267,7 +267,7 @@ export const evaluate = async ({
       `API key for provider ${provider} and project ${event.projectId} not found. Failing job id ${job.id}`
     );
     // this will fail the eval execution if a user deletes the API key.
-    throw new NotFoundError(
+    throw new LangfuseNotFoundError(
       `API key for provider ${provider} and project ${event.projectId} not found.`
     );
   }

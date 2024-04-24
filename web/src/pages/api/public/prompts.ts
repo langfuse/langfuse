@@ -11,7 +11,7 @@ import {
 } from "@/src/features/prompts/server/validation";
 import {
   UnauthorizedError,
-  NotFoundError,
+  LangfuseNotFoundError,
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
@@ -46,7 +46,7 @@ export default async function handler(
         },
       });
 
-      if (!prompt) throw new NotFoundError("Prompt not found");
+      if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
 
       return res.status(200).json(prompt);
     }
