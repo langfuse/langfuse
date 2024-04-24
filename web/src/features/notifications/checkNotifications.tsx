@@ -16,8 +16,9 @@ export const NOTIFICATIONS: TNotification[] = [
     description: (
       <div>
         <p>
-          We're launching a new feature every day this week. We already
-          launched:
+          {
+            "We're launching a new feature every day this week. We already launched:"
+          }
         </p>
         <ul className="ms-4 mt-2 list-outside list-disc">
           <li>Langfuse x Posthog integration</li>
