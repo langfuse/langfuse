@@ -38,6 +38,8 @@ import {
 import router from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
+import { cn } from "@/src/utils/tailwind";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -285,134 +287,156 @@ export const EvalConfigForm = (props: {
               )}
             />
           </Card>
-          <Card className=" p-4">
+          <Card className="p-4">
             <FormField
               control={form.control}
               name="mapping"
               render={() => (
                 <>
-                  <FormLabel>Variable mapping</FormLabel>
+                  <FormLabel className="">Variable mapping</FormLabel>
                   <FormControl>
                     Here will some variable mapping be added.
                   </FormControl>
-                  <div className="mt-2 flex flex-col gap-2">
-                    {fields.map((mappingField, index) => (
-                      <div className="flex gap-2" key={index}>
-                        <span className="whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs	">
-                          {mappingField.templateVariable}
-                        </span>
-                        <FormField
-                          control={form.control}
-                          key={`${mappingField.id}-langfuseObject`}
-                          name={`mapping.${index}.langfuseObject`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Select
-                                  disabled={props.disabled}
-                                  defaultValue={field.value}
-                                  onValueChange={(value) => {
-                                    field.onChange(value);
-                                  }}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Object type" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {availableEvalVariables.map(
-                                      (evalObject) => (
-                                        <SelectItem
-                                          value={evalObject.id}
-                                          key={evalObject.id}
-                                        >
-                                          {evalObject.display}
-                                        </SelectItem>
-                                      ),
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        {form.watch(`mapping.${index}.langfuseObject`) !==
-                        "trace" ? (
+                  <div className="my-2 flex gap-2">
+                    <JSONView
+                      title={"Eval Template"}
+                      json={getSelectedEvalTemplate?.prompt ?? null}
+                      className={"min-h-48 w-1/2 bg-gray-100"}
+                    />
+                    <div className=" flex w-1/3 flex-col gap-2">
+                      {fields.map((mappingField, index) => (
+                        <Card className="flex flex-col gap-2 p-4" key={index}>
+                          <div className="text-sm font-semibold	">
+                            {mappingField.templateVariable}
+                          </div>
                           <FormField
                             control={form.control}
-                            key={`${mappingField.id}-objectName`}
-                            name={`mapping.${index}.objectName`}
+                            key={`${mappingField.id}-langfuseObject`}
+                            name={`mapping.${index}.langfuseObject`}
                             render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    value={field.value ?? ""}
-                                    disabled={props.disabled}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
+                              <div className="flex  items-center gap-2">
+                                <span className="text-md muted-foreground w-1/3 text-sm">
+                                  Trace Object
+                                </span>
+                                <FormItem className="w-2/3">
+                                  <FormControl>
+                                    <Select
+                                      disabled={props.disabled}
+                                      defaultValue={field.value}
+                                      onValueChange={(value) => {
+                                        field.onChange(value);
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Object type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availableEvalVariables.map(
+                                          (evalObject) => (
+                                            <SelectItem
+                                              value={evalObject.id}
+                                              key={evalObject.id}
+                                            >
+                                              {evalObject.display}
+                                            </SelectItem>
+                                          ),
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              </div>
                             )}
                           />
-                        ) : undefined}
 
-                        <FormField
-                          control={form.control}
-                          key={`${mappingField.id}-selectedColumnId`}
-                          name={`mapping.${index}.selectedColumnId`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Select
-                                  disabled={props.disabled}
-                                  defaultValue={field.value ?? undefined}
-                                  onValueChange={(value) => {
-                                    const availableColumns =
-                                      availableEvalVariables.find(
-                                        (evalObject) =>
-                                          evalObject.id ===
-                                          form.watch(
-                                            `mapping.${index}.langfuseObject`,
-                                          ),
-                                      )?.availableColumns;
-                                    const column = availableColumns?.find(
-                                      (column) => column.id === value,
-                                    );
+                          {form.watch(`mapping.${index}.langfuseObject`) !==
+                          "trace" ? (
+                            <FormField
+                              control={form.control}
+                              key={`${mappingField.id}-objectName`}
+                              name={`mapping.${index}.objectName`}
+                              render={({ field }) => (
+                                <div className="flex items-center gap-2">
+                                  <span className="text muted-foreground w-1/3 text-sm">
+                                    Object Name
+                                  </span>
+                                  <FormItem className="w-2/3">
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        disabled={props.disabled}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                </div>
+                              )}
+                            />
+                          ) : undefined}
 
-                                    field.onChange(column?.id);
-                                  }}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Object type" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {availableEvalVariables
-                                      .find(
-                                        (evalObject) =>
-                                          evalObject.id ===
-                                          form.watch(
-                                            `mapping.${index}.langfuseObject`,
-                                          ),
-                                      )
-                                      ?.availableColumns.map((column) => (
-                                        <SelectItem
-                                          value={column.id}
-                                          key={column.id}
-                                        >
-                                          {column.name}
-                                        </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    ))}
+                          <FormField
+                            control={form.control}
+                            key={`${mappingField.id}-selectedColumnId`}
+                            name={`mapping.${index}.selectedColumnId`}
+                            render={({ field }) => (
+                              <div className="flex items-center gap-2">
+                                <span className="text muted-foreground w-1/3 text-sm">
+                                  Object variable
+                                </span>
+                                <FormItem className="w-2/3">
+                                  <FormControl>
+                                    <Select
+                                      disabled={props.disabled}
+                                      defaultValue={field.value ?? undefined}
+                                      onValueChange={(value) => {
+                                        const availableColumns =
+                                          availableEvalVariables.find(
+                                            (evalObject) =>
+                                              evalObject.id ===
+                                              form.watch(
+                                                `mapping.${index}.langfuseObject`,
+                                              ),
+                                          )?.availableColumns;
+                                        const column = availableColumns?.find(
+                                          (column) => column.id === value,
+                                        );
+
+                                        field.onChange(column?.id);
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Object type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availableEvalVariables
+                                          .find(
+                                            (evalObject) =>
+                                              evalObject.id ===
+                                              form.watch(
+                                                `mapping.${index}.langfuseObject`,
+                                              ),
+                                          )
+                                          ?.availableColumns.map((column) => (
+                                            <SelectItem
+                                              value={column.id}
+                                              key={column.id}
+                                            >
+                                              {column.name}
+                                            </SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              </div>
+                            )}
+                          />
+                        </Card>
+                      ))}
+                    </div>
                   </div>
                   <FormDescription>
                     Insert trace data into the prompt template.
@@ -459,7 +483,7 @@ export const EvalConfigForm = (props: {
                 <FormItem>
                   <FormLabel>Delay (seconds)</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} value={field.value / 1000} />
                   </FormControl>
                   <FormDescription>
                     Time between first Trace event and evaluation execution to
