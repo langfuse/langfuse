@@ -15,7 +15,7 @@ import {
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
-} from "@/src/server/errors";
+} from "@langfuse/shared";
 
 export default async function handler(
   req: NextApiRequest,

@@ -15,6 +15,9 @@ import {
   evalLLMModels,
   ZodModelConfig,
   availableEvalVariables,
+  NotFoundError,
+  ForbiddenError,
+  ValidationError,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -170,7 +173,7 @@ export const evaluate = async ({
     .executeTakeFirstOrThrow();
 
   if (!job?.job_input_trace_id) {
-    throw new Error("Jobs can only be executed on traces for now.");
+    throw new ForbiddenError("Jobs can only be executed on traces for now.");
   }
 
   if (job.status === "CANCELLED") {
@@ -235,7 +238,7 @@ export const evaluate = async ({
     .parse(template.output_schema);
 
   if (!parsedOutputSchema) {
-    throw new Error("Output schema not found");
+    throw new ValidationError("Output schema not found");
   }
 
   const openAIFunction = z.object({
@@ -248,7 +251,7 @@ export const evaluate = async ({
   const modelParams = ZodModelConfig.parse(template.model_params);
 
   if (!provider) {
-    throw new Error(`Model ${evalModel} provider not found`);
+    throw new NotFoundError(`Model ${evalModel} provider not found`);
   }
 
   // the apiKey.secret_key must never be printed to the console or returned to the client.
@@ -264,7 +267,7 @@ export const evaluate = async ({
       `API key for provider ${provider} and project ${event.projectId} not found. Failing job id ${job.id}`
     );
     // this will fail the eval execution if a user deletes the API key.
-    throw new Error(
+    throw new NotFoundError(
       `API key for provider ${provider} and project ${event.projectId} not found.`
     );
   }
