@@ -40,6 +40,7 @@ import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { Label } from "@/src/components/ui/label";
 
 const formSchema = z.object({
   evalTemplateId: z.string(),
@@ -315,9 +316,9 @@ export const EvalConfigForm = (props: {
                             name={`mapping.${index}.langfuseObject`}
                             render={({ field }) => (
                               <div className="flex  items-center gap-2">
-                                <span className="text-md muted-foreground w-1/3 text-sm">
-                                  Trace Object
-                                </span>
+                                <Label className="muted-foreground w-1/3 text-sm font-light">
+                                  Trace object
+                                </Label>
                                 <FormItem className="w-2/3">
                                   <FormControl>
                                     <Select
@@ -358,9 +359,9 @@ export const EvalConfigForm = (props: {
                               name={`mapping.${index}.objectName`}
                               render={({ field }) => (
                                 <div className="flex items-center gap-2">
-                                  <span className="text muted-foreground w-1/3 text-sm">
-                                    Object Name
-                                  </span>
+                                  <Label className="muted-foreground w-1/3 text-sm font-light">
+                                    Object name
+                                  </Label>
                                   <FormItem className="w-2/3">
                                     <FormControl>
                                       <Input
@@ -382,9 +383,9 @@ export const EvalConfigForm = (props: {
                             name={`mapping.${index}.selectedColumnId`}
                             render={({ field }) => (
                               <div className="flex items-center gap-2">
-                                <span className="text muted-foreground w-1/3 text-sm">
+                                <Label className="muted-foreground w-1/3 text-sm font-light">
                                   Object variable
-                                </span>
+                                </Label>
                                 <FormItem className="w-2/3">
                                   <FormControl>
                                     <Select
