@@ -379,4 +379,69 @@ export const evalRouter = createTRPCRouter({
         action: "update",
       });
     }),
+
+  getLogs: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        limit: z.number().optional(),
+        page: z.number().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+        throw new Error("Evals available in cloud only");
+      }
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "job:read",
+      });
+
+      const jobExecutions = await ctx.prisma.jobExecution.findMany({
+        where: {
+          projectId: input.projectId,
+          status: {
+            not: "CANCELLED",
+          },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          updatedAt: true,
+          projectId: true,
+          jobConfigurationId: true,
+          status: true,
+          startTime: true,
+          endTime: true,
+          error: true,
+          jobInputTraceId: true,
+          score: true,
+          jobConfiguration: {
+            select: {
+              evalTemplateId: true,
+            },
+          },
+        },
+        ...(input.limit && input.page
+          ? { take: input.limit, skip: input.page * input.limit }
+          : undefined),
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      const count = await ctx.prisma.jobExecution.count({
+        where: {
+          projectId: input.projectId,
+          status: {
+            not: "CANCELLED",
+          },
+        },
+      });
+      return {
+        data: jobExecutions,
+        totalCount: count,
+      };
+    }),
 });

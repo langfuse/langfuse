@@ -21,3 +21,6 @@ export * from "./features/evals/types";
 // export db types only
 export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";
+
+// errors
+export * from "./errors/index";
