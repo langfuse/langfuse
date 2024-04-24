@@ -423,14 +423,13 @@ export const evalRouter = createTRPCRouter({
             },
           },
         },
-        ...(input.limit && input.page
+        ...(input.limit !== undefined && input.page !== undefined
           ? { take: input.limit, skip: input.page * input.limit }
           : undefined),
         orderBy: {
           createdAt: "desc",
         },
       });
-
       const count = await ctx.prisma.jobExecution.count({
         where: {
           projectId: input.projectId,
