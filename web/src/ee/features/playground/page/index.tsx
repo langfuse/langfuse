@@ -10,7 +10,7 @@ export default function PlaygroundPage() {
         title="Playground"
         help={{
           description: "A sandbox to test and iterate your prompts",
-          href: "https://docs.langfuse.com/docs/playground",
+          href: "https://langfuse.com/docs/playground",
         }}
         featureBetaURL="https://github.com/orgs/langfuse/discussions/1170"
       />
