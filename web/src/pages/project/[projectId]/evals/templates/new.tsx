@@ -27,7 +27,7 @@ export default function NewTemplatesPage() {
       <EvalTemplateForm
         projectId={projectId}
         isEditing={true}
-        existingLlmApiKeys={llmApiKeys.data?.data ?? []}
+        apiKeys={llmApiKeys.data?.data ?? []}
       />
     </div>
   );

@@ -73,7 +73,7 @@ const formSchema = z.object({
 export const EvalTemplateForm = (props: {
   projectId: string;
   existingEvalTemplate?: EvalTemplate;
-  existingLlmApiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
+  apiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
   onFormSuccess?: () => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
@@ -120,7 +120,7 @@ export const EvalTemplateForm = (props: {
           preFilledFormValues={
             langfuseTemplate
               ? {
-                  name: langfuseTemplate ?? "",
+                  name: langfuseTemplate.toLocaleLowerCase() ?? "",
                   prompt: currentTemplate?.prompt.trim() ?? "",
                   vars: [],
                   outputSchema: {
@@ -177,7 +177,7 @@ export type EvalTemplateFormPreFill = {
 export const InnerEvalTemplateForm = (props: {
   projectId: string;
   preFilledFormValues?: EvalTemplateFormPreFill;
-  existingLlmApiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
+  apiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
   existingEvalTemplateId?: string;
   existingEvalTemplateName?: string;
   onFormSuccess?: () => void;
@@ -212,15 +212,21 @@ export const InnerEvalTemplateForm = (props: {
   const getApiKeyForModel = useCallback(
     (model: string) => {
       const modelProvider = getModelProvider(model);
-      return props.existingLlmApiKeys.find((k) => k.provider === modelProvider);
+      return props.apiKeys.find((k) => k.provider === modelProvider);
     },
-    [getModelProvider, props.existingLlmApiKeys],
+    [getModelProvider, props.apiKeys],
   );
 
   const defaultModel = props.preFilledFormValues?.model ?? "gpt-3.5-turbo";
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     disabled: !props.isEditing,
+    errors: {
+      ...(!getApiKeyForModel(defaultModel)
+        ? { apiKey: { message: "No LLM API key found.", type: "required" } }
+        : undefined),
+    },
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
@@ -232,7 +238,7 @@ export const InnerEvalTemplateForm = (props: {
       outputScore: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
         : undefined,
-      apiKey: defaultModel ? getApiKeyForModel(defaultModel)?.id : undefined,
+      apiKey: getApiKeyForModel(defaultModel)?.id,
     },
   });
 
