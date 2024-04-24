@@ -85,7 +85,7 @@ export const EvalTemplateDetail = () => {
         <EvalTemplateForm
           projectId={projectId}
           existingEvalTemplate={template.data ?? undefined}
-          existingLlmApiKeys={llmApiKeys.data?.data ?? []}
+          apiKeys={llmApiKeys.data?.data ?? []}
           isEditing={isEditing}
           setIsEditing={setIsEditing}
         />
