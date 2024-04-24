@@ -1,4 +1,5 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -39,7 +40,7 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
       id: "status",
       cell: (row) => {
         const status = row.getValue();
-        return status;
+        return <StatusBadge type={status.toLowerCase()} />;
       },
     }),
     columnHelper.accessor("startTime", {
