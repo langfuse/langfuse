@@ -43,7 +43,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/features/evals/components/templates";
-import { CreateEvalTemplate } from "@/src/features/evals/server/router";
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -90,9 +89,9 @@ export const EvalTemplateForm = (props: {
   );
 
   return (
-    <>
+    <div className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3">
       {props.isEditing ? (
-        <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
+        <div className="col-span-1 lg:col-span-2">
           <Select
             value={langfuseTemplate ?? ""}
             onValueChange={updateLangfuseTemplate}
@@ -100,7 +99,7 @@ export const EvalTemplateForm = (props: {
             <SelectTrigger className="text-gray-700 ring-transparent focus:ring-0 focus:ring-offset-0">
               <SelectValue
                 className="text-sm font-semibold text-gray-700"
-                placeholder={langfuseTemplate}
+                placeholder={"Select a Langfuse managed template"}
               />
             </SelectTrigger>
             <SelectContent className="max-h-60 max-w-80">
@@ -113,49 +112,51 @@ export const EvalTemplateForm = (props: {
           </Select>
         </div>
       ) : null}
-      <InnerEvalTemplateForm
-        {...props}
-        existingEvalTemplateId={props.existingEvalTemplate?.id}
-        existingEvalTemplateName={props.existingEvalTemplate?.name}
-        preFilledFormValues={
-          langfuseTemplate
-            ? {
-                name: langfuseTemplate ?? "",
-                prompt: currentTemplate?.prompt.trim() ?? "",
-                vars: [],
-                outputSchema: {
-                  score: currentTemplate?.outputScore?.trim() ?? "",
-                  reasoning: currentTemplate?.outputReasoning?.trim() ?? "",
-                },
-                model: "gpt-3.5-turbo",
-                modelParams: {
-                  model: "gpt-3.5-turbo",
-                  provider: ModelProvider.OpenAI,
-                  temperature: 1,
-                  maxTemperature: 2,
-                  max_tokens: 256,
-                  top_p: 1,
-                },
-              }
-            : props.existingEvalTemplate
+      <div className="col-span-1 lg:col-span-3">
+        <InnerEvalTemplateForm
+          {...props}
+          existingEvalTemplateId={props.existingEvalTemplate?.id}
+          existingEvalTemplateName={props.existingEvalTemplate?.name}
+          preFilledFormValues={
+            langfuseTemplate
               ? {
-                  name: props.existingEvalTemplate.name,
-                  prompt: props.existingEvalTemplate.prompt,
-                  vars: props.existingEvalTemplate.vars,
-                  outputSchema: props.existingEvalTemplate.outputSchema as {
-                    score: string;
-                    reasoning: string;
+                  name: langfuseTemplate ?? "",
+                  prompt: currentTemplate?.prompt.trim() ?? "",
+                  vars: [],
+                  outputSchema: {
+                    score: currentTemplate?.outputScore?.trim() ?? "",
+                    reasoning: currentTemplate?.outputReasoning?.trim() ?? "",
                   },
-                  model: props.existingEvalTemplate.model as OpenAIModel,
-                  modelParams: props.existingEvalTemplate
-                    .modelParams as OpenAIModelParams & {
-                    maxTemperature: number;
+                  model: "gpt-3.5-turbo",
+                  modelParams: {
+                    model: "gpt-3.5-turbo",
+                    provider: ModelProvider.OpenAI,
+                    temperature: 1,
+                    maxTemperature: 2,
+                    max_tokens: 256,
+                    top_p: 1,
                   },
                 }
-              : undefined
-        }
-      />
-    </>
+              : props.existingEvalTemplate
+                ? {
+                    name: props.existingEvalTemplate.name,
+                    prompt: props.existingEvalTemplate.prompt,
+                    vars: props.existingEvalTemplate.vars,
+                    outputSchema: props.existingEvalTemplate.outputSchema as {
+                      score: string;
+                      reasoning: string;
+                    },
+                    model: props.existingEvalTemplate.model as OpenAIModel,
+                    modelParams: props.existingEvalTemplate
+                      .modelParams as OpenAIModelParams & {
+                      maxTemperature: number;
+                    },
+                  }
+                : undefined
+          }
+        />
+      </div>
+    </div>
   );
 };
 
