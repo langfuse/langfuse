@@ -1,21 +1,25 @@
 import { z } from "zod";
-
-import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
-import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma } from "@prisma/client";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
+import {
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type Decimal from "decimal.js";
+import {
+  type SessionOptions,
+  sessionsViewCols,
+} from "@/src/server/api/definitions/sessionsView";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -125,6 +129,26 @@ export const sessionRouter = createTRPCRouter({
         });
       }
     }),
+  filterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const userIds: { value: string; count: number }[] = await ctx.prisma
+        .$queryRaw`
+      SELECT traces.user_id as value, COUNT(traces.user_id)::int as count
+      FROM traces
+      WHERE traces.session_id IS NOT NULL
+      AND traces.project_id = ${input.projectId}
+      GROUP BY traces.user_id;
+    `;
+      const res: SessionOptions = {
+        userIds: userIds,
+      };
+      return res;
+    }),
   byId: protectedGetSessionProcedure
     .input(z.object({ projectId: z.string(), sessionId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -139,8 +163,12 @@ export const sessionRouter = createTRPCRouter({
               orderBy: {
                 timestamp: "asc",
               },
-              include: {
+              select: {
+                id: true,
+                userId: true,
                 scores: true,
+                name: true,
+                timestamp: true,
               },
             },
           },

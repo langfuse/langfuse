@@ -7,6 +7,8 @@ import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetIte
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -22,23 +24,39 @@ export default function DatasetItems() {
   return (
     <div>
       <Header
-        title={`Dataset: ${dataset.data?.name}`}
+        title={dataset.data?.name ?? ""}
+        help={
+          dataset.data?.description
+            ? {
+                description: dataset.data.description,
+              }
+            : undefined
+        }
         breadcrumb={[
           { name: "Datasets", href: `/project/${projectId}/datasets` },
-          { name: dataset.data?.name ?? datasetId },
+          {
+            name: dataset.data?.name ?? datasetId,
+            href: `/project/${projectId}/datasets/${datasetId}`,
+          },
+          {
+            name: "Items",
+          },
         ]}
         actionButtons={
           <>
+            <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <DetailPageNav
               currentId={datasetId}
               path={(id) => `/project/${projectId}/datasets/${id}/items/`}
               listKey="datasets"
             />
             <DatasetActionButton
-              mode="rename"
+              mode="update"
               projectId={projectId}
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
+              datasetDescription={dataset.data?.description ?? undefined}
+              datasetMetadata={dataset.data?.metadata}
               icon
             />
             <DeleteButton
@@ -53,18 +71,27 @@ export default function DatasetItems() {
           </>
         }
       />
-      <Tabs value="items" className="mb-3">
-        <TabsList>
-          <TabsTrigger value="runs" asChild>
-            <Link href={`/project/${projectId}/datasets/${datasetId}`}>
-              Runs
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="items">Items</TabsTrigger>
-        </TabsList>
-      </Tabs>
 
-      <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
+      {!!dataset.data?.metadata && (
+        <JSONView json={dataset?.data.metadata} title="Metadata" />
+      )}
+
+      <DatasetItemsTable
+        projectId={projectId}
+        datasetId={datasetId}
+        menuItems={
+          <Tabs value="items">
+            <TabsList>
+              <TabsTrigger value="runs" asChild>
+                <Link href={`/project/${projectId}/datasets/${datasetId}`}>
+                  Runs
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="items">Items</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
     </div>
   );
 }

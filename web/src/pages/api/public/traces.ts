@@ -1,9 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { Prisma, type Trace } from "@prisma/client";
+import { Prisma, type Trace } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import {
   handleBatch,
@@ -12,12 +12,12 @@ import {
 import {
   TraceBody,
   eventTypes,
+  stringDate,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { tracesTableCols } from "@/src/server/api/definitions/tracesTable";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { tracesTableCols, orderBy } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetTracesSchema = z.object({
@@ -25,6 +25,7 @@ const GetTracesSchema = z.object({
   userId: z.string().nullish(),
   name: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
+  fromTimestamp: stringDate,
   orderBy: z
     .string() // orderBy=timestamp.asc
     .nullish()
@@ -61,10 +62,11 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
-      if (authCheck.scope.accessLevel !== "all")
-        return res.status(403).json({
-          message: "Access denied",
+      if (authCheck.scope.accessLevel !== "all") {
+        return res.status(401).json({
+          message: "Access denied - need to use basic auth with secret key",
         });
+      }
 
       const body = TraceBody.parse(req.body);
 
@@ -82,8 +84,7 @@ export default async function handler(
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
 
@@ -103,6 +104,9 @@ export default async function handler(
             ),
             ", ",
           )}] <@ t."tags"`
+        : Prisma.empty;
+      const fromTimestampCondition = obj.fromTimestamp
+        ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
 
       const orderByCondition = orderByToPrismaSql(
@@ -140,6 +144,7 @@ export default async function handler(
           ${userCondition}
           ${nameCondition}
           ${tagsCondition}
+          ${fromTimestampCondition}
           GROUP BY t.id
           ${orderByCondition}
           LIMIT ${obj.limit} OFFSET ${skipValue}
@@ -147,8 +152,16 @@ export default async function handler(
       const totalItems = await prisma.trace.count({
         where: {
           projectId: authCheck.scope.projectId,
-          name: obj.name ?? undefined,
-          userId: obj.userId ?? undefined,
+          name: obj.name ? obj.name : undefined,
+          userId: obj.userId ? obj.userId : undefined,
+          timestamp: obj.fromTimestamp
+            ? { gte: new Date(obj.fromTimestamp) }
+            : undefined,
+          tags: obj.tags
+            ? {
+                hasEvery: Array.isArray(obj.tags) ? obj.tags : [obj.tags],
+              }
+            : undefined,
         },
       });
 

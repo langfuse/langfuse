@@ -10,21 +10,30 @@ export function truncate(str: string, n: number = 16) {
   return str;
 }
 
+export function getIsCharOrUnderscore(value: string): boolean {
+  const charOrUnderscore = /^[A-Za-z_]+$/;
+
+  return charOrUnderscore.test(value);
+}
+
+export function validateVariables(content: string): boolean {
+  return extractVariables(content).every(getIsCharOrUnderscore);
+}
+
 export function extractVariables(mustacheString: string): string[] {
-  // Regular expression to match Mustache variables
-  const regex: RegExp = /\{\{(.*?)\}\}/g;
+  const mustacheRegex = /\{\{(.*?)\}\}/g;
+  const uniqueVariables = new Set<string>();
 
-  let match: RegExpExecArray | null;
-  const variables: string[] = [];
+  for (const match of mustacheString.matchAll(mustacheRegex)) {
+    uniqueVariables.add(match[1]);
+  }
 
-  // Iterate over all matches
-  while ((match = regex.exec(mustacheString)) !== null) {
-    // Push each variable to the array if it's not already present
-    const variable = match[1];
-    if (variable && !variables.includes(variable)) {
-      variables.push(variable);
+  for (const variable of uniqueVariables) {
+    // if validated fails, remove from set
+    if (!getIsCharOrUnderscore(variable)) {
+      uniqueVariables.delete(variable);
     }
   }
 
-  return variables;
+  return Array.from(uniqueVariables);
 }

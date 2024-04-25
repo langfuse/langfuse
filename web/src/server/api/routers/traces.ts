@@ -5,22 +5,23 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Trace, type ObservationView } from "@prisma/client";
-import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
 import {
-  type TraceOptions,
-  tracesTableCols,
-} from "@/src/server/api/definitions/tracesTable";
+  Prisma,
+  type Trace,
+  type ObservationView,
+  type ObservationLevel,
+} from "@langfuse/shared/src/db";
+import { paginationZod } from "@/src/utils/zod";
+import { type TraceOptions, singleFilter } from "@langfuse/shared";
+import { tracesTableCols } from "@langfuse/shared";
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
-} from "@/src/features/filters/server/filterToPrisma";
+} from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { type Sql } from "@prisma/client/runtime/library";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -30,6 +31,7 @@ const TraceFilterOptions = z.object({
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
+  returnIO: z.boolean().default(true),
   ...paginationZod,
 });
 
@@ -44,6 +46,7 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const returnIO = input.returnIO;
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         tracesTableCols,
@@ -88,7 +91,8 @@ export const traceRouter = createTRPCRouter({
           tl.latency AS "latency",
           COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
           COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
-          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost"
+          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
+          tm."level" AS "level"
           `,
 
         input.projectId,
@@ -111,6 +115,7 @@ export const traceRouter = createTRPCRouter({
                 totalTokens: number;
                 totalCount: number;
                 latency: number | null;
+                level: ObservationLevel;
                 calculatedTotalCost: Decimal | null;
                 calculatedInputCost: Decimal | null;
                 calculatedOutputCost: Decimal | null;
@@ -149,7 +154,17 @@ export const traceRouter = createTRPCRouter({
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
-          return { ...trace, scores: filteredScores };
+          const { input, output, ...rest } = trace;
+          if (returnIO) {
+            return { ...rest, input, output, scores: filteredScores };
+          } else {
+            return {
+              ...rest,
+              input: undefined,
+              output: undefined,
+              scores: filteredScores,
+            };
+          }
         }),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
@@ -203,7 +218,11 @@ export const traceRouter = createTRPCRouter({
       return res;
     }),
   byId: protectedGetTraceProcedure
-    .input(z.object({ traceId: z.string() }))
+    .input(
+      z.object({
+        traceId: z.string(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
@@ -431,7 +450,7 @@ export const traceRouter = createTRPCRouter({
         scope: "objects:tag",
       });
       try {
-        const trace = await ctx.prisma.trace.update({
+        await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
             projectId: input.projectId,
@@ -449,7 +468,6 @@ export const traceRouter = createTRPCRouter({
           action: "updateTags",
           after: input.tags,
         });
-        return trace;
       } catch (error) {
         console.error(error);
       }
@@ -457,14 +475,14 @@ export const traceRouter = createTRPCRouter({
 });
 
 function createTracesQuery(
-  select: Sql,
+  select: Prisma.Sql,
   projectId: string,
-  observationTimeseriesFilter: Sql,
+  observationTimeseriesFilter: Prisma.Sql,
   page: number,
   limit: number,
-  searchCondition: Sql,
-  filterCondition: Sql,
-  orderByCondition: Sql,
+  searchCondition: Prisma.Sql,
+  filterCondition: Prisma.Sql,
+  orderByCondition: Prisma.Sql,
 ) {
   return Prisma.sql`
   SELECT
@@ -478,7 +496,13 @@ function createTracesQuery(
       SUM(total_tokens) AS "totalTokens",
       SUM(calculated_total_cost) AS "calculatedTotalCost",
       SUM(calculated_input_cost) AS "calculatedInputCost",
-      SUM(calculated_output_cost) AS "calculatedOutputCost"
+      SUM(calculated_output_cost) AS "calculatedOutputCost",
+      COALESCE(  
+        MAX(CASE WHEN level = 'ERROR' THEN 'ERROR' END),  
+        MAX(CASE WHEN level = 'WARNING' THEN 'WARNING' END),  
+        MAX(CASE WHEN level = 'DEFAULT' THEN 'DEFAULT' END),  
+        'DEBUG'  
+      ) AS "level"
     FROM
       "observations_view"
     WHERE

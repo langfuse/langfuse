@@ -1,30 +1,25 @@
 {
+  "extends": "@repo/typescript-config/nextjs.json",
   "compilerOptions": {
-    "target": "es2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "checkJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "noUncheckedIndexedAccess": true,
-    "noErrorTruncation": true,
-    "baseUrl": ".",
-    "types": ["jest", "node"],
+    "declaration": false,
+    "declarationMap": false,
+    "outDir": "dist",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "strictNullChecks": true
   },
+  "exclude": ["node_modules", "sdk"],
   "include": [
-    ".eslintrc.cjs",
+    "src",
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".eslintrc.js",
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
@@ -32,6 +27,5 @@
     "**/*.mjs",
     "src/features/navigate-detail-pages",
     "types/global.d.ts"
-  ],
-  "exclude": ["node_modules", "sdk"]
+  ]
 }

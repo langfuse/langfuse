@@ -1,6 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
-import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import {
@@ -10,41 +9,67 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Archive, MoreVertical } from "lucide-react";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+
+import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { DatasetStatus, type DatasetItem } from "@prisma/client";
+import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
 type RowData = {
   id: string;
+  source?: {
+    traceId: string;
+    observationId?: string;
+  };
   status: DatasetItem["status"];
   createdAt: string;
-  input: string;
-  expectedOutput: string;
+  input: Prisma.JsonValue;
+  expectedOutput: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
 };
 
 export function DatasetItemsTable({
   projectId,
   datasetId,
+  menuItems,
 }: {
   projectId: string;
   datasetId: string;
+  menuItems?: React.ReactNode;
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
+
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "datasetItems",
+    "s",
+  );
+
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
   });
 
   useEffect(() => {
     if (items.isSuccess) {
       setDetailPageList(
         "datasetItems",
-        items.data.map((t) => t.id),
+        items.data.datasetItems.map((t) => t.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,6 +83,7 @@ export function DatasetItemsTable({
     {
       accessorKey: "id",
       header: "Item id",
+      id: "id",
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (
@@ -70,8 +96,35 @@ export function DatasetItemsTable({
       },
     },
     {
+      accessorKey: "source",
+      header: "Source",
+      headerTooltip: {
+        description:
+          "Link to the source trace based on which this item was added",
+      },
+      id: "source",
+      cell: ({ row }) => {
+        const source: RowData["source"] = row.getValue("source");
+        if (!source) return null;
+        return source.observationId ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${source.traceId}?observation=${source.observationId}`}
+            value={source.observationId}
+            icon={<ListTree className="h-4 w-4" />}
+          />
+        ) : (
+          <TableLink
+            path={`/project/${projectId}/traces/${source.traceId}`}
+            value={source.traceId}
+            icon={<ListTree className="h-4 w-4" />}
+          />
+        );
+      },
+    },
+    {
       accessorKey: "status",
       header: "Status",
+      id: "status",
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
         return (
@@ -91,18 +144,56 @@ export function DatasetItemsTable({
     },
     {
       accessorKey: "createdAt",
-      header: "Created",
+      header: "Created At",
+      id: "createdAt",
+      enableHiding: true,
     },
     {
       accessorKey: "input",
       header: "Input",
+      id: "input",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const input = row.getValue("input") as RowData["input"];
+        return !!input ? (
+          <IOTableCell data={input} singleLine={rowHeight === "s"} />
+        ) : null;
+      },
     },
     {
       accessorKey: "expectedOutput",
       header: "Expected Output",
+      id: "expectedOutput",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const expectedOutput = row.getValue(
+          "expectedOutput",
+        ) as RowData["expectedOutput"];
+        return !!expectedOutput ? (
+          <IOTableCell
+            data={expectedOutput}
+            className="bg-green-50"
+            singleLine={rowHeight === "s"}
+          />
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      id: "metadata",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const metadata = row.getValue("metadata") as RowData["metadata"];
+        return !!metadata ? (
+          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
+        ) : null;
+      },
     },
     {
       id: "actions",
+      accessorKey: "actions",
+      header: "Actions",
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         const status: DatasetStatus = row.getValue("status");
@@ -140,29 +231,39 @@ export function DatasetItemsTable({
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["itemsByDatasetId"][number],
+    item: RouterOutput["datasets"]["itemsByDatasetId"]["datasetItems"][number],
   ): RowData => {
-    let input = JSON.stringify(item.input);
-    input = input.length > 50 ? input.slice(0, 50) + "..." : input;
-    let expectedOutput = item.expectedOutput
-      ? JSON.stringify(item.expectedOutput)
-      : "";
-    expectedOutput =
-      expectedOutput.length > 50
-        ? expectedOutput.slice(0, 50) + "..."
-        : expectedOutput;
-
     return {
       id: item.id,
+      source: item.sourceTraceId
+        ? {
+            traceId: item.sourceTraceId,
+            observationId: item.sourceObservationId ?? undefined,
+          }
+        : undefined,
       status: item.status,
-      createdAt: item.createdAt.toISOString(),
-      input,
-      expectedOutput,
+      createdAt: item.createdAt.toLocaleString(),
+      input: item.input,
+      expectedOutput: item.expectedOutput,
+      metadata: item.metadata,
     };
   };
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "datasetItemsColumnVisibility",
+    columns,
+  );
+
   return (
     <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+        actionButtons={menuItems}
+      />
       <DataTable
         columns={columns}
         data={
@@ -177,14 +278,21 @@ export function DatasetItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.map((t) => convertToTableRow(t)),
+                  data: items.data.datasetItems.map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
-      />
-      <NewDatasetItemButton
-        projectId={projectId}
-        datasetId={datasetId}
-        className="mt-4"
+        pagination={{
+          pageCount: Math.ceil(
+            (items.data?.totalDatasetItems ?? 0) / paginationState.pageSize,
+          ),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
       />
     </div>
   );

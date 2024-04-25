@@ -1,13 +1,9 @@
 import Header from "@/src/components/layouts/header";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
-import { useRouter } from "next/router";
 
 export default function Prompts() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-
   return (
-    <div className="xl:container">
+    <div>
       <Header
         title="Prompts"
         help={{
@@ -16,7 +12,7 @@ export default function Prompts() {
           href: "https://langfuse.com/docs/prompts",
         }}
       />
-      <PromptTable projectId={projectId} />
+      <PromptTable />
     </div>
   );
 }

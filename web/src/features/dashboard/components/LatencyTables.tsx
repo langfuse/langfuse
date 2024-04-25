@@ -1,7 +1,7 @@
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { type FilterState } from "@/src/features/filters/types";
+import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
@@ -20,7 +20,7 @@ export const LatencyTables = ({
   const generationsLatencies = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "observations",
+      from: "traces_observations",
       select: [
         { column: "duration", agg: "50thPercentile" },
         { column: "duration", agg: "90thPercentile" },
@@ -54,7 +54,7 @@ export const LatencyTables = ({
   const spansLatencies = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "observations",
+      from: "traces_observations",
       select: [
         { column: "duration", agg: "50thPercentile" },
         { column: "duration", agg: "90thPercentile" },

@@ -2,7 +2,7 @@ import { type z } from "zod";
 
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { type ObservationView, Prisma } from "@prisma/client";
+import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
@@ -41,6 +41,7 @@ export const getAllQuery = protectedProjectProcedure
         count(*)
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
+      LEFT JOIN prompts p ON p.id = o.prompt_id
       LEFT JOIN LATERAL (
         SELECT
           jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
@@ -66,7 +67,6 @@ export const getAllQuery = protectedProjectProcedure
         ${filterCondition}
     `,
     );
-
     const count = totalGenerations[0]?.count;
     return {
       totalCount: count ? Number(count) : undefined,

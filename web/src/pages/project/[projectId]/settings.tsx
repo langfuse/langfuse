@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "@heroicons/react/20/solid";
-import { CommandLineIcon, RocketLaunchIcon } from "@heroicons/react/24/outline";
-import { SiPython } from "react-icons/si";
+import { RocketLaunchIcon } from "@heroicons/react/24/outline";
+import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import { useRouter } from "next/router";
@@ -11,6 +11,11 @@ import { HostNameProject } from "@/src/features/projects/components/HostNameProj
 import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
 import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 import RenameProject from "@/src/features/projects/components/RenameProject";
+import { env } from "@/src/env.mjs";
+import { Card } from "@tremor/react";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -19,12 +24,14 @@ export default function SettingsPage() {
     <div className="md:container">
       <Header title="Settings" />
       <div className="flex flex-col gap-10">
-        <ProjectMembersTable projectId={projectId} />
-        <RenameProject projectId={projectId} />
         <HostNameProject />
         <ApiKeyList projectId={projectId} />
+        <LlmApiKeyList projectId={projectId} />
+        <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
+        <Integrations projectId={projectId} />
         <Instructions />
+        <RenameProject projectId={projectId} />
         <div className="space-y-3">
           <DeleteProjectButton projectId={projectId} />
           <TransferOwnershipButton projectId={projectId} />
@@ -49,23 +56,36 @@ const instructionItems = [
     icon: RocketLaunchIcon,
   },
   {
-    name: "Langchain integration",
+    name: "OpenAI SDK Integration",
+    description: "Trace your OpenAI API calls with a single line of code",
+    href: "https://langfuse.com/docs/integrations/openai",
+    icon: SiOpenai,
+  },
+  {
+    name: "Langchain Integration",
     description:
       "Trace your Langchain llm/chain/agent/... with a single line of code",
-    href: "https://langfuse.com/docs/langchain",
+    href: "https://langfuse.com/docs/integrations/langchain",
     icon: Bird,
+  },
+  {
+    name: "LlamaIndex Integration",
+    description:
+      "Trace your Llamaindex RAG application by adding the global callback handler",
+    href: "https://langfuse.com/docs/integrations/llama-index",
+    icon: Code,
   },
   {
     name: "Typescript SDK",
     description: "npm install langfuse",
     href: "https://langfuse.com/docs/sdk/typescript",
-    icon: CommandLineIcon,
+    icon: Code,
   },
   {
-    name: "Python SDK",
+    name: "Python SDK (Decorator)",
     description: "pip install langfuse",
     href: "https://langfuse.com/docs/sdk/python",
-    icon: SiPython,
+    icon: Code,
   },
   {
     name: "API Reference (Swagger)",
@@ -78,9 +98,7 @@ const instructionItems = [
 function Instructions() {
   return (
     <div>
-      <h2 className="text-base font-semibold leading-6 text-gray-900">
-        Integrate langfuse
-      </h2>
+      <Header title="Docs" level="h3" />
       <ul
         role="list"
         className="mt-6 divide-y divide-gray-200 border-b border-t border-gray-200"
@@ -115,3 +133,39 @@ function Instructions() {
     </div>
   );
 }
+
+const Integrations = (props: { projectId: string }) => {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+
+  return (
+    <div>
+      <Header title="Integrations" level="h3" />
+      <Card className="p-4 lg:w-1/2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/posthog-logo.svg"
+          alt="Posthog Logo"
+          className="mb-4 w-32"
+        />
+        <p className="mb-4 text-sm text-gray-700">
+          We have teamed up with PostHog (OSS product analytics) to make
+          Langfuse Events/Metrics available in your Posthog Dashboards.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" asChild>
+            <Link
+              href={`/project/${props.projectId}/settings/posthog-integration`}
+            >
+              Configure
+            </Link>
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="https://langfuse.com/docs/analytics/posthog">
+              Integration Docs
+            </Link>
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};

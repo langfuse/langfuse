@@ -11,9 +11,12 @@ const langfuseUrls = {
   STAGING: "https://staging.langfuse.com",
 };
 
-const authUrl = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-  ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
-  : env.NEXTAUTH_URL;
+const authUrl =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ||
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ||
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
+    ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
+    : env.NEXTAUTH_URL;
 
 export const sendProjectInvitation = async (
   to: string,

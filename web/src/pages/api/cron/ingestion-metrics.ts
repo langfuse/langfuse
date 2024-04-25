@@ -1,8 +1,7 @@
 import { env } from "@/src/env.mjs";
-import { prisma } from "@/src/server/db";
-import { Prisma } from "@prisma/client";
+import { ServerPosthog } from "@/src/server/services/posthog";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { PostHog } from "posthog-node";
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,7 +10,10 @@ export default async function handler(
   if (!process.env.NEXT_PUBLIC_POSTHOG_KEY)
     return res.status(200).json({ message: "No PostHog key provided" });
 
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined)
+  if (
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined ||
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
+  )
     return res.status(200).json({
       message: "Only runs on Langfuse Cloud, no LANGFUSE_CLOUD_REGION provided",
     });
@@ -27,10 +29,7 @@ export default async function handler(
       : "langfuse-cloud-eu";
 
   try {
-    const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-      host: "https://eu.posthog.com",
-    });
-    if (process.env.NODE_ENV === "development") posthog.debug();
+    const posthog = new ServerPosthog();
 
     // Time frame is the last time this cron job ran until now
     const startTimeframe =

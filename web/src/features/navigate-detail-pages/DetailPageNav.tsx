@@ -41,9 +41,9 @@ export const DetailPageNav = (props: {
       }
 
       if (event.key === "k" && previousPageId) {
-        void router.push(props.path(previousPageId));
+        void router.push(props.path(encodeURIComponent(previousPageId)));
       } else if (event.key === "j" && nextPageId) {
-        void router.push(props.path(nextPageId));
+        void router.push(props.path(encodeURIComponent(nextPageId)));
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -52,7 +52,7 @@ export const DetailPageNav = (props: {
 
   if (ids.length > 1)
     return (
-      <div>
+      <div className="flex flex-row gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -64,10 +64,11 @@ export const DetailPageNav = (props: {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
                   );
-                  void router.push(props.path(previousPageId));
+                  void router.push(
+                    props.path(encodeURIComponent(previousPageId)),
+                  );
                 }
               }}
-              className="mr-2"
             >
               <ChevronUp className="h-4 w-4" />
             </Button>
@@ -91,7 +92,7 @@ export const DetailPageNav = (props: {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
                   );
-                  void router.push(props.path(nextPageId));
+                  void router.push(props.path(encodeURIComponent(nextPageId)));
                 }
               }}
             >

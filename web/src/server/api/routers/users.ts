@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Score } from "@prisma/client";
+import { Prisma, type Score } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 
 const UserFilterOptions = z.object({
@@ -19,17 +19,19 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
-      const uniqueUsers = await ctx.prisma.trace.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-        select: {
-          userId: true,
-        },
-        distinct: ["userId"],
-      });
+      const totalUsers = (
+        await ctx.prisma.$queryRaw<
+          Array<{
+            totalCount: number;
+          }>
+        >`
+        SELECT COUNT(DISTINCT t.user_id)::int AS "totalCount"
+        FROM traces t
+        WHERE t.project_id = ${input.projectId}
+      `
+      )[0].totalCount;
 
-      const topUsers = await ctx.prisma.$queryRaw<
+      const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
           totalTraces: number;
@@ -52,8 +54,8 @@ export const userRouter = createTRPCRouter({
           ${input.limit} OFFSET ${input.page * input.limit};
       `;
       return {
-        totalUsers: uniqueUsers.length,
-        users: topUsers,
+        totalUsers,
+        users,
       };
     }),
 
@@ -68,7 +70,6 @@ export const userRouter = createTRPCRouter({
       if (input.userIds.length === 0) {
         return [];
       }
-
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
@@ -84,54 +85,54 @@ export const userRouter = createTRPCRouter({
           sumCalculatedTotalCost: number;
         }>
       >`
-    SELECT
-      t.user_id AS "userId",
-      MIN(t."timestamp") AS "firstTrace",
-      MAX(t."timestamp") AS "lastTrace",
-      COALESCE(SUM(o.prompt_tokens), 0)::int AS "totalPromptTokens",
-      COALESCE(SUM(o.completion_tokens), 0)::int AS "totalCompletionTokens",
-      COALESCE(SUM(o.total_tokens), 0)::int AS "totalTokens",
-      MIN(o."firstObservation") AS "firstObservation",
-      MAX(o."lastObservation") AS "lastObservation",
-      COUNT(o."totalObservations")::int AS "totalObservations",
-      (COUNT(*) OVER ())::int AS "totalCount",
-      SUM(COALESCE(ov.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
-    FROM
-      traces t
-      LEFT JOIN LATERAL (
         SELECT
-          COALESCE(SUM(o.prompt_tokens), 0)::int AS "prompt_tokens",
-          COALESCE(SUM(o.completion_tokens), 0)::int AS "completion_tokens",
-          COALESCE(SUM(o.total_tokens), 0)::int AS "total_tokens",
-          MIN(o.start_time) AS "firstObservation",
-          MAX(o.start_time) AS "lastObservation",
-          COUNT(DISTINCT o.id)::int AS "totalObservations"
+          t.user_id AS "userId",
+          MIN(t."timestamp") AS "firstTrace",
+          MAX(t."timestamp") AS "lastTrace",
+          COALESCE(SUM(o.prompt_tokens), 0)::int AS "totalPromptTokens",
+          COALESCE(SUM(o.completion_tokens), 0)::int AS "totalCompletionTokens",
+          COALESCE(SUM(o.total_tokens), 0)::int AS "totalTokens",
+          MIN(o."firstObservation") AS "firstObservation",
+          MAX(o."lastObservation") AS "lastObservation",
+          COUNT(o."totalObservations")::int AS "totalObservations",
+          (COUNT(*) OVER ())::int AS "totalCount",
+          SUM(COALESCE(ov.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
         FROM
-          observations o
+          traces t
+          LEFT JOIN LATERAL (
+            SELECT
+              COALESCE(SUM(o.prompt_tokens), 0)::int AS "prompt_tokens",
+              COALESCE(SUM(o.completion_tokens), 0)::int AS "completion_tokens",
+              COALESCE(SUM(o.total_tokens), 0)::int AS "total_tokens",
+              MIN(o.start_time) AS "firstObservation",
+              MAX(o.start_time) AS "lastObservation",
+              COUNT(DISTINCT o.id)::int AS "totalObservations"
+            FROM
+              observations o
+            WHERE
+              o.trace_id = t.id
+              AND o.project_id = ${input.projectId}
+            GROUP BY
+              t.user_id
+          ) o ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT
+              SUM(COALESCE(ov.calculated_total_cost, 0)) AS "calculated_total_cost"
+            FROM
+              observations_view ov
+            WHERE
+              ov.trace_id = t.id
+              AND ov."type" = 'GENERATION'
+              AND ov.project_id = ${input.projectId}
+            GROUP BY
+              t.user_id
+          ) ov ON TRUE
         WHERE
-          o.trace_id = t.id
-          AND o.project_id = ${input.projectId}
+          t.user_id IN (${Prisma.join(input.userIds)})
+          AND t.project_id = ${input.projectId}
         GROUP BY
-          t.user_id
-      ) o ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT
-          SUM(COALESCE(ov.calculated_total_cost, 0)) AS "calculated_total_cost"
-        FROM
-          observations_view ov
-        WHERE
-          ov.trace_id = t.id
-          AND ov."type" = 'GENERATION'
-          AND ov.project_id = ${input.projectId}
-        GROUP BY
-          t.user_id
-      ) ov ON TRUE
-    WHERE
-       t.user_id IN (${Prisma.join(input.userIds, ",")})
-      AND t.project_id = ${input.projectId}
-    GROUP BY
-      1;
-  `;
+          1;
+      `;
 
       if (users.length === 0) {
         return [];
@@ -144,33 +145,33 @@ export const userRouter = createTRPCRouter({
           }
         >
       >`
-    WITH ranked_scores AS (
-      SELECT
-        t.user_id,
-        s.*,
-        ROW_NUMBER() OVER (PARTITION BY t.user_id ORDER BY s."timestamp" DESC) AS rn 
-      FROM
-        scores s
-        JOIN traces t ON t.id = s.trace_id
-      WHERE
-        s.trace_id IS NOT NULL
-        AND t.project_id = ${input.projectId}
-        AND t.user_id IN (${Prisma.join(users.map((user) => user.userId))})
-        AND t.user_id IS NOT NULL
-    )
-    SELECT
-      user_id "userId",
-      "id",
-      "timestamp",
-      "name",
-      "value",
-      observation_id "observationId",
-      trace_id "traceId",
-      "comment"
-    FROM
-      ranked_scores
-    WHERE rn = 1
-  `;
+        WITH ranked_scores AS (
+          SELECT
+            t.user_id,
+            s.*,
+            ROW_NUMBER() OVER (PARTITION BY t.user_id ORDER BY s."timestamp" DESC) AS rn 
+          FROM
+            scores s
+            JOIN traces t ON t.id = s.trace_id
+          WHERE
+            s.trace_id IS NOT NULL
+            AND t.project_id = ${input.projectId}
+            AND t.user_id IN (${Prisma.join(users.map((user) => user.userId))})
+            AND t.user_id IS NOT NULL
+        )
+        SELECT
+          user_id "userId",
+          "id",
+          "timestamp",
+          "name",
+          "value",
+          observation_id "observationId",
+          trace_id "traceId",
+          "comment"
+        FROM
+          ranked_scores
+        WHERE rn = 1
+      `;
       return users.map((topUser) => {
         const user = users.find((user) => user.userId === topUser.userId);
         if (!user) {

@@ -118,41 +118,65 @@ types:
       traceId: string
       name: string
       value: double
+      source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-  Dataset:
+  DatasetCore:
     properties:
       id: string
       name: string
+      description: optional<string>
+      metadata: optional<unknown>
       projectId: string
       createdAt: datetime
       updatedAt: datetime
+  DatasetWithReferences: # GET datasets
+    extends: DatasetCore
+    properties:
+      items:
+        type: list<string>
+        docs: list of dataset item ids
+      runs:
+        type: list<string>
+        docs: list of dataset run names
+  Dataset: # GET datasets/[name]
+    docs: Dataset including all items
+    extends: DatasetCore
+    properties:
       items: list<DatasetItem>
       runs: list<string>
   DatasetItem:
     properties:
       id: string
       status: DatasetStatus
-      input: unknown
+      input: optional<unknown>
       expectedOutput: optional<unknown>
+      metadata: optional<unknown>
+      sourceTraceId: optional<string>
       sourceObservationId: optional<string>
       datasetId: string
+      datasetName: string
       createdAt: datetime
       updatedAt: datetime
   DatasetRunItem:
     properties:
       id: string
       datasetRunId: string
+      datasetRunName: string
       datasetItemId: string
-      observationId: string
+      traceId: string
+      observationId: optional<string>
       createdAt: datetime
       updatedAt: datetime
   DatasetRun:
     properties:
       id: string
       name: string
+      description: optional<string>
+      metadata: optional<unknown>
       datasetId: string
+      datasetName: string
       createdAt: datetime
       updatedAt: datetime
       datasetRunItems: list<DatasetRunItem>
@@ -183,6 +207,11 @@ types:
     enum:
       - ACTIVE
       - ARCHIVED
+  ScoreSource:
+    enum:
+      - API
+      - REVIEW
+      - EVAL
 
 errors:
   Error:

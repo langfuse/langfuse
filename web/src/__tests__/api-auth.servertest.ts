@@ -1,9 +1,9 @@
 import {
   getDisplaySecretKey,
   hashSecretKey,
-} from "@/src/features/public-api/lib/apiKeys";
+} from "@langfuse/shared/src/server/auth";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 describe("Validate api calls", () => {
   beforeEach(async () => {

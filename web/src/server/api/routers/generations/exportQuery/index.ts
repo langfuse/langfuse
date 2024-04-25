@@ -2,16 +2,16 @@ import { type Transform } from "stream";
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import {
-  exportFileFormats,
-  exportOptions,
-} from "@/src/server/api/interfaces/exportTypes";
+import { exportFileFormats, exportOptions } from "@langfuse/shared";
 import { S3StorageService } from "@/src/server/api/services/S3StorageService";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { type ObservationView } from "@prisma/client";
+import { type ObservationView } from "@langfuse/shared/src/db";
 
 import { DatabaseReadStream } from "../db/DatabaseReadStream";
-import { getAllGenerations as getAllGenerations } from "../db/getAllGenerationsSqlQuery";
+import {
+  type FullObservations,
+  getAllGenerations as getAllGenerations,
+} from "../db/getAllGenerationsSqlQuery";
 import { GenerationTableOptions } from "../utils/GenerationTableOptions";
 import { transformStreamToCsv } from "./transforms/transformStreamToCsv";
 import { transformStreamToJson } from "./transforms/transformStreamToJson";
@@ -39,7 +39,7 @@ export const generationsExportQuery = protectedProjectProcedure
     const queryPageSize = env.DB_EXPORT_PAGE_SIZE ?? 1000;
 
     const dateCutoffFilter = {
-      column: "start_time",
+      column: "Start Time",
       operator: "<" as const,
       value: new Date(),
       type: "datetime" as const,
@@ -47,16 +47,16 @@ export const generationsExportQuery = protectedProjectProcedure
 
     const dbReadStream = new DatabaseReadStream<ObservationView>(
       async (pageSize: number, offset: number) => {
-        const dbReturn = await getAllGenerations({
+        const { generations } = await getAllGenerations({
           input: {
             ...input,
             filter: [...input.filter, dateCutoffFilter],
             page: offset / pageSize,
             limit: pageSize,
           },
-          selectIO: true,
+          selectIO: true, // selecting input/output data
         });
-        return dbReturn.generations;
+        return generations as unknown as FullObservations;
       },
       queryPageSize,
     );

@@ -6,15 +6,19 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type MembershipRole, Prisma, type Score } from "@prisma/client";
+import {
+  type MembershipRole,
+  Prisma,
+  type Score,
+} from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
-import { singleFilter } from "@/src/server/api/interfaces/filters";
-import { tableColumnsToSqlFilterAndPrefix } from "@/src/features/filters/server/filterToPrisma";
+import { singleFilter } from "@langfuse/shared";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
 import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
-import { orderBy } from "@/src/server/api/interfaces/orderBy";
+import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -44,7 +48,7 @@ export const scoresRouter = createTRPCRouter({
       );
 
       const scores = await ctx.prisma.$queryRaw<
-        Array<Score & { traceName: string }>
+        Array<Score & { traceName: string | null; userId: string | null }>
       >(
         generateScoresQuery(
           Prisma.sql` 
@@ -55,6 +59,7 @@ export const scoresRouter = createTRPCRouter({
           s.comment,
           s.trace_id as "traceId",
           s.observation_id as "observationId",
+          t.user_id as "userId",
           t.name as "traceName"`,
           input.projectId,
           filterCondition,
@@ -72,8 +77,8 @@ export const scoresRouter = createTRPCRouter({
           input.projectId,
           filterCondition,
           Prisma.empty,
-          input.limit,
-          input.page,
+          1, // limit
+          0, // page
         ),
       );
 
@@ -128,7 +133,7 @@ export const scoresRouter = createTRPCRouter({
       },
     }),
   ),
-  create: protectedProcedure
+  createReviewScore: protectedProcedure
     .input(
       z.object({
         traceId: z.string(),
@@ -176,6 +181,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           name: input.name,
           comment: input.comment,
+          source: "REVIEW",
         },
       });
       await auditLog({
@@ -191,7 +197,7 @@ export const scoresRouter = createTRPCRouter({
       });
       return score;
     }),
-  update: protectedProcedure
+  updateReviewScore: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -203,6 +209,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await ctx.prisma.score.findFirstOrThrow({
         where: {
           id: input.id,
+          source: "REVIEW",
           trace: {
             project: {
               members: {
@@ -252,12 +259,13 @@ export const scoresRouter = createTRPCRouter({
         },
       });
     }),
-  delete: protectedProcedure
+  deleteReviewScore: protectedProcedure
     .input(z.string())
     .mutation(async ({ input, ctx }) => {
       const score = await ctx.prisma.score.findFirstOrThrow({
         where: {
           id: input,
+          source: "REVIEW",
           trace: {
             project: {
               members: {

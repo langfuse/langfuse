@@ -3,9 +3,9 @@
 import { v4 } from "uuid";
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit } from "@langfuse/shared";
 import { cleanEvent } from "@/src/pages/api/public/ingestion";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 describe("/api/public/ingestion API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -520,8 +520,6 @@ describe("/api/public/ingestion API Endpoint", () => {
 
       expect(response.status).toBe(207);
 
-      console.log("response body", response.body);
-
       const dbGeneration = await prisma.observation.findUnique({
         where: {
           id: generationId,
@@ -851,7 +849,6 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     });
 
-    console.log(responseOne.body);
     expect(responseOne.status).toBe(207);
 
     expect("errors" in responseOne.body).toBe(true);
@@ -901,7 +898,6 @@ describe("/api/public/ingestion API Endpoint", () => {
       ],
     });
 
-    console.log(responseOne.body);
     expect(responseOne.status).toBe(207);
 
     expect("errors" in responseOne.body).toBe(true);
@@ -1167,8 +1163,6 @@ describe("/api/public/ingestion API Endpoint", () => {
     });
     expect(responseOne.status).toBe(207);
 
-    console.log(responseOne.body);
-
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const errors = responseOne.body.errors;
 
@@ -1419,7 +1413,6 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
       input,
     )} ${JSON.stringify(expected)}`, () => {
       const cleanedEvent = cleanEvent(input);
-      console.log(cleanedEvent);
       expect(cleanedEvent).toStrictEqual(expected);
     });
   });

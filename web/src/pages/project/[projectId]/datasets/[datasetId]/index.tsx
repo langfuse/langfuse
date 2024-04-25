@@ -7,6 +7,7 @@ import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 export default function Dataset() {
   const router = useRouter();
@@ -22,11 +23,18 @@ export default function Dataset() {
   return (
     <div>
       <Header
-        title={`Dataset: ${dataset.data?.name}`}
+        title={dataset.data?.name ?? ""}
         breadcrumb={[
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           { name: dataset.data?.name ?? datasetId },
         ]}
+        help={
+          dataset.data?.description
+            ? {
+                description: dataset.data.description,
+              }
+            : undefined
+        }
         actionButtons={
           <>
             <DetailPageNav
@@ -35,10 +43,12 @@ export default function Dataset() {
               listKey="datasets"
             />
             <DatasetActionButton
-              mode="rename"
+              mode="update"
               projectId={projectId}
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
+              datasetDescription={dataset.data?.description ?? undefined}
+              datasetMetadata={dataset.data?.metadata}
               icon
             />
             <DeleteButton
@@ -53,18 +63,28 @@ export default function Dataset() {
           </>
         }
       />
-      <Tabs value="runs" className="mb-3">
-        <TabsList>
-          <TabsTrigger value="runs">Runs</TabsTrigger>
-          <TabsTrigger value="items" asChild>
-            <Link href={`/project/${projectId}/datasets/${datasetId}/items`}>
-              Items
-            </Link>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {!!dataset.data?.metadata && (
+        <JSONView json={dataset?.data.metadata} title="Metadata" />
+      )}
 
-      <DatasetRunsTable projectId={projectId} datasetId={datasetId} />
+      <DatasetRunsTable
+        projectId={projectId}
+        datasetId={datasetId}
+        menuItems={
+          <Tabs value="runs">
+            <TabsList>
+              <TabsTrigger value="runs">Runs</TabsTrigger>
+              <TabsTrigger value="items" asChild>
+                <Link
+                  href={`/project/${projectId}/datasets/${datasetId}/items`}
+                >
+                  Items
+                </Link>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
 
       <p className="mt-3 text-xs text-gray-600">
         Add new runs via Python or JS/TS SDKs. See{" "}

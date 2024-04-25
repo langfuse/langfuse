@@ -1,15 +1,24 @@
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { jsonSchema } from "@/src/utils/zod";
 
-const DatasetRunItemPostSchema = z.object({
-  runName: z.string(),
-  datasetItemId: z.string(),
-  observationId: z.string(),
-});
+const DatasetRunItemPostSchema = z
+  .object({
+    runName: z.string(),
+    runDescription: z.string().nullish(),
+    metadata: jsonSchema.nullish(),
+    datasetItemId: z.string(),
+    observationId: z.string().nullish(),
+    traceId: z.string().nullish(),
+  })
+  .refine((data) => data.observationId || data.traceId, {
+    message: "ObservationId or traceId must be provided",
+    path: ["observationId", "traceId"], // Specify the path of the error
+  });
 
 export default async function handler(
   req: NextApiRequest,
@@ -31,8 +40,7 @@ export default async function handler(
 
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
       console.log(
@@ -41,10 +49,16 @@ export default async function handler(
         ", body:",
         JSON.stringify(req.body, null, 2),
       );
-      const { datasetItemId, observationId, runName } =
-        DatasetRunItemPostSchema.parse(req.body);
+      const {
+        datasetItemId,
+        observationId,
+        traceId,
+        runName,
+        runDescription,
+        metadata,
+      } = DatasetRunItemPostSchema.parse(req.body);
 
-      const item = await prisma.datasetItem.findUnique({
+      const datasetItem = await prisma.datasetItem.findUnique({
         where: {
           id: datasetItemId,
           status: "ACTIVE",
@@ -56,50 +70,78 @@ export default async function handler(
           dataset: true,
         },
       });
-      const observation = await prisma.observation.findUnique({
-        where: {
-          id: observationId,
-          projectId: authCheck.scope.projectId,
-        },
-      });
-
-      // Validity of id and access checks
-      if (!item) {
+      if (!datasetItem) {
         console.error("item not found");
         return res.status(404).json({
           message: "Dataset item not found or not active",
         });
       }
-      if (!observation) {
-        console.error("observation not found");
+
+      const observation = observationId
+        ? await prisma.observation.findUnique({
+            where: {
+              id: observationId,
+              projectId: authCheck.scope.projectId,
+            },
+          })
+        : undefined;
+      if (observationId && !observation) {
+        console.error("Observation not found");
         return res.status(404).json({
           message: "Observation not found",
+        });
+      }
+
+      const trace = traceId
+        ? await prisma.trace.findUnique({
+            where: { id: traceId, projectId: authCheck.scope.projectId },
+          })
+        : undefined;
+      if (traceId && !trace) {
+        console.error("Trace not found");
+        return res.status(404).json({
+          message: "Trace not found",
+        });
+      }
+
+      // double check, should not be necessary due to zod schema + validations above
+      const saveTraceId = trace?.id ?? observation?.traceId;
+      if (!!!saveTraceId) {
+        console.error("Observation or Trace not found");
+        return res.status(404).json({
+          message: "Observation or Trace not found",
         });
       }
 
       const run = await prisma.datasetRuns.upsert({
         where: {
           datasetId_name: {
-            datasetId: item.datasetId,
+            datasetId: datasetItem.datasetId,
             name: runName,
           },
         },
         create: {
           name: runName,
-          datasetId: item.datasetId,
+          description: runDescription ?? undefined,
+          datasetId: datasetItem.datasetId,
+          metadata: metadata ?? undefined,
         },
-        update: {},
+        update: {
+          metadata: metadata ?? undefined,
+          description: runDescription ?? undefined,
+        },
       });
 
       const runItem = await prisma.datasetRunItems.create({
         data: {
           datasetItemId: datasetItemId,
-          observationId: observationId,
+          traceId: saveTraceId,
+          observationId: observation?.id ?? undefined,
           datasetRunId: run.id,
         },
       });
 
-      return res.status(200).json(runItem);
+      return res.status(200).json({ ...runItem, datasetRunName: run.name });
     } catch (error: unknown) {
       console.error(error);
       if (error instanceof z.ZodError) {

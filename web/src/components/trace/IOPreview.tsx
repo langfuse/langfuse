@@ -1,4 +1,4 @@
-import { JSONView } from "@/src/components/ui/code";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
 import { deepParseJson } from "@/src/utils/json";
 import { cn } from "@/src/utils/tailwind";
@@ -30,38 +30,34 @@ export const IOPreview: React.FC<{
     ? outLegacyCompletionSchemaParsed.data
     : props.output ?? null;
 
-  // OpenAI messages
-  let inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(input);
-  if (!inOpenAiMessageArray.success) {
-    // check if input is an array of length 1 including an array of OpenAiMessageSchema
+  // ChatML format
+  let inChatMlArray = ChatMlArraySchema.safeParse(input);
+  if (!inChatMlArray.success) {
+    // check if input is an array of length 1 including an array of ChatMlMessageSchema
     // this is the case for some integrations
-    // e.g. [[OpenAiMessageSchema, ...]]
-    const inputArray = z.array(OpenAiMessageArraySchema).safeParse(input);
+    // e.g. [[ChatMlMessageSchema, ...]]
+    const inputArray = z.array(ChatMlArraySchema).safeParse(input);
     if (inputArray.success && inputArray.data.length === 1) {
-      inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(
-        inputArray.data[0],
-      );
+      inChatMlArray = ChatMlArraySchema.safeParse(inputArray.data[0]);
     } else {
       // check if input is an object with a messages key
       // this is the case for some integrations
-      // e.g. { messages: [OpenAiMessageSchema, ...] }
+      // e.g. { messages: [ChatMlMessageSchema, ...] }
       const inputObject = z
         .object({
-          messages: OpenAiMessageArraySchema,
+          messages: ChatMlArraySchema,
         })
         .safeParse(input);
 
       if (inputObject.success) {
-        inOpenAiMessageArray = OpenAiMessageArraySchema.safeParse(
-          inputObject.data.messages,
-        );
+        inChatMlArray = ChatMlArraySchema.safeParse(inputObject.data.messages);
       }
     }
   }
-  const outOpenAiMessage = OpenAiMessageSchema.safeParse(output);
+  const outChatMlMessage = ChatMlMessageSchema.safeParse(output);
 
   // Pretty view available
-  const isPrettyViewAvailable = inOpenAiMessageArray.success;
+  const isPrettyViewAvailable = inChatMlArray.success;
 
   // default I/O
   return (
@@ -79,16 +75,16 @@ export const IOPreview: React.FC<{
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <OpenAiMessageView
-          messages={inOpenAiMessageArray.data.concat(
-            outOpenAiMessage.success
+          messages={inChatMlArray.data.concat(
+            outChatMlMessage.success
               ? {
-                  ...outOpenAiMessage.data,
-                  role: outOpenAiMessage.data.role ?? "assistant",
+                  ...outChatMlMessage.data,
+                  role: outChatMlMessage.data.role ?? "assistant",
                 }
-              : {
+              : ChatMlMessageSchema.parse({
                   role: "assistant",
                   content: outputClean ? JSON.stringify(outputClean) : null,
-                },
+                }),
           )}
         />
       ) : null}
@@ -116,64 +112,111 @@ export const IOPreview: React.FC<{
   );
 };
 
-const OpenAiMessageSchema = z
+const ChatMlMessageSchema = z
   .object({
-    role: z.enum(["system", "user", "assistant", "function"]).optional(),
+    role: z
+      .enum(["system", "user", "assistant", "function", "tool"])
+      .optional(),
     name: z.string().optional(),
     content: z
       .union([z.record(z.any()), z.record(z.any()).array(), z.string()])
-      .nullable(),
-    function_call: z
-      .object({
-        name: z.string(),
-        arguments: z.record(z.any()),
-      })
-      .optional(),
+      .nullish(),
+    additional_kwargs: z.record(z.any()).optional(),
   })
-  .strict() // no additional properties
-  .refine((value) => value.content !== null || value.role !== undefined);
+  .passthrough()
 
-const OpenAiMessageArraySchema = z.array(OpenAiMessageSchema).min(1);
+  .refine((value) => value.content !== null || value.role !== undefined)
+  .transform(({ additional_kwargs, ...other }) => ({
+    ...other,
+    ...additional_kwargs,
+  }))
+  .transform(({ role, name, content, ...other }) => ({
+    role,
+    name,
+    content,
+    json: Object.keys(other).length === 0 ? undefined : other,
+  }));
+export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
 
-const OpenAiMessageView: React.FC<{
-  messages: z.infer<typeof OpenAiMessageArraySchema>;
-}> = ({ messages }) => {
+export const OpenAiMessageView: React.FC<{
+  title?: string;
+  messages: z.infer<typeof ChatMlArraySchema>;
+}> = ({ title, messages }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
 
+  const transformedMessages = messages;
+  // const transformedMessages = messages.map(
+  //   ({ role, name, content, ...rest }) => ({
+  //     role,
+  //     name,
+  //     content,
+  //     json: rest,
+  //   }),
+  // );
+
   return (
-    <div className="flex flex-col gap-2 rounded-md border p-3">
-      {messages
-        .filter(
-          (_, i) =>
-            // show all if not collapsed or null; show first and last n if collapsed
-            !isCollapsed || i == 0 || i > messages.length - COLLAPSE_THRESHOLD,
-        )
-        .map((message, index) => (
-          <Fragment key={index}>
-            <JSONView
-              title={message.name ?? message.role}
-              json={message.function_call ?? message.content}
-              className={cn(
-                message.role === "system" && "bg-gray-100",
-                message.role === "assistant" && "bg-green-50",
-              )}
-            />
-            {isCollapsed !== null && index === 0 ? (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setCollapsed((v) => !v)}
-              >
-                {isCollapsed
-                  ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
-                  : "Hide history"}
-              </Button>
-            ) : null}
-          </Fragment>
-        ))}
+    <div className="rounded-md border">
+      {title && (
+        <div className="border-b px-3 py-1 text-xs font-medium">{title}</div>
+      )}
+      <div className="flex flex-col gap-2 p-3">
+        {transformedMessages
+          .filter(
+            (_, i) =>
+              // show all if not collapsed or null; show first and last n if collapsed
+              !isCollapsed ||
+              i == 0 ||
+              i > messages.length - COLLAPSE_THRESHOLD,
+          )
+          .map((message, index) => (
+            <Fragment key={index}>
+              <div>
+                {!!message.content && (
+                  <JSONView
+                    title={message.name ?? message.role}
+                    json={message.content}
+                    className={cn(
+                      "bg-gray-100",
+                      message.role === "system" && "bg-gray-100",
+                      message.role === "assistant" && "bg-green-50",
+                      message.role === "user" && "bg-white",
+                      !!message.json && "rounded-b-none",
+                    )}
+                  />
+                )}
+                {!!message.json && (
+                  <JSONView
+                    title={
+                      message.content ? undefined : message.name ?? message.role
+                    }
+                    json={message.json}
+                    className={cn(
+                      "bg-gray-100",
+                      message.role === "system" && "bg-gray-100",
+                      message.role === "assistant" && "bg-green-50",
+                      message.role === "user" && "bg-white",
+                      !!message.content && "rounded-t-none border-t-0",
+                    )}
+                  />
+                )}
+              </div>
+              {isCollapsed !== null && index === 0 ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setCollapsed((v) => !v)}
+                >
+                  {isCollapsed
+                    ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
+                    : "Hide history"}
+                </Button>
+              ) : null}
+            </Fragment>
+          ))}
+      </div>
     </div>
   );
 };

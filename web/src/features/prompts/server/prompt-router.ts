@@ -1,47 +1,130 @@
 import { z } from "zod";
 
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/validation";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Prompt, type PrismaClient } from "@prisma/client";
-import { jsonSchema } from "@/src/utils/zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { DB } from "@/src/server/db";
+import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
-export const CreatePrompt = z.object({
-  projectId: z.string(),
-  name: z.string(),
-  isActive: z.boolean(),
-  prompt: z.string(),
-  config: jsonSchema,
+import { createPrompt } from "./createPrompt";
+import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import { paginationZod } from "@/src/utils/zod";
+import {
+  orderBy,
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared";
+
+const PromptFilterOptions = z.object({
+  projectId: z.string(), // Required for protectedProjectProcedure
+  filter: z.array(singleFilter),
+  orderBy: orderBy,
+  ...paginationZod,
 });
 
 export const promptRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-      }),
-    )
+    .input(PromptFilterOptions)
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "prompts:read",
       });
-      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>`
-        SELECT id, name, version, project_id as "projectId", prompt, updated_at as "updatedAt", created_at AS "createdAt", is_active AS "isActive"
-        FROM prompts
-        WHERE (name, version) IN (
-          SELECT name, MAX(version)
-          FROM prompts
-          WHERE "project_id" = ${input.projectId}
-          GROUP BY name
-        )
-        AND "project_id" = ${input.projectId}
-        ORDER BY name ASC`;
-      return prompts;
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        promptsTableCols,
+      );
+
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        promptsTableCols,
+        "prompts",
+      );
+
+      const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>(
+        generatePromptQuery(
+          Prisma.sql` 
+          p.id,
+          p.name,
+          p.version,
+          p.project_id as "projectId",
+          p.prompt,
+          p.type,
+          p.updated_at as "updatedAt",
+          p.created_at as "createdAt",
+          p.is_active as "isActive",
+          p.tags`,
+          input.projectId,
+          filterCondition,
+          orderByCondition,
+          input.limit,
+          input.page,
+        ),
+      );
+
+      const promptCount = await ctx.prisma.$queryRaw<
+        Array<{ totalCount: bigint }>
+      >(
+        generatePromptQuery(
+          Prisma.sql` count(*) AS "totalCount"`,
+          input.projectId,
+          filterCondition,
+          Prisma.empty,
+          1, // limit
+          0, // page
+        ),
+      );
+
+      const promptNames = prompts.map((p) => p.name);
+      // Return as observationCountQuery is unnecessary if there are no prompts
+      if (promptNames.length === 0) {
+        return {
+          prompts: [],
+          totalCount:
+            promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
+        };
+      }
+
+      const observationCountQuery = DB.selectFrom("observations")
+        .fullJoin("prompts", "prompts.id", "observations.prompt_id")
+        .select(({ fn }) => [
+          "prompts.name",
+          fn.count("observations.id").as("count"),
+        ])
+        .where("prompts.project_id", "=", input.projectId)
+        .where("observations.project_id", "=", input.projectId)
+        .where("prompts.name", "in", promptNames)
+        .groupBy("prompts.name");
+
+      const compiledQuery = observationCountQuery.compile();
+
+      const promptCounts = await ctx.prisma.$queryRawUnsafe<
+        Array<{
+          name: string;
+          count: bigint;
+        }>
+      >(compiledQuery.sql, ...compiledQuery.parameters);
+
+      const joinedPromptsAndCounts = prompts.map((p) => {
+        const matchedCount = promptCounts.find((c) => c.name === p.name);
+        return {
+          ...p,
+          observationCount: Number(matchedCount?.count ?? 0),
+        };
+      });
+
+      return {
+        prompts: joinedPromptsAndCounts,
+        totalCount:
+          promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
+      };
     }),
   byId: protectedProjectProcedure
     .input(
@@ -64,7 +147,7 @@ export const promptRouter = createTRPCRouter({
       });
     }),
   create: protectedProjectProcedure
-    .input(CreatePrompt)
+    .input(CreatePromptTRPCSchema)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoAccess({
@@ -74,13 +157,9 @@ export const promptRouter = createTRPCRouter({
         });
 
         const prompt = await createPrompt({
-          projectId: input.projectId,
-          name: input.name,
-          prompt: input.prompt,
-          isActive: input.isActive,
-          createdBy: ctx.session.user.id,
-          config: jsonSchema.parse(input.config),
+          ...input,
           prisma: ctx.prisma,
+          createdBy: ctx.session.user.id,
         });
 
         if (!prompt) {
@@ -103,6 +182,45 @@ export const promptRouter = createTRPCRouter({
         console.log(e);
         throw e;
       }
+    }),
+  filterOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const names = await ctx.prisma.prompt.groupBy({
+        where: {
+          projectId: input.projectId,
+        },
+        by: ["name"],
+        // limiting to 1k prompt names to avoid performance issues.
+        // some users have unique names for large amounts of prompts
+        // sending all prompt names to the FE exceeds the cloud function return size limit
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
+        _count: {
+          id: true,
+        },
+      });
+      const tags: { count: number; value: string }[] = await ctx.prisma
+        .$queryRaw`
+        SELECT COUNT(*)::integer AS "count", tags.tag as value
+        FROM prompts, UNNEST(prompts.tags) AS tags(tag)
+        WHERE prompts.project_id = ${input.projectId}
+        GROUP BY tags.tag;
+      `;
+      const res = {
+        name: names
+          .filter((n) => n.name !== null)
+          .map((name) => ({
+            value: name.name ?? "undefined",
+            count: name._count.id,
+          })),
+        tags: tags,
+      };
+      return res;
     }),
   delete: protectedProjectProcedure
     .input(
@@ -263,6 +381,43 @@ export const promptRouter = createTRPCRouter({
         throw e;
       }
     }),
+  updateTags: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        tags: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:tag",
+      });
+      try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "prompt",
+          resourceId: input.name,
+          action: "updateTags",
+          after: input.tags,
+        });
+        await ctx.prisma.prompt.updateMany({
+          where: {
+            name: input.name,
+            projectId: input.projectId,
+          },
+          data: {
+            tags: {
+              set: input.tags,
+            },
+          },
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }),
   allVersions: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), name: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -278,14 +433,19 @@ export const promptRouter = createTRPCRouter({
         },
         orderBy: [{ version: "desc" }],
       });
+      const userIds = prompts
+        .map((p) => p.createdBy)
+        .filter((id) => id !== "API");
       const users = await ctx.prisma.user.findMany({
         select: {
           // never select passwords as they should never be returned to the FE
           id: true,
           name: true,
-          email: true,
         },
         where: {
+          id: {
+            in: userIds,
+          },
           memberships: {
             some: {
               projectId: input.projectId,
@@ -299,80 +459,36 @@ export const promptRouter = createTRPCRouter({
         if (!user && p.createdBy === "API") {
           return { ...p, creator: "API" };
         }
-        if (!user) {
-          console.log(`User not found for promptId ${p.id}`);
-          throw new Error(`User not found for promptId ${p.id}`);
-        }
         return {
           ...p,
-          creator: user.name,
+          creator: user?.name,
         };
       });
       return joinedPromptAndUsers;
     }),
 });
 
-export const createPrompt = async ({
-  projectId,
-  name,
-  prompt,
-  isActive = true,
-  createdBy,
-  config,
-  prisma,
-}: {
-  projectId: string;
-  name: string;
-  prompt: string;
-  isActive?: boolean;
-  createdBy: string;
-  config: z.infer<typeof jsonSchema>;
-  prisma: PrismaClient;
-}) => {
-  const latestPrompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: name,
-    },
-    orderBy: [{ version: "desc" }],
-  });
-
-  const latestActivePrompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: name,
-      isActive: true,
-    },
-    orderBy: [{ version: "desc" }],
-  });
-
-  const create = [
-    prisma.prompt.create({
-      data: {
-        prompt: prompt,
-        name: name,
-        version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
-        isActive: isActive,
-        project: { connect: { id: projectId } },
-        createdBy: createdBy,
-        config: jsonSchema.parse(config),
-      },
-    }),
-  ];
-  if (latestActivePrompt && isActive)
-    // If we're creating a new active prompt, we need to deactivate the old one
-    create.push(
-      prisma.prompt.update({
-        where: {
-          id: latestActivePrompt.id,
-        },
-        data: {
-          isActive: false,
-        },
-      }),
-    );
-
-  const [createdPrompt] = await prisma.$transaction(create);
-
-  return createdPrompt;
+const generatePromptQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+) => {
+  return Prisma.sql`
+  SELECT
+   ${select}
+   FROM prompts p
+   WHERE (name, version) IN (
+    SELECT name, MAX(version)
+     FROM prompts
+     WHERE "project_id" = ${projectId}
+          GROUP BY name
+        )
+    AND "project_id" = ${projectId}
+  ${filterCondition}
+  ${orderCondition}
+  LIMIT ${limit} OFFSET ${page * limit};
+`;
 };

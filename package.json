@@ -1,22 +1,73 @@
 {
   "name": "langfuse",
-  "version": "2.7.0",
-  "scripts": {
-    "infra:dev:up": "docker-compose -f ./docker-compose.dev.yml up -d",
-    "infra:dev:down": "docker-compose -f ./docker-compose.dev.yml down",
-    "dev": "npm run dev --prefix worker/ & npm run dev --prefix web/",
-    "postinstall": "cd worker && npm install && cd ../web && npm install",
-    "dx": "dotenv -e .env -- npm i && npm run infra:dev:up && cd web && npm run db:reset && npm run db:seed:examples && cd .. && npm run dev"
-  },
-  "author": "",
+  "version": "2.33.0",
+  "author": "engineering@langfuse.com",
   "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20",
+    "pnpm": "<9"
+  },
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d",
+    "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:seed": "turbo run db:seed",
+    "db:seed:examples": "turbo run db:seed:examples",
+    "nuke": "bash ./scripts/nuke.sh",
+    "dx": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "models:migrate": "turbo run models:migrate",
+    "release": "dotenv -e ../.env -- release-it"
+  },
   "devDependencies": {
-    "@types/eslint": "^8.56.2",
-    "@types/jest": "^29.5.12",
-    "@typescript-eslint/eslint-plugin": "^7.0.2",
-    "@typescript-eslint/parser": "^7.0.2",
-    "dotenv-cli": "^7.3.0",
-    "eslint": "^8.56.0",
-    "prettier": "^3.2.5"
+    "@release-it/bumper": "^6.0.1",
+    "dotenv-cli": "^7.4.1",
+    "prettier": "^3.2.5",
+    "release-it": "^17.2.0",
+    "turbo": "^1.13.2"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release v${version}",
+      "tagName": "v${version}"
+    },
+    "plugins": {
+      "@release-it/bumper": {
+        "out": [
+          {
+            "file": "./web/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./worker/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./web/package.json"
+          },
+          {
+            "file": "./worker/package.json"
+          }
+        ]
+      }
+    },
+    "github": {
+      "release": true,
+      "web": true,
+      "autoGenerate": true,
+      "releaseName": "v${version}",
+      "comments": {
+        "submit": true,
+        "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
+        "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
+      }
+    }
   }
 }

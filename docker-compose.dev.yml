@@ -2,8 +2,10 @@ version: "3.5"
 
 services:
   redis:
-    image: redis
+    image: redis:7.2.4
     restart: always
+    command: >
+      --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
       - 6379:6379
 

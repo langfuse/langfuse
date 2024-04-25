@@ -18,7 +18,7 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Score } from "@prisma/client";
+import { type Score } from "@langfuse/shared/src/db";
 import { useState } from "react";
 import * as z from "zod";
 
@@ -26,7 +26,6 @@ import { useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { LockIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
 
 const SCORE_NAME = "manual-score";
 
@@ -69,9 +68,15 @@ export function ManualScoreButton({
       utils.sessions.invalidate(),
     ]);
   };
-  const mutCreateScore = api.scores.create.useMutation({ onSuccess });
-  const mutUpdateScore = api.scores.update.useMutation({ onSuccess });
-  const mutDeleteScore = api.scores.delete.useMutation({ onSuccess });
+  const mutCreateScore = api.scores.createReviewScore.useMutation({
+    onSuccess,
+  });
+  const mutUpdateScore = api.scores.updateReviewScore.useMutation({
+    onSuccess,
+  });
+  const mutDeleteScore = api.scores.deleteReviewScore.useMutation({
+    onSuccess,
+  });
 
   const handleDelete = async () => {
     if (score) {
@@ -132,9 +137,9 @@ export function ManualScoreButton({
             {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
           </Button>
         ) : (
-          <Badge className="cursor-pointer">
+          <Button className="h-6 rounded-full px-3 text-xs">
             {score ? "Update score" : "Add score"}
-          </Badge>
+          </Button>
         )}
       </DialogTrigger>
       <DialogContent>

@@ -9,6 +9,9 @@ import {
   Settings,
   UsersIcon,
   PenSquareIcon,
+  LibraryBig,
+  TerminalIcon,
+  Lightbulb,
 } from "lucide-react";
 
 export type Route = {
@@ -19,6 +22,9 @@ export type Route = {
   icon?: LucideIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
+  bottom?: boolean; // bottom of the sidebar, only for first level routes
+  newTab?: boolean; // open in new tab
+  cloudOnly?: boolean; // only available in cloud
 };
 
 export const ROUTES: Route[] = [
@@ -54,6 +60,35 @@ export const ROUTES: Route[] = [
     ],
   },
   {
+    name: "Evaluation",
+    icon: Lightbulb,
+    cloudOnly: true,
+    featureFlag: "evals",
+    children: [
+      {
+        name: "Templates",
+        pathname: `/project/[projectId]/evals/templates`,
+        cloudOnly: true,
+        featureFlag: "evals",
+        rbacScope: "evalTemplate:read",
+      },
+      {
+        name: "Configs",
+        pathname: `/project/[projectId]/evals/configs`,
+        cloudOnly: true,
+        featureFlag: "evals",
+        rbacScope: "job:read",
+      },
+      {
+        name: "Log",
+        pathname: `/project/[projectId]/evals/log`,
+        cloudOnly: true,
+        featureFlag: "evals",
+        rbacScope: "jobExecution:read",
+      },
+    ],
+  },
+  {
     name: "Users",
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
@@ -65,6 +100,13 @@ export const ROUTES: Route[] = [
     rbacScope: "prompts:read",
   },
   {
+    name: "Playground",
+    pathname: "/project/[projectId]/playground",
+    icon: TerminalIcon,
+    cloudOnly: true,
+    label: "Beta",
+  },
+  {
     name: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
@@ -73,10 +115,19 @@ export const ROUTES: Route[] = [
     name: "Settings",
     pathname: "/project/[projectId]/settings",
     icon: Settings,
+    bottom: true,
+  },
+  {
+    name: "Docs",
+    pathname: "https://langfuse.com/docs",
+    icon: LibraryBig,
+    bottom: true,
+    newTab: true,
   },
   {
     name: "Support",
     pathname: "/project/[projectId]/support",
     icon: LifeBuoy,
+    bottom: true,
   },
 ];

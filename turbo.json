@@ -1,0 +1,37 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDotEnv": [".env"],
+  "pipeline": {
+    "build": {
+      "dependsOn": ["db:generate", "^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "start": {
+      "dependsOn": ["^start"]
+    },
+    "db:migrate": {},
+    "db:deploy": {},
+    "db:reset": {},
+    "db:push": {},
+    "db:seed": {},
+    "models:migrate": {
+      "dependsOn": ["db:generate"]
+    },
+    "db:seed:examples": {},
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["db:generate"]
+    },
+    "db:generate": {
+      "cache": false,
+      "dependsOn": ["^db:generate"]
+    },
+    "lint": {
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["^test", "db:generate"]
+    }
+  }
+}

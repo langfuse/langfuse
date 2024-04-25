@@ -14,6 +14,9 @@ import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/prompt-router";
 import { modelRouter } from "@/src/server/api/routers/models";
+import { evalRouter } from "@/src/features/evals/server/router";
+import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
+import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 
 /**
  * This is the primary router for your server.
@@ -36,6 +39,9 @@ export const appRouter = createTRPCRouter({
   observations: observationsRouter,
   prompts: promptRouter,
   models: modelRouter,
+  evals: evalRouter,
+  posthogIntegration: posthogIntegrationRouter,
+  llmApiKey: llmApiKeyRouter,
 });
 
 // export type definition of API

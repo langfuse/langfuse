@@ -30,7 +30,9 @@ const config = {
     await createJestConfig(clientTestConfig)(),
     {
       ...(await createJestConfig(serverTestConfig)()),
-      transformIgnorePatterns: [`/node_modules/(?!(${esModules.join("|")})/)`],
+      transformIgnorePatterns: [
+        `/web/node_modules/(?!(${esModules.join("|")})/)`,
+      ],
     },
   ],
 };

@@ -14,9 +14,11 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
+import { JsonEditor } from "@/src/components/json-editor";
+import { type Prisma } from "@langfuse/shared";
 
 interface BaseDatasetFormProps {
-  mode: "create" | "rename" | "delete";
+  mode: "create" | "update" | "delete";
   projectId: string;
   onFormSuccess?: () => void;
   className?: string;
@@ -31,15 +33,17 @@ interface DeleteDatasetFormProps extends BaseDatasetFormProps {
   datasetId: string;
 }
 
-interface RenameDatasetFormProps extends BaseDatasetFormProps {
-  mode: "rename";
+interface UpdateDatasetFormProps extends BaseDatasetFormProps {
+  mode: "update";
   datasetId: string;
   datasetName: string;
+  datasetDescription?: string;
+  datasetMetadata?: Prisma.JsonValue;
 }
 
 type DatasetFormProps =
   | CreateDatasetFormProps
-  | RenameDatasetFormProps
+  | UpdateDatasetFormProps
   | DeleteDatasetFormProps;
 
 const formSchema = z.object({
@@ -49,6 +53,22 @@ const formSchema = z.object({
     .refine((name) => name.trim().length > 0, {
       message: "Input should not be only whitespace",
     }),
+  description: z.string(),
+  metadata: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
+  ),
 });
 
 export const DatasetForm = (props: DatasetFormProps) => {
@@ -56,9 +76,20 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const posthog = usePostHog();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-    },
+    defaultValues:
+      props.mode === "update"
+        ? {
+            name: props.datasetName,
+            description: props.datasetDescription ?? "",
+            metadata: props.datasetMetadata
+              ? JSON.stringify(props.datasetMetadata, null, 2)
+              : "",
+          }
+        : {
+            name: "",
+            description: "",
+            metadata: "",
+          },
   });
 
   const utils = api.useUtils();
@@ -70,6 +101,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
     const trimmedValues = {
       ...values,
       name: values.name.trim(),
+      description: values.description !== "" ? values.description.trim() : null,
     };
     if (props.mode === "create") {
       posthog.capture("datasets:new_dataset_form_submit");
@@ -87,8 +119,8 @@ export const DatasetForm = (props: DatasetFormProps) => {
           setFormError(error.message);
           console.error(error);
         });
-    } else if (props.mode === "rename") {
-      posthog.capture("datasets:rename_dataset_form_submit");
+    } else if (props.mode === "update") {
+      posthog.capture("datasets:update_dataset_form_submit");
       renameMutation
         .mutateAsync({
           ...trimmedValues,
@@ -134,27 +166,54 @@ export const DatasetForm = (props: DatasetFormProps) => {
           onSubmit={
             props.mode === "delete" ? handleDelete : form.handleSubmit(onSubmit)
           }
-          className="space-y-8"
         >
           {props.mode !== "delete" && (
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder={
-                        props.mode === "rename" ? props.datasetName : ""
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="mb-8 space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (optional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="metadata"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Metadata (optional)</FormLabel>
+                    <FormControl>
+                      <JsonEditor
+                        defaultValue={field.value}
+                        onChange={(v) => {
+                          field.onChange(v);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           )}
           <Button
             type="submit"
@@ -166,7 +225,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
               ? "Create dataset"
               : props.mode === "delete"
                 ? "Delete Dataset"
-                : "Rename dataset"}
+                : "Update dataset"}
           </Button>
         </form>
       </Form>

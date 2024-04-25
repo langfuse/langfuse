@@ -16,16 +16,23 @@ service:
           docs: The unique langfuse identifier of a trace
       response: commons.TraceWithFullDetails
     list:
-      docs: Get list of traces
+      docs: Get list of traces.
       method: GET
       path: /traces
       request:
         name: GetTracesRequest
         query-parameters:
-          page: optional<integer>
-          limit: optional<integer>
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
           userId: optional<string>
           name: optional<string>
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Retrieve only traces newer than this timestamp.
           orderBy:
             type: optional<string>
             docs: "Format of the string [field].[asc/desc]. Fields: id, timestamp, name, userId, release, version, public, bookmarked, sessionId. Example: timestamp.asc"

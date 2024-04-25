@@ -65,7 +65,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\",\n    \"id\": \"example\"\n}",
+              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\",\n    \"metadata\": \"UNKNOWN\",\n    \"sourceTraceId\": \"example\",\n    \"sourceObservationId\": \"example\",\n    \"id\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -137,7 +137,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"runName\": \"example\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\"\n}",
+              "raw": "{\n    \"runName\": \"example\",\n    \"runDescription\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -154,6 +154,42 @@
       "description": null,
       "name": "Datasets",
       "item": [
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get all datasets",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/datasets?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
         {
           "_type": "endpoint",
           "name": "Get",
@@ -209,7 +245,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\",\n    \"metadata\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -343,7 +379,7 @@
           "request": {
             "description": "Get daily metrics of the Langfuse project",
             "url": {
-              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=",
+              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=&fromTimestamp=&toTimestamp=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -357,12 +393,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 },
                 {
                   "key": "traceName",
@@ -378,6 +414,16 @@
                   "key": "tags",
                   "value": "",
                   "description": "Optional filter for metrics where traces include all of these tags"
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include traces on or after a certain timestamp"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include traces before a certain timestamp"
                 }
               ],
               "variable": []
@@ -434,7 +480,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -447,12 +493,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "Page number, starts at 1."
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
                 },
                 {
                   "key": "name",
@@ -478,6 +524,11 @@
                   "key": "parentObservationId",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "fromStartTime",
+                  "value": "",
+                  "description": "Retrieve only observations with a start_time greater than this timestamp."
                 }
               ],
               "variable": []
@@ -587,7 +638,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\",\n    \"isActive\": true,\n    \"prompt\": \"example\",\n    \"config\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"isActive\": true,\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -643,7 +694,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -656,12 +707,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "Page number, starts at 1."
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
                 },
                 {
                   "key": "userId",
@@ -672,6 +723,26 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Retrieve only scores newer than this timestamp."
+                },
+                {
+                  "key": "source",
+                  "value": "",
+                  "description": "Retrieve only scores from a specific source."
+                },
+                {
+                  "key": "operator",
+                  "value": "",
+                  "description": "Retrieve only scores with <operator> value."
+                },
+                {
+                  "key": "value",
+                  "value": "",
+                  "description": "Retrieve only scores with <operator> value."
                 }
               ],
               "variable": []
@@ -829,9 +900,9 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get list of traces",
+            "description": "Get list of traces.",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&fromTimestamp=&orderBy=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -844,12 +915,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "Page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
                 },
                 {
                   "key": "userId",
@@ -860,6 +931,11 @@
                   "key": "name",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Retrieve only traces newer than this timestamp."
                 },
                 {
                   "key": "orderBy",

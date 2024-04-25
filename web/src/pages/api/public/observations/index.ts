@@ -1,16 +1,17 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import {
   Prisma,
   type PrismaClient,
   type ObservationView,
-} from "@prisma/client";
+} from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { stringDate } from "@/src/features/public-api/server/ingestion-api-schema";
 
 const ObservationsGetSchema = z.object({
   ...paginationZod,
@@ -19,6 +20,7 @@ const ObservationsGetSchema = z.object({
   userId: z.string().nullish(),
   traceId: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  fromStartTime: stringDate,
 });
 
 export default async function handler(
@@ -51,8 +53,7 @@ export default async function handler(
 
     if (authCheck.scope.accessLevel !== "all") {
       return res.status(401).json({
-        message:
-          "Access denied - need to use basic auth with secret key to GET generations",
+        message: "Access denied - need to use basic auth with secret key",
       });
     }
 
@@ -120,6 +121,10 @@ const getObservation = async (
     ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
     : Prisma.empty;
 
+  const fromStartTimeCondition = query.fromStartTime
+    ? Prisma.sql`AND o."start_time" >= ${query.fromStartTime}::timestamp with time zone at time zone 'UTC'`
+    : Prisma.empty;
+
   const observations = await prisma.$queryRaw<ObservationView[]>`
       SELECT 
         o."id",
@@ -150,7 +155,8 @@ const getObservation = async (
         o."calculated_input_cost" as "calculatedInputCost",
         o."calculated_output_cost" as "calculatedOutputCost",
         o."calculated_total_cost" as "calculatedTotalCost",
-        o."latency"
+        o."latency",
+        o."prompt_id" as "promptId"
       FROM observations_view o LEFT JOIN traces ON o."trace_id" = traces."id" AND traces."project_id" = o."project_id"
       WHERE o."project_id" = ${authenticatedProjectId}
       ${nameCondition}
@@ -158,6 +164,7 @@ const getObservation = async (
       ${observationTypeCondition}
       ${traceIdCondition}
       ${parentObservationIdCondition}
+      ${fromStartTimeCondition}
       ORDER by o."start_time" DESC
       OFFSET ${(query.page - 1) * query.limit}
       LIMIT ${query.limit}
@@ -170,6 +177,7 @@ const getObservation = async (
       ${userIdCondition}
       ${traceIdCondition}
       ${parentObservationIdCondition}
+      ${fromStartTimeCondition}
   `;
 
   if (count.length !== 1) {

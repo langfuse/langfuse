@@ -29,6 +29,7 @@ import "core-js/features/array/to-sorted";
 // Other CSS
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
+import { env } from "@/src/env.mjs";
 
 const setProjectInPosthog = () => {
   // project
@@ -66,10 +67,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
-    if (
-      process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-      process.env.NEXT_PUBLIC_POSTHOG_HOST
-    ) {
+    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
       const handleRouteChange = () => {
         setProjectInPosthog();
         posthog.capture("$pageview");
@@ -110,17 +108,14 @@ function UserTracking() {
   useEffect(() => {
     if (session.status === "authenticated") {
       // PostHog
-      if (
-        process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-        process.env.NEXT_PUBLIC_POSTHOG_HOST
-      )
+      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST)
         posthog.identify(session.data.user?.id ?? undefined, {
           environment: process.env.NODE_ENV,
           email: session.data.user?.email ?? undefined,
           name: session.data.user?.name ?? undefined,
           featureFlags: session.data.user?.featureFlags ?? undefined,
           projects: session.data.user?.projects ?? undefined,
-          LANGFUSE_CLOUD_REGION: process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
       const emailDomain = session.data.user?.email?.split("@")[1];
       if (emailDomain)
@@ -149,10 +144,7 @@ function UserTracking() {
       });
     } else {
       // PostHog
-      if (
-        process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-        process.env.NEXT_PUBLIC_POSTHOG_HOST
-      ) {
+      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
         posthog.reset();
         posthog.resetGroups();
       }

@@ -1,5 +1,5 @@
-import { prisma } from "@/src/server/db";
-import { Prisma, type Score } from "@prisma/client";
+import { ScoreSource, prisma } from "@langfuse/shared/src/db";
+import { Prisma, type Score } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
@@ -9,6 +9,7 @@ import {
   ScoreBody,
   eventTypes,
   ingestionBatchEvent,
+  stringDate,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { v4 } from "uuid";
 import {
@@ -17,10 +18,25 @@ import {
 } from "@/src/pages/api/public/ingestion";
 import { isPrismaException } from "@/src/utils/exceptions";
 
+const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
+
+const prismaOperators: Record<(typeof operators)[number], string> = {
+  "<": "lt",
+  ">": "gt",
+  "<=": "lte",
+  ">=": "gte",
+  "!=": "not",
+  "=": "equals",
+};
+
 const ScoresGetSchema = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
+  fromTimestamp: stringDate,
+  source: z.nativeEnum(ScoreSource).nullish(),
+  value: z.coerce.number().nullish(),
+  operator: z.enum(operators).nullish(),
 });
 
 export default async function handler(
@@ -87,16 +103,29 @@ export default async function handler(
     try {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET scores",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
 
       const obj = ScoresGetSchema.parse(req.query); // uses query and not body
 
       const skipValue = (obj.page - 1) * obj.limit;
-      const userCondition = Prisma.sql`AND t."user_id" = ${obj.userId}`;
-      const nameCondition = Prisma.sql`AND s."name" = ${obj.name}`;
+      const userCondition = obj.userId
+        ? Prisma.sql`AND t."user_id" = ${obj.userId}`
+        : Prisma.empty;
+      const nameCondition = obj.name
+        ? Prisma.sql`AND s."name" = ${obj.name}`
+        : Prisma.empty;
+      const fromTimestampCondition = obj.fromTimestamp
+        ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+      const sourceCondition = obj.source
+        ? Prisma.sql`AND s."source" = ${obj.source}`
+        : Prisma.empty;
+      const valueCondition =
+        obj.operator && obj.value !== null && obj.value !== undefined
+          ? Prisma.sql`AND s."value" ${Prisma.raw(`${obj.operator}`)} ${obj.value}`
+          : Prisma.empty;
 
       const scores = await prisma.$queryRaw<
         Array<Score & { trace: { userId: string } }>
@@ -106,6 +135,7 @@ export default async function handler(
             s.timestamp,
             s.name,
             s.value,
+            s.source,
             s.comment,
             s.trace_id as "traceId",
             s.observation_id as "observationId",
@@ -113,17 +143,30 @@ export default async function handler(
           FROM "scores" AS s
           JOIN "traces" AS t ON t.id = s.trace_id
           WHERE t.project_id = ${authCheck.scope.projectId}
-          ${obj.userId ? userCondition : Prisma.empty}
-          ${obj.name ? nameCondition : Prisma.empty}
+          ${userCondition}
+          ${nameCondition}
+          ${sourceCondition}
+          ${fromTimestampCondition}
+          ${valueCondition}
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `);
       const totalItems = await prisma.score.count({
         where: {
-          name: obj.name ?? undefined, // optional filter
+          name: obj.name ? obj.name : undefined,
+          source: obj.source ? obj.source : undefined,
+          timestamp: obj.fromTimestamp
+            ? { gte: new Date(obj.fromTimestamp) }
+            : undefined,
+          value:
+            obj.operator && obj.value
+              ? {
+                  [prismaOperators[obj.operator]]: obj.value,
+                }
+              : undefined,
           trace: {
             projectId: authCheck.scope.projectId,
-            userId: obj.userId ?? undefined, // optional filter
+            userId: obj.userId ? obj.userId : undefined,
           },
         },
       });

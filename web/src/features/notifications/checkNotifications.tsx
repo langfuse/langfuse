@@ -10,6 +10,29 @@ import { env } from "@/src/env.mjs";
 
 export const NOTIFICATIONS: TNotification[] = [
   {
+    id: 2,
+    releaseDate: new Date("2024-04-24"),
+    message: "Langfuse Launch Week #1 is in Full Swing",
+    description: (
+      <div>
+        <p>
+          {
+            "We're launching a new feature every day this week. We already launched:"
+          }
+        </p>
+        <ul className="ms-4 mt-2 list-outside list-disc">
+          <li>Langfuse x Posthog integration</li>
+          <li>Python decorator integration</li>
+          <li>LLM Playground</li>
+          <li>More to come every day until Friday</li>
+        </ul>
+        <Button size="sm" variant="secondary" className="mt-3">
+          <Link href="https://langfuse.com/launch">Follow along</Link>
+        </Button>
+      </div>
+    ),
+  },
+  {
     id: 1,
     releaseDate: new Date("2024-01-29"),
     message: "New: Custom model prices",

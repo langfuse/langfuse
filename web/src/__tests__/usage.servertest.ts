@@ -1,4 +1,4 @@
-import { ModelUsageUnit } from "@/src/constants";
+import { ModelUsageUnit } from "@langfuse/shared";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 
 describe("Token Count Functions", () => {

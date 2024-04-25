@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "@/src/features/filters/types";
+import { type FilterState } from "@langfuse/shared";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -102,7 +102,7 @@ export const TracesBarListChart = ({
           <NoData noDataText="No data">
             <DocPopup
               description="Traces contain details about LLM applications and can be created using the SDK."
-              href="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
+              href="https://langfuse.com/docs/get-started"
             />
           </NoData>
         )}

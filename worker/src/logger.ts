@@ -1,9 +1,11 @@
-export const getLogger = (env: "development" | "production" | "test") => {
-  return envToLogger[env] ?? true;
-};
+import pino from "pino";
+import { env } from "./env";
 
-const envToLogger = {
-  development: {
+export const getLogger = (env: "development" | "production" | "test") => {
+  if (env === "production") {
+    return pino();
+  }
+  return pino({
     transport: {
       target: "pino-pretty",
       options: {
@@ -11,7 +13,9 @@ const envToLogger = {
         ignore: "pid,hostname",
       },
     },
-  },
-  production: true,
-  test: false,
+  });
 };
+
+const logger = getLogger(env.NODE_ENV);
+
+export default logger;

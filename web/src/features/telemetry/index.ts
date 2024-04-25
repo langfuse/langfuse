@@ -1,11 +1,7 @@
 import { VERSION } from "@/src/constants";
-import { prisma } from "@/src/server/db";
-import { Prisma } from "@prisma/client";
-import { PostHog } from "posthog-node";
+import { ServerPosthog } from "@/src/server/services/posthog";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
-
-// Safe as it is intended to be public
-const POSTHOG_API_KEY = "phc_zkMwFajk8ehObUlMth0D7DtPItFnxETi3lmSvyQDrwB";
 
 // Interval between jobs in milliseconds
 const JOB_INTERVAL_MINUTES = Prisma.raw("60");
@@ -148,11 +144,7 @@ async function posthogTelemetry({
   clientId: string;
 }) {
   try {
-    const posthog = new PostHog(POSTHOG_API_KEY, {
-      host: "https://eu.posthog.com",
-    });
-    if (process.env.NODE_ENV === "development") posthog.debug();
-
+    const posthog = new ServerPosthog();
     // Count projects
     const totalProjects = await prisma.project.count();
 

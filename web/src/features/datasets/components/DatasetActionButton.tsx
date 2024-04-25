@@ -11,9 +11,10 @@ import { useState } from "react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { type Prisma } from "@langfuse/shared";
 
 interface BaseDatasetButtonProps {
-  mode: "create" | "rename" | "delete";
+  mode: "create" | "update" | "delete";
   projectId: string;
   className?: string;
   onFormSuccess?: () => void;
@@ -28,16 +29,18 @@ interface DeleteDatasetButtonProps extends BaseDatasetButtonProps {
   datasetId: string;
 }
 
-interface RenameDatasetButtonProps extends BaseDatasetButtonProps {
-  mode: "rename";
+interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
+  mode: "update";
   datasetId: string;
   datasetName: string;
+  datasetDescription?: string;
+  datasetMetadata?: Prisma.JsonValue;
   icon?: boolean;
 }
 
 type DatasetActionButtonProps =
   | CreateDatasetButtonProps
-  | RenameDatasetButtonProps
+  | UpdateDatasetButtonProps
   | DeleteDatasetButtonProps;
 
 export const DatasetActionButton = (props: DatasetActionButtonProps) => {
@@ -50,7 +53,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {props.mode === "rename" ? (
+        {props.mode === "update" ? (
           props.icon ? (
             <Button
               variant="outline"
@@ -82,11 +85,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             Delete
           </div>
         ) : (
-          <Button
-            variant="secondary"
-            className={props.className}
-            disabled={!hasAccess}
-          >
+          <Button className={props.className} disabled={!hasAccess}>
             {hasAccess ? (
               <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
             ) : (
@@ -103,7 +102,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               ? "Create new dataset"
               : props.mode === "delete"
                 ? "Please confirm"
-                : "Rename dataset"}
+                : "Update dataset"}
           </DialogTitle>
           {props.mode === "delete" && (
             <DialogDescription className="text-md p-0">
@@ -127,11 +126,13 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
           />
         ) : (
           <DatasetForm
-            mode="rename"
+            mode="update"
             projectId={props.projectId}
             onFormSuccess={() => setOpen(false)}
             datasetId={props.datasetId}
             datasetName={props.datasetName}
+            datasetDescription={props.datasetDescription}
+            datasetMetadata={props.datasetMetadata}
           />
         )}
       </DialogContent>

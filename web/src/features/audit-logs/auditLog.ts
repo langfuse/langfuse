@@ -1,5 +1,5 @@
-import { prisma as _prisma } from "@/src/server/db";
-import { type MembershipRole } from "@prisma/client";
+import { prisma as _prisma } from "@langfuse/shared/src/db";
+import { type MembershipRole } from "@langfuse/shared";
 
 export type AuditableResource =
   | "membership"
@@ -13,7 +13,11 @@ export type AuditableResource =
   | "model"
   | "prompt"
   | "session"
-  | "apiKey";
+  | "apiKey"
+  | "evalTemplate"
+  | "job"
+  | "posthogIntegration"
+  | "llmApiKey";
 
 type AuditLog = {
   resourceType: AuditableResource;

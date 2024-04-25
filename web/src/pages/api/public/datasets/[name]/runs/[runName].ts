@@ -1,4 +1,4 @@
-import { prisma } from "@/src/server/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
@@ -6,8 +6,8 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { isPrismaException } from "@/src/utils/exceptions";
 
 const DatasetRunsGetSchema = z.object({
-  name: z.string(),
-  runName: z.string(),
+  name: z.string().transform((val) => decodeURIComponent(val)),
+  runName: z.string().transform((val) => decodeURIComponent(val)),
 });
 
 export default async function handler(
@@ -30,8 +30,7 @@ export default async function handler(
 
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
-          message:
-            "Access denied - need to use basic auth with secret key to GET dataset runs",
+          message: "Access denied - need to use basic auth with secret key",
         });
       }
       console.log(
@@ -54,6 +53,11 @@ export default async function handler(
         },
         include: {
           datasetRunItems: true,
+          dataset: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
 
@@ -75,7 +79,16 @@ export default async function handler(
           message: "Dataset run not found",
         });
 
-      return res.status(200).json(datasetRuns[0]);
+      const { dataset, datasetRunItems, ...run } = datasetRuns[0];
+
+      return res.status(200).json({
+        ...run,
+        datasetRunItems: datasetRunItems.map((item) => ({
+          ...item,
+          datasetRunName: run.name,
+        })),
+        datasetName: dataset.name,
+      });
     } catch (error: unknown) {
       console.error(error);
       if (isPrismaException(error)) {

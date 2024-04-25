@@ -14,11 +14,12 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
+import { SiOkta, SiAuth0 } from "react-icons/si";
 import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { usePostHog } from "posthog-js/react";
@@ -26,6 +27,11 @@ import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
+import { Turnstile } from "@marsidev/react-turnstile";
+import { isAnySsoConfigured } from "@langfuse/ee/sso";
+import { Shield } from "lucide-react";
+import { useRouter } from "next/router";
+import { captureException } from "@sentry/nextjs";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -40,13 +46,18 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    okta: boolean;
     azureAd: boolean;
+    auth0: boolean;
+    sso: boolean;
   };
+  signUpDisabled: boolean;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
+  const sso: boolean = await isAnySsoConfigured();
   return {
     props: {
       authProviders: {
@@ -56,12 +67,22 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        okta:
+          env.AUTH_OKTA_CLIENT_ID !== undefined &&
+          env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
+          env.AUTH_OKTA_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
           env.AUTH_AZURE_AD_CLIENT_SECRET !== undefined &&
           env.AUTH_AZURE_AD_TENANT_ID !== undefined,
+        auth0:
+          env.AUTH_AUTH0_CLIENT_ID !== undefined &&
+          env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTH0_ISSUER !== undefined,
+        sso,
       },
+      signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
     },
   };
 };
@@ -70,7 +91,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
 export function SSOButtons({
   authProviders,
   action = "Sign in",
-}: PageProps & { action?: string }) {
+}: {
+  authProviders: PageProps["authProviders"];
+  action?: string;
+}) {
   const posthog = usePostHog();
 
   return (
@@ -117,18 +141,73 @@ export function SSOButtons({
               {action} with Azure AD
             </Button>
           )}
+          {authProviders.okta && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:okta_button_click");
+                void signIn("okta");
+              }}
+              variant="secondary"
+            >
+              <SiOkta className="mr-3" size={18} />
+              {action} with Okta
+            </Button>
+          )}
+          {authProviders.auth0 && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:auth0_button_click");
+                void signIn("auth0");
+              }}
+              variant="secondary"
+            >
+              <SiAuth0 className="mr-3" size={18} />
+              {action} with Auth0
+            </Button>
+          )}
         </div>
       </div>
     ) : null
   );
 }
 
-export default function SignIn({ authProviders }: PageProps) {
+const signInErrors = [
+  {
+    code: "OAuthAccountNotLinked",
+    description:
+      "Please sign in with the same provider that you used to create this account.",
+  },
+];
+
+export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
+  const router = useRouter();
+
+  // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
+  const nextAuthError =
+    typeof router.query.error === "string"
+      ? decodeURIComponent(router.query.error)
+      : null;
+  const nextAuthErrorDescription = signInErrors.find(
+    (e) => e.code === nextAuthError,
+  )?.description;
+  useEffect(() => {
+    // log unexpected sign in errors to Sentry
+    if (nextAuthError && !nextAuthErrorDescription) {
+      captureException(new Error(`Sign in error: ${nextAuthError}`));
+    }
+  }, [nextAuthError, nextAuthErrorDescription]);
+
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
-  >(null);
+  >(nextAuthErrorDescription ?? nextAuthError);
+  const [ssoLoading, setSsoLoading] = useState<boolean>(false);
 
   const posthog = usePostHog();
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Used to refresh turnstile as the token can only be used once
+  const [turnstileCData, setTurnstileCData] = useState<string>(
+    new Date().getTime().toString(),
+  );
 
   // Credentials
   const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
@@ -148,9 +227,47 @@ export default function SignIn({ authProviders }: PageProps) {
       password: values.password,
       callbackUrl: "/",
       redirect: false,
+      turnstileToken,
     });
     if (result?.error) {
       setCredentialsFormError(result.error);
+
+      // Refresh turnstile as the token can only be used once
+      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+        setTurnstileCData(new Date().getTime().toString());
+        setTurnstileToken(undefined);
+      }
+    }
+  }
+
+  async function handleSsoSignIn() {
+    setSsoLoading(true);
+    setCredentialsFormError(null);
+    credentialsForm.clearErrors();
+    // get current email field, verify it, add input error if not valid
+    const emailSchema = z.string().email();
+    const email = emailSchema.safeParse(credentialsForm.getValues("email"));
+    if (!email.success) {
+      credentialsForm.setError("email", {
+        message: "Invalid email address",
+      });
+      setSsoLoading(false);
+      return;
+    }
+    // current email domain
+    const domain = email.data.split("@")[1]?.toLowerCase();
+    const res = await fetch("/api/auth/check-sso", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain }),
+    });
+
+    if (!res.ok) {
+      setCredentialsFormError("SSO is not enabled for this domain.");
+      setSsoLoading(false);
+    } else {
+      const { providerId } = await res.json();
+      void signIn(providerId);
     }
   }
 
@@ -204,28 +321,80 @@ export default function SignIn({ authProviders }: PageProps) {
                     )}
                   />
                   <Button
+                    // this hidden button is needed to submit form by pressing enter
                     type="submit"
-                    className="w-full"
-                    loading={credentialsForm.formState.isSubmitting}
+                    className="hidden"
+                    disabled={
+                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                      turnstileToken === undefined
+                    }
                   >
                     Sign in
                   </Button>
-                  {credentialsFormError ? (
-                    <div className="text-center text-sm font-medium text-destructive">
-                      {credentialsFormError}
-                      <br />
-                      Contact support if this error is unexpected.
-                    </div>
-                  ) : null}
                 </form>
               </Form>
             ) : null}
+            <div className="flex flex-row gap-3">
+              <Button
+                className="w-full"
+                loading={credentialsForm.formState.isSubmitting}
+                disabled={
+                  env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                  turnstileToken === undefined
+                }
+                onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
+                data-testid="submit-email-password-sign-in-form"
+              >
+                Sign in
+              </Button>
+              {authProviders.sso && (
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  loading={ssoLoading}
+                  disabled={
+                    env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                    turnstileToken === undefined
+                  }
+                  onClick={handleSsoSignIn}
+                >
+                  <Shield className="mr-3" size={18} />
+                  SSO
+                </Button>
+              )}
+            </div>
+            {credentialsFormError ? (
+              <div className="text-center text-sm font-medium text-destructive">
+                {credentialsFormError}
+                <br />
+                Contact support if this error is unexpected.
+              </div>
+            ) : null}
             <SSOButtons authProviders={authProviders} />
           </div>
+          {
+            // Turnstile exists copy-paste also on sign-up.tsx
+            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
+              <>
+                <Divider className="text-gray-400" />
+                <Turnstile
+                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  options={{
+                    theme: "light",
+                    action: "sign-in",
+                    cData: turnstileCData,
+                  }}
+                  className="mx-auto"
+                  onSuccess={setTurnstileToken}
+                />
+              </>
+            )
+          }
           <CloudPrivacyNotice action="signing in" />
         </div>
 
-        {env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+        {!signUpDisabled &&
+        env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
         authProviders.credentials ? (
           <p className="mt-10 text-center text-sm text-gray-500">
             No account yet?{" "}

@@ -1,36 +1,29 @@
-import Fastify from "fastify";
-import consumer from "./redis-consumer";
+import app from "./app";
+import { env } from "./env";
+import logger from "./logger";
+import { evalJobCreator, evalJobExecutor } from "./redis/consumer";
 
-import { getLogger } from "./logger";
-import redis from "@fastify/redis";
-import { db } from "./database";
-
-const fastify = Fastify({
-  logger: getLogger("development") ?? true, // defaults to true if no entry matches in the map
+const server = app.listen(env.PORT, () => {
+  logger.info(`Listening: http://localhost:${env.PORT}`);
 });
 
-fastify.register(redis, {
-  host: process.env.REDIS_URL,
-  port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-  password: process.env.REDIS_AUTH,
-});
-fastify.register(consumer);
+// Function to handle shutdown logic
+function onShutdown() {
+  logger.info("Shutting down application...");
 
-const start = async () => {
-  try {
-    // listen to 0.0.0.0 is required for docker
-    await fastify.listen({
-      port: process.env.PORT ? parseInt(process.env.PORT) : 3030,
-      host: "0.0.0.0",
-    });
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
+  // Stop accepting new connections
+  server.close();
 
-start();
+  // Perform necessary cleanup tasks here
+  // For example, close database connections, stop job executors, etc.
+  evalJobCreator
+    ?.close()
+    .then(() => logger.info("Eval Job Creator has been closed."));
+  evalJobExecutor
+    ?.close()
+    .then(() => logger.info("Eval Job Executor has been closed."));
+}
 
-fastify.get("/", async (request, reply) => {
-  return { hello: "world" };
-});
+// Capture shutdown signals
+process.on("SIGTERM", onShutdown);
+process.on("SIGINT", onShutdown);
