@@ -330,9 +330,8 @@ const generateScoresQuery = (
   SELECT
    ${select}
   FROM scores s
-  JOIN traces t ON t.id = s.trace_id LEFT JOIN job_executions je ON je.job_output_score_id = s.id
+  JOIN traces t ON t.id = s.trace_id LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
   WHERE t.project_id = ${projectId}
-  AND je.project_id = ${projectId}
   ${filterCondition}
   ${orderCondition}
   LIMIT ${limit}
