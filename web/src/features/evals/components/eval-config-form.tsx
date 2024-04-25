@@ -94,7 +94,9 @@ export const EvalConfigForm = (props: {
           projectId={props.projectId}
           disabled={props.disabled}
           existingEvalConfig={props.existingEvalConfig}
-          evalTemplate={currentTemplate}
+          evalTemplate={
+            props.existingEvalConfig?.evalTemplate ?? currentTemplate
+          }
           onFormSuccess={props.onFormSuccess}
         />
       ) : null}
@@ -102,21 +104,34 @@ export const EvalConfigForm = (props: {
   );
 };
 
+type EvalConfigPreFill = {
+  scoreName: string;
+  targetObject: string;
+  filter: any;
+  variableMapping: any;
+  sampling: number;
+  delay: number;
+};
+
 export const InnerEvalConfigForm = (props: {
   projectId: string;
   evalTemplate: EvalTemplate;
   disabled?: boolean;
-  existingEvalConfig?: JobConfiguration & { evalTemplate: EvalTemplate };
+  existingEvalConfig?: JobConfiguration;
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const posthog = usePostHog();
 
+  console.log("existing shit", props.existingEvalConfig, props.evalTemplate);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     disabled: props.disabled,
     defaultValues: {
-      scoreName: props.existingEvalConfig?.scoreName ?? "",
+      scoreName:
+        props.existingEvalConfig?.scoreName ??
+        `${props.evalTemplate.name}-v${props.evalTemplate.version}`,
       target: props.existingEvalConfig?.targetObject ?? "",
       filter: props.existingEvalConfig?.filter
         ? z.array(singleFilter).parse(props.existingEvalConfig.filter)
@@ -125,7 +140,15 @@ export const InnerEvalConfigForm = (props: {
         ? z
             .array(variableMapping)
             .parse(props.existingEvalConfig.variableMapping)
-        : z.array(variableMapping).parse([]),
+        : z.array(variableMapping).parse(
+            props.evalTemplate
+              ? props.evalTemplate.vars.map((v) => ({
+                  templateVariable: v,
+                  langfuseObject: "trace" as const,
+                  selectedColumnId: "input",
+                }))
+              : [],
+          ),
       sampling: props.existingEvalConfig?.sampling
         ? props.existingEvalConfig.sampling.toNumber()
         : 1,
@@ -142,12 +165,12 @@ export const InnerEvalConfigForm = (props: {
 
   useEffect(() => {
     if (props.evalTemplate) {
-      form.setValue("mapping", []);
       form.setValue(
         "mapping",
         props.evalTemplate.vars.map((v) => ({
           templateVariable: v,
           langfuseObject: "trace" as const,
+          selectedColumnId: "input",
         })),
       );
       form.setValue(
@@ -186,6 +209,7 @@ export const InnerEvalConfigForm = (props: {
       .safeParse(values.mapping);
 
     if (validatedVarMapping.success === false) {
+      console.log(validatedVarMapping.error);
       form.setError("mapping", {
         type: "manual",
         message: "Please fill out all variable mappings",
@@ -314,9 +338,11 @@ export const InnerEvalConfigForm = (props: {
                             {"}}"}
                             <DocPopup
                               description={
-                                "This is the variable that will be replaced with the trace data."
+                                "Variable in the template to be replaced with the trace data."
                               }
-                              href={"columnDef.headerTooltip.href"}
+                              href={
+                                "https://langfuse.com/docs/scores/model-based-evals"
+                              }
                               size="xs"
                             />
                           </div>
@@ -329,9 +355,11 @@ export const InnerEvalConfigForm = (props: {
                                 <VariableMappingDescription
                                   title={"Trace object"}
                                   description={
-                                    "The object from the trace to get data from"
+                                    "Langfuse object to retrieve the data from."
                                   }
-                                  href={""}
+                                  href={
+                                    "https://langfuse.com/docs/scores/model-based-evals"
+                                  }
                                 />
                                 <FormItem className="w-2/3">
                                   <FormControl>
@@ -341,7 +369,7 @@ export const InnerEvalConfigForm = (props: {
                                       onValueChange={field.onChange}
                                     >
                                       <SelectTrigger>
-                                        <SelectValue defaultValue={"input"} />
+                                        <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
                                         {availableEvalVariables.map(
@@ -371,10 +399,15 @@ export const InnerEvalConfigForm = (props: {
                               name={`mapping.${index}.objectName`}
                               render={({ field }) => (
                                 <div className="flex items-center gap-2">
-                                  <Label className="muted-foreground w-1/3 text-sm font-light">
-                                    Object name
-                                  </Label>
-
+                                  <VariableMappingDescription
+                                    title={"Object Name"}
+                                    description={
+                                      "Name of the Langfuse object to retrieve the data from."
+                                    }
+                                    href={
+                                      "https://langfuse.com/docs/scores/model-based-evals"
+                                    }
+                                  />
                                   <FormItem className="w-2/3">
                                     <FormControl>
                                       <Input
@@ -396,9 +429,15 @@ export const InnerEvalConfigForm = (props: {
                             name={`mapping.${index}.selectedColumnId`}
                             render={({ field }) => (
                               <div className="flex items-center gap-2">
-                                <Label className="muted-foreground w-1/3 text-sm font-light">
-                                  Object variable
-                                </Label>
+                                <VariableMappingDescription
+                                  title={"Object Variable"}
+                                  description={
+                                    "Variable on the Langfuse object to insert into the template."
+                                  }
+                                  href={
+                                    "https://langfuse.com/docs/scores/model-based-evals"
+                                  }
+                                />
                                 <FormItem className="w-2/3">
                                   <FormControl>
                                     <Select
