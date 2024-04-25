@@ -261,7 +261,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               : null,
         };
       },
-      async signIn({ user, account }) {
+      async signIn({ user, account, profile }) {
         // Block sign in without valid user.email
         const email = user.email?.toLowerCase();
         if (!email) {
@@ -277,6 +277,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         if (customSsoProvider && account?.provider !== customSsoProvider) {
           throw new Error(`You must sign in via SSO for this domain.`);
         }
+
+        // Validate authorised email domains for google provider
         if (account?.provider === "google") {
           const allowedDomains =
             env.AUTH_GOOGLE_ALLOWED_DOMAINS?.split(",").map((domain) =>
@@ -286,6 +288,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             return await Promise.resolve(
               allowedDomains.includes((profile as GoogleProfile).hd),
             );
+          }
         }
 
         return await Promise.resolve(true);
