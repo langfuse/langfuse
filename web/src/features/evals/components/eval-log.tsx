@@ -1,5 +1,7 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -21,6 +23,7 @@ export type JobExecutionRow = {
   error?: string;
 };
 
+
 export default function EvalLogTable({
   projectId,
   jobConfigurationId,
@@ -28,6 +31,7 @@ export default function EvalLogTable({
   projectId: string;
   jobConfigurationId?: string;
 }) {
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("evalLogs", "s");
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -53,18 +57,22 @@ export default function EvalLogTable({
     columnHelper.accessor("startTime", {
       id: "startTime",
       header: "Start Time",
+      enableHiding: true,
     }),
     columnHelper.accessor("endTime", {
       id: "endTime",
       header: "End Time",
+      enableHiding: true,
     }),
     columnHelper.accessor("scoreName", {
       header: "Score Name",
       id: "scoreName",
+      enableHiding: true,
     }),
     columnHelper.accessor("scoreValue", {
       header: "Score Value",
       id: "scoreValue",
+      enableHiding: true,
       cell: (row) => {
         const value = row.getValue();
         if (value === undefined) {
@@ -80,17 +88,22 @@ export default function EvalLogTable({
       cell: (row) => {
         const value = row.getValue();
         return (
-          value !== undefined && <IOTableCell data={value} singleLine={false} />
+          value !== undefined && (
+            <IOTableCell data={value} singleLine={rowHeight === "s"} />
+          )
         );
       },
     }),
     columnHelper.accessor("error", {
       id: "error",
       header: "Error",
+      enableHiding: true,
       cell: (row) => {
         const value = row.getValue();
         return (
-          value !== undefined && <IOTableCell data={value} singleLine={false} />
+          value !== undefined && (
+            <IOTableCell data={value} singleLine={rowHeight === "s"} />
+          )
         );
       },
     }),
@@ -165,6 +178,13 @@ export default function EvalLogTable({
 
   return (
     <div>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+      />
       <DataTable
         columns={columns}
         data={
