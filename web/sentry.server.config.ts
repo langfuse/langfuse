@@ -18,7 +18,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
         samplingContext.request.url &&
         samplingContext.request.url.includes("api/trpc")
       ) {
-        return 0.8;
+        return 0.7;
       }
       return 0.15;
     },
