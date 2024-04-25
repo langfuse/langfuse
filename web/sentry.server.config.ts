@@ -15,11 +15,10 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     tracesSampler: (samplingContext: SamplingContext) => {
       if (
         samplingContext.request &&
-        samplingContext.request.method === "POST" &&
         samplingContext.request.url &&
         samplingContext.request.url.includes("api/trpc")
       ) {
-        return 0.9;
+        return 0.8;
       }
       return 0.15;
     },
