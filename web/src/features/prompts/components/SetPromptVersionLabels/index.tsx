@@ -56,6 +56,10 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
     !prompt.labels.includes(PRODUCTION_LABEL) &&
     selectedLabels.includes(PRODUCTION_LABEL);
 
+  const isDemotingFromProduction =
+    prompt.labels.includes(PRODUCTION_LABEL) &&
+    !selectedLabels.includes(PRODUCTION_LABEL);
+
   const mutatePromptVersionLabels = api.prompts.setLabels.useMutation({
     onSuccess: () => {
       void utils.prompts.invalidate();
@@ -166,12 +170,20 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
         </Command>
         <Button
           type="button"
-          variant={isPromotingToProduction ? "destructive" : "default"}
+          variant={
+            isPromotingToProduction || isDemotingFromProduction
+              ? "destructive"
+              : "default"
+          }
           loading={mutatePromptVersionLabels.isLoading}
           className="w-full"
           onClick={handleSubmitLabels}
         >
-          {isPromotingToProduction ? "Save and promote to production" : "Save"}
+          {isPromotingToProduction
+            ? "Save and promote to production"
+            : isDemotingFromProduction
+              ? "Save and remove from production"
+              : "Save"}
         </Button>
       </PopoverContent>
     </Popover>
