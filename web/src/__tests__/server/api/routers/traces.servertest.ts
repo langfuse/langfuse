@@ -23,6 +23,7 @@ describe("Traces TRPC Router", () => {
       ],
       featureFlags: {
         templateFlag: true,
+        evals: true,
       },
       admin: true,
     },
