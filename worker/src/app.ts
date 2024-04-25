@@ -30,9 +30,9 @@ if (isSentryEnabled) {
       nodeProfilingIntegration(),
     ],
     // Performance Monitoring
-    tracesSampleRate: 0.5, //  Capture 100% of the transactions
+    tracesSampleRate: 0.2, //  Capture 100% of the transactions
     // Set sampling rate for profiling - this is relative to tracesSampleRate
-    profilesSampleRate: 0.5,
+    profilesSampleRate: 0.2,
   });
 
   // The request handler must be the first middleware on the app
