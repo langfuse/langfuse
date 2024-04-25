@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
 
@@ -13,7 +14,11 @@ const PromptHistoryTraceNode = (props: {
   const { prompt } = props;
   let badges: JSX.Element[] = prompt.labels
     .sort((a, b) =>
-      a === "production" ? -1 : b === "production" ? 1 : a.localeCompare(b),
+      a === PRODUCTION_LABEL
+        ? -1
+        : b === PRODUCTION_LABEL
+          ? 1
+          : a.localeCompare(b),
     )
     .map((label) => {
       return <StatusBadge type={label} key={label} />;

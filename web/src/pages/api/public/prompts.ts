@@ -16,6 +16,7 @@ import {
   MethodNotAllowedError,
   ForbiddenError,
 } from "@langfuse/shared";
+import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
 export default async function handler(
   req: NextApiRequest,
@@ -44,7 +45,7 @@ export default async function handler(
           version: searchParams.version ?? undefined, // if no version is given, we take the latest active prompt
           labels: !searchParams.version
             ? {
-                has: "production",
+                has: PRODUCTION_LABEL,
               }
             : undefined,
         },
@@ -52,9 +53,10 @@ export default async function handler(
 
       if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
 
-      return res
-        .status(200)
-        .json({ ...prompt, isActive: prompt.labels.includes("production") });
+      return res.status(200).json({
+        ...prompt,
+        isActive: prompt.labels.includes(PRODUCTION_LABEL),
+      });
     }
 
     // Handle POST requests
@@ -63,7 +65,7 @@ export default async function handler(
       const prompt = await createPrompt({
         ...input,
         labels: input.isActive
-          ? [...new Set([...input.labels, "production"])] // Ensure labels are unique
+          ? [...new Set([...input.labels, PRODUCTION_LABEL])] // Ensure labels are unique
           : input.labels, // If production label is already present, this will still promote the prompt
         config: input.config ?? {}, // Config can be null in which case zod default value is not used
         projectId: authCheck.scope.projectId,
@@ -71,9 +73,10 @@ export default async function handler(
         prisma: prisma,
       });
 
-      return res
-        .status(201)
-        .json({ ...prompt, isActive: prompt.labels.includes("production") });
+      return res.status(201).json({
+        ...prompt,
+        isActive: prompt.labels.includes(PRODUCTION_LABEL),
+      });
     }
 
     throw new MethodNotAllowedError();

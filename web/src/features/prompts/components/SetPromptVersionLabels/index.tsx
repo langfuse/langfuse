@@ -21,6 +21,7 @@ import { api } from "@/src/utils/api";
 import { type Prompt } from "@langfuse/shared";
 import { AddLabelForm } from "./AddLabelForm";
 import { LabelCommandItem } from "./LabelCommandItem";
+import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
 export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
   const projectId = useProjectIdFromURL();
@@ -52,8 +53,8 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
   }, [isOpen, prompt.labels, usedLabelsInProject.data]);
 
   const isPromotingToProduction =
-    !prompt.labels.includes("production") &&
-    selectedLabels.includes("production");
+    !prompt.labels.includes(PRODUCTION_LABEL) &&
+    selectedLabels.includes(PRODUCTION_LABEL);
 
   const mutatePromptVersionLabels = api.prompts.setLabels.useMutation({
     onSuccess: () => {
@@ -109,7 +110,11 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
             <CommandSeparator />
             <CommandGroup heading="Promote to production?">
               <LabelCommandItem
-                {...{ selectedLabels, setSelectedLabels, label: "production" }}
+                {...{
+                  selectedLabels,
+                  setSelectedLabels,
+                  label: PRODUCTION_LABEL,
+                }}
               />
             </CommandGroup>
             <CommandSeparator />
@@ -119,7 +124,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
                 ref={customLabelScrollRef}
               >
                 {labels
-                  .filter((l) => l !== "production")
+                  .filter((l) => l !== PRODUCTION_LABEL)
                   .map((label) => (
                     <LabelCommandItem
                       key={label}

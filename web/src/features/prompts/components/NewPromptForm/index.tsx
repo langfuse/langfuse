@@ -42,6 +42,7 @@ import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 import { JsonEditor } from "@/src/components/json-editor";
+import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -122,7 +123,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         type,
         prompt: chatPrompt,
         config: JSON.parse(values.config),
-        labels: values.isActive ? ["production"] : [],
+        labels: values.isActive ? [PRODUCTION_LABEL] : [],
       };
     } else {
       newPrompt = {
@@ -131,7 +132,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         type,
         prompt: textPrompt,
         config: JSON.parse(values.config),
-        labels: values.isActive ? ["production"] : [],
+        labels: values.isActive ? [PRODUCTION_LABEL] : [],
       };
     }
 
