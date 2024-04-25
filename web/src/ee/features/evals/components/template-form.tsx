@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
+import { Label } from "@/src/components/ui/label";
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -64,10 +65,8 @@ const formSchema = z.object({
   variables: z.array(
     z.string().min(1, "Variables must have at least one character"),
   ),
-  model: EvalModelNames,
-  outputScore: z.string(),
-  outputReasoning: z.string(),
-  apiKey: z.string({ required_error: "No LLM API key found." }),
+  outputScore: z.string().min(1, "Enter a score function"),
+  outputReasoning: z.string().min(1, "Enter a reasoning function"),
 });
 
 export const EvalTemplateForm = (props: {
@@ -205,28 +204,18 @@ export const InnerEvalTemplateForm = (props: {
     setModelParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  const getModelProvider = useCallback((model: string) => {
+  const getModelProvider = (model: string) => {
     return evalLLMModels.find((m) => m.model === model)?.provider;
-  }, []);
+  };
 
-  const getApiKeyForModel = useCallback(
-    (model: string) => {
-      const modelProvider = getModelProvider(model);
-      return props.apiKeys.find((k) => k.provider === modelProvider);
-    },
-    [getModelProvider, props.apiKeys],
-  );
-
-  const defaultModel = props.preFilledFormValues?.model ?? "gpt-3.5-turbo";
+  const getApiKeyForModel = (model: string) => {
+    const modelProvider = getModelProvider(model);
+    return props.apiKeys.find((k) => k.provider === modelProvider);
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     disabled: !props.isEditing,
-    errors: {
-      ...(!getApiKeyForModel(defaultModel)
-        ? { apiKey: { message: "No LLM API key found.", type: "required" } }
-        : undefined),
-    },
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
@@ -238,18 +227,14 @@ export const InnerEvalTemplateForm = (props: {
       outputScore: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
         : undefined,
-      apiKey: getApiKeyForModel(defaultModel)?.id,
     },
   });
 
   // reset the form if the input template changes
   useEffect(() => {
     if (props.preFilledFormValues) {
-      const model = EvalModelNames.parse(props.preFilledFormValues.model);
-
       form.reset({
         name: props.existingEvalTemplateName ?? props.preFilledFormValues.name,
-        model: model,
         prompt: props.preFilledFormValues.prompt,
         variables: props.preFilledFormValues.vars,
         outputReasoning: OutputSchema.parse(
@@ -260,6 +245,7 @@ export const InnerEvalTemplateForm = (props: {
       });
 
       // also set the context for the playground
+      const model = EvalModelNames.parse(props.preFilledFormValues.model);
       updateModelParam("model", model);
       setModelParams((prev) => ({
         ...prev,
@@ -288,12 +274,19 @@ export const InnerEvalTemplateForm = (props: {
   function onSubmit(values: z.infer<typeof formSchema>) {
     posthog.capture("evals:new_template_form");
 
+    const model = EvalModelNames.safeParse(modelParams.model);
+
+    if (!model.success) {
+      setFormError("Please select a model.");
+      return;
+    }
+
     createEvalTemplateMutation
       .mutateAsync({
         name: values.name,
         projectId: props.projectId,
         prompt: values.prompt,
-        model: EvalModelNames.parse(modelParams.model),
+        model: model.data,
         modelParams: modelParams,
         vars: extractedVariables ?? [],
         outputSchema: {
@@ -424,50 +417,31 @@ export const InnerEvalTemplateForm = (props: {
               availableModels={[...evalLLMModels]}
               disabled={!props.isEditing}
             />
-            <FormField
-              control={form.control}
-              name="apiKey"
-              render={({ field }) => {
-                const errorMessage =
-                  form.getFieldState("apiKey").error?.message;
 
-                return (
-                  <FormItem>
-                    <FormLabel>API key</FormLabel>
-                    <div>
-                      {getApiKeyForModel(form.getValues("model")) ? (
-                        <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-                          {
-                            getApiKeyForModel(form.getValues("model"))
-                              ?.displaySecretKey
-                          }
-                        </span>
-                      ) : undefined}
-                    </div>
-                    {/* Custom form message to include a link to the already existing prompt */}
-                    {form.getFieldState("apiKey").error ? (
-                      <div className="flex flex-col text-sm font-medium text-destructive">
-                        <p className="text-sm font-medium text-destructive">
-                          {errorMessage}
-                        </p>
-                        {errorMessage?.includes("No LLM API key found.") ? (
-                          <Link
-                            href={`/project/${props.projectId}/settings`}
-                            className="flex flex-row"
-                          >
-                            Create a new API key here. <ArrowTopRightIcon />
-                          </Link>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <FormDescription>
-                      The API key is used for each evaluation and will incur
-                      costs.
-                    </FormDescription>
-                  </FormItem>
-                );
-              }}
-            />
+            <Label>API key</Label>
+            <div>
+              {getApiKeyForModel(modelParams.model) ? (
+                <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+                  {getApiKeyForModel(modelParams.model)?.displaySecretKey}
+                </span>
+              ) : undefined}
+            </div>
+            {/* Custom form message to include a link to the already existing prompt */}
+            {!getApiKeyForModel(modelParams.model) ? (
+              <div className="flex flex-col text-sm font-medium text-destructive">
+                {"No LLM API key found."}
+
+                <Link
+                  href={`/project/${props.projectId}/settings`}
+                  className="flex flex-row"
+                >
+                  Create a new API key here. <ArrowTopRightIcon />
+                </Link>
+              </div>
+            ) : undefined}
+            <FormDescription>
+              The API key is used for each evaluation and will incur costs.
+            </FormDescription>
           </div>
         </div>
 
