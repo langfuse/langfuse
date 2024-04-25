@@ -31,7 +31,7 @@
     "dotenv-cli": "^7.4.1",
     "prettier": "^3.2.5",
     "release-it": "^17.2.0",
-    "turbo": "^1.13.2"
+    "turbo": "^1.13.3"
   },
   "release-it": {
     "git": {
