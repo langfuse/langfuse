@@ -23,6 +23,7 @@ type AddLabelFromSchemaType = z.infer<typeof AddLabelFormSchema>;
 export const AddLabelForm = (props: {
   setLabels: React.Dispatch<React.SetStateAction<string[]>>;
   setSelectedLabels: React.Dispatch<React.SetStateAction<string[]>>;
+  onAddLabel: () => void;
 }) => {
   const form = useForm<AddLabelFromSchemaType>({
     resolver: zodResolver(AddLabelFormSchema),
@@ -37,6 +38,7 @@ export const AddLabelForm = (props: {
     props.setLabels((prev) => [...prev, newLabel]);
     props.setSelectedLabels((prev) => [...new Set([...prev, newLabel])]);
 
+    props.onAddLabel();
     form.reset();
   };
 

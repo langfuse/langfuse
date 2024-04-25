@@ -14,11 +14,11 @@ export enum PromptType {
 
 export const PromptLabelSchema = z
   .string()
-  .min(3)
-  .max(15)
+  .min(1)
+  .max(20)
   .regex(
-    /^[a-z0-9-]+$/,
-    "Label must be lowercase alphanumeric with optional hyphens",
+    /^[a-z0-9_\-.]+$/,
+    "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
   );
 
 export const CreateTextPromptSchema = z.object({
@@ -71,7 +71,7 @@ export const TextPromptSchema = z.object({
   createdBy: z.string(),
   version: z.number(),
   name: z.string(),
-  labels: z.array(PromptLabelSchema).default([]),
+  labels: z.array(PromptLabelSchema),
   tags: z.array(z.string()),
   type: z.literal(PromptType.Text),
   prompt: z.string(),
@@ -92,7 +92,7 @@ export const ChatPromptSchema = z.object({
   version: z.number(),
   name: z.string(),
   tags: z.array(z.string()),
-  labels: z.array(PromptLabelSchema).default([]),
+  labels: z.array(PromptLabelSchema),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema,

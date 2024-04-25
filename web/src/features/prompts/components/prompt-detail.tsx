@@ -180,24 +180,18 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
-          <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7">
-            <div className="border-b px-3 py-1 text-xs font-medium">Labels</div>
-            <div className="flex flex-wrap gap-2 p-3">
-              {prompt.labels.length > 0 ? (
-                prompt.labels
-                  .sort((a, b) =>
-                    a === "production"
-                      ? -1
-                      : b === "production"
-                        ? 1
-                        : a.localeCompare(b),
-                  )
-                  .map((label) => <StatusBadge type={label} key={label} />)
-              ) : (
-                <span className="text-xs">No labels</span>
-              )}
-            </div>
-          </div>
+          <p className="mt-6 text-xs text-gray-600">
+            Fetch prompts via Python or JS/TS SDKs. See{" "}
+            <a
+              href="https://langfuse.com/docs/prompts"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              documentation
+            </a>{" "}
+            for details.
+          </p>
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">

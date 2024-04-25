@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 import { FlagIcon, PlusIcon } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
@@ -32,6 +32,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
   const [labels, setLabels] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isAddingLabel, setIsAddingLabel] = useState(false);
+  const customLabelScrollRef = useRef<HTMLDivElement | null>(null);
 
   const usedLabelsInProject = api.prompts.allLabels.useQuery(
     {
@@ -104,7 +105,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
           labeled prompt will be served by default.
         </h2>
         <Command className="mx-0 my-3 px-0">
-          <CommandList>
+          <CommandList className="max-h-full overflow-hidden">
             <CommandSeparator />
             <CommandGroup heading="Promote to production?">
               <LabelCommandItem
@@ -113,31 +114,50 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
             </CommandGroup>
             <CommandSeparator />
             <CommandGroup heading="Custom labels">
-              {labels
-                .filter((l) => l !== "production")
-                .map((label) => (
-                  <LabelCommandItem
-                    key={label}
-                    {...{ selectedLabels, setSelectedLabels, label }}
-                  />
-                ))}
+              <div
+                className="max-h-[300px] overflow-y-auto overflow-x-hidden"
+                ref={customLabelScrollRef}
+              >
+                {labels
+                  .filter((l) => l !== "production")
+                  .map((label) => (
+                    <LabelCommandItem
+                      key={label}
+                      {...{ selectedLabels, setSelectedLabels, label }}
+                    />
+                  ))}
+              </div>
             </CommandGroup>
-
-            <div className="px-1">
-              {isAddingLabel ? (
-                <AddLabelForm {...{ setLabels, setSelectedLabels }} />
-              ) : (
-                <Button
-                  variant="ghost"
-                  className="mt-2 w-full justify-start px-2 py-1 text-sm  font-normal"
-                  onClick={() => setIsAddingLabel(true)}
-                >
-                  <PlusIcon className="mr-2 h-4 w-4" />
-                  Add custom label
-                </Button>
-              )}
-            </div>
           </CommandList>
+          <div className="px-1">
+            {isAddingLabel ? (
+              <AddLabelForm
+                {...{
+                  setLabels,
+                  setSelectedLabels,
+                  onAddLabel: () => {
+                    setTimeout(
+                      () =>
+                        customLabelScrollRef.current?.scrollTo({
+                          top: customLabelScrollRef.current?.scrollHeight,
+                          behavior: "smooth",
+                        }),
+                      0,
+                    );
+                  },
+                }}
+              />
+            ) : (
+              <Button
+                variant="ghost"
+                className="mt-2 w-full justify-start px-2 py-1 text-sm  font-normal"
+                onClick={() => setIsAddingLabel(true)}
+              >
+                <PlusIcon className="mr-2 h-4 w-4" />
+                Add custom label
+              </Button>
+            )}
+          </div>
         </Command>
         <Button
           type="button"

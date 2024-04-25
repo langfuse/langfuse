@@ -19,11 +19,6 @@ const PromptHistoryTraceNode = (props: {
       return <StatusBadge type={label} key={label} />;
     });
 
-  if (badges.length > 3) {
-    badges = badges.slice(0, 3);
-    badges.push(<StatusBadge type="..." />);
-  }
-
   return (
     <div
       className={`group mb-2 flex cursor-pointer flex-col gap-1 rounded-sm p-2 hover:bg-gray-50 ${
@@ -35,7 +30,7 @@ const PromptHistoryTraceNode = (props: {
           : props.setCurrentPromptVersion(prompt.version);
       }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-sm bg-gray-200 p-1 text-xs">
           Version {prompt.version}
         </span>

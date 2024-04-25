@@ -156,6 +156,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
     if (!isNewPrompt) {
       form.setError("name", { message: "Prompt name already exist." });
+    } else if (currentName === "new") {
+      form.setError("name", { message: "Prompt name cannot be 'new'" });
+    } else if (currentName && !/^[a-zA-Z0-9_\-.]+$/.test(currentName)) {
+      form.setError("name", {
+        message:
+          "Name must be alphanumeric with optional underscores, hyphens, or periods",
+      });
     } else {
       form.clearErrors("name");
     }
