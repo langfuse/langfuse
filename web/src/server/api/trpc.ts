@@ -21,6 +21,7 @@ import { getServerAuthSession } from "@/src/server/auth";
 import { prisma } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/node";
 import * as z from "zod";
+import * as SentryNext from "@sentry/nextjs";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -132,6 +133,14 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   });
 });
 
+const sentryMiddleware = t.middleware(
+  SentryNext.trpcMiddleware({
+    attachRpcInput: true,
+  }),
+);
+
+const sentryEnforcedUserIsAuthedMiddleware =
+  sentryMiddleware.unstable_pipe(enforceUserIsAuthed);
 /**
  * Protected (authenticated) procedure
  *
@@ -140,7 +149,9 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
  *
  * @see https://trpc.io/docs/procedures
  */
-export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
+export const protectedProcedure = t.procedure.use(
+  sentryEnforcedUserIsAuthedMiddleware,
+);
 
 const inputProjectSchema = z.object({
   projectId: z.string(),
@@ -191,7 +202,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
 );
 
 export const protectedProjectProcedure = t.procedure.use(
-  enforceUserIsAuthedAndProjectMember,
+  sentryMiddleware.unstable_pipe(enforceUserIsAuthedAndProjectMember),
 );
 
 /*
