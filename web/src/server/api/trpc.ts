@@ -262,7 +262,9 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   });
 });
 
-export const protectedGetTraceProcedure = t.procedure.use(enforceTraceAccess);
+export const protectedGetTraceProcedure = t.procedure.use(
+  sentryMiddleware.unstable_pipe(enforceTraceAccess),
+);
 
 /*
  * Protect session-level getter routes.
@@ -329,5 +331,6 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   });
 });
 
-export const protectedGetSessionProcedure =
-  t.procedure.use(enforceSessionAccess);
+export const protectedGetSessionProcedure = t.procedure.use(
+  sentryMiddleware.unstable_pipe(enforceSessionAccess),
+);
