@@ -386,6 +386,7 @@ export const evalRouter = createTRPCRouter({
         projectId: z.string(),
         limit: z.number().optional(),
         page: z.number().optional(),
+        jobConfigurationId: z.string().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -404,6 +405,9 @@ export const evalRouter = createTRPCRouter({
           status: {
             not: "CANCELLED",
           },
+          ...(input.jobConfigurationId
+            ? { jobConfigurationId: input.jobConfigurationId }
+            : undefined),
         },
         select: {
           id: true,
@@ -436,6 +440,9 @@ export const evalRouter = createTRPCRouter({
           status: {
             not: "CANCELLED",
           },
+          ...(input.jobConfigurationId
+            ? { jobConfigurationId: input.jobConfigurationId }
+            : undefined),
         },
       });
       return {

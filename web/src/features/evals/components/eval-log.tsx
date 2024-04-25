@@ -21,7 +21,13 @@ export type JobExecutionRow = {
   error?: string;
 };
 
-export default function EvalLogTable({ projectId }: { projectId: string }) {
+export default function EvalLogTable({
+  projectId,
+  jobConfigurationId,
+}: {
+  projectId: string;
+  jobConfigurationId?: string;
+}) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -29,6 +35,7 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
   const logs = api.evals.getLogs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    jobConfigurationId,
     projectId,
   });
   const totalCount = logs.data?.totalCount ?? 0;
@@ -115,21 +122,26 @@ export default function EvalLogTable({ projectId }: { projectId: string }) {
         ) : undefined;
       },
     }),
-    columnHelper.accessor("configId", {
-      id: "configId",
-      header: "Config",
-      cell: (row) => {
-        const configId = row.getValue();
-        return configId ? (
-          <TableLink
-            path={`/project/${projectId}/evals/configs/${encodeURIComponent(configId)}`}
-            value={configId}
-            truncateAt={10}
-          />
-        ) : undefined;
-      },
-    }),
   ] as LangfuseColumnDef<JobExecutionRow>[];
+
+  if (!jobConfigurationId) {
+    columns.push(
+      columnHelper.accessor("configId", {
+        id: "configId",
+        header: "Config",
+        cell: (row) => {
+          const configId = row.getValue();
+          return configId ? (
+            <TableLink
+              path={`/project/${projectId}/evals/configs/${encodeURIComponent(configId)}`}
+              value={configId}
+              truncateAt={10}
+            />
+          ) : undefined;
+        },
+      }) as LangfuseColumnDef<JobExecutionRow>,
+    );
+  }
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<JobExecutionRow>("evalLogColumnVisibility", columns);

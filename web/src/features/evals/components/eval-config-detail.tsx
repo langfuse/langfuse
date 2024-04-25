@@ -12,6 +12,15 @@ import {
 } from "@/src/components/ui/popover";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/src/components/ui/tabs";
+import { Label } from "@/src/components/ui/label";
+import TableLink from "@/src/components/table/table-link";
+import EvalLogTable from "@/src/features/evals/components/eval-log";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -48,6 +57,11 @@ export const EvalConfigDetail = () => {
     return <div>Config not found</div>;
   }
 
+  const existingEvalConfig =
+    config.data && config.data.evalTemplate
+      ? { ...config.data, evalTemplate: config.data.evalTemplate }
+      : undefined;
+
   return (
     <div className="md:container">
       <Header
@@ -61,16 +75,39 @@ export const EvalConfigDetail = () => {
           />
         }
       />
-      <EvalConfigForm
-        projectId={projectId}
-        evalTemplates={allTemplates.data?.templates}
-        existingEvalConfig={
-          config.data && config.data.evalTemplate
-            ? { ...config.data, evalTemplate: config.data.evalTemplate }
-            : undefined
-        }
-        disabled={true}
-      />
+      {existingEvalConfig && (
+        <>
+          <div className="my-5 flex items-center gap-4 rounded-md border p-2	">
+            <Label>Eval Template</Label>
+            <TableLink
+              path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
+              value={existingEvalConfig.evalTemplateId ?? ""}
+              truncateAt={40}
+            />
+          </div>
+
+          <Tabs defaultValue="logs">
+            <TabsList>
+              <TabsTrigger value="logs">Logs</TabsTrigger>
+              <TabsTrigger value="configuration">Configuration</TabsTrigger>
+            </TabsList>
+            <TabsContent value="configuration">
+              <EvalConfigForm
+                projectId={projectId}
+                evalTemplates={allTemplates.data?.templates}
+                existingEvalConfig={existingEvalConfig}
+                disabled={true}
+              />
+            </TabsContent>
+            <TabsContent value="logs">
+              <EvalLogTable
+                projectId={projectId}
+                jobConfigurationId={existingEvalConfig.id}
+              />
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
     </div>
   );
 };
