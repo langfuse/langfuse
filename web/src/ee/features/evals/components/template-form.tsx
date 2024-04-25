@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { TEMPLATES } from "@/src/features/evals/components/templates";
+import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),

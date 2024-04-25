@@ -2,7 +2,7 @@ import * as React from "react";
 import Header from "@/src/components/layouts/header";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { EvalConfigForm } from "@/src/features/evals/components/eval-config-form";
+import { EvalConfigForm } from "@/src/ee/features/evals/components/eval-config-form";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -20,7 +20,7 @@ import {
 } from "@/src/components/ui/tabs";
 import { Label } from "@/src/components/ui/label";
 import TableLink from "@/src/components/table/table-link";
-import EvalLogTable from "@/src/features/evals/components/eval-log";
+import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
