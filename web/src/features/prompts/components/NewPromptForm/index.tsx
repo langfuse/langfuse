@@ -122,6 +122,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         type,
         prompt: chatPrompt,
         config: JSON.parse(values.config),
+        labels: values.isActive ? ["production"] : [],
       };
     } else {
       newPrompt = {
@@ -130,6 +131,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         type,
         prompt: textPrompt,
         config: JSON.parse(values.config),
+        labels: values.isActive ? ["production"] : [],
       };
     }
 
@@ -308,12 +310,11 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 />
               </FormControl>
               <div className="space-y-1 leading-none">
-                <FormLabel>Activate prompt</FormLabel>
+                <FormLabel>Serve prompt as default to SDKs</FormLabel>
               </div>
               {currentIsActive ? (
                 <div className="text-xs text-gray-500">
-                  Activating the prompt will make it available to the SDKs
-                  immediately.
+                  This makes the prompt available to the SDKs immediately.
                 </div>
               ) : null}
             </FormItem>

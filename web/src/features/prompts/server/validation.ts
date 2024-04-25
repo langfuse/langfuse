@@ -12,9 +12,18 @@ export enum PromptType {
   Text = "text",
 }
 
+export const PromptLabelSchema = z
+  .string()
+  .min(3)
+  .max(15)
+  .regex(
+    /^[a-z0-9-]+$/,
+    "Label must be lowercase alphanumeric with optional hyphens",
+  );
+
 export const CreateTextPromptSchema = z.object({
   name: z.string(),
-  isActive: z.boolean(),
+  labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Text).optional(),
   prompt: z.string(),
   config: jsonSchema.nullable().default({}),
@@ -22,7 +31,7 @@ export const CreateTextPromptSchema = z.object({
 
 export const CreateChatPromptSchema = z.object({
   name: z.string(),
-  isActive: z.boolean(),
+  labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema.nullable().default({}),
@@ -62,7 +71,7 @@ export const TextPromptSchema = z.object({
   createdBy: z.string(),
   version: z.number(),
   name: z.string(),
-  isActive: z.boolean(),
+  labels: z.array(PromptLabelSchema).default([]),
   tags: z.array(z.string()),
   type: z.literal(PromptType.Text),
   prompt: z.string(),
@@ -83,7 +92,7 @@ export const ChatPromptSchema = z.object({
   version: z.number(),
   name: z.string(),
   tags: z.array(z.string()),
-  isActive: z.boolean(),
+  labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema,
@@ -96,3 +105,14 @@ export type ChatPromptType =
 
 export const PromptSchema = z.union([TextPromptSchema, ChatPromptSchema]);
 export type ValidatedPrompt = z.infer<typeof PromptSchema>;
+
+// Backward compat for V1 prompts endpoint
+export const LegacyCreatePromptSchema = z.union([
+  CreateTextPromptSchema.extend({ isActive: z.boolean() }),
+  CreateChatPromptSchema.extend({ isActive: z.boolean() }),
+]);
+export const LegacyPromptSchema = z.union([
+  TextPromptSchema.extend({ isActive: z.boolean() }),
+  ChatPromptSchema.extend({ isActive: z.boolean() }),
+]);
+export type LegacyValidatedPrompt = z.infer<typeof LegacyPromptSchema>;

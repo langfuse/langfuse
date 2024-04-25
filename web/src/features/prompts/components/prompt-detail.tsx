@@ -11,10 +11,10 @@ import {
 } from "@/src/components/trace/IOPreview";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
 import { PromptType } from "@/src/features/prompts/server/validation";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -23,8 +23,8 @@ import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
-
 import { PromptHistoryNode } from "./prompt-history";
+import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -101,12 +101,7 @@ export const PromptDetail = () => {
             ]}
             actionButtons={
               <>
-                <PromotePrompt
-                  promptId={prompt.id}
-                  promptName={prompt.name}
-                  disabled={prompt.isActive}
-                  variant="outline"
-                />
+                <SetPromptVersionLabels prompt={prompt} />
 
                 <Link
                   href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
@@ -185,6 +180,24 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
+          <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7">
+            <div className="border-b px-3 py-1 text-xs font-medium">Labels</div>
+            <div className="flex flex-wrap gap-2 p-3">
+              {prompt.labels.length > 0 ? (
+                prompt.labels
+                  .sort((a, b) =>
+                    a === "production"
+                      ? -1
+                      : b === "production"
+                        ? 1
+                        : a.localeCompare(b),
+                  )
+                  .map((label) => <StatusBadge type={label} key={label} />)
+              ) : (
+                <span className="text-xs">No labels</span>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">

@@ -2512,16 +2512,21 @@ components:
           type: string
         isActive:
           type: boolean
-          description: Should the prompt be promoted to production immediately?
+          nullable: true
+          description: Deprecated. Please use the 'production' label instead.
         prompt:
           type: array
           items:
             $ref: '#/components/schemas/ChatMessage'
         config:
           nullable: true
+        labels:
+          type: array
+          items:
+            type: string
+          nullable: true
       required:
         - name
-        - isActive
         - prompt
     CreateTextPromptRequest:
       title: CreateTextPromptRequest
@@ -2535,6 +2540,11 @@ components:
         prompt:
           type: string
         config:
+          nullable: true
+        labels:
+          type: array
+          items:
+            type: string
           nullable: true
       required:
         - name

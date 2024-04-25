@@ -33,10 +33,11 @@ types:
     properties:
       name: string
       isActive:
-        docs: Should the prompt be promoted to production immediately?
-        type: boolean
+        docs: Deprecated. Please use the 'production' label instead.
+        type: optional<boolean>
       prompt: list<ChatMessage>
       config: optional<unknown>
+      labels: optional<list<string>>
 
   CreateTextPromptRequest:
     properties:
@@ -46,6 +47,7 @@ types:
         type: boolean
       prompt: string
       config: optional<unknown>
+      labels: optional<list<string>>
 
   Prompt:
     union:

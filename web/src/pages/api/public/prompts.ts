@@ -6,7 +6,7 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
-  CreatePromptSchema,
+  LegacyCreatePromptSchema,
   GetPromptSchema,
 } from "@/src/features/prompts/server/validation";
 import {
@@ -42,27 +42,38 @@ export default async function handler(
           projectId: authCheck.scope.projectId,
           name: searchParams.name,
           version: searchParams.version ?? undefined, // if no version is given, we take the latest active prompt
-          isActive: !searchParams.version ? true : undefined, // if no prompt is active, there will be no prompt available
+          labels: !searchParams.version
+            ? {
+                has: "production",
+              }
+            : undefined,
         },
       });
 
       if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
 
-      return res.status(200).json(prompt);
+      return res
+        .status(200)
+        .json({ ...prompt, isActive: prompt.labels.includes("production") });
     }
 
     // Handle POST requests
     if (req.method === "POST") {
-      const input = CreatePromptSchema.parse(req.body);
+      const input = LegacyCreatePromptSchema.parse(req.body);
       const prompt = await createPrompt({
         ...input,
+        labels: input.isActive
+          ? [...new Set([...input.labels, "production"])] // Ensure labels are unique
+          : input.labels, // If production label is already present, this will still promote the prompt
         config: input.config ?? {}, // Config can be null in which case zod default value is not used
         projectId: authCheck.scope.projectId,
         createdBy: "API",
         prisma: prisma,
       });
 
-      return res.status(201).json(prompt);
+      return res
+        .status(201)
+        .json({ ...prompt, isActive: prompt.labels.includes("production") });
     }
 
     throw new MethodNotAllowedError();
