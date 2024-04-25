@@ -299,13 +299,13 @@ export const InnerEvalConfigForm = (props: {
                   <FormControl>
                     Here will some variable mapping be added.
                   </FormControl>
-                  <div className="my-2 flex gap-2">
+                  <div className="my-2 flex flex-col gap-2 lg:flex-row">
                     <JSONView
                       title={"Eval Template"}
                       json={props.evalTemplate.prompt ?? null}
-                      className={"min-h-48 w-1/2 bg-gray-100"}
+                      className={"min-h-48 bg-gray-100 lg:w-1/2"}
                     />
-                    <div className=" flex w-1/3 flex-col gap-2">
+                    <div className=" flex flex-col gap-2 lg:w-1/3">
                       {fields.map((mappingField, index) => (
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div className="text-sm font-semibold	">
@@ -326,18 +326,13 @@ export const InnerEvalConfigForm = (props: {
                             name={`mapping.${index}.langfuseObject`}
                             render={({ field }) => (
                               <div className="flex  items-center gap-2">
-                                <div className="flex w-1/3">
-                                  <Label className="muted-foreground text-sm font-light">
-                                    Trace object
-                                  </Label>
-                                  <DocPopup
-                                    description={
-                                      "This is the variable that will be replaced with the trace data."
-                                    }
-                                    href={"columnDef.headerTooltip.href"}
-                                    size="xs"
-                                  />
-                                </div>
+                                <VariableMappingDescription
+                                  title={"Trace object"}
+                                  description={
+                                    "The object from the trace to get data from"
+                                  }
+                                  href={""}
+                                />
                                 <FormItem className="w-2/3">
                                   <FormControl>
                                     <Select
@@ -533,3 +528,15 @@ export const InnerEvalConfigForm = (props: {
     </Form>
   );
 };
+function VariableMappingDescription(p: {
+  title: string;
+  description: string;
+  href: string;
+}) {
+  return (
+    <div className="flex w-1/2 items-center">
+      <Label className="muted-foreground text-sm font-light">{p.title}</Label>
+      <DocPopup description={p.description} href={p.href} size="xs" />
+    </div>
+  );
+}
