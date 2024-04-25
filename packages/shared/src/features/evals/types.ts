@@ -1,5 +1,5 @@
 import z from "zod";
-import { ModelProvider, observationsTableCols } from "../..";
+import { ModelProvider } from "../..";
 
 export const langfuseObjects = [
   "trace",
