@@ -89,15 +89,6 @@ export const EvalConfigForm = (props: {
             ))}
           </SelectContent>
         </Select>
-      ) : props.existingEvalConfig ? (
-        <div className="my-5 flex items-center gap-4 rounded-md border p-2	">
-          <Label>Eval Template</Label>
-          <TableLink
-            path={`/project/${props.projectId}/evals/templates/${props.existingEvalConfig.evalTemplateId}`}
-            value={props.existingEvalConfig.evalTemplateId ?? ""}
-            truncateAt={40}
-          />
-        </div>
       ) : undefined}
       {evalTemplate && currentTemplate ? (
         <InnerEvalConfigForm
