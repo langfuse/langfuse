@@ -21,7 +21,6 @@ import { getServerAuthSession } from "@/src/server/auth";
 import { prisma } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/node";
 import * as z from "zod";
-import * as SentryNext from "@sentry/nextjs";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -134,7 +133,7 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
 });
 
 const sentryMiddleware = t.middleware(
-  SentryNext.trpcMiddleware({
+  Sentry.trpcMiddleware({
     attachRpcInput: true,
   }),
 );
