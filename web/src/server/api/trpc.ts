@@ -110,6 +110,13 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  */
 export const createTRPCRouter = t.router;
 
+// sentry setup
+const sentryMiddleware = t.middleware(
+  Sentry.trpcMiddleware({
+    attachRpcInput: true,
+  }),
+);
+const withSentryProcedure = t.procedure.use(sentryMiddleware);
 /**
  * Public (unauthenticated) procedure
  *
@@ -117,7 +124,8 @@ export const createTRPCRouter = t.router;
  * guarantee that a user querying is authorized, but you can still access user session data if they
  * are logged in.
  */
-export const publicProcedure = t.procedure;
+
+export const publicProcedure = withSentryProcedure;
 
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
@@ -140,7 +148,7 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
  *
  * @see https://trpc.io/docs/procedures
  */
-export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
+export const protectedProcedure = withSentryProcedure.use(enforceUserIsAuthed);
 
 const inputProjectSchema = z.object({
   projectId: z.string(),
@@ -190,7 +198,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
   },
 );
 
-export const protectedProjectProcedure = t.procedure.use(
+export const protectedProjectProcedure = withSentryProcedure.use(
   enforceUserIsAuthedAndProjectMember,
 );
 
@@ -252,7 +260,8 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   });
 });
 
-export const protectedGetTraceProcedure = t.procedure.use(enforceTraceAccess);
+export const protectedGetTraceProcedure =
+  withSentryProcedure.use(enforceTraceAccess);
 
 /*
  * Protect session-level getter routes.
@@ -320,4 +329,4 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
 });
 
 export const protectedGetSessionProcedure =
-  t.procedure.use(enforceSessionAccess);
+  withSentryProcedure.use(enforceSessionAccess);
