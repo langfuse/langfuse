@@ -141,6 +141,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
+      console.log(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
