@@ -25,6 +25,7 @@ export type ScoresTableRow = {
   observationId?: string;
   traceName?: string;
   userId?: string;
+  jobConfigurationId?: string;
 };
 
 export type ScoreFilterInput = Omit<
@@ -187,6 +188,29 @@ export default function ScoresTable({
       },
     },
     {
+      accessorKey: "jobConfigurationId",
+      header: "Eval Configuration ID",
+      id: "jobConfigurationId",
+      headerTooltip: {
+        description: "The Job Configuration ID associated with the trace.",
+        href: "https://langfuse.com/docs/scores/model-based-evals",
+      },
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value = row.getValue("jobConfigurationId");
+        return typeof value === "string" ? (
+          <>
+            <TableLink
+              path={`/project/${projectId}/evals/configs/${value}`}
+              value={value}
+              truncateAt={40}
+            />
+          </>
+        ) : undefined;
+      },
+    },
+    {
       accessorKey: "comment",
       header: "Comment",
       id: "comment",
@@ -218,6 +242,7 @@ export default function ScoresTable({
       traceId: score.traceId,
       traceName: score.traceName ?? undefined,
       userId: score.userId ?? undefined,
+      jobConfigurationId: score.jobConfigurationId ?? undefined,
     };
   };
 
