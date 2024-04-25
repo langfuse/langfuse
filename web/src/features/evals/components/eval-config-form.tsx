@@ -104,15 +104,6 @@ export const EvalConfigForm = (props: {
   );
 };
 
-type EvalConfigPreFill = {
-  scoreName: string;
-  targetObject: string;
-  filter: any;
-  variableMapping: any;
-  sampling: number;
-  delay: number;
-};
-
 export const InnerEvalConfigForm = (props: {
   projectId: string;
   evalTemplate: EvalTemplate;
@@ -153,7 +144,7 @@ export const InnerEvalConfigForm = (props: {
         ? props.existingEvalConfig.sampling.toNumber()
         : 1,
       delay: props.existingEvalConfig?.delay
-        ? props.existingEvalConfig.delay
+        ? props.existingEvalConfig.delay / 1000
         : 10,
     },
   });
@@ -536,7 +527,7 @@ export const InnerEvalConfigForm = (props: {
                 <FormItem>
                   <FormLabel>Delay (seconds)</FormLabel>
                   <FormControl>
-                    <Input {...field} value={field.value / 1000} />
+                    <Input {...field} value={field.value} />
                   </FormControl>
                   <FormDescription>
                     Time between first Trace event and evaluation execution to
