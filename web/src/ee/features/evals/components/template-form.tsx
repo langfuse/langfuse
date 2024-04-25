@@ -45,30 +45,6 @@ import {
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { Label } from "@/src/components/ui/label";
 
-const formSchema = z.object({
-  name: z.string().min(1, "Enter a name"),
-  prompt: z
-    .string()
-    .min(1, "Enter a prompt")
-    .refine((val) => {
-      const variables = extractVariables(val);
-      const matches = variables.map((variable) => {
-        // check regex here
-        if (variable.match(/^[A-Za-z_]+$/)) {
-          return true;
-        }
-        return false;
-      });
-      return !matches.includes(false);
-    }, "Variables must only contain letters and underscores (_)"),
-
-  variables: z.array(
-    z.string().min(1, "Variables must have at least one character"),
-  ),
-  outputScore: z.string().min(1, "Enter a score function"),
-  outputReasoning: z.string().min(1, "Enter a reasoning function"),
-});
-
 export const EvalTemplateForm = (props: {
   projectId: string;
   existingEvalTemplate?: EvalTemplate;
@@ -117,6 +93,8 @@ export const EvalTemplateForm = (props: {
           existingEvalTemplateId={props.existingEvalTemplate?.id}
           existingEvalTemplateName={props.existingEvalTemplate?.name}
           preFilledFormValues={
+            // if a langfuse template is selected, use that, else use the existing template
+            // no langfuse template is selected if there is already an existing template
             langfuseTemplate
               ? {
                   name: langfuseTemplate.toLocaleLowerCase() ?? "",
@@ -159,6 +137,30 @@ export const EvalTemplateForm = (props: {
   );
 };
 
+const formSchema = z.object({
+  name: z.string().min(1, "Enter a name"),
+  prompt: z
+    .string()
+    .min(1, "Enter a prompt")
+    .refine((val) => {
+      const variables = extractVariables(val);
+      const matches = variables.map((variable) => {
+        // check regex here
+        if (variable.match(/^[A-Za-z_]+$/)) {
+          return true;
+        }
+        return false;
+      });
+      return !matches.includes(false);
+    }, "Variables must only contain letters and underscores (_)"),
+
+  variables: z.array(
+    z.string().min(1, "Variables must have at least one character"),
+  ),
+  outputScore: z.string().min(1, "Enter a score function"),
+  outputReasoning: z.string().min(1, "Enter a reasoning function"),
+});
+
 export type EvalTemplateFormPreFill = {
   name: string;
   prompt: string;
@@ -175,8 +177,10 @@ export type EvalTemplateFormPreFill = {
 
 export const InnerEvalTemplateForm = (props: {
   projectId: string;
-  preFilledFormValues?: EvalTemplateFormPreFill;
   apiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
+  // pre-filled values from langfuse-defined template or template from db
+  preFilledFormValues?: EvalTemplateFormPreFill;
+  // template to be updated
   existingEvalTemplateId?: string;
   existingEvalTemplateName?: string;
   onFormSuccess?: () => void;
@@ -186,15 +190,19 @@ export const InnerEvalTemplateForm = (props: {
   const posthog = usePostHog();
   const [formError, setFormError] = useState<string | null>(null);
 
+  // updates the model params based on the pre-filled data
+  // either form update or from langfuse-generated template
   const [modelParams, setModelParams] = useState<UIModelParams>({
     model: props.preFilledFormValues?.model ?? "gpt-3.5-turbo",
     provider:
       props.preFilledFormValues?.modelParams.provider ?? ModelProvider.OpenAI,
     max_tokens: props.preFilledFormValues?.modelParams.max_tokens ?? 100,
     maxTemperature:
-      props.preFilledFormValues?.modelParams.maxTemperature ?? 0.5,
+      props.preFilledFormValues?.modelParams.provider === ModelProvider.OpenAI
+        ? 2
+        : 1,
     top_p: props.preFilledFormValues?.modelParams.top_p ?? 1,
-    temperature: props.preFilledFormValues?.modelParams.temperature ?? 0.5,
+    temperature: props.preFilledFormValues?.modelParams.temperature ?? 1,
   });
 
   const updateModelParam: ModelParamsContext["updateModelParam"] = (
@@ -213,10 +221,13 @@ export const InnerEvalTemplateForm = (props: {
     return props.apiKeys.find((k) => k.provider === modelProvider);
   };
 
+  // updates the form based on the pre-filled data
+  // either form update or from langfuse-generated template
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     disabled: !props.isEditing,
     defaultValues: {
+      // when updating, the name has to remain the same and should not be updated
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
       prompt: props.preFilledFormValues?.prompt ?? undefined,
@@ -234,6 +245,8 @@ export const InnerEvalTemplateForm = (props: {
   useEffect(() => {
     if (props.preFilledFormValues) {
       form.reset({
+        // taking the existing template over the pre-filled value.
+        // Existing is for editing, pre-filled is for creating off a template
         name: props.existingEvalTemplateName ?? props.preFilledFormValues.name,
         prompt: props.preFilledFormValues.prompt,
         variables: props.preFilledFormValues.vars,
@@ -244,6 +257,7 @@ export const InnerEvalTemplateForm = (props: {
           .score,
       });
 
+      // state for the model params is outside of the form, hence needs to be handled individually
       // also set the context for the playground
       const model = EvalModelNames.parse(props.preFilledFormValues.model);
       updateModelParam("model", model);
@@ -255,8 +269,13 @@ export const InnerEvalTemplateForm = (props: {
       const modelProvider = evalLLMModels.find(
         (m) => m.model === model,
       )?.provider;
+
       if (modelProvider) {
-        updateModelParam("provider", modelProvider);
+        updateModelParam("provider", modelProvider); // updating the provider based on the model
+        updateModelParam(
+          "maxTemperature",
+          modelProvider === ModelProvider.OpenAI ? 2 : 1,
+        ); // setting the max value of the slider based on the provider
       }
     }
   }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
