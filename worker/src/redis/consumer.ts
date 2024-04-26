@@ -63,11 +63,7 @@ export const evalJobExecutor = redis
             );
 
             const displayError =
-              e instanceof BaseError
-                ? e.message
-                : e instanceof LangchainError
-                  ? e.displayMessage
-                  : "Unknown error";
+              e instanceof BaseError ? e.message : "An internal error occurred";
 
             await kyselyPrisma.$kysely
               .updateTable("job_executions")
