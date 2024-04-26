@@ -126,7 +126,7 @@ export default async function handler(
       res,
     );
   } catch (error: unknown) {
-    console.error(error);
+    console.error("error handling ingestion event", error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({

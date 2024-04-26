@@ -19,6 +19,7 @@ import {
   ForbiddenError,
   ValidationError,
   ApiError,
+  evalTableCols,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -60,7 +61,7 @@ export const createEvalJobs = async ({
 
     const condition = tableColumnsToSqlFilterAndPrefix(
       validatedFilter,
-      tracesTableCols,
+      evalTableCols,
       "traces"
     );
 

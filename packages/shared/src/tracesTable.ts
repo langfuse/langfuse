@@ -1,8 +1,13 @@
 import { ObservationLevel } from "@prisma/client";
 import { ColumnDefinition, OptionsDefinition } from ".";
 
-export const tracesTableCols: ColumnDefinition[] = [
-  { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
+const tracesOnlyCols: ColumnDefinition[] = [
+  {
+    name: "⭐️",
+    id: "bookmarked",
+    type: "boolean",
+    internal: "t.bookmarked",
+  },
   { name: "ID", id: "id", type: "string", internal: "t.id" },
   {
     name: "Name",
@@ -24,6 +29,41 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "string",
     internal: 't."session_id"',
   },
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: 't."metadata"',
+  },
+  {
+    name: "Version",
+    id: "version",
+    type: "string",
+    internal: 't."version"',
+  },
+  {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: 't."release"',
+  },
+  {
+    name: "Level",
+    id: "level",
+    type: "stringOptions",
+    internal: '"level"',
+    options: Object.values(ObservationLevel).map((value) => ({ value })),
+  },
+  {
+    name: "Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: 't."tags"',
+    options: [], // to be filled in at runtime
+  },
+];
+export const tracesTableCols: ColumnDefinition[] = [
+  ...tracesOnlyCols,
   {
     name: "Input Tokens",
     id: "inputTokens",
@@ -48,12 +88,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "number",
     internal: 'tm."totalTokens"',
   },
-  {
-    name: "Metadata",
-    id: "metadata",
-    type: "stringObject",
-    internal: 't."metadata"',
-  },
+
   {
     name: "Scores",
     id: "scores_avg",
@@ -84,33 +119,9 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "number",
     internal: '"calculatedTotalCost"',
   },
-  {
-    name: "Version",
-    id: "version",
-    type: "string",
-    internal: 't."version"',
-  },
-  {
-    name: "Release",
-    id: "release",
-    type: "string",
-    internal: 't."release"',
-  },
-  {
-    name: "Level",
-    id: "level",
-    type: "stringOptions",
-    internal: '"level"',
-    options: Object.values(ObservationLevel).map((value) => ({ value })),
-  },
-  {
-    name: "Tags",
-    id: "tags",
-    type: "arrayOptions",
-    internal: 't."tags"',
-    options: [], // to be filled in at runtime
-  },
 ];
+
+export const evalTableCols: ColumnDefinition[] = tracesOnlyCols;
 
 export type TraceOptions = {
   scores_avg: Array<string>;
@@ -119,9 +130,10 @@ export type TraceOptions = {
 };
 
 export function tracesTableColsWithOptions(
-  options?: TraceOptions
+  options?: TraceOptions,
+  cols: ColumnDefinition[] = tracesTableCols
 ): ColumnDefinition[] {
-  return tracesTableCols.map((col) => {
+  return cols.map((col) => {
     if (col.id === "scores_avg") {
       return { ...col, keyOptions: options?.scores_avg ?? [] };
     }
