@@ -28,8 +28,10 @@ import {
 } from "@langfuse/ee/sso";
 import { z } from "zod";
 
-const staticProviders: Provider[] = [
-  CredentialsProvider({
+const staticProviders: Provider[] = [];
+
+if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
+    staticProviders.push(CredentialsProvider({
     name: "credentials",
     credentials: {
       email: {
@@ -110,8 +112,8 @@ const staticProviders: Provider[] = [
 
       return userObj;
     },
-  }),
-];
+  }));
+}
 
 if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
   staticProviders.push(
