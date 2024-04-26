@@ -24,7 +24,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import {
   type CreatePromptTRPCType,
   PromptType,
-} from "@/src/features/prompts/server/validation";
+} from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";

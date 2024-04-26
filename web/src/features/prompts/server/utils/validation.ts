@@ -58,9 +58,26 @@ export const CreatePromptTRPCSchema = z.union([
 
 export type CreatePromptTRPCType = z.infer<typeof CreatePromptTRPCSchema>;
 
+export const GetPromptsMetaSchema = z.object({
+  name: z.string().optional(),
+  version: z.coerce.number().int().nullish(),
+  label: z.string().optional(),
+  tag: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+});
+
+export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;
+
 export const GetPromptSchema = z.object({
   name: z.string().transform((v) => decodeURIComponent(v)),
   version: z.coerce.number().int().nullish(),
+});
+
+export const GetPromptByNameSchema = z.object({
+  promptName: z.string(),
+  version: z.coerce.number().int().nullish(),
+  label: z.string().optional(),
 });
 
 export const TextPromptSchema = z.object({

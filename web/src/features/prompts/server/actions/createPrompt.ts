@@ -1,10 +1,15 @@
 import {
   type CreatePromptTRPCType,
   PromptType,
-} from "@/src/features/prompts/server/validation";
+} from "@/src/features/prompts/server/utils/validation";
 import { ValidationError } from "@langfuse/shared";
 import { jsonSchema } from "@/src/utils/zod";
 import { type PrismaClient } from "@langfuse/shared/src/db";
+
+export type CreatePromptParams = CreatePromptTRPCType & {
+  createdBy: string;
+  prisma: PrismaClient;
+};
 
 export const createPrompt = async ({
   projectId,
@@ -15,10 +20,7 @@ export const createPrompt = async ({
   config,
   createdBy,
   prisma,
-}: CreatePromptTRPCType & {
-  createdBy: string;
-  prisma: PrismaClient;
-}) => {
+}: CreatePromptParams) => {
   const latestPrompt = await prisma.prompt.findFirst({
     where: { projectId, name },
     orderBy: [{ version: "desc" }],
@@ -50,6 +52,7 @@ export const createPrompt = async ({
       },
     }),
   ];
+
   if (labels.length > 0)
     // If we're creating a new labeled prompt, we must remove those labels on previous prompts since labels are unique
     previousLabeledPrompts.forEach((prevPrompt) => {

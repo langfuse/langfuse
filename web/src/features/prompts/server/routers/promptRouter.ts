@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/validation";
+import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
@@ -10,7 +10,7 @@ import {
 import { DB } from "@/src/server/db";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
-import { createPrompt } from "./createPrompt";
+import { createPrompt } from "../actions/createPrompt";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { paginationZod } from "@/src/utils/zod";

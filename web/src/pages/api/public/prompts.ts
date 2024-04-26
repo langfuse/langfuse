@@ -1,4 +1,4 @@
-import { createPrompt } from "@/src/features/prompts/server/createPrompt";
+import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
@@ -8,7 +8,7 @@ import { z } from "zod";
 import {
   LegacyCreatePromptSchema,
   GetPromptSchema,
-} from "@/src/features/prompts/server/validation";
+} from "@/src/features/prompts/server/utils/validation";
 import {
   UnauthorizedError,
   LangfuseNotFoundError,

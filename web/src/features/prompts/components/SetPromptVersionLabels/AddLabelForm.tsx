@@ -12,7 +12,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PromptLabelSchema } from "@/src/features/prompts/server/validation";
+import { PromptLabelSchema } from "@/src/features/prompts/server/utils/validation";
 
 const AddLabelFormSchema = z.object({
   newLabel: PromptLabelSchema,

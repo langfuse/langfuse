@@ -8,7 +8,7 @@ import {
   LegacyPromptSchema,
   PromptType,
   type LegacyValidatedPrompt,
-} from "@/src/features/prompts/server/validation";
+} from "@/src/features/prompts/server/utils/validation";
 
 describe("/api/public/prompts API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
