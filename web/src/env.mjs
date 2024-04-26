@@ -78,6 +78,7 @@ export const env = createEnv({
     LANGFUSE_WORKER_PASSWORD: z.string().optional(),
     // Prompt playground
     OPENAI_API_KEY: z.string().optional(),
+    OPENAI_API_BASE: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
   },
@@ -173,6 +174,7 @@ export const env = createEnv({
     LANGFUSE_WORKER_PASSWORD: process.env.LANGFUSE_WORKER_PASSWORD,
     // Prompt playground
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_API_BASE: process.env.OPENAI_API_BASE,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,

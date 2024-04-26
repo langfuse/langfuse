@@ -279,6 +279,7 @@ export const evaluate = async ({
     completion = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
+      // apiBase: apiKey.api_base,
       messages: [{ role: ChatMessageRole.System, content: prompt }],
       modelParams: {
         provider: provider,

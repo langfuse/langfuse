@@ -28,6 +28,7 @@ type LLMCompletionParams = {
   functionCall?: LLMFunctionCall;
   callbacks?: BaseCallbackHandler[];
   apiKey?: string;
+  apiBase?: string;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -57,7 +58,7 @@ export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
 ): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
   // the apiKey must never be printed to the console
-  const { messages, modelParams, streaming, callbacks, apiKey } = params;
+  const { messages, modelParams, streaming, callbacks, apiKey, apiBase } = params;
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
       return new HumanMessage(message.content);
@@ -84,6 +85,9 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
+      configuration: {
+        baseURL: apiBase,
+      },
       callbacks,
     });
   } else {
