@@ -44,7 +44,7 @@ export const createEvalJobs = async ({
     .execute();
 
   if (configs.length === 0) {
-    logger.info("No evaluation jobs found for project", event.projectId);
+    logger.debug("No evaluation jobs found for project", event.projectId);
     return;
   }
   logger.info("Creating eval jobs for trace", event.traceId);
@@ -127,7 +127,7 @@ export const createEvalJobs = async ({
           },
         },
         {
-          attempts: 3,
+          attempts: 5,
           backoff: {
             type: "exponential",
             delay: 1000,
