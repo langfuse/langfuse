@@ -495,7 +495,7 @@ export const LLMApiKeyComponent = (p: {
   };
 
   return (
-    <>
+    <div>
       <Label>API key</Label>
       <div>
         {getApiKeyForModel(p.modelParams.model) ? (
@@ -520,6 +520,6 @@ export const LLMApiKeyComponent = (p: {
       <p className="text-sm text-muted-foreground">
         The API key is used for each evaluation and will incur costs.
       </p>
-    </>
+    </div>
   );
 };
