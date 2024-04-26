@@ -313,6 +313,8 @@ export const evaluate = async ({
     })
     .execute();
 
+  logger.info(`Persisted score ${scoreId} for trace ${job.job_input_trace_id}`);
+
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
     .set("status", sql`'COMPLETED'::"JobExecutionStatus"`)
