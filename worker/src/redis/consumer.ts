@@ -6,6 +6,7 @@ import logger from "../logger";
 import { sql } from "kysely";
 import { redis } from "./redis";
 import { instrumentAsync } from "../instrumentation";
+import * as Sentry from "@sentry/node";
 
 export const evalQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
@@ -29,6 +30,7 @@ export const evalJobCreator = redis
               e,
               `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`
             );
+            Sentry.captureException(e);
             throw e;
           } finally {
             span?.end();
@@ -73,6 +75,9 @@ export const evalJobExecutor = redis
               .where("id", "=", job.data.payload.jobExecutionId)
               .where("project_id", "=", job.data.payload.projectId)
               .execute();
+
+            Sentry.captureException(e);
+
             throw e;
           } finally {
             span?.end();
