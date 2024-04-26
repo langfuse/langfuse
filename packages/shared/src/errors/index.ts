@@ -4,3 +4,4 @@ export { ValidationError } from "./ValidationError";
 export { UnauthorizedError } from "./UnauthorizedError";
 export { ForbiddenError } from "./ForbiddenError";
 export { MethodNotAllowedError } from "./MethodNotAllowedError";
+export { ApiError } from "./ApiError";

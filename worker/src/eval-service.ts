@@ -18,6 +18,7 @@ import {
   LangfuseNotFoundError,
   ForbiddenError,
   ValidationError,
+  ApiError,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -272,21 +273,26 @@ export const evaluate = async ({
     );
   }
 
-  const completion = await fetchLLMCompletion({
-    streaming: false,
-    apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
-    messages: [{ role: ChatMessageRole.System, content: prompt }],
-    modelParams: {
-      provider: provider,
-      model: evalModel,
-      ...modelParams,
-    },
-    functionCall: {
-      name: "evaluate",
-      description: "some description",
-      parameters: openAIFunction,
-    },
-  });
+  let completion: string;
+  try {
+    completion = await fetchLLMCompletion({
+      streaming: false,
+      apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
+      messages: [{ role: ChatMessageRole.System, content: prompt }],
+      modelParams: {
+        provider: provider,
+        model: evalModel,
+        ...modelParams,
+      },
+      functionCall: {
+        name: "evaluate",
+        description: "some description",
+        parameters: openAIFunction,
+      },
+    });
+  } catch (e) {
+    throw new ApiError(`Failed to fetch LLM completion: ${e}`);
+  }
 
   const parsedLLMOutput = openAIFunction.parse(completion);
 
