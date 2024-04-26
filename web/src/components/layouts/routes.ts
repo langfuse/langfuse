@@ -63,6 +63,7 @@ export const ROUTES: Route[] = [
     name: "Evaluation",
     icon: Lightbulb,
     cloudOnly: true,
+    label: "Beta",
     children: [
       {
         name: "Templates",
