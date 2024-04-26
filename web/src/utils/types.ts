@@ -127,5 +127,6 @@ export const isTiktokenModel = (model: string): model is TiktokenModel => {
     "gpt-3.5-turbo-16k-0613",
     "gpt-4-1106-preview",
     "gpt-4-vision-preview",
+    "gpt-4-turbo-2024-04-09",
   ].includes(model);
 };
