@@ -44,11 +44,11 @@ import {
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { Label } from "@/src/components/ui/label";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
   existingEvalTemplate?: EvalTemplate;
-  apiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
   onFormSuccess?: () => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
@@ -177,7 +177,6 @@ export type EvalTemplateFormPreFill = {
 
 export const InnerEvalTemplateForm = (props: {
   projectId: string;
-  apiKeys: RouterOutputs["llmApiKey"]["all"]["data"];
   // pre-filled values from langfuse-defined template or template from db
   preFilledFormValues?: EvalTemplateFormPreFill;
   // template to be updated
@@ -210,15 +209,6 @@ export const InnerEvalTemplateForm = (props: {
     value,
   ) => {
     setModelParams((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const getModelProvider = (model: string) => {
-    return evalLLMModels.find((m) => m.model === model)?.provider;
-  };
-
-  const getApiKeyForModel = (model: string) => {
-    const modelProvider = getModelProvider(model);
-    return props.apiKeys.find((k) => k.provider === modelProvider);
   };
 
   // updates the form based on the pre-filled data
@@ -436,31 +426,10 @@ export const InnerEvalTemplateForm = (props: {
               availableModels={[...evalLLMModels]}
               disabled={!props.isEditing}
             />
-
-            <Label>API key</Label>
-            <div>
-              {getApiKeyForModel(modelParams.model) ? (
-                <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-                  {getApiKeyForModel(modelParams.model)?.displaySecretKey}
-                </span>
-              ) : undefined}
-            </div>
-            {/* Custom form message to include a link to the already existing prompt */}
-            {!getApiKeyForModel(modelParams.model) ? (
-              <div className="flex flex-col text-sm font-medium text-destructive">
-                {"No LLM API key found."}
-
-                <Link
-                  href={`/project/${props.projectId}/settings`}
-                  className="flex flex-row"
-                >
-                  Create a new API key here. <ArrowTopRightIcon />
-                </Link>
-              </div>
-            ) : undefined}
-            <FormDescription>
-              The API key is used for each evaluation and will incur costs.
-            </FormDescription>
+            <LLMApiKeyComponent
+              projectId={props.projectId}
+              modelParams={modelParams}
+            />
           </div>
         </div>
 
@@ -480,5 +449,77 @@ export const InnerEvalTemplateForm = (props: {
         </p>
       ) : null}
     </Form>
+  );
+};
+
+export const LLMApiKeyComponent = (p: {
+  projectId: string;
+  modelParams: UIModelParams;
+}) => {
+  const hasAccess = useHasAccess({
+    projectId: p.projectId,
+    scope: "llmApiKeys:read",
+  });
+
+  if (!hasAccess) {
+    return (
+      <div>
+        <Label>API key</Label>
+        <p className="text-sm text-muted-foreground">
+          LLM API Key only visible to Owner and Admin roles.
+        </p>
+      </div>
+    );
+  }
+
+  const apiKeys = api.llmApiKey.all.useQuery({
+    projectId: p.projectId,
+  });
+
+  if (apiKeys.isLoading) {
+    return (
+      <div>
+        <Label>API key</Label>
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  const getModelProvider = (model: string) => {
+    return evalLLMModels.find((m) => m.model === model)?.provider;
+  };
+
+  const getApiKeyForModel = (model: string) => {
+    const modelProvider = getModelProvider(model);
+    return apiKeys.data?.data.find((k) => k.provider === modelProvider);
+  };
+
+  return (
+    <>
+      <Label>API key</Label>
+      <div>
+        {getApiKeyForModel(p.modelParams.model) ? (
+          <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+            {getApiKeyForModel(p.modelParams.model)?.displaySecretKey}
+          </span>
+        ) : undefined}
+      </div>
+      {/* Custom form message to include a link to the already existing prompt */}
+      {!getApiKeyForModel(p.modelParams.model) ? (
+        <div className="flex flex-col text-sm font-medium text-destructive">
+          {"No LLM API key found."}
+
+          <Link
+            href={`/project/${p.projectId}/settings`}
+            className="flex flex-row"
+          >
+            Create a new API key here. <ArrowTopRightIcon />
+          </Link>
+        </div>
+      ) : undefined}
+      <p className="text-sm text-muted-foreground">
+        The API key is used for each evaluation and will incur costs.
+      </p>
+    </>
   );
 };
