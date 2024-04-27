@@ -5,7 +5,6 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import logger from "../logger";
 import { evalJobCreator } from "../redis/consumer";
-import { log } from "console";
 
 describe("handle redis events", () => {
   test("handle redis job succeeding", async () => {
