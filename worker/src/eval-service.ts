@@ -128,7 +128,7 @@ export const createEvalJobs = async ({
           },
         },
         {
-          attempts: 5,
+          attempts: 10,
           backoff: {
             type: "exponential",
             delay: 1000,
