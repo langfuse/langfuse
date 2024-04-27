@@ -258,7 +258,7 @@ export function CreateLlmApiKeyComponent(props: {
                       <Input placeholder="sk-proj-...Uwj9" {...field} />
                     </FormControl>
                     <FormDescription>
-                      Your API keys are stored ancrypted on our servers.
+                      Your API keys are stored encrypted on our servers.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
