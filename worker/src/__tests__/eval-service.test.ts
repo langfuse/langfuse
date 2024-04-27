@@ -671,7 +671,7 @@ describe("test variable extraction", () => {
       )
     ).rejects.toThrowError(
       new LangfuseNotFoundError(
-        `Observation great-llm-name for trace ${traceId} not found. Eval will succeed without observation input. Please ensure the mapped data exists and consider extending the job delay.`
+        `Observation great-llm-name for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
       )
     );
   }, 10_000);

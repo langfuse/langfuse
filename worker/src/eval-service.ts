@@ -432,10 +432,10 @@ export async function extractVariablesFromTrace(
       // user facing errors
       if (!observation) {
         logger.error(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Eval will succeed without observation input. Please ensure the mapped data exists and consider extending the job delay.`
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
         );
         throw new LangfuseNotFoundError(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Eval will succeed without observation input. Please ensure the mapped data exists and consider extending the job delay.`
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
         );
       }
 
