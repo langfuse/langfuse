@@ -135,7 +135,7 @@ Requirements
 
 **Steps**
 
-1. Fork the the repository and clone it locally
+1. Fork the repository and clone it locally
 2. Run the development database
 
    ```bash
