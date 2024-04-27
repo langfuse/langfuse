@@ -8,7 +8,7 @@ export default function NewTemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const hasAccess = useHasAccess({ projectId, scope: "llmApiKeys:read" });
+  const hasAccess = useHasAccess({ projectId, scope: "evalTemplate:read" });
 
   if (!hasAccess) {
     return null;
