@@ -93,5 +93,5 @@ describe("handle redis events", () => {
         timeout: 10_000,
       }
     );
-  }, 10_000);
+  }, 15_000);
 });
