@@ -103,6 +103,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
   ],
   MEMBER: [
     "members:read",
+    "apiKeys:read",
     "objects:publish",
     "objects:bookmark",
     "objects:tag",
@@ -115,6 +116,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "job:read",
     "job:CUD",
     "jobExecution:read",
+    "llmApiKeys:read",
   ],
   VIEWER: ["prompts:read"],
 };
