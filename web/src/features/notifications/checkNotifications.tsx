@@ -7,33 +7,13 @@ import Notification, {
 } from "@/src/features/notifications/Notification";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
-import phKitty from "./producthuntkitty.png";
-import Image from "next/image";
 
 export const NOTIFICATIONS: TNotification[] = [
-  {
-    id: 3,
-    releaseDate: new Date("2024-04-26"),
-    message: "Langfuse 2.0 is live on ProductHunt",
-    description: (
-      <div>
-        <div className="flex items-center gap-3 align-middle">
-          <Image src={phKitty} alt="ProductHunt kitty" width={90} height={90} />
-          <span>
-            At the end of{" "}
-            <Link href="https://langfuse.com/launch" className="underline">
-              Launch Week 1
-            </Link>
-            , we&apos;re back on ProductHunt. Check out the new features and
-            share your feedback in a comment.
-          </span>
-        </div>
-        <Button size="sm" variant="secondary" className="mt-3">
-          <Link href="https://langfuse.com/ph">Vote for Langfuse</Link>
-        </Button>
-      </div>
-    ),
-  },
+  // {
+  //   id: 3,
+  //   releaseDate: new Date("2024-04-26"),
+  //   message: "Langfuse 2.0 is live on ProductHunt",
+  // },
   {
     id: 2,
     releaseDate: new Date("2024-04-24"),
