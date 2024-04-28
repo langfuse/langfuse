@@ -80,6 +80,8 @@ export const env = createEnv({
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
+    // DB event log
+    ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
   },
 
   /**
@@ -180,6 +182,8 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
+    // db event log
+    ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
