@@ -53,42 +53,55 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ### Architecture Overview
 
+> [!NOTE] > `langfuse/langfuse/worker` is under active development and will be included in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
+
 ```mermaid
 flowchart TB
-   subgraph s4["Clients"]
-      subgraph s2["langfuse/langfuse-python"]
-         Python["Python low-level SDK"]
-         Decorator["observe() decorator"] -->|extends| Python
-         OAI["OpenAI drop-in replacement"] -->|extends| Python
-         Llamaindex["LlamaIndex Integration"] -->|extends| Python
-         LCPYTHON["Langchain Python Integration"] -->|extends| Python
-         Langflow -->|uses| LCPYTHON
-         LiteLLM -->|uses| Python
-      end
-      subgraph s3["langfuse/langfuse-js"]
-         JS["JS SDK"]
-         LCJS["Langchain JS Integration"]  -->|extends| JS
-         Flowise -->|uses| LCJS
-      end
-   end
+    subgraph s4["Clients"]
+        subgraph s2["langfuse/langfuse-python"]
+            Python["Python low-level SDK"]
+            Decorator["observe() decorator"] -->|extends| Python
+            OAI["OpenAI drop-in replacement"] -->|extends| Python
+            Llamaindex["LlamaIndex Integration"] -->|extends| Python
+            LCPYTHON["Langchain Python Integration"] -->|extends| Python
+            Langflow -->|uses| LCPYTHON
+            LiteLLM -->|uses| Python
+        end
+        subgraph s3["langfuse/langfuse-js"]
+            JS["JS SDK"]
+            LCJS["Langchain JS Integration"]  -->|extends| JS
+            Flowise -->|uses| LCJS
+        end
+    end
 
-   DB[Postgres Database]
-	subgraph s1["Application (langfuse/langfuse)"]
-      API[Public HTTP API]
-      G[TRPC API]
-      I[NextAuth]
-      H[React Frontend]
-      Prisma[Prisma ORM]
-      H --> G
-      H --> I
-      G --> I
-      G --- Prisma
-      API --- Prisma
-      I --- Prisma
-	end
-   Prisma --- DB
-   JS --- API
-   Python --- API
+    DB[Postgres Database]
+    Redis[Redis]
+
+    subgraph s1["Application (langfuse/langfuse/web)"]
+        API[Public HTTP API]
+        G[TRPC API]
+        I[NextAuth]
+        H[React Frontend]
+        Prisma[Prisma ORM]
+        H --> G
+        H --> I
+        G --> I
+        G --- Prisma
+        API --- Prisma
+        I --- Prisma
+    end
+
+    subgraph s5["Application (langfuse/langfuse/worker)"]
+        Worker_API[Public HTTP API]
+    end
+
+    API --> Worker_API
+    Worker_API --- DB
+    Worker_API --- Redis
+
+    Prisma --- DB
+    JS --- API
+    Python --- API
 ```
 
 ### Database Overview
