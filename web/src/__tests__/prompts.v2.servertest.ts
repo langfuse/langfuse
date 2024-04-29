@@ -742,11 +742,11 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       expect(body.data).toHaveLength(3);
       expect(
-        body.data.some((promptMeta) => promptMeta.promptName === "prompt-1"),
+        body.data.some((promptMeta) => promptMeta.name === "prompt-1"),
       ).toBe(true);
       expect(
         body.data.some(
-          (promptMeta) => promptMeta.promptName === otherProjectPromptName,
+          (promptMeta) => promptMeta.name === otherProjectPromptName,
         ),
       ).toBe(false);
     });
@@ -759,26 +759,26 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.data).toHaveLength(3);
       expect(
         body.data.some(
-          (promptMeta) => promptMeta.promptName === otherProjectPromptName,
+          (promptMeta) => promptMeta.name === otherProjectPromptName,
         ),
       ).toBe(false);
 
       const [promptMeta1, promptMeta2, promptMeta3] = body.data;
 
       // Validate prompt-1 meta
-      expect(promptMeta1.promptName).toBe("prompt-1");
+      expect(promptMeta1.name).toBe("prompt-1");
       expect(promptMeta1.versions).toEqual([1, 2, 4]);
       expect(promptMeta1.labels).toEqual(["production"]);
       expect(promptMeta1.tags).toEqual([]);
 
       // Validate prompt-2 meta
-      expect(promptMeta2.promptName).toBe("prompt-2");
+      expect(promptMeta2.name).toBe("prompt-2");
       expect(promptMeta2.versions).toEqual([1, 2, 3]);
       expect(promptMeta2.labels).toEqual(["dev", "production", "staging"]);
       expect(promptMeta2.tags).toEqual([]);
 
       // Validate prompt-3 meta
-      expect(promptMeta3.promptName).toBe("prompt-3");
+      expect(promptMeta3.name).toBe("prompt-3");
       expect(promptMeta3.versions).toEqual([1]);
       expect(promptMeta3.labels).toEqual(["production"]);
       expect(promptMeta3.tags).toEqual(["tag-1"]);
@@ -796,7 +796,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body = response.body as unknown as PromptsMetaResponse;
 
       expect(body.data).toHaveLength(1);
-      expect(body.data[0].promptName).toBe("prompt-1");
+      expect(body.data[0].name).toBe("prompt-1");
       expect(body.data[0].versions).toEqual([1, 2, 4]);
       expect(body.data[0].labels).toEqual(["production"]);
       expect(body.data[0].tags).toEqual([]);
@@ -813,7 +813,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body2 = response2.body as unknown as PromptsMetaResponse;
 
       expect(body2.data).toHaveLength(1);
-      expect(body2.data[0].promptName).toBe("prompt-2");
+      expect(body2.data[0].name).toBe("prompt-2");
       expect(body2.data[0].versions).toEqual([1, 2, 3]);
       expect(body2.data[0].labels).toEqual(["dev", "production", "staging"]);
       expect(body2.data[0].tags).toEqual([]);
@@ -840,7 +840,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body = response.body as unknown as PromptsMetaResponse;
 
       expect(body.data).toHaveLength(1);
-      expect(body.data[0].promptName).toBe("prompt-3");
+      expect(body.data[0].name).toBe("prompt-3");
       expect(body.data[0].versions).toEqual([1]);
       expect(body.data[0].labels).toEqual(["production"]);
       expect(body.data[0].tags).toEqual(["tag-1"]);
@@ -865,13 +865,13 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       expect(body.data).toHaveLength(3);
       expect(
-        body.data.some((promptMeta) => promptMeta.promptName === "prompt-1"),
+        body.data.some((promptMeta) => promptMeta.name === "prompt-1"),
       ).toBe(true);
       expect(
-        body.data.some((promptMeta) => promptMeta.promptName === "prompt-2"),
+        body.data.some((promptMeta) => promptMeta.name === "prompt-2"),
       ).toBe(true);
       expect(
-        body.data.some((promptMeta) => promptMeta.promptName === "prompt-3"),
+        body.data.some((promptMeta) => promptMeta.name === "prompt-3"),
       ).toBe(true);
 
       // Validate pagination
@@ -886,7 +886,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body2 = response2.body as unknown as PromptsMetaResponse;
 
       expect(body2.data).toHaveLength(1);
-      expect(body2.data[0].promptName).toBe("prompt-2");
+      expect(body2.data[0].name).toBe("prompt-2");
       expect(body2.data[0].versions).toEqual([3]); // Only version 3 should be present as it is the only one with dev label
       expect(body2.data[0].labels).toEqual(["dev"]); // Only dev label should be present
       expect(body2.data[0].tags).toEqual([]);

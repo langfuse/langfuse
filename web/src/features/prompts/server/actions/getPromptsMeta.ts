@@ -15,7 +15,7 @@ export const getPromptsMeta = async (
 
   const promptsMeta = (await prisma.$queryRaw`
     SELECT
-        p.name AS "promptName",
+        p.name AS name,
         p.tags AS tags,
         array_agg(DISTINCT p.version) AS versions,
         COALESCE(array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL), '{}'::text[]) AS labels --- COALESCE is necessary to return an empty array if there are no labels and remove NULLs
@@ -52,7 +52,7 @@ export const getPromptsMeta = async (
 };
 
 type PromptsMeta = {
-  promptName: string;
+  name: string;
   versions: number[];
   labels: string[];
   tags: string[];
