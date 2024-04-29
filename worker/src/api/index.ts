@@ -72,7 +72,7 @@ router
     const events = eventBody.parse(body);
 
     // find set of traces. There might be two events for the same trace in one API call.
-    // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parrallel.
+    // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
 
     const jobs = createRedisEvents(events);
 
