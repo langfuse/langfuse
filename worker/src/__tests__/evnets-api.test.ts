@@ -16,9 +16,9 @@ describe.sequential("create redis events", () => {
     expect(jobs).toBeDefined();
     expect(jobs.length).toBe(4);
 
-    const traceIdProjectIds = events.map((event) => ({
-      projectId: event.projectId,
-      traceId: event.traceId,
+    const traceIdProjectIds = jobs.map((event) => ({
+      projectId: event.data.payload.projectId,
+      traceId: event.data.payload.traceId,
     }));
 
     expect(traceIdProjectIds).toEqual([
