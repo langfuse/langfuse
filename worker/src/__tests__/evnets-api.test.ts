@@ -1,6 +1,5 @@
 import { expect, test, describe } from "vitest";
 import { createRedisEvents } from "../api";
-import { QueueJobs } from "@langfuse/shared";
 
 describe.sequential("create redis events", () => {
   test("handle redis job succeeding", async () => {
@@ -8,6 +7,7 @@ describe.sequential("create redis events", () => {
       const events = [
         { traceId: "trace1", projectId: "project1" },
         { traceId: "trace2", projectId: "project1" },
+        { traceId: "trace2", projectId: "project2" },
         { traceId: "trace3", projectId: "project2" },
         { traceId: "trace3", projectId: "project2" },
       ];
@@ -23,9 +23,10 @@ describe.sequential("create redis events", () => {
       }));
 
       expect(traceIdProjectIds).toEqual([
-        { projectId: "project1", traceId: "trace1" },
-        { projectId: "project1", traceId: "trace2" },
-        { projectId: "project2", traceId: "trace3" },
+        { traceId: "trace1", projectId: "project1" },
+        { traceId: "trace2", projectId: "project1" },
+        { traceId: "trace2", projectId: "project2" },
+        { traceId: "trace3", projectId: "project2" },
       ]);
     });
   });
