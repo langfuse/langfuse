@@ -334,9 +334,10 @@ export type Prompt = {
     name: string;
     version: number;
     type: Generated<string>;
-    is_active: boolean;
+    is_active: boolean | null;
     config: Generated<unknown>;
     tags: Generated<string[]>;
+    labels: Generated<string[]>;
 };
 export type Score = {
     id: string;

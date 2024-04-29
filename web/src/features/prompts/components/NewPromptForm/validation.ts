@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PromptType } from "@/src/features/prompts/server/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { ChatMessageRole } from "@langfuse/shared";
 
 const ChatMessageSchema = z.object({

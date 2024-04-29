@@ -585,13 +585,58 @@
           "request": {
             "description": "Get a prompt",
             "url": {
-              "raw": "{{baseUrl}}/api/public/prompts?name=&version=",
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:promptName?version=&label=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
+                "prompts",
+                ":promptName"
+              ],
+              "query": [
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "label",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": [
+                {
+                  "key": "promptName",
+                  "value": "",
+                  "description": "The name of the prompt"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get a list of prompt names with versions and labels",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/prompts?name=&label=&tag=&page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
                 "prompts"
               ],
               "query": [
@@ -601,7 +646,22 @@
                   "description": null
                 },
                 {
-                  "key": "version",
+                  "key": "label",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
                   "value": "",
                   "description": null
                 }
@@ -621,13 +681,14 @@
           "request": {
             "description": "Create a prompt",
             "url": {
-              "raw": "{{baseUrl}}/api/public/prompts",
+              "raw": "{{baseUrl}}/api/public/v2/prompts",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "prompts"
               ],
               "query": [],
@@ -638,7 +699,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"isActive\": true,\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
