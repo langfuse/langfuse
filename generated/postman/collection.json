@@ -600,12 +600,12 @@
                 {
                   "key": "version",
                   "value": "",
-                  "description": null
+                  "description": "Version of the prompt to be retrieved."
                 },
                 {
                   "key": "label",
                   "value": "",
-                  "description": null
+                  "description": "Label of the prompt to be retrieved. Defaults to \"production\" if no label or version is set."
                 }
               ],
               "variable": [
