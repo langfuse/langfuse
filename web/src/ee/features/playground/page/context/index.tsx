@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from "uuid";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
 import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
-import { PromptType } from "@/src/features/prompts/server/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
