@@ -18,9 +18,9 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
         samplingContext.request.url &&
         samplingContext.request.url.includes("api/trpc")
       ) {
-        return 0.5;
+        return 0.3;
       }
-      return 0.15;
+      return 0.1;
     },
 
     profilesSampleRate: 0.2, // Profiling sample rate is relative to tracesSampleRate
