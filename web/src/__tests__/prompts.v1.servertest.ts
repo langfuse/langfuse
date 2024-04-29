@@ -370,7 +370,7 @@ describe("/api/public/prompts API Endpoint", () => {
 
     // @ts-expect-error
     expect(fetchedThirdPrompt.body.id).toBe(prompt3.body.id);
-    expect(fetchedThirdPrompt.body.labels).toEqual(["staging"]);
+    expect(fetchedThirdPrompt.body.labels).toEqual(["staging", "latest"]);
   });
 
   it("should create and fetch a prompt", async () => {
@@ -401,7 +401,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
-    expect(fetchedObservations.body.labels).toEqual(["production"]);
+    expect(fetchedObservations.body.labels).toEqual(["production", "latest"]);
     expect(fetchedObservations.body.createdBy).toBe("API");
     expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
   });
@@ -555,7 +555,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
-    expect(fetchedObservations.body.labels).toEqual(["production"]);
+    expect(fetchedObservations.body.labels).toEqual(["production", "latest"]);
     expect(fetchedObservations.body.createdBy).toBe("API");
     expect(fetchedObservations.body.config).toEqual({});
   });
@@ -589,7 +589,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(validatedPrompt.type).toBe("chat");
     expect(validatedPrompt.version).toBe(1);
     expect(validatedPrompt.isActive).toBe(true);
-    expect(validatedPrompt.labels).toEqual(["production"]);
+    expect(validatedPrompt.labels).toEqual(["production", "latest"]);
     expect(validatedPrompt.createdBy).toBe("API");
     expect(validatedPrompt.config).toEqual({});
   });
@@ -718,7 +718,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(validatedPrompt.type).toBe("chat");
     expect(validatedPrompt.version).toBe(1);
     expect(validatedPrompt.isActive).toBe(true);
-    expect(validatedPrompt.labels).toEqual(["production"]);
+    expect(validatedPrompt.labels).toEqual(["production", "latest"]);
     expect(validatedPrompt.createdBy).toBe("API");
     expect(validatedPrompt.config).toEqual({});
 
