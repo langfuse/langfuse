@@ -5,15 +5,14 @@ import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import { type Prompt } from "@langfuse/shared";
 import {
-  LegacyPromptSchema,
   PromptSchema,
   PromptType,
   type ValidatedPrompt,
-  type LegacyValidatedPrompt,
 } from "@/src/features/prompts/server/utils/validation";
-import e from "cors";
+
 import { nanoid } from "ai";
-import { nan } from "zod";
+
+import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -28,6 +27,7 @@ type CreatePromptInDBParams = {
   projectId: string;
   createdBy: string;
   type?: PromptType;
+  tags?: string[];
 };
 const createPromptInDB = async (params: CreatePromptInDBParams) => {
   return await prisma.prompt.create({
@@ -43,6 +43,7 @@ const createPromptInDB = async (params: CreatePromptInDBParams) => {
       },
       createdBy: params.createdBy,
       type: params.type,
+      tags: params.tags,
     },
   });
 };
@@ -83,6 +84,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body = response.body;
 
       expect(body).toHaveProperty("error");
+      // @ts-expect-error
       expect(body.error).toContain("Unauthorized");
     });
 
@@ -275,6 +277,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       expect(fetchedPrompt.status).toBe(404);
       expect(fetchedPrompt.body).toHaveProperty("error");
+      // @ts-expect-error
       expect(fetchedPrompt.body.error).toContain("NotFound");
     });
 
@@ -422,6 +425,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         undefined,
       );
       expect(status).toBe(404);
+      // @ts-expect-error
       expect(body.error).toBe("LangfuseNotFoundError");
     });
 
@@ -442,6 +446,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         undefined,
       );
       expect(status).toBe(404);
+      // @ts-expect-error
       expect(body.error).toBe("LangfuseNotFoundError");
     });
 
@@ -471,6 +476,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       });
 
       expect(postResponse2.status).toBe(400);
+      // @ts-expect-error
       expect(postResponse2.body.error).toBe("ValidationError");
 
       // Check if the prompt is still the chat prompt
@@ -498,6 +504,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         undefined,
       );
       expect(getResponse2.status).toBe(404);
+      // @ts-expect-error
       expect(getResponse2.body.error).toBe("LangfuseNotFoundError");
     });
 
@@ -609,8 +616,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         throw new Error("Expected body to be a prompt");
       }
 
-      console.log(fetchedPrompt.body);
-
       expect(fetchedPrompt.body.name).toBe(promptName);
       expect(fetchedPrompt.body.prompt).toBe("prompt");
       expect(fetchedPrompt.body.type).toBe("text");
@@ -622,17 +627,210 @@ describe("/api/public/v2/prompts API Endpoint", () => {
   });
 
   describe("when fetching a prompt list", () => {
-    beforeAll(pruneDatabase);
+    const otherProjectPromptName = "prompt-5";
 
-    it.skip("should only return prompts from the current project", async () => {});
+    beforeAll(async () => {
+      pruneDatabase();
+      await Promise.all(mockPrompts.map(createPromptInDB));
 
-    it.skip("should fetch a prompt meta list", async () => {});
+      await createPromptInDB({
+        name: otherProjectPromptName,
+        prompt: "prompt-5",
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId: "239ad00f-562f-411d-af14-831c75ddd875",
+        createdBy: "user-test",
+      });
+    });
 
-    it.skip("should fetch a prompt meta list with name filter", async () => {});
+    it("should only return prompts from the current project", async () => {
+      // Add a prompt from a different project
 
-    it.skip("should fetch a prompt meta list with tag filter", async () => {});
+      const response = await makeAPICall("GET", `${baseURI}`);
+      expect(response.status).toBe(200);
+      const body = response.body as unknown as PromptsMetaResponse;
 
-    it.skip("should fetch a prompt meta list with label filter", async () => {});
+      expect(body.data).toHaveLength(3);
+      expect(
+        body.data.some((promptMeta) => promptMeta.promptName === "prompt-1"),
+      ).toBe(true);
+      expect(
+        body.data.some(
+          (promptMeta) => promptMeta.promptName === otherProjectPromptName,
+        ),
+      ).toBe(false);
+    });
+
+    it("should fetch a prompt meta list", async () => {
+      const response = await makeAPICall("GET", `${baseURI}`);
+      expect(response.status).toBe(200);
+      const body = response.body as unknown as PromptsMetaResponse;
+
+      expect(body.data).toHaveLength(3);
+      expect(
+        body.data.some(
+          (promptMeta) => promptMeta.promptName === otherProjectPromptName,
+        ),
+      ).toBe(false);
+
+      const [promptMeta1, promptMeta2, promptMeta3] = body.data;
+
+      // Validate prompt-1 meta
+      expect(promptMeta1.promptName).toBe("prompt-1");
+      expect(promptMeta1.versions).toEqual([1, 2, 4]);
+      expect(promptMeta1.labels).toEqual(["production"]);
+      expect(promptMeta1.tags).toEqual([]);
+
+      // Validate prompt-2 meta
+      expect(promptMeta2.promptName).toBe("prompt-2");
+      expect(promptMeta2.versions).toEqual([1, 2, 3]);
+      expect(promptMeta2.labels).toEqual(["dev", "production", "staging"]);
+      expect(promptMeta2.tags).toEqual([]);
+
+      // Validate prompt-3 meta
+      expect(promptMeta3.promptName).toBe("prompt-3");
+      expect(promptMeta3.versions).toEqual([1]);
+      expect(promptMeta3.labels).toEqual(["production"]);
+      expect(promptMeta3.tags).toEqual(["tag-1"]);
+
+      // Validate pagination
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(10);
+      expect(body.pagination.totalPages).toBe(1);
+      expect(body.pagination.totalItems).toBe(3);
+    });
+
+    it("should fetch a prompt meta list with name filter", async () => {
+      const response = await makeAPICall("GET", `${baseURI}?name=prompt-1`);
+      expect(response.status).toBe(200);
+      const body = response.body as unknown as PromptsMetaResponse;
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].promptName).toBe("prompt-1");
+      expect(body.data[0].versions).toEqual([1, 2, 4]);
+      expect(body.data[0].labels).toEqual(["production"]);
+      expect(body.data[0].tags).toEqual([]);
+
+      // Validate pagination
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(10);
+      expect(body.pagination.totalPages).toBe(1);
+      expect(body.pagination.totalItems).toBe(1);
+
+      // Test with a different name
+      const response2 = await makeAPICall("GET", `${baseURI}?name=prompt-2`);
+      expect(response2.status).toBe(200);
+      const body2 = response2.body as unknown as PromptsMetaResponse;
+
+      expect(body2.data).toHaveLength(1);
+      expect(body2.data[0].promptName).toBe("prompt-2");
+      expect(body2.data[0].versions).toEqual([1, 2, 3]);
+      expect(body2.data[0].labels).toEqual(["dev", "production", "staging"]);
+      expect(body2.data[0].tags).toEqual([]);
+
+      // Validate pagination
+      expect(body2.pagination.page).toBe(1);
+      expect(body2.pagination.limit).toBe(10);
+      expect(body2.pagination.totalPages).toBe(1);
+      expect(body2.pagination.totalItems).toBe(1);
+
+      // Return 200 with empty list if name does not exist
+      const response3 = await makeAPICall(
+        "GET",
+        `${baseURI}?name=non-existent`,
+      );
+      expect(response3.status).toBe(200);
+      // @ts-expect-error
+      expect(response3.body.data).toEqual([]);
+    });
+
+    it("should fetch a prompt meta list with tag filter", async () => {
+      const response = await makeAPICall("GET", `${baseURI}?tag=tag-1`);
+      expect(response.status).toBe(200);
+      const body = response.body as unknown as PromptsMetaResponse;
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].promptName).toBe("prompt-3");
+      expect(body.data[0].versions).toEqual([1]);
+      expect(body.data[0].labels).toEqual(["production"]);
+      expect(body.data[0].tags).toEqual(["tag-1"]);
+
+      // Validate pagination
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(10);
+      expect(body.pagination.totalPages).toBe(1);
+      expect(body.pagination.totalItems).toBe(1);
+
+      // Return 200 with empty list if tag does not exist
+      const response3 = await makeAPICall("GET", `${baseURI}?tag=non-existent`);
+      expect(response3.status).toBe(200);
+      // @ts-expect-error
+      expect(response3.body.data).toEqual([]);
+    });
+
+    it("should fetch a prompt meta list with label filter", async () => {
+      const response = await makeAPICall("GET", `${baseURI}?label=production`);
+      expect(response.status).toBe(200);
+      const body = response.body as unknown as PromptsMetaResponse;
+
+      expect(body.data).toHaveLength(3);
+      expect(
+        body.data.some((promptMeta) => promptMeta.promptName === "prompt-1"),
+      ).toBe(true);
+      expect(
+        body.data.some((promptMeta) => promptMeta.promptName === "prompt-2"),
+      ).toBe(true);
+      expect(
+        body.data.some((promptMeta) => promptMeta.promptName === "prompt-3"),
+      ).toBe(true);
+
+      // Validate pagination
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(10);
+      expect(body.pagination.totalPages).toBe(1);
+      expect(body.pagination.totalItems).toBe(3);
+
+      // Test with a different label
+      const response2 = await makeAPICall("GET", `${baseURI}?label=dev`);
+      expect(response2.status).toBe(200);
+      const body2 = response2.body as unknown as PromptsMetaResponse;
+
+      console.log(JSON.stringify(body2));
+
+      expect(body2.data).toHaveLength(1);
+      expect(body2.data[0].promptName).toBe("prompt-2");
+      expect(body2.data[0].versions).toEqual([3]); // Only version 3 should be present as it is the only one with dev label
+      expect(body2.data[0].labels).toEqual(["dev"]); // Only dev label should be present
+      expect(body2.data[0].tags).toEqual([]);
+
+      // Validate pagination
+      expect(body2.pagination.page).toBe(1);
+      expect(body2.pagination.limit).toBe(10);
+      expect(body2.pagination.totalPages).toBe(1);
+      expect(body2.pagination.totalItems).toBe(1);
+
+      // Return 200 with empty list if label does not exist
+      const response3 = await makeAPICall(
+        "GET",
+        `${baseURI}?label=non-existent`,
+      );
+      expect(response3.status).toBe(200);
+      // @ts-expect-error
+      expect(response3.body.data).toEqual([]);
+    });
+  });
+
+  it("should fetch a prompt meta list with pagination", async () => {
+    const response = await makeAPICall("GET", `${baseURI}?page=1&limit=1`);
+    expect(response.status).toBe(200);
+    const body = response.body as unknown as PromptsMetaResponse;
+
+    expect(body.data).toHaveLength(1);
+    expect(body.pagination.page).toBe(1);
+    expect(body.pagination.limit).toBe(1);
+    expect(body.pagination.totalPages).toBe(3);
+    expect(body.pagination.totalItems).toBe(3);
   });
 });
 
@@ -663,3 +861,86 @@ const validatePrompt = (obj: Record<string, unknown>): ValidatedPrompt => {
 
   return PromptSchema.parse(obj);
 };
+
+const mockPrompts = [
+  // Prompt with multiple versions
+  {
+    name: "prompt-1",
+    labels: ["production"],
+    prompt: "prompt-1",
+    createdBy: "user-test",
+    projectId,
+    config: {},
+    version: 1,
+  },
+  {
+    name: "prompt-1",
+    labels: ["production"],
+    prompt: "prompt-1",
+    createdBy: "user-test",
+    projectId,
+    config: {},
+    version: 2,
+  },
+  {
+    name: "prompt-1",
+    labels: ["production"],
+    prompt: "prompt-1",
+    createdBy: "user-test",
+    projectId,
+    config: {},
+    version: 4,
+  },
+
+  // Prompt with different labels
+  {
+    name: "prompt-2",
+    labels: ["production"],
+    prompt: "prompt-2",
+    createdBy: "user-test",
+    projectId,
+    config: {},
+    version: 1,
+  },
+  {
+    name: "prompt-2",
+    labels: ["staging"],
+    prompt: "prompt-2",
+    createdBy: "user-test",
+    projectId,
+    config: {},
+    version: 2,
+  },
+  {
+    name: "prompt-2",
+    labels: ["dev"],
+    prompt: "prompt-2",
+    createdBy: "user-test",
+    projectId,
+    config: {},
+    version: 3,
+  },
+
+  // Prompt with different labels
+  {
+    name: "prompt-3",
+    labels: ["production"],
+    prompt: "prompt-2",
+    createdBy: "user-test",
+    projectId,
+    config: {},
+    tags: ["tag-1"],
+    version: 1,
+  },
+
+  // Prompt in different project
+  {
+    name: "prompt-4",
+    labels: ["production"],
+    prompt: "prompt-2",
+    createdBy: "user-test",
+    projectId: "239ad00f-562f-411d-af14-831c75ddd875",
+    config: {},
+    version: 1,
+  },
+];
