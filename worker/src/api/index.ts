@@ -87,7 +87,7 @@ router.use("/emojis", emojis);
 
 export default router;
 
-function createRedisEvents(events: z.infer<typeof eventBody>) {
+export function createRedisEvents(events: z.infer<typeof eventBody>) {
   const uniqueTracesPerProject = events.reduce((acc, event) => {
     if (!acc.get(event.projectId)) {
       acc.set(event.projectId, new Set());
