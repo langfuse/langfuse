@@ -14,6 +14,8 @@ import {
 import { type VisibilityState } from "@tanstack/react-table";
 import { ChevronDown, Columns } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import useTableNameFromURL from "@/src/hooks/useTableNameFromURL";
+import { usePostHog } from "posthog-js/react";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -27,15 +29,21 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnVisibility,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const [isOpen, setIsOpen] = useState(false);
-
+  const posthog = usePostHog();
+  const tableName = useTableNameFromURL();
   const toggleColumn = useCallback(
     (columnId: string) => {
-      setColumnVisibility((old) => ({
+      setColumnVisibility((old) => {
+        const newColumnVisibility = {
         ...old,
         [columnId]: !old[columnId],
-      }));
+      }
+      const selectedColumns = Object.keys(newColumnVisibility).filter(key => newColumnVisibility[key]);
+      posthog.capture("table:column_visibility_changed", {"table": tableName, "selected_columns": selectedColumns});
+      return newColumnVisibility;
+    });
     },
-    [setColumnVisibility],
+    [setColumnVisibility, posthog, tableName],
   );
 
   const calculateColumnCounts = (
