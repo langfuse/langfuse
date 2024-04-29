@@ -328,6 +328,7 @@ export const promptRouter = createTRPCRouter({
         const toBePromotedPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
           where: {
             id: input.promptId,
+            projectId: input.projectId,
           },
         });
 
@@ -358,6 +359,7 @@ export const promptRouter = createTRPCRouter({
           ctx.prisma.prompt.update({
             where: {
               id: toBePromotedPrompt.id,
+              projectId: input.projectId,
             },
             data: {
               isActive: true,
@@ -369,6 +371,7 @@ export const promptRouter = createTRPCRouter({
             ctx.prisma.prompt.update({
               where: {
                 id: latestActivePrompt.id,
+                projectId: input.projectId,
               },
               data: {
                 isActive: false,
