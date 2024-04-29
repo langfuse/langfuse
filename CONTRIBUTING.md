@@ -53,6 +53,8 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ### Architecture Overview
 
+> [!NOTE] > `langfuse/langfuse/worker` is under active development and will be included in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
+
 ```mermaid
 flowchart TB
     subgraph s4["Clients"]
