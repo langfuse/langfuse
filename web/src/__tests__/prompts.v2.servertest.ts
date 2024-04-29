@@ -688,6 +688,21 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     beforeAll(async () => {
       pruneDatabase();
       // Create a prompt in a different project
+      await prisma.user.upsert({
+        where: { id: "user-test" },
+        update: {
+          name: "Demo User",
+          email: "demo-test@langfuse.com",
+          password: "password",
+        },
+        create: {
+          id: "user-test",
+          name: "Demo User",
+          email: "demo-test@langfuse.com",
+          password: "password",
+        },
+      });
+
       const otherProjectId = "239ad00f-562f-411d-af14-831c75ddd875";
       await prisma.project.upsert({
         where: { id: otherProjectId },
