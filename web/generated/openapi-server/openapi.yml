@@ -732,12 +732,16 @@ paths:
             type: string
         - name: version
           in: query
+          description: Version of the prompt to be retrieved.
           required: false
           schema:
             type: integer
             nullable: true
         - name: label
           in: query
+          description: >-
+            Label of the prompt to be retrieved. Defaults to "production" if no
+            label or version is set.
           required: false
           schema:
             type: string

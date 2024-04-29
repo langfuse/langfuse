@@ -17,8 +17,12 @@ service:
       request:
         name: GetPromptRequest
         query-parameters:
-          version: optional<integer>
-          label: optional<string>
+          version:
+            type: optional<integer>
+            docs: Version of the prompt to be retrieved.
+          label:
+            type: optional<string>
+            docs: Label of the prompt to be retrieved. Defaults to "production" if no label or version is set.
       response: Prompt
 
     list:
