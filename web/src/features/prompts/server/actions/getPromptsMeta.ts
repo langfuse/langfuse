@@ -1,5 +1,10 @@
 import { type GetPromptsMetaType } from "@/src/features/prompts/server/utils/validation";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import {
+  tableColumnsToSqlFilterAndPrefix,
+  type FilterState,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 
 export type GetPromptsMetaParams = GetPromptsMetaType & { projectId: string };
 
@@ -13,7 +18,7 @@ export const getPromptsMeta = async (
         p.name AS "promptName",
         p.tags AS tags,
         array_agg(DISTINCT p.version) AS versions,
-        array_agg(DISTINCT label) AS labels
+        COALESCE(array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL), '{}'::text[]) AS labels --- COALESCE is necessary to return an empty array if there are no labels and remove NULLs
     FROM
         prompts p
     LEFT JOIN LATERAL unnest(p.labels) AS label ON true
@@ -65,25 +70,43 @@ export type PromptsMetaResponse = {
 
 const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
   const { name, version, label, tag } = params;
-  const conditions = [];
+  const filters: FilterState = [];
 
   if (name) {
-    conditions.push(Prisma.sql`p.name = ${name}`);
+    filters.push({
+      column: "name",
+      type: "string",
+      operator: "=",
+      value: name,
+    });
   }
 
   if (version) {
-    conditions.push(Prisma.sql`p.version = ${version}`);
+    filters.push({
+      column: "version",
+      type: "number",
+      operator: "=",
+      value: version,
+    });
   }
 
   if (label) {
-    conditions.push(Prisma.sql`${label} = ANY(p.labels)`);
+    filters.push({
+      column: "labels",
+      type: "arrayOptions",
+      operator: "any of",
+      value: [label],
+    });
   }
 
   if (tag) {
-    conditions.push(Prisma.sql`${tag} = ANY(p.tags)`);
+    filters.push({
+      column: "tags",
+      type: "arrayOptions",
+      operator: "any of",
+      value: [tag],
+    });
   }
 
-  return conditions.length > 0
-    ? Prisma.join([Prisma.raw("AND "), Prisma.join(conditions, " AND ")], "")
-    : Prisma.empty;
+  return tableColumnsToSqlFilterAndPrefix(filters, promptsTableCols, "prompts");
 };

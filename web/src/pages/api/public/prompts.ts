@@ -47,7 +47,7 @@ export default async function handler(
             ? {
                 has: PRODUCTION_LABEL,
               }
-            : undefined,
+            : undefined, // if no prompt is active, there will be no prompt available
         },
       });
 

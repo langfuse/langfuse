@@ -31,6 +31,13 @@ export const promptsTableCols: ColumnDefinition[] = [
     options: Object.values(PromptType).map((value) => ({ value })),
   },
   {
+    name: "Labels",
+    id: "labels",
+    type: "arrayOptions",
+    internal: 'p."labels"',
+    options: [], // to be added at runtime
+  },
+  {
     name: "Tags",
     id: "tags",
     type: "arrayOptions",

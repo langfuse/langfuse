@@ -225,13 +225,13 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
-    it("should fetch the production prompt if no version or label set", async () => {
-      const promptName = "prompt_" + nanoid();
+    it("should fetch the latest prompt if label is latest", async () => {
+      const promptName = "latestPrompt_" + nanoid();
 
-      const nonProductionPromptParams: CreatePromptInDBParams = {
+      const productionPromptParams: CreatePromptInDBParams = {
         name: promptName,
         prompt: "prompt",
-        labels: ["staging"],
+        labels: ["production"],
         version: 1,
         config: {
           temperature: 0.1,
@@ -240,10 +240,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         createdBy: "user-1",
       };
 
-      const productionPromptParams: CreatePromptInDBParams = {
+      const latestPromptParams: CreatePromptInDBParams = {
         name: promptName,
         prompt: "prompt",
-        labels: ["production"],
+        labels: ["latest"],
         version: 2,
         config: {
           temperature: 0.1,
@@ -252,12 +252,12 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         createdBy: "user-1",
       };
 
+      await createPromptInDB(latestPromptParams);
       await createPromptInDB(productionPromptParams);
-      await createPromptInDB(nonProductionPromptParams);
 
       const fetchedPrompt = await makeAPICall<Prompt>(
         "GET",
-        `${baseURI}/${encodeURIComponent(promptName)}`,
+        `${baseURI}/${encodeURIComponent(promptName)}?label=latest`,
         undefined,
       );
 
@@ -265,8 +265,64 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         throw new Error("Expected body to be a prompt");
       }
 
-      testPromptEquality(productionPromptParams, fetchedPrompt.body);
-    });
+      testPromptEquality(latestPromptParams, fetchedPrompt.body);
+
+      const fetchedDefaultPrompt = await makeAPICall<Prompt>(
+        "GET",
+        `${baseURI}/${encodeURIComponent(promptName)}`,
+        undefined,
+      );
+
+      expect(fetchedDefaultPrompt.status).toBe(200);
+
+      if (!isPrompt(fetchedDefaultPrompt.body)) {
+        throw new Error("Expected body to be a prompt");
+      }
+
+      testPromptEquality(productionPromptParams, fetchedDefaultPrompt.body);
+    }),
+      it("should fetch the production prompt if no version or label set", async () => {
+        const promptName = "prompt_" + nanoid();
+
+        const nonProductionPromptParams: CreatePromptInDBParams = {
+          name: promptName,
+          prompt: "prompt",
+          labels: ["staging"],
+          version: 1,
+          config: {
+            temperature: 0.1,
+          },
+          projectId,
+          createdBy: "user-1",
+        };
+
+        const productionPromptParams: CreatePromptInDBParams = {
+          name: promptName,
+          prompt: "prompt",
+          labels: ["production"],
+          version: 2,
+          config: {
+            temperature: 0.1,
+          },
+          projectId,
+          createdBy: "user-1",
+        };
+
+        await createPromptInDB(productionPromptParams);
+        await createPromptInDB(nonProductionPromptParams);
+
+        const fetchedPrompt = await makeAPICall<Prompt>(
+          "GET",
+          `${baseURI}/${encodeURIComponent(promptName)}`,
+          undefined,
+        );
+
+        if (!isPrompt(fetchedPrompt.body)) {
+          throw new Error("Expected body to be a prompt");
+        }
+
+        testPromptEquality(productionPromptParams, fetchedPrompt.body);
+      });
 
     it("should return a 404 if prompt does not exist", async () => {
       const fetchedPrompt = await makeAPICall<Prompt>(
@@ -376,7 +432,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.prompt).toEqual(chatMessages);
       expect(validatedPrompt.type).toBe("chat");
       expect(validatedPrompt.version).toBe(1);
-      expect(validatedPrompt.labels).toEqual(["production"]);
+      expect(validatedPrompt.labels).toEqual(["production", "latest"]);
       expect(validatedPrompt.createdBy).toBe("API");
       expect(validatedPrompt.config).toEqual({});
     });
@@ -493,7 +549,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.prompt).toEqual(chatMessages);
       expect(validatedPrompt.type).toBe("chat");
       expect(validatedPrompt.version).toBe(1);
-      expect(validatedPrompt.labels).toEqual(["production"]);
+      expect(validatedPrompt.labels).toEqual(["production", "latest"]);
       expect(validatedPrompt.createdBy).toBe("API");
       expect(validatedPrompt.config).toEqual({});
 
@@ -592,7 +648,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // @ts-expect-error
       expect(fetchedThirdPrompt.body.id).toBe(prompt3.body.id);
-      expect(fetchedThirdPrompt.body.labels).toEqual(["staging"]);
+      expect(fetchedThirdPrompt.body.labels).toEqual(["staging", "latest"]);
     });
 
     it("should create empty object if no config is provided", async () => {
@@ -620,7 +676,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(fetchedPrompt.body.prompt).toBe("prompt");
       expect(fetchedPrompt.body.type).toBe("text");
       expect(fetchedPrompt.body.version).toBe(1);
-      expect(fetchedPrompt.body.labels).toEqual(["production"]);
+      expect(fetchedPrompt.body.labels).toEqual(["production", "latest"]);
       expect(fetchedPrompt.body.createdBy).toBe("API");
       expect(fetchedPrompt.body.config).toEqual({});
     });
@@ -631,7 +687,22 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
     beforeAll(async () => {
       pruneDatabase();
-      await Promise.all(mockPrompts.map(createPromptInDB));
+      // Create a prompt in a different project
+      const otherProjectId = "239ad00f-562f-411d-af14-831c75ddd875";
+      await prisma.project.upsert({
+        where: { id: otherProjectId },
+        create: {
+          id: otherProjectId,
+          name: "demo-app",
+          members: {
+            create: {
+              role: "OWNER",
+              userId: "user-test",
+            },
+          },
+        },
+        update: {},
+      });
 
       await createPromptInDB({
         name: otherProjectPromptName,
@@ -639,9 +710,12 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         labels: ["production"],
         version: 1,
         config: {},
-        projectId: "239ad00f-562f-411d-af14-831c75ddd875",
+        projectId: otherProjectId,
         createdBy: "user-test",
       });
+
+      // Create prompts in the current project
+      await Promise.all(mockPrompts.map(createPromptInDB));
     });
 
     it("should only return prompts from the current project", async () => {
@@ -795,8 +869,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const response2 = await makeAPICall("GET", `${baseURI}?label=dev`);
       expect(response2.status).toBe(200);
       const body2 = response2.body as unknown as PromptsMetaResponse;
-
-      console.log(JSON.stringify(body2));
 
       expect(body2.data).toHaveLength(1);
       expect(body2.data[0].promptName).toBe("prompt-2");

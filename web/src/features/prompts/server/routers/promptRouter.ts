@@ -405,12 +405,12 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const labels = (await ctx.prisma.$queryRaw`
+      const labels = await ctx.prisma.$queryRaw<{ label: string }[]>`
         SELECT DISTINCT UNNEST(labels) AS label
         FROM prompts
         WHERE project_id = ${input.projectId}      
         AND labels IS NOT NULL;
-      `) as { label: string }[];
+      `;
 
       return labels.map((l) => l.label);
     }),
