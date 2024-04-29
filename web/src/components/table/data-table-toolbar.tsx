@@ -12,6 +12,8 @@ import {
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Search } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
+import useTableNameFromURL from "@/src/hooks/useTableNameFromURL";
 
 interface SearchConfig {
   placeholder: string;
@@ -47,6 +49,8 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const posthog = usePostHog();
+  const tableName = useTableNameFromURL();
 
   return (
     <div className="my-2 flex flex-1 flex-wrap items-center gap-2">
@@ -59,6 +63,7 @@ export function DataTableToolbar<TData, TValue>({
             onChange={(event) => setSearchString(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
+                posthog.capture("table:search_submit", { "table": tableName });
                 searchConfig.updateQuery(searchString);
               }
             }}
@@ -66,7 +71,9 @@ export function DataTableToolbar<TData, TValue>({
           />
           <Button
             variant="outline"
-            onClick={() => searchConfig.updateQuery(searchString)}
+            onClick={() => {
+              posthog.capture("table:search_submit", { "table": tableName });
+              searchConfig.updateQuery(searchString)}}
             className="rounded-l-none border-l-0 p-3"
           >
             <Search className="h-4 w-4" />
