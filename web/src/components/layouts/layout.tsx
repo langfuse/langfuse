@@ -172,7 +172,6 @@ export default function Layout(props: PropsWithChildren) {
 
   const hideNavigation =
     session.status === "unauthenticated" ||
-    projects.length === 0 ||
     pathsWithoutNavigation.includes(router.pathname) ||
     router.pathname.startsWith("/public/");
   if (hideNavigation)
