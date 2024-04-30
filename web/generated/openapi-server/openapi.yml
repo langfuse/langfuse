@@ -2693,10 +2693,15 @@ components:
         version:
           type: integer
         config: {}
+        labels:
+          type: array
+          items:
+            type: string
       required:
         - name
         - version
         - config
+        - labels
     ChatMessage:
       title: ChatMessage
       type: object
