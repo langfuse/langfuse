@@ -9,6 +9,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { MinusCircle, MinusIcon, PlusCircleIcon, PlusIcon } from "lucide-react";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Button } from "@/src/components/ui/button";
+import { usePostHog } from "posthog-js/react";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -120,13 +121,14 @@ const ObservationTreeNode = (props: {
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics?: boolean;
   showScores?: boolean;
-}) => (
+}) => {
+  const posthog = usePostHog();
+  return (
   <>
     {props.observations
       .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
       .map((observation) => {
         const collapsed = props.collapsedObservations.includes(observation.id);
-
         return (
           <Fragment key={observation.id}>
             <div className="flex">
@@ -153,7 +155,8 @@ const ObservationTreeNode = (props: {
                     <Toggle
                       onClick={(ev) => (
                         ev.stopPropagation(),
-                        props.toggleCollapsedObservation(observation.id)
+                        props.toggleCollapsedObservation(observation.id),
+                        posthog.capture(collapsed ? "trace_detail:observation_tree_expand" : "trace_detail:observation_tree_collapse", {"kind": "single"})
                       )}
                       variant="default"
                       pressed={collapsed}
@@ -239,7 +242,8 @@ const ObservationTreeNode = (props: {
         );
       })}
   </>
-);
+)
+}
 
 const ColorCodedObservationType = (props: {
   observationType: $Enums.ObservationType;
