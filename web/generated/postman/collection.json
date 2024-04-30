@@ -2,7 +2,7 @@
   "info": {
     "name": "Langfuse",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "## Authentication\n\nAuthenticate with the API using Basic Auth, get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key"
+    "description": "## Authentication\n\nAuthenticate with the API using [Basic Auth](https://en.wikipedia.org/wiki/Basic_access_authentication), get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key\n\n## Exports\n\n- OpenAPI spec: https://cloud.langfuse.com/openapi-server.yml\n- Postman collection: https://cloud.langfuse.com/postman-collection.json"
   },
   "variable": [
     {
