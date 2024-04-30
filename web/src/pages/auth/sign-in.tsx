@@ -108,7 +108,7 @@ export function SSOButtons({
           {authProviders.google && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:google_button_click");
+                posthog.capture("sign_in:button_click", { provider: "google" });
                 void signIn("google");
               }}
               variant="secondary"
@@ -120,7 +120,7 @@ export function SSOButtons({
           {authProviders.github && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:github_button_click");
+                posthog.capture("sign_in:button_click", { provider: "github" });
                 void signIn("github");
               }}
               variant="secondary"
@@ -132,7 +132,9 @@ export function SSOButtons({
           {authProviders.azureAd && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:azure_ad_button_click");
+                posthog.capture("sign_in:button_click", {
+                  provider: "azure-ad",
+                });
                 void signIn("azure-ad");
               }}
               variant="secondary"
@@ -144,7 +146,7 @@ export function SSOButtons({
           {authProviders.okta && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:okta_button_click");
+                posthog.capture("sign_in:button_click", { provider: "okta" });
                 void signIn("okta");
               }}
               variant="secondary"
@@ -156,7 +158,7 @@ export function SSOButtons({
           {authProviders.auth0 && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:auth0_button_click");
+                posthog.capture("sign_in:button_click", { provider: "auth0" });
                 void signIn("auth0");
               }}
               variant="secondary"
@@ -221,7 +223,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
     values: z.infer<typeof credentialAuthForm>,
   ) {
     setCredentialsFormError(null);
-    posthog.capture("sign_in:credentials_form_submit");
+    posthog.capture("sign_in:button_click", { provider: "email/password" });
     const result = await signIn("credentials", {
       email: values.email,
       password: values.password,
@@ -267,6 +269,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
       setSsoLoading(false);
     } else {
       const { providerId } = await res.json();
+      posthog.capture("sign_in:button_click", { provider: "sso" });
       void signIn(providerId);
     }
   }
