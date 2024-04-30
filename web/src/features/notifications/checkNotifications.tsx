@@ -9,6 +9,11 @@ import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 
 export const NOTIFICATIONS: TNotification[] = [
+  // {
+  //   id: 3,
+  //   releaseDate: new Date("2024-04-26"),
+  //   message: "Langfuse 2.0 is live on ProductHunt",
+  // },
   {
     id: 2,
     releaseDate: new Date("2024-04-24"),

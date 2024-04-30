@@ -72,7 +72,7 @@ async function main() {
       name: "summary-prompt",
       project: { connect: { id: seedProjectId } },
       prompt: "prompt {{variable}} {{anotherVariable}}",
-      isActive: true,
+      labels: ["production"],
       version: 1,
       createdBy: "user-1",
     },
@@ -764,7 +764,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 1 content",
       name: "Prompt 1",
       version: 1,
-      isActive: true,
+      labels: ["production"],
     },
     {
       id: `prompt-${v4()}`,
@@ -773,7 +773,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 2 content",
       name: "Prompt 2",
       version: 1,
-      isActive: true,
+      labels: ["production"],
     },
     {
       id: `prompt-${v4()}`,
@@ -782,7 +782,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 3 content",
       name: "Prompt 3 by API",
       version: 1,
-      isActive: true,
+      labels: ["production"],
     },
     {
       id: `prompt-${v4()}`,
@@ -791,7 +791,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 4 content",
       name: "Prompt 4",
       version: 1,
-      isActive: true,
+      labels: ["production"],
       tags: ["tag1", "tag2"],
     },
   ];
@@ -812,7 +812,7 @@ async function generatePrompts(project: Project) {
         prompt: prompt.prompt,
         name: prompt.name,
         version: prompt.version,
-        isActive: prompt.isActive,
+        labels: prompt.labels,
         tags: prompt.tags,
       },
       update: {
@@ -833,7 +833,6 @@ async function generatePrompts(project: Project) {
         temperature: 0.7,
       },
       version: 1,
-      isActive: false,
     },
     {
       id: `prompt-${v4()}`,
@@ -846,7 +845,7 @@ async function generatePrompts(project: Project) {
         topP: 0.9,
       },
       version: 2,
-      isActive: true,
+      labels: ["production"],
     },
     {
       id: `prompt-${v4()}`,
@@ -860,7 +859,6 @@ async function generatePrompts(project: Project) {
         frequencyPenalty: 0.5,
       },
       version: 3,
-      isActive: false,
     },
   ];
 
@@ -881,7 +879,7 @@ async function generatePrompts(project: Project) {
         name: version.name,
         config: version.config,
         version: version.version,
-        isActive: version.isActive,
+        labels: version.labels,
       },
       update: {
         id: version.id,
@@ -910,7 +908,7 @@ async function generatePrompts(project: Project) {
         prompt: `${promptName} version ${i} content`,
         name: promptName,
         version: i,
-        isActive: i === 20,
+        labels: i === 20 ? ["production"] : [],
       },
       update: {
         id: promptId,

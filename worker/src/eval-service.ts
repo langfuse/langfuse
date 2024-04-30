@@ -18,6 +18,8 @@ import {
   LangfuseNotFoundError,
   ForbiddenError,
   ValidationError,
+  ApiError,
+  evalTableCols,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -43,7 +45,7 @@ export const createEvalJobs = async ({
     .execute();
 
   if (configs.length === 0) {
-    logger.info("No evaluation jobs found for project", event.projectId);
+    logger.debug("No evaluation jobs found for project", event.projectId);
     return;
   }
   logger.info("Creating eval jobs for trace", event.traceId);
@@ -59,7 +61,7 @@ export const createEvalJobs = async ({
 
     const condition = tableColumnsToSqlFilterAndPrefix(
       validatedFilter,
-      tracesTableCols,
+      evalTableCols,
       "traces"
     );
 
@@ -126,7 +128,7 @@ export const createEvalJobs = async ({
           },
         },
         {
-          attempts: 3,
+          attempts: 10,
           backoff: {
             type: "exponential",
             delay: 1000,
@@ -263,30 +265,32 @@ export const evaluate = async ({
     .executeTakeFirst();
 
   if (!apiKey) {
-    logger.error(
-      `API key for provider ${provider} and project ${event.projectId} not found. Failing job id ${job.id}`
-    );
     // this will fail the eval execution if a user deletes the API key.
     throw new LangfuseNotFoundError(
       `API key for provider ${provider} and project ${event.projectId} not found.`
     );
   }
 
-  const completion = await fetchLLMCompletion({
-    streaming: false,
-    apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
-    messages: [{ role: ChatMessageRole.System, content: prompt }],
-    modelParams: {
-      provider: provider,
-      model: evalModel,
-      ...modelParams,
-    },
-    functionCall: {
-      name: "evaluate",
-      description: "some description",
-      parameters: openAIFunction,
-    },
-  });
+  let completion: string;
+  try {
+    completion = await fetchLLMCompletion({
+      streaming: false,
+      apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
+      messages: [{ role: ChatMessageRole.System, content: prompt }],
+      modelParams: {
+        provider: provider,
+        model: evalModel,
+        ...modelParams,
+      },
+      functionCall: {
+        name: "evaluate",
+        description: "some description",
+        parameters: openAIFunction,
+      },
+    });
+  } catch (e) {
+    throw new ApiError(`Failed to fetch LLM completion: ${e}`);
+  }
 
   const parsedLLMOutput = openAIFunction.parse(completion);
 
@@ -305,6 +309,8 @@ export const evaluate = async ({
       source: sql`'EVAL'::"ScoreSource"`,
     })
     .execute();
+
+  logger.info(`Persisted score ${scoreId} for trace ${job.job_input_trace_id}`);
 
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
@@ -423,10 +429,10 @@ export async function extractVariablesFromTrace(
       // user facing errors
       if (!observation) {
         logger.error(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
         );
         throw new LangfuseNotFoundError(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
         );
       }
 

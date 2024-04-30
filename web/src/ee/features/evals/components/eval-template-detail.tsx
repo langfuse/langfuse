@@ -1,6 +1,6 @@
 import * as React from "react";
 import Header from "@/src/components/layouts/header";
-import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
+import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
@@ -44,10 +44,6 @@ export const EvalTemplateDetail = () => {
     },
   );
 
-  const llmApiKeys = api.llmApiKey.all.useQuery({
-    projectId: projectId,
-  });
-
   return (
     <div className="md:container">
       <Header
@@ -76,16 +72,12 @@ export const EvalTemplateDetail = () => {
           )
         }
       />
-      {allTemplates.isLoading ||
-      !allTemplates.data ||
-      llmApiKeys.isLoading ||
-      !llmApiKeys.data ? (
+      {allTemplates.isLoading || !allTemplates.data ? (
         <div>Loading...</div>
       ) : (
         <EvalTemplateForm
           projectId={projectId}
           existingEvalTemplate={template.data ?? undefined}
-          apiKeys={llmApiKeys.data?.data ?? []}
           isEditing={isEditing}
           setIsEditing={setIsEditing}
         />

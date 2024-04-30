@@ -22,6 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import {
   tracesTableColsWithOptions,
+  evalTableCols,
   singleFilter,
   type JobConfiguration,
   availableEvalVariables,
@@ -41,7 +42,6 @@ import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import TableLink from "@/src/components/table/table-link";
 
 const formSchema = z.object({
   scoreName: z.string(),
@@ -89,15 +89,6 @@ export const EvalConfigForm = (props: {
             ))}
           </SelectContent>
         </Select>
-      ) : props.existingEvalConfig ? (
-        <div className="my-5 flex items-center gap-4 rounded-md border p-2	">
-          <Label>Eval Template</Label>
-          <TableLink
-            path={`/project/${props.projectId}/evals/templates/${props.existingEvalConfig.evalTemplateId}`}
-            value={props.existingEvalConfig.evalTemplateId ?? ""}
-            truncateAt={40}
-          />
-        </div>
       ) : undefined}
       {evalTemplate && currentTemplate ? (
         <InnerEvalConfigForm
@@ -298,6 +289,7 @@ export const InnerEvalConfigForm = (props: {
                     <InlineFilterBuilder
                       columns={tracesTableColsWithOptions(
                         traceFilterOptions.data,
+                        evalTableCols,
                       )}
                       filterState={field.value ?? []}
                       onChange={(value) => field.onChange(value)}

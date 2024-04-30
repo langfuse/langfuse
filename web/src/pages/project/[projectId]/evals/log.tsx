@@ -5,7 +5,7 @@
 
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
-import EvalLogTable from "@/src/features/evals/components/eval-log";
+import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 
 export default function TemplatesPage() {
   const router = useRouter();

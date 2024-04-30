@@ -126,7 +126,7 @@ export default async function handler(
       res,
     );
   } catch (error: unknown) {
-    console.error(error);
+    console.error("error handling ingestion event", error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({
@@ -141,6 +141,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
+      console.log(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,

@@ -63,27 +63,24 @@ export const ROUTES: Route[] = [
     name: "Evaluation",
     icon: Lightbulb,
     cloudOnly: true,
-    featureFlag: "evals",
+    label: "Beta",
     children: [
       {
         name: "Templates",
         pathname: `/project/[projectId]/evals/templates`,
         cloudOnly: true,
-        featureFlag: "evals",
         rbacScope: "evalTemplate:read",
       },
       {
         name: "Configs",
         pathname: `/project/[projectId]/evals/configs`,
         cloudOnly: true,
-        featureFlag: "evals",
         rbacScope: "job:read",
       },
       {
         name: "Log",
         pathname: `/project/[projectId]/evals/log`,
         cloudOnly: true,
-        featureFlag: "evals",
         rbacScope: "jobExecution:read",
       },
     ],
