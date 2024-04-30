@@ -23,6 +23,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { usePostHog } from "posthog-js/react";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -30,6 +31,7 @@ export function Trace(props: {
   scores: Score[];
   projectId: string;
 }) {
+  const posthog = usePostHog();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
@@ -77,17 +79,18 @@ export function Trace(props: {
           .filter((id) => !excludeParentObservations.has(id)),
       );
     } while (newExcludeParentObservations.size > 0);
-
+    posthog.capture("trace_detail:observation_tree_collapse", {"kind": "all"})
     setCollapsedObservations(
       props.observations
         .map((o) => o.id)
         .filter((id) => !excludeParentObservations.has(id)),
     );
-  }, [props.observations, currentObservationId]);
+  }, [posthog, props.observations, currentObservationId]);
 
   const expandAll = useCallback(() => {
+    posthog.capture("trace_detail:observation_tree_expand", {"kind": "all"})
     setCollapsedObservations([]);
-  }, [setCollapsedObservations]);
+  }, [posthog]);
 
   return (
     <div className="grid gap-4 md:h-full md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
@@ -115,6 +118,7 @@ export function Trace(props: {
           <Toggle
             pressed={scoresOnObservationTree}
             onPressedChange={(e) => {
+              posthog.capture("trace_detail:observation_tree_toggle_scores", {"show": e})
               setScoresOnObservationTree(e);
             }}
             size="sm"
@@ -125,6 +129,7 @@ export function Trace(props: {
           <Toggle
             pressed={metricsOnObservationTree}
             onPressedChange={(e) => {
+              posthog.capture("trace_detail:observation_tree_toggle_metrics", {"show": e})
               setMetricsOnObservationTree(e);
             }}
             size="sm"
