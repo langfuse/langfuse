@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { type OrderByState } from "@/src/features/orderBy/types";
+import useTableNameFromURL from "@/src/hooks/useTableNameFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
   flexRender,
@@ -29,6 +30,7 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
+import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 interface DataTableProps<TData, TValue> {
@@ -72,7 +74,8 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
-
+  const posthog = usePostHog();
+  const tableName = useTableNameFromURL();
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -129,14 +132,17 @@ export function DataTable<TData extends object, TValue>({
 
                           if (orderBy?.column === columnDef.id) {
                             if (orderBy.order === "DESC") {
+                              posthog.capture("table:column_sorting_header_click", {"table": tableName, column: columnDef.id, order: "ASC"});
                               setOrderBy({
                                 column: columnDef.id,
                                 order: "ASC",
                               });
                             } else {
+                              posthog.capture("table:column_sorting_header_click", {"table": tableName, column: columnDef.id, order: "Disabled"});
                               setOrderBy(null);
                             }
                           } else {
+                            posthog.capture("table:column_sorting_header_click", {"table": tableName, column: columnDef.id, order: "DESC"});
                             setOrderBy({
                               column: columnDef.id,
                               order: "DESC",
