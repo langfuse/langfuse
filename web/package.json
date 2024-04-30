@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "copy-openapi-spec": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml",
+    "copy-openapi-spec": "cp generated/openapi-client/openapi.yml public/openapi-client.yml && cp generated/openapi-server/openapi.yml public/openapi-server.yml && cp generated/postman/collection.json public/postman-collection.json",
     "build": "pnpm run copy-openapi-spec && INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
     "lint": "dotenv -e ../.env -- next lint",
