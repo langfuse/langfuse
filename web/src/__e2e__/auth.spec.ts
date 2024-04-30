@@ -70,3 +70,54 @@ test("Signup input validation", async ({ page }) => {
 // random email address to be used in tests
 const randomEmailAddress = () =>
   Math.random().toString(36).substring(2, 11) + "@example.com";
+
+test("Unauthenticated user should be redirected to target URL after login", async ({
+  page,
+}) => {
+  await page.goto("/auth/sign-in");
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  // wait 2 seconds
+  await page.waitForTimeout(2000);
+
+  await page.getByRole("button", { name: "Tracing" }).click();
+
+  await page.getByRole("link", { name: "Traces" }).click();
+
+  await page.waitForTimeout(2000);
+
+  await expect(page).toHaveURL(/.*traces/);
+
+  await page
+    .getByRole("link", { name: /^\.\.\.[\w\d]+$/ })
+    .first()
+    .click();
+
+  await page.waitForTimeout(3000);
+
+  await expect(page).toHaveURL(/.*trace-/);
+
+  const traceUrl = page.url();
+
+  await page.getByRole("button", { name: /Demo User/ }).click();
+
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await expect(page).toHaveURL("/auth/sign-in");
+
+  await page.goto(traceUrl);
+
+  await page.waitForTimeout(2000);
+
+  await expect(page).toHaveURL(/targetUrl/);
+
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  await page.waitForTimeout(2000);
+
+  await expect(page).toHaveURL(traceUrl);
+});
