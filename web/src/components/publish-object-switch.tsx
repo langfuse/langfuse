@@ -30,7 +30,7 @@ export const PublishTraceSwitch = (props: {
           traceId: props.traceId,
           public: val,
         });
-        posthog.capture("trace_detail:publish_trace_button_click");
+        posthog.capture("trace_detail:publish_button_click");
       }}
       isLoading={mut.isLoading}
       disabled={!hasAccess}
