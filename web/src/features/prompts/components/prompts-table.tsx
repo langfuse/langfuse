@@ -25,7 +25,7 @@ type PromptTableRow = {
   version: number;
   id: string;
   createdAt: Date;
-  isActive: boolean;
+  labels: string[];
   type: string;
   numberOfObservations: number;
   tags: string[];
@@ -189,7 +189,7 @@ export function PromptTable() {
       version: item.version,
       createdAt: item.createdAt,
       type: item.type,
-      isActive: item.isActive,
+      labels: item.labels,
       numberOfObservations: Number(item.observationCount),
       tags: item.tags,
     };
