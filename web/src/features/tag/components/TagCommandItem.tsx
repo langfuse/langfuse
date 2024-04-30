@@ -2,6 +2,7 @@ import { CommandItem } from "@/src/components/ui/command";
 import { cn } from "@/src/utils/tailwind";
 import { Check } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { useTagAnalytics } from "@/src/features/tag/hooks/useTagAnalytics";
 
 type TagCommandItemProps = {
   value: string;
@@ -14,11 +15,17 @@ const TagCommandItem = ({
   selectedTags,
   setSelectedTags,
 }: TagCommandItemProps) => {
+  const { posthog, tableName, type } = useTagAnalytics();
   return (
     <CommandItem
       key={value}
       onSelect={() => {
         setSelectedTags([...selectedTags, value]);
+        posthog.capture("tag:add_existing_tag", {
+          table: tableName,
+          type: type,
+          name: value,
+        });
       }}
     >
       <div
