@@ -144,6 +144,7 @@ export default function Layout(props: PropsWithChildren) {
   if (
     session.status === "unauthenticated" &&
     !unauthenticatedPaths.includes(router.pathname) &&
+    !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
     const newTargetPath = router.asPath;
