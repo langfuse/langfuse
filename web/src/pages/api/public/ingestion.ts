@@ -253,7 +253,15 @@ const handleSingleEvent = async (
   req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
-  console.log(`handling single event ${event.id} ${event.type}`);
+  if ("input" in event && "output" in event) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { input, output, ...restEvent } = event;
+    console.log(
+      `handling single event ${event.id} ${JSON.stringify(restEvent)}`,
+    );
+  } else {
+    console.log(`handling single event ${event.id} ${JSON.stringify(event)}`);
+  }
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
 
