@@ -25,7 +25,7 @@ type PromptTableRow = {
   version: number;
   id: string;
   createdAt: Date;
-  isActive: boolean;
+  labels: string[];
   type: string;
   numberOfObservations: number;
   tags: string[];
@@ -189,7 +189,7 @@ export function PromptTable() {
       version: item.version,
       createdAt: item.createdAt,
       type: item.type,
-      isActive: item.isActive,
+      labels: item.labels,
       numberOfObservations: Number(item.observationCount),
       tags: item.tags,
     };
@@ -204,6 +204,25 @@ export function PromptTable() {
         )}
         filterState={filterState}
         setFilterState={setFilterState}
+        actionButtons={
+          <Link href={`/project/${projectId}/prompts/new`}>
+            <Button
+              variant="secondary"
+              disabled={!hasCUDAccess}
+              aria-label="Promote Prompt to Production"
+            >
+              {hasCUDAccess ? (
+                <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+              ) : (
+                <LockIcon
+                  className="-ml-0.5 mr-1.5 h-3 w-3"
+                  aria-hidden="true"
+                />
+              )}
+              New prompt
+            </Button>
+          </Link>
+        }
       />
       <DataTable
         columns={promptColumns}
@@ -230,21 +249,6 @@ export function PromptTable() {
           state: paginationState,
         }}
       />
-      <Link href={`/project/${projectId}/prompts/new`}>
-        <Button
-          variant="secondary"
-          className="mt-4"
-          disabled={!hasCUDAccess}
-          aria-label="Promote Prompt to Production"
-        >
-          {hasCUDAccess ? (
-            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
-          ) : (
-            <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
-          )}
-          New prompt
-        </Button>
-      </Link>
     </div>
   );
 }

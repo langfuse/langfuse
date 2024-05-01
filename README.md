@@ -26,7 +26,7 @@
    <br/>
    <br/>
    <div>
-      <img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License">
+      <a href="https://github.com/langfuse/langfuse/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License"></a>
       <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
       <a href="https://github.com/langfuse/langfuse/pkgs/container/langfuse"><img alt="Docker Image" src="https://img.shields.io/badge/docker-langfuse-blue?logo=Docker&logoColor=white&style=flat-square"></a>
       <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse" alt="langfuse npm package"></a>
@@ -37,17 +37,22 @@
 
 ## Overview
 
+_Unmute video for voice-over_
+
+https://github.com/langfuse/langfuse/assets/2834609/a94062e9-c782-4ee9-af59-dee6370149a8
+
 ### Develop
 
 - **Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
 - **Langfuse UI:** Inspect and debug complex logs ([Demo](https://langfuse.com/docs/demo), [Tracing](https://langfuse.com/docs/tracing))
-- **Prompts:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts))
+- **Prompt Management:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts/get-started))
+- **Prompt Engineering:** Test and iterate on your prompts with the [LLM Playground](https://langfuse.com/docs/playground)
 
 ### Monitor
 
 - **Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
 - **Evals:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
-  - Run model-based evaluations ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals))
+  - Run model-based evaluations ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals)) within Langfuse
   - Collect user feedback ([User Feedback](https://langfuse.com/docs/scores/user-feedback))
   - Manually score observations in Langfuse ([Manual Scores](https://langfuse.com/docs/scores/manually))
 

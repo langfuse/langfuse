@@ -1,5 +1,5 @@
 import z from "zod";
-import { ModelProvider, observationsTableCols } from "../..";
+import { ModelProvider } from "../..";
 
 export const langfuseObjects = [
   "trace",
@@ -34,6 +34,17 @@ export const wipVariableMapping = z.object({
   selectedColumnId: z.string().nullish(),
 });
 
+const observationCols = [
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: 'o."metadata"',
+  },
+  { name: "Input", id: "input", internal: 'o."input"' },
+  { name: "Output", id: "output", internal: 'o."output"' },
+];
+
 export const availableEvalVariables = [
   {
     id: "trace",
@@ -52,32 +63,18 @@ export const availableEvalVariables = [
   {
     id: "span",
     display: "Span",
-    availableColumns: [
-      {
-        name: "Metadata",
-        id: "metadata",
-        type: "stringObject",
-        internal: 'o."metadata"',
-      },
-      { name: "Input", id: "input", internal: 'o."input"' },
-      { name: "Output", id: "output", internal: 'o."output"' },
-    ],
+    availableColumns: observationCols,
   },
   {
     id: "generation",
     display: "Generation",
-    availableColumns: [
-      {
-        name: "Metadata",
-        id: "metadata",
-        type: "stringObject",
-        internal: 'o."metadata"',
-      },
-      { name: "Input", id: "input", internal: 'o."input"' },
-      { name: "Output", id: "output", internal: 'o."output"' },
-    ],
+    availableColumns: observationCols,
   },
-  { id: "event", display: "Event", availableColumns: observationsTableCols },
+  {
+    id: "event",
+    display: "Event",
+    availableColumns: observationCols,
+  },
 ];
 
 export const evalLLMModels = [

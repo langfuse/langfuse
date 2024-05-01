@@ -48,7 +48,13 @@ export const scoresRouter = createTRPCRouter({
       );
 
       const scores = await ctx.prisma.$queryRaw<
-        Array<Score & { traceName: string | null; userId: string | null }>
+        Array<
+          Score & {
+            traceName: string | null;
+            userId: string | null;
+            jobConfigurationId: string | null;
+          }
+        >
       >(
         generateScoresQuery(
           Prisma.sql` 
@@ -60,7 +66,9 @@ export const scoresRouter = createTRPCRouter({
           s.trace_id as "traceId",
           s.observation_id as "observationId",
           t.user_id as "userId",
-          t.name as "traceName"`,
+          t.name as "traceName",
+          je.job_configuration_id as "jobConfigurationId"
+          `,
           input.projectId,
           filterCondition,
           orderByCondition,
@@ -322,7 +330,7 @@ const generateScoresQuery = (
   SELECT
    ${select}
   FROM scores s
-  JOIN traces t ON t.id = s.trace_id
+  JOIN traces t ON t.id = s.trace_id LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
   WHERE t.project_id = ${projectId}
   ${filterCondition}
   ${orderCondition}

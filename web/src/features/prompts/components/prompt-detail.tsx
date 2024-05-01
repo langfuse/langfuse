@@ -14,8 +14,7 @@ import { Button } from "@/src/components/ui/button";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
-import { PromptType } from "@/src/features/prompts/server/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -23,8 +22,8 @@ import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
-
 import { PromptHistoryNode } from "./prompt-history";
+import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -101,12 +100,7 @@ export const PromptDetail = () => {
             ]}
             actionButtons={
               <>
-                <PromotePrompt
-                  promptId={prompt.id}
-                  promptName={prompt.name}
-                  disabled={prompt.isActive}
-                  variant="outline"
-                />
+                <SetPromptVersionLabels prompt={prompt} />
 
                 <Link
                   href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
@@ -185,6 +179,18 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
+          <p className="mt-6 text-xs text-gray-600">
+            Fetch prompts via Python or JS/TS SDKs. See{" "}
+            <a
+              href="https://langfuse.com/docs/prompts"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              documentation
+            </a>{" "}
+            for details.
+          </p>
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">

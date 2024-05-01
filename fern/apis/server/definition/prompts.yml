@@ -4,18 +4,42 @@ imports:
   pagination: ./utils/pagination.yml
 service:
   auth: true
-  base-path: /api/public
+  base-path: /api/public/v2
   endpoints:
     get:
       docs: Get a prompt
       method: GET
+      path: /prompts/{promptName}
+      path-parameters:
+        promptName:
+          type: string
+          docs: The name of the prompt
+      request:
+        name: GetPromptRequest
+        query-parameters:
+          version:
+            type: optional<integer>
+            docs: Version of the prompt to be retrieved.
+          label:
+            type: optional<string>
+            docs: Label of the prompt to be retrieved. Defaults to "production" if no label or version is set.
+      response: Prompt
+
+    list:
+      docs: Get a list of prompt names with versions and labels
+      method: GET
       path: /prompts
       request:
-        name: GetParameterRequest
+        name: ListPromptsMetaRequest
         query-parameters:
-          name: string
-          version: optional<integer>
-      response: Prompt
+          name: optional<string>
+          label: optional<string>
+          tag: optional<string>
+          page: optional<integer>
+          limit: optional<integer>
+
+      response: PromptMetaListResponse
+
     create:
       docs: Create a prompt
       method: POST
@@ -24,6 +48,18 @@ service:
       response: Prompt
 
 types:
+  PromptMetaListResponse:
+    properties:
+      data: list<PromptMeta>
+      meta: pagination.MetaResponse
+
+  PromptMeta:
+    properties:
+      name: string
+      versions: list<integer>
+      labels: list<string>
+      tags: list<string>
+
   CreatePromptRequest:
     union:
       chat: CreateChatPromptRequest
@@ -32,20 +68,16 @@ types:
   CreateChatPromptRequest:
     properties:
       name: string
-      isActive:
-        docs: Should the prompt be promoted to production immediately?
-        type: boolean
       prompt: list<ChatMessage>
       config: optional<unknown>
+      labels: optional<list<string>>
 
   CreateTextPromptRequest:
     properties:
       name: string
-      isActive:
-        docs: Should the prompt be promoted to production immediately?
-        type: boolean
       prompt: string
       config: optional<unknown>
+      labels: optional<list<string>>
 
   Prompt:
     union:
@@ -57,6 +89,7 @@ types:
       name: string
       version: integer
       config: unknown
+      labels: list<string>
 
   ChatMessage:
     properties:

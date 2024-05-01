@@ -53,53 +53,63 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ### Architecture Overview
 
+> [!NOTE]
+> Infrastructure will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
+> `langfuse/langfuse/worker` is under active development and not recommended for production use in Langfuse 2.x
+
 ```mermaid
 flowchart TB
-   subgraph s4["Clients"]
-      subgraph s2["langfuse/langfuse-python"]
-         Python["Python low-level SDK"]
-         Decorator["observe() decorator"] -->|extends| Python
-         OAI["OpenAI drop-in replacement"] -->|extends| Python
-         Llamaindex["LlamaIndex Integration"] -->|extends| Python
-         LCPYTHON["Langchain Python Integration"] -->|extends| Python
-         Langflow -->|uses| LCPYTHON
-         LiteLLM -->|uses| Python
-      end
-      subgraph s3["langfuse/langfuse-js"]
-         JS["JS SDK"]
-         LCJS["Langchain JS Integration"]  -->|extends| JS
-         Flowise -->|uses| LCJS
-      end
-   end
+    subgraph s4["Clients"]
+        subgraph s2["langfuse/langfuse-python"]
+            Python["Python low-level SDK"]
+            Decorator["observe() decorator"] -->|extends| Python
+            OAI["OpenAI drop-in replacement"] -->|extends| Python
+            Llamaindex["LlamaIndex Integration"] -->|extends| Python
+            LCPYTHON["Langchain Python Integration"] -->|extends| Python
+            Langflow -->|uses| LCPYTHON
+            LiteLLM -->|uses| Python
+        end
+        subgraph s3["langfuse/langfuse-js"]
+            JS["JS SDK"]
+            LCJS["Langchain JS Integration"]  -->|extends| JS
+            Flowise -->|uses| LCJS
+        end
+    end
 
-   DB[Postgres Database]
-	subgraph s1["Application (langfuse/langfuse)"]
-      API[Public HTTP API]
-      G[TRPC API]
-      I[NextAuth]
-      H[React Frontend]
-      Prisma[Prisma ORM]
-      H --> G
-      H --> I
-      G --> I
-      G --- Prisma
-      API --- Prisma
-      I --- Prisma
-	end
-   Prisma --- DB
-   JS --- API
-   Python --- API
+    DB[Postgres Database]
+    Redis[Redis]
+
+    subgraph s1["Application (langfuse/langfuse/web)"]
+        API[Public HTTP API]
+        G[TRPC API]
+        I[NextAuth]
+        H[React Frontend]
+        Prisma[Prisma ORM]
+        H --> G
+        H --> I
+        G --> I
+        G --- Prisma
+        API --- Prisma
+        I --- Prisma
+    end
+
+    subgraph s5["Application (langfuse/langfuse/worker)"]
+        Worker_API[Public HTTP API]
+    end
+
+    API --> Worker_API
+    Worker_API --- DB
+    Worker_API --- Redis
+
+    Prisma --- DB
+    JS --- API
+    Python --- API
 ```
 
-### Database Overview
+### Network Overview
 
-The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
-
-Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
-
-<img src="./packages/shared/prisma/database.svg">
-
-### Infrastructure & Network Overview
+> [!NOTE]
+> This will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
 
 ```mermaid
 flowchart LR
@@ -113,6 +123,14 @@ flowchart LR
    end
    App --- DB
 ```
+
+### Database Overview
+
+The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
+
+Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
+
+<img src="./packages/shared/prisma/database.svg">
 
 ## Repository Structure
 
@@ -135,7 +153,7 @@ Requirements
 
 **Steps**
 
-1. Fork the the repository and clone it locally
+1. Fork the repository and clone it locally
 2. Run the development database
 
    ```bash

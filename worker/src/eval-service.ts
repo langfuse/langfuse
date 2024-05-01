@@ -15,6 +15,11 @@ import {
   evalLLMModels,
   ZodModelConfig,
   availableEvalVariables,
+  LangfuseNotFoundError,
+  ForbiddenError,
+  ValidationError,
+  ApiError,
+  evalTableCols,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -40,7 +45,7 @@ export const createEvalJobs = async ({
     .execute();
 
   if (configs.length === 0) {
-    logger.info("No evaluation jobs found for project", event.projectId);
+    logger.debug("No evaluation jobs found for project", event.projectId);
     return;
   }
   logger.info("Creating eval jobs for trace", event.traceId);
@@ -56,7 +61,7 @@ export const createEvalJobs = async ({
 
     const condition = tableColumnsToSqlFilterAndPrefix(
       validatedFilter,
-      tracesTableCols,
+      evalTableCols,
       "traces"
     );
 
@@ -123,7 +128,7 @@ export const createEvalJobs = async ({
           },
         },
         {
-          attempts: 3,
+          attempts: 10,
           backoff: {
             type: "exponential",
             delay: 1000,
@@ -136,7 +141,7 @@ export const createEvalJobs = async ({
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
       // we do this, because a second trace event might 'deselect' a trace
-      logger.info(`Eval job for config ${config.id} did not match trace`);
+      logger.debug(`Eval job for config ${config.id} did not match trace`);
       if (existingJob.length > 0) {
         logger.info(
           `Cancelling eval job for config ${config.id} and trace ${event.traceId}`
@@ -170,7 +175,7 @@ export const evaluate = async ({
     .executeTakeFirstOrThrow();
 
   if (!job?.job_input_trace_id) {
-    throw new Error("Jobs can only be executed on traces for now.");
+    throw new ForbiddenError("Jobs can only be executed on traces for now.");
   }
 
   if (job.status === "CANCELLED") {
@@ -235,7 +240,7 @@ export const evaluate = async ({
     .parse(template.output_schema);
 
   if (!parsedOutputSchema) {
-    throw new Error("Output schema not found");
+    throw new ValidationError("Output schema not found");
   }
 
   const openAIFunction = z.object({
@@ -248,7 +253,7 @@ export const evaluate = async ({
   const modelParams = ZodModelConfig.parse(template.model_params);
 
   if (!provider) {
-    throw new Error(`Model ${evalModel} provider not found`);
+    throw new LangfuseNotFoundError(`Model ${evalModel} provider not found`);
   }
 
   // the apiKey.secret_key must never be printed to the console or returned to the client.
@@ -260,30 +265,32 @@ export const evaluate = async ({
     .executeTakeFirst();
 
   if (!apiKey) {
-    console.log(
-      `API key for provider ${provider} and project ${event.projectId} not found.`
-    );
     // this will fail the eval execution if a user deletes the API key.
-    throw new Error(
+    throw new LangfuseNotFoundError(
       `API key for provider ${provider} and project ${event.projectId} not found.`
     );
   }
 
-  const completion = await fetchLLMCompletion({
-    streaming: false,
-    apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
-    messages: [{ role: ChatMessageRole.System, content: prompt }],
-    modelParams: {
-      provider: provider,
-      model: evalModel,
-      ...modelParams,
-    },
-    functionCall: {
-      name: "evaluate",
-      description: "some description",
-      parameters: openAIFunction,
-    },
-  });
+  let completion: string;
+  try {
+    completion = await fetchLLMCompletion({
+      streaming: false,
+      apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
+      messages: [{ role: ChatMessageRole.System, content: prompt }],
+      modelParams: {
+        provider: provider,
+        model: evalModel,
+        ...modelParams,
+      },
+      functionCall: {
+        name: "evaluate",
+        description: "some description",
+        parameters: openAIFunction,
+      },
+    });
+  } catch (e) {
+    throw new ApiError(`Failed to fetch LLM completion: ${e}`);
+  }
 
   const parsedLLMOutput = openAIFunction.parse(completion);
 
@@ -302,6 +309,8 @@ export const evaluate = async ({
       source: sql`'EVAL'::"ScoreSource"`,
     })
     .execute();
+
+  logger.info(`Persisted score ${scoreId} for trace ${job.job_input_trace_id}`);
 
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
@@ -368,7 +377,17 @@ export async function extractVariablesFromTrace(
         ) // query the internal column name raw
         .where("id", "=", traceId)
         .where("project_id", "=", projectId)
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+
+      // user facing errors
+      if (!trace) {
+        logger.error(
+          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+        );
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+        );
+      }
 
       mappingResult.push({
         var: variable,
@@ -405,7 +424,17 @@ export async function extractVariablesFromTrace(
         .where("project_id", "=", projectId)
         .where("name", "=", mapping.objectName)
         .orderBy("start_time", "desc")
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+
+      // user facing errors
+      if (!observation) {
+        logger.error(
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
+        );
+        throw new LangfuseNotFoundError(
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
+        );
+      }
 
       mappingResult.push({
         var: variable,

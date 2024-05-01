@@ -16,6 +16,7 @@ import {
   FormLabel,
   FormMessage,
   Form,
+  FormDescription,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -256,6 +257,9 @@ export function CreateLlmApiKeyComponent(props: {
                     <FormControl>
                       <Input placeholder="sk-proj-...Uwj9" {...field} />
                     </FormControl>
+                    <FormDescription>
+                      Your API keys are stored encrypted on our servers.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

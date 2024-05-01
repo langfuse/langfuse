@@ -7,7 +7,7 @@
     "outDir": "./dist",
     "types": ["node"],
     "target": "ES2020",
-    "rootDir": ".",
+    "rootDir": "."
   },
   "include": ["."],
   "exclude": ["node_modules", "dist"]

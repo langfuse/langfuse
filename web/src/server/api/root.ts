@@ -12,9 +12,9 @@ import { environmentRouter } from "@/src/server/api/routers/environment";
 import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
-import { promptRouter } from "@/src/features/prompts/server/prompt-router";
+import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
-import { evalRouter } from "@/src/features/evals/server/router";
+import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 

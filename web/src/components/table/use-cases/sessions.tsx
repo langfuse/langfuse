@@ -369,7 +369,7 @@ export default function SessionsTable({
         help={{
           description:
             "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
-          href: "https://langfuse.com/docs/sessions",
+          href: "https://langfuse.com/docs/tracing-features/sessions",
         }}
       />
     </div>

@@ -34,6 +34,8 @@ const scopes = [
   "job:read",
   "job:CUD",
 
+  "jobExecution:read",
+
   "llmApiKeys:read",
   "llmApiKeys:create",
   "llmApiKeys:delete",
@@ -67,6 +69,7 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "evalTemplate:read",
     "job:CUD",
     "job:read",
+    "jobExecution:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
@@ -93,12 +96,14 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "evalTemplate:read",
     "job:CUD",
     "job:read",
+    "jobExecution:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
   ],
   MEMBER: [
     "members:read",
+    "apiKeys:read",
     "objects:publish",
     "objects:bookmark",
     "objects:tag",
@@ -110,6 +115,8 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "evalTemplate:read",
     "job:read",
     "job:CUD",
+    "jobExecution:read",
+    "llmApiKeys:read",
   ],
   VIEWER: ["prompts:read"],
 };

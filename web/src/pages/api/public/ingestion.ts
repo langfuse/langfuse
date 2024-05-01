@@ -34,7 +34,7 @@ import {
   BaseError,
   ForbiddenError,
   UnauthorizedError,
-} from "@/src/server/errors";
+} from "@langfuse/shared";
 
 export const config = {
   api: {
@@ -126,7 +126,7 @@ export default async function handler(
       res,
     );
   } catch (error: unknown) {
-    console.error(error);
+    console.error("error handling ingestion event", error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({
@@ -141,6 +141,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
+      console.log(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -178,7 +179,7 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log("handling ingestion event", JSON.stringify(events, null, 2));
+  console.log(`handling ingestion ${events.length} events`);
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
@@ -252,10 +253,15 @@ const handleSingleEvent = async (
   req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
-  console.log(
-    `handling single event ${event.id}`,
-    JSON.stringify(event, null, 2),
-  );
+  if ("input" in event && "output" in event) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { input, output, ...restEvent } = event;
+    console.log(
+      `handling single event ${event.id} ${JSON.stringify(restEvent)}`,
+    );
+  } else {
+    console.log(`handling single event ${event.id} ${JSON.stringify(event)}`);
+  }
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
 

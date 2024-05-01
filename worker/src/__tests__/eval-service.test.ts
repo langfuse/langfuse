@@ -9,7 +9,7 @@ import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
-import { variableMappingList } from "@langfuse/shared";
+import { LangfuseNotFoundError, variableMappingList } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
 vi.mock("../redis/consumer", () => ({
@@ -419,7 +419,9 @@ describe("execute evals", () => {
     };
 
     await expect(evaluate({ event: payload })).rejects.toThrowError(
-      "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found."
+      new LangfuseNotFoundError(
+        "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found."
+      )
     );
 
     const jobs = await kyselyPrisma.$kysely
@@ -567,6 +569,7 @@ describe("test variable extraction", () => {
       },
     ]);
   }, 10_000);
+
   test("extracts variables from a observation", async () => {
     await pruneDatabase();
     const traceId = randomUUID();
@@ -624,6 +627,111 @@ describe("test variable extraction", () => {
       },
       {
         value: '{"haha":"This is a great response"}',
+        var: "output",
+      },
+    ]);
+  }, 10_000);
+
+  test("fails if observation is not present", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: { input: "This is a great prompt" },
+        output: { output: "This is a great response" },
+      })
+      .execute();
+
+    const variableMapping = variableMappingList.parse([
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "input",
+        templateVariable: "input",
+        objectName: "great-llm-name",
+      },
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "output",
+        templateVariable: "output",
+        objectName: "great-llm-name",
+      },
+    ]);
+
+    await expect(
+      extractVariablesFromTrace(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        ["input", "output"],
+        traceId,
+        variableMapping
+      )
+    ).rejects.toThrowError(
+      new LangfuseNotFoundError(
+        `Observation great-llm-name for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
+      )
+    );
+  }, 10_000);
+
+  test("does not fail if observation data is null", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: { input: "This is a great prompt" },
+        output: { output: "This is a great response" },
+      })
+      .execute();
+
+    // fetching input and output for an observation which has NULL values
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: randomUUID(),
+        trace_id: traceId,
+        name: "great-llm-name",
+        type: sql`'GENERATION'::"ObservationType"`,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      })
+      .execute();
+
+    const variableMapping = variableMappingList.parse([
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "input",
+        templateVariable: "input",
+        objectName: "great-llm-name",
+      },
+      {
+        langfuseObject: "generation",
+        selectedColumnId: "output",
+        templateVariable: "output",
+        objectName: "great-llm-name",
+      },
+    ]);
+
+    const result = await extractVariablesFromTrace(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      ["input", "output"],
+      traceId,
+      variableMapping
+    );
+
+    expect(result).toEqual([
+      {
+        value: "",
+        var: "input",
+      },
+      {
+        value: "",
         var: "output",
       },
     ]);
