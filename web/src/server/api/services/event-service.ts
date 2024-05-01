@@ -29,13 +29,14 @@ export const persistEventMiddleware = async (
   const combinedMetadata = lodash.merge(metadata, langfuseHeadersObject);
 
   await prisma.$queryRaw`
-    INSERT INTO events (project, url, method, data, headers)
+    INSERT INTO events (id, project_id, url, method, data, headers)
     VALUES (
-      ${randomUUID()}
+      ${randomUUID()},
+      ${projectId},
       ${req.url},
       ${req.method},
-      ${JSON.stringify(data)},
-      ${JSON.stringify(combinedMetadata)}
+      ${data},
+      ${combinedMetadata}
     );
   `;
 };
