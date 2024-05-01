@@ -136,7 +136,7 @@ export default function Layout(props: PropsWithChildren) {
     !router.pathname.startsWith("/public/")
   ) {
     void signOut({
-      callbackUrl: `/auth/sign-in`,
+      callbackUrl: "/auth/sign-in",
     });
     return <Spinner message="Redirecting" />;
   }
@@ -146,10 +146,10 @@ export default function Layout(props: PropsWithChildren) {
     !unauthenticatedPaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    const targetUrl = router.asPath;
-    if (targetUrl && targetUrl !== "/") {
+    const newTargetPath = router.asPath;
+    if (newTargetPath && newTargetPath !== "/") {
       void router.replace(
-        `/auth/sign-in?targetUrl=${encodeURIComponent(targetUrl)}`,
+        `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
       );
     } else {
       void router.replace(`/auth/sign-in`);
@@ -161,12 +161,8 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    const targetUrl = router.query.targetUrl as string | undefined;
-    if (targetUrl) {
-      void router.replace(targetUrl);
-    } else {
-      void router.replace("/");
-    }
+    const targetPath = router.query.targetPath as string | undefined;
+    void router.replace(targetPath ?? "/");
     return <Spinner message="Redirecting" />;
   }
 
