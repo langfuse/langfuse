@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@langfuse/shared": "workspace:*",
-    "next": "^14.2.1",
+    "next": "^14.2.3",
     "next-auth": "^4.24.7",
     "zod": "^3.22.4"
   },
