@@ -179,7 +179,7 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log("handling ingestion event", JSON.stringify(events, null, 2));
+  console.log(`handling ingestion ${events.length} events`);
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
