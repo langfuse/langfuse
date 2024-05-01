@@ -25,6 +25,7 @@ const prismaClientSingleton = () => {
 };
 
 const kyselySingleton = (prismaClient: PrismaClient) => {
+  console.log("Creating Kysely instance");
   return prismaClient.$extends(
     kyselyExtension({
       kysely: (driver) =>

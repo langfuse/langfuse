@@ -8,7 +8,6 @@ import {
   fetchLLMCompletion,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
-  tracesTableCols,
   variableMappingList,
   TraceUpsertEvent,
   EvalModelNames,
