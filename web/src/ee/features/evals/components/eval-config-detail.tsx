@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { Trash2 } from "lucide-react";
 import {
   Tabs,
@@ -124,6 +125,7 @@ export function DeactivateConfig({
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "job:CUD" });
   const [isOpen, setIsOpen] = useState(false);
+  const posthog = usePostHog();
 
   const mutEvalConfig = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
@@ -141,6 +143,7 @@ export function DeactivateConfig({
       evalConfigId: config?.id ?? "",
       updatedStatus: "INACTIVE",
     });
+    posthog.capture("eval_config:delete");
     setIsOpen(false);
   };
 
