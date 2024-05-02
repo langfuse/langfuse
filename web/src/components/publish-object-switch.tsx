@@ -63,7 +63,7 @@ export const PublishSessionSwitch = (props: {
           sessionId: props.sessionId,
           public: val,
         });
-        posthog.capture("session_detail:publish_session_button_click");
+        posthog.capture("session_detail:publish_button_click");
       }}
       isLoading={mut.isLoading}
       disabled={!hasAccess}
