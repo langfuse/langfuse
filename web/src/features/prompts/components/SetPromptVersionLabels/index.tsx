@@ -78,7 +78,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
       labels: selectedLabels,
     });
 
-    posthog.capture("prompt:setLabels", { labels: selectedLabels });
+    posthog.capture("prompt_detail:apply_label", { label: selectedLabels });
     setIsOpen(false);
   };
 
