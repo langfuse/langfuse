@@ -147,7 +147,14 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void router.replace("/auth/sign-in");
+    const newTargetPath = router.asPath;
+    if (newTargetPath && newTargetPath !== "/") {
+      void router.replace(
+        `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
+      );
+    } else {
+      void router.replace(`/auth/sign-in`);
+    }
     return <Spinner message="Redirecting" />;
   }
 
@@ -155,7 +162,8 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    void router.replace("/");
+    const targetPath = router.query.targetPath as string | undefined;
+    void router.replace(targetPath ?? "/");
     return <Spinner message="Redirecting" />;
   }
 
