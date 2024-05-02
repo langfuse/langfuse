@@ -108,7 +108,14 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   ).data?.name;
 
   function onSubmit(values: NewPromptFormSchemaType) {
-    posthog.capture("prompts:new_prompt_form_submit");
+    if (initialPrompt) {
+      posthog.capture("prompts:update_form_submit", {
+        type: values.type,
+        active: values.isActive,
+      });
+    } else {
+      posthog.capture("prompts:new_form_submit");
+    }
 
     if (!projectId) throw Error("Project ID is not defined.");
 
