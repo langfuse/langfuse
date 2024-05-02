@@ -63,6 +63,13 @@ export function DeleteButton({
         <Button
           variant={isTableAction ? "ghost" : "outline"}
           size={isTableAction ? "xs" : "icon"}
+          onClick={() =>
+            type === "trace"
+              ? posthog.capture("trace:delete_form_open", {
+                  source: isTableAction ? "table-single-row" : "trace detail",
+                })
+              : posthog.capture("datasets:delete_form_open")
+          }
         >
           <TrashIcon className="h-4 w-4" />
         </Button>
@@ -101,7 +108,7 @@ export function DeleteButton({
                   projectId,
                   datasetId: itemId,
                 });
-                posthog.capture("dataset:delete", {
+                posthog.capture("datasets:delete_dataset_button_click", {
                   source: isTableAction ? "table-single-row" : "dataset",
                 });
               }}
