@@ -44,7 +44,7 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@langchain/anthropic": "^0.1.16",
+    "@langchain/anthropic": "^0.1.17",
     "@langchain/core": "^0.1.61",
     "@langchain/openai": "^0.0.28",
     "@prisma/client": "^5.12.1",

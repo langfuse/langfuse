@@ -108,8 +108,8 @@ importers:
   packages/shared:
     dependencies:
       '@langchain/anthropic':
-        specifier: ^0.1.16
-        version: 0.1.16
+        specifier: ^0.1.17
+        version: 0.1.17
       '@langchain/core':
         specifier: ^0.1.61
         version: 0.1.61
@@ -232,8 +232,8 @@ importers:
         specifier: ^3.3.4
         version: 3.3.4(react-hook-form@7.51.3)
       '@langchain/anthropic':
-        specifier: ^0.1.16
-        version: 0.1.16
+        specifier: ^0.1.17
+        version: 0.1.17
       '@langchain/core':
         specifier: ^0.1.61
         version: 0.1.61
@@ -516,8 +516,8 @@ importers:
         specifier: 20.10.5
         version: 20.10.5
       '@types/nodemailer':
-        specifier: ^6.4.14
-        version: 6.4.14
+        specifier: ^6.4.15
+        version: 6.4.15
       '@types/react':
         specifier: ^18.2.79
         version: 18.2.79
@@ -703,8 +703,8 @@ importers:
         specifier: ^5.4.5
         version: 5.4.5
       vite:
-        specifier: ^5.2.10
-        version: 5.2.10(@types/node@20.11.29)
+        specifier: ^5.2.11
+        version: 5.2.11(@types/node@20.11.29)
       vitest:
         specifier: ^1.5.3
         version: 1.5.3(@types/node@20.11.29)
@@ -2937,8 +2937,8 @@ packages:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.4.15
 
-  /@langchain/anthropic@0.1.16:
-    resolution: {integrity: sha512-vCbwkZ3pkMSKf67fBgNlslvuW9f3EZGBbO8Ic2etgX3xFl6L0WuMtfS26P1FCDpRwaKuC1BrCj2aLAeMzMq/Fg==}
+  /@langchain/anthropic@0.1.17:
+    resolution: {integrity: sha512-zbyTXtbFh0P0EEi+Q/AgDJlz/tltAg9ddVptew3IcQM1c6Yc7lG9oUqh14uzFUKPae2kFDKE78jrx1oiV4JMgw==}
     engines: {node: '>=18'}
     dependencies:
       '@anthropic-ai/sdk': 0.20.2
@@ -6462,8 +6462,8 @@ packages:
     dependencies:
       undici-types: 5.26.5
 
-  /@types/nodemailer@6.4.14:
-    resolution: {integrity: sha512-fUWthHO9k9DSdPCSPRqcu6TWhYyxTBg382vlNIttSe9M7XfsT06y0f24KHXtbnijPGGRIcVvdKHTNikOI6qiHA==}
+  /@types/nodemailer@6.4.15:
+    resolution: {integrity: sha512-0EBJxawVNjPkng1zm2vopRctuWVCxk34JcIlRuXSf54habUWdz1FB7wHDqOqvDa8Mtpt0Q3LTXQkAs2LNyK5jQ==}
     dependencies:
       '@types/node': 20.11.29
     dev: true
@@ -16545,7 +16545,7 @@ packages:
       debug: 4.3.4(supports-color@5.5.0)
       pathe: 1.1.2
       picocolors: 1.0.0
-      vite: 5.2.10(@types/node@20.11.29)
+      vite: 5.2.11(@types/node@20.11.29)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -16559,6 +16559,42 @@ packages:
 
   /vite@5.2.10(@types/node@20.11.29):
     resolution: {integrity: sha512-PAzgUZbP7msvQvqdSD+ErD5qGnSFiGOoWmV5yAKUEI0kdhjbH6nMWVyZQC/hSc4aXwc0oJ9aEdIiF9Oje0JFCw==}
+    engines: {node: ^18.0.0 || >=20.0.0}
+    hasBin: true
+    peerDependencies:
+      '@types/node': ^18.0.0 || >=20.0.0
+      less: '*'
+      lightningcss: ^1.21.0
+      sass: '*'
+      stylus: '*'
+      sugarss: '*'
+      terser: ^5.4.0
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      less:
+        optional: true
+      lightningcss:
+        optional: true
+      sass:
+        optional: true
+      stylus:
+        optional: true
+      sugarss:
+        optional: true
+      terser:
+        optional: true
+    dependencies:
+      '@types/node': 20.11.29
+      esbuild: 0.20.2
+      postcss: 8.4.38
+      rollup: 4.13.0
+    optionalDependencies:
+      fsevents: 2.3.3
+    dev: true
+
+  /vite@5.2.11(@types/node@20.11.29):
+    resolution: {integrity: sha512-HndV31LWW05i1BLPMUCE1B9E9GFbOu1MbenhS58FuK6owSO5qHm7GiCotrNY1YE5rMeQSFBGmT5ZaLEjFizgiQ==}
     engines: {node: ^18.0.0 || >=20.0.0}
     hasBin: true
     peerDependencies:
