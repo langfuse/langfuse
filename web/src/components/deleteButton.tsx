@@ -68,7 +68,9 @@ export function DeleteButton({
               ? posthog.capture("trace:delete_form_open", {
                   source: isTableAction ? "table-single-row" : "trace detail",
                 })
-              : posthog.capture("datasets:delete_form_open")
+              : posthog.capture("datasets:delete_form_open", {
+                  source: "dataset",
+                })
           }
         >
           <TrashIcon className="h-4 w-4" />
