@@ -100,7 +100,7 @@ export const NewModelForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("models:new_model_form_submit");
+    posthog.capture("models:new_form_submit");
     createModelMutation
       .mutateAsync({
         projectId: props.projectId,
