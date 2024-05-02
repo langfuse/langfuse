@@ -82,24 +82,8 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   // wait 2 seconds
   await page.waitForTimeout(2000);
 
-  await page.getByRole("button", { name: "Tracing" }).click();
-
-  await page.getByRole("link", { name: "Traces" }).click();
-
-  await page.waitForTimeout(2000);
-
-  await expect(page).toHaveURL(/.*traces/);
-
-  await page
-    .getByRole("link", { name: /^\.\.\.[\w\d]+$/ })
-    .first()
-    .click();
-
-  await page.waitForTimeout(3000);
-
-  await expect(page).toHaveURL(/.*trace-/);
-
-  const traceUrl = page.url();
+  // project id and prompt from seed.ts
+  const promptUrl = "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/prompts/summary-prompt";
 
   await page.getByRole("button", { name: /Demo User/ }).click();
 
@@ -107,11 +91,11 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await expect(page).toHaveURL("/auth/sign-in");
 
-  await page.goto(traceUrl);
+  await page.goto(promptUrl);
 
   await page.waitForTimeout(2000);
 
-  await expect(page).toHaveURL(/targetUrl/);
+  await expect(page).toHaveURL(/targetPath/);
 
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
@@ -119,5 +103,5 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.waitForTimeout(2000);
 
-  await expect(page).toHaveURL(traceUrl);
+  await expect(page).toHaveURL(promptUrl);
 });
