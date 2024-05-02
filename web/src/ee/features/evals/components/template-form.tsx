@@ -281,7 +281,11 @@ export const InnerEvalTemplateForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("evals:new_template_form");
+    posthog.capture(
+      props.isEditing
+        ? "eval_templates:update_form_submit"
+        : "eval_templates:new_form_submit",
+    );
 
     const model = EvalModelNames.safeParse(modelParams.model);
 
