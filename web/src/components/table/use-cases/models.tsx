@@ -8,6 +8,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { Trash } from "lucide-react";
+import posthog from "posthog-js";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ModelTableRow = {
@@ -314,14 +315,20 @@ const DeleteModelButton = ({
       size="xs"
       variant="ghost"
       onClick={() => {
-        mut
-          .mutateAsync({
-            projectId,
-            modelId,
-          })
-          .catch((error) => {
-            console.error(error);
-          });
+        const confirmDelete = window.confirm(
+          "Are you sure you want to delete this model?",
+        );
+        if (confirmDelete) {
+          posthog.capture("models:delete_button_click");
+          mut
+            .mutateAsync({
+              projectId,
+              modelId,
+            })
+            .catch((error) => {
+              console.error(error);
+            });
+        }
       }}
     >
       <Trash size={14} />
