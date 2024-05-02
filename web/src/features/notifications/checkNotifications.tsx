@@ -7,6 +7,30 @@ import Notification, {
 } from "@/src/features/notifications/Notification";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
+import { usePostHog } from "posthog-js/react";
+
+const ButtonWithPosthog = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => {
+  const posthog = usePostHog();
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      className={className}
+      onClick={() => {
+        posthog.capture("notification:open_notification_center");
+        toast.dismiss();
+      }}
+    >
+      {children}
+    </Button>
+  );
+};
 
 export const NOTIFICATIONS: TNotification[] = [
   // {
@@ -31,9 +55,9 @@ export const NOTIFICATIONS: TNotification[] = [
           <li>LLM Playground</li>
           <li>More to come every day until Friday</li>
         </ul>
-        <Button size="sm" variant="secondary" className="mt-3">
+        <ButtonWithPosthog className="mt-3">
           <Link href="https://langfuse.com/launch">Follow along</Link>
-        </Button>
+        </ButtonWithPosthog>
       </div>
     ),
   },
@@ -60,11 +84,11 @@ export const NOTIFICATIONS: TNotification[] = [
             the post for details.
           </p>
         )}
-        <Button size="sm" variant="secondary" className="mt-3">
+        <ButtonWithPosthog>
           <Link href="https://langfuse.com/changelog/2024-01-29-custom-model-prices">
             Changelog post
           </Link>
-        </Button>
+        </ButtonWithPosthog>
       </div>
     ),
   },
