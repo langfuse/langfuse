@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import useTableNameFromURL from "@/src/hooks/useTableNameFromURL";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
 import { usePostHog } from "posthog-js/react";
@@ -20,7 +21,7 @@ export const DetailPageNav = (props: {
   const ids = detailPagelists[props.listKey] ?? [];
 
   const posthog = usePostHog();
-
+  const tableName = useTableNameFromURL();
   const router = useRouter();
   const currentIndex = ids.findIndex((id) => id === props.currentId);
   const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
@@ -63,6 +64,7 @@ export const DetailPageNav = (props: {
                 if (previousPageId) {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
+                    { object: tableName },
                   );
                   void router.push(
                     props.path(encodeURIComponent(previousPageId)),
@@ -91,6 +93,7 @@ export const DetailPageNav = (props: {
                 if (nextPageId) {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
+                    { object: tableName },
                   );
                   void router.push(props.path(encodeURIComponent(nextPageId)));
                 }
