@@ -182,7 +182,7 @@ export const InnerEvalConfigForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("evals:new_config_form");
+    posthog.capture("eval_config:new_form_submit");
 
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
