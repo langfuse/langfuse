@@ -104,7 +104,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
       description: values.description !== "" ? values.description.trim() : null,
     };
     if (props.mode === "create") {
-      posthog.capture("datasets:new_dataset_form_submit");
+      posthog.capture("datasets:new_form_submit");
       createMutation
         .mutateAsync({
           ...trimmedValues,
@@ -120,7 +120,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
           console.error(error);
         });
     } else if (props.mode === "update") {
-      posthog.capture("datasets:update_dataset_form_submit");
+      posthog.capture("datasets:update_form_submit");
       renameMutation
         .mutateAsync({
           ...trimmedValues,
@@ -141,7 +141,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
 
   const handleDelete = () => {
     if (props.mode !== "delete") return;
-    posthog.capture("datasets:delete_dataset_form_submit");
+    posthog.capture("datasets:delete_form_submit");
     deleteMutation
       .mutateAsync({
         projectId: props.projectId,
