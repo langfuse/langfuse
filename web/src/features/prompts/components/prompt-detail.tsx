@@ -24,9 +24,11 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import { usePostHog } from "posthog-js/react";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
+  const posthog = usePostHog();
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -109,6 +111,11 @@ export const PromptDetail = () => {
                     variant="outline"
                     title="Test in prompt playground"
                     size="icon"
+                    onClick={() =>
+                      posthog.capture(
+                        "prompt_detail:test_in_playground_button_click",
+                      )
+                    }
                   >
                     <Terminal className="h-5 w-5" />
                   </Button>
@@ -117,7 +124,11 @@ export const PromptDetail = () => {
                 <Link
                   href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
                 >
-                  <Button variant="outline" size="icon">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => posthog.capture("prompts:update_form_open")}
+                  >
                     <Pencil className="h-5 w-5" />
                   </Button>
                 </Link>
