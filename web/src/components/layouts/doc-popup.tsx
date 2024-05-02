@@ -33,7 +33,10 @@ export default function DocPopup({
       openDelay={200}
       onOpenChange={(open) => {
         if (open) {
-          posthog.capture("help-popup:opened", { href, description });
+          posthog.capture("help_popup:opened", {
+            hfref: href,
+            description: description,
+          });
         }
       }}
     >
@@ -44,6 +47,12 @@ export default function DocPopup({
             rel="noopener"
             target="_blank"
             className="inline-block whitespace-nowrap text-gray-500 sm:pl-0"
+            onClick={() => {
+              posthog.capture("help_popup:href_clicked", {
+                href: href,
+                description: description,
+              });
+            }}
           >
             {
               {
