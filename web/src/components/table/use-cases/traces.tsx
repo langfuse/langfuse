@@ -536,7 +536,6 @@ export default function TracesTable({
       header: "Observation Count",
       enableHiding: true,
       defaultHidden: true,
-      enableSorting: true,
     },
     {
       accessorKey: "version",
