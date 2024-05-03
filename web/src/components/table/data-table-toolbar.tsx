@@ -49,7 +49,7 @@ export function DataTableToolbar<TData, TValue>({
   );
 
   return (
-    <div className="my-2 flex flex-1 flex-wrap items-center gap-2">
+    <div className="@container my-2 flex flex-1 flex-wrap items-center gap-2">
       {searchConfig && (
         <div className="flex max-w-md items-center">
           <Input
@@ -62,7 +62,7 @@ export function DataTableToolbar<TData, TValue>({
                 searchConfig.updateQuery(searchString);
               }
             }}
-            className="h-10 w-[200px] rounded-r-none lg:w-[250] 2xl:w-[350px]"
+            className="@6xl:w-[250px] h-10 w-[150px] rounded-r-none"
           />
           <Button
             variant="outline"
@@ -80,7 +80,7 @@ export function DataTableToolbar<TData, TValue>({
           onChange={setFilterState}
         />
       )}
-      <div className="flex flex-row flex-wrap gap-2 lg:ml-auto">
+      <div className="@6xl:ml-auto flex flex-row flex-wrap gap-2">
         {!!columnVisibility && !!setColumnVisibility && (
           <DataTableColumnVisibilityFilter
             columns={columns}

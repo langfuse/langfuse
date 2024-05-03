@@ -663,9 +663,12 @@ export default function GenerationsTable({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="ml-auto whitespace-nowrap">
-                {filterState.length > 0 || searchQuery
-                  ? "Export selection"
-                  : "Export all"}{" "}
+                <span className="@6xl:inline hidden">
+                  {filterState.length > 0 || searchQuery
+                    ? "Export selection"
+                    : "Export all"}{" "}
+                </span>
+                <span className="@6xl:hidden">Export</span>
                 {isExporting ? (
                   <Loader className="ml-2 h-4 w-4 animate-spin" />
                 ) : (
