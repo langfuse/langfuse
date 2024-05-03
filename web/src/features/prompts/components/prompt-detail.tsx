@@ -24,6 +24,7 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import Generations from "@/src/components/table/use-cases/generations";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -179,6 +180,15 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
+          <div className="mt-5">
+            <Header title="Generations" level="h3" />
+            <Generations
+              projectId={prompt.projectId}
+              promptName={prompt.name}
+              promptVersion={prompt.version}
+              omittedFilter={["Prompt Name", "Prompt Version"]}
+            />
+          </div>
           <p className="mt-6 text-xs text-gray-600">
             Fetch prompts via Python or JS/TS SDKs. See{" "}
             <a
