@@ -22,7 +22,7 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@aws-sdk/client-s3": "^3.550.0",
-    "@aws-sdk/lib-storage": "^3.550.0",
+    "@aws-sdk/lib-storage": "^3.568.0",
     "@aws-sdk/s3-request-presigner": "^3.554.0",
     "@codemirror/lang-json": "^6.0.1",
     "@headlessui/react": "^1.7.19",
