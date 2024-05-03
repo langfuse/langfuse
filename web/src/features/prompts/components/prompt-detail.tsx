@@ -186,7 +186,6 @@ export const PromptDetail = () => {
               projectId={prompt.projectId}
               promptName={prompt.name}
               promptVersion={prompt.version}
-              isHideIfEmptyEnabled={true}
               omittedFilter={["Prompt Name", "Prompt Version"]}
             />
           </div>

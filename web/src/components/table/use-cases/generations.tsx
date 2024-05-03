@@ -83,7 +83,6 @@ export type GenerationsTableProps = {
   projectId: string;
   promptName?: string;
   promptVersion?: number;
-  isHideIfEmptyEnabled?: boolean;
   omittedFilter?: string[];
 };
 
@@ -91,7 +90,6 @@ export default function GenerationsTable({
   projectId,
   promptName,
   promptVersion,
-  isHideIfEmptyEnabled = false,
   omittedFilter = [],
 }: GenerationsTableProps) {
   const posthog = usePostHog();
@@ -612,8 +610,6 @@ export default function GenerationsTable({
       "generationsColumnVisibility",
       columns,
     );
-
-  if (isHideIfEmptyEnabled && !generations.data) return null;
 
   const rows: GenerationsTableRow[] = generations.isSuccess
     ? generations.data.generations.map((generation) => {
