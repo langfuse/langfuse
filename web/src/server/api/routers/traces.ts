@@ -116,6 +116,7 @@ export const traceRouter = createTRPCRouter({
                 totalCount: number;
                 latency: number | null;
                 level: ObservationLevel;
+                observationCount: number;
                 calculatedTotalCost: Decimal | null;
                 calculatedInputCost: Decimal | null;
                 calculatedOutputCost: Decimal | null;
@@ -150,10 +151,23 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+
+      const observations = await ctx.prisma.observation.findMany({
+        where: {
+          traceId: {
+            in: traces.map((t) => t.id),
+          },
+        },
+      });
+
       const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
+          const filteredObservations = observations.filter(
+            (s) => s.traceId === trace.id,
+          );
+
           const { input, output, ...rest } = trace;
           if (returnIO) {
             return { ...rest, input, output, scores: filteredScores };
@@ -163,6 +177,7 @@ export const traceRouter = createTRPCRouter({
               input: undefined,
               output: undefined,
               scores: filteredScores,
+              observationCount: filteredObservations.length ?? 0,
             };
           }
         }),
