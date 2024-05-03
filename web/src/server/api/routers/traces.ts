@@ -89,6 +89,7 @@ export const traceRouter = createTRPCRouter({
           COALESCE(tm."completionTokens", 0)::int AS "completionTokens",
           COALESCE(tm."totalTokens", 0)::int AS "totalTokens",
           tl.latency AS "latency",
+          tl."observationCount" AS "observationCount",
           COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
           COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
           COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
@@ -152,21 +153,10 @@ export const traceRouter = createTRPCRouter({
         },
       });
 
-      const observations = await ctx.prisma.observation.findMany({
-        where: {
-          traceId: {
-            in: traces.map((t) => t.id),
-          },
-        },
-      });
-
       const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
-          const filteredObservations = observations.filter(
-            (s) => s.traceId === trace.id,
-          );
 
           const { input, output, ...rest } = trace;
           if (returnIO) {
@@ -177,7 +167,6 @@ export const traceRouter = createTRPCRouter({
               input: undefined,
               output: undefined,
               scores: filteredScores,
-              observationCount: filteredObservations.length ?? 0,
             };
           }
         }),
@@ -528,7 +517,8 @@ function createTracesQuery(
   ) AS tm ON true
   LEFT JOIN LATERAL (
     SELECT
-        EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
+      COUNT(*) AS "observationCount",
+      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
     FROM
         "observations"
     WHERE
