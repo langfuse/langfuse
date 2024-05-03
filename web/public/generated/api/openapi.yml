@@ -19,9 +19,10 @@ info:
     ## Exports
 
 
-    - OpenAPI spec: https://cloud.langfuse.com/openapi-server.yml
+    - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
 
-    - Postman collection: https://cloud.langfuse.com/postman-collection.json
+    - Postman collection:
+    https://cloud.langfuse.com/generated/postman/collection.json
 paths:
   /api/public/dataset-items:
     post:
