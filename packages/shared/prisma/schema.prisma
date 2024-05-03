@@ -227,6 +227,8 @@ model Trace {
     output     Json?
     sessionId  String?       @map("session_id")
     session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
+    createdAt  DateTime      @default(now()) @map("created_at")
+    updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
 
     scores          Score[]
     DatasetRunItems DatasetRunItems[]
@@ -241,6 +243,8 @@ model Trace {
     @@index([externalId])
     @@index(timestamp)
     @@index(release)
+    @@index(updatedAt)
+    @@index(createdAt)
     @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("traces")
 }
