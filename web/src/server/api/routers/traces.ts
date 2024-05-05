@@ -245,7 +245,6 @@ export const traceRouter = createTRPCRouter({
           startTime: true,
           endTime: true,
           name: true,
-          metadata: true,
           parentObservationId: true,
           level: true,
           statusMessage: true,
@@ -272,6 +271,7 @@ export const traceRouter = createTRPCRouter({
             equals: input.traceId,
             not: null,
           },
+          projectId: trace.projectId,
         },
       });
 
