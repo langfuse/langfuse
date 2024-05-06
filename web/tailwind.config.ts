@@ -141,12 +141,12 @@ module.exports = {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" },
         },
       },
       animation: {
@@ -184,5 +184,9 @@ module.exports = {
         /^(fill-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|100|200|300|400|500|600|700|800|900|950))$/,
     },
   ],
-  plugins: [require("@tailwindcss/forms"), require("tailwindcss-animate")],
+  plugins: [
+    require("@tailwindcss/forms"),
+    require("tailwindcss-animate"),
+    require("@tailwindcss/container-queries"),
+  ],
 };

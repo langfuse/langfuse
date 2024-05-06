@@ -141,7 +141,7 @@ export const createEvalJobs = async ({
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
       // we do this, because a second trace event might 'deselect' a trace
-      logger.info(`Eval job for config ${config.id} did not match trace`);
+      logger.debug(`Eval job for config ${config.id} did not match trace`);
       if (existingJob.length > 0) {
         logger.info(
           `Cancelling eval job for config ${config.id} and trace ${event.traceId}`
