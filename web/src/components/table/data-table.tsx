@@ -29,6 +29,7 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
+import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 interface DataTableProps<TData, TValue> {
@@ -72,7 +73,9 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
-
+  const posthog = usePostHog();
+  // Todo decide where we get the table name property from
+  const tableName = "DataTable";
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -129,14 +132,38 @@ export function DataTable<TData extends object, TValue>({
 
                           if (orderBy?.column === columnDef.id) {
                             if (orderBy.order === "DESC") {
+                              posthog.capture(
+                                "table:column_sorting_header_click",
+                                {
+                                  table: tableName,
+                                  column: columnDef.id,
+                                  order: "ASC",
+                                },
+                              );
                               setOrderBy({
                                 column: columnDef.id,
                                 order: "ASC",
                               });
                             } else {
+                              posthog.capture(
+                                "table:column_sorting_header_click",
+                                {
+                                  table: tableName,
+                                  column: columnDef.id,
+                                  order: "Disabled",
+                                },
+                              );
                               setOrderBy(null);
                             }
                           } else {
+                            posthog.capture(
+                              "table:column_sorting_header_click",
+                              {
+                                table: tableName,
+                                column: columnDef.id,
+                                order: "DESC",
+                              },
+                            );
                             setOrderBy({
                               column: columnDef.id,
                               order: "DESC",

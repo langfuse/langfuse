@@ -27,6 +27,7 @@ import {
 } from "@langfuse/shared";
 import { NonEmptyString } from "@/src/utils/zod";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHog } from "posthog-js/react";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -38,6 +39,9 @@ export function PopoverFilterBuilder({
   filterState: FilterState;
   onChange: Dispatch<SetStateAction<FilterState>>;
 }) {
+  const posthog = usePostHog();
+  // Todo decide where we get the table name property from
+  const tableName = "tableName";
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
   const addNewFilter = () => {
@@ -75,10 +79,19 @@ export function PopoverFilterBuilder({
     <div className="flex items-center">
       <Popover
         onOpenChange={(open) => {
+          if (open) {
+            posthog.capture("table:filter_builder_open", {
+              table: tableName,
+            });
+          }
           // Create empty filter when opening popover
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
           if (!open) {
+            posthog.capture("table:filter_builder_close", {
+              table: tableName,
+              filter: filterState,
+            });
             setWipFilterState(filterState);
           }
         }}
