@@ -33,7 +33,7 @@ export const TagInput = React.forwardRef<
                 const newTags = selectedTags.filter((t) => t !== tag);
                 setSelectedTags(newTags);
                 posthog.capture("tag:remove_tag", {
-                  table: tableName,
+                  object: tableName,
                   type: type,
                   name: tag,
                 });
