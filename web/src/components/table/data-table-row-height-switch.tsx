@@ -38,15 +38,12 @@ export const DataTableRowHeightSwitch = ({
   setRowHeight: (e: RowHeight) => void;
 }) => {
   const posthog = usePostHog();
-  // Todo decide where we get the table name property from
-  const tableName = "table";
   return (
     <Tabs
       //defaultValue={height}
       value={rowHeight}
       onValueChange={(e) => {
         posthog.capture("table:row_height_switch_select", {
-          table: tableName,
           size: e,
         });
         setRowHeight(e as any);
