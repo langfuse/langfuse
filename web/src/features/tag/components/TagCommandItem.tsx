@@ -22,7 +22,7 @@ const TagCommandItem = ({
       onSelect={() => {
         setSelectedTags([...selectedTags, value]);
         posthog.capture("tag:add_existing_tag", {
-          table: tableName,
+          object: tableName,
           type: type,
           name: value,
         });
