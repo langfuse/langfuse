@@ -15,7 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { SiOkta, SiAuth0 } from "react-icons/si";
-import { TbBrandAzure } from "react-icons/tb";
+import { TbBrandAzure, TbCircleKey } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
@@ -48,6 +48,7 @@ export type PageProps = {
     github: boolean;
     okta: boolean;
     azureAd: boolean;
+    keycloak: boolean;
     auth0: boolean;
     sso: boolean;
   };
@@ -76,6 +77,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
           env.AUTH_AZURE_AD_CLIENT_SECRET !== undefined &&
           env.AUTH_AZURE_AD_TENANT_ID !== undefined,
+        keycloak:
+          env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
+          env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
+          env.AUTH_KEYCLOAK_ISSUER !== undefined,
         auth0:
           env.AUTH_AUTH0_CLIENT_ID !== undefined &&
           env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
@@ -139,6 +144,18 @@ export function SSOButtons({
             >
               <TbBrandAzure className="mr-3" size={18} />
               {action} with Azure AD
+            </Button>
+          )}
+          {authProviders.keycloak && (
+            <Button
+              onClick={() => {
+                posthog.capture("sign_in:keycloak_button_click");
+                void signIn("keycloak");
+              }}
+              variant="secondary"
+            >
+              <TbCircleKey className="mr-3" size={18} />
+              {action} with Keycloak
             </Button>
           )}
           {authProviders.okta && (
@@ -394,8 +411,8 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
         </div>
 
         {!signUpDisabled &&
-        env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
-        authProviders.credentials ? (
+          env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+          authProviders.credentials ? (
           <p className="mt-10 text-center text-sm text-gray-500">
             No account yet?{" "}
             <Link

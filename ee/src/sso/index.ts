@@ -4,6 +4,7 @@ import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import { isEeAvailable } from "..";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
@@ -144,6 +145,12 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
     });
+  else if (provider.authProvider === "keycloak")
+    return KeycloakProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
   else {
     // Type check to ensure we handle all providers
     // eslint-disable-next-line no-unused-vars
@@ -214,9 +221,9 @@ export async function createNewSsoConfigHandler(
 
     const encryptedClientSecret = authConfig
       ? {
-          ...authConfig,
-          clientSecret: encrypt(authConfig.clientSecret),
-        }
+        ...authConfig,
+        clientSecret: encrypt(authConfig.clientSecret),
+      }
       : undefined;
 
     await prisma.ssoConfig.create({
