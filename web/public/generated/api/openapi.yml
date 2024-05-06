@@ -6,13 +6,23 @@ info:
     ## Authentication
 
 
-    Authenticate with the API using Basic Auth, get API keys in the project
-    settings:
+    Authenticate with the API using [Basic
+    Auth](https://en.wikipedia.org/wiki/Basic_access_authentication), get API
+    keys in the project settings:
 
 
     - username: Langfuse Public Key
 
     - password: Langfuse Secret Key
+
+
+    ## Exports
+
+
+    - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
+
+    - Postman collection:
+    https://cloud.langfuse.com/generated/postman/collection.json
 paths:
   /api/public/dataset-items:
     post:
@@ -717,19 +727,100 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-  /api/public/prompts:
+  /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt
       operationId: prompts_get
       tags:
         - Prompts
       parameters:
-        - name: name
-          in: query
+        - name: promptName
+          in: path
+          description: The name of the prompt
           required: true
           schema:
             type: string
         - name: version
+          in: query
+          description: Version of the prompt to be retrieved.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: label
+          in: query
+          description: >-
+            Label of the prompt to be retrieved. Defaults to "production" if no
+            label or version is set.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/v2/prompts:
+    get:
+      description: Get a list of prompt names with versions and labels
+      operationId: prompts_list
+      tags:
+        - Prompts
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
           in: query
           required: false
           schema:
@@ -741,7 +832,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Prompt'
+                $ref: '#/components/schemas/PromptMetaListResponse'
         '400':
           description: ''
           content:
@@ -2479,6 +2570,42 @@ components:
       required:
         - id
         - name
+    PromptMetaListResponse:
+      title: PromptMetaListResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptMeta'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    PromptMeta:
+      title: PromptMeta
+      type: object
+      properties:
+        name:
+          type: string
+        versions:
+          type: array
+          items:
+            type: integer
+        labels:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - versions
+        - labels
+        - tags
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:
@@ -2510,18 +2637,19 @@ components:
       properties:
         name:
           type: string
-        isActive:
-          type: boolean
-          description: Should the prompt be promoted to production immediately?
         prompt:
           type: array
           items:
             $ref: '#/components/schemas/ChatMessage'
         config:
           nullable: true
+        labels:
+          type: array
+          items:
+            type: string
+          nullable: true
       required:
         - name
-        - isActive
         - prompt
     CreateTextPromptRequest:
       title: CreateTextPromptRequest
@@ -2529,16 +2657,17 @@ components:
       properties:
         name:
           type: string
-        isActive:
-          type: boolean
-          description: Should the prompt be promoted to production immediately?
         prompt:
           type: string
         config:
           nullable: true
+        labels:
+          type: array
+          items:
+            type: string
+          nullable: true
       required:
         - name
-        - isActive
         - prompt
     Prompt:
       title: Prompt
@@ -2574,10 +2703,15 @@ components:
         version:
           type: integer
         config: {}
+        labels:
+          type: array
+          items:
+            type: string
       required:
         - name
         - version
         - config
+        - labels
     ChatMessage:
       title: ChatMessage
       type: object

@@ -33,6 +33,7 @@ if (isSentryEnabled) {
     tracesSampleRate: 0.1, //  Capture 100% of the transactions
     // Set sampling rate for profiling - this is relative to tracesSampleRate
     profilesSampleRate: 0.1,
+    sampleRate: 0.1,
   });
 
   // The request handler must be the first middleware on the app

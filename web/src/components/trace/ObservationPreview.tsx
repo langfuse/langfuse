@@ -155,11 +155,11 @@ export const ObservationPreview = (props: {
           />
         ) : null}
 
-        {preloadedObservation.metadata ? (
+        {observationWithInputAndOutput.data?.metadata ? (
           <JSONView
-            key={preloadedObservation.id + "-metadata"}
+            key={observationWithInputAndOutput.data.id + "-metadata"}
             title="Metadata"
-            json={preloadedObservation.metadata}
+            json={observationWithInputAndOutput.data.metadata}
           />
         ) : null}
 
