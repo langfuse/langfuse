@@ -54,7 +54,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
-    posthog.capture("projects:new_project_form_submit");
+    posthog.capture("projects:new_form_submit");
     createProjectMutation
       .mutateAsync(values)
       .then(() => {
@@ -68,7 +68,15 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(open) => {
+        if (open) {
+          posthog.capture("projects:new_form_open");
+        }
+        setOpen(open);
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           size={size}

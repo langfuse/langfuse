@@ -14,8 +14,10 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useSession } from "next-auth/react";
 import Header from "@/src/components/layouts/header";
+import { usePostHog } from "posthog-js/react";
 
 export function ProjectMembersTable({ projectId }: { projectId: string }) {
+  const posthog = usePostHog();
   const hasReadAccess = useHasAccess({
     projectId: projectId,
     scope: "members:read",
@@ -77,6 +79,7 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                       size="icon"
                       loading={mutDeleteMembership.isLoading}
                       onClick={() => {
+                        posthog.capture("project_settings:delete_membership");
                         mutDeleteMembership.mutate({
                           projectId: projectId,
                           userId: m.user.id,
@@ -122,6 +125,9 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
                           size="icon"
                           loading={mutDeleteInvitation.isLoading}
                           onClick={() => {
+                            posthog.capture(
+                              "project_settings:delete_membership_invitation",
+                            );
                             mutDeleteInvitation.mutate({
                               id: invite.id,
                               projectId: projectId,

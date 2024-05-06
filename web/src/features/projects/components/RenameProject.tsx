@@ -16,8 +16,10 @@ import {
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import Header from "@/src/components/layouts/header";
+import { usePostHog } from "posthog-js/react";
 
 export default function RenameProject(props: { projectId: string }) {
+  const posthog = usePostHog();
   const utils = api.useUtils();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
@@ -43,6 +45,7 @@ export default function RenameProject(props: { projectId: string }) {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
+    posthog.capture("project_settings:rename_form_submit");
     renameProject
       .mutateAsync({
         projectId: props.projectId,
