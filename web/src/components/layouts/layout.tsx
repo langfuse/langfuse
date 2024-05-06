@@ -48,7 +48,6 @@ const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",
   "/auth/error",
-  "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
 ];
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
