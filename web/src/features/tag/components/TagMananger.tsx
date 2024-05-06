@@ -44,7 +44,7 @@ const TagManager = ({
 
   const handlePopoverChange = (open: boolean) => {
     if (open) {
-      posthog.capture("tag:modal_open", { table: tableName, type: type });
+      posthog.capture("tag:modal_open", { object: tableName, type: type });
     }
     if (!open && selectedTags !== tags) {
       setInputValue("");
