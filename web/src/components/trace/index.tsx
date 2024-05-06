@@ -79,7 +79,7 @@ export function Trace(props: {
           .filter((id) => !excludeParentObservations.has(id)),
       );
     } while (newExcludeParentObservations.size > 0);
-    posthog.capture("trace_detail:observation_tree_collapse", {"kind": "all"})
+    posthog.capture("trace_detail:observation_tree_collapse", { type: "all" });
     setCollapsedObservations(
       props.observations
         .map((o) => o.id)
@@ -88,7 +88,7 @@ export function Trace(props: {
   }, [posthog, props.observations, currentObservationId]);
 
   const expandAll = useCallback(() => {
-    posthog.capture("trace_detail:observation_tree_expand", {"kind": "all"})
+    posthog.capture("trace_detail:observation_tree_expand", { type: "all" });
     setCollapsedObservations([]);
   }, [posthog]);
 
@@ -118,7 +118,9 @@ export function Trace(props: {
           <Toggle
             pressed={scoresOnObservationTree}
             onPressedChange={(e) => {
-              posthog.capture("trace_detail:observation_tree_toggle_scores", {"show": e})
+              posthog.capture("trace_detail:observation_tree_toggle_scores", {
+                show: e,
+              });
               setScoresOnObservationTree(e);
             }}
             size="sm"
@@ -129,7 +131,9 @@ export function Trace(props: {
           <Toggle
             pressed={metricsOnObservationTree}
             onPressedChange={(e) => {
-              posthog.capture("trace_detail:observation_tree_toggle_metrics", {"show": e})
+              posthog.capture("trace_detail:observation_tree_toggle_metrics", {
+                show: e,
+              });
               setMetricsOnObservationTree(e);
             }}
             size="sm"
