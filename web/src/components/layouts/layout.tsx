@@ -31,6 +31,7 @@ import {
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { ProjectNavigation } from "@/src/components/projectNavigation";
+import DOMPurify from "dompurify";
 
 const userNavigation = [
   {
@@ -163,7 +164,12 @@ export default function Layout(props: PropsWithChildren) {
     unauthenticatedPaths.includes(router.pathname)
   ) {
     const targetPath = router.query.targetPath as string | undefined;
-    void router.replace(targetPath ?? "/");
+
+    const sanitizedTargetPath = targetPath
+      ? DOMPurify.sanitize(targetPath)
+      : undefined;
+
+    void router.replace(sanitizedTargetPath ?? "/");
     return <Spinner message="Redirecting" />;
   }
 
