@@ -14,6 +14,7 @@ export const ErrorPage = ({
 }) => {
   const session = useSession();
   const router = useRouter();
+  const newTargetPath = router.asPath;
 
   return (
     <div className="flex h-screen flex-col items-center justify-center">
@@ -21,7 +22,15 @@ export const ErrorPage = ({
       <h1 className="mb-4 text-xl font-bold">{title}</h1>
       <p className="mb-8 text-center">{message}</p>
       {session.status === "unauthenticated" ? (
-        <Button onClick={() => void router.push("/")}>Sign In</Button>
+        <Button
+          onClick={() =>
+            void router.push(
+              `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
+            )
+          }
+        >
+          Sign In
+        </Button>
       ) : null}
     </div>
   );
