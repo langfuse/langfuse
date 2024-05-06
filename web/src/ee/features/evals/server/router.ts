@@ -249,7 +249,7 @@ export const evalRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
         sampling: z.number().gte(0).lte(1),
-        delay: z.number().gte(0).default(10_000),
+        delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -287,7 +287,7 @@ export const evalRouter = createTRPCRouter({
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,
-            delay: DEFAULT_TRACE_JOB_DELAY, // 10 seconds default
+            delay: input.delay,
             status: "ACTIVE",
           },
         });
