@@ -418,12 +418,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces on or after a certain timestamp"
+                  "description": "Optional filter to only include traces on or after a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "toTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces before a certain timestamp"
+                  "description": "Optional filter to only include traces before a certain datetime (ISO 8601)"
                 }
               ],
               "variable": []
@@ -528,7 +528,7 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time greater than this timestamp."
+                  "description": "Retrieve only observations with a start_time greater than this datetime (ISO 8601)."
                 }
               ],
               "variable": []
@@ -788,7 +788,7 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only scores newer than this timestamp."
+                  "description": "Retrieve only scores newer than this datetime (ISO 8601)."
                 },
                 {
                   "key": "source",
@@ -996,7 +996,7 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only traces newer than this timestamp."
+                  "description": "Retrieve only traces newer than this datetime (ISO 8601)."
                 },
                 {
                   "key": "orderBy",
