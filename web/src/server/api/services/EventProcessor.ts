@@ -422,8 +422,8 @@ export class TraceProcessor implements EventProcessor {
     console.log(
       "Trying to create trace, project ",
       apiScope.projectId,
-      ", body:",
-      body,
+      ", id:",
+      internalId,
     );
 
     const existingTrace = await prisma.trace.findFirst({
