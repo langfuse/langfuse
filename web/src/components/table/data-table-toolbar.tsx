@@ -49,8 +49,6 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.currentQuery ?? "",
   );
   const posthog = usePostHog();
-  // Todo decide where we get the table name property from
-  const tableName = "table";
 
   return (
     <div className="@container my-2 flex flex-1 flex-wrap items-center gap-2">
@@ -63,7 +61,7 @@ export function DataTableToolbar<TData, TValue>({
             onChange={(event) => setSearchString(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                posthog.capture("table:search_submit", { table: tableName });
+                posthog.capture("table:search_submit");
                 searchConfig.updateQuery(searchString);
               }
             }}
@@ -72,7 +70,7 @@ export function DataTableToolbar<TData, TValue>({
           <Button
             variant="outline"
             onClick={() => {
-              posthog.capture("table:search_submit", { table: tableName });
+              posthog.capture("table:search_submit");
               searchConfig.updateQuery(searchString);
             }}
             className="rounded-l-none border-l-0 p-3"
