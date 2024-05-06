@@ -29,8 +29,6 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const [isOpen, setIsOpen] = useState(false);
   const posthog = usePostHog();
-  // Todo decide where we get the table name property from
-  const tableName = "tablename";
   const toggleColumn = useCallback(
     (columnId: string) => {
       setColumnVisibility((old) => {
@@ -42,13 +40,12 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
           (key) => newColumnVisibility[key],
         );
         posthog.capture("table:column_visibility_changed", {
-          table: tableName,
           selectedColumns: selectedColumns,
         });
         return newColumnVisibility;
       });
     },
-    [setColumnVisibility, posthog, tableName],
+    [setColumnVisibility, posthog],
   );
 
   const calculateColumnCounts = (
