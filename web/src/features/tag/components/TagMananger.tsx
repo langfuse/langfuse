@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Command, CommandList, CommandGroup } from "cmdk";
 import { cn } from "@/src/utils/tailwind";
-import { useTagAnalytics } from "@/src/features/tag/hooks/useTagAnalytics";
+import { usePostHog } from "posthog-js/react";
 
 type TagManagerProps = {
   tags: string[];
@@ -35,7 +35,7 @@ const TagManager = ({
     setInputValue,
     setSelectedTags,
   } = useTagManager({ initialTags: tags, allTags });
-  const { posthog, tableName, type } = useTagAnalytics();
+  const posthog = usePostHog();
   const filteredTags = availableTags.filter(
     (value) =>
       value.toLowerCase().includes(inputValue.trim().toLowerCase()) &&
@@ -44,7 +44,7 @@ const TagManager = ({
 
   const handlePopoverChange = (open: boolean) => {
     if (open) {
-      posthog.capture("tag:modal_open", { object: tableName, type: type });
+      posthog.capture("tag:modal_open");
     }
     if (!open && selectedTags !== tags) {
       setInputValue("");

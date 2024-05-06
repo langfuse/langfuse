@@ -3,7 +3,7 @@ import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command as CommandPrimitive } from "cmdk";
-import { useTagAnalytics } from "@/src/features/tag/hooks/useTagAnalytics";
+import { usePostHog } from "posthog-js/react";
 
 type TagInputProps = React.ComponentPropsWithoutRef<
   typeof CommandPrimitive.Input
@@ -16,7 +16,7 @@ export const TagInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   TagInputProps
 >(({ className, selectedTags, setSelectedTags, ...props }, ref) => {
-  const { posthog, tableName, type } = useTagAnalytics();
+  const posthog = usePostHog();
   return (
     <div
       className="flex flex-wrap items-center overflow-auto rounded-lg border px-2"
@@ -33,8 +33,6 @@ export const TagInput = React.forwardRef<
                 const newTags = selectedTags.filter((t) => t !== tag);
                 setSelectedTags(newTags);
                 posthog.capture("tag:remove_tag", {
-                  object: tableName,
-                  type: type,
                   name: tag,
                 });
               }}

@@ -1,4 +1,4 @@
-import { useTagAnalytics } from "@/src/features/tag/hooks/useTagAnalytics";
+import { usePostHog } from "posthog-js/react";
 import { useState, useMemo } from "react";
 
 type UseTagManagerProps = {
@@ -13,15 +13,13 @@ export function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
     () => allTags.filter((value) => !selectedTags.includes(value)),
     [allTags, selectedTags],
   );
-  const { posthog, tableName, type } = useTagAnalytics();
+  const posthog = usePostHog();
   const handleItemCreate = () => {
     setSelectedTags((prevSelectedTags) => [
       // dedupe
       ...new Set([...prevSelectedTags, inputValue]),
     ]);
     posthog.capture("tag:create_new_button_click", {
-      object: tableName,
-      type: type,
       name: inputValue,
     });
     availableTags.push(inputValue);
