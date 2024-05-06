@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
 import EvalConfigTable from "@/src/ee/features/evals/components/eval-config-table";
+import { usePostHog } from "posthog-js/react";
 
 export default function ConfigsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-
+  const posthog = usePostHog();
   const hasWriteAccess = useHasAccess({
     projectId,
     scope: "job:CUD",
@@ -24,7 +25,11 @@ export default function ConfigsPage() {
           href: "https://langfuse.com/docs/evals",
         }}
         actionButtons={
-          <Button disabled={!hasWriteAccess} asChild>
+          <Button
+            disabled={!hasWriteAccess}
+            onClick={() => posthog.capture("eval_config:new_form_open")}
+            asChild
+          >
             <Link
               href={
                 hasWriteAccess ? `/project/${projectId}/evals/configs/new` : "#"

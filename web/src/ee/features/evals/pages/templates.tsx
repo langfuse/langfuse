@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
 import EvalsTemplateTable from "@/src/ee/features/evals/components/eval-templates-table";
+import { usePostHog } from "posthog-js/react";
 
 export default function TemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-
+  const posthog = usePostHog();
   const hasWriteAccess = useHasAccess({
     projectId,
     scope: "evalTemplate:create",
@@ -24,7 +25,11 @@ export default function TemplatesPage() {
           href: "https://langfuse.com/docs/evals",
         }}
         actionButtons={
-          <Button disabled={!hasWriteAccess} asChild>
+          <Button
+            disabled={!hasWriteAccess}
+            onClick={() => posthog.capture("eval_templates:new_form_open")}
+            asChild
+          >
             <Link
               href={
                 hasWriteAccess
