@@ -6,12 +6,13 @@ import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
 import Link from "next/link";
+import { usePostHog } from "posthog-js/react";
 
 export default function ModelsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const hasWriteAccess = useHasAccess({ projectId, scope: "models:CUD" });
-
+  const posthog = usePostHog();
   return (
     <div>
       <Header
@@ -22,7 +23,11 @@ export default function ModelsPage() {
           href: "https://langfuse.com/docs/model-usage-and-cost",
         }}
         actionButtons={
-          <Button disabled={!hasWriteAccess} asChild>
+          <Button
+            disabled={!hasWriteAccess}
+            onClick={() => posthog.capture("models:new_form_open")}
+            asChild
+          >
             <Link
               href={hasWriteAccess ? `/project/${projectId}/models/new` : "#"}
             >

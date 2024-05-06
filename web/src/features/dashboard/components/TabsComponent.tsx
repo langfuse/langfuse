@@ -1,4 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
+import { usePostHog } from "posthog-js/react";
 import { type ReactNode, useState } from "react";
 
 export type TabComponentProps = {
@@ -10,6 +11,7 @@ export type TabComponentProps = {
 
 export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const posthog = usePostHog();
   return (
     <div>
       <div className="sm:hidden">
@@ -44,7 +46,12 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                   "cursor-pointer whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}
-                onClick={() => setSelectedIndex(index)}
+                onClick={() => {
+                  setSelectedIndex(index);
+                  posthog.capture("dashboard:chart_tab_switch", {
+                    tabLabel: tab.tabTitle,
+                  });
+                }}
               >
                 {tab.tabTitle}
               </a>

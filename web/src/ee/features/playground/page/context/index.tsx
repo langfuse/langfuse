@@ -27,6 +27,7 @@ import {
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
+import { usePostHog } from "posthog-js/react";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -60,6 +61,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
   const projectId = useProjectIdFromURL();
+  const posthog = usePostHog();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
@@ -188,6 +190,12 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           setOutput(response);
         }
         setOutputJson(getOutputJson(response, finalMessages, modelParams));
+        posthog.capture("playground:backend_chat_completion_generated", {
+          inputLength: finalMessages.length,
+          modelName: modelParams.model,
+          modelProvider: modelParams.provider,
+          outputLength: response.length,
+        });
       } catch (err) {
         console.error(err);
 
@@ -196,7 +204,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       } finally {
         setIsStreaming(false);
       }
-    }, [messages, modelParams, promptVariables]);
+    }, [messages, modelParams, promptVariables, posthog]);
 
   useCommandEnter(!isStreaming, handleSubmit);
 
