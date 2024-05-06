@@ -55,6 +55,10 @@ export function TraceTableMultiSelectAction({
           <DropdownMenuItem
             disabled={!hasDeleteAccess}
             onClick={() => {
+              posthog.capture("trace:delete_form_open", {
+                count: selectedTraceIds.length,
+                source: "table-multi-select",
+              });
               setOpen(true);
             }}
           >
@@ -94,7 +98,7 @@ export function TraceTableMultiSelectAction({
                   .then(() => {
                     setOpen(false);
                   });
-                posthog.capture("trace:delete", {
+                posthog.capture("trace:delete_form_submit", {
                   count: selectedTraceIds.length,
                   source: "table-multi-select",
                 });

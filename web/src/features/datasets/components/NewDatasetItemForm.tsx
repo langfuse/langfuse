@@ -107,10 +107,13 @@ export const NewDatasetItemForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("datasets:new_dataset_item_form_submit", {
-      hasSourceTrace: !!props.traceId,
-      hasSourceObservation: !!props.observationId,
-    });
+    if (props.traceId) {
+      posthog.capture("dataset_item:new_from_trace_form_submit", {
+        object: props.observationId ? "observation" : "trace",
+      });
+    } else {
+      posthog.capture("dataset_item:new_form_submit");
+    }
     createDatasetItemMutation
       .mutateAsync({
         ...values,
