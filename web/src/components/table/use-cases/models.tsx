@@ -8,7 +8,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { Trash } from "lucide-react";
-import posthog from "posthog-js";
+import { usePostHog } from "posthog-js/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ModelTableRow = {
@@ -48,7 +48,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
   const models = api.models.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
@@ -295,6 +294,7 @@ const DeleteModelButton = ({
   projectId: string;
 }) => {
   const utils = api.useUtils();
+  const posthog = usePostHog();
   const mut = api.models.delete.useMutation({
     onSuccess: () => {
       void utils.models.invalidate();
