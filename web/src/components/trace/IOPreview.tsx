@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
+import { usePostHog } from "posthog-js/react";
 
 export const IOPreview: React.FC<{
   input?: unknown;
@@ -14,7 +15,7 @@ export const IOPreview: React.FC<{
   hideIfNull?: boolean;
 }> = ({ isLoading = false, hideIfNull = false, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
-
+  const posthog = usePostHog();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
 
@@ -65,7 +66,7 @@ export const IOPreview: React.FC<{
       {isPrettyViewAvailable ? (
         <Tabs
           value={currentView}
-          onValueChange={(v) => setCurrentView(v as "pretty" | "json")}
+          onValueChange={(v) => {setCurrentView(v as "pretty" | "json"), posthog.capture("trace_detail:io_mode_switch", { "view": v})}}
         >
           <TabsList>
             <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
