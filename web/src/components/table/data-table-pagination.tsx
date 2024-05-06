@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import useTableNameFromURL from "@/src/hooks/useTableNameFromURL";
 import { usePostHog } from "posthog-js/react";
 
 interface DataTablePaginationProps<TData> {
@@ -26,7 +25,8 @@ export function DataTablePagination<TData>({
   table,
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
-  const tableName = useTableNameFromURL();
+  // Todo decide where we get the table name property from
+  const tableName = "table";
   const posthog = usePostHog();
   return (
     <div className="mt-3 flex items-center justify-between overflow-x-auto px-2">
@@ -42,7 +42,7 @@ export function DataTablePagination<TData>({
             onValueChange={(value) => {
               posthog.capture("table:pagination_page_size_select", {
                 table: tableName,
-                page_size: value,
+                pageSize: value,
               });
               table.setPageSize(Number(value));
             }}
@@ -69,7 +69,10 @@ export function DataTablePagination<TData>({
             className="hidden h-8 w-8 p-0 lg:flex"
             onClick={() => {
               table.setPageIndex(0);
-              posthog.capture("table:pagination_button_click", { table: tableName });
+              posthog.capture("table:pagination_button_click", {
+                table: tableName,
+                type: "firstPage",
+              });
             }}
             disabled={!table.getCanPreviousPage()}
           >
@@ -81,7 +84,10 @@ export function DataTablePagination<TData>({
             className="h-8 w-8 p-0"
             onClick={() => {
               table.previousPage();
-              posthog.capture("table:pagination_button_click", { table: tableName });
+              posthog.capture("table:pagination_button_click", {
+                table: tableName,
+                type: "previousPage",
+              });
             }}
             disabled={!table.getCanPreviousPage()}
           >
@@ -93,7 +99,10 @@ export function DataTablePagination<TData>({
             className="h-8 w-8 p-0"
             onClick={() => {
               table.nextPage();
-              posthog.capture("table:pagination_button_click", { table: tableName });
+              posthog.capture("table:pagination_button_click", {
+                table: tableName,
+                type: "nextPage",
+              });
             }}
             disabled={!table.getCanNextPage()}
           >
@@ -105,7 +114,10 @@ export function DataTablePagination<TData>({
             className="hidden h-8 w-8 p-0 lg:flex"
             onClick={() => {
               table.setPageIndex(table.getPageCount() - 1);
-              posthog.capture("table:pagination_button_click", { table: tableName });
+              posthog.capture("table:pagination_button_click", {
+                table: tableName,
+                type: "lastPage",
+              });
             }}
             disabled={!table.getCanNextPage()}
           >
