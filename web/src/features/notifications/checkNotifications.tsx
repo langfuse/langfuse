@@ -12,9 +12,13 @@ import { usePostHog } from "posthog-js/react";
 const ButtonWithPosthog = ({
   children,
   className,
+  notificationId,
+  href,
 }: {
   children: React.ReactNode;
   className?: string;
+  notificationId: string;
+  href: string;
 }) => {
   const posthog = usePostHog();
   return (
@@ -23,7 +27,8 @@ const ButtonWithPosthog = ({
       variant="secondary"
       className={className}
       onClick={() => {
-        posthog.capture("notification:open_notification_center");
+        posthog.capture("notification:click_link"),
+          { notificationId: notificationId, href: href };
         toast.dismiss();
       }}
     >
@@ -55,7 +60,11 @@ export const NOTIFICATIONS: TNotification[] = [
           <li>LLM Playground</li>
           <li>More to come every day until Friday</li>
         </ul>
-        <ButtonWithPosthog className="mt-3">
+        <ButtonWithPosthog
+          className="mt-3"
+          notificationId="2"
+          href="https://langfuse.com/launch"
+        >
           <Link href="https://langfuse.com/launch">Follow along</Link>
         </ButtonWithPosthog>
       </div>
@@ -84,7 +93,10 @@ export const NOTIFICATIONS: TNotification[] = [
             the post for details.
           </p>
         )}
-        <ButtonWithPosthog>
+        <ButtonWithPosthog
+          notificationId="1"
+          href="https://langfuse.com/changelog/2024-01-29-custom-model-prices"
+        >
           <Link href="https://langfuse.com/changelog/2024-01-29-custom-model-prices">
             Changelog post
           </Link>
