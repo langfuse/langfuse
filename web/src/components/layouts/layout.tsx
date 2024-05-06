@@ -48,6 +48,7 @@ const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",
   "/auth/error",
+  "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
 ];
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
@@ -168,6 +169,15 @@ export default function Layout(props: PropsWithChildren) {
     const sanitizedTargetPath = targetPath
       ? DOMPurify.sanitize(targetPath)
       : undefined;
+
+    if (
+      sanitizedTargetPath &&
+      (sanitizedTargetPath.indexOf("http://") === 0 ||
+        sanitizedTargetPath.indexOf("https://") === 0)
+    ) {
+      // if sanitized path is an extefnal link, redirect to home
+      router.replace("/");
+    }
 
     void router.replace(sanitizedTargetPath ?? "/");
     return <Spinner message="Redirecting" />;
