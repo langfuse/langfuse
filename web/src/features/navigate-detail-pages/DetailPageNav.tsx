@@ -21,7 +21,8 @@ export const DetailPageNav = (props: {
   const ids = detailPagelists[props.listKey] ?? [];
 
   const posthog = usePostHog();
-  const tableName = useTableNameFromURL();
+  // Todo decide where we get the table name property from
+  const tableName = "tableName";
   const router = useRouter();
   const currentIndex = ids.findIndex((id) => id === props.currentId);
   const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
