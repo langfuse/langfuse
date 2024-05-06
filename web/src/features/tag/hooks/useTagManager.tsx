@@ -20,7 +20,7 @@ export function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
       ...new Set([...prevSelectedTags, inputValue]),
     ]);
     posthog.capture("tag:create_new_button_click", {
-      table: tableName,
+      object: tableName,
       type: type,
       name: inputValue,
     });
