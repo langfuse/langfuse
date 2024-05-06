@@ -20,8 +20,6 @@ export const DetailPageNav = (props: {
   const ids = detailPagelists[props.listKey] ?? [];
 
   const posthog = usePostHog();
-  // Todo decide where we get the table name property from
-  const tableName = "tableName";
   const router = useRouter();
   const currentIndex = ids.findIndex((id) => id === props.currentId);
   const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
@@ -64,7 +62,6 @@ export const DetailPageNav = (props: {
                 if (previousPageId) {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
-                    { object: tableName },
                   );
                   void router.push(
                     props.path(encodeURIComponent(previousPageId)),
@@ -93,7 +90,6 @@ export const DetailPageNav = (props: {
                 if (nextPageId) {
                   posthog.capture(
                     "navigate_detail_pages:button_click_prev_or_next",
-                    { object: tableName },
                   );
                   void router.push(props.path(encodeURIComponent(nextPageId)));
                 }
