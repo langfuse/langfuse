@@ -25,8 +25,6 @@ export function DataTablePagination<TData>({
   table,
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
-  // Todo decide where we get the table name property from
-  const tableName = "table";
   const posthog = usePostHog();
   return (
     <div className="mt-3 flex items-center justify-between overflow-x-auto px-2">
@@ -41,7 +39,6 @@ export function DataTablePagination<TData>({
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
               posthog.capture("table:pagination_page_size_select", {
-                table: tableName,
                 pageSize: value,
               });
               table.setPageSize(Number(value));
@@ -70,7 +67,6 @@ export function DataTablePagination<TData>({
             onClick={() => {
               table.setPageIndex(0);
               posthog.capture("table:pagination_button_click", {
-                table: tableName,
                 type: "firstPage",
               });
             }}
@@ -85,7 +81,6 @@ export function DataTablePagination<TData>({
             onClick={() => {
               table.previousPage();
               posthog.capture("table:pagination_button_click", {
-                table: tableName,
                 type: "previousPage",
               });
             }}
@@ -100,7 +95,6 @@ export function DataTablePagination<TData>({
             onClick={() => {
               table.nextPage();
               posthog.capture("table:pagination_button_click", {
-                table: tableName,
                 type: "nextPage",
               });
             }}
@@ -115,7 +109,6 @@ export function DataTablePagination<TData>({
             onClick={() => {
               table.setPageIndex(table.getPageCount() - 1);
               posthog.capture("table:pagination_button_click", {
-                table: tableName,
                 type: "lastPage",
               });
             }}
