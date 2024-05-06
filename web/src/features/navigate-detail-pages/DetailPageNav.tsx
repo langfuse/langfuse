@@ -6,7 +6,6 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import useTableNameFromURL from "@/src/hooks/useTableNameFromURL";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
 import { usePostHog } from "posthog-js/react";
