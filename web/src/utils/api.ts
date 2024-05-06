@@ -60,6 +60,7 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
+            maxURLLength: 2083, // avoid too large batches
           }),
         }),
       ],
@@ -87,6 +88,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
     }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
+      maxURLLength: 2083, // avoid too large batches
     }),
   ],
 });

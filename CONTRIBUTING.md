@@ -53,7 +53,9 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ### Architecture Overview
 
-> [!NOTE] > `langfuse/langfuse/worker` is under active development and will be included in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
+> [!NOTE]
+> Infrastructure will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
+> `langfuse/langfuse/worker` is under active development and not recommended for production use in Langfuse 2.x
 
 ```mermaid
 flowchart TB
@@ -104,15 +106,10 @@ flowchart TB
     Python --- API
 ```
 
-### Database Overview
+### Network Overview
 
-The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
-
-Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
-
-<img src="./packages/shared/prisma/database.svg">
-
-### Infrastructure & Network Overview
+> [!NOTE]
+> This will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
 
 ```mermaid
 flowchart LR
@@ -126,6 +123,14 @@ flowchart LR
    end
    App --- DB
 ```
+
+### Database Overview
+
+The diagram below may not show all relationships if the foreign key is not defined in the database schema. For instance, `trace_id` in the `observation` table is not defined as a foreign key to the `trace` table to allow unordered ingestion of these objects, but it is still a foreign key in the application code.
+
+Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
+
+<img src="./packages/shared/prisma/database.svg">
 
 ## Repository Structure
 

@@ -378,6 +378,8 @@ export type Trace = {
     input: unknown | null;
     output: unknown | null;
     session_id: string | null;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type TraceSession = {
     id: string;

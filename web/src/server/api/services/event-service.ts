@@ -3,6 +3,7 @@ import { type NextApiRequest } from "next";
 import { type jsonSchema } from "@/src/utils/zod";
 import lodash from "lodash";
 import { env } from "@/src/env.mjs";
+import { randomUUID } from "crypto";
 
 // This function persists raw events to the database which came via API
 // It relates each event to a project
@@ -27,13 +28,15 @@ export const persistEventMiddleware = async (
   // combine metadata from the request and langfuseHeadersObject
   const combinedMetadata = lodash.merge(metadata, langfuseHeadersObject);
 
-  await prisma.events.create({
-    data: {
-      project: { connect: { id: projectId } },
-      url: req.url,
-      method: req.method,
-      data: data,
-      headers: combinedMetadata,
-    },
-  });
+  await prisma.$queryRaw`
+    INSERT INTO events (id, project_id, url, method, data, headers)
+    VALUES (
+      ${randomUUID()},
+      ${projectId},
+      ${req.url},
+      ${req.method},
+      ${data},
+      ${combinedMetadata}
+    );
+  `;
 };
