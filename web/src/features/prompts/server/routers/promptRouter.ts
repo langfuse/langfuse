@@ -523,8 +523,9 @@ const generatePromptQuery = (
    FROM prompts p
    WHERE (name, version) IN (
     SELECT name, MAX(version)
-     FROM prompts
+     FROM prompts p
      WHERE "project_id" = ${projectId}
+     ${filterCondition}
           GROUP BY name
         )
     AND "project_id" = ${projectId}
