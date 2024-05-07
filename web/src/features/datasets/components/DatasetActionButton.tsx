@@ -12,6 +12,7 @@ import { DialogTrigger } from "@radix-ui/react-dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type Prisma } from "@langfuse/shared";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface BaseDatasetButtonProps {
   mode: "create" | "update" | "delete";
@@ -44,6 +45,7 @@ type DatasetActionButtonProps =
   | DeleteDatasetButtonProps;
 
 export const DatasetActionButton = (props: DatasetActionButtonProps) => {
+  const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
     projectId: props.projectId,
@@ -60,13 +62,23 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               size={"icon"}
               className={props.className}
               disabled={!hasAccess}
+              onClick={() =>
+                capture("datasets:update_form_open", {
+                  source: "dataset",
+                })
+              }
             >
               <Edit className="h-4 w-4" />
             </Button>
           ) : (
             <div
               className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                setOpen(true);
+                capture("datasets:update_form_open", {
+                  source: "table-single-row",
+                });
+              }}
             >
               {hasAccess ? (
                 <Edit className="mr-2 h-4 w-4" />
@@ -79,13 +91,22 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
         ) : props.mode === "delete" ? (
           <div
             className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              setOpen(true);
+              capture("datasets:delete_form_open", {
+                source: "table-single-row",
+              });
+            }}
           >
             <Trash className="mr-2 h-4 w-4" />
             Delete
           </div>
         ) : (
-          <Button className={props.className} disabled={!hasAccess}>
+          <Button
+            className={props.className}
+            disabled={!hasAccess}
+            onClick={() => capture("datasets:new_form_open")}
+          >
             {hasAccess ? (
               <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
             ) : (

@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useRouter } from "next/router";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function DeletePromptVersion({
   promptVersionId,
@@ -20,6 +21,7 @@ export function DeletePromptVersion({
   version: number;
   countVersions: number;
 }) {
+  const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const router = useRouter();
@@ -52,7 +54,12 @@ export function DeletePromptVersion({
     <Popover
       key={promptVersionId}
       open={isOpen}
-      onOpenChange={() => setIsOpen(!isOpen)}
+      onOpenChange={() => {
+        if (isOpen) {
+          capture("prompt_detail:version_delete_open");
+        }
+        setIsOpen(!isOpen);
+      }}
     >
       <PopoverTrigger asChild>
         <Button variant="outline" type="button" size="icon">
@@ -79,6 +86,7 @@ export function DeletePromptVersion({
 
                 return;
               }
+              capture("prompt_detail:version_delete_submit");
 
               void mutDeletePromptVersion.mutateAsync({
                 promptVersionId,
