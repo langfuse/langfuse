@@ -54,7 +54,9 @@ export const IOPreview: React.FC<{
       }
     }
   }
-  const outChatMlMessage = ChatMlMessageSchema.safeParse(output);
+  const outChatMlArray = ChatMlArraySchema.safeParse(
+    Array.isArray(output) ? output : [output],
+  );
 
   // Pretty view available
   const isPrettyViewAvailable = inChatMlArray.success;
@@ -75,17 +77,20 @@ export const IOPreview: React.FC<{
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <OpenAiMessageView
-          messages={inChatMlArray.data.concat(
-            outChatMlMessage.success
-              ? {
-                  ...outChatMlMessage.data,
-                  role: outChatMlMessage.data.role ?? "assistant",
-                }
-              : ChatMlMessageSchema.parse({
-                  role: "assistant",
-                  content: outputClean ? JSON.stringify(outputClean) : null,
-                }),
-          )}
+          messages={[
+            ...inChatMlArray.data,
+            ...(outChatMlArray.success
+              ? outChatMlArray.data.map((m) => ({
+                  ...m,
+                  role: m.role ?? "assistant",
+                }))
+              : [
+                  ChatMlMessageSchema.parse({
+                    role: "assistant",
+                    content: outputClean ? JSON.stringify(outputClean) : null,
+                  }),
+                ]),
+          ]}
         />
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (

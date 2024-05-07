@@ -211,6 +211,13 @@ export const promptRouter = createTRPCRouter({
         WHERE prompts.project_id = ${input.projectId}
         GROUP BY tags.tag;
       `;
+      const labels: { count: number; value: string }[] = await ctx.prisma
+        .$queryRaw`
+      SELECT COUNT(*)::integer AS "count", labels.label as value
+      FROM prompts, UNNEST(prompts.labels) AS labels(label)
+      WHERE prompts.project_id = ${input.projectId}
+      GROUP BY labels.label;
+    `;
       const res = {
         name: names
           .filter((n) => n.name !== null)
@@ -218,6 +225,7 @@ export const promptRouter = createTRPCRouter({
             value: name.name ?? "undefined",
             count: name._count.id,
           })),
+        labels: labels,
         tags: tags,
       };
       return res;
@@ -515,8 +523,9 @@ const generatePromptQuery = (
    FROM prompts p
    WHERE (name, version) IN (
     SELECT name, MAX(version)
-     FROM prompts
+     FROM prompts p
      WHERE "project_id" = ${projectId}
+     ${filterCondition}
           GROUP BY name
         )
     AND "project_id" = ${projectId}

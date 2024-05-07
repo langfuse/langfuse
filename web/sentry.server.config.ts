@@ -28,6 +28,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
       // Add profiling integration to list of integrations
       new ProfilingIntegration(),
       new Sentry.Integrations.Prisma({ client: prisma }),
+      Sentry.metrics.metricsAggregatorIntegration(),
     ],
 
     // filter out passwords from the signup request body

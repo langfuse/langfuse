@@ -28,6 +28,7 @@ if (isSentryEnabled) {
       // enable Express.js middleware tracing
       new Sentry.Integrations.Express({ app }),
       nodeProfilingIntegration(),
+      Sentry.metrics.metricsAggregatorIntegration(),
     ],
     // Performance Monitoring
     tracesSampleRate: 0.1, //  Capture 100% of the transactions

@@ -182,6 +182,12 @@ export const traceRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
         by: ["name"],
       });
       const names = await ctx.prisma.trace.groupBy({
@@ -207,7 +213,8 @@ export const traceRouter = createTRPCRouter({
         SELECT COUNT(*)::integer AS "count", tags.tag as value
         FROM traces, UNNEST(traces.tags) AS tags(tag)
         WHERE traces.project_id = ${input.projectId}
-        GROUP BY tags.tag;
+        GROUP BY tags.tag
+        LIMIT 1000
       `;
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),

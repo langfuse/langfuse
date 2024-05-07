@@ -20,8 +20,9 @@ export default function TemplatesPage() {
       <Header
         title="Eval Templates"
         help={{
-          description: "XXX",
-          href: "https://langfuse.com/docs/evals",
+          description:
+            "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",
+          href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
         actionButtons={
           <Button disabled={!hasWriteAccess} asChild>

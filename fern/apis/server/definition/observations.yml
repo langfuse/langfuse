@@ -35,7 +35,7 @@ service:
           parentObservationId: optional<string>
           fromStartTime:
             type: optional<datetime>
-            docs: Retrieve only observations with a start_time greater than this timestamp.
+            docs: Retrieve only observations with a start_time greater than this datetime (ISO 8601).
       response: ObservationsViews
 
 types:

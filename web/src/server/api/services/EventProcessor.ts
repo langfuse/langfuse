@@ -29,6 +29,7 @@ import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
+import { instrument } from "@/src/utils/instrumentation";
 
 export interface EventProcessor {
   process(
@@ -345,27 +346,31 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
-    const newPromptTokens =
-      body.usage?.input ??
-      ((body.input || existingObservation?.input) && model && model.tokenizerId
-        ? tokenCount({
-            model: model,
-            text: body.input ?? existingObservation?.input,
-          })
-        : undefined);
+    return instrument({ name: "calculate-tokens" }, () => {
+      const newPromptTokens =
+        body.usage?.input ??
+        ((body.input || existingObservation?.input) &&
+        model &&
+        model.tokenizerId
+          ? tokenCount({
+              model: model,
+              text: body.input ?? existingObservation?.input,
+            })
+          : undefined);
 
-    const newCompletionTokens =
-      body.usage?.output ??
-      ((body.output || existingObservation?.output) &&
-      model &&
-      model.tokenizerId
-        ? tokenCount({
-            model: model,
-            text: body.output ?? existingObservation?.output,
-          })
-        : undefined);
+      const newCompletionTokens =
+        body.usage?.output ??
+        ((body.output || existingObservation?.output) &&
+        model &&
+        model.tokenizerId
+          ? tokenCount({
+              model: model,
+              text: body.output ?? existingObservation?.output,
+            })
+          : undefined);
 
-    return [newPromptTokens, newCompletionTokens];
+      return [newPromptTokens, newCompletionTokens];
+    });
   }
 
   async process(apiScope: ApiAccessScope): Promise<Observation> {
