@@ -499,6 +499,53 @@ export const promptRouter = createTRPCRouter({
       });
       return joinedPromptAndUsers;
     }),
+  metrics: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), promptIds: z.array(z.string()) }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const metrics = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          observation_count: number;
+          firstUsed: Date | null;
+          lastUsed: Date | null;
+          medianOutputTokens: number | null;
+          medianInputTokens: number | null;
+          medianTotalCost: number | null;
+          latency: number | null;
+        }>
+      >(
+        Prisma.sql`
+        select p.id, p.version, observation_metrics.* from prompts p
+        LEFT JOIN LATERAL (
+          SELECT
+            count(*) observation_count,
+            MIN(ov.start_time) AS "firstUsed",
+            MAX(ov.start_time) AS "lastUsed",
+            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.completion_tokens) AS "medianOutputTokens",
+            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.prompt_tokens) AS "medianInputTokens",
+            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.calculated_total_cost) AS "medianTotalCost",
+            COALESCE(EXTRACT(EPOCH FROM COALESCE(MAX(ov."end_time"), MAX(ov."start_time"))) - EXTRACT(EPOCH FROM MIN(ov."start_time")), 0)::double precision AS "latency"
+          FROM
+            "observations_view" ov
+          WHERE
+            ov.prompt_id = p.id
+            AND "type" = 'GENERATION'
+            AND "project_id" = ${input.projectId}
+        ) AS observation_metrics ON true
+        
+        WHERE "project_id" = ${input.projectId}
+        AND p.id in (${Prisma.join(input.promptIds)})
+    `,
+      );
+
+      return metrics;
+    }),
 });
 
 const generatePromptQuery = (
