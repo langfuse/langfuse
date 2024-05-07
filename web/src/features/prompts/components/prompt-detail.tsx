@@ -1,7 +1,7 @@
 import { Pencil, Terminal } from "lucide-react";
 import Link from "next/link";
 import router, { useRouter } from "next/router";
-import { NumberParam, StringParam, useQueryParam } from "use-query-params";
+import { NumberParam, useQueryParam } from "use-query-params";
 import type { z } from "zod";
 
 import Header from "@/src/components/layouts/header";
@@ -39,10 +39,6 @@ export const PromptDetail = () => {
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,
-  );
-  const [currentPromptView, setCurrentPromptView] = useQueryParam(
-    "view",
-    StringParam,
   );
   const promptHistory = api.prompts.allVersions.useQuery(
     {
@@ -109,23 +105,18 @@ export const PromptDetail = () => {
                 href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
               },
               { name: `Version ${prompt.version}` },
-              { name: `View ${currentPromptView}` },
             ]}
             actionButtons={
               <>
                 <Tabs value="editor">
                   <TabsList>
-                    <TabsTrigger
-                      value="editor"
-                      onClick={() => setCurrentPromptView("editor")}
-                    >
-                      Editor
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="table"
-                      onClick={() => setCurrentPromptView("table")}
-                    >
-                      Table
+                    <TabsTrigger value="editor">Editor</TabsTrigger>
+                    <TabsTrigger value="table" asChild>
+                      <Link
+                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/version-table`}
+                      >
+                        Table
+                      </Link>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
