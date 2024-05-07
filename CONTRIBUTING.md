@@ -290,6 +290,14 @@ When a new release is tagged on the `main` branch (excluding prereleases), it tr
 1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
 2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
 
+## Theming
+
+At Langfuse, we utilize CSS variables to manage our theme settings across the platform.
+
+Our theming approach is utilizing separate CSS variables for background (--background) and foreground (--foreground) colors. We recommend using HSL values for these colors to enhance user interface consistency and customization capabilities.
+
+If you're looking to introduce new colors into our theme palette, please add your CSS variable definitions to the global.css file. Additionally, ensure these new colors are reflected in the tailwind.config.js to maintain alignment with Tailwind's utility classes.
+
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
