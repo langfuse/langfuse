@@ -3,14 +3,14 @@ import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Link } from "@react-email/components";
+import Link from "next/link";
+import TableLink from "@/src/components/table/table-link";
 
 type PromptVersionTableRow = {
   version: number;
@@ -83,7 +83,15 @@ export default function PromptVersionTable() {
       accessorKey: "version",
       id: "version",
       header: "Version",
-      enableSorting: true,
+      cell: ({ row }) => {
+        const version = row.getValue("version");
+        return typeof version === "number" ? (
+          <TableLink
+            path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/?version=${version}`}
+            value={String(version)}
+          />
+        ) : null;
+      },
     },
     {
       accessorKey: "labels",
@@ -106,53 +114,38 @@ export default function PromptVersionTable() {
       accessorKey: "meanLatency",
       id: "meanLatency",
       header: "Mean latency (ms)",
-      enableSorting: true,
     },
     {
       accessorKey: "meanInputTokens",
       id: "meanInputTokens",
       header: "Mean input tokens",
-      enableSorting: true,
     },
     {
       accessorKey: "meanOutputTokens",
       id: "meanOutputTokens",
       header: "Mean output tokens",
-      enableSorting: true,
     },
     {
       accessorKey: "meanCost",
       id: "meanCost",
       header: "Mean cost (USD)",
-      enableSorting: true,
     },
     {
       accessorKey: "generationCount",
       id: "generationCount",
       header: "Generations count",
-      enableSorting: true,
     },
     {
       accessorKey: "lastUsed",
       id: "lastUsed",
       header: "Last used",
-      enableSorting: true,
     },
     {
       accessorKey: "firstUsed",
       id: "firstUsed",
       header: "First used",
-      enableSorting: true,
     },
   ];
-
-  const [columnVisibility, setColumnVisibilityState] =
-    useColumnVisibility<PromptVersionTableRow>(
-      "promptVersionColumnVisibility",
-      columns,
-    );
-
-  const totalCount = 0;
 
   const promptHistory = api.prompts.allVersions.useQuery(
     {
@@ -179,6 +172,8 @@ export default function PromptVersionTable() {
   if (!promptHistory.data) {
     return <div>Loading...</div>;
   }
+
+  const totalCount = promptHistory.data.length ?? 0;
 
   const { combinedData } = joinPromptCoreAndMetricData(
     promptHistory.data,
@@ -239,20 +234,30 @@ export default function PromptVersionTable() {
               </>
             }
           />
-          <DataTableToolbar
-            columns={columns}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-          />
+          <div className="gap-3 p-2.5">
+            <DataTableToolbar
+              columns={columns}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+            />
+          </div>
           <DataTable
             columns={columns}
-            data={{
-              isLoading: false,
-              isError: false,
-              data: rows,
-            }}
+            data={
+              promptHistory.isLoading
+                ? { isLoading: true, isError: false }
+                : promptHistory.error
+                  ? {
+                      isLoading: false,
+                      isError: true,
+                      error: promptHistory.error.message,
+                    }
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: rows,
+                    }
+            }
             pagination={{
               pageCount: Math.ceil(totalCount / paginationState.pageSize),
               onChange: setPaginationState,
@@ -260,8 +265,6 @@ export default function PromptVersionTable() {
             }}
             setOrderBy={setOrderByState}
             orderBy={orderByState}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibilityState}
             rowHeight={rowHeight}
           />
         </div>

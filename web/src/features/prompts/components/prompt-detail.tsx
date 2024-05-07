@@ -108,18 +108,6 @@ export const PromptDetail = () => {
             ]}
             actionButtons={
               <>
-                <Tabs value="editor">
-                  <TabsList>
-                    <TabsTrigger value="editor">Editor</TabsTrigger>
-                    <TabsTrigger value="table" asChild>
-                      <Link
-                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/version-table`}
-                      >
-                        Table
-                      </Link>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
                 <SetPromptVersionLabels prompt={prompt} />
                 <Link
                   href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
@@ -150,6 +138,18 @@ export const PromptDetail = () => {
                   path={(name) => `/project/${projectId}/prompts/${name}`}
                   listKey="prompts"
                 />
+                <Tabs value="editor">
+                  <TabsList>
+                    <TabsTrigger value="editor">Editor</TabsTrigger>
+                    <TabsTrigger value="table" asChild>
+                      <Link
+                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/version-table`}
+                      >
+                        Table
+                      </Link>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </>
             }
           />
