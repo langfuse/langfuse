@@ -41,6 +41,7 @@ export const tableNames = [
   "traces_metrics",
   "traces_parent_observation_scores",
   "sessions",
+  "models",
   "prompts",
 ] as const;
 

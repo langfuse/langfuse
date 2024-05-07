@@ -5,6 +5,7 @@ import {
   tracesTableCols,
   singleFilter,
 } from "@langfuse/shared";
+import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
 import { useState } from "react";
@@ -106,6 +107,7 @@ const tableCols = {
   traces: tracesTableCols,
   sessions: sessionsViewCols,
   scores: scoresTableCols,
+  models: modelsTableCols,
   prompts: promptsTableCols,
   dashboard: [
     { id: "traceName", name: "Trace Name" },
