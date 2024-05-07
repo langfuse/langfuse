@@ -45,7 +45,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const configs = await ctx.prisma.jobConfiguration.findMany({
@@ -86,7 +86,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const config = await ctx.prisma.jobConfiguration.findUnique({
@@ -260,7 +260,7 @@ export const evalRouter = createTRPCRouter({
         throwIfNoAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "job:CUD",
+          scope: "evalJob:CUD",
         });
 
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
@@ -359,7 +359,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:CUD",
+        scope: "evalJob:CUD",
       });
 
       await ctx.prisma.jobConfiguration.update({
@@ -396,7 +396,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const jobExecutions = await ctx.prisma.jobExecution.findMany({

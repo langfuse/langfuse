@@ -31,10 +31,10 @@ service:
             docs: Optional filter for metrics where traces include all of these tags
           fromTimestamp:
             type: optional<datetime>
-            docs: Optional filter to only include traces on or after a certain timestamp
+            docs: Optional filter to only include traces on or after a certain datetime (ISO 8601)
           toTimestamp:
             type: optional<datetime>
-            docs: Optional filter to only include traces before a certain timestamp
+            docs: Optional filter to only include traces before a certain datetime (ISO 8601)
       response: DailyMetrics
 types:
   DailyMetrics:
