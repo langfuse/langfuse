@@ -122,7 +122,7 @@ export function DeactivateConfig({
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "job:CUD" });
+  const hasAccess = useHasAccess({ projectId, scope: "evalJob:CUD" });
   const [isOpen, setIsOpen] = useState(false);
 
   const mutEvalConfig = api.evals.updateEvalJob.useMutation({
