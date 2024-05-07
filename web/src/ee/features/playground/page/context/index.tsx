@@ -27,7 +27,6 @@ import {
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type PlaygroundContextType = {
@@ -191,7 +190,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           setOutput(response);
         }
         setOutputJson(getOutputJson(response, finalMessages, modelParams));
-        capture("playground:backend_chat_completion_generated", {
+        capture("playground:execute_button_click", {
           inputLength: finalMessages.length,
           modelName: modelParams.model,
           modelProvider: modelParams.provider,
@@ -205,6 +204,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       } finally {
         setIsStreaming(false);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages, modelParams, promptVariables]);
 
   useCommandEnter(!isStreaming, handleSubmit);

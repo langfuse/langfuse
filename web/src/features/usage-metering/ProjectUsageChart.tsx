@@ -13,7 +13,6 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const ProjectUsageChart: React.FC<{ projectId: string }> = ({

@@ -13,7 +13,6 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PromptLabelSchema } from "@/src/features/prompts/server/utils/validation";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const AddLabelFormSchema = z.object({

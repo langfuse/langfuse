@@ -1,6 +1,5 @@
 import { capitalize } from "lodash";
 import router from "next/router";
-import { usePostHog } from "posthog-js/react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
@@ -109,14 +108,15 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   ).data?.name;
 
   function onSubmit(values: NewPromptFormSchemaType) {
-    if (initialPrompt) {
-      capture("prompts:update_form_submit", {
+    capture(
+      initialPrompt ? "prompts:update_form_submit" : "prompts:new_form_submit",
+      {
         type: values.type,
         active: values.isActive,
-      });
-    } else {
-      capture("prompts:new_form_submit");
-    }
+        hasConfig: values.config !== "{}",
+        countVariables: currentExtractedVariables.length,
+      },
+    );
 
     if (!projectId) throw Error("Project ID is not defined.");
 

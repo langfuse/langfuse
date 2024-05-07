@@ -6,7 +6,6 @@ import {
   TabsTrigger,
 } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { usePostHog } from "posthog-js/react";
 
 export const QuickstartExamples = ({
   secretKey,

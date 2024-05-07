@@ -1,6 +1,5 @@
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHog } from "posthog-js/react";
 import { type ReactNode, useState } from "react";
 
 export type TabComponentProps = {

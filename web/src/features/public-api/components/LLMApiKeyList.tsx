@@ -43,7 +43,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ModelProvider, evalLLMModels } from "@langfuse/shared";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -213,7 +212,9 @@ export function CreateLlmApiKeyComponent(props: {
       });
       return;
     }
-    capture("project_settings:llm_api_key_create");
+    capture("project_settings:llm_api_key_create", {
+      provider: values.provider,
+    });
 
     return mutCreateLlmApiKey
       .mutateAsync({

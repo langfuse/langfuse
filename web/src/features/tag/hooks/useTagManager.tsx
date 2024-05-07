@@ -1,5 +1,4 @@
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { usePostHog } from "posthog-js/react";
 import { useState, useMemo } from "react";
 
 type UseTagManagerProps = {

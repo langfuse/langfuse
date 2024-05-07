@@ -14,7 +14,6 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useSession } from "next-auth/react";
 import Header from "@/src/components/layouts/header";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function ProjectMembersTable({ projectId }: { projectId: string }) {

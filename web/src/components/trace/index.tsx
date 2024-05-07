@@ -85,6 +85,7 @@ export function Trace(props: {
         .map((o) => o.id)
         .filter((id) => !excludeParentObservations.has(id)),
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.observations, currentObservationId]);
 
   const expandAll = useCallback(() => {

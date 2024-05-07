@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 
 import { FlagIcon, PlusIcon } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -79,7 +78,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
       labels: selectedLabels,
     });
 
-    capture("prompt_detail:apply_label", { label: selectedLabels });
+    capture("prompt_detail:apply_labels", { labels: selectedLabels });
     setIsOpen(false);
   };
 

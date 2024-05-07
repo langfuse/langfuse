@@ -43,8 +43,9 @@ const events = {
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
-    "apply_label",
-    "label_toggle",
+    "apply_labels",
+    "version_delete_open",
+    "version_delete_submit",
   ],
   session_detail: ["publish_button_click"],
   eval_config: ["delete", "new_form_submit", "new_form_open"],
@@ -57,7 +58,7 @@ const events = {
   ],
   integrations: ["posthog_form_submitted"],
   sign_in: ["cloud_region_switch", "button_click"],
-  playground: ["backend_chat_completion_generated"],
+  playground: ["execute_button_click"],
   dashboard: ["chart_tab_switch", "date_range_changed"],
   datasets: [
     "delete_form_open",

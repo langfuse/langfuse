@@ -7,7 +7,6 @@ import Notification, {
 } from "@/src/features/notifications/Notification";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const ButtonWithPosthog = ({
@@ -30,10 +29,10 @@ const ButtonWithPosthog = ({
       onClick={() => {
         capture("notification:click_link"),
           { notificationId: notificationId, href: href };
-        toast.dismiss();
       }}
+      asChild
     >
-      {children}
+      <Link href={href}>{children}</Link>
     </Button>
   );
 };
@@ -45,7 +44,7 @@ export const NOTIFICATIONS: TNotification[] = [
   //   message: "Langfuse 2.0 is live on ProductHunt",
   // },
   {
-    id: 2,
+    id: 4,
     releaseDate: new Date("2024-04-24"),
     message: "Langfuse Launch Week #1 is in Full Swing",
     description: (
@@ -66,7 +65,7 @@ export const NOTIFICATIONS: TNotification[] = [
           notificationId="2"
           href="https://langfuse.com/launch"
         >
-          <Link href="https://langfuse.com/launch">Follow along</Link>
+          Follow along
         </ButtonWithPosthog>
       </div>
     ),
@@ -98,9 +97,7 @@ export const NOTIFICATIONS: TNotification[] = [
           notificationId="1"
           href="https://langfuse.com/changelog/2024-01-29-custom-model-prices"
         >
-          <Link href="https://langfuse.com/changelog/2024-01-29-custom-model-prices">
-            Changelog post
-          </Link>
+          Changelog post
         </ButtonWithPosthog>
       </div>
     ),

@@ -17,7 +17,6 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { usePostHog } from "posthog-js/react";
 import { useRouter } from "next/router";
 import * as z from "zod";
 import { useForm } from "react-hook-form";

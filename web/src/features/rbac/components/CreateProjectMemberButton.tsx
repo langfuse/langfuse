@@ -32,7 +32,6 @@ import { Input } from "@/src/components/ui/input";
 import { MembershipRole } from "@langfuse/shared";
 import { roleAccessRights } from "@/src/features/rbac/constants/roleAccessRights";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const availableRoles = [

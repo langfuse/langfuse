@@ -2,8 +2,6 @@ import React from "react";
 import { CircleCheckIcon, CircleIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHog } from "posthog-js/react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const LabelCommandItem = (props: {
   label: string;
@@ -11,17 +9,11 @@ export const LabelCommandItem = (props: {
   setSelectedLabels: React.Dispatch<React.SetStateAction<string[]>>;
 }) => {
   const { label, selectedLabels, setSelectedLabels } = props;
-  const capture = usePostHogClientCapture();
   const handleLabelChange = () => {
     setSelectedLabels((prev) => {
-      const newSelectedLabels = prev.includes(label)
+      return prev.includes(label)
         ? prev.filter((l) => l !== label)
         : [...prev, label];
-      const status = newSelectedLabels.includes(label)
-        ? "checked"
-        : "unchecked";
-      capture("prompt_detail:label_toggle", { status: status });
-      return newSelectedLabels;
     });
   };
 

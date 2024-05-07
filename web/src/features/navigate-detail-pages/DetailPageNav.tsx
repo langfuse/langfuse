@@ -9,7 +9,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
-import { usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
 export const DetailPageNav = (props: {

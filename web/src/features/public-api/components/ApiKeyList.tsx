@@ -24,7 +24,6 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 export function ApiKeyList(props: { projectId: string }) {

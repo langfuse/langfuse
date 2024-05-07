@@ -21,7 +21,6 @@ import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatase
 import { type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { useSession } from "next-auth/react";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewDatasetItemFromTrace = (props: {

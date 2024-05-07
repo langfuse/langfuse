@@ -1,7 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Divider } from "@tremor/react";
-import { usePostHog } from "posthog-js/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const regions =

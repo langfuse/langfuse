@@ -1,6 +1,5 @@
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { X } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 
 export interface TNotification {
   id: number;

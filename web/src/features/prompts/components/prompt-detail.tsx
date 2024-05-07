@@ -24,7 +24,6 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
-import { usePostHog } from "posthog-js/react";
 import Generations from "@/src/components/table/use-cases/generations";
 import {
   Accordion,
@@ -112,32 +111,34 @@ export const PromptDetail = () => {
               <>
                 <SetPromptVersionLabels prompt={prompt} />
 
-                <Link
-                  href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
+                <Button
+                  variant="outline"
+                  title="Test in prompt playground"
+                  size="icon"
+                  onClick={() =>
+                    capture("prompt_detail:test_in_playground_button_click")
+                  }
+                  asChild
                 >
-                  <Button
-                    variant="outline"
-                    title="Test in prompt playground"
-                    size="icon"
-                    onClick={() =>
-                      capture("prompt_detail:test_in_playground_button_click")
-                    }
+                  <Link
+                    href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
                   >
                     <Terminal className="h-5 w-5" />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
 
-                <Link
-                  href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => capture("prompts:update_form_open")}
+                  asChild
                 >
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => capture("prompts:update_form_open")}
+                  <Link
+                    href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
                   >
                     <Pencil className="h-5 w-5" />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
 
                 <DeletePromptVersion
                   promptVersionId={prompt.id}

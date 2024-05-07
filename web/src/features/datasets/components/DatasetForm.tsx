@@ -12,7 +12,6 @@ import {
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
 import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared";

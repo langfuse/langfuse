@@ -44,7 +44,7 @@ export const DataTableRowHeightSwitch = ({
       value={rowHeight}
       onValueChange={(e) => {
         capture("table:row_height_switch_select", {
-          size: e,
+          rowHeight: e,
         });
         setRowHeight(e as any);
       }}

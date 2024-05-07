@@ -18,7 +18,6 @@ import { Input } from "@/src/components/ui/input";
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { usePostHog } from "posthog-js/react";
 import { useRouter } from "next/router";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
@@ -66,12 +65,12 @@ export function DeleteProjectButton(props: { projectId: string }) {
 
   // delete project functionality
   const onSubmit = () => {
+    capture("project_settings:project_delete");
     deleteProject
       .mutateAsync({
         projectId: props.projectId,
       })
       .then(() => {
-        capture("project_settings:project_delete");
         void router.push("/");
       })
       .catch((error) => {

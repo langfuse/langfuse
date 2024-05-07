@@ -23,7 +23,6 @@ import {
 } from "use-query-params";
 import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
-import { usePostHog } from "posthog-js/react";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";

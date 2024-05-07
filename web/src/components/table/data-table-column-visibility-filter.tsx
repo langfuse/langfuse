@@ -45,6 +45,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         return newColumnVisibility;
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [setColumnVisibility],
   );
 

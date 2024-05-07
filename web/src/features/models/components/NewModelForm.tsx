@@ -1,4 +1,3 @@
-import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
