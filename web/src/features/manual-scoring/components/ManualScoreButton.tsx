@@ -26,6 +26,7 @@ import { useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { LockIcon } from "lucide-react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const SCORE_NAME = "manual-score";
 
@@ -47,6 +48,7 @@ export function ManualScoreButton({
   projectId: string;
   variant?: "button" | "badge";
 }) {
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId,
     scope: "scores:CUD",
@@ -59,6 +61,13 @@ export function ManualScoreButton({
         ? s.observationId === observationId
         : s.observationId === null),
   );
+
+  // variant === "badge" type is session
+  // if observationId is defined type is observation
+  // else type is trace
+  const type =
+    variant === "badge" ? "session" : observationId ? "observation" : "trace";
+  const source = type === "session" ? "SessionDetail" : "TraceDetail";
 
   const utils = api.useUtils();
   const onSuccess = async () => {
@@ -81,6 +90,10 @@ export function ManualScoreButton({
   const handleDelete = async () => {
     if (score) {
       await mutDeleteScore.mutateAsync(score.id);
+      capture("score:delete", {
+        type: type,
+        source: source,
+      });
       onOpenChange(false);
     }
   };
@@ -101,6 +114,10 @@ export function ManualScoreButton({
       form.reset();
       setOpen(false);
     } else {
+      capture(score ? "score:update_form_open" : "score:create_form_open", {
+        type: type,
+        source: source,
+      });
       form.setValue("score", score?.value ?? 0);
       form.setValue("comment", score?.comment ?? "");
       setOpen(true);
@@ -114,6 +131,10 @@ export function ManualScoreButton({
         value: values.score,
         comment: values.comment,
       });
+      capture("score:update_form_submit", {
+        type: type,
+        source: source,
+      });
     } else {
       await mutCreateScore.mutateAsync({
         name: SCORE_NAME,
@@ -121,6 +142,10 @@ export function ManualScoreButton({
         comment: values.comment,
         traceId,
         observationId,
+      });
+      capture("score:create_form_submit", {
+        type: type,
+        source: source,
       });
     }
     onOpenChange(false);

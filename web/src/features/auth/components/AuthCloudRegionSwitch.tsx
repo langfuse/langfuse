@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Divider } from "@tremor/react";
-import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const regions =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -37,7 +37,7 @@ export function CloudRegionSwitch({
 }: {
   isSignUpPage?: boolean;
 }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
@@ -64,8 +64,8 @@ export function CloudRegionSwitch({
                 key={region.name}
                 value={region.name}
                 onClick={() => {
-                  posthog.capture(
-                    "cloud_region_switch",
+                  capture(
+                    "sign_in:cloud_region_switch",
                     {
                       region: region.name,
                     },

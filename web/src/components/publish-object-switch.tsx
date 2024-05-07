@@ -1,8 +1,8 @@
 import { Switch } from "@/src/components/ui/switch";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { Link, LockIcon } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 export const PublishTraceSwitch = (props: {
@@ -10,7 +10,7 @@ export const PublishTraceSwitch = (props: {
   projectId: string;
   isPublic: boolean;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "objects:publish",
@@ -30,7 +30,7 @@ export const PublishTraceSwitch = (props: {
           traceId: props.traceId,
           public: val,
         });
-        posthog.capture("trace_detail:publish_trace_button_click");
+        capture("trace_detail:publish_button_click");
       }}
       isLoading={mut.isLoading}
       disabled={!hasAccess}
@@ -43,7 +43,7 @@ export const PublishSessionSwitch = (props: {
   projectId: string;
   isPublic: boolean;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "objects:publish",
@@ -63,7 +63,7 @@ export const PublishSessionSwitch = (props: {
           sessionId: props.sessionId,
           public: val,
         });
-        posthog.capture("session_detail:publish_session_button_click");
+        capture("session_detail:publish_button_click");
       }}
       isLoading={mut.isLoading}
       disabled={!hasAccess}

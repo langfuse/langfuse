@@ -13,6 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PromptLabelSchema } from "@/src/features/prompts/server/utils/validation";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const AddLabelFormSchema = z.object({
   newLabel: PromptLabelSchema,
@@ -25,6 +26,8 @@ export const AddLabelForm = (props: {
   setSelectedLabels: React.Dispatch<React.SetStateAction<string[]>>;
   onAddLabel: () => void;
 }) => {
+  const capture = usePostHogClientCapture();
+
   const form = useForm<AddLabelFromSchemaType>({
     resolver: zodResolver(AddLabelFormSchema),
     defaultValues: {
@@ -37,7 +40,7 @@ export const AddLabelForm = (props: {
 
     props.setLabels((prev) => [...prev, newLabel]);
     props.setSelectedLabels((prev) => [...new Set([...prev, newLabel])]);
-
+    capture("prompt_detail:add_label_submit");
     props.onAddLabel();
     form.reset();
   };

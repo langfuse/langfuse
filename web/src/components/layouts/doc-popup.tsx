@@ -3,9 +3,9 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { HelpCircle, Info } from "lucide-react";
 import Link from "next/link";
-import { usePostHog } from "posthog-js/react";
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -26,14 +26,17 @@ export default function DocPopup({
     md: "w-6 h-6",
     lg: "w-8 h-8",
   };
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   return (
     <HoverCard
       openDelay={200}
       onOpenChange={(open) => {
         if (open) {
-          posthog.capture("help-popup:opened", { href, description });
+          capture("help_popup:opened", {
+            hfref: href,
+            description: description,
+          });
         }
       }}
     >
@@ -44,6 +47,12 @@ export default function DocPopup({
             rel="noopener"
             target="_blank"
             className="inline-block whitespace-nowrap text-gray-500 sm:pl-0"
+            onClick={() => {
+              capture("help_popup:href_clicked", {
+                href: href,
+                description: description,
+              });
+            }}
           >
             {
               {
