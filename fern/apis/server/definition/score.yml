@@ -29,7 +29,7 @@ service:
           name: optional<string>
           fromTimestamp:
             type: optional<datetime>
-            docs: Retrieve only scores newer than this timestamp.
+            docs: Retrieve only scores newer than this datetime (ISO 8601).
           source:
             type: commons.ScoreSource
             docs: Retrieve only scores from a specific source.

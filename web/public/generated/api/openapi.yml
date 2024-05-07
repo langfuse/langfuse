@@ -496,7 +496,7 @@ paths:
           in: query
           description: >-
             Optional filter to only include traces on or after a certain
-            timestamp
+            datetime (ISO 8601)
           required: false
           schema:
             type: string
@@ -504,7 +504,9 @@ paths:
             nullable: true
         - name: toTimestamp
           in: query
-          description: Optional filter to only include traces before a certain timestamp
+          description: >-
+            Optional filter to only include traces before a certain datetime
+            (ISO 8601)
           required: false
           schema:
             type: string
@@ -648,7 +650,7 @@ paths:
           in: query
           description: >-
             Retrieve only observations with a start_time greater than this
-            timestamp.
+            datetime (ISO 8601).
           required: false
           schema:
             type: string
@@ -986,7 +988,7 @@ paths:
             nullable: true
         - name: fromTimestamp
           in: query
-          description: Retrieve only scores newer than this timestamp.
+          description: Retrieve only scores newer than this datetime (ISO 8601).
           required: false
           schema:
             type: string
@@ -1262,7 +1264,7 @@ paths:
             nullable: true
         - name: fromTimestamp
           in: query
-          description: Retrieve only traces newer than this timestamp.
+          description: Retrieve only traces newer than this datetime (ISO 8601).
           required: false
           schema:
             type: string
