@@ -44,7 +44,7 @@ export const NOTIFICATIONS: TNotification[] = [
   //   message: "Langfuse 2.0 is live on ProductHunt",
   // },
   {
-    id: 4,
+    id: 2,
     releaseDate: new Date("2024-04-24"),
     message: "Langfuse Launch Week #1 is in Full Swing",
     description: (
