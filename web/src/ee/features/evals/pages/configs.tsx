@@ -20,8 +20,9 @@ export default function ConfigsPage() {
       <Header
         title="Eval configs"
         help={{
-          description: "XXX",
-          href: "https://langfuse.com/docs/evals",
+          description:
+            "Eval configs let you define how your evaluations templates are applied to incoming traces in Langfuse.",
+          href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
         actionButtons={
           <Button disabled={!hasWriteAccess} asChild>
