@@ -59,7 +59,7 @@ export const filterOptionsQuery = protectedProjectProcedure
           AND o.prompt_id IS NOT NULL
           AND p.project_id = ${input.projectId}
         GROUP BY 1
-        LIMIT 1000
+        LIMIT 1000;
       `);
     const traceName = await ctx.prisma.$queryRaw<
       Array<{
@@ -76,7 +76,7 @@ export const filterOptionsQuery = protectedProjectProcedure
           AND o.project_id = ${input.projectId}
           AND t.project_id = ${input.projectId}
         GROUP BY 1
-        LIMIT 1000
+        LIMIT 1000;
       `);
 
     // typecheck filter options, needs to include all columns with options
