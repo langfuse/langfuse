@@ -32,6 +32,7 @@ import { isAnySsoConfigured } from "@langfuse/ee/sso";
 import { Shield } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -95,7 +96,7 @@ export function SSOButtons({
   authProviders: PageProps["authProviders"];
   action?: string;
 }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   return (
     // any authprovider from props is enanbles
@@ -108,7 +109,7 @@ export function SSOButtons({
           {authProviders.google && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:button_click", { provider: "google" });
+                capture("sign_in:button_click", { provider: "google" });
                 void signIn("google");
               }}
               variant="secondary"
@@ -120,7 +121,7 @@ export function SSOButtons({
           {authProviders.github && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:button_click", { provider: "github" });
+                capture("sign_in:button_click", { provider: "github" });
                 void signIn("github");
               }}
               variant="secondary"
@@ -132,7 +133,7 @@ export function SSOButtons({
           {authProviders.azureAd && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:button_click", {
+                capture("sign_in:button_click", {
                   provider: "azure-ad",
                 });
                 void signIn("azure-ad");
@@ -146,7 +147,7 @@ export function SSOButtons({
           {authProviders.okta && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:button_click", { provider: "okta" });
+                capture("sign_in:button_click", { provider: "okta" });
                 void signIn("okta");
               }}
               variant="secondary"
@@ -158,7 +159,7 @@ export function SSOButtons({
           {authProviders.auth0 && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:button_click", { provider: "auth0" });
+                capture("sign_in:button_click", { provider: "auth0" });
                 void signIn("auth0");
               }}
               variant="secondary"
@@ -204,7 +205,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
   >(nextAuthErrorDescription ?? nextAuthError);
   const [ssoLoading, setSsoLoading] = useState<boolean>(false);
 
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
@@ -223,7 +224,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
     values: z.infer<typeof credentialAuthForm>,
   ) {
     setCredentialsFormError(null);
-    posthog.capture("sign_in:button_click", { provider: "email/password" });
+    capture("sign_in:button_click", { provider: "email/password" });
     const result = await signIn("credentials", {
       email: values.email,
       password: values.password,
@@ -269,7 +270,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
       setSsoLoading(false);
     } else {
       const { providerId } = await res.json();
-      posthog.capture("sign_in:button_click", { provider: "sso" });
+      capture("sign_in:button_click", { provider: "sso" });
       void signIn(providerId);
     }
   }

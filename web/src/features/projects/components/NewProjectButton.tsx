@@ -27,6 +27,7 @@ import { useSession } from "next-auth/react";
 import { chatRunTrigger } from "@/src/features/support-chat/chat";
 import { usePostHog } from "posthog-js/react";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface NewProjectButtonProps {
   size?: "xs" | "default";
@@ -43,7 +44,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   });
   const utils = api.useUtils();
   const router = useRouter();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const createProjectMutation = api.projects.create.useMutation({
     onSuccess: (newProject) => {
       void updateSession();
@@ -54,7 +55,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
-    posthog.capture("projects:new_form_submit");
+    capture("projects:new_form_submit");
     createProjectMutation
       .mutateAsync(values)
       .then(() => {
@@ -72,7 +73,7 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
       open={open}
       onOpenChange={(open) => {
         if (open) {
-          posthog.capture("projects:new_form_open");
+          capture("projects:new_form_open");
         }
         setOpen(open);
       }}

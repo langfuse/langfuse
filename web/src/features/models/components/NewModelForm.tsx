@@ -28,6 +28,7 @@ import { AutoComplete } from "@/src/features/prompts/components/auto-complete";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { JsonEditor } from "@/src/components/json-editor";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
@@ -73,7 +74,7 @@ export const NewModelForm = (props: {
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -100,7 +101,7 @@ export const NewModelForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("models:new_form_submit");
+    capture("models:new_form_submit");
     createModelMutation
       .mutateAsync({
         projectId: props.projectId,

@@ -6,7 +6,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function StarToggle({
   value,
@@ -54,7 +54,7 @@ export function StarTraceToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
@@ -111,15 +111,17 @@ export function StarTraceToggle({
       disabled={!hasAccess}
       isLoading={isLoading}
       onClick={(value) => {
-        posthog.capture("table:bookmark_button_click", {
-          "table": "traces", "id": traceId, "value": value});
+        capture("table:bookmark_button_click", {
+          table: "traces",
+          id: traceId,
+          value: value,
+        });
         return mutBookmarkTrace.mutateAsync({
           projectId,
           traceId,
           bookmarked: value,
         });
-      }
-      }
+      }}
     />
   );
 }
@@ -137,7 +139,7 @@ export function StarTraceDetailsToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
@@ -185,15 +187,16 @@ export function StarTraceDetailsToggle({
       disabled={!hasAccess}
       isLoading={isLoading}
       onClick={(value) => {
-        posthog.capture("trace_detail:bookmark_button_click", {
-          "id": traceId, "value": value});
+        capture("trace_detail:bookmark_button_click", {
+          id: traceId,
+          value: value,
+        });
         return mutBookmarkTrace.mutateAsync({
           projectId,
           traceId,
           bookmarked: value,
-        })
-      }
-      }
+        });
+      }}
     />
   );
 }
@@ -211,7 +214,7 @@ export function StarSessionToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
     onSuccess: () => {
       void utils.sessions.invalidate();
@@ -225,14 +228,17 @@ export function StarSessionToggle({
       isLoading={mutBookmarkSession.isLoading}
       disabled={!hasAccess}
       onClick={(value) => {
-        posthog.capture("table:bookmark_button_click", {
-          "table": "sessions", "id": sessionId, "value": value});
+        capture("table:bookmark_button_click", {
+          table: "sessions",
+          id: sessionId,
+          value: value,
+        });
         return mutBookmarkSession.mutateAsync({
           projectId,
           sessionId,
           bookmarked: value,
-        })}
-      }
+        });
+      }}
     />
   );
 }

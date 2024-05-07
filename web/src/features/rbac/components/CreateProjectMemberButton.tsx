@@ -33,6 +33,7 @@ import { MembershipRole } from "@langfuse/shared";
 import { roleAccessRights } from "@/src/features/rbac/constants/roleAccessRights";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const availableRoles = [
   MembershipRole.ADMIN,
@@ -46,7 +47,7 @@ const formSchema = z.object({
 });
 
 export function CreateProjectMemberButton(props: { projectId: string }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
     projectId: props.projectId,
@@ -74,7 +75,7 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
   if (!hasAccess) return null;
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("project_settings:send_membership_invitation", {
+    capture("project_settings:send_membership_invitation", {
       role: values.role,
     });
     return mutCreateProjectMember

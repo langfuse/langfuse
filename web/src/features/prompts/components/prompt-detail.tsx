@@ -32,10 +32,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -119,9 +120,7 @@ export const PromptDetail = () => {
                     title="Test in prompt playground"
                     size="icon"
                     onClick={() =>
-                      posthog.capture(
-                        "prompt_detail:test_in_playground_button_click",
-                      )
+                      capture("prompt_detail:test_in_playground_button_click")
                     }
                   >
                     <Terminal className="h-5 w-5" />
@@ -134,7 +133,7 @@ export const PromptDetail = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => posthog.capture("prompts:update_form_open")}
+                    onClick={() => capture("prompts:update_form_open")}
                   >
                     <Pencil className="h-5 w-5" />
                   </Button>

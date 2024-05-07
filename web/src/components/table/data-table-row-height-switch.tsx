@@ -1,6 +1,6 @@
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   MdDensityLarge,
   MdDensityMedium,
@@ -37,13 +37,13 @@ export const DataTableRowHeightSwitch = ({
   rowHeight: RowHeight;
   setRowHeight: (e: RowHeight) => void;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   return (
     <Tabs
       //defaultValue={height}
       value={rowHeight}
       onValueChange={(e) => {
-        posthog.capture("table:row_height_switch_select", {
+        capture("table:row_height_switch_select", {
           size: e,
         });
         setRowHeight(e as any);

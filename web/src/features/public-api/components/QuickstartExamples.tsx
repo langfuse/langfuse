@@ -5,6 +5,7 @@ import {
   TabsContent,
   TabsTrigger,
 } from "@/src/components/ui/tabs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePostHog } from "posthog-js/react";
 
 export const QuickstartExamples = ({
@@ -16,7 +17,7 @@ export const QuickstartExamples = ({
   publicKey: string;
   host: string;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const tabs = [
     { value: "python", label: "Python" },
     { value: "js", label: "JS/TS" },
@@ -36,7 +37,7 @@ export const QuickstartExamples = ({
               key={tab.value}
               value={tab.value}
               onClick={() =>
-                posthog.capture("onboarding:code_example_tab_switch", {
+                capture("onboarding:code_example_tab_switch", {
                   tabLabel: tab.value,
                 })
               }

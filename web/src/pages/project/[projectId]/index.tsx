@@ -34,6 +34,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type DashboardDateRange = {
   from: Date;
@@ -43,7 +44,7 @@ export type DashboardDateRange = {
 export default function Start() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const session = useSession();
   const project = session.data?.user?.projects.find(
@@ -74,7 +75,7 @@ export default function Start() {
     option?: AvailableDateRangeSelections,
     dateRange?: DashboardDateRange,
   ) => {
-    posthog.capture("dashboard:date_range_changed");
+    capture("dashboard:date_range_changed");
     setUrlParams({
       select: option ? option.toString() : urlParams.select,
       from: dateRange ? dateRange.from.getTime() : urlParams.from,

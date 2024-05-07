@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -112,7 +113,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
 
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:delete",
@@ -151,7 +152,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
                   id: props.apiKeyId,
                 })
                 .then(() => {
-                  posthog.capture("project_settings:llm_api_key_delete");
+                  capture("project_settings:llm_api_key_delete");
                   setOpen(false);
                 })
                 .catch((error) => {
@@ -180,7 +181,7 @@ export function CreateLlmApiKeyComponent(props: {
   projectId: string;
   existingApiKeys: RouterOutput["llmApiKey"]["all"]["data"];
 }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
     projectId: props.projectId,
@@ -212,7 +213,7 @@ export function CreateLlmApiKeyComponent(props: {
       });
       return;
     }
-    posthog.capture("project_settings:llm_api_key_create");
+    capture("project_settings:llm_api_key_create");
 
     return mutCreateLlmApiKey
       .mutateAsync({

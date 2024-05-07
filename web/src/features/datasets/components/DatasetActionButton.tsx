@@ -13,6 +13,7 @@ import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface BaseDatasetButtonProps {
   mode: "create" | "update" | "delete";
@@ -45,7 +46,7 @@ type DatasetActionButtonProps =
   | DeleteDatasetButtonProps;
 
 export const DatasetActionButton = (props: DatasetActionButtonProps) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasAccess({
     projectId: props.projectId,
@@ -63,7 +64,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               className={props.className}
               disabled={!hasAccess}
               onClick={() =>
-                posthog.capture("datasets:update_form_open", {
+                capture("datasets:update_form_open", {
                   source: "dataset",
                 })
               }
@@ -75,7 +76,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
               onClick={() => {
                 setOpen(true);
-                posthog.capture("datasets:update_form_open", {
+                capture("datasets:update_form_open", {
                   source: "table-single-row",
                 });
               }}
@@ -93,7 +94,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
             onClick={() => {
               setOpen(true);
-              posthog.capture("datasets:delete_form_open", {
+              capture("datasets:delete_form_open", {
                 source: "table-single-row",
               });
             }}
@@ -105,7 +106,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
           <Button
             className={props.className}
             disabled={!hasAccess}
-            onClick={() => posthog.capture("datasets:new_form_open")}
+            onClick={() => capture("datasets:new_form_open")}
           >
             {hasAccess ? (
               <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />

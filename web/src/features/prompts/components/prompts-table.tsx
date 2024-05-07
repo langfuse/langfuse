@@ -20,6 +20,7 @@ import { promptsTableColsWithOptions } from "@/src/server/api/definitions/prompt
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type PromptTableRow = {
   name: string;
@@ -76,7 +77,7 @@ export function PromptTable() {
   );
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const totalCount = prompts.data?.totalCount ?? 0;
 
   useEffect(() => {
@@ -212,7 +213,7 @@ export function PromptTable() {
               disabled={!hasCUDAccess}
               aria-label="Create New Prompt"
               onClick={() => {
-                posthog.capture("prompts:new_form_open");
+                capture("prompts:new_form_open");
               }}
             >
               {hasCUDAccess ? (

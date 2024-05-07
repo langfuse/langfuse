@@ -16,7 +16,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Button } from "@/src/components/ui/button";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -93,14 +93,14 @@ export function EvalVersionDropdown(props: {
   defaultOption?: EvalTemplate;
   onSelect?: (template: EvalTemplate) => void;
 }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const handleSelect = (value: string) => {
     const selectedTemplate = props.options?.find(
       (template) => template.id === value,
     );
     if (selectedTemplate && props.onSelect) {
       props.onSelect(selectedTemplate);
-      posthog.capture("eval_templates:view_version");
+      capture("eval_templates:view_version");
     }
   };
 
@@ -136,11 +136,11 @@ export function UpdateTemplate({
   setIsEditing: (isEditing: boolean) => void;
 }) {
   const hasAccess = useHasAccess({ projectId, scope: "evalTemplate:create" });
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const handlePromptEdit = () => {
     setIsEditing(true);
-    posthog.capture("eval_templates:update_form_open");
+    capture("eval_templates:update_form_open");
   };
 
   return (

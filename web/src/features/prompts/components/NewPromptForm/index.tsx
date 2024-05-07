@@ -43,6 +43,7 @@ import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 import { JsonEditor } from "@/src/components/json-editor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -54,7 +55,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const projectId = useProjectIdFromURL();
   const [formError, setFormError] = useState<string | null>(null);
   const utils = api.useUtils();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   let initialPromptContent: PromptContentType | null;
   try {
@@ -109,12 +110,12 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   function onSubmit(values: NewPromptFormSchemaType) {
     if (initialPrompt) {
-      posthog.capture("prompts:update_form_submit", {
+      capture("prompts:update_form_submit", {
         type: values.type,
         active: values.isActive,
       });
     } else {
-      posthog.capture("prompts:new_form_submit");
+      capture("prompts:new_form_submit");
     }
 
     if (!projectId) throw Error("Project ID is not defined.");

@@ -2,13 +2,13 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { Trash } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ModelTableRow = {
@@ -294,7 +294,7 @@ const DeleteModelButton = ({
   projectId: string;
 }) => {
   const utils = api.useUtils();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const mut = api.models.delete.useMutation({
     onSuccess: () => {
       void utils.models.invalidate();
@@ -319,7 +319,7 @@ const DeleteModelButton = ({
           "Are you sure you want to delete this model?",
         );
         if (confirmDelete) {
-          posthog.capture("models:delete_button_click");
+          capture("models:delete_button_click");
           mut
             .mutateAsync({
               projectId,

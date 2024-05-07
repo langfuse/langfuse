@@ -8,6 +8,7 @@ import Notification, {
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const ButtonWithPosthog = ({
   children,
@@ -20,14 +21,14 @@ const ButtonWithPosthog = ({
   notificationId: string;
   href: string;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   return (
     <Button
       size="sm"
       variant="secondary"
       className={className}
       onClick={() => {
-        posthog.capture("notification:click_link"),
+        capture("notification:click_link"),
           { notificationId: notificationId, href: href };
         toast.dismiss();
       }}

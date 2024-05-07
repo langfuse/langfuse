@@ -11,7 +11,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import { Trash2 } from "lucide-react";
 import {
   Tabs,
@@ -22,6 +21,7 @@ import {
 import { Label } from "@/src/components/ui/label";
 import TableLink from "@/src/components/table/table-link";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -125,7 +125,7 @@ export function DeactivateConfig({
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "evalJob:CUD" });
   const [isOpen, setIsOpen] = useState(false);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const mutEvalConfig = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
@@ -143,7 +143,7 @@ export function DeactivateConfig({
       evalConfigId: config?.id ?? "",
       updatedStatus: "INACTIVE",
     });
-    posthog.capture("eval_config:delete");
+    capture("eval_config:delete");
     setIsOpen(false);
   };
 

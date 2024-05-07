@@ -27,6 +27,7 @@ import { Slider } from "@/src/components/ui/slider";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { LockIcon } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const SCORE_NAME = "manual-score";
 
@@ -48,7 +49,7 @@ export function ManualScoreButton({
   projectId: string;
   variant?: "button" | "badge";
 }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId,
     scope: "scores:CUD",
@@ -90,7 +91,7 @@ export function ManualScoreButton({
   const handleDelete = async () => {
     if (score) {
       await mutDeleteScore.mutateAsync(score.id);
-      posthog.capture("score:delete", {
+      capture("score:delete", {
         type: type,
         source: source,
       });
@@ -114,13 +115,10 @@ export function ManualScoreButton({
       form.reset();
       setOpen(false);
     } else {
-      posthog.capture(
-        score ? "score:update_form_open" : "score:create_form_open",
-        {
-          type: type,
-          source: source,
-        },
-      );
+      capture(score ? "score:update_form_open" : "score:create_form_open", {
+        type: type,
+        source: source,
+      });
       form.setValue("score", score?.value ?? 0);
       form.setValue("comment", score?.comment ?? "");
       setOpen(true);
@@ -134,7 +132,7 @@ export function ManualScoreButton({
         value: values.score,
         comment: values.comment,
       });
-      posthog.capture("score:update_form_submit", {
+      capture("score:update_form_submit", {
         type: type,
         source: source,
       });
@@ -146,7 +144,7 @@ export function ManualScoreButton({
         traceId,
         observationId,
       });
-      posthog.capture("score:create_form_submit", {
+      capture("score:create_form_submit", {
         type: type,
         source: source,
       });

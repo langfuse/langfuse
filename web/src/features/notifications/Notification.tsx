@@ -1,3 +1,4 @@
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { X } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 
@@ -21,7 +22,7 @@ const Notification: React.FC<NotificationProps> = ({
   dismissToast,
   toast,
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   return (
     <div className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col justify-center">
@@ -37,7 +38,7 @@ const Notification: React.FC<NotificationProps> = ({
       <button
         className="flex h-6 w-6 cursor-pointer items-start justify-end border-none bg-transparent p-0 text-gray-800 transition-colors duration-200"
         onClick={() => {
-          posthog.capture("notification:dismiss_notification", {
+          capture("notification:dismiss_notification", {
             notificationId: notification.id,
           });
           setLastSeenId(notification.id);

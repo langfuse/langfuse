@@ -22,6 +22,7 @@ import { type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { useSession } from "next-auth/react";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewDatasetItemFromTrace = (props: {
   projectId: string;
@@ -48,7 +49,7 @@ export const NewDatasetItemFromTrace = (props: {
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   return (
     <>
@@ -92,7 +93,7 @@ export const NewDatasetItemFromTrace = (props: {
         <Button
           onClick={() => {
             setOpen(true);
-            posthog.capture("dataset_item:new_from_trace_form_open", {
+            capture("dataset_item:new_from_trace_form_open", {
               object: props.observationId ? "observation" : "trace",
             });
           }}

@@ -24,6 +24,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const formSchema = z.object({
   newOwnerEmail: z.string().email(),
@@ -31,7 +32,7 @@ const formSchema = z.object({
 export function TransferOwnershipButton(props: { projectId: string }) {
   const utils = api.useUtils();
   const router = useRouter();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const session = useSession();
   const project = session.data?.user?.projects.find(
@@ -63,7 +64,7 @@ export function TransferOwnershipButton(props: { projectId: string }) {
         newOwnerEmail: values.newOwnerEmail,
       })
       .then(() => {
-        posthog.capture("project_settings:project_transfer");
+        capture("project_settings:project_transfer");
         void router.push("/");
       })
       .catch((error) => {

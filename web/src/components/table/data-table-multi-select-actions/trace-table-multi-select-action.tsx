@@ -9,7 +9,6 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { usePostHog } from "posthog-js/react";
 
 import {
   Dialog,
@@ -20,6 +19,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function TraceTableMultiSelectAction({
   selectedTraceIds,
@@ -32,7 +32,7 @@ export function TraceTableMultiSelectAction({
 }) {
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const hasDeleteAccess = useHasAccess({ projectId, scope: "traces:delete" });
   const mutDeleteTraces = api.traces.deleteMany.useMutation({
@@ -55,7 +55,7 @@ export function TraceTableMultiSelectAction({
           <DropdownMenuItem
             disabled={!hasDeleteAccess}
             onClick={() => {
-              posthog.capture("trace:delete_form_open", {
+              capture("trace:delete_form_open", {
                 count: selectedTraceIds.length,
                 source: "table-multi-select",
               });
@@ -98,7 +98,7 @@ export function TraceTableMultiSelectAction({
                   .then(() => {
                     setOpen(false);
                   });
-                posthog.capture("trace:delete_form_submit", {
+                capture("trace:delete_form_submit", {
                   count: selectedTraceIds.length,
                   source: "table-multi-select",
                 });

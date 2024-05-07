@@ -12,7 +12,7 @@ import {
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Search } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface SearchConfig {
   placeholder: string;
@@ -48,10 +48,10 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   return (
-    <div className="@container my-2 flex flex-1 flex-wrap items-center gap-2">
+    <div className="my-2 flex flex-1 flex-wrap items-center gap-2 @container">
       {searchConfig && (
         <div className="flex max-w-md items-center">
           <Input
@@ -61,16 +61,16 @@ export function DataTableToolbar<TData, TValue>({
             onChange={(event) => setSearchString(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                posthog.capture("table:search_submit");
+                capture("table:search_submit");
                 searchConfig.updateQuery(searchString);
               }
             }}
-            className="@6xl:w-[250px] h-10 w-[150px] rounded-r-none"
+            className="h-10 w-[150px] rounded-r-none @6xl:w-[250px]"
           />
           <Button
             variant="outline"
             onClick={() => {
-              posthog.capture("table:search_submit");
+              capture("table:search_submit");
               searchConfig.updateQuery(searchString);
             }}
             className="rounded-l-none border-l-0 p-3"
@@ -86,7 +86,7 @@ export function DataTableToolbar<TData, TValue>({
           onChange={setFilterState}
         />
       )}
-      <div className="@6xl:ml-auto flex flex-row flex-wrap gap-2">
+      <div className="flex flex-row flex-wrap gap-2 @6xl:ml-auto">
         {!!columnVisibility && !!setColumnVisibility && (
           <DataTableColumnVisibilityFilter
             columns={columns}

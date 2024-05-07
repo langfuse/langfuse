@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command as CommandPrimitive } from "cmdk";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type TagInputProps = React.ComponentPropsWithoutRef<
   typeof CommandPrimitive.Input
@@ -16,7 +17,7 @@ export const TagInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   TagInputProps
 >(({ className, selectedTags, setSelectedTags, ...props }, ref) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   return (
     <div
       className="flex flex-wrap items-center overflow-auto rounded-lg border px-2"
@@ -32,7 +33,7 @@ export const TagInput = React.forwardRef<
               onClick={() => {
                 const newTags = selectedTags.filter((t) => t !== tag);
                 setSelectedTags(newTags);
-                posthog.capture("tag:remove_tag", {
+                capture("tag:remove_tag", {
                   name: tag,
                 });
               }}

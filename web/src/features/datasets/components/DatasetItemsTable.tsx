@@ -23,6 +23,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type RowData = {
   id: string;
@@ -48,7 +49,7 @@ export function DatasetItemsTable({
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -210,7 +211,7 @@ export function DatasetItemsTable({
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
                 onClick={() => {
-                  posthog.capture("dataset_item:archive_toggle", {
+                  capture("dataset_item:archive_toggle", {
                     status:
                       status === DatasetStatus.ARCHIVED
                         ? "unarchived"

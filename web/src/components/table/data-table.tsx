@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { type OrderByState } from "@/src/features/orderBy/types";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
   flexRender,
@@ -29,7 +30,6 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 interface DataTableProps<TData, TValue> {
@@ -73,7 +73,7 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -131,35 +131,26 @@ export function DataTable<TData extends object, TValue>({
 
                           if (orderBy?.column === columnDef.id) {
                             if (orderBy.order === "DESC") {
-                              posthog.capture(
-                                "table:column_sorting_header_click",
-                                {
-                                  column: columnDef.id,
-                                  order: "ASC",
-                                },
-                              );
+                              capture("table:column_sorting_header_click", {
+                                column: columnDef.id,
+                                order: "ASC",
+                              });
                               setOrderBy({
                                 column: columnDef.id,
                                 order: "ASC",
                               });
                             } else {
-                              posthog.capture(
-                                "table:column_sorting_header_click",
-                                {
-                                  column: columnDef.id,
-                                  order: "Disabled",
-                                },
-                              );
+                              capture("table:column_sorting_header_click", {
+                                column: columnDef.id,
+                                order: "Disabled",
+                              });
                               setOrderBy(null);
                             }
                           } else {
-                            posthog.capture(
-                              "table:column_sorting_header_click",
-                              {
-                                column: columnDef.id,
-                                order: "DESC",
-                              },
-                            );
+                            capture("table:column_sorting_header_click", {
+                              column: columnDef.id,
+                              order: "DESC",
+                            });
                             setOrderBy({
                               column: columnDef.id,
                               order: "DESC",

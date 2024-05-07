@@ -11,6 +11,7 @@ import {
 import { Command, CommandList, CommandGroup } from "cmdk";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type TagManagerProps = {
   tags: string[];
@@ -35,7 +36,7 @@ const TagManager = ({
     setInputValue,
     setSelectedTags,
   } = useTagManager({ initialTags: tags, allTags });
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const filteredTags = availableTags.filter(
     (value) =>
       value.toLowerCase().includes(inputValue.trim().toLowerCase()) &&
@@ -44,7 +45,7 @@ const TagManager = ({
 
   const handlePopoverChange = (open: boolean) => {
     if (open) {
-      posthog.capture("tag:modal_open");
+      capture("tag:modal_open");
     }
     if (!open && selectedTags !== tags) {
       setInputValue("");

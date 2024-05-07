@@ -9,7 +9,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { MinusCircle, MinusIcon, PlusCircleIcon, PlusIcon } from "lucide-react";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Button } from "@/src/components/ui/button";
-import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -122,7 +122,7 @@ const ObservationTreeNode = (props: {
   showMetrics?: boolean;
   showScores?: boolean;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   return (
     <>
       {props.observations
@@ -158,7 +158,7 @@ const ObservationTreeNode = (props: {
                         onClick={(ev) => (
                           ev.stopPropagation(),
                           props.toggleCollapsedObservation(observation.id),
-                          posthog.capture(
+                          capture(
                             collapsed
                               ? "trace_detail:observation_tree_expand"
                               : "trace_detail:observation_tree_collapse",
