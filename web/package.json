@@ -94,6 +94,7 @@
     "next": "^14.2.3",
     "next-auth": "^4.24.7",
     "next-query-params": "^5.0.0",
+    "next-themes": "^0.3.0",
     "nodemailer": "^6.9.13",
     "posthog-js": "^1.122.0",
     "posthog-node": "^3.6.3",
