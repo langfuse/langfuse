@@ -103,7 +103,12 @@ export default function PromptVersionTable() {
           values && (
             <div>
               {values.map((value) => (
-                <span key={value}>{value}</span>
+                <div
+                  key={value}
+                  className="h-6 content-center rounded-sm bg-secondary px-1 text-center text-xs font-semibold text-secondary-foreground"
+                >
+                  {value}
+                </div>
               ))}
             </div>
           )
