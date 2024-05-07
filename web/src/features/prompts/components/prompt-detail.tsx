@@ -24,6 +24,13 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import Generations from "@/src/components/table/use-cases/generations";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -191,6 +198,21 @@ export const PromptDetail = () => {
             </a>{" "}
             for details.
           </p>
+          <Accordion type="single" collapsible className="mt-10">
+            <AccordionItem value="item-1">
+              <AccordionTrigger>
+                Generations using this prompt version
+              </AccordionTrigger>
+              <AccordionContent>
+                <Generations
+                  projectId={prompt.projectId}
+                  promptName={prompt.name}
+                  promptVersion={prompt.version}
+                  omittedFilter={["Prompt Name", "Prompt Version"]}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">

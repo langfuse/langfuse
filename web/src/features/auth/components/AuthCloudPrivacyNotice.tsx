@@ -5,12 +5,12 @@ export const CloudPrivacyNotice = ({ action }: { action: string }) =>
     <div className="mt-5 text-center text-xs text-gray-500">
       By {action} you are agreeing to our{" "}
       <a
-        href="https://langfuse.com/tos"
+        href="https://langfuse.com/terms"
         target="_blank"
         rel="noopener noreferrer"
         className="italic"
       >
-        Terms of Service
+        Terms and Conditions
       </a>
       ,{" "}
       <a
