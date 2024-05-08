@@ -294,7 +294,7 @@ When a new release is tagged on the `main` branch (excluding prereleases), it tr
 
 At Langfuse, we utilize CSS variables to manage our theme settings across the platform.
 
-Our theming approach is utilizing separate CSS variables for background (--background) and foreground (--foreground) colors. We recommend using HSL values for these colors to enhance user interface consistency and customization capabilities.
+Our theming approach leverages separate CSS variables for backgrounds (--background) and foregrounds (--foreground), fully adhering to the [shadcn/ui](https://ui.shadcn.com/docs/theming) color conventions. We recommend using HSL values for these colors to enhance consistency and customization.
 
 If you're looking to introduce new colors into our theme palette, please add your CSS variable definitions to the global.css file. Additionally, ensure these new colors are reflected in the tailwind.config.js to maintain alignment with Tailwind's utility classes.
 
