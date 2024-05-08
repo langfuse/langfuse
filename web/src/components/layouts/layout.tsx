@@ -32,6 +32,7 @@ import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { ProjectNavigation } from "@/src/components/projectNavigation";
 import DOMPurify from "dompurify";
+import { ModeToggle } from "@/src/features/darkmode/ModeToggle";
 
 const userNavigation = [
   {
@@ -179,7 +180,7 @@ export default function Layout(props: PropsWithChildren) {
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <main className="min-h-screen bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-primary-foreground px-4 py-4 sm:px-6 lg:px-8">
         {props.children}
       </main>
     );
@@ -223,7 +224,7 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <div className="fixed inset-0 bg-gray-900/80" />
+              <div className="fixed inset-0 bg-primary" />
             </Transition.Child>
 
             <div className="fixed inset-0 flex">
@@ -254,14 +255,14 @@ export default function Layout(props: PropsWithChildren) {
                       >
                         <span className="sr-only">Close sidebar</span>
                         <XMarkIcon
-                          className="h-6 w-6 text-white"
+                          className="h-6 w-6 text-background"
                           aria-hidden="true"
                         />
                       </button>
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4">
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 py-4">
                     <LangfuseLogo
                       version
                       size="xl"
@@ -274,7 +275,7 @@ export default function Layout(props: PropsWithChildren) {
                         <MainNavigation nav={navigation} />
                       </ul>
                       <div className="mb-2 flex flex-row place-content-between items-center">
-                        <div className="text-xs font-semibold leading-6 text-gray-400">
+                        <div className="text-xs font-semibold leading-6 text-muted-foreground">
                           Project
                         </div>
                         <NewProjectButton size="xs" />
@@ -294,7 +295,7 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-60 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col border-r border-gray-200 bg-white pt-7">
+          <div className="flex h-screen grow flex-col border-r pt-7">
             <LangfuseLogo
               version
               size="xl"
@@ -313,16 +314,16 @@ export default function Layout(props: PropsWithChildren) {
                   description="What do you think about this project? What can be improved?"
                   type="feedback"
                 >
-                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                  <li className="hover:text-muted-foreground-indigo group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-primary hover:bg-primary-foreground">
                     <MessageSquarePlus
-                      className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                      className="group-hover:text-muted-foreground-indigo h-6 w-6 shrink-0 text-muted-foreground"
                       aria-hidden="true"
                     />
                     Feedback
                   </li>
                 </FeedbackButtonWrapper>
                 <div className="mb-2 flex flex-row place-content-between items-center">
-                  <div className="text-xs font-semibold leading-6 text-gray-400">
+                  <div className="text-xs font-semibold leading-6 text-muted-foreground">
                     Project
                   </div>
                   <NewProjectButton size="xs" />
@@ -331,11 +332,12 @@ export default function Layout(props: PropsWithChildren) {
                   currentProjectId={projectId ?? ""}
                   projects={projects}
                 />
+                <ModeToggle />
               </ul>
             </nav>
 
             <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-4 overflow-hidden p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+              <Menu.Button className="flex w-full items-center gap-x-4 overflow-hidden p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-primary hover:bg-primary-foreground">
                 <span className="sr-only">Open user menu</span>
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -349,12 +351,12 @@ export default function Layout(props: PropsWithChildren) {
                       : null}
                   </AvatarFallback>
                 </Avatar>
-                <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                <span className="flex-shrink truncate text-sm font-semibold leading-6 text-primary">
                   {session.data?.user?.name}
                 </span>
                 <div className="flex-1" />
                 <ChevronDownIcon
-                  className="h-5 w-5 text-gray-400"
+                  className="h-5 w-5 text-muted-foreground"
                   aria-hidden="true"
                 />
               </Menu.Button>
@@ -367,8 +369,8 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                  <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-background py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                  <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                     {session.data?.user?.email}
                   </span>
                   {userNavigation.map((item) => (
@@ -377,8 +379,8 @@ export default function Layout(props: PropsWithChildren) {
                         <a
                           onClick={() => void item.onClick()}
                           className={cn(
-                            active ? "bg-gray-50" : "",
-                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                            active ? "bg-primary-foreground" : "",
+                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-primary",
                           )}
                         >
                           {item.name}
@@ -392,10 +394,10 @@ export default function Layout(props: PropsWithChildren) {
           </div>
         </div>
 
-        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden">
+        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 shadow-sm sm:px-6 lg:hidden">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            className="-m-2.5 p-2.5 text-primary lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
@@ -407,7 +409,7 @@ export default function Layout(props: PropsWithChildren) {
             showEnvLabel={session.data?.user?.email?.endsWith("@langfuse.com")}
           />
           <Menu as="div" className="relative">
-            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
+            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-primary">
               <span className="sr-only">Open user menu</span>
               <Avatar className="h-8 w-8">
                 <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -431,8 +433,8 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                   {session.data?.user?.email}
                 </span>
                 {userNavigation.map((item) => (
@@ -441,8 +443,8 @@ export default function Layout(props: PropsWithChildren) {
                       <a
                         onClick={() => void item.onClick()}
                         className={cn(
-                          active ? "bg-gray-50" : "",
-                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                          active ? "bg-primary-foreground" : "",
+                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-primary",
                         )}
                       >
                         {item.name}
@@ -524,8 +526,8 @@ const MainNavigation: React.FC<{
                 href={item.href}
                 className={clsx(
                   item.current
-                    ? "bg-gray-50 text-indigo-600"
-                    : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                    ? "text-muted-foreground-indigo bg-primary-foreground"
+                    : "hover:text-muted-foreground-indigo text-primary hover:bg-primary-foreground",
                   "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                 )}
                 onClick={onNavitemClick}
@@ -535,8 +537,8 @@ const MainNavigation: React.FC<{
                   <item.icon
                     className={clsx(
                       item.current
-                        ? "text-indigo-600"
-                        : "text-gray-400 group-hover:text-indigo-600",
+                        ? "text-muted-foreground-indigo"
+                        : "group-hover:text-muted-foreground-indigo text-muted-foreground",
                       "h-6 w-6 shrink-0",
                     )}
                     aria-hidden="true"
@@ -548,8 +550,8 @@ const MainNavigation: React.FC<{
                     className={cn(
                       "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                       item.current
-                        ? "border-indigo-600 text-indigo-600"
-                        : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                        ? "border-muted-foreground-indigo text-muted-foreground-indigo"
+                        : "group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo border-border text-muted-foreground",
                     )}
                   >
                     {item.label}
@@ -566,12 +568,12 @@ const MainNavigation: React.FC<{
                 {({ open }) => (
                   <>
                     <Disclosure.Button
-                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
+                      className="hover:text-muted-foreground-indigo group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-primary-foreground"
                       onClick={() => setIsOpen(!isOpen)}
                     >
                       {item.icon && (
                         <item.icon
-                          className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                          className="group-hover:text-muted-foreground-indigo h-6 w-6 shrink-0 text-muted-foreground"
                           aria-hidden="true"
                         />
                       )}
@@ -581,8 +583,8 @@ const MainNavigation: React.FC<{
                           className={cn(
                             "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                             item.current
-                              ? "border-indigo-600 text-indigo-600"
-                              : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                              ? "border-muted-foreground-indigo text-muted-foreground-indigo"
+                              : "group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo border-border text-muted-foreground",
                           )}
                         >
                           {item.label}
@@ -590,7 +592,9 @@ const MainNavigation: React.FC<{
                       )}
                       <ChevronRightIcon
                         className={clsx(
-                          open ? "rotate-90 text-gray-500" : "text-gray-400",
+                          open
+                            ? "rotate-90 text-muted-foreground"
+                            : "text-muted-foreground",
                           "ml-auto h-5 w-5 shrink-0",
                         )}
                         aria-hidden="true"
@@ -604,15 +608,15 @@ const MainNavigation: React.FC<{
                             href={subItem.href ?? "#"}
                             className={clsx(
                               subItem.current
-                                ? "bg-gray-50 text-indigo-600"
-                                : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
+                                ? "text-muted-foreground-indigo bg-primary-foreground"
+                                : "hover:text-muted-foreground-indigo text-primary hover:bg-primary-foreground",
                               "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
                             {subItem.name}
                             {subItem.label && (
-                              <span className="self-center whitespace-nowrap break-keep rounded-sm border border-gray-200 px-1 py-0.5 text-xs text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+                              <span className="group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo self-center whitespace-nowrap break-keep rounded-sm border border-border px-1 py-0.5 text-xs text-muted-foreground">
                                 {subItem.label}
                               </span>
                             )}
