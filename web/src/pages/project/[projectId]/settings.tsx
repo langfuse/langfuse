@@ -101,28 +101,30 @@ function Instructions() {
       <Header title="Docs" level="h3" />
       <ul
         role="list"
-        className="mt-6 divide-y divide-gray-200 border-b border-t border-gray-200"
+        className="mt-6 divide-y divide-border border-b border-t border-border"
       >
         {instructionItems.map((item, itemIdx) => (
           <li key={itemIdx}>
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+                <span className="group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground">
                   <item.icon className="h-6 w-6" aria-hidden="true" />
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-sm font-medium text-primary">
                   <a href={item.href} target="_blank" rel="noreferrer noopener">
                     <span className="absolute inset-0" aria-hidden="true" />
                     {item.name}
                   </a>
                 </div>
-                <p className="text-sm text-gray-500">{item.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {item.description}
+                </p>
               </div>
               <div className="flex-shrink-0 self-center">
                 <ChevronRightIcon
-                  className="h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  className="h-5 w-5 text-muted-foreground group-hover:text-muted-foreground"
                   aria-hidden="true"
                 />
               </div>
@@ -147,7 +149,7 @@ const Integrations = (props: { projectId: string }) => {
           alt="Posthog Logo"
           className="mb-4 w-32"
         />
-        <p className="mb-4 text-sm text-gray-700">
+        <p className="mb-4 text-sm text-primary">
           We have teamed up with PostHog (OSS product analytics) to make
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
