@@ -1,5 +1,6 @@
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   MdDensityLarge,
   MdDensityMedium,
@@ -35,25 +36,33 @@ export const DataTableRowHeightSwitch = ({
 }: {
   rowHeight: RowHeight;
   setRowHeight: (e: RowHeight) => void;
-}) => (
-  <Tabs
-    //defaultValue={height}
-    value={rowHeight}
-    onValueChange={(e) => setRowHeight(e as any)}
-    key="height"
-  >
-    <TabsList className="gap-1 border bg-transparent px-2">
-      {heightOptions.map(({ id, label, icon }) => (
-        <TabsTrigger
-          key={id}
-          value={id}
-          className="px-2 shadow-none data-[state=active]:bg-slate-200 data-[state=active]:ring-border"
-        >
-          <span role="img" aria-label={`${label} size`}>
-            {icon}
-          </span>
-        </TabsTrigger>
-      ))}
-    </TabsList>
-  </Tabs>
-);
+}) => {
+  const capture = usePostHogClientCapture();
+  return (
+    <Tabs
+      //defaultValue={height}
+      value={rowHeight}
+      onValueChange={(e) => {
+        capture("table:row_height_switch_select", {
+          rowHeight: e,
+        });
+        setRowHeight(e as any);
+      }}
+      key="height"
+    >
+      <TabsList className="gap-1 border bg-transparent px-2">
+        {heightOptions.map(({ id, label, icon }) => (
+          <TabsTrigger
+            key={id}
+            value={id}
+            className="px-2 shadow-none data-[state=active]:bg-slate-200 data-[state=active]:ring-border"
+          >
+            <span role="img" aria-label={`${label} size`}>
+              {icon}
+            </span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  );
+};

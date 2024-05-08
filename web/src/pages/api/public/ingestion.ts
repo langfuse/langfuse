@@ -73,6 +73,11 @@ export default async function handler(
 
     const parsedSchema = batchType.safeParse(req.body);
 
+    Sentry.metrics.increment(
+      "ingestion_event",
+      parsedSchema.success ? parsedSchema.data.batch.length : 0,
+    );
+
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
       return res.status(400).json({
@@ -179,7 +184,7 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log("handling ingestion event", JSON.stringify(events, null, 2));
+  console.log(`handling ingestion ${events.length} events`);
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
@@ -253,10 +258,15 @@ const handleSingleEvent = async (
   req: NextApiRequest,
   apiScope: ApiAccessScope,
 ) => {
-  console.log(
-    `handling single event ${event.id}`,
-    JSON.stringify(event, null, 2),
-  );
+  if ("body" in event && "input" in event.body && "output" in event.body) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { input, output, ...restEvent } = event.body;
+    console.log(
+      `handling single event ${event.id} ${JSON.stringify({ event, body: restEvent })}`,
+    );
+  } else {
+    console.log(`handling single event ${event.id} ${JSON.stringify(event)}`);
+  }
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
 

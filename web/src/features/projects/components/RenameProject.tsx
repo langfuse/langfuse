@@ -16,8 +16,10 @@ import {
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import Header from "@/src/components/layouts/header";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function RenameProject(props: { projectId: string }) {
+  const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
@@ -43,6 +45,7 @@ export default function RenameProject(props: { projectId: string }) {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
+    capture("project_settings:rename_form_submit");
     renameProject
       .mutateAsync({
         projectId: props.projectId,

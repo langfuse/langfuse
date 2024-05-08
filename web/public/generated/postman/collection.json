@@ -2,7 +2,7 @@
   "info": {
     "name": "Langfuse",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "## Authentication\n\nAuthenticate with the API using Basic Auth, get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key"
+    "description": "## Authentication\n\nAuthenticate with the API using [Basic Auth](https://en.wikipedia.org/wiki/Basic_access_authentication), get API keys in the project settings:\n\n- username: Langfuse Public Key\n- password: Langfuse Secret Key\n\n## Exports\n\n- OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml\n- Postman collection: https://cloud.langfuse.com/generated/postman/collection.json"
   },
   "variable": [
     {
@@ -418,12 +418,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces on or after a certain timestamp"
+                  "description": "Optional filter to only include traces on or after a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "toTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces before a certain timestamp"
+                  "description": "Optional filter to only include traces before a certain datetime (ISO 8601)"
                 }
               ],
               "variable": []
@@ -528,7 +528,7 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time greater than this timestamp."
+                  "description": "Retrieve only observations with a start_time greater than this datetime (ISO 8601)."
                 }
               ],
               "variable": []
@@ -585,13 +585,58 @@
           "request": {
             "description": "Get a prompt",
             "url": {
-              "raw": "{{baseUrl}}/api/public/prompts?name=&version=",
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:promptName?version=&label=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
+                "prompts",
+                ":promptName"
+              ],
+              "query": [
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Version of the prompt to be retrieved."
+                },
+                {
+                  "key": "label",
+                  "value": "",
+                  "description": "Label of the prompt to be retrieved. Defaults to \"production\" if no label or version is set."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "promptName",
+                  "value": "",
+                  "description": "The name of the prompt"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get a list of prompt names with versions and labels",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/prompts?name=&label=&tag=&page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
                 "prompts"
               ],
               "query": [
@@ -601,7 +646,22 @@
                   "description": null
                 },
                 {
-                  "key": "version",
+                  "key": "label",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
                   "value": "",
                   "description": null
                 }
@@ -621,13 +681,14 @@
           "request": {
             "description": "Create a prompt",
             "url": {
-              "raw": "{{baseUrl}}/api/public/prompts",
+              "raw": "{{baseUrl}}/api/public/v2/prompts",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "prompts"
               ],
               "query": [],
@@ -638,7 +699,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"isActive\": true,\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -727,7 +788,7 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only scores newer than this timestamp."
+                  "description": "Retrieve only scores newer than this datetime (ISO 8601)."
                 },
                 {
                   "key": "source",
@@ -935,7 +996,7 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only traces newer than this timestamp."
+                  "description": "Retrieve only traces newer than this datetime (ISO 8601)."
                 },
                 {
                   "key": "orderBy",

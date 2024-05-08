@@ -1,24 +1,27 @@
 import {
   type CreatePromptTRPCType,
   PromptType,
-} from "@/src/features/prompts/server/validation";
+} from "@/src/features/prompts/server/utils/validation";
 import { ValidationError } from "@langfuse/shared";
 import { jsonSchema } from "@/src/utils/zod";
 import { type PrismaClient } from "@langfuse/shared/src/db";
+import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
+
+export type CreatePromptParams = CreatePromptTRPCType & {
+  createdBy: string;
+  prisma: PrismaClient;
+};
 
 export const createPrompt = async ({
   projectId,
   name,
   prompt,
   type = PromptType.Text,
-  isActive = true,
+  labels = [],
   config,
   createdBy,
   prisma,
-}: CreatePromptTRPCType & {
-  createdBy: string;
-  prisma: PrismaClient;
-}) => {
+}: CreatePromptParams) => {
   const latestPrompt = await prisma.prompt.findFirst({
     where: { projectId, name },
     orderBy: [{ version: "desc" }],
@@ -30,8 +33,14 @@ export const createPrompt = async ({
     );
   }
 
-  const latestActivePrompt = await prisma.prompt.findFirst({
-    where: { projectId, name, isActive: true },
+  const finalLabels = [...labels, LATEST_PROMPT_LABEL]; // Newly created prompts are always labeled as 'latest'
+
+  const previousLabeledPrompts = await prisma.prompt.findMany({
+    where: {
+      projectId,
+      name,
+      labels: { hasSome: finalLabels },
+    },
     orderBy: [{ version: "desc" }],
   });
 
@@ -41,7 +50,7 @@ export const createPrompt = async ({
         prompt,
         name,
         createdBy,
-        isActive,
+        labels: [...new Set(finalLabels)], // Ensure labels are unique
         type,
         tags: latestPrompt?.tags,
         version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
@@ -50,18 +59,21 @@ export const createPrompt = async ({
       },
     }),
   ];
-  if (latestActivePrompt && isActive)
-    // If we're creating a new active prompt, we need to deactivate the old one
-    create.push(
-      prisma.prompt.update({
-        where: {
-          id: latestActivePrompt.id,
-        },
-        data: {
-          isActive: false,
-        },
-      }),
-    );
+
+  if (finalLabels.length > 0)
+    // If we're creating a new labeled prompt, we must remove those labels on previous prompts since labels are unique
+    previousLabeledPrompts.forEach((prevPrompt) => {
+      create.push(
+        prisma.prompt.update({
+          where: { id: prevPrompt.id },
+          data: {
+            labels: prevPrompt.labels.filter(
+              (prevLabel) => !finalLabels.includes(prevLabel),
+            ),
+          },
+        }),
+      );
+    });
 
   const [createdPrompt] = await prisma.$transaction(create);
 

@@ -18,9 +18,9 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
         samplingContext.request.url &&
         samplingContext.request.url.includes("api/trpc")
       ) {
-        return 0.5;
+        return 0.3;
       }
-      return 0.15;
+      return 0.1;
     },
 
     profilesSampleRate: 0.2, // Profiling sample rate is relative to tracesSampleRate
@@ -28,6 +28,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
       // Add profiling integration to list of integrations
       new ProfilingIntegration(),
       new Sentry.Integrations.Prisma({ client: prisma }),
+      Sentry.metrics.metricsAggregatorIntegration(),
     ],
 
     // filter out passwords from the signup request body

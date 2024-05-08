@@ -13,21 +13,20 @@ export const observationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      // also works for other observations
-      const generation = await ctx.prisma.observation.findFirstOrThrow({
+      const observation = await ctx.prisma.observation.findFirstOrThrow({
         where: {
           id: input.observationId,
           traceId: input.traceId,
         },
       });
-      const scores = generation.traceId
+      const scores = observation.traceId
         ? await ctx.prisma.score.findMany({
             where: {
-              traceId: generation.traceId,
+              traceId: observation.traceId,
             },
           })
         : [];
 
-      return { ...generation, scores };
+      return { ...observation, scores };
     }),
 });

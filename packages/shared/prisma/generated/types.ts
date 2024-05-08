@@ -334,9 +334,10 @@ export type Prompt = {
     name: string;
     version: number;
     type: Generated<string>;
-    is_active: boolean;
+    is_active: boolean | null;
     config: Generated<unknown>;
     tags: Generated<string[]>;
+    labels: Generated<string[]>;
 };
 export type Score = {
     id: string;
@@ -377,6 +378,8 @@ export type Trace = {
     input: unknown | null;
     output: unknown | null;
     session_id: string | null;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type TraceSession = {
     id: string;

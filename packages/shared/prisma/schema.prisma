@@ -3,7 +3,7 @@
 
 generator client {
     provider        = "prisma-client-js"
-    previewFeatures = ["tracing", "views"]
+    previewFeatures = ["tracing", "views", "relationJoins"]
 }
 
 datasource db {
@@ -227,6 +227,8 @@ model Trace {
     output     Json?
     sessionId  String?       @map("session_id")
     session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
+    createdAt  DateTime      @default(now()) @map("created_at")
+    updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
 
     scores          Score[]
     DatasetRunItems DatasetRunItems[]
@@ -241,6 +243,8 @@ model Trace {
     @@index([externalId])
     @@index(timestamp)
     @@index(release)
+    @@index(updatedAt)
+    @@index(createdAt)
     @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("traces")
 }
@@ -553,9 +557,10 @@ model Prompt {
     name        String
     version     Int
     type        String        @default("text")
-    isActive    Boolean       @map("is_active")
+    isActive    Boolean?      @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
     config      Json          @default("{}")
     tags        String[]      @default([])
+    labels      String[]      @default([])
     Observation Observation[]
 
     @@unique([projectId, name, version])

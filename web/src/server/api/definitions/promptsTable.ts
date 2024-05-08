@@ -1,4 +1,4 @@
-import { PromptType } from "@/src/features/prompts/server/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   type ColumnDefinition,
   type OptionsDefinition,
@@ -31,6 +31,13 @@ export const promptsTableCols: ColumnDefinition[] = [
     options: Object.values(PromptType).map((value) => ({ value })),
   },
   {
+    name: "Labels",
+    id: "labels",
+    type: "arrayOptions",
+    internal: 'p."labels"',
+    options: [], // to be added at runtime
+  },
+  {
     name: "Tags",
     id: "tags",
     type: "arrayOptions",
@@ -41,6 +48,7 @@ export const promptsTableCols: ColumnDefinition[] = [
 
 export type PromptOptions = {
   tags: Array<OptionsDefinition>;
+  labels: Array<OptionsDefinition>;
 };
 
 export function promptsTableColsWithOptions(
@@ -49,6 +57,9 @@ export function promptsTableColsWithOptions(
   return promptsTableCols.map((col) => {
     if (col.id === "tags") {
       return { ...col, options: options?.tags ?? [] };
+    }
+    if (col.id === "labels") {
+      return { ...col, options: options?.labels ?? [] };
     }
     return col;
   });

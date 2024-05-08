@@ -141,7 +141,7 @@ export const createEvalJobs = async ({
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
       // we do this, because a second trace event might 'deselect' a trace
-      logger.info(`Eval job for config ${config.id} did not match trace`);
+      logger.debug(`Eval job for config ${config.id} did not match trace`);
       if (existingJob.length > 0) {
         logger.info(
           `Cancelling eval job for config ${config.id} and trace ${event.traceId}`
@@ -265,9 +265,6 @@ export const evaluate = async ({
     .executeTakeFirst();
 
   if (!apiKey) {
-    logger.error(
-      `API key for provider ${provider} and project ${event.projectId} not found. Failing job id ${job.id}`
-    );
     // this will fail the eval execution if a user deletes the API key.
     throw new LangfuseNotFoundError(
       `API key for provider ${provider} and project ${event.projectId} not found.`

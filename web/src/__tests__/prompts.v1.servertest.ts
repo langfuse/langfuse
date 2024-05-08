@@ -5,10 +5,10 @@ import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import { type Prompt } from "@langfuse/shared";
 import {
-  PromptSchema,
+  LegacyPromptSchema,
   PromptType,
-  type ValidatedPrompt,
-} from "@/src/features/prompts/server/validation";
+  type LegacyValidatedPrompt,
+} from "@/src/features/prompts/server/utils/validation";
 
 describe("/api/public/prompts API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -21,7 +21,7 @@ describe("/api/public/prompts API Endpoint", () => {
         id: promptId,
         name: "prompt-name",
         prompt: "prompt",
-        isActive: true,
+        labels: ["production"],
         version: 1,
         config: {
           temperature: 0.1,
@@ -51,6 +51,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
+    expect(fetchedObservations.body.labels).toEqual(["production"]);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
     expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
     expect(fetchedObservations.body.tags).toEqual([]);
@@ -64,7 +65,7 @@ describe("/api/public/prompts API Endpoint", () => {
         id: promptId,
         name: "prompt + name",
         prompt: "prompt",
-        isActive: true,
+        labels: ["production"],
         version: 1,
         config: {
           temperature: 0.1,
@@ -94,6 +95,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
+    expect(fetchedObservations.body.labels).toEqual(["production"]);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
     expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
     expect(fetchedObservations.body.tags).toEqual([]);
@@ -107,7 +109,7 @@ describe("/api/public/prompts API Endpoint", () => {
         id: promptId,
         name: "prompt-name",
         prompt: "prompt",
-        isActive: false,
+        labels: [],
         version: 1,
         config: {
           temperature: 0.1,
@@ -137,7 +139,7 @@ describe("/api/public/prompts API Endpoint", () => {
         id: promptId,
         name: "prompt-name",
         prompt: "prompt-one",
-        isActive: false,
+        labels: [],
         version: 1,
         config: {
           temperature: 0.1,
@@ -154,7 +156,7 @@ describe("/api/public/prompts API Endpoint", () => {
         id: promptTwoId,
         name: "prompt-name",
         prompt: "prompt",
-        isActive: true,
+        labels: ["production"],
         version: 2,
         config: {
           temperature: 0.2,
@@ -183,68 +185,192 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.prompt).toBe("prompt-one");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(false);
+    expect(fetchedObservations.body.labels).toEqual([]);
     expect(fetchedObservations.body.createdBy).toBe("user-1");
     expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
   });
 
   it("should fetch active prompt when multiple exist", async () => {
-    const promptIdOne = uuidv4();
-    const promptIdTwo = uuidv4();
-
-    await prisma.prompt.create({
-      data: {
-        id: promptIdOne,
-        name: "prompt-name",
-        prompt: "prompt",
-        isActive: false,
-        version: 1,
-        config: {
-          temperature: 0.1,
-        },
-        project: {
-          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
-        },
-        createdBy: "user-1",
+    // First prompt is activated
+    const prompt1 = await makeAPICall("POST", "/api/public/prompts", {
+      name: "prompt-name",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      prompt: "prompt1",
+      isActive: true,
+      version: 1,
+      config: {
+        temperature: 0.1,
       },
+      createdBy: "user-1",
     });
 
-    await prisma.prompt.create({
-      data: {
-        id: promptIdTwo,
-        name: "prompt-name",
-        prompt: "prompt",
-        isActive: true,
-        version: 2,
-        config: {
-          temperature: 0.2,
-        },
-        project: {
-          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
-        },
-        createdBy: "user-1",
+    // Second prompt also activated
+    const prompt2 = await makeAPICall("POST", "/api/public/prompts", {
+      name: "prompt-name",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      prompt: "prompt2",
+      labels: ["production"],
+      isActive: true,
+      version: 2,
+      config: {
+        temperature: 0.2,
       },
+      createdBy: "user-1",
     });
 
-    const fetchedObservations = await makeAPICall(
+    // Third prompt is deactivated
+    const prompt3 = await makeAPICall("POST", "/api/public/prompts", {
+      name: "prompt-name",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      prompt: "prompt3",
+      labels: [], // This should be ignored
+      isActive: false,
+      version: 3,
+      config: {
+        temperature: 0.3,
+      },
+      createdBy: "user-1",
+    });
+
+    // Expect the second prompt to be fetched
+    const fetchedProductionPrompt = await makeAPICall(
       "GET",
       "/api/public/prompts?name=prompt-name",
       undefined,
     );
 
-    expect(fetchedObservations.status).toBe(200);
+    expect(fetchedProductionPrompt.status).toBe(200);
 
-    if (!isPrompt(fetchedObservations.body)) {
+    if (!isPrompt(fetchedProductionPrompt.body)) {
       throw new Error("Expected body to be a prompt");
     }
 
-    expect(fetchedObservations.body.id).toBe(promptIdTwo);
-    expect(fetchedObservations.body.name).toBe("prompt-name");
-    expect(fetchedObservations.body.prompt).toBe("prompt");
-    expect(fetchedObservations.body.type).toBe("text");
-    expect(fetchedObservations.body.version).toBe(2);
-    expect(fetchedObservations.body.isActive).toBe(true);
-    expect(fetchedObservations.body.createdBy).toBe("user-1");
-    expect(fetchedObservations.body.config).toEqual({ temperature: 0.2 });
+    // @ts-expect-error
+    expect(fetchedProductionPrompt.body.id).toBe(prompt2.body.id);
+    expect(fetchedProductionPrompt.body.name).toBe("prompt-name");
+    expect(fetchedProductionPrompt.body.prompt).toBe("prompt2");
+    expect(fetchedProductionPrompt.body.type).toBe("text");
+    expect(fetchedProductionPrompt.body.version).toBe(2);
+    expect(fetchedProductionPrompt.body.isActive).toBe(true);
+    expect(fetchedProductionPrompt.body.labels).toEqual(["production"]);
+    expect(fetchedProductionPrompt.body.createdBy).toBe("API");
+    expect(fetchedProductionPrompt.body.config).toEqual({ temperature: 0.2 });
+
+    // Expect the first prompt to be deactivated
+    const fetchedOldProductionPrompt = await makeAPICall(
+      "GET",
+      "/api/public/prompts?name=prompt-name&version=1",
+      undefined,
+    );
+
+    expect(fetchedOldProductionPrompt.status).toBe(200);
+
+    if (!isPrompt(fetchedOldProductionPrompt.body)) {
+      throw new Error("Expected body to be a prompt");
+    }
+
+    // @ts-expect-error
+    expect(fetchedOldProductionPrompt.body.id).toBe(prompt1.body.id);
+    expect(fetchedOldProductionPrompt.body.name).toBe("prompt-name");
+    expect(fetchedOldProductionPrompt.body.prompt).toBe("prompt1");
+    expect(fetchedOldProductionPrompt.body.type).toBe("text");
+    expect(fetchedOldProductionPrompt.body.version).toBe(1);
+    expect(fetchedOldProductionPrompt.body.isActive).toBe(false);
+    expect(fetchedOldProductionPrompt.body.labels).toEqual([]);
+    expect(fetchedOldProductionPrompt.body.createdBy).toBe("API");
+    expect(fetchedOldProductionPrompt.body.config).toEqual({
+      temperature: 0.1,
+    });
+  });
+
+  it("should correctly handle overwriting labels", async () => {
+    // First prompt has multiple labels
+    const prompt1 = await makeAPICall("POST", "/api/public/prompts", {
+      name: "prompt-name",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      prompt: "prompt1",
+      labels: ["production", "staging", "development"],
+      isActive: true,
+      version: 1,
+      config: {
+        temperature: 0.1,
+      },
+      createdBy: "user-1",
+    });
+
+    // Second prompt overwrites production and staging label
+    const prompt2 = await makeAPICall("POST", "/api/public/prompts", {
+      name: "prompt-name",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      prompt: "prompt2",
+      labels: ["production", "production", "staging"], // Should be deduped
+      isActive: true,
+      version: 2,
+      config: {
+        temperature: 0.2,
+      },
+      createdBy: "user-1",
+    });
+
+    // Third prompt overwrites staging label
+    const prompt3 = await makeAPICall("POST", "/api/public/prompts", {
+      name: "prompt-name",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      prompt: "prompt3",
+      labels: ["staging"],
+      isActive: false,
+      version: 3,
+      config: {
+        temperature: 0.3,
+      },
+      createdBy: "user-1",
+    });
+
+    // Expect the second prompt to be fetched as default production prompt
+    const fetchedProductionPrompt = await makeAPICall(
+      "GET",
+      "/api/public/prompts?name=prompt-name",
+      undefined,
+    );
+    expect(fetchedProductionPrompt.status).toBe(200);
+    if (!isPrompt(fetchedProductionPrompt.body)) {
+      throw new Error("Expected body to be a prompt");
+    }
+    // @ts-expect-error
+    expect(fetchedProductionPrompt.body.id).toBe(prompt2.body.id);
+    expect(fetchedProductionPrompt.body.labels).toEqual(["production"]); // Only production label should be present
+
+    // Expect the first prompt to have only development label
+    const fetchedFirstPrompt = await makeAPICall(
+      "GET",
+      "/api/public/prompts?name=prompt-name&version=1",
+      undefined,
+    );
+
+    expect(fetchedFirstPrompt.status).toBe(200);
+    if (!isPrompt(fetchedFirstPrompt.body)) {
+      throw new Error("Expected body to be a prompt");
+    }
+
+    // @ts-expect-error
+    expect(fetchedFirstPrompt.body.id).toBe(prompt1.body.id);
+    expect(fetchedFirstPrompt.body.labels).toEqual(["development"]);
+
+    // Expect the third prompt to have only staging label
+    const fetchedThirdPrompt = await makeAPICall(
+      "GET",
+      "/api/public/prompts?name=prompt-name&version=3",
+      undefined,
+    );
+
+    expect(fetchedThirdPrompt.status).toBe(200);
+    if (!isPrompt(fetchedThirdPrompt.body)) {
+      throw new Error("Expected body to be a prompt");
+    }
+
+    // @ts-expect-error
+    expect(fetchedThirdPrompt.body.id).toBe(prompt3.body.id);
+    expect(fetchedThirdPrompt.body.labels).toEqual(["staging", "latest"]);
   });
 
   it("should create and fetch a prompt", async () => {
@@ -275,6 +401,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
+    expect(fetchedObservations.body.labels).toEqual(["production", "latest"]);
     expect(fetchedObservations.body.createdBy).toBe("API");
     expect(fetchedObservations.body.config).toEqual({ temperature: 0.1 });
   });
@@ -290,7 +417,7 @@ describe("/api/public/prompts API Endpoint", () => {
         id: promptId,
         name: "prompt-name",
         prompt: "prompt",
-        isActive: true,
+        labels: ["production"],
         version: 1,
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
@@ -353,7 +480,7 @@ describe("/api/public/prompts API Endpoint", () => {
         id: promptId,
         name: "prompt-name",
         prompt: "prompt",
-        isActive: true,
+        labels: ["production"],
         version: 1,
         project: {
           connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
@@ -428,6 +555,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.type).toBe("text");
     expect(fetchedObservations.body.version).toBe(1);
     expect(fetchedObservations.body.isActive).toBe(true);
+    expect(fetchedObservations.body.labels).toEqual(["production", "latest"]);
     expect(fetchedObservations.body.createdBy).toBe("API");
     expect(fetchedObservations.body.config).toEqual({});
   });
@@ -461,6 +589,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(validatedPrompt.type).toBe("chat");
     expect(validatedPrompt.version).toBe(1);
     expect(validatedPrompt.isActive).toBe(true);
+    expect(validatedPrompt.labels).toEqual(["production", "latest"]);
     expect(validatedPrompt.createdBy).toBe("API");
     expect(validatedPrompt.config).toEqual({});
   });
@@ -589,6 +718,7 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(validatedPrompt.type).toBe("chat");
     expect(validatedPrompt.version).toBe(1);
     expect(validatedPrompt.isActive).toBe(true);
+    expect(validatedPrompt.labels).toEqual(["production", "latest"]);
     expect(validatedPrompt.createdBy).toBe("API");
     expect(validatedPrompt.config).toEqual({});
 
@@ -606,9 +736,11 @@ describe("/api/public/prompts API Endpoint", () => {
   });
 });
 
-const isPrompt = (x: unknown): x is Prompt => {
+type PromptWithIsActive = Prompt & { isActive: boolean };
+
+const isPrompt = (x: unknown): x is PromptWithIsActive => {
   if (typeof x !== "object" || x === null) return false;
-  const prompt = x as Prompt;
+  const prompt = x as PromptWithIsActive;
   return (
     typeof prompt.id === "string" &&
     typeof prompt.name === "string" &&
@@ -622,7 +754,9 @@ const isPrompt = (x: unknown): x is Prompt => {
   );
 };
 
-const validatePrompt = (obj: Record<string, unknown>): ValidatedPrompt => {
+const validatePrompt = (
+  obj: Record<string, unknown>,
+): LegacyValidatedPrompt => {
   Object.keys(obj).forEach((key) => {
     obj[key] =
       key === "createdAt" || key === "updatedAt"
@@ -630,5 +764,5 @@ const validatePrompt = (obj: Record<string, unknown>): ValidatedPrompt => {
         : obj[key];
   });
 
-  return PromptSchema.parse(obj);
+  return LegacyPromptSchema.parse(obj);
 };

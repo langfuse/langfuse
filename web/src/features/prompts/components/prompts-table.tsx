@@ -19,13 +19,14 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type PromptTableRow = {
   name: string;
   version: number;
   id: string;
   createdAt: Date;
-  isActive: boolean;
+  labels: string[];
   type: string;
   numberOfObservations: number;
   tags: string[];
@@ -75,7 +76,7 @@ export function PromptTable() {
   );
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
-
+  const capture = usePostHogClientCapture();
   const totalCount = prompts.data?.totalCount ?? 0;
 
   useEffect(() => {
@@ -189,7 +190,7 @@ export function PromptTable() {
       version: item.version,
       createdAt: item.createdAt,
       type: item.type,
-      isActive: item.isActive,
+      labels: item.labels,
       numberOfObservations: Number(item.observationCount),
       tags: item.tags,
     };
@@ -204,6 +205,28 @@ export function PromptTable() {
         )}
         filterState={filterState}
         setFilterState={setFilterState}
+        actionButtons={
+          <Link href={`/project/${projectId}/prompts/new`}>
+            <Button
+              variant="secondary"
+              disabled={!hasCUDAccess}
+              aria-label="Create New Prompt"
+              onClick={() => {
+                capture("prompts:new_form_open");
+              }}
+            >
+              {hasCUDAccess ? (
+                <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+              ) : (
+                <LockIcon
+                  className="-ml-0.5 mr-1.5 h-3 w-3"
+                  aria-hidden="true"
+                />
+              )}
+              New prompt
+            </Button>
+          </Link>
+        }
       />
       <DataTable
         columns={promptColumns}
@@ -230,21 +253,6 @@ export function PromptTable() {
           state: paginationState,
         }}
       />
-      <Link href={`/project/${projectId}/prompts/new`}>
-        <Button
-          variant="secondary"
-          className="mt-4"
-          disabled={!hasCUDAccess}
-          aria-label="Promote Prompt to Production"
-        >
-          {hasCUDAccess ? (
-            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
-          ) : (
-            <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
-          )}
-          New prompt
-        </Button>
-      </Link>
     </div>
   );
 }

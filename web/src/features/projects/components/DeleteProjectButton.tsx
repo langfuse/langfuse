@@ -18,18 +18,18 @@ import { Input } from "@/src/components/ui/input";
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { usePostHog } from "posthog-js/react";
 import { useRouter } from "next/router";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Header from "@/src/components/layouts/header";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function DeleteProjectButton(props: { projectId: string }) {
   const utils = api.useUtils();
   const router = useRouter();
   const session = useSession();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   //code for dynamic confirmation message
   const userInfo = session.data?.user;
@@ -65,12 +65,12 @@ export function DeleteProjectButton(props: { projectId: string }) {
 
   // delete project functionality
   const onSubmit = () => {
+    capture("project_settings:project_delete");
     deleteProject
       .mutateAsync({
         projectId: props.projectId,
       })
       .then(() => {
-        posthog.capture("project_settings:project_delete");
         void router.push("/");
       })
       .catch((error) => {

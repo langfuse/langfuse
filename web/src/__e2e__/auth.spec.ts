@@ -70,3 +70,38 @@ test("Signup input validation", async ({ page }) => {
 // random email address to be used in tests
 const randomEmailAddress = () =>
   Math.random().toString(36).substring(2, 11) + "@example.com";
+
+test("Unauthenticated user should be redirected to target URL after login", async ({
+  page,
+}) => {
+  await page.goto("/auth/sign-in");
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  // wait 2 seconds
+  await page.waitForTimeout(2000);
+
+  // project id and prompt from seed.ts
+  const promptUrl = "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/prompts/summary-prompt";
+
+  await page.getByRole("button", { name: /Demo User/ }).click();
+
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await expect(page).toHaveURL("/auth/sign-in");
+
+  await page.goto(promptUrl);
+
+  await page.waitForTimeout(2000);
+
+  await expect(page).toHaveURL(/targetPath/);
+
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  await page.waitForTimeout(2000);
+
+  await expect(page).toHaveURL(promptUrl);
+});

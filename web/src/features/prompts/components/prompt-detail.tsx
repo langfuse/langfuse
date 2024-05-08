@@ -14,8 +14,7 @@ import { Button } from "@/src/components/ui/button";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { PromotePrompt } from "@/src/features/prompts/components/promote-prompt";
-import { PromptType } from "@/src/features/prompts/server/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -23,11 +22,20 @@ import { extractVariables } from "@/src/utils/string";
 import { type Prompt } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
-
 import { PromptHistoryNode } from "./prompt-history";
+import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import Generations from "@/src/components/table/use-cases/generations";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
+  const capture = usePostHogClientCapture();
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -101,32 +109,36 @@ export const PromptDetail = () => {
             ]}
             actionButtons={
               <>
-                <PromotePrompt
-                  promptId={prompt.id}
-                  promptName={prompt.name}
-                  disabled={prompt.isActive}
-                  variant="outline"
-                />
+                <SetPromptVersionLabels prompt={prompt} />
 
-                <Link
-                  href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
+                <Button
+                  variant="outline"
+                  title="Test in prompt playground"
+                  size="icon"
+                  onClick={() =>
+                    capture("prompt_detail:test_in_playground_button_click")
+                  }
+                  asChild
                 >
-                  <Button
-                    variant="outline"
-                    title="Test in prompt playground"
-                    size="icon"
+                  <Link
+                    href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
                   >
                     <Terminal className="h-5 w-5" />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
 
-                <Link
-                  href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => capture("prompts:update_form_open")}
+                  asChild
                 >
-                  <Button variant="outline" size="icon">
+                  <Link
+                    href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                  >
                     <Pencil className="h-5 w-5" />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
 
                 <DeletePromptVersion
                   promptVersionId={prompt.id}
@@ -185,6 +197,33 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
+          <p className="mt-6 text-xs text-gray-600">
+            Fetch prompts via Python or JS/TS SDKs. See{" "}
+            <a
+              href="https://langfuse.com/docs/prompts"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              documentation
+            </a>{" "}
+            for details.
+          </p>
+          <Accordion type="single" collapsible className="mt-10">
+            <AccordionItem value="item-1">
+              <AccordionTrigger>
+                Generations using this prompt version
+              </AccordionTrigger>
+              <AccordionContent>
+                <Generations
+                  projectId={prompt.projectId}
+                  promptName={prompt.name}
+                  promptVersion={prompt.version}
+                  omittedFilter={["Prompt Name", "Prompt Version"]}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">

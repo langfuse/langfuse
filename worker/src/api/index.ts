@@ -67,31 +67,13 @@ router
   )
   .post<{}, EventsResponse>("/events", async (req, res) => {
     const { body } = req;
-    logger.info(`Received events, ${JSON.stringify(body)}`);
+    logger.debug(`Received events, ${JSON.stringify(body)}`);
 
     const events = eventBody.parse(body);
 
-    const jobs = events.map((event) => ({
-      name: QueueJobs.TraceUpsert,
-      data: {
-        payload: {
-          projectId: event.projectId,
-          traceId: event.traceId,
-        },
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.TraceUpsert as const,
-      },
-      opts: {
-        removeOnFail: 10_000,
-        removeOnComplete: true,
-        attempts: 5,
-        backoff: {
-          type: "exponential",
-          delay: 1000,
-        },
-      },
-    }));
+    // Find set of traces per project. There might be two events for the same trace in one API call.
+    // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
+    const jobs = createRedisEvents(events);
 
     await evalQueue?.addBulk(jobs); // add all jobs as bulk
 
@@ -103,3 +85,42 @@ router
 router.use("/emojis", emojis);
 
 export default router;
+
+export function createRedisEvents(events: z.infer<typeof eventBody>) {
+  const uniqueTracesPerProject = events.reduce((acc, event) => {
+    if (!acc.get(event.projectId)) {
+      acc.set(event.projectId, new Set());
+    }
+    acc.get(event.projectId)?.add(event.traceId);
+    return acc;
+  }, new Map<string, Set<string>>());
+
+  const jobs = [...uniqueTracesPerProject.entries()]
+    .map((tracesPerProject) => {
+      const [projectId, traceIds] = tracesPerProject;
+
+      return [...traceIds].map((traceId) => ({
+        name: QueueJobs.TraceUpsert,
+        data: {
+          payload: {
+            projectId,
+            traceId,
+          },
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.TraceUpsert as const,
+        },
+        opts: {
+          removeOnFail: 10000,
+          removeOnComplete: true,
+          attempts: 5,
+          backoff: {
+            type: "exponential",
+            delay: 1000,
+          },
+        },
+      }));
+    })
+    .flat();
+  return jobs;
+}

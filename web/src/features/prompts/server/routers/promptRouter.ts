@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/validation";
+import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
@@ -10,7 +10,7 @@ import {
 import { DB } from "@/src/server/db";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
-import { createPrompt } from "./createPrompt";
+import { createPrompt } from "../actions/createPrompt";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { paginationZod } from "@/src/utils/zod";
@@ -59,7 +59,7 @@ export const promptRouter = createTRPCRouter({
           p.type,
           p.updated_at as "updatedAt",
           p.created_at as "createdAt",
-          p.is_active as "isActive",
+          p.labels,
           p.tags`,
           input.projectId,
           filterCondition,
@@ -211,6 +211,13 @@ export const promptRouter = createTRPCRouter({
         WHERE prompts.project_id = ${input.projectId}
         GROUP BY tags.tag;
       `;
+      const labels: { count: number; value: string }[] = await ctx.prisma
+        .$queryRaw`
+      SELECT COUNT(*)::integer AS "count", labels.label as value
+      FROM prompts, UNNEST(prompts.labels) AS labels(label)
+      WHERE prompts.project_id = ${input.projectId}
+      GROUP BY labels.label;
+    `;
       const res = {
         name: names
           .filter((n) => n.name !== null)
@@ -218,6 +225,7 @@ export const promptRouter = createTRPCRouter({
             value: name.name ?? "undefined",
             count: name._count.id,
           })),
+        labels: labels,
         tags: tags,
       };
       return res;
@@ -315,8 +323,14 @@ export const promptRouter = createTRPCRouter({
         throw e;
       }
     }),
-  promote: protectedProjectProcedure
-    .input(z.object({ promptId: z.string(), projectId: z.string() }))
+  setLabels: protectedProjectProcedure
+    .input(
+      z.object({
+        promptId: z.string(),
+        projectId: z.string(),
+        labels: z.array(z.string()),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoAccess({
@@ -325,31 +339,35 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        const toBePromotedPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
+        const toBeLabeledPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
           where: {
             id: input.promptId,
+            projectId: input.projectId,
           },
         });
+
+        const newLabels = [...new Set(input.labels)];
 
         await auditLog(
           {
             session: ctx.session,
             resourceType: "prompt",
-            resourceId: toBePromotedPrompt.id,
-            action: "promote",
+            resourceId: toBeLabeledPrompt.id,
+            action: "setLabel",
             after: {
-              ...toBePromotedPrompt,
-              isActive: true,
+              ...toBeLabeledPrompt,
+              labels: newLabels,
             },
           },
           ctx.prisma,
         );
 
-        const latestActivePrompt = await ctx.prisma.prompt.findFirst({
+        const previousLabeledPrompts = await ctx.prisma.prompt.findMany({
           where: {
             projectId: input.projectId,
-            name: toBePromotedPrompt.name,
-            isActive: true,
+            name: toBeLabeledPrompt.name,
+            labels: { hasSome: newLabels },
+            id: { not: input.promptId },
           },
           orderBy: [{ version: "desc" }],
         });
@@ -357,29 +375,52 @@ export const promptRouter = createTRPCRouter({
         const toBeExecuted = [
           ctx.prisma.prompt.update({
             where: {
-              id: toBePromotedPrompt.id,
+              id: toBeLabeledPrompt.id,
+              projectId: input.projectId,
             },
             data: {
-              isActive: true,
+              labels: newLabels,
             },
           }),
         ];
-        if (latestActivePrompt)
+
+        // Remove label from previous labeled prompts
+        previousLabeledPrompts.forEach((prevPrompt) => {
           toBeExecuted.push(
             ctx.prisma.prompt.update({
               where: {
-                id: latestActivePrompt.id,
+                id: prevPrompt.id,
+                projectId: input.projectId,
               },
               data: {
-                isActive: false,
+                labels: prevPrompt.labels.filter((l) => !newLabels.includes(l)),
               },
             }),
           );
+        });
         await ctx.prisma.$transaction(toBeExecuted);
       } catch (e) {
         console.log(e);
         throw e;
       }
+    }),
+  allLabels: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const labels = await ctx.prisma.$queryRaw<{ label: string }[]>`
+        SELECT DISTINCT UNNEST(labels) AS label
+        FROM prompts
+        WHERE project_id = ${input.projectId}      
+        AND labels IS NOT NULL;
+      `;
+
+      return labels.map((l) => l.label);
     }),
   updateTags: protectedProjectProcedure
     .input(
@@ -482,8 +523,9 @@ const generatePromptQuery = (
    FROM prompts p
    WHERE (name, version) IN (
     SELECT name, MAX(version)
-     FROM prompts
+     FROM prompts p
      WHERE "project_id" = ${projectId}
+     ${filterCondition}
           GROUP BY name
         )
     AND "project_id" = ${projectId}
