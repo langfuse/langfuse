@@ -33,7 +33,7 @@ export const QuickstartExamples = ({
         className="bg-blue-50"
         content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
       />
-      <p className="mt-3 text-xs text-gray-600">
+      <p className="mt-3 text-xs text-muted-foreground">
         See{" "}
         <a
           href="https://langfuse.com/docs/get-started"
@@ -61,7 +61,7 @@ export const QuickstartExamples = ({
         className="bg-blue-50"
         content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
       />
-      <p className="mt-3 text-xs text-gray-600">
+      <p className="mt-3 text-xs text-muted-foreground">
         See{" "}
         <a
           href="https://langfuse.com/docs/get-started"
@@ -84,7 +84,7 @@ export const QuickstartExamples = ({
       </p>
     </TabsContent>
     <TabsContent value="openai">
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         The integration is a drop-in replacement for the OpenAI Python SDK. By
         changing the import, Langfuse will capture all LLM calls and send them
         to Langfuse asynchronously.
@@ -99,7 +99,7 @@ export const QuickstartExamples = ({
         content={`# remove: import openai\n\nfrom langfuse.openai import openai`}
         className="my-2 bg-blue-50"
       />
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         Use the OpenAI SDK as you would normally. See the{" "}
         <a
           href="https://langfuse.com/docs/integrations/openai"
@@ -113,7 +113,7 @@ export const QuickstartExamples = ({
       </p>
     </TabsContent>
     <TabsContent value="langchain">
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         The integration uses the Langchain callback system to automatically
         capture detailed traces of your Langchain executions.
       </p>
@@ -122,7 +122,7 @@ export const QuickstartExamples = ({
         content={LANGCHAIN_PYTHON_CODE({ publicKey, secretKey, host })}
         className="my-2 bg-blue-50"
       />
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         See the{" "}
         <a
           href="https://langfuse.com/docs/integrations/langchain/python"
@@ -136,7 +136,7 @@ export const QuickstartExamples = ({
       </p>
     </TabsContent>
     <TabsContent value="langchain-js">
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         The integration uses the Langchain callback system to automatically
         capture detailed traces of your Langchain executions.
       </p>
@@ -148,7 +148,7 @@ export const QuickstartExamples = ({
         content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
         className="my-2 bg-blue-50"
       />
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         See the{" "}
         <a
           href="https://langfuse.com/docs/integrations/langchain/typescript"
@@ -162,7 +162,7 @@ export const QuickstartExamples = ({
       </p>
     </TabsContent>
     <TabsContent value="llamaindex">
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         The integration uses the LlamaIndex callback system to automatically
         capture detailed traces of your LlamaIndex executions.
       </p>
@@ -174,7 +174,7 @@ export const QuickstartExamples = ({
         content={LLAMA_INDEX_CODE({ publicKey, secretKey, host })}
         className="my-2 bg-blue-50"
       />
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         See the{" "}
         <a
           href="https://langfuse.com/docs/integrations/llama-index"
@@ -188,7 +188,7 @@ export const QuickstartExamples = ({
       </p>
     </TabsContent>
     <TabsContent value="other">
-      <p className="mt-2 text-xs text-gray-600">
+      <p className="mt-2 text-xs text-muted-foreground">
         Use the{" "}
         <a
           href="https://api.reference.langfuse.com/"
