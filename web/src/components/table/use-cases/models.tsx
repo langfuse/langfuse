@@ -111,7 +111,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         return (
           <>
             Input Price{" "}
-            <span className="text-xs text-gray-400">/ 1k units</span>
+            <span className="text-xs text-muted-foreground">/ 1k units</span>
           </>
         );
       },
@@ -140,7 +140,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         return (
           <>
             Output Price{" "}
-            <span className="text-xs text-gray-400">/ 1k units</span>
+            <span className="text-xs text-muted-foreground">/ 1k units</span>
           </>
         );
       },
@@ -163,7 +163,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         return (
           <>
             Total Price{" "}
-            <span className="text-xs text-gray-400">/ 1k units</span>
+            <span className="text-xs text-muted-foreground">/ 1k units</span>
           </>
         );
       },
