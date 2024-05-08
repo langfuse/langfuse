@@ -113,6 +113,7 @@ model Project {
     JobExecution       JobExecution[]
     LlmApiKeys         LlmApiKeys[]
     PosthogIntegration PosthogIntegration[]
+    Score              Score[]
 
     @@map("projects")
 }
@@ -392,7 +393,8 @@ enum ObservationLevel {
 model Score {
     id            String         @id @default(cuid())
     timestamp     DateTime       @default(now())
-    projectId     String?        @map("project_id")
+    projectId     String         @map("project_id")
+    project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
     name          String
     value         Float
     source        ScoreSource
