@@ -231,7 +231,6 @@ model Trace {
     createdAt  DateTime      @default(now()) @map("created_at")
     updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
 
-    scores          Score[]
     DatasetRunItems DatasetRunItems[]
     DatasetItem     DatasetItem[]
     JobExecution    JobExecution[]
@@ -306,7 +305,6 @@ model Observation {
     outputCost          Decimal?          @map("output_cost")
     totalCost           Decimal?          @map("total_cost")
     completionStartTime DateTime?         @map("completion_start_time")
-    scores              Score[]
     project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
@@ -400,9 +398,7 @@ model Score {
     source        ScoreSource
     comment       String?
     traceId       String         @map("trace_id")
-    trace         Trace          @relation(fields: [traceId], references: [id], onDelete: Cascade)
     observationId String?        @map("observation_id")
-    observation   Observation?   @relation(fields: [observationId], references: [id], onDelete: SetNull)
     JobExecution  JobExecution[]
 
     @@unique([id, traceId]) // used for upsert
