@@ -189,6 +189,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           name: input.name,
           comment: input.comment,
+          projectId: trace.projectId,
           source: "REVIEW",
         },
       });
