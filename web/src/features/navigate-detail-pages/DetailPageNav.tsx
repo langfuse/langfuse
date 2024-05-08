@@ -75,7 +75,7 @@ export const DetailPageNav = (props: {
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
+            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               k
             </CommandShortcut>
           </TooltipContent>
@@ -101,7 +101,7 @@ export const DetailPageNav = (props: {
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
+            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               j
             </CommandShortcut>
           </TooltipContent>
