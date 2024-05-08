@@ -86,14 +86,14 @@ export function PopoverFilterBuilder({
         <PopoverTrigger asChild>
           <Button variant="outline">
             <Filter className="h-4 w-4" />
-            <span className="@6xl:ml-2 @6xl:inline hidden">Filter</span>
+            <span className="hidden @6xl:ml-2 @6xl:inline">Filter</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState filterState={filterState} />
             ) : null}
             {filterState.length > 0 && (
               <span
                 className={cn(
-                  "@6xl:hidden ml-3 rounded-md bg-slate-200 px-2 py-1 text-xs",
+                  "ml-3 rounded-md bg-input px-2 py-1 text-xs @6xl:hidden",
                   filterState.length > 2 && "@6xl:inline",
                 )}
               >
@@ -136,7 +136,7 @@ export function InlineFilterState({
     return (
       <span
         key={i}
-        className="@6xl:block ml-2 hidden whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs"
+        className="ml-2 hidden whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs @6xl:block"
       >
         {filter.column}
         {filter.type === "stringObject" || filter.type === "numberObject"
