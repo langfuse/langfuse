@@ -321,7 +321,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 <FormLabel>Serve prompt as default to SDKs</FormLabel>
               </div>
               {currentIsActive ? (
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   This makes the prompt available to the SDKs immediately.
                 </div>
               ) : null}
