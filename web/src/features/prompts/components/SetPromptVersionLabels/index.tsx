@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 
 import { FlagIcon, PlusIcon } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -22,11 +21,12 @@ import { type Prompt } from "@langfuse/shared";
 import { AddLabelForm } from "./AddLabelForm";
 import { LabelCommandItem } from "./LabelCommandItem";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
 
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -78,7 +78,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
       labels: selectedLabels,
     });
 
-    posthog.capture("prompt:setLabels", { labels: selectedLabels });
+    capture("prompt_detail:apply_labels", { labels: selectedLabels });
     setIsOpen(false);
   };
 

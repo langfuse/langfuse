@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -24,6 +25,7 @@ export function DataTablePagination<TData>({
   table,
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
+  const capture = usePostHogClientCapture();
   return (
     <div className="mt-3 flex items-center justify-between overflow-x-auto px-2">
       <div className="flex-1 text-sm text-muted-foreground">
@@ -36,6 +38,9 @@ export function DataTablePagination<TData>({
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
+              capture("table:pagination_page_size_select", {
+                pageSize: value,
+              });
               table.setPageSize(Number(value));
             }}
           >
@@ -59,7 +64,12 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(0)}
+            onClick={() => {
+              table.setPageIndex(0);
+              capture("table:pagination_button_click", {
+                type: "firstPage",
+              });
+            }}
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to first page</span>
@@ -68,7 +78,12 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="h-8 w-8 p-0"
-            onClick={() => table.previousPage()}
+            onClick={() => {
+              table.previousPage();
+              capture("table:pagination_button_click", {
+                type: "previousPage",
+              });
+            }}
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to previous page</span>
@@ -77,7 +92,12 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="h-8 w-8 p-0"
-            onClick={() => table.nextPage()}
+            onClick={() => {
+              table.nextPage();
+              capture("table:pagination_button_click", {
+                type: "nextPage",
+              });
+            }}
             disabled={!table.getCanNextPage()}
           >
             <span className="sr-only">Go to next page</span>
@@ -86,7 +106,12 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+            onClick={() => {
+              table.setPageIndex(table.getPageCount() - 1);
+              capture("table:pagination_button_click", {
+                type: "lastPage",
+              });
+            }}
             disabled={!table.getCanNextPage()}
           >
             <span className="sr-only">Go to last page</span>

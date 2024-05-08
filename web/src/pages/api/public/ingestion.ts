@@ -73,6 +73,11 @@ export default async function handler(
 
     const parsedSchema = batchType.safeParse(req.body);
 
+    Sentry.metrics.increment(
+      "ingestion_event",
+      parsedSchema.success ? parsedSchema.data.batch.length : 0,
+    );
+
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
       return res.status(400).json({

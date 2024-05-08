@@ -27,6 +27,7 @@ import {
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -60,6 +61,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
   const projectId = useProjectIdFromURL();
+  const capture = usePostHogClientCapture();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
@@ -188,6 +190,12 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           setOutput(response);
         }
         setOutputJson(getOutputJson(response, finalMessages, modelParams));
+        capture("playground:execute_button_click", {
+          inputLength: finalMessages.length,
+          modelName: modelParams.model,
+          modelProvider: modelParams.provider,
+          outputLength: response.length,
+        });
       } catch (err) {
         console.error(err);
 
@@ -196,6 +204,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       } finally {
         setIsStreaming(false);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages, modelParams, promptVariables]);
 
   useCommandEnter(!isStreaming, handleSubmit);

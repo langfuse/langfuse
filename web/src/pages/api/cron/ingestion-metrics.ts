@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { ServerPosthog } from "@/src/server/services/posthog";
+import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
