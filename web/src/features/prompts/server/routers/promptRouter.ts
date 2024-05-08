@@ -554,7 +554,50 @@ export const promptRouter = createTRPCRouter({
     `,
       );
 
-      return metrics;
+      const averageTraceObservationScore = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          averageTraceObservationScore: number;
+        }>
+      >(
+        Prisma.sql`
+        SELECT
+          os.prompt_id AS "id",
+          AVG(value) AS "averageTraceObservationScore"
+        FROM
+          (
+            SELECT
+              s.id,
+              s.value,
+              ov.trace_id,
+              ov.prompt_id,
+              ROW_NUMBER() OVER (PARTITION BY ov.prompt_id, ov.trace_id ORDER BY s.id) AS row_num
+            FROM
+              scores s
+            LEFT JOIN "observations_view" ov ON ov.trace_id = s.trace_id
+            WHERE
+              s.observation_id IS NULL
+              AND ov."type" = 'GENERATION'
+              AND ov."project_id" = ${input.projectId}
+          ) AS os
+        WHERE
+          os.row_num = 1
+          AND os.prompt_id IN (${Prisma.join(input.promptIds)})
+        GROUP BY os.prompt_id`,
+      );
+
+      const averageTraceScoreMap = averageTraceObservationScore.reduce(
+        (acc, { id, averageTraceObservationScore }) => {
+          acc[id] = averageTraceObservationScore;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      return metrics.map((metric) => ({
+        ...metric,
+        averageTraceScore: averageTraceScoreMap[metric.id] ?? null,
+      }));
     }),
 });
 

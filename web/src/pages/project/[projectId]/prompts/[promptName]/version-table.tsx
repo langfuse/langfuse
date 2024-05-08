@@ -21,6 +21,7 @@ type PromptVersionTableRow = {
   meanCost?: number | null;
   generationCount?: number | null;
   averageObservationScore?: number | null;
+  averageTraceScore?: number | null;
   lastUsed?: string | null;
   firstUsed?: string | null;
 };
@@ -119,7 +120,7 @@ export default function PromptVersionTable() {
     {
       accessorKey: "meanLatency",
       id: "meanLatency",
-      header: "Mean latency (ms)",
+      header: "Mean latency",
     },
     {
       accessorKey: "meanInputTokens",
@@ -145,6 +146,11 @@ export default function PromptVersionTable() {
       accessorKey: "averageObservationScore",
       id: "averageObservationScore",
       header: "Average observation score",
+    },
+    {
+      accessorKey: "averageTraceScore",
+      id: "averageTraceScore",
+      header: "Average trace score",
     },
     {
       accessorKey: "lastUsed",
@@ -202,6 +208,7 @@ export default function PromptVersionTable() {
           meanCost: prompt.medianTotalCost,
           generationCount: prompt.observationCount,
           averageObservationScore: prompt.averageObservationScore,
+          averageTraceScore: prompt.averageTraceScore,
           lastUsed: prompt.lastUsed?.toLocaleString() ?? "No event yet",
           firstUsed: prompt.firstUsed?.toLocaleString() ?? "No event yet",
         }))
@@ -246,7 +253,7 @@ export default function PromptVersionTable() {
               </>
             }
           />
-          <div className="gap-3 p-2.5">
+          <div className="gap-3 p-2">
             <DataTableToolbar
               columns={columns}
               rowHeight={rowHeight}
