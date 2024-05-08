@@ -172,7 +172,7 @@ export function DatasetItemsTable({
         return !!expectedOutput ? (
           <IOTableCell
             data={expectedOutput}
-            className="bg-green-50"
+            className="bg-light-green"
             singleLine={rowHeight === "s"}
           />
         ) : null;
