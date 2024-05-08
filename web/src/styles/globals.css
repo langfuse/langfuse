@@ -33,6 +33,13 @@
 
     --ring: 215 20.2% 65.1%;
 
+    --muted-foreground-indigo: 243 75.4% 58.6%;
+
+    --muted-green: 141 84.2% 92.5%;
+    --muted-orange: 34 100% 91.8%;
+    --muted-blue: 214 94.6% 92.7%;
+
+    --light-green: 138 76.5% 96.7%;
     --radius: 0.5rem;
   }
 
@@ -65,6 +72,16 @@
     --destructive-foreground: 0 85.7% 97.3%;
 
     --ring: 217.2 32.6% 17.5%;
+
+    --muted-foreground-indigo: 246 75% 55%;
+
+    --muted-blue: 226 70.7% 40.2%;
+    --muted-green: 143 64.2% 24.1%;
+    --muted-orange: 15 79.1% 33.7%;
+
+    --light-green: 222.2 84% 4.9;
+
+    --radius: 0.5rem;
   }
 }
 

@@ -18,6 +18,12 @@ module.exports = {
     },
     extend: {
       colors: {
+        "muted-foreground-indigo": "hsl(var(--muted-foreground-indigo))",
+        "muted-orange": "hsl(var(--muted-orange))",
+        "muted-blue": "hsl(var(--muted-blue))",
+        "muted-green": "hsl(var(--muted-green))",
+        "light-green": "hsl(var(--light-green))",
+
         tremor: {
           brand: {
             faint: "#eff6ff", // blue-50
