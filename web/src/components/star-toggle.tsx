@@ -31,7 +31,7 @@ export function StarToggle({
       <StarIcon
         className={cn(
           "h-4 w-4",
-          value ? "fill-current text-yellow-500" : "text-gray-500",
+          value ? "fill-current text-yellow-500" : "text-muted-foreground",
         )}
       />
     </Button>
