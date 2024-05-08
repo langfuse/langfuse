@@ -46,11 +46,11 @@ export function CloudRegionSwitch({
       <div className="flex w-full flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
           <span className="text-sm font-medium leading-none">Data Region</span>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             Regions are strictly separated.
           </p>
           {isSignUpPage ? (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
                 ? "✅ Demo project available"
                 : "❌ Choose EU for demo project access"}
@@ -84,7 +84,7 @@ export function CloudRegionSwitch({
           </TabsList>
         </Tabs>
       </div>
-      <Divider className="text-gray-400" />
+      <Divider className="text-muted-foreground" />
     </div>
   );
 }
