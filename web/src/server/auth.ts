@@ -20,6 +20,7 @@ import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, cookieOptions } from "./utils/cookies";
 import {
@@ -175,6 +176,19 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+if (
+  env.AUTH_KEYCLOAK_ID &&
+  env.AUTH_KEYCLOAK_SECRET &&
+  env.AUTH_KEYCLOAK_ISSUER
+)
+  staticProviders.push(
+    KeycloakProvider({
+      clientId: env.AUTH_KEYCLOAK_ID,
+      clientSecret: env.AUTH_KEYCLOAK_SECRET,
+      issuer: env.AUTH_KEYCLOAK_ISSUER,
     }),
   );
 
