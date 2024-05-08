@@ -76,7 +76,7 @@ export const LangfuseLogo = ({
           target="_blank"
           rel="noopener"
           title="View releases on GitHub"
-          className="ml-2 text-xs text-gray-400"
+          className="ml-2 text-xs text-muted-foreground"
         >
           {VERSION}
         </a>
