@@ -307,6 +307,7 @@ export const evaluate = async ({
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
       source: sql`'EVAL'::"ScoreSource"`,
+      project_id: event.projectId,
     })
     .execute();
 
