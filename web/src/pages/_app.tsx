@@ -91,7 +91,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
               <ThemeProvider
                 attribute="class"
                 defaultTheme="light"
-                enableSystem
+                enableSystem={false}
                 disableTransitionOnChange
               >
                 <Layout>
