@@ -1,4 +1,4 @@
-import { expect, test, describe, vi } from "vitest";
+import { expect, test, describe, vi, afterAll, beforeAll } from "vitest";
 import {
   createEvalJobs,
   evaluate,
@@ -11,6 +11,8 @@ import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
 import { LangfuseNotFoundError, variableMappingList } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import { OpenAIReset, OpenAISetup, OpenAITeardown } from "./network";
+import { afterEach } from "node:test";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
@@ -26,6 +28,14 @@ vi.mock("../redis/consumer", () => ({
     }),
   },
 }));
+
+let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+  OPENAI_API_KEY = "sk-test_not_used_as_network_mocks_are_activated";
+  beforeAll(OpenAISetup);
+  afterEach(OpenAIReset);
+  afterAll(OpenAITeardown);
+}
 
 describe("create eval jobs", () => {
   test("creates new eval job", async () => {
@@ -307,7 +317,7 @@ describe("execute evals", () => {
       .values({
         id: randomUUID(),
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        secret_key: encrypt(String(process.env.OPENAI_API_KEY)),
+        secret_key: encrypt(String(OPENAI_API_KEY)),
         provider: "openai",
         display_secret_key: "123456",
       })
