@@ -663,7 +663,7 @@ export default function GenerationsTable({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="ml-auto whitespace-nowrap">
-                <span className="@6xl:inline hidden">
+                <span className="hidden @6xl:inline">
                   {filterState.length > 0 || searchQuery
                     ? "Export selection"
                     : "Export all"}{" "}
@@ -754,7 +754,7 @@ const GenerationsIOCell = ({
       data={
         io === "output" ? observation.data?.output : observation.data?.input
       }
-      className={cn(io === "output" && "bg-green-50")}
+      className={cn(io === "output" && "bg-light-green")}
       singleLine={singleLine}
     />
   );
