@@ -86,7 +86,7 @@ export default function Dataset() {
         }
       />
 
-      <p className="mt-3 text-xs text-gray-600">
+      <p className="mt-3 text-xs text-muted-foreground">
         Add new runs via Python or JS/TS SDKs. See{" "}
         <a href="https://langfuse.com/docs/datasets" className="underline">
           documentation
