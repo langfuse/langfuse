@@ -43,7 +43,7 @@ export default function DocPopup({
             href={href}
             rel="noopener"
             target="_blank"
-            className="inline-block whitespace-nowrap text-gray-500 sm:pl-0"
+            className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0"
           >
             {
               {
@@ -53,7 +53,7 @@ export default function DocPopup({
             }
           </Link>
         ) : (
-          <div className="inline-block whitespace-nowrap text-gray-500 sm:pl-0">
+          <div className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0">
             {
               {
                 question: <HelpCircle className={sizes[size]} />,
@@ -65,7 +65,7 @@ export default function DocPopup({
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-gray-800 sm:pl-0">
+          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
             {description}
           </div>
         ) : (
@@ -89,7 +89,7 @@ export function Popup({ triggerContent, description }: PopupProps) {
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-gray-800 sm:pl-0">
+          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
             {description}
           </div>
         ) : (
