@@ -316,7 +316,7 @@ const TraceObservationIOCell = ({
     <IOTableCell
       isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
       data={io === "output" ? data?.output : data?.input}
-      className={cn(io === "output" && "bg-green-50")}
+      className={cn(io === "output" && "bg-light-green")}
       singleLine={singleLine}
     />
   );
