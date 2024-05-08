@@ -11,14 +11,16 @@ import { type RouterOutput } from "@/src/utils/types";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 
 type PromptVersionTableRow = {
   version: number;
   labels: string[];
-  meanLatency?: number | null;
-  meanInputTokens?: number | null;
-  meanOutputTokens?: number | null;
-  meanCost?: number | null;
+  medianLatency?: number | null;
+  medianInputTokens?: number | null;
+  medianOutputTokens?: number | null;
+  medianCost?: number | null;
   generationCount?: number | null;
   averageObservationScore?: number | null;
   averageTraceScore?: number | null;
@@ -118,24 +120,37 @@ export default function PromptVersionTable() {
       },
     },
     {
-      accessorKey: "meanLatency",
-      id: "meanLatency",
-      header: "Mean latency",
+      accessorKey: "medianLatency",
+      id: "medianLatency",
+      header: "Median latency",
+      cell: ({ row }) => {
+        const latency: number | undefined = row.getValue("medianLatency");
+        return latency !== undefined ? (
+          <span>{formatIntervalSeconds(latency)}</span>
+        ) : undefined;
+      },
     },
     {
-      accessorKey: "meanInputTokens",
-      id: "meanInputTokens",
-      header: "Mean input tokens",
+      accessorKey: "medianInputTokens",
+      id: "medianInputTokens",
+      header: "Median input tokens",
     },
     {
-      accessorKey: "meanOutputTokens",
-      id: "meanOutputTokens",
-      header: "Mean output tokens",
+      accessorKey: "medianOutputTokens",
+      id: "medianOutputTokens",
+      header: "Median output tokens",
     },
     {
-      accessorKey: "meanCost",
-      id: "meanCost",
-      header: "Mean cost (USD)",
+      accessorKey: "medianCost",
+      id: "medianCost",
+      header: "Median cost",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("medianCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value)}</span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "generationCount",
@@ -146,11 +161,27 @@ export default function PromptVersionTable() {
       accessorKey: "averageObservationScore",
       id: "averageObservationScore",
       header: "Average observation score",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue(
+          "averageObservationScore",
+        );
+
+        return value !== undefined ? (
+          <span>{numberFormatter(value)}</span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "averageTraceScore",
       id: "averageTraceScore",
       header: "Average trace score",
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("averageTraceScore");
+
+        return value !== undefined ? (
+          <span>{numberFormatter(value)}</span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "lastUsed",
@@ -202,11 +233,11 @@ export default function PromptVersionTable() {
       ? combinedData.map((prompt) => ({
           version: prompt.version,
           labels: prompt.labels,
-          meanLatency: prompt.medianLatency,
-          meanInputTokens: prompt.medianInputTokens,
-          meanOutputTokens: prompt.medianOutputTokens,
-          meanCost: prompt.medianTotalCost,
-          generationCount: prompt.observationCount,
+          medianLatency: prompt.medianLatency,
+          medianInputTokens: prompt.medianInputTokens,
+          medianOutputTokens: prompt.medianOutputTokens,
+          medianCost: prompt.medianTotalCost,
+          generationCount: prompt.observation_count,
           averageObservationScore: prompt.averageObservationScore,
           averageTraceScore: prompt.averageTraceScore,
           lastUsed: prompt.lastUsed?.toLocaleString() ?? "No event yet",

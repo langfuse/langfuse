@@ -519,46 +519,60 @@ export const promptRouter = createTRPCRouter({
       const metrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
-          observationCount: number;
+          observation_count: number;
           firstUsed: Date | null;
           lastUsed: Date | null;
-          averageObservationScore: number | null;
           medianOutputTokens: number | null;
           medianInputTokens: number | null;
           medianTotalCost: number | null;
           medianLatency: number | null;
+          averageObservationScore: number | null;
         }>
       >(
         Prisma.sql`
         SELECT 
-          prompt_id AS "id",
-          count(*) AS "observationCount",
-          MIN(start_time) AS "firstUsed",
-          MAX(start_time) AS "lastUsed",
-          AVG(value) AS "averageObservationScore",
-          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY completion_tokens) AS "medianOutputTokens",
-          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY prompt_tokens) AS "medianInputTokens",
-          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY calculated_total_cost) AS "medianTotalCost",
-          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY latency) AS "medianLatency"
+          p.id,
+          p.version,
+          observation_metrics.observation_count,
+          observation_metrics."firstUsed",
+          observation_metrics."lastUsed",
+          observation_metrics."medianOutputTokens",
+          observation_metrics."medianInputTokens",
+          observation_metrics."medianTotalCost",
+          observation_metrics."medianLatency",
+          AVG(s.value) AS "averageObservationScore"
         FROM 
-        (
-          SELECT s.id AS "scoreId", s.value, os.* from scores s 
-          LEFT JOIN LATERAL (
-            SELECT 
-              *
-            FROM 
-              "observations_view" ov
-            WHERE 
-              s.observation_id IS NOT NULL 
-              AND ov.id = s.observation_id 
-              AND "type" = 'GENERATION'
-              AND "project_id" = ${input.projectId}
-          ) AS os ON true 
-              RIGHT JOIN prompts p ON p.id = os.prompt_id
-              WHERE prompt_id IS NOT NULL
-              AND p.id in (${Prisma.join(input.promptIds)})
-              AND os.project_id = ${input.projectId}
-        ) GROUP BY "prompt_id"
+            prompts p
+        LEFT JOIN LATERAL (
+            SELECT
+                COUNT(*) AS observation_count,
+                MIN(ov.start_time) AS "firstUsed",
+                MAX(ov.start_time) AS "lastUsed",
+                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.completion_tokens) AS "medianOutputTokens",
+                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.prompt_tokens) AS "medianInputTokens",
+                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.calculated_total_cost) AS "medianTotalCost",
+                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.latency) AS "medianLatency"
+            FROM
+                observations_view ov
+            WHERE
+                ov.prompt_id = p.id
+                AND type = 'GENERATION'
+                AND project_id = ${input.projectId}
+        ) AS observation_metrics ON true
+        LEFT JOIN scores s ON observation_metrics.observation_count > 0 AND s.observation_id IN (SELECT ov.id FROM observations_view ov WHERE ov.prompt_id = p.id)
+        WHERE 
+            project_id = ${input.projectId}
+            AND p.id IN (${Prisma.join(input.promptIds)})
+        GROUP BY 
+            p.id, 
+            p.version, 
+            observation_metrics."observation_count",
+            observation_metrics."firstUsed",
+            observation_metrics."lastUsed",
+            observation_metrics."medianOutputTokens",
+            observation_metrics."medianInputTokens",
+            observation_metrics."medianTotalCost",
+            observation_metrics."medianLatency";
     `,
       );
 
