@@ -11,9 +11,9 @@ export type Status =
   (typeof statusCategories)[keyof typeof statusCategories][number];
 
 export const StatusBadge = (props: { className?: string; type: Status }) => {
-  let badgeColor = "bg-gray-100 text-gray-800";
-  let dotColor = "bg-gray-500";
-  let dotPingColor = "bg-gray-600";
+  let badgeColor = "bg-muted text-primary";
+  let dotColor = "bg-muted-foreground";
+  let dotPingColor = "bg-muted-foreground";
   let showDot = true;
 
   if (statusCategories.active.includes(props.type)) {
