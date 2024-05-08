@@ -20,6 +20,7 @@ type PromptVersionTableRow = {
   meanOutputTokens?: number | null;
   meanCost?: number | null;
   generationCount?: number | null;
+  averageObservationScore?: number | null;
   lastUsed?: string | null;
   firstUsed?: string | null;
 };
@@ -141,6 +142,11 @@ export default function PromptVersionTable() {
       header: "Generations count",
     },
     {
+      accessorKey: "averageObservationScore",
+      id: "averageObservationScore",
+      header: "Average observation score",
+    },
+    {
       accessorKey: "lastUsed",
       id: "lastUsed",
       header: "Last used",
@@ -190,11 +196,12 @@ export default function PromptVersionTable() {
       ? combinedData.map((prompt) => ({
           version: prompt.version,
           labels: prompt.labels,
-          meanLatency: prompt.latency,
+          meanLatency: prompt.medianLatency,
           meanInputTokens: prompt.medianInputTokens,
           meanOutputTokens: prompt.medianOutputTokens,
           meanCost: prompt.medianTotalCost,
-          generationCount: prompt.observation_count,
+          generationCount: prompt.observationCount,
+          averageObservationScore: prompt.averageObservationScore,
           lastUsed: prompt.lastUsed?.toLocaleString() ?? "No event yet",
           firstUsed: prompt.firstUsed?.toLocaleString() ?? "No event yet",
         }))

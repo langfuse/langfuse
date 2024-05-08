@@ -511,36 +511,46 @@ export const promptRouter = createTRPCRouter({
       const metrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
-          observation_count: number;
+          observationCount: number;
           firstUsed: Date | null;
           lastUsed: Date | null;
+          averageObservationScore: number | null;
           medianOutputTokens: number | null;
           medianInputTokens: number | null;
           medianTotalCost: number | null;
-          latency: number | null;
+          medianLatency: number | null;
         }>
       >(
         Prisma.sql`
-        select p.id, p.version, observation_metrics.* from prompts p
-        LEFT JOIN LATERAL (
-          SELECT
-            count(*) observation_count,
-            MIN(ov.start_time) AS "firstUsed",
-            MAX(ov.start_time) AS "lastUsed",
-            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.completion_tokens) AS "medianOutputTokens",
-            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.prompt_tokens) AS "medianInputTokens",
-            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.calculated_total_cost) AS "medianTotalCost",
-            COALESCE(EXTRACT(EPOCH FROM COALESCE(MAX(ov."end_time"), MAX(ov."start_time"))) - EXTRACT(EPOCH FROM MIN(ov."start_time")), 0)::double precision AS "latency"
-          FROM
-            "observations_view" ov
-          WHERE
-            ov.prompt_id = p.id
-            AND "type" = 'GENERATION'
-            AND "project_id" = ${input.projectId}
-        ) AS observation_metrics ON true
-        
-        WHERE "project_id" = ${input.projectId}
-        AND p.id in (${Prisma.join(input.promptIds)})
+        SELECT 
+          prompt_id AS "id",
+          count(*) AS "observationCount",
+          MIN(start_time) AS "firstUsed",
+          MAX(start_time) AS "lastUsed",
+          AVG(value) AS "averageObservationScore",
+          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY completion_tokens) AS "medianOutputTokens",
+          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY prompt_tokens) AS "medianInputTokens",
+          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY calculated_total_cost) AS "medianTotalCost",
+          PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY latency) AS "medianLatency"
+        FROM 
+        (
+          SELECT s.id AS "scoreId", s.value, os.* from scores s 
+          LEFT JOIN LATERAL (
+            SELECT 
+              *
+            FROM 
+              "observations_view" ov
+            WHERE 
+              s.observation_id IS NOT NULL 
+              AND ov.id = s.observation_id 
+              AND "type" = 'GENERATION'
+              AND "project_id" = ${input.projectId}
+          ) AS os ON true 
+              RIGHT JOIN prompts p ON p.id = os.prompt_id
+              WHERE prompt_id IS NOT NULL
+              AND p.id in (${Prisma.join(input.promptIds)})
+              AND os.project_id = ${input.projectId}
+        ) GROUP BY "prompt_id"
     `,
       );
 
