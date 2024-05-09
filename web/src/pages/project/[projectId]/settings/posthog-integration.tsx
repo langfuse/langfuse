@@ -13,6 +13,7 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
 import { env } from "@/src/env.mjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -20,7 +21,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@tremor/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import posthog from "posthog-js";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
@@ -29,7 +29,6 @@ export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const state = api.posthogIntegration.get.useQuery({ projectId });
-
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
@@ -102,6 +101,7 @@ const PostHogIntegrationSettings = ({
   state?: RouterOutput["posthogIntegration"]["get"];
   projectId: string;
 }) => {
+  const capture = usePostHogClientCapture();
   const posthogForm = useForm<z.infer<typeof posthogIntegrationFormSchema>>({
     resolver: zodResolver(posthogIntegrationFormSchema),
     defaultValues: {
@@ -135,7 +135,7 @@ const PostHogIntegrationSettings = ({
   async function onSubmit(
     values: z.infer<typeof posthogIntegrationFormSchema>,
   ) {
-    posthog.capture("integrations:posthog_form_submitted");
+    capture("integrations:posthog_form_submitted");
     mut.mutate({
       projectId,
       ...values,

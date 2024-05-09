@@ -1,4 +1,3 @@
-import { usePostHog } from "posthog-js/react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -45,6 +44,7 @@ import {
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { Label } from "@/src/components/ui/label";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -186,7 +186,7 @@ export const InnerEvalTemplateForm = (props: {
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
 
   // updates the model params based on the pre-filled data
@@ -281,7 +281,11 @@ export const InnerEvalTemplateForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("evals:new_template_form");
+    capture(
+      props.isEditing
+        ? "eval_templates:update_form_submit"
+        : "eval_templates:new_form_submit",
+    );
 
     const model = EvalModelNames.safeParse(modelParams.model);
 

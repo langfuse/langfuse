@@ -31,9 +31,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
+  const capture = usePostHogClientCapture();
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -109,25 +111,34 @@ export const PromptDetail = () => {
               <>
                 <SetPromptVersionLabels prompt={prompt} />
 
-                <Link
-                  href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
+                <Button
+                  variant="outline"
+                  title="Test in prompt playground"
+                  size="icon"
+                  onClick={() =>
+                    capture("prompt_detail:test_in_playground_button_click")
+                  }
+                  asChild
                 >
-                  <Button
-                    variant="outline"
-                    title="Test in prompt playground"
-                    size="icon"
+                  <Link
+                    href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
                   >
                     <Terminal className="h-5 w-5" />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
 
-                <Link
-                  href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => capture("prompts:update_form_open")}
+                  asChild
                 >
-                  <Button variant="outline" size="icon">
+                  <Link
+                    href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                  >
                     <Pencil className="h-5 w-5" />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
 
                 <DeletePromptVersion
                   promptVersionId={prompt.id}

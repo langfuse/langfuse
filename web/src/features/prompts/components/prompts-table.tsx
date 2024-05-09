@@ -19,6 +19,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type PromptTableRow = {
   name: string;
@@ -75,7 +76,7 @@ export function PromptTable() {
   );
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
-
+  const capture = usePostHogClientCapture();
   const totalCount = prompts.data?.totalCount ?? 0;
 
   useEffect(() => {
@@ -209,7 +210,10 @@ export function PromptTable() {
             <Button
               variant="secondary"
               disabled={!hasCUDAccess}
-              aria-label="Promote Prompt to Production"
+              aria-label="Create New Prompt"
+              onClick={() => {
+                capture("prompts:new_form_open");
+              }}
             >
               {hasCUDAccess ? (
                 <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />

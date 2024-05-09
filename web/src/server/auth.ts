@@ -270,6 +270,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
         return {
           ...session,
+          environment: {
+            enableExperimentalFeatures:
+              env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+          },
           user:
             dbUser !== null
               ? {

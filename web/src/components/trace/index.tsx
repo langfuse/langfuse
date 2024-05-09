@@ -23,6 +23,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -30,6 +31,7 @@ export function Trace(props: {
   scores: Score[];
   projectId: string;
 }) {
+  const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
@@ -77,17 +79,19 @@ export function Trace(props: {
           .filter((id) => !excludeParentObservations.has(id)),
       );
     } while (newExcludeParentObservations.size > 0);
-
+    capture("trace_detail:observation_tree_collapse", { type: "all" });
     setCollapsedObservations(
       props.observations
         .map((o) => o.id)
         .filter((id) => !excludeParentObservations.has(id)),
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.observations, currentObservationId]);
 
   const expandAll = useCallback(() => {
+    capture("trace_detail:observation_tree_expand", { type: "all" });
     setCollapsedObservations([]);
-  }, [setCollapsedObservations]);
+  }, []);
 
   return (
     <div className="grid gap-4 md:h-full md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
@@ -115,6 +119,9 @@ export function Trace(props: {
           <Toggle
             pressed={scoresOnObservationTree}
             onPressedChange={(e) => {
+              capture("trace_detail:observation_tree_toggle_scores", {
+                show: e,
+              });
               setScoresOnObservationTree(e);
             }}
             size="sm"
@@ -125,6 +132,9 @@ export function Trace(props: {
           <Toggle
             pressed={metricsOnObservationTree}
             onPressedChange={(e) => {
+              capture("trace_detail:observation_tree_toggle_metrics", {
+                show: e,
+              });
               setMetricsOnObservationTree(e);
             }}
             size="sm"
