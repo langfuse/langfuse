@@ -290,6 +290,16 @@ When a new release is tagged on the `main` branch (excluding prereleases), it tr
 1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
 2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
 
+## Using secrets stored in 1Password
+
+When applying changes to non-local environments, you may need to use secrets stored in 1Password. We use the 1Password CLI for this purpose.
+
+Example:
+
+```bash
+op run --env-file="./.env" -- pnpm --filter=shared run db:deploy
+```
+
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
