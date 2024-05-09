@@ -8,7 +8,6 @@ import { apiKeysRouter } from "@/src/features/public-api/server/apiKeyRouter";
 import { projectMembersRouter } from "@/src/features/rbac/server/projectMembersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
-import { environmentRouter } from "@/src/server/api/routers/environment";
 import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
@@ -34,7 +33,6 @@ export const appRouter = createTRPCRouter({
   apiKeys: apiKeysRouter,
   projectMembers: projectMembersRouter,
   datasets: datasetRouter,
-  environment: environmentRouter,
   usageMetering: usageMeteringRouter,
   observations: observationsRouter,
   prompts: promptRouter,
