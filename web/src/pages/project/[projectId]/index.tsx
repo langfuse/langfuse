@@ -47,7 +47,7 @@ export default function Start() {
 
   const session = useSession();
   const disableExpensiveDashboardComponents =
-    session.data?.environment.disableExpensiveDashboardComponents ?? true;
+    session.data?.environment.disableExpensivePostgresQueries ?? true;
   const project = session.data?.user?.projects.find(
     (project) => project.id === projectId,
   );
