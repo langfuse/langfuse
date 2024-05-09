@@ -243,6 +243,12 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
         return {
           ...session,
+          environment: {
+            enableExperimentalFeatures:
+              env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+            disableExpensivePostgresQueries:
+              env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
+          },
           user:
             dbUser !== null
               ? {

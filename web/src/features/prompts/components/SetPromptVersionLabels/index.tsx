@@ -22,6 +22,7 @@ import { AddLabelForm } from "./AddLabelForm";
 import { LabelCommandItem } from "./LabelCommandItem";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 
 export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
   const projectId = useProjectIdFromURL();
@@ -128,7 +129,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
                 ref={customLabelScrollRef}
               >
                 {labels
-                  .filter((l) => l !== PRODUCTION_LABEL)
+                  .filter((l) => !isReservedPromptLabel(l))
                   .map((label) => (
                     <LabelCommandItem
                       key={label}
