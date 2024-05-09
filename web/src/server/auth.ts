@@ -246,6 +246,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           environment: {
             enableExperimentalFeatures:
               env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+            disableExpensiveDashboardComponents:
+              env.LANGFUSE_DISABLE_EXPENSIVE_DASHBOARD_COMPONENTS === "true",
           },
           user:
             dbUser !== null
