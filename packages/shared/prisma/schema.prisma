@@ -406,6 +406,7 @@ model Score {
     @@unique([id, traceId]) // used for upsert
     @@index(timestamp)
     @@index([value])
+    @@index([projectId])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
