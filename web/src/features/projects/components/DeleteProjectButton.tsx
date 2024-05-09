@@ -18,7 +18,6 @@ import { Input } from "@/src/components/ui/input";
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { useRouter } from "next/router";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,8 +25,6 @@ import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function DeleteProjectButton(props: { projectId: string }) {
-  const utils = api.useUtils();
-  const router = useRouter();
   const session = useSession();
   const capture = usePostHogClientCapture();
 
@@ -52,9 +49,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
     scope: "project:delete",
   });
 
-  const deleteProject = api.projects.delete.useMutation({
-    onSuccess: () => utils.projects.invalidate(),
-  });
+  const deleteProject = api.projects.delete.useMutation();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -71,7 +66,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
         projectId: props.projectId,
       })
       .then(() => {
-        void router.push("/");
+        window.location.href = "/"; // browser reload to refresh jwt
       })
       .catch((error) => {
         console.error(error);
