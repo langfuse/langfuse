@@ -392,6 +392,7 @@ enum ObservationLevel {
 model Score {
     id            String         @id @default(cuid())
     timestamp     DateTime       @default(now())
+    projectId     String?        @map("project_id")
     name          String
     value         Float
     source        ScoreSource
