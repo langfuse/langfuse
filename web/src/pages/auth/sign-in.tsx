@@ -151,7 +151,9 @@ export function SSOButtons({
           {authProviders.keycloak && (
             <Button
               onClick={() => {
-                posthog.capture("sign_in:keycloak_button_click");
+                capture("sign_in:button_click", {
+                  provider: "keycloak",
+                });
                 void signIn("keycloak");
               }}
               variant="secondary"
