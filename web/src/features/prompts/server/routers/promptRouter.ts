@@ -605,7 +605,8 @@ export const promptRouter = createTRPCRouter({
           JOIN prompts AS p ON ov.prompt_id = p.id
           LEFT JOIN scores s ON ov.trace_id = s.trace_id AND s.observation_id = ov.id
           WHERE
-              ov.prompt_id IS NOT NULL
+              ov.type = 'GENERATION'
+              AnD ov.prompt_id IS NOT NULL
               AND ov.project_id = ${input.projectId}
           AND p.id IN (${Prisma.join(input.promptIds)})
           GROUP BY
