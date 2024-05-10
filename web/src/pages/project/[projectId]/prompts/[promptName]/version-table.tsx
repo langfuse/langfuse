@@ -14,6 +14,7 @@ import TableLink from "@/src/components/table/table-link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 
 type PromptVersionTableRow = {
   version: number;
@@ -119,6 +120,7 @@ export default function PromptVersionTable() {
           )
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "medianLatency",
@@ -130,16 +132,19 @@ export default function PromptVersionTable() {
           <span>{formatIntervalSeconds(latency, 3)}</span>
         ) : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "medianInputTokens",
       id: "medianInputTokens",
       header: "Median input tokens",
+      enableHiding: true,
     },
     {
       accessorKey: "medianOutputTokens",
       id: "medianOutputTokens",
       header: "Median output tokens",
+      enableHiding: true,
     },
     {
       accessorKey: "medianCost",
@@ -152,11 +157,13 @@ export default function PromptVersionTable() {
           <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
+      enableHiding: true,
     },
     {
       accessorKey: "generationCount",
       id: "generationCount",
       header: "Generations count",
+      enableHiding: true,
     },
     {
       accessorKey: "averageObservationScores",
@@ -179,6 +186,7 @@ export default function PromptVersionTable() {
           null
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "averageTraceScores",
@@ -201,16 +209,19 @@ export default function PromptVersionTable() {
           null
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "lastUsed",
       id: "lastUsed",
       header: "Last used",
+      enableHiding: true,
     },
     {
       accessorKey: "firstUsed",
       id: "firstUsed",
       header: "First used",
+      enableHiding: true,
     },
   ];
 
@@ -235,6 +246,12 @@ export default function PromptVersionTable() {
       enabled: Boolean(projectId) && promptHistory.isSuccess,
     },
   );
+
+  const [columnVisibility, setColumnVisibilityState] =
+    useColumnVisibility<PromptVersionTableRow>(
+      "promptVersionsColumnVisibility",
+      columns,
+    );
 
   if (!promptHistory.data) {
     return <div>Loading...</div>;
@@ -308,6 +325,8 @@ export default function PromptVersionTable() {
               columns={columns}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibilityState}
             />
           </div>
           <DataTable
@@ -334,6 +353,8 @@ export default function PromptVersionTable() {
             }}
             setOrderBy={setOrderByState}
             orderBy={orderByState}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibilityState}
             rowHeight={rowHeight}
           />
         </div>
