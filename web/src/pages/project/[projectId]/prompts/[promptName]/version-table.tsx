@@ -107,7 +107,7 @@ export default function PromptVersionTable() {
         const values: string[] = row.getValue("labels");
         return (
           values && (
-            <div>
+            <div className="flex gap-1">
               {values.map((value) => (
                 <div
                   key={value}
