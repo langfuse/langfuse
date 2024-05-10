@@ -717,7 +717,7 @@ export const promptRouter = createTRPCRouter({
         {} as Record<string, Record<string, number>>,
       );
 
-      const averageTraceScoreMap = averageObservationScores.reduce(
+      const averageTraceScoreMap = averageTraceScores.reduce(
         (acc, { prompt_id, scores }) => {
           acc[prompt_id] = { ...acc[prompt_id], ...scores };
           return acc;
