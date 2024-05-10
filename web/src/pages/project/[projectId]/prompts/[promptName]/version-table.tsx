@@ -15,6 +15,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 type PromptVersionTableRow = {
   version: number;
@@ -86,6 +87,35 @@ export default function PromptVersionTable() {
     "s",
   );
 
+  const promptHistory = api.prompts.allVersions.useQuery(
+    {
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      name: promptName,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    { enabled: Boolean(projectId) },
+  );
+
+  const promptIds = promptHistory.isSuccess
+    ? promptHistory.data?.promptVersions.map((prompt) => prompt.id)
+    : [];
+
+  const promptMetrics = api.prompts.metrics.useQuery(
+    {
+      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      promptIds,
+    },
+    {
+      enabled: Boolean(projectId) && promptHistory.isSuccess,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
     {
       accessorKey: "version",
@@ -130,6 +160,10 @@ export default function PromptVersionTable() {
       header: "Median latency",
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("medianLatency");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+
         return latency !== undefined ? (
           <span>{formatIntervalSeconds(latency, 3)}</span>
         ) : undefined;
@@ -141,12 +175,27 @@ export default function PromptVersionTable() {
       id: "medianInputTokens",
       header: "Median input tokens",
       enableHiding: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("medianInputTokens");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+
+        return value !== undefined ? <span>{String(value)}</span> : undefined;
+      },
     },
     {
       accessorKey: "medianOutputTokens",
       id: "medianOutputTokens",
       header: "Median output tokens",
       enableHiding: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("medianOutputTokens");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return value !== undefined ? <span>{String(value)}</span> : undefined;
+      },
     },
     {
       accessorKey: "medianCost",
@@ -154,6 +203,9 @@ export default function PromptVersionTable() {
       header: "Median cost",
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("medianCost");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
 
         return value !== undefined ? (
           <span>{usdFormatter(value)}</span>
@@ -166,6 +218,13 @@ export default function PromptVersionTable() {
       id: "generationCount",
       header: "Generations count",
       enableHiding: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("generationCount");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return value !== undefined ? <span>{String(value)}</span> : undefined;
+      },
     },
     {
       accessorKey: "averageObservationScores",
@@ -174,6 +233,9 @@ export default function PromptVersionTable() {
       cell: ({ row }) => {
         const scores: PromptVersionTableRow["averageObservationScores"] =
           row.getValue("averageObservationScores");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
 
         return (
           (scores && (
@@ -197,6 +259,9 @@ export default function PromptVersionTable() {
       cell: ({ row }) => {
         const scores: PromptVersionTableRow["averageTraceScores"] =
           row.getValue("averageTraceScores");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
 
         return (
           (scores && (
@@ -218,43 +283,28 @@ export default function PromptVersionTable() {
       id: "lastUsed",
       header: "Last used",
       enableHiding: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("lastUsed");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return value !== undefined ? <span>{value}</span> : undefined;
+      },
     },
     {
       accessorKey: "firstUsed",
       id: "firstUsed",
       header: "First used",
       enableHiding: true,
-    },
-  ];
-
-  const promptHistory = api.prompts.allVersions.useQuery(
-    {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      name: promptName,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-    },
-    { enabled: Boolean(projectId) },
-  );
-
-  const promptIds = promptHistory.isSuccess
-    ? promptHistory.data?.promptVersions.map((prompt) => prompt.id)
-    : [];
-
-  const promptMetrics = api.prompts.metrics.useQuery(
-    {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      promptIds,
-    },
-    {
-      enabled: Boolean(projectId) && promptHistory.isSuccess,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("firstUsed");
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return value !== undefined ? <span>{value}</span> : undefined;
       },
     },
-  );
+  ];
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
