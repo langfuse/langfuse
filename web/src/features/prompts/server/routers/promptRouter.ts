@@ -541,7 +541,13 @@ export const promptRouter = createTRPCRouter({
       return joinedPromptAndUsers;
     }),
   metrics: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), promptIds: z.array(z.string()) }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        promptIds: z.array(z.string()),
+        ...paginationZod,
+      }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -559,7 +565,6 @@ export const promptRouter = createTRPCRouter({
           medianInputTokens: number | null;
           medianTotalCost: number | null;
           medianLatency: number | null;
-          averageObservationScores: Record<string, number> | null;
         }>
       >(
         Prisma.sql`
@@ -580,9 +585,11 @@ export const promptRouter = createTRPCRouter({
             AND "type" = 'GENERATION'
             AND "project_id" = ${input.projectId}
         ) AS observation_metrics ON true
-        
         WHERE "project_id" = ${input.projectId}
         AND p.id in (${Prisma.join(input.promptIds)})
+        ORDER BY version DESC
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
     `,
       );
 
@@ -621,6 +628,8 @@ export const promptRouter = createTRPCRouter({
             AND avgs.average_score_value IS NOT NULL
           GROUP BY prompt_id
           ORDER BY prompt_id
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.limit}
         )
         SELECT * 
         FROM json_avg_scores_by_prompt_id`,
@@ -680,13 +689,15 @@ export const promptRouter = createTRPCRouter({
             prompt_id
           ORDER BY
             prompt_id
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.limit}
         )
         SELECT * 
         FROM json_avg_scores_by_prompt_id
         `,
       );
 
-      return metrics.map((metric) => ({
+      const inflatedMetrics = metrics.map((metric) => ({
         ...metric,
         averageObservationScores: averageObservationScores.find(
           (score) => score.prompt_id === metric.id,
@@ -695,6 +706,8 @@ export const promptRouter = createTRPCRouter({
           (score) => score.prompt_id === metric.id,
         )?.scores,
       }));
+
+      return { metrics: inflatedMetrics, totalCount: metrics.length };
     }),
 });
 
