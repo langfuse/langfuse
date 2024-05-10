@@ -51,6 +51,11 @@ export default function UsersPage() {
     },
     {
       enabled: users.isSuccess,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
     },
   );
 

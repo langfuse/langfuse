@@ -248,6 +248,11 @@ export default function PromptVersionTable() {
     },
     {
       enabled: Boolean(projectId) && promptHistory.isSuccess,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
     },
   );
 
