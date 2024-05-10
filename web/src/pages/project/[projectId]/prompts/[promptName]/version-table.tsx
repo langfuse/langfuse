@@ -32,7 +32,7 @@ type PromptVersionTableRow = {
 
 type PromptCoreOutput = RouterOutput["prompts"]["allVersions"];
 type PromptMetricsOutput = RouterOutput["prompts"]["metrics"];
-type PromptMetric = PromptMetricsOutput["metrics"][number];
+type PromptMetric = PromptMetricsOutput[number];
 type PromptCoreData = PromptCoreOutput[number];
 
 function joinPromptCoreAndMetricData(
@@ -47,12 +47,13 @@ function joinPromptCoreAndMetricData(
   if (!promptMetricsData)
     return { status: "success", combinedData: promptCoreData };
 
-  const { metrics } = promptMetricsData;
-
-  const promptMetricsMap = metrics.reduce((acc, metric: PromptMetric) => {
-    acc.set(metric.id, metric);
-    return acc;
-  }, new Map<string, PromptMetric>());
+  const promptMetricsMap = promptMetricsData.reduce(
+    (acc, metric: PromptMetric) => {
+      acc.set(metric.id, metric);
+      return acc;
+    },
+    new Map<string, PromptMetric>(),
+  );
 
   const combinedData = promptCoreData.map((coreData) => {
     const metric = promptMetricsMap.get(coreData.id);
@@ -228,6 +229,8 @@ export default function PromptVersionTable() {
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       name: promptName,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
     },
     { enabled: Boolean(projectId) },
   );

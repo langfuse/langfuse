@@ -493,7 +493,14 @@ export const promptRouter = createTRPCRouter({
       }
     }),
   allVersions: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), name: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        limit: z.number().optional(),
+        page: z.number().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -505,6 +512,9 @@ export const promptRouter = createTRPCRouter({
           projectId: input.projectId,
           name: input.name,
         },
+        ...(input.limit !== undefined && input.page !== undefined
+          ? { take: input.limit, skip: input.page * input.limit }
+          : undefined),
         orderBy: [{ version: "desc" }],
       });
       const userIds = prompts
@@ -697,7 +707,7 @@ export const promptRouter = createTRPCRouter({
         `,
       );
 
-      const inflatedMetrics = metrics.map((metric) => ({
+      return metrics.map((metric) => ({
         ...metric,
         averageObservationScores: averageObservationScores.find(
           (score) => score.prompt_id === metric.id,
@@ -706,8 +716,6 @@ export const promptRouter = createTRPCRouter({
           (score) => score.prompt_id === metric.id,
         )?.scores,
       }));
-
-      return { metrics: inflatedMetrics, totalCount: metrics.length };
     }),
 });
 
