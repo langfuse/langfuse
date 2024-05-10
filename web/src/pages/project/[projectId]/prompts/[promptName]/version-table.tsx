@@ -127,7 +127,7 @@ export default function PromptVersionTable() {
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("medianLatency");
         return latency !== undefined ? (
-          <span>{formatIntervalSeconds(latency)}</span>
+          <span>{formatIntervalSeconds(latency, 3)}</span>
         ) : undefined;
       },
     },
