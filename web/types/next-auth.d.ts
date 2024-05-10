@@ -18,6 +18,7 @@ declare module "next-auth" {
     environment: {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
+      disableExpensivePostgresQueries: boolean;
     };
   }
 

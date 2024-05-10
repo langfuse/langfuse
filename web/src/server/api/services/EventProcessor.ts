@@ -545,6 +545,7 @@ export class ScoreProcessor implements EventProcessor {
       },
       create: {
         id,
+        projectId: apiScope.projectId,
         trace: { connect: { id: body.traceId } },
         timestamp: new Date(),
         value: body.value,
@@ -557,6 +558,7 @@ export class ScoreProcessor implements EventProcessor {
       },
       update: {
         timestamp: new Date(),
+        projectId: apiScope.projectId,
         value: body.value,
         name: body.name,
         comment: body.comment,
