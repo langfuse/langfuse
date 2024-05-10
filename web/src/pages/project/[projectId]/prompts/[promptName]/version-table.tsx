@@ -73,7 +73,7 @@ export default function PromptVersionTable() {
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 10),
+    pageSize: withDefault(NumberParam, 50),
   });
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
