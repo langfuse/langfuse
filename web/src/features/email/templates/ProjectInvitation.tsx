@@ -18,8 +18,8 @@ import {
 import { env } from "@/src/env.mjs";
 
 interface ProjectInvitationTemplateProps {
-  invitedByUsername: string;
-  invitedByUserEmail: string;
+  invitedByUsername: string | null;
+  invitedByUserEmail: string | null;
   projectName: string;
   recieverEmail: string;
   inviteLink: string;
@@ -32,7 +32,9 @@ export const ProjectInvitationTemplate = ({
   recieverEmail,
   inviteLink,
 }: ProjectInvitationTemplateProps) => {
-  const previewText = `Join ${invitedByUsername} on Langfuse`;
+  const previewText = invitedByUsername
+    ? `Join ${invitedByUsername} on Langfuse`
+    : `Join ${projectName} on Langfuse`;
 
   return (
     <Html>
@@ -55,15 +57,21 @@ export const ProjectInvitationTemplate = ({
             </Heading>
             <Text className="text-sm leading-6 text-black">Hello,</Text>
             <Text className="text-sm leading-6 text-black">
-              <strong>{invitedByUsername}</strong> (
-              <Link
-                href={`mailto:${invitedByUserEmail}`}
-                className="text-blue-600 no-underline"
-              >
-                {invitedByUserEmail}
-              </Link>
-              ) has invited you to the <strong>{projectName}</strong> project on
-              Langfuse.
+              {invitedByUsername && invitedByUserEmail ? (
+                <>
+                  <strong>{invitedByUsername}</strong> (
+                  <Link
+                    href={`mailto:${invitedByUserEmail}`}
+                    className="text-blue-600 no-underline"
+                  >
+                    {invitedByUserEmail}
+                  </Link>
+                  ) has invited you
+                </>
+              ) : (
+                "You were invited"
+              )}{" "}
+              to the <strong>{projectName}</strong> project on Langfuse.
             </Text>
             <Section className="mb-4 mt-8 text-center">
               <Button

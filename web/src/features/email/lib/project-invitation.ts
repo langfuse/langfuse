@@ -20,8 +20,8 @@ const authUrl =
 
 export const sendProjectInvitation = async (
   to: string,
-  inviterName: string,
-  inviterEmail: string,
+  inviterName: string | null,
+  inviterEmail: string | null,
   projectName: string,
 ) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
@@ -50,7 +50,9 @@ export const sendProjectInvitation = async (
         address: env.EMAIL_FROM_ADDRESS,
         name: "Langfuse",
       },
-      subject: `${inviterName} invited you to join "${projectName}"`,
+      subject: inviterName
+        ? `Join project "${projectName}" on Langfuse`
+        : `${inviterName} invited you to join "${projectName}"`,
       html: htmlTemplate,
     });
   } catch (error) {
