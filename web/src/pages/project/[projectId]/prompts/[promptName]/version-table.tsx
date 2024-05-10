@@ -13,6 +13,7 @@ import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 type PromptVersionTableRow = {
   version: number;
@@ -22,7 +23,7 @@ type PromptVersionTableRow = {
   medianOutputTokens?: number | null;
   medianCost?: number | null;
   generationCount?: number | null;
-  averageObservationScore?: number | null;
+  averageObservationScores?: Record<string, number> | null;
   averageTraceScore?: number | null;
   lastUsed?: string | null;
   firstUsed?: string | null;
@@ -158,17 +159,25 @@ export default function PromptVersionTable() {
       header: "Generations count",
     },
     {
-      accessorKey: "averageObservationScore",
-      id: "averageObservationScore",
+      accessorKey: "averageObservationScores",
+      id: "averageObservationScores",
       header: "Average observation score",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue(
-          "averageObservationScore",
-        );
+        const scores: PromptVersionTableRow["averageObservationScores"] =
+          row.getValue("averageObservationScores");
 
-        return value !== undefined ? (
-          <span>{numberFormatter(value)}</span>
-        ) : undefined;
+        return (
+          (scores && (
+            <GroupedScoreBadges
+              scores={Object.entries(scores).map(([k, v]) => ({
+                name: k,
+                value: v,
+              }))}
+              variant="headings"
+            />
+          )) ??
+          null
+        );
       },
     },
     {
@@ -237,9 +246,9 @@ export default function PromptVersionTable() {
           medianInputTokens: prompt.medianInputTokens,
           medianOutputTokens: prompt.medianOutputTokens,
           medianCost: prompt.medianTotalCost,
-          generationCount: prompt.observation_count,
-          averageObservationScore: prompt.averageObservationScore,
-          averageTraceScore: prompt.averageTraceScore,
+          generationCount: prompt.observationCount,
+          averageObservationScores: prompt.averageObservationScores,
+          // averageTraceScore: prompt.averageTraceScore,
           lastUsed: prompt.lastUsed?.toLocaleString() ?? "No event yet",
           firstUsed: prompt.firstUsed?.toLocaleString() ?? "No event yet",
         }))
