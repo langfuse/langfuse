@@ -14,9 +14,13 @@ import { Input } from "@/src/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PromptLabelSchema } from "@/src/features/prompts/server/utils/validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 
 const AddLabelFormSchema = z.object({
-  newLabel: PromptLabelSchema,
+  newLabel: PromptLabelSchema.refine(
+    (val) => !isReservedPromptLabel(val),
+    "Custom label cannot be 'latest' or 'production'",
+  ),
 });
 
 type AddLabelFromSchemaType = z.infer<typeof AddLabelFormSchema>;
