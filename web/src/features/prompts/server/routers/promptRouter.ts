@@ -13,7 +13,7 @@ import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt } from "../actions/createPrompt";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { paginationZod } from "@/src/utils/zod";
+import { optionalPaginationZod, paginationZod } from "@/src/utils/zod";
 import {
   orderBy,
   singleFilter,
@@ -497,8 +497,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
-        limit: z.number().optional(),
-        page: z.number().optional(),
+        ...optionalPaginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -517,6 +516,14 @@ export const promptRouter = createTRPCRouter({
           : undefined),
         orderBy: [{ version: "desc" }],
       });
+
+      const totalCount = await ctx.prisma.prompt.count({
+        where: {
+          projectId: input.projectId,
+          name: input.name,
+        },
+      });
+
       const userIds = prompts
         .map((p) => p.createdBy)
         .filter((id) => id !== "API");
@@ -548,14 +555,13 @@ export const promptRouter = createTRPCRouter({
           creator: user?.name,
         };
       });
-      return joinedPromptAndUsers;
+      return { promptVersions: joinedPromptAndUsers, totalCount };
     }),
   metrics: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         promptIds: z.array(z.string()),
-        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -598,8 +604,6 @@ export const promptRouter = createTRPCRouter({
         WHERE "project_id" = ${input.projectId}
         AND p.id in (${Prisma.join(input.promptIds)})
         ORDER BY version DESC
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
     `,
       );
 
@@ -638,8 +642,6 @@ export const promptRouter = createTRPCRouter({
             AND avgs.average_score_value IS NOT NULL
           GROUP BY prompt_id
           ORDER BY prompt_id
-          LIMIT ${input.limit}
-          OFFSET ${input.page * input.limit}
         )
         SELECT * 
         FROM json_avg_scores_by_prompt_id`,
@@ -699,8 +701,6 @@ export const promptRouter = createTRPCRouter({
             prompt_id
           ORDER BY
             prompt_id
-          LIMIT ${input.limit}
-          OFFSET ${input.page * input.limit}
         )
         SELECT * 
         FROM json_avg_scores_by_prompt_id

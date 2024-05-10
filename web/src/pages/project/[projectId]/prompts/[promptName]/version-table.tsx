@@ -33,7 +33,7 @@ type PromptVersionTableRow = {
 type PromptCoreOutput = RouterOutput["prompts"]["allVersions"];
 type PromptMetricsOutput = RouterOutput["prompts"]["metrics"];
 type PromptMetric = PromptMetricsOutput[number];
-type PromptCoreData = PromptCoreOutput[number];
+type PromptCoreData = PromptCoreOutput["promptVersions"][number];
 
 function joinPromptCoreAndMetricData(
   promptCoreData: PromptCoreOutput,
@@ -44,8 +44,10 @@ function joinPromptCoreAndMetricData(
 } {
   if (!promptCoreData) return { status: "error", combinedData: undefined }; // defensive should never happen
 
+  const { promptVersions } = promptCoreData;
+
   if (!promptMetricsData)
-    return { status: "success", combinedData: promptCoreData };
+    return { status: "success", combinedData: promptVersions };
 
   const promptMetricsMap = promptMetricsData.reduce(
     (acc, metric: PromptMetric) => {
@@ -55,7 +57,7 @@ function joinPromptCoreAndMetricData(
     new Map<string, PromptMetric>(),
   );
 
-  const combinedData = promptCoreData.map((coreData) => {
+  const combinedData = promptVersions.map((coreData) => {
     const metric = promptMetricsMap.get(coreData.id);
     return {
       ...coreData,
@@ -236,15 +238,13 @@ export default function PromptVersionTable() {
   );
 
   const promptIds = promptHistory.isSuccess
-    ? promptHistory.data?.map((prompt) => prompt.id)
+    ? promptHistory.data?.promptVersions.map((prompt) => prompt.id)
     : [];
 
   const promptMetrics = api.prompts.metrics.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
     },
     {
       enabled: Boolean(projectId) && promptHistory.isSuccess,
@@ -261,7 +261,7 @@ export default function PromptVersionTable() {
     return <div>Loading...</div>;
   }
 
-  const totalCount = promptHistory.data.length ?? 0;
+  const totalCount = promptHistory?.data?.totalCount ?? 0;
 
   const { combinedData } = joinPromptCoreAndMetricData(
     promptHistory.data,
