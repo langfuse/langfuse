@@ -594,7 +594,7 @@ export const promptRouter = createTRPCRouter({
         }>
       >(
         Prisma.sql` 
-        WITH avg_scores_by_prompt_version AS (
+        WITH avg_scores_by_prompt AS (
           SELECT
               ov.prompt_id AS prompt_id,
               p.version AS prompt_version,
@@ -625,7 +625,7 @@ export const promptRouter = createTRPCRouter({
           jsonb_object_agg(score_name,
           average_score_value) AS scores
         FROM
-          avg_scores_by_prompt_version AS avgs
+        avg_scores_by_prompt AS avgs
         WHERE 
           avgs.score_name IS NOT NULL 
           AND avgs.average_score_value IS NOT NULL
@@ -640,7 +640,84 @@ export const promptRouter = createTRPCRouter({
         FROM json_avg_scores_by_prompt_id`,
       );
 
+      const averageTraceScores = await ctx.prisma.$queryRaw<
+        Array<{
+          prompt_id: string;
+          scores: Record<string, number>;
+        }>
+      >(
+        Prisma.sql`
+        WITH scores_by_trace AS (
+          SELECT
+              ov.prompt_id AS prompt_id,
+              p.version AS prompt_version,
+              s.name AS score_name,
+              ov.trace_id AS trace_id, 
+              s.value AS score_value,
+              ROW_NUMBER() OVER (PARTITION BY ov.prompt_id, ov.trace_id ORDER BY s.id) AS row_num
+          FROM
+              observations_view AS ov
+          JOIN prompts AS p ON ov.prompt_id = p.id
+          LEFT JOIN scores s ON ov.trace_id = s.trace_id AND s.observation_id IS NULL 
+          WHERE
+              ov.prompt_id IS NOT NULL
+              AND ov.type = 'GENERATION'
+              AND ov.project_id = ${input.projectId}
+              AND p.id IN (${Prisma.join(input.promptIds)})
+          GROUP BY
+              ov.prompt_id,
+              p.version,
+              s.name, 
+              ov.trace_id, 
+              s.value,
+              s.id
+          ORDER BY
+              1,
+              2,
+              3, 
+              4
+      ), average_scores_by_prompt AS (
+        SELECT 
+            prompt_id,
+            score_name,
+            AVG(score_value) AS average_score_value
+        FROM 
+            scores_by_trace
+        WHERE 
+            row_num = 1
+        GROUP BY 
+            prompt_id,
+            score_name
+      ),
+               json_avg_scores_by_prompt_id AS (
+                SELECT
+                  prompt_id,
+                  jsonb_object_agg(score_name,
+                  average_score_value) AS scores
+                FROM
+                  average_scores_by_prompt AS asp
+                WHERE 
+                  asp.score_name IS NOT NULL 
+                  AND asp.average_score_value IS NOT NULL
+                GROUP BY
+                  prompt_id
+                ORDER BY
+                  prompt_id
+                  )
+           SELECT * 
+           FROM json_avg_scores_by_prompt_id
+        `,
+      );
+
       const averageObservationScoreMap = averageObservationScores.reduce(
+        (acc, { prompt_id, scores }) => {
+          acc[prompt_id] = { ...acc[prompt_id], ...scores };
+          return acc;
+        },
+        {} as Record<string, Record<string, number>>,
+      );
+
+      const averageTraceScoreMap = averageObservationScores.reduce(
         (acc, { prompt_id, scores }) => {
           acc[prompt_id] = { ...acc[prompt_id], ...scores };
           return acc;
@@ -651,6 +728,7 @@ export const promptRouter = createTRPCRouter({
       return metrics.map((metric) => ({
         ...metric,
         averageObservationScores: averageObservationScoreMap[metric.id] ?? null,
+        averageTraceScores: averageTraceScoreMap[metric.id] ?? null,
       }));
     }),
 });

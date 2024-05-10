@@ -11,7 +11,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
@@ -24,7 +24,7 @@ type PromptVersionTableRow = {
   medianCost?: number | null;
   generationCount?: number | null;
   averageObservationScores?: Record<string, number> | null;
-  averageTraceScore?: number | null;
+  averageTraceScores?: Record<string, number> | null;
   lastUsed?: string | null;
   firstUsed?: string | null;
 };
@@ -161,7 +161,7 @@ export default function PromptVersionTable() {
     {
       accessorKey: "averageObservationScores",
       id: "averageObservationScores",
-      header: "Average observation score",
+      header: "Average observation scores",
       cell: ({ row }) => {
         const scores: PromptVersionTableRow["averageObservationScores"] =
           row.getValue("averageObservationScores");
@@ -181,15 +181,25 @@ export default function PromptVersionTable() {
       },
     },
     {
-      accessorKey: "averageTraceScore",
-      id: "averageTraceScore",
-      header: "Average trace score",
+      accessorKey: "averageTraceScores",
+      id: "averageTraceScores",
+      header: "Average trace scores",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("averageTraceScore");
+        const scores: PromptVersionTableRow["averageTraceScores"] =
+          row.getValue("averageTraceScores");
 
-        return value !== undefined ? (
-          <span>{numberFormatter(value)}</span>
-        ) : undefined;
+        return (
+          (scores && (
+            <GroupedScoreBadges
+              scores={Object.entries(scores).map(([k, v]) => ({
+                name: k,
+                value: v,
+              }))}
+              variant="headings"
+            />
+          )) ??
+          null
+        );
       },
     },
     {
@@ -248,7 +258,7 @@ export default function PromptVersionTable() {
           medianCost: prompt.medianTotalCost,
           generationCount: prompt.observationCount,
           averageObservationScores: prompt.averageObservationScores,
-          // averageTraceScore: prompt.averageTraceScore,
+          averageTraceScores: prompt.averageTraceScores,
           lastUsed: prompt.lastUsed?.toLocaleString() ?? "No event yet",
           firstUsed: prompt.firstUsed?.toLocaleString() ?? "No event yet",
         }))
