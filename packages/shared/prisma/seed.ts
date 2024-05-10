@@ -501,6 +501,7 @@ function createObjects(
               value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
               source: ScoreSource.REVIEW,
+              projectId,
             },
           ]
         : []),
@@ -512,6 +513,7 @@ function createObjects(
               value: Math.floor(Math.random() * 10) - 5,
               timestamp: traceTs,
               source: ScoreSource.API,
+              projectId,
             },
           ]
         : []),
@@ -693,6 +695,7 @@ function createObjects(
             observationId: generation.id,
             traceId: trace.id,
             source: ScoreSource.API,
+            projectId: trace.projectId,
           });
         if (Math.random() > 0.6)
           scores.push({
@@ -701,6 +704,7 @@ function createObjects(
             observationId: generation.id,
             traceId: trace.id,
             source: ScoreSource.API,
+            projectId: trace.projectId,
           });
 
         for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
