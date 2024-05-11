@@ -477,8 +477,8 @@ export class ObservationProcessor implements EventProcessor {
         format: "JSONEachRow",
         values: insert,
       });
-      return returnObs;
     }
+    return returnObs;
   }
 }
 export class TraceProcessor implements EventProcessor {
