@@ -342,6 +342,7 @@ export type Prompt = {
 export type Score = {
     id: string;
     timestamp: Generated<Timestamp>;
+    project_id: string | null;
     name: string;
     value: number;
     source: ScoreSource;

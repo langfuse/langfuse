@@ -14,7 +14,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { api } from "@/src/utils/api";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
@@ -62,7 +61,7 @@ export default function Layout(props: PropsWithChildren) {
   useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
 
   const enableExperimentalFeatures =
-    api.environment.enableExperimentalFeatures.useQuery().data ?? false;
+    session.data?.environment.enableExperimentalFeatures ?? false;
 
   const projectId = router.query.projectId as string | undefined;
 

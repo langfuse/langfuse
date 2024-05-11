@@ -46,6 +46,8 @@ export default function Start() {
   const capture = usePostHogClientCapture();
 
   const session = useSession();
+  const disableExpensiveDashboardComponents =
+    session.data?.environment.disableExpensivePostgresQueries ?? true;
   const project = session.data?.user?.projects.find(
     (project) => project.id === projectId,
   );
@@ -187,11 +189,13 @@ export default function Start() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <MetricTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-        />
+        {!disableExpensiveDashboardComponents && (
+          <MetricTable
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+          />
+        )}
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
@@ -203,34 +207,42 @@ export default function Start() {
           globalFilterState={mergedFilterState}
           agg={agg}
         />
-        <ModelUsageChart
-          className="col-span-1  min-h-24 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          agg={agg}
-        />
-        <UserChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          agg={agg}
-        />
+        {!disableExpensiveDashboardComponents && (
+          <ModelUsageChart
+            className="col-span-1  min-h-24 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            agg={agg}
+          />
+        )}
+        {!disableExpensiveDashboardComponents && (
+          <UserChart
+            className="col-span-1 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            agg={agg}
+          />
+        )}
         <ChartScores
           className="col-span-1 xl:col-span-3"
           agg={agg}
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <LatencyTables
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-        />
-        <GenerationLatencyChart
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          projectId={projectId}
-          agg={agg}
-          globalFilterState={mergedFilterState}
-        />
+        {!disableExpensiveDashboardComponents && (
+          <LatencyTables
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+          />
+        )}
+        {!disableExpensiveDashboardComponents && (
+          <GenerationLatencyChart
+            className="col-span-1 flex-auto justify-between lg:col-span-full"
+            projectId={projectId}
+            agg={agg}
+            globalFilterState={mergedFilterState}
+          />
+        )}
       </div>
     </div>
   );
