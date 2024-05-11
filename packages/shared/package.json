@@ -17,6 +17,10 @@
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
     },
+    "./backend": {
+      "import": "./dist/src/backend/index.js",
+      "require": "./dist/src/backend/index.js"
+    },
     "./src/server/auth": {
       "import": "./dist/src/server/auth.js",
       "require": "./dist/src/server/auth.js"
@@ -38,17 +42,22 @@
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
-    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load"
+    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
+    "ch:status": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' status",
+    "ch:up": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' up",
+    "ch:reset": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' reset"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.0.1",
     "@langchain/anthropic": "^0.1.16",
     "@langchain/core": "^0.1.61",
     "@langchain/openai": "^0.0.28",
     "@prisma/client": "^5.13.0",
     "@types/bcryptjs": "^2.4.6",
+    "add": "^2.0.6",
     "bcryptjs": "^2.4.3",
     "kysely": "^0.27.3",
     "langchain": "^0.1.36",
@@ -64,6 +73,7 @@
     "@types/pg": "^8.11.5",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.7.0",
+    "clickhouse-migrations": "^0.1.14",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",

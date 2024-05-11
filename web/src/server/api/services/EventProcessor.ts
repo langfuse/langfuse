@@ -30,6 +30,8 @@ import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
+import { clickhouseClient } from "@langfuse/shared/backend";
+import { env } from "@/src/env.mjs";
 
 export interface EventProcessor {
   process(
@@ -396,13 +398,87 @@ export class ObservationProcessor implements EventProcessor {
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    return await prisma.observation.upsert({
+    const returnObs = await prisma.observation.upsert({
       where: {
         id: obs.id,
       },
       create: obs.create,
       update: obs.update,
     });
+    console.log(
+      `Upserted observation ${obs.id} for project ${apiScope.projectId}`,
+    );
+    if (env.CLICKHOUSE_URL) {
+      const select = `
+      SELECT * FROM observations FINAL
+      WHERE id = '${this.event.body.id}'
+      and project_id = '${apiScope.projectId}'
+      and created_at > now() - INTERVAL 1 DAY
+      limit 1
+      ;
+    `;
+      console.log(
+        `Checking if observation with id ${apiScope.projectId} already exists in clickhouse ${select}`,
+      );
+      const prev = await clickhouseClient.query({
+        format: "JSONEachRow",
+        query: select,
+      });
+
+      const json = await prev.json();
+
+      if (json.length > 0) {
+        console.log(
+          `Clickhouse already has observation with id ${apiScope.projectId}, ${JSON.stringify(json)}`,
+        );
+      }
+      const insert = [
+        {
+          id: obs.id,
+          trace_id: obs.create.traceId,
+          type: obs.create.type,
+          name: obs.create.name,
+          start_time: obs.create.startTime
+            ? new Date(obs.create.startTime).getTime()
+            : Date.now(),
+          end_time: obs.create.endTime
+            ? new Date(obs.create.endTime).getTime()
+            : Date.now(),
+          completion_start_time: obs.create.completionStartTime,
+          metadata: obs.create.metadata,
+          model: obs.create.model,
+          model_parameters: obs.create.modelParameters,
+          input: obs.create.input,
+          output: obs.create.output,
+          prompt_tokens: obs.create.promptTokens,
+          completion_tokens: obs.create.completionTokens,
+          total_tokens: obs.create.totalTokens,
+          unit: obs.create.unit,
+          level: obs.create.level,
+          status_message: obs.create.statusMessage,
+          parent_observation_id: obs.create.parentObservationId,
+          version: obs.create.version,
+          project_id: apiScope.projectId,
+          prompt_id: obs.create.promptId,
+          internal_model: obs.create.internalModel,
+          input_cost: obs.create.inputCost,
+          output_cost: obs.create.outputCost,
+          total_cost: obs.create.totalCost,
+          updated_at: Date.now(),
+          created_at: Date.now(),
+        },
+      ];
+
+      console.log(
+        `Inserting observation into clickhouse, ${JSON.stringify(insert)}`,
+      );
+      await clickhouseClient.insert({
+        table: "observations",
+        format: "JSONEachRow",
+        values: insert,
+      });
+      return returnObs;
+    }
   }
 }
 export class TraceProcessor implements EventProcessor {
@@ -430,6 +506,64 @@ export class TraceProcessor implements EventProcessor {
       ", id:",
       internalId,
     );
+
+    if (env.CLICKHOUSE_URL) {
+      const select = `
+      SELECT * FROM traces FINAL
+      WHERE id = '${internalId}'
+      and project_id = '${apiScope.projectId}'
+      and created_at > now() - INTERVAL 1 DAY
+      limit 1
+      ;
+    `;
+      console.log(
+        `Checking if trace with id ${internalId} already exists in clickhouse ${select}`,
+      );
+      const prev = await clickhouseClient.query({
+        format: "JSONEachRow",
+        query: select,
+      });
+
+      const json = await prev.json();
+
+      if (json.length > 0) {
+        console.log(
+          `Clickhouse already has trace with id ${internalId}, ${JSON.stringify(json)}`,
+        );
+      }
+
+      const insert = [
+        {
+          id: internalId,
+          timestamp: body.timestamp
+            ? new Date(body.timestamp).getTime()
+            : Date.now(),
+          name: body.name,
+          user_id: body.userId,
+          metadata: body.metadata,
+          release: body.release,
+          version: body.version,
+          project_id: apiScope.projectId,
+          public: body.public,
+          bookmarked: false,
+          tags: body.tags ?? [],
+          input: body.input,
+          output: body.output,
+          session_id: body.sessionId,
+          updated_at: Date.now(),
+          created_at: Date.now(),
+          // ch_sign: 1,
+          // ch_version: json.length > 0 ? json[0].ch_version + 1 : 0,
+        },
+      ];
+
+      console.log(`Inserting trace into clickhouse, ${JSON.stringify(insert)}`);
+      await clickhouseClient.insert({
+        table: "traces",
+        format: "JSONEachRow",
+        values: insert,
+      });
+    }
 
     const existingTrace = await prisma.trace.findFirst({
       where: {
