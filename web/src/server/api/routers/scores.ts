@@ -130,7 +130,7 @@ export const scoresRouter = createTRPCRouter({
           : {
               trace: {
                 project: {
-                  members: {
+                  projectMembers: {
                     some: {
                       userId: ctx.session.user.id,
                     },
@@ -156,7 +156,7 @@ export const scoresRouter = createTRPCRouter({
         where: {
           id: input.traceId,
           project: {
-            members: {
+            projectMembers: {
               some: {
                 userId: ctx.session.user.id,
               },
@@ -221,7 +221,7 @@ export const scoresRouter = createTRPCRouter({
           source: "REVIEW",
           trace: {
             project: {
-              members: {
+              projectMembers: {
                 some: {
                   userId: ctx.session.user.id,
                 },
@@ -277,7 +277,7 @@ export const scoresRouter = createTRPCRouter({
           source: "REVIEW",
           trace: {
             project: {
-              members: {
+              projectMembers: {
                 some: {
                   userId: ctx.session.user.id,
                 },

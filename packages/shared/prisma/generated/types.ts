@@ -208,13 +208,6 @@ export type LlmApiKeys = {
     secret_key: string;
     project_id: string;
 };
-export type Membership = {
-    project_id: string;
-    user_id: string;
-    role: MembershipRole;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-};
 export type MembershipInvitation = {
     id: string;
     email: string;
@@ -323,6 +316,13 @@ export type Project = {
     updated_at: Generated<Timestamp>;
     name: string;
     cloud_config: unknown | null;
+};
+export type ProjectMembership = {
+    project_id: string;
+    user_id: string;
+    role: MembershipRole;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type Prompt = {
     id: string;
@@ -440,12 +440,12 @@ export type DB = {
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
     membership_invitations: MembershipInvitation;
-    memberships: Membership;
     models: Model;
     observations: Observation;
     observations_view: ObservationView;
     posthog_integrations: PosthogIntegration;
     pricings: Pricing;
+    project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
     scores: Score;

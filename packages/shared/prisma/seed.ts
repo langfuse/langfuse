@@ -51,7 +51,7 @@ async function main() {
     create: {
       id: seedProjectId,
       name: "llm-app",
-      members: {
+      projectMembers: {
         create: {
           role: "OWNER",
           userId: user.id,
@@ -110,7 +110,7 @@ async function main() {
       create: {
         id: "239ad00f-562f-411d-af14-831c75ddd875",
         name: "demo-app",
-        members: {
+        projectMembers: {
           create: {
             role: "OWNER",
             userId: user.id,
