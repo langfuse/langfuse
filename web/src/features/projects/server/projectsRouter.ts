@@ -11,7 +11,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
-    const memberships = await ctx.prisma.membership.findMany({
+    const memberships = await ctx.prisma.projectMembership.findMany({
       where: {
         userId: ctx.session.user.id,
       },
@@ -63,7 +63,7 @@ export const projectsRouter = createTRPCRouter({
       const project = await ctx.prisma.project.create({
         data: {
           name: input.name,
-          members: {
+          projectMembers: {
             create: {
               userId: ctx.session.user.id,
               role: "OWNER",
@@ -182,7 +182,7 @@ export const projectsRouter = createTRPCRouter({
 
       return ctx.prisma.$transaction([
         // Add new owner, upsert to update role if already exists
-        ctx.prisma.membership.upsert({
+        ctx.prisma.projectMembership.upsert({
           where: {
             projectId_userId: {
               projectId: input.projectId,
@@ -199,7 +199,7 @@ export const projectsRouter = createTRPCRouter({
           },
         }),
         // Update old owner to admin
-        ctx.prisma.membership.update({
+        ctx.prisma.projectMembership.update({
           where: {
             projectId_userId: {
               projectId: input.projectId,

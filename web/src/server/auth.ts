@@ -233,7 +233,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             image: true,
             featureFlags: true,
             admin: true,
-            memberships: {
+            projectMemberships: {
               include: {
                 project: true,
               },
@@ -258,7 +258,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   email: dbUser.email,
                   image: dbUser.image,
                   admin: dbUser.admin,
-                  projects: dbUser.memberships.map((membership) => ({
+                  projects: dbUser.projectMemberships.map((membership) => ({
                     id: membership.project.id,
                     name: membership.project.name,
                     role: membership.role,
