@@ -5,7 +5,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { MembershipRole } from "@langfuse/shared/src/db";
+import { ProjectRole } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 
@@ -82,7 +82,7 @@ export const projectMembersRouter = createTRPCRouter({
           projectId: input.projectId,
           userId: input.userId,
           role: {
-            not: MembershipRole.OWNER,
+            not: ProjectRole.OWNER,
           },
         },
       });
@@ -141,9 +141,9 @@ export const projectMembersRouter = createTRPCRouter({
         projectId: z.string(),
         email: z.string().email(),
         role: z.enum([
-          MembershipRole.ADMIN,
-          MembershipRole.MEMBER,
-          MembershipRole.VIEWER,
+          ProjectRole.ADMIN,
+          ProjectRole.MEMBER,
+          ProjectRole.VIEWER,
         ]),
       }),
     )

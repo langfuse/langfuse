@@ -4,13 +4,13 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
-export const MembershipRole = {
+export const ProjectRole = {
     OWNER: "OWNER",
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
     VIEWER: "VIEWER"
 } as const;
-export type MembershipRole = (typeof MembershipRole)[keyof typeof MembershipRole];
+export type ProjectRole = (typeof ProjectRole)[keyof typeof ProjectRole];
 export const ObservationType = {
     SPAN: "SPAN",
     EVENT: "EVENT",
@@ -96,7 +96,7 @@ export type AuditLog = {
     updated_at: Generated<Timestamp>;
     user_id: string;
     project_id: string;
-    user_project_role: MembershipRole;
+    user_project_role: ProjectRole;
     resource_type: string;
     resource_id: string;
     action: string;
@@ -211,7 +211,7 @@ export type LlmApiKeys = {
 export type MembershipInvitation = {
     id: string;
     email: string;
-    role: MembershipRole;
+    role: ProjectRole;
     project_id: string;
     sender_id: string | null;
     created_at: Generated<Timestamp>;
@@ -320,7 +320,7 @@ export type Project = {
 export type ProjectMembership = {
     project_id: string;
     user_id: string;
-    role: MembershipRole;
+    role: ProjectRole;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
