@@ -1,4 +1,4 @@
-import { type MembershipRole } from "@langfuse/shared";
+import { type ProjectRole } from "@langfuse/shared";
 
 const scopes = [
   "members:read",
@@ -43,7 +43,7 @@ const scopes = [
 // type string of all Resource:Action, e.g. "members:read"
 export type Scope = (typeof scopes)[number];
 
-export const roleAccessRights: Record<MembershipRole, Scope[]> = {
+export const roleAccessRights: Record<ProjectRole, Scope[]> = {
   OWNER: [
     "members:read",
     "members:create",
