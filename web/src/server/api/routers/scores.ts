@@ -5,11 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import {
-  type MembershipRole,
-  Prisma,
-  type Score,
-} from "@langfuse/shared/src/db";
+import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@langfuse/shared";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
@@ -118,28 +114,6 @@ export const scoresRouter = createTRPCRouter({
 
       return res;
     }),
-  // byId: protectedProjectProcedure
-  //   .input(z.object({ id: z.string(), projectId: z.string() }))
-  //   .query(({ input, ctx }) =>
-  //     ctx.prisma.score.findFirstOrThrow({
-  //       where: {
-  //         id: input,
-  //         ...(ctx.session.user.admin === true
-  //           ? undefined
-  //           : {
-  //               trace: {
-  //                 project: {
-  //                   members: {
-  //                     some: {
-  //                       userId: ctx.session.user.id,
-  //                     },
-  //                   },
-  //                 },
-  //               },
-  //             }),
-  //       },
-  //     }),
-  //   ),
   createReviewScore: protectedProjectProcedure
     .input(
       z.object({
@@ -152,6 +126,18 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      const trace = await ctx.prisma.trace.findFirstOrThrow({
+        where: {
+          id: input.traceId,
+          project: {
+            projectMembers: {
+              some: {
+                userId: ctx.session.user.id,
+              },
+            },
+          },
+        },
+      });
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -184,7 +170,7 @@ export const scoresRouter = createTRPCRouter({
         userId: ctx.session.user.id,
         userProjectRole: ctx.session.user.projects.find(
           (p) => p.id === trace.projectId,
-        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
         resourceType: "score",
         resourceId: score.id,
         action: "create",
@@ -223,7 +209,7 @@ export const scoresRouter = createTRPCRouter({
         userId: ctx.session.user.id,
         userProjectRole: ctx.session.user.projects.find(
           (p) => p.id === input.projectId,
-        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
         resourceType: "score",
         resourceId: score.id,
         action: "update",
@@ -266,7 +252,7 @@ export const scoresRouter = createTRPCRouter({
         userId: ctx.session.user.id,
         userProjectRole: ctx.session.user.projects.find(
           (p) => p.id === input.projectId,
-        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
         resourceType: "score",
         resourceId: score.id,
         action: "delete",

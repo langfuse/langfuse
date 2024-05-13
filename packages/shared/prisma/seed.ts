@@ -51,7 +51,7 @@ async function main() {
     create: {
       id: seedProjectId,
       name: "llm-app",
-      members: {
+      projectMembers: {
         create: {
           role: "OWNER",
           userId: user.id,
@@ -72,7 +72,7 @@ async function main() {
       name: "summary-prompt",
       project: { connect: { id: seedProjectId } },
       prompt: "prompt {{variable}} {{anotherVariable}}",
-      labels: ["production"],
+      labels: ["production", "latest"],
       version: 1,
       createdBy: "user-1",
     },
@@ -110,7 +110,7 @@ async function main() {
       create: {
         id: "239ad00f-562f-411d-af14-831c75ddd875",
         name: "demo-app",
-        members: {
+        projectMembers: {
           create: {
             role: "OWNER",
             userId: user.id,
@@ -501,6 +501,7 @@ function createObjects(
               value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
               source: ScoreSource.REVIEW,
+              projectId,
             },
           ]
         : []),
@@ -512,6 +513,7 @@ function createObjects(
               value: Math.floor(Math.random() * 10) - 5,
               timestamp: traceTs,
               source: ScoreSource.API,
+              projectId,
             },
           ]
         : []),
@@ -693,6 +695,7 @@ function createObjects(
             observationId: generation.id,
             traceId: trace.id,
             source: ScoreSource.API,
+            projectId: trace.projectId,
           });
         if (Math.random() > 0.6)
           scores.push({
@@ -701,6 +704,7 @@ function createObjects(
             observationId: generation.id,
             traceId: trace.id,
             source: ScoreSource.API,
+            projectId: trace.projectId,
           });
 
         for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
@@ -764,7 +768,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 1 content",
       name: "Prompt 1",
       version: 1,
-      labels: ["production"],
+      labels: ["production", "latest"],
     },
     {
       id: `prompt-${v4()}`,
@@ -773,7 +777,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 2 content",
       name: "Prompt 2",
       version: 1,
-      labels: ["production"],
+      labels: ["production", "latest"],
     },
     {
       id: `prompt-${v4()}`,
@@ -782,7 +786,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 3 content",
       name: "Prompt 3 by API",
       version: 1,
-      labels: ["production"],
+      labels: ["production", "latest"],
     },
     {
       id: `prompt-${v4()}`,
@@ -791,7 +795,7 @@ async function generatePrompts(project: Project) {
       prompt: "Prompt 4 content",
       name: "Prompt 4",
       version: 1,
-      labels: ["production"],
+      labels: ["production", "latest"],
       tags: ["tag1", "tag2"],
     },
   ];
@@ -859,6 +863,7 @@ async function generatePrompts(project: Project) {
         frequencyPenalty: 0.5,
       },
       version: 3,
+      labels: ["production", "latest"],
     },
   ];
 
@@ -908,7 +913,7 @@ async function generatePrompts(project: Project) {
         prompt: `${promptName} version ${i} content`,
         name: promptName,
         version: i,
-        labels: i === 20 ? ["production"] : [],
+        labels: i === 20 ? ["production", "latest"] : [],
       },
       update: {
         id: promptId,
