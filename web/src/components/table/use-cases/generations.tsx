@@ -20,11 +20,12 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import {
-  getDatetimeFilterValue,
-  useQueryFilterState,
-} from "@/src/features/filters/hooks/useFilterState";
-import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
+  formatIntervalSeconds,
+  intervalInSeconds,
+  utcDateOffsetByDays,
+} from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -47,6 +48,7 @@ import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAl
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useSession } from "next-auth/react";
 
 export type GenerationsTableRow = {
   id: string;
@@ -91,6 +93,7 @@ export default function GenerationsTable({
   promptVersion,
   omittedFilter = [],
 }: GenerationsTableProps) {
+  const session = useSession();
   const capture = usePostHogClientCapture();
   const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -114,7 +117,9 @@ export default function GenerationsTable({
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: getDatetimeFilterValue(),
+        value: utcDateOffsetByDays(
+          session.data?.environment.defaultTableDateTimeOffset ?? -14,
+        ),
       },
     ],
     "generations",
