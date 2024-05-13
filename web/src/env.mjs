@@ -40,6 +40,7 @@ export const env = createEnv({
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["ADMIN", "MEMBER", "VIEWER"])
       .optional(),
+    LANGFUSE_DEFAULT_DATETIME_OFFSET: z.string().optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
@@ -134,6 +135,7 @@ export const env = createEnv({
     // Default project and role
     LANGFUSE_DEFAULT_PROJECT_ID: process.env.LANGFUSE_DEFAULT_PROJECT_ID,
     LANGFUSE_DEFAULT_PROJECT_ROLE: process.env.LANGFUSE_DEFAULT_PROJECT_ROLE,
+    LANGFUSE_DEFAULT_DATETIME_OFFSET: process.env.LANGFUSE_DEFAULT_DATETIME_OFFSET,
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: process.env.AUTH_GOOGLE_CLIENT_ID,
     AUTH_GOOGLE_CLIENT_SECRET: process.env.AUTH_GOOGLE_CLIENT_SECRET,

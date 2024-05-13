@@ -15,6 +15,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import { utcDateOffsetByDays } from "@/src/utils/dates";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -119,4 +120,12 @@ function getColumnId(table: TableName, name: string): string | undefined {
 
 function getColumnName(table: TableName, id: string): string | undefined {
   return tableCols[table]?.find((col) => col.id === id)?.name;
+}
+
+export const getDatetimeFilterValue = () => {
+  const offsetInDays = process.env.LANGFUSE_DEFAULT_DATETIME_OFFSET
+    ? Number.parseInt(process.env.LANGFUSE_DEFAULT_DATETIME_OFFSET, 10)
+    : 14;
+
+  return utcDateOffsetByDays(offsetInDays)
 }

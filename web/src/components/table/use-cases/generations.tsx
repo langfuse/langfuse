@@ -20,11 +20,10 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { getDatetimeFilterValue, useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import {
   formatIntervalSeconds,
   intervalInSeconds,
-  utcDateOffsetByDays,
 } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -115,7 +114,7 @@ export default function GenerationsTable({
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-14),
+        value: getDatetimeFilterValue(),
       },
     ],
     "generations",
