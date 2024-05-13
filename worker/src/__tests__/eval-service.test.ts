@@ -36,7 +36,7 @@ if (!hasActiveKey) {
 }
 const openAIServer = new OpenAIServer({
   hasActiveKey,
-  useDefaultResponse: true,
+  useDefaultResponse: false,
 });
 
 beforeAll(openAIServer.setup);
@@ -251,6 +251,7 @@ describe("create eval jobs", () => {
 describe("execute evals", () => {
   test("evals a valid event", async () => {
     await pruneDatabase();
+    openAIServer.respondWithDefault();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely

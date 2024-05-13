@@ -1,5 +1,6 @@
 import { setupServer } from "msw/node";
 import { HttpResponse, http } from "msw";
+import { Http } from "@sentry/node";
 
 const DEFAULT_RESPONSE = {
   id: "chatcmpl-9MhZ73aGSmhfAtjU9DwoL4om73hJ7",
@@ -32,6 +33,7 @@ const DEFAULT_RESPONSE = {
 
 function CompletionHandler(response: HttpResponse) {
   return http.post("https://api.openai.com/v1/chat/completions", async () => {
+    console.log("handler");
     return response;
   });
 }
@@ -40,7 +42,16 @@ function JsonCompletionHandler(data: object) {
   return CompletionHandler(HttpResponse.json(data));
 }
 
-function ErrorCompletionHandler() {
+function ErrorCompletionHandler(status: number, statusText: string) {
+  return CompletionHandler(
+    new HttpResponse(null, {
+      status,
+      statusText,
+    })
+  );
+}
+
+function NetworkErrorCompletionHandler() {
   return CompletionHandler(HttpResponse.error());
 }
 
@@ -54,6 +65,8 @@ export class OpenAIServer {
     hasActiveKey?: boolean;
     useDefaultResponse?: boolean;
   }) {
+    console.log("openai", { hasActiveKey, useDefaultResponse });
+
     this.hasActiveKey = hasActiveKey;
     this.internalServer = setupServer(
       ...(useDefaultResponse ? [JsonCompletionHandler(DEFAULT_RESPONSE)] : [])
@@ -66,7 +79,7 @@ export class OpenAIServer {
 
     this.setup = this.setup.bind(this);
     this.respondWithData = this.respondWithData.bind(this);
-    this.respondWithError = this.respondWithError.bind(this);
+    this.respondWithNetworkError = this.respondWithNetworkError.bind(this);
     this.reset = this.reset.bind(this);
     this.teardown = this.teardown.bind(this);
   }
@@ -81,8 +94,16 @@ export class OpenAIServer {
     this.internalServer.use(JsonCompletionHandler(data));
   }
 
-  respondWithError() {
-    this.internalServer.use(ErrorCompletionHandler());
+  respondWithDefault() {
+    this.respondWithData(DEFAULT_RESPONSE);
+  }
+
+  respondWithError(status: number, statusText: string) {
+    this.internalServer.use(ErrorCompletionHandler(status, statusText));
+  }
+
+  respondWithNetworkError() {
+    this.internalServer.use(NetworkErrorCompletionHandler());
   }
 
   reset() {
