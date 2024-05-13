@@ -127,5 +127,5 @@ export const getDatetimeFilterValue = () => {
     ? Number.parseInt(process.env.LANGFUSE_DEFAULT_DATETIME_OFFSET, 10)
     : 14;
 
-  return utcDateOffsetByDays(offsetInDays)
-}
+  return utcDateOffsetByDays(offsetInDays);
+};
