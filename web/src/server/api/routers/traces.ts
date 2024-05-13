@@ -346,6 +346,14 @@ export const traceRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         }),
+        ctx.prisma.score.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
       ]);
     }),
   bookmark: protectedProjectProcedure
