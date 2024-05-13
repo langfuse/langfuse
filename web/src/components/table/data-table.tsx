@@ -104,151 +104,146 @@ export function DataTable<TData extends object, TValue>({
   });
 
   return (
-    <>
-      <div className="space-y-4">
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const columnDef = header.column
-                      .columnDef as LangfuseColumnDef<ModelTableRow>;
-                    const sortingEnabled = columnDef.enableSorting;
-                    return header.column.getIsVisible() ? (
-                      <TableHead
-                        key={header.id}
-                        className={cn(
-                          sortingEnabled ? "cursor-pointer" : null,
-                          "whitespace-nowrap p-2",
-                        )}
-                        title={sortingEnabled ? "Sort by this column" : ""}
-                        onClick={(event) => {
-                          event.preventDefault(); // Add this line
+    <div className="relative h-96 overflow-x-auto rounded-md border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                const columnDef = header.column
+                  .columnDef as LangfuseColumnDef<ModelTableRow>;
+                const sortingEnabled = columnDef.enableSorting;
+                return header.column.getIsVisible() ? (
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      sortingEnabled ? "cursor-pointer" : null,
+                      "whitespace-nowrap p-2",
+                    )}
+                    title={sortingEnabled ? "Sort by this column" : ""}
+                    onClick={(event) => {
+                      event.preventDefault(); // Add this line
 
-                          if (!setOrderBy || !columnDef.id || !sortingEnabled) {
-                            return;
-                          }
+                      if (!setOrderBy || !columnDef.id || !sortingEnabled) {
+                        return;
+                      }
 
-                          if (orderBy?.column === columnDef.id) {
-                            if (orderBy.order === "DESC") {
-                              capture("table:column_sorting_header_click", {
-                                column: columnDef.id,
-                                order: "ASC",
-                              });
-                              setOrderBy({
-                                column: columnDef.id,
-                                order: "ASC",
-                              });
-                            } else {
-                              capture("table:column_sorting_header_click", {
-                                column: columnDef.id,
-                                order: "Disabled",
-                              });
-                              setOrderBy(null);
-                            }
-                          } else {
-                            capture("table:column_sorting_header_click", {
-                              column: columnDef.id,
-                              order: "DESC",
-                            });
-                            setOrderBy({
-                              column: columnDef.id,
-                              order: "DESC",
-                            });
-                          }
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <>
-                            <div className="select-none">
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-
-                              {columnDef.headerTooltip && (
-                                <DocPopup
-                                  description={
-                                    columnDef.headerTooltip.description
-                                  }
-                                  href={columnDef.headerTooltip.href}
-                                  size="xs"
-                                />
-                              )}
-
-                              {orderBy?.column === columnDef.id
-                                ? renderOrderingIndicator(orderBy)
-                                : null}
-                            </div>
-                          </>
-                        )}
-                      </TableHead>
-                    ) : null;
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {data.isLoading || !data.data ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
+                      if (orderBy?.column === columnDef.id) {
+                        if (orderBy.order === "DESC") {
+                          capture("table:column_sorting_header_click", {
+                            column: columnDef.id,
+                            order: "ASC",
+                          });
+                          setOrderBy({
+                            column: columnDef.id,
+                            order: "ASC",
+                          });
+                        } else {
+                          capture("table:column_sorting_header_click", {
+                            column: columnDef.id,
+                            order: "Disabled",
+                          });
+                          setOrderBy(null);
+                        }
+                      } else {
+                        capture("table:column_sorting_header_click", {
+                          column: columnDef.id,
+                          order: "DESC",
+                        });
+                        setOrderBy({
+                          column: columnDef.id,
+                          order: "DESC",
+                        });
+                      }
+                    }}
                   >
-                    Loading...
-                  </TableCell>
-                </TableRow>
-              ) : table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
-                      >
-                        <div className={cn("flex items-center", rowheighttw)}>
+                    {header.isPlaceholder ? null : (
+                      <>
+                        <div className="select-none">
                           {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
+                            header.column.columnDef.header,
+                            header.getContext(),
                           )}
+
+                          {columnDef.headerTooltip && (
+                            <DocPopup
+                              description={columnDef.headerTooltip.description}
+                              href={columnDef.headerTooltip.href}
+                              size="xs"
+                            />
+                          )}
+
+                          {orderBy?.column === columnDef.id
+                            ? renderOrderingIndicator(orderBy)
+                            : null}
                         </div>
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
+                      </>
+                    )}
+                  </TableHead>
+                ) : null;
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {data.isLoading || !data.data ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                Loading...
+              </TableCell>
+            </TableRow>
+          ) : table.getRowModel().rows.length ? (
+            table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
                   <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
+                    key={cell.id}
+                    className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
                   >
-                    <div>
-                      No results.{" "}
-                      {help && (
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          size="sm"
-                        />
+                    <div className={cn("flex items-center", rowheighttw)}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
                       )}
                     </div>
                   </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-      {pagination !== undefined ? (
-        <TableFooter>
-          <DataTablePagination
-            table={table}
-            paginationOptions={pagination.options}
-          />
-        </TableFooter>
-      ) : null}
-    </>
+                ))}
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                <div>
+                  No results.{" "}
+                  {help && (
+                    <DocPopup
+                      description={help.description}
+                      href={help.href}
+                      size="sm"
+                    />
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+        {pagination !== undefined ? (
+          <TableFooter>
+            <TableRow>
+              <TableCell
+                colSpan={columns.length}
+                className="overflow-hidden whitespace-nowrap px-2 py-1 first:pl-2"
+              >
+                <DataTablePagination
+                  table={table}
+                  paginationOptions={pagination.options}
+                />
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        ) : null}
+      </Table>
+    </div>
   );
 }
 

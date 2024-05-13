@@ -8,7 +8,10 @@ const Table = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <table
     ref={ref}
-    className={cn("w-full caption-bottom text-sm", className)}
+    className={cn(
+      "w-full table-auto caption-bottom space-y-4 overflow-auto rounded-md border text-sm",
+      className,
+    )}
     {...props}
   />
 ));
@@ -28,7 +31,7 @@ const TableBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn("[&_tr:last-child]:border-0", className)}
+    className={cn("overflow-scroll [&_tr:last-child]:border-0", className)}
     {...props}
   />
 ));
@@ -41,7 +44,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "z-100 sticky bottom-0 flex w-full justify-end border-t bg-white bg-opacity-75 font-medium backdrop-blur [&>tr]:last:border-b-0",
+      "sticky bottom-0 z-50 justify-end border-t bg-white bg-opacity-75 font-medium backdrop-blur [&>tr]:last:border-b-0",
       className,
     )}
     {...props}

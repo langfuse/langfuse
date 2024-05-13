@@ -27,7 +27,7 @@ export function DataTablePagination<TData>({
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
   return (
-    <div className="mt-1 flex items-center justify-between overflow-x-auto bg-white px-2">
+    <div className="flex items-center justify-between overflow-x-auto bg-white px-2">
       <div className="flex-1 text-sm text-muted-foreground">
         {/* {table.getFilteredSelectedRowModel().rows.length} of{" "}
         {table.getFilteredRowModel().rows.length} row(s) selected. */}
