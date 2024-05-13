@@ -2,14 +2,14 @@ import {
   roleAccessRights,
   type Scope,
 } from "@/src/features/rbac/constants/roleAccessRights";
-import { type MembershipRole } from "@langfuse/shared/src/db";
+import { type ProjectRole } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 
 type HasAccessParams =
   | {
-      role: MembershipRole;
+      role: ProjectRole;
       scope: Scope;
       admin?: boolean; // prop user.admin
     }
@@ -53,7 +53,7 @@ export function hasAccess(p: HasAccessParams): boolean {
   const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  const projectRole: MembershipRole | undefined =
+  const projectRole: ProjectRole | undefined =
     "role" in p
       ? p.role
       : p.session?.user?.projects.find((project) => project.id === p.projectId)
