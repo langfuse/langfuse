@@ -12,6 +12,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -240,10 +241,12 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {pagination !== undefined ? (
-        <DataTablePagination
-          table={table}
-          paginationOptions={pagination.options}
-        />
+        <TableFooter>
+          <DataTablePagination
+            table={table}
+            paginationOptions={pagination.options}
+          />
+        </TableFooter>
       ) : null}
     </>
   );
