@@ -546,15 +546,13 @@ export class ScoreProcessor implements EventProcessor {
       create: {
         id,
         projectId: apiScope.projectId,
-        trace: { connect: { id: body.traceId } },
+        traceId: body.traceId,
         timestamp: new Date(),
         value: body.value,
         name: body.name,
         source: "API",
         comment: body.comment,
-        ...(body.observationId && {
-          observation: { connect: { id: body.observationId } },
-        }),
+        observationId: body.observationId ?? undefined,
       },
       update: {
         timestamp: new Date(),
@@ -563,9 +561,7 @@ export class ScoreProcessor implements EventProcessor {
         name: body.name,
         comment: body.comment,
         source: "API",
-        ...(body.observationId && {
-          observation: { connect: { id: body.observationId } },
-        }),
+        observationId: body.observationId ?? undefined,
       },
     });
   }

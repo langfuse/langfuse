@@ -168,20 +168,8 @@ export const scoresRouter = createTRPCRouter({
 
       const score = await ctx.prisma.score.create({
         data: {
-          trace: {
-            connect: {
-              id: trace.id,
-            },
-          },
-          ...(input.observationId
-            ? {
-                observation: {
-                  connect: {
-                    id: input.observationId,
-                  },
-                },
-              }
-            : undefined),
+          traceId: trace.id,
+          observationId: input.observationId,
           value: input.value,
           name: input.name,
           comment: input.comment,
