@@ -401,7 +401,7 @@ model Score {
     observationId String?        @map("observation_id")
     JobExecution  JobExecution[]
 
-    @@unique([id, traceId]) // used for upsert
+    @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
     @@index([value])
     @@index([projectId])

@@ -439,7 +439,7 @@ export class TraceProcessor implements EventProcessor {
 
     if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
       throw new ForbiddenError(
-        `Access denied for trace creation ${existingTrace.projectId} `,
+        `Access denied for trace creation ${existingTrace.projectId}`,
       );
     }
 
@@ -520,48 +520,54 @@ export class ScoreProcessor implements EventProcessor {
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    const accessCheck = await checkApiAccessScope(
-      apiScope,
-      [
-        { type: "trace", id: body.traceId },
-        ...(body.observationId
-          ? [{ type: "observation" as const, id: body.observationId }]
-          : []),
-      ],
-      "score",
-    );
-    if (!accessCheck)
-      throw new ForbiddenError("Access denied for score creation");
+    if (apiScope.accessLevel !== "all")
+      throw new ForbiddenError(
+        `Access denied for score creation, ${apiScope.accessLevel}`,
+      );
 
     const id = body.id ?? v4();
+
+    const existingScore = await prisma.score.findFirst({
+      where: {
+        id: id,
+      },
+      select: {
+        projectId: true,
+      },
+    });
+    if (existingScore && existingScore.projectId !== apiScope.projectId) {
+      throw new ForbiddenError(
+        `Access denied for score creation ${existingScore.projectId}`,
+      );
+    }
 
     // access control via traceId
     return await prisma.score.upsert({
       where: {
-        id_traceId: {
+        id_projectId: {
           id,
-          traceId: body.traceId,
+          projectId: apiScope.projectId,
         },
       },
       create: {
         id,
         projectId: apiScope.projectId,
         traceId: body.traceId,
+        observationId: body.observationId ?? undefined,
         timestamp: new Date(),
         value: body.value,
         name: body.name,
-        source: "API",
         comment: body.comment,
-        observationId: body.observationId ?? undefined,
+        source: "API",
       },
       update: {
+        traceId: body.traceId,
+        observationId: body.observationId ?? undefined,
         timestamp: new Date(),
-        projectId: apiScope.projectId,
         value: body.value,
         name: body.name,
         comment: body.comment,
         source: "API",
-        observationId: body.observationId ?? undefined,
       },
     });
   }
