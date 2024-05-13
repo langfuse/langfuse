@@ -126,18 +126,6 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-          project: {
-            projectMembers: {
-              some: {
-                userId: ctx.session.user.id,
-              },
-            },
-          },
-        },
-      });
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,

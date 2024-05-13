@@ -144,9 +144,7 @@ export const traceRouter = createTRPCRouter({
       // performance of the query above
       const scores = await ctx.prisma.score.findMany({
         where: {
-          trace: {
-            projectId: input.projectId,
-          },
+          projectId: input.projectId,
           traceId: {
             in: traces.map((t) => t.id),
           },
@@ -178,9 +176,7 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const scores = await ctx.prisma.score.groupBy({
         where: {
-          trace: {
-            projectId: input.projectId,
-          },
+          projectId: input.projectId,
         },
         take: 1000,
         orderBy: {
@@ -239,9 +235,6 @@ export const traceRouter = createTRPCRouter({
         where: {
           id: input.traceId,
         },
-        include: {
-          scores: true,
-        },
       });
       const observations = await ctx.prisma.observationView.findMany({
         select: {
@@ -281,6 +274,12 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
+      const scores = await ctx.prisma.score.findMany({
+        where: {
+          traceId: input.traceId,
+          projectId: trace.projectId,
+        },
+      });
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -302,6 +301,7 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
+        scores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations as ObservationReturnType[],
       };

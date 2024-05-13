@@ -89,7 +89,7 @@ export function ManualScoreButton({
 
   const handleDelete = async () => {
     if (score) {
-      await mutDeleteScore.mutateAsync(score.id);
+      await mutDeleteScore.mutateAsync({ id: score.id, projectId });
       capture("score:delete", {
         type: type,
         source: source,
@@ -130,6 +130,7 @@ export function ManualScoreButton({
         id: score.id,
         value: values.score,
         comment: values.comment,
+        projectId,
       });
       capture("score:update_form_submit", {
         type: type,
@@ -142,6 +143,7 @@ export function ManualScoreButton({
         comment: values.comment,
         traceId,
         observationId,
+        projectId,
       });
       capture("score:create_form_submit", {
         type: type,
