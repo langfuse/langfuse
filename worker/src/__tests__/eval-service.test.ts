@@ -11,7 +11,7 @@ import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
 import { LangfuseNotFoundError, variableMappingList } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { OpenAIReset, OpenAISetup, OpenAITeardown } from "./network";
+import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
 
 vi.mock("../redis/consumer", () => ({
@@ -30,12 +30,18 @@ vi.mock("../redis/consumer", () => ({
 }));
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) {
+const hasActiveKey = Boolean(OPENAI_API_KEY);
+if (!hasActiveKey) {
   OPENAI_API_KEY = "sk-test_not_used_as_network_mocks_are_activated";
-  beforeAll(OpenAISetup);
-  afterEach(OpenAIReset);
-  afterAll(OpenAITeardown);
 }
+const openAIServer = new OpenAIServer({
+  hasActiveKey,
+  useDefaultResponse: true,
+});
+
+beforeAll(openAIServer.setup);
+afterEach(openAIServer.reset);
+afterAll(openAIServer.teardown);
 
 describe("create eval jobs", () => {
   test("creates new eval job", async () => {
