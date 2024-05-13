@@ -106,6 +106,12 @@ export const scoresRouter = createTRPCRouter({
         _count: {
           _all: true,
         },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
       });
 
       const res: ScoreOptions = {
@@ -157,7 +163,7 @@ export const scoresRouter = createTRPCRouter({
         projectId: input.projectId,
         userId: ctx.session.user.id,
         userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === trace.projectId,
+          (p) => p.id === input.projectId,
         )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
         resourceType: "score",
         resourceId: score.id,
@@ -268,8 +274,9 @@ const generateScoresQuery = (
   SELECT
    ${select}
   FROM scores s
-  JOIN traces t ON t.id = s.trace_id LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
-  WHERE s.project_id = ${projectId} AND t.project_id = ${projectId}
+  JOIN traces t ON t.id = s.trace_id AND t.project_id = ${projectId}
+  LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
+  WHERE s.project_id = ${projectId}
   ${filterCondition}
   ${orderCondition}
   LIMIT ${limit}
