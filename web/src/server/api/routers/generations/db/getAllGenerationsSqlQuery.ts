@@ -138,9 +138,7 @@ export async function getAllGenerations({
 
   const scores = await prisma.score.findMany({
     where: {
-      trace: {
-        projectId: input.projectId,
-      },
+      projectId: input.projectId,
       observationId: {
         in: generations.map((gen) => gen.id),
       },
