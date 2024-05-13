@@ -248,6 +248,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
             disableExpensivePostgresQueries:
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
+            defaultTableDateTimeOffset:
+              env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
           },
           user:
             dbUser !== null
