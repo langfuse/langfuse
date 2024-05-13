@@ -143,10 +143,9 @@ export default async function handler(
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `);
 
-      const totalItems = (
-        await prisma.$queryRaw<{ count: number }>(
-          Prisma.sql`
-          SELECT COUNT(*)::integer as count
+      const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
+        Prisma.sql`
+          SELECT COUNT(*) as count
           FROM "scores" AS s
           JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
           WHERE s.project_id = ${authCheck.scope.projectId}
@@ -156,8 +155,10 @@ export default async function handler(
           ${fromTimestampCondition}
           ${valueCondition}
         `,
-        )
-      ).count;
+      );
+
+      const totalItems =
+        totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
 
       return res.status(200).json({
         data: scores,
