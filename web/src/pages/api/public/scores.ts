@@ -20,15 +20,6 @@ import { isPrismaException } from "@/src/utils/exceptions";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
-const prismaOperators: Record<(typeof operators)[number], string> = {
-  "<": "lt",
-  ">": "gt",
-  "<=": "lte",
-  ">=": "gte",
-  "!=": "not",
-  "=": "equals",
-};
-
 const ScoresGetSchema = z.object({
   ...paginationZod,
   userId: z.string().nullish(),

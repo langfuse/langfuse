@@ -281,6 +281,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbScore?.name).toBe("score-name");
       expect(dbScore?.value).toBe(100.5);
       expect(dbScore?.observationId).toBeNull();
+      expect(dbScore?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     });
   });
 

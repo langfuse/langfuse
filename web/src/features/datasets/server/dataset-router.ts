@@ -147,6 +147,7 @@ export const datasetRouter = createTRPCRouter({
             JOIN scores s 
               ON s.trace_id = ri.trace_id 
               AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id) -- only include scores that are linked to the observation if observation is linked
+              AND s.project_id = ${input.projectId}
             JOIN traces t ON t.id = s.trace_id
           WHERE t.project_id = ${input.projectId}
           GROUP BY
