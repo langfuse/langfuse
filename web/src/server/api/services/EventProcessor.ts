@@ -519,7 +519,7 @@ export class ScoreProcessor implements EventProcessor {
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    if (apiScope.accessLevel !== "scores")
+    if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
       throw new ForbiddenError(
         `Access denied for score creation, ${apiScope.accessLevel}`,
       );
