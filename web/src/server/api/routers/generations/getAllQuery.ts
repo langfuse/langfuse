@@ -52,9 +52,9 @@ export const getAllQuery = protectedProjectProcedure
             FROM
                 scores
             WHERE
-                scores."trace_id" = t.id
+                scores."project_id" = ${input.projectId}
+                AND scores."trace_id" = t.id
                 AND scores."observation_id" = o.id
-                AND scores."project_id" = ${input.projectId}
             GROUP BY
                 name
         ) tmp

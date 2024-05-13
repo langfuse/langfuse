@@ -540,7 +540,6 @@ export class ScoreProcessor implements EventProcessor {
       );
     }
 
-    // access control via traceId
     return await prisma.score.upsert({
       where: {
         id_projectId: {
