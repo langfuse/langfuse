@@ -105,7 +105,9 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
-      <div className="relative h-full max-h-dvh w-full max-w-full overflow-auto">
+      {/* 3 rem distracted given footer height h-12, 10 rem distracted given page
+      header height */}
+      <div className="relative h-full max-h-[calc(100vh-3rem-10rem)] w-full max-w-full overflow-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
