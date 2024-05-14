@@ -39,7 +39,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                 key={tab.tabTitle}
                 className={cn(
                   index === selectedIndex
-                    ? "text-muted-foreground-indigo border-indigo-500"
+                    ? "text-primary-accent border-indigo-500"
                     : "border-transparent text-muted-foreground hover:border-border hover:text-primary",
                   "cursor-pointer whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium",
                 )}
