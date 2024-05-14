@@ -11,12 +11,17 @@ import {
   PostgresQueryCompiler,
 } from "kysely";
 import { DB } from ".";
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 // Instantiated according to the Prisma documentation
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
 const prismaClientSingleton = () => {
+  const pool = new Pool({ connectionString: env.DATABASE_URL });
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({
+    adapter: adapter,
     log:
       env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
