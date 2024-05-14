@@ -8,6 +8,7 @@ export const env = createEnv({
    */
   server: {
     DATABASE_URL: z.string().url(),
+    DATABASE_SSL_CERT: z.string().optional(),
     NODE_ENV: z.enum(["development", "test", "production"]),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
@@ -30,14 +31,20 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
-    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET: z.string().optional().refine((v) =>
-      v === undefined || !isNaN(Number.parseInt(v))
-      , {
-        message: "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set"
-      }).transform((v) =>
-        v === undefined ? undefined : -Number.parseInt(v) // negative offset
+    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET: z
+      .string()
+      .optional()
+      .refine((v) => v === undefined || !isNaN(Number.parseInt(v)), {
+        message:
+          "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set",
+      })
+      .transform(
+        (v) => (v === undefined ? undefined : -Number.parseInt(v)), // negative offset
       ),
-    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z.enum(["true", "false"]).optional().default("false"),
+    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     SALT: z.string({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
@@ -120,6 +127,7 @@ export const env = createEnv({
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     DATABASE_URL: process.env.DATABASE_URL,
+    DATABASE_SSL_CERT: process.env.DATABASE_SSL_CERT,
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
