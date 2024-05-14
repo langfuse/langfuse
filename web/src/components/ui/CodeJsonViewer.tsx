@@ -3,8 +3,10 @@ import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
+import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@/src/utils/json";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTheme } from "next-themes";
 
 export function JSONView(props: {
   json?: unknown;
@@ -15,7 +17,7 @@ export function JSONView(props: {
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
-
+  const { theme } = useTheme();
   return (
     <div className={cn("rounded-md border", props.className)}>
       {props.title ? (
@@ -35,6 +37,7 @@ export function JSONView(props: {
           <React18JsonView
             src={parsedJson}
             theme="github"
+            dark={theme === "dark"}
             collapseObjectsAfterLength={20}
             collapseStringsAfterLength={500}
             displaySize={"collapsed"}
