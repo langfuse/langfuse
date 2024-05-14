@@ -93,10 +93,22 @@ export const evalLLMModels = [
     maxTemperature: 2,
     max_tokens: 256,
     top_p: 1,
+  } as const,
+  {
+    provider: ModelProvider.OpenAI,
+    model: "gpt-4o",
+    temperature: 1,
+    maxTemperature: 2,
+    max_tokens: 256,
+    top_p: 1,
   },
 ] as const;
 
-export const EvalModelNames = z.enum(["gpt-3.5-turbo", "gpt-4-turbo-preview"]);
+export const EvalModelNames = z.enum([
+  "gpt-3.5-turbo",
+  "gpt-4-turbo-preview",
+  "gpt-4o",
+]);
 
 export const OutputSchema = z.object({
   reasoning: z.string(),
