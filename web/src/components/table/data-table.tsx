@@ -105,7 +105,7 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
-      <div className="relative max-h-[720px] w-full max-w-full overflow-auto rounded-md border">
+      <div className="relative max-h-dvh w-full max-w-full overflow-auto rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -243,7 +243,7 @@ export function DataTable<TData extends object, TValue>({
           <TableRow>
             <TableCell
               colSpan={columns.length}
-              className="overflow-hidden whitespace-nowrap px-2 py-1 first:pl-2"
+              className="overflow-hidden whitespace-nowrap px-0 py-2 first:pl-2"
             >
               <DataTablePagination
                 table={table}
