@@ -414,9 +414,6 @@ importers:
       js-tiktoken:
         specifier: ^1.0.12
         version: 1.0.12
-      kysely:
-        specifier: ^0.27.3
-        version: 0.27.3
       langchain:
         specifier: ^0.1.36
         version: 0.1.36(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21)
@@ -444,9 +441,6 @@ importers:
       posthog-node:
         specifier: ^3.6.3
         version: 3.6.3
-      prisma:
-        specifier: ^5.13.0
-        version: 5.13.0
       react:
         specifier: 18.2.0
         version: 18.2.0
