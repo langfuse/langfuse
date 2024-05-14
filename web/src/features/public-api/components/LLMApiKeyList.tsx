@@ -83,7 +83,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
           </TableHeader>
           <TableBody className="text-muted-foreground">
             {apiKeys.data?.data.map((apiKey) => (
-              <TableRow key={apiKey.id} className="hover:bg-transparent">
+              <TableRow key={apiKey.id} className="hover:bg-primary-foreground">
                 <TableCell className="hidden md:table-cell">
                   {apiKey.createdAt.toLocaleDateString()}
                 </TableCell>
