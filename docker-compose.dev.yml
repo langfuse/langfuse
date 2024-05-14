@@ -8,7 +8,6 @@ services:
       --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
       - 6379:6379
-
   db:
     image: postgres
     restart: always
