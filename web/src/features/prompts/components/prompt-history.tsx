@@ -5,7 +5,7 @@ import { type NextRouter, useRouter } from "next/router";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
-  prompt: RouterOutputs["prompts"]["allVersions"][number];
+  prompt: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (version: number | undefined) => void;
   router: NextRouter;
@@ -57,7 +57,7 @@ const PromptHistoryTraceNode = (props: {
 };
 
 export const PromptHistoryNode = (props: {
-  prompts: RouterOutputs["prompts"]["allVersions"];
+  prompts: RouterOutputs["prompts"]["allVersions"]["promptVersions"];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (id: number | undefined) => void;
 }) => {
