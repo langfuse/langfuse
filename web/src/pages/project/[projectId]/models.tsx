@@ -22,7 +22,7 @@ export default function ModelsPage() {
           href: "https://langfuse.com/docs/model-usage-and-cost",
         }}
         actionButtons={
-          <Button disabled={!hasWriteAccess} asChild>
+          <Button variant="secondary" disabled={!hasWriteAccess} asChild>
             <Link
               href={hasWriteAccess ? `/project/${projectId}/models/new` : "#"}
             >
