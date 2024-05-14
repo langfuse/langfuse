@@ -344,3 +344,11 @@ export const ingestionApiSchema = z.object({
   batch: ingestionBatchEvent,
   metadata: jsonSchema.nullish(),
 });
+export type ObservationEvent =
+  | z.infer<typeof legacyObservationCreateEvent>
+  | z.infer<typeof legacyObservationUpdateEvent>
+  | z.infer<typeof eventCreateEvent>
+  | z.infer<typeof spanCreateEvent>
+  | z.infer<typeof spanUpdateEvent>
+  | z.infer<typeof generationCreateEvent>
+  | z.infer<typeof generationUpdateEvent>;

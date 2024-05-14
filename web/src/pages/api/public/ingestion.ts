@@ -35,6 +35,12 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import {
+  SortingService,
+  clean,
+  enrichObservations,
+  sort,
+} from "@/src/server/api/services/event-processing";
 
 export const config = {
   api: {
@@ -106,18 +112,25 @@ export default async function handler(
           return parsed.data;
         }
       });
+
     const filteredBatch: z.infer<typeof ingestionEvent>[] =
       batch.filter(isNotNullOrUndefined);
 
     await telemetry();
 
-    const sortedBatch = sortBatch(filteredBatch);
-    const result = await handleBatch(
-      sortedBatch,
-      parsedSchema.data.metadata,
-      req,
-      authCheck,
+    const cleanedAndSorted = clean(sort(filteredBatch));
+
+    const enrichedEvents = await enrichObservations(
+      cleanedAndSorted,
+      authCheck.scope.projectId,
     );
+
+    const observationUpdates = [
+      ...enrichedEvents.enrichedObservations.entries(),
+    ].map(([key, value]) => {
+      const observationProcessor = new ObservationProcessor(key, value);
+      return observationProcessor.process(authCheck.scope);
+    });
 
     // send out REST requests to worker for all trace types
     await sendToWorkerIfEnvironmentConfigured(
@@ -162,22 +175,6 @@ export default async function handler(
   }
 }
 
-const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
-  // keep the order of events as they are. Order events in a way that types containing updates come last
-  // Filter out OBSERVATION_UPDATE events
-  const updates = batch.filter(
-    (event) => event.type === eventTypes.OBSERVATION_UPDATE,
-  );
-
-  // Keep all other events in their original order
-  const others = batch.filter(
-    (event) => event.type !== eventTypes.OBSERVATION_UPDATE,
-  );
-
-  // Return the array with non-update events first, followed by update events
-  return [...others, ...updates];
-};
-
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
   metadata: z.infer<typeof ingestionApiSchema>["metadata"],
@@ -185,8 +182,6 @@ export const handleBatch = async (
   authCheck: AuthHeaderVerificationResult,
 ) => {
   console.log(`handling ingestion ${events.length} events`);
-
-  if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
   const results: BatchResult[] = []; // Array to store the results
 
@@ -268,22 +263,12 @@ const handleSingleEvent = async (
     console.log(`handling single event ${event.id} ${JSON.stringify(event)}`);
   }
 
-  const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
-
-  const { type } = cleanedEvent;
-
-  await persistEventMiddleware(
-    prisma,
-    apiScope.projectId,
-    req,
-    cleanedEvent,
-    metadata,
-  );
+  const { type } = event;
 
   let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(cleanedEvent);
+      processor = new TraceProcessor(event);
       break;
     case eventTypes.OBSERVATION_CREATE:
     case eventTypes.OBSERVATION_UPDATE:
@@ -292,14 +277,14 @@ const handleSingleEvent = async (
     case eventTypes.SPAN_UPDATE:
     case eventTypes.GENERATION_CREATE:
     case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(cleanedEvent);
+      processor = new ObservationProcessor(event);
       break;
     case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(cleanedEvent);
+      processor = new ScoreProcessor(event);
       break;
     }
     case eventTypes.SDK_LOG:
-      processor = new SdkLogProcessor(cleanedEvent);
+      processor = new SdkLogProcessor(event);
   }
 
   // Deny access to non-score events if the access level is not "all"
@@ -408,27 +393,6 @@ export const handleBatchResultLegacy = (
   }
   return res.status(200).send(results.length > 0 ? results[0]?.result : {});
 };
-
-// cleans NULL characters from the event
-export function cleanEvent(obj: unknown): unknown {
-  if (typeof obj === "string") {
-    return obj.replace(/\u0000/g, "");
-  } else if (typeof obj === "object" && obj !== null) {
-    if (Array.isArray(obj)) {
-      return obj.map(cleanEvent);
-    } else {
-      // Here we assert that obj is a Record<string, unknown>
-      const objAsRecord = obj as Record<string, unknown>;
-      const newObj: Record<string, unknown> = {};
-      for (const key in objAsRecord) {
-        newObj[key] = cleanEvent(objAsRecord[key]);
-      }
-      return newObj;
-    }
-  } else {
-    return obj;
-  }
-}
 
 export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],

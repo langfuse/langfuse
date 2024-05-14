@@ -13,6 +13,7 @@ import {
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
   type traceEvent,
+  type ObservationEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -30,6 +31,8 @@ import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
+import { type EventContext } from "@/src/server/api/services/event-processing";
+import lodash from "lodash";
 
 export interface EventProcessor {
   process(
@@ -98,35 +101,34 @@ export async function findModel(p: {
   return foundModels[0] ?? null;
 }
 
-type ObservationEvent =
-  | z.infer<typeof legacyObservationCreateEvent>
-  | z.infer<typeof legacyObservationUpdateEvent>
-  | z.infer<typeof eventCreateEvent>
-  | z.infer<typeof spanCreateEvent>
-  | z.infer<typeof spanUpdateEvent>
-  | z.infer<typeof generationCreateEvent>
-  | z.infer<typeof generationUpdateEvent>;
+export class ObservationProcessor {
+  context: EventContext;
+  id: string;
 
-export class ObservationProcessor implements EventProcessor {
-  event: ObservationEvent;
-
-  constructor(event: ObservationEvent) {
-    this.event = event;
+  constructor(id: string, context: EventContext) {
+    this.context = context;
+    this.id = id;
   }
 
-  async convertToObservation(
+  async mergeContextIntoSingleObservation(
     apiScope: ApiAccessScope,
-    existingObservation: Observation | null,
-  ): Promise<{
-    id: string;
-    create: Prisma.ObservationUncheckedCreateInput;
-    update: Prisma.ObservationUncheckedUpdateInput;
-  }> {
+    existingObservation: Observation | undefined,
+  ): Promise<
+    | {
+        id: string;
+        create: Prisma.ObservationUncheckedCreateInput;
+        update: Prisma.ObservationUncheckedUpdateInput;
+      }
+    | undefined
+  > {
+    if (this.context.events.length === 0) {
+      return;
+    }
     let type: "EVENT" | "SPAN" | "GENERATION";
-    switch (this.event.type) {
+    switch (this.context.events[0].type) {
       case eventTypes.OBSERVATION_CREATE:
       case eventTypes.OBSERVATION_UPDATE:
-        type = this.event.body.type;
+        type = this.context.events[0].body.type;
         break;
       case eventTypes.EVENT_CREATE:
         type = "EVENT" as const;
@@ -141,29 +143,52 @@ export class ObservationProcessor implements EventProcessor {
         break;
     }
 
+    // if there are only updates and no existing observation, throw an error
     if (
-      this.event.type === eventTypes.OBSERVATION_UPDATE &&
+      this.context.events.every(
+        (event) =>
+          event.type === eventTypes.OBSERVATION_UPDATE ||
+          event.type === eventTypes.SPAN_UPDATE ||
+          event.type === eventTypes.GENERATION_UPDATE,
+      ) &&
       !existingObservation
     ) {
-      throw new ResourceNotFoundError(this.event.id, "Observation not found");
+      throw new ResourceNotFoundError(
+        this.context.events[0].body.id ?? "",
+        "Observation not found",
+      );
     }
 
-    // find matching model definition based on event and existing observation in db
+    // merge all data from all events. Always take the last value.
+    const updatedEvent = this.context.events.reduce(
+      (acc, event) => {
+        return {
+          ...acc,
+          ...event.body,
+        } as Partial<Observation>;
+      },
+      this.context.existingObservation ?? ({} as Partial<Observation>),
+    );
+
+    // find the internal model for the updated observation
     const internalModel: Model | undefined | null =
-      type === "GENERATION"
+      type === "GENERATION" && updatedEvent
         ? await findModel({
             event: {
               projectId: apiScope.projectId,
               model:
-                "model" in this.event.body
-                  ? this.event.body.model ?? undefined
+                "model" in updatedEvent
+                  ? updatedEvent.model ?? undefined
                   : undefined,
               unit:
-                "usage" in this.event.body
-                  ? this.event.body.usage?.unit ?? undefined
+                "usage" in updatedEvent &&
+                typeof updatedEvent.usage === "object" &&
+                updatedEvent.usage &&
+                "unit" in updatedEvent.usage
+                  ? (updatedEvent.usage?.unit as string) ?? undefined
                   : undefined,
-              startTime: this.event.body.startTime
-                ? new Date(this.event.body.startTime)
+              startTime: updatedEvent.startTime
+                ? new Date(updatedEvent.startTime)
                 : undefined,
             },
             existingDbObservation: existingObservation ?? undefined,
@@ -171,56 +196,56 @@ export class ObservationProcessor implements EventProcessor {
         : undefined;
 
     const traceId =
-      !this.event.body.traceId && !existingObservation
+      !updatedEvent.traceId && !existingObservation
         ? // Create trace if no traceid
           (
             await prisma.trace.create({
               data: {
                 projectId: apiScope.projectId,
-                name: this.event.body.name,
+                name: updatedEvent.name,
               },
             })
           ).id
-        : this.event.body.traceId;
+        : updatedEvent.traceId;
 
-    const [newInputCount, newOutputCount] =
-      "usage" in this.event.body
-        ? this.calculateTokenCounts(
-            this.event.body,
-            internalModel ?? undefined,
-            existingObservation ?? undefined,
-          )
-        : [undefined, undefined];
+    // const [newInputCount, newOutputCount] =
+    //   "usage" in updatedEvent
+    //     ? this.calculateTokenCounts(
+    //         updatedEvent as Observation,
+    //         internalModel ?? undefined,
+    //         existingObservation ?? undefined,
+    //       )
+    //     : [undefined, undefined];
 
     // merge metadata from existingObservation.metadata and metadata
-    const mergedMetadata = mergeJson(
-      existingObservation?.metadata
-        ? jsonSchema.parse(existingObservation.metadata)
-        : undefined,
-      this.event.body.metadata ?? undefined,
-    );
+    // const mergedMetadata = mergeJson(
+    //   existingObservation?.metadata
+    //     ? jsonSchema.parse(existingObservation.metadata)
+    //     : undefined,
+    //   this.context.body.metadata ?? undefined,
+    // );
 
-    const prompt =
-      "promptName" in this.event.body &&
-      typeof this.event.body.promptName === "string" &&
-      "promptVersion" in this.event.body &&
-      typeof this.event.body.promptVersion === "number"
-        ? await prisma.prompt.findUnique({
-            where: {
-              projectId_name_version: {
-                projectId: apiScope.projectId,
-                name: this.event.body.promptName,
-                version: this.event.body.promptVersion,
-              },
-            },
-          })
-        : undefined;
+    // const prompt =
+    //   "promptName" in updatedEvent &&
+    //   typeof updatedEvent === "string" &&
+    //   "promptVersion" in updatedEvent &&
+    //   typeof updatedEvent.promptVersion === "number"
+    //     ? await prisma.prompt.findUnique({
+    //         where: {
+    //           projectId_name_version: {
+    //             projectId: apiScope.projectId,
+    //             name: this.context.body.promptName,
+    //             version: this.context.body.promptVersion,
+    //           },
+    //         },
+    //       })
+    //     : undefined;
 
-    // Only null if promptName and promptVersion are set but prompt is not found
-    if (prompt === null)
-      console.warn("Prompt not found for observation", this.event.body);
+    // // Only null if promptName and promptVersion are set but prompt is not found
+    // if (prompt === null)
+    //   console.warn("Prompt not found for observation", this.context.body);
 
-    const observationId = this.event.body.id ?? v4();
+    const observationId = this.id ?? v4();
 
     return {
       id: observationId,
@@ -228,113 +253,113 @@ export class ObservationProcessor implements EventProcessor {
         id: observationId,
         traceId: traceId,
         type: type,
-        name: this.event.body.name,
-        startTime: this.event.body.startTime
-          ? new Date(this.event.body.startTime)
+        name: updatedEvent.name,
+        startTime: updatedEvent.startTime
+          ? new Date(updatedEvent.startTime)
           : undefined,
         endTime:
-          "endTime" in this.event.body && this.event.body.endTime
-            ? new Date(this.event.body.endTime)
+          "endTime" in updatedEvent && updatedEvent.endTime
+            ? new Date(updatedEvent.endTime)
             : undefined,
         completionStartTime:
-          "completionStartTime" in this.event.body &&
-          this.event.body.completionStartTime
-            ? new Date(this.event.body.completionStartTime)
+          "completionStartTime" in updatedEvent &&
+          updatedEvent.completionStartTime
+            ? new Date(updatedEvent.completionStartTime)
             : undefined,
-        metadata: mergedMetadata ?? this.event.body.metadata ?? undefined,
-        model: "model" in this.event.body ? this.event.body.model : undefined,
+        metadata: updatedEvent.metadata ?? undefined, // mergedMetadata ??
+        model: "model" in updatedEvent ? updatedEvent.model : undefined,
         modelParameters:
-          "modelParameters" in this.event.body
-            ? this.event.body.modelParameters ?? undefined
+          "modelParameters" in updatedEvent
+            ? updatedEvent.modelParameters ?? undefined
             : undefined,
-        input: this.event.body.input ?? undefined,
-        output: this.event.body.output ?? undefined,
-        promptTokens: newInputCount,
-        completionTokens: newOutputCount,
-        totalTokens:
-          "usage" in this.event.body
-            ? this.event.body.usage?.total ??
-              (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined,
-        unit:
-          "usage" in this.event.body
-            ? this.event.body.usage?.unit ?? internalModel?.unit
-            : internalModel?.unit,
-        level: this.event.body.level ?? undefined,
-        statusMessage: this.event.body.statusMessage ?? undefined,
-        parentObservationId: this.event.body.parentObservationId ?? undefined,
-        version: this.event.body.version ?? undefined,
+        input: updatedEvent.input ?? undefined,
+        output: updatedEvent.output ?? undefined,
+        // promptTokens: newInputCount,
+        // completionTokens: newOutputCount,
+        // totalTokens:
+        //   "usage" in updatedEvent
+        //     ? updatedEvent.usage?.total ??
+        //       (newInputCount ?? 0) + (newOutputCount ?? 0)
+        //     : undefined,
+        // unit:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.unit ?? internalModel?.unit
+        //     : internalModel?.unit,
+        level: updatedEvent.level ?? undefined,
+        statusMessage: updatedEvent.statusMessage ?? undefined,
+        parentObservationId: updatedEvent.parentObservationId ?? undefined,
+        version: updatedEvent.version ?? undefined,
         projectId: apiScope.projectId,
-        promptId: prompt ? prompt.id : undefined,
-        ...(internalModel
-          ? { internalModel: internalModel.modelName }
-          : undefined),
-        inputCost:
-          "usage" in this.event.body
-            ? this.event.body.usage?.inputCost
-            : undefined,
-        outputCost:
-          "usage" in this.event.body
-            ? this.event.body.usage?.outputCost
-            : undefined,
-        totalCost:
-          "usage" in this.event.body
-            ? this.event.body.usage?.totalCost
-            : undefined,
+        // promptId: prompt ? prompt.id : undefined,
+        // ...(internalModel
+        //   ? { internalModel: internalModel.modelName }
+        //   : undefined),
+        // inputCost:
+        //   "usage" in updatedEvent
+        //     ? updatedEvent.usage?.inputCost
+        //     : undefined,
+        // outputCost:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.outputCost
+        //     : undefined,
+        // totalCost:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.totalCost
+        //     : undefined,
       },
       update: {
-        name: this.event.body.name ?? undefined,
-        startTime: this.event.body.startTime
-          ? new Date(this.event.body.startTime)
+        name: updatedEvent.name ?? undefined,
+        startTime: updatedEvent.startTime
+          ? new Date(updatedEvent.startTime)
           : undefined,
         endTime:
-          "endTime" in this.event.body && this.event.body.endTime
-            ? new Date(this.event.body.endTime)
+          "endTime" in updatedEvent && updatedEvent.endTime
+            ? new Date(updatedEvent.endTime)
             : undefined,
         completionStartTime:
-          "completionStartTime" in this.event.body &&
-          this.event.body.completionStartTime
-            ? new Date(this.event.body.completionStartTime)
+          "completionStartTime" in updatedEvent &&
+          updatedEvent.completionStartTime
+            ? new Date(updatedEvent.completionStartTime)
             : undefined,
-        metadata: mergedMetadata ?? this.event.body.metadata ?? undefined,
-        model: "model" in this.event.body ? this.event.body.model : undefined,
+        metadata: updatedEvent.metadata ?? undefined, // mergedMetadata ??
+        model: "model" in updatedEvent ? updatedEvent.model : undefined,
         modelParameters:
-          "modelParameters" in this.event.body
-            ? this.event.body.modelParameters ?? undefined
+          "modelParameters" in updatedEvent
+            ? updatedEvent.modelParameters ?? undefined
             : undefined,
-        input: this.event.body.input ?? undefined,
-        output: this.event.body.output ?? undefined,
-        promptTokens: newInputCount,
-        completionTokens: newOutputCount,
-        totalTokens:
-          "usage" in this.event.body
-            ? this.event.body.usage?.total ??
-              (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined,
-        unit:
-          "usage" in this.event.body
-            ? this.event.body.usage?.unit ?? internalModel?.unit
-            : internalModel?.unit,
-        level: this.event.body.level ?? undefined,
-        statusMessage: this.event.body.statusMessage ?? undefined,
-        parentObservationId: this.event.body.parentObservationId ?? undefined,
-        version: this.event.body.version ?? undefined,
-        promptId: prompt ? prompt.id : undefined,
+        input: updatedEvent.input ?? undefined,
+        output: updatedEvent.output ?? undefined,
+        // promptTokens: newInputCount,
+        // completionTokens: newOutputCount,
+        // totalTokens:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.total ??
+        //       (newInputCount ?? 0) + (newOutputCount ?? 0)
+        //     : undefined,
+        // unit:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.unit ?? internalModel?.unit
+        //     : internalModel?.unit,
+        level: updatedEvent.level ?? undefined,
+        statusMessage: updatedEvent.statusMessage ?? undefined,
+        parentObservationId: updatedEvent.parentObservationId ?? undefined,
+        version: updatedEvent.version ?? undefined,
+        // promptId: prompt ? prompt.id : undefined,
         ...(internalModel
           ? { internalModel: internalModel.modelName }
           : undefined),
-        inputCost:
-          "usage" in this.event.body
-            ? this.event.body.usage?.inputCost
-            : undefined,
-        outputCost:
-          "usage" in this.event.body
-            ? this.event.body.usage?.outputCost
-            : undefined,
-        totalCost:
-          "usage" in this.event.body
-            ? this.event.body.usage?.totalCost
-            : undefined,
+        // inputCost:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.inputCost
+        //     : undefined,
+        // outputCost:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.outputCost
+        //     : undefined,
+        // totalCost:
+        //   "usage" in this.context.body
+        //     ? this.context.body.usage?.totalCost
+        //     : undefined,
       },
     };
   }
@@ -373,15 +398,11 @@ export class ObservationProcessor implements EventProcessor {
     });
   }
 
-  async process(apiScope: ApiAccessScope): Promise<Observation> {
+  async process(apiScope: ApiAccessScope) {
     if (apiScope.accessLevel !== "all")
       throw new ForbiddenError("Access denied for observation creation");
 
-    const existingObservation = this.event.body.id
-      ? await prisma.observation.findFirst({
-          where: { id: this.event.body.id },
-        })
-      : null;
+    const existingObservation = this.context.existingObservation;
 
     if (
       existingObservation &&
@@ -392,17 +413,10 @@ export class ObservationProcessor implements EventProcessor {
       );
     }
 
-    const obs = await this.convertToObservation(apiScope, existingObservation);
-
-    // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
-    // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    return await prisma.observation.upsert({
-      where: {
-        id: obs.id,
-      },
-      create: obs.create,
-      update: obs.update,
-    });
+    return await this.mergeContextIntoSingleObservation(
+      apiScope,
+      existingObservation,
+    );
   }
 }
 export class TraceProcessor implements EventProcessor {
