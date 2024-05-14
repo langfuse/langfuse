@@ -63,21 +63,21 @@ model Session {
 }
 
 model User {
-    id            String                 @id @default(cuid())
-    name          String?
-    email         String?                @unique
-    emailVerified DateTime?              @map("email_verified")
-    password      String?
-    image         String?
-    admin         Boolean                @default(false)
-    accounts      Account[]
-    sessions      Session[]
-    memberships   Membership[]
-    invitations   MembershipInvitation[]
-    createdAt     DateTime               @default(now()) @map("created_at")
-    updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
-    featureFlags  String[]               @default([]) @map("feature_flags")
-    AuditLog      AuditLog[]
+    id                 String                 @id @default(cuid())
+    name               String?
+    email              String?                @unique
+    emailVerified      DateTime?              @map("email_verified")
+    password           String?
+    image              String?
+    admin              Boolean                @default(false)
+    accounts           Account[]
+    sessions           Session[]
+    projectMemberships ProjectMembership[]
+    invitations        MembershipInvitation[]
+    createdAt          DateTime               @default(now()) @map("created_at")
+    updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at")
+    featureFlags       String[]               @default([]) @map("feature_flags")
+    AuditLog           AuditLog[]
 
     @@map("users")
 }
@@ -97,7 +97,7 @@ model Project {
     updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at")
     name               String
     cloudConfig        Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
-    members            Membership[]
+    projectMembers     ProjectMembership[]
     traces             Trace[]
     observations       Observation[]
     apiKeys            ApiKey[]
@@ -154,37 +154,37 @@ model LlmApiKeys {
     @@map("llm_api_keys")
 }
 
-model Membership {
-    projectId String         @map("project_id")
-    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    userId    String         @map("user_id")
-    user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-    role      MembershipRole
-    createdAt DateTime       @default(now()) @map("created_at")
-    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+model ProjectMembership {
+    projectId String      @map("project_id")
+    project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userId    String      @map("user_id")
+    user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+    role      ProjectRole
+    createdAt DateTime    @default(now()) @map("created_at")
+    updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
 
     @@id([projectId, userId])
     @@index([userId])
-    @@map("memberships")
+    @@map("project_memberships")
 }
 
 model MembershipInvitation {
-    id        String         @id @unique @default(cuid())
+    id        String      @id @unique @default(cuid())
     email     String
-    role      MembershipRole
-    projectId String         @map("project_id")
-    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    senderId  String?        @map("sender_id")
-    sender    User?          @relation(fields: [senderId], references: [id], onDelete: SetNull)
-    createdAt DateTime       @default(now()) @map("created_at")
-    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+    role      ProjectRole
+    projectId String      @map("project_id")
+    project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    senderId  String?     @map("sender_id")
+    sender    User?       @relation(fields: [senderId], references: [id], onDelete: SetNull)
+    createdAt DateTime    @default(now()) @map("created_at")
+    updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
 
     @@index([projectId])
     @@index([email])
     @@map("membership_invitations")
 }
 
-enum MembershipRole {
+enum ProjectRole {
     OWNER
     ADMIN
     MEMBER
@@ -392,6 +392,7 @@ enum ObservationLevel {
 model Score {
     id            String         @id @default(cuid())
     timestamp     DateTime       @default(now())
+    projectId     String?        @map("project_id")
     name          String
     value         Float
     source        ScoreSource
@@ -405,6 +406,7 @@ model Score {
     @@unique([id, traceId]) // used for upsert
     @@index(timestamp)
     @@index([value])
+    @@index([projectId])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
@@ -598,16 +600,16 @@ model Model {
 }
 
 model AuditLog {
-    id              String         @id @default(cuid())
-    createdAt       DateTime       @default(now()) @map("created_at")
-    updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at")
-    userId          String         @map("user_id")
-    user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-    projectId       String         @map("project_id")
-    project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    userProjectRole MembershipRole @map("user_project_role")
-    resourceType    String         @map("resource_type")
-    resourceId      String         @map("resource_id")
+    id              String      @id @default(cuid())
+    createdAt       DateTime    @default(now()) @map("created_at")
+    updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at")
+    userId          String      @map("user_id")
+    user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+    projectId       String      @map("project_id")
+    project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userProjectRole ProjectRole @map("user_project_role")
+    resourceType    String      @map("resource_type")
+    resourceId      String      @map("resource_id")
     action          String
     before          String? //stringified JSON
     after           String? // stringified JSON

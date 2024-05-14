@@ -12,10 +12,10 @@ import {
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
 import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -73,7 +73,7 @@ const formSchema = z.object({
 
 export const DatasetForm = (props: DatasetFormProps) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues:
@@ -104,7 +104,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
       description: values.description !== "" ? values.description.trim() : null,
     };
     if (props.mode === "create") {
-      posthog.capture("datasets:new_dataset_form_submit");
+      capture("datasets:new_form_submit");
       createMutation
         .mutateAsync({
           ...trimmedValues,
@@ -120,7 +120,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
           console.error(error);
         });
     } else if (props.mode === "update") {
-      posthog.capture("datasets:update_dataset_form_submit");
+      capture("datasets:update_form_submit");
       renameMutation
         .mutateAsync({
           ...trimmedValues,
@@ -141,7 +141,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
 
   const handleDelete = () => {
     if (props.mode !== "delete") return;
-    posthog.capture("datasets:delete_dataset_form_submit");
+    capture("datasets:delete_form_submit");
     deleteMutation
       .mutateAsync({
         projectId: props.projectId,

@@ -298,6 +298,16 @@ Our theming approach leverages separate CSS variables for backgrounds (--backgro
 
 If you're looking to introduce new colors into our theme palette, please add your CSS variable definitions to the global.css file. Additionally, ensure these new colors are reflected in the tailwind.config.js to maintain alignment with Tailwind's utility classes.
 
+## Using secrets stored in 1Password
+
+When applying changes to non-local environments, you may need to use secrets stored in 1Password. We use the 1Password CLI for this purpose.
+
+Example:
+
+```bash
+op run --env-file="./.env" -- pnpm --filter=shared run db:deploy
+```
+
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.

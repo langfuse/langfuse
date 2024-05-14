@@ -19,6 +19,7 @@ import {
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
+import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -312,12 +313,44 @@ export const promptRouter = createTRPCRouter({
           ctx.prisma,
         );
 
-        await ctx.prisma.prompt.delete({
-          where: {
-            id: input.promptVersionId,
-            projectId: input.projectId,
-          },
-        });
+        const transaction = [
+          ctx.prisma.prompt.delete({
+            where: {
+              id: input.promptVersionId,
+              projectId: input.projectId,
+            },
+          }),
+        ];
+
+        // If the deleted prompt was the latest version, update the latest prompt
+        if (promptVersion.labels.includes(LATEST_PROMPT_LABEL)) {
+          const newLatestPrompt = await ctx.prisma.prompt.findFirst({
+            where: {
+              projectId: input.projectId,
+              name: promptVersion.name,
+              id: { not: input.promptVersionId },
+            },
+            orderBy: [{ version: "desc" }],
+          });
+
+          if (newLatestPrompt) {
+            transaction.push(
+              ctx.prisma.prompt.update({
+                where: {
+                  id: newLatestPrompt.id,
+                  projectId: input.projectId,
+                },
+                data: {
+                  labels: {
+                    push: LATEST_PROMPT_LABEL,
+                  },
+                },
+              }),
+            );
+          }
+        }
+
+        await ctx.prisma.$transaction(transaction);
       } catch (e) {
         console.log(e);
         throw e;
@@ -487,7 +520,7 @@ export const promptRouter = createTRPCRouter({
           id: {
             in: userIds,
           },
-          memberships: {
+          projectMemberships: {
             some: {
               projectId: input.projectId,
             },

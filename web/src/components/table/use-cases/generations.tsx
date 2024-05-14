@@ -13,7 +13,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDownIcon, Loader } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 import {
   NumberParam,
   StringParam,
@@ -48,6 +47,8 @@ import type Decimal from "decimal.js";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useSession } from "next-auth/react";
 
 export type GenerationsTableRow = {
   id: string;
@@ -92,7 +93,8 @@ export default function GenerationsTable({
   promptVersion,
   omittedFilter = [],
 }: GenerationsTableProps) {
-  const posthog = usePostHog();
+  const session = useSession();
+  const capture = usePostHogClientCapture();
   const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -115,7 +117,9 @@ export default function GenerationsTable({
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-14),
+        value: utcDateOffsetByDays(
+          session.data?.environment.defaultTableDateTimeOffset ?? -14,
+        ),
       },
     ],
     "generations",
@@ -189,7 +193,7 @@ export default function GenerationsTable({
     if (isExporting) return;
 
     setIsExporting(true);
-    posthog.capture("generations:export", { file_format: fileFormat });
+    capture("generations:export", { file_format: fileFormat });
     if (fileFormat === "OPENAI-JSONL")
       alert(
         "When exporting in OpenAI-JSONL, only generations that exactly match the `ChatML` format will be exported. For any questions, reach out to support.",
@@ -663,7 +667,7 @@ export default function GenerationsTable({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="ml-auto whitespace-nowrap">
-                <span className="@6xl:inline hidden">
+                <span className="hidden @6xl:inline">
                   {filterState.length > 0 || searchQuery
                     ? "Export selection"
                     : "Export all"}{" "}

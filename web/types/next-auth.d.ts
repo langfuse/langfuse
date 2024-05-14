@@ -15,6 +15,12 @@ import { type Flags } from "@/src/features/feature-flags/types";
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: User | null; // null if user does not exist anymore in the database but has active jwt
+    environment: {
+      // Run-time environment variables that need to be available client-side
+      enableExperimentalFeatures: boolean;
+      disableExpensivePostgresQueries: boolean;
+      defaultTableDateTimeOffset?: number;
+    };
   }
 
   interface User extends DefaultUser {

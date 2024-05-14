@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { ServerPosthog } from "@/src/server/services/posthog";
+import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -46,7 +46,7 @@ export default async function handler(
         id: true,
         name: true,
         createdAt: true,
-        members: {
+        projectMembers: {
           select: {
             user: {
               select: {
@@ -72,7 +72,7 @@ export default async function handler(
         groupKey: project.id,
         properties: {
           project_name: project.name,
-          project_owner: project.members
+          project_owner: project.projectMembers
             .map((member) => member.user.email)
             .join(","),
           created_at: project.createdAt,
