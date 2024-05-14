@@ -103,7 +103,7 @@ export const IOPreview: React.FC<{
               title="Output"
               json={outputClean}
               isLoading={isLoading}
-              className="bg-light-green flex-1"
+              className="bg-accent-light-green flex-1"
             />
           ) : null}
         </>
@@ -181,7 +181,7 @@ export const OpenAiMessageView: React.FC<{
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-muted",
-                      message.role === "assistant" && "bg-light-green",
+                      message.role === "assistant" && "bg-accent-light-green",
                       message.role === "user" && "bg-foreground",
                       !!message.json && "rounded-b-none",
                     )}
