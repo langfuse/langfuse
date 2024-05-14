@@ -107,7 +107,7 @@ function Instructions() {
           <li key={itemIdx}>
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
-                <span className="group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <span className="group-hover:border-primary-accent group-hover:text-primary-accent inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground">
                   <item.icon className="h-6 w-6" aria-hidden="true" />
                 </span>
               </div>
