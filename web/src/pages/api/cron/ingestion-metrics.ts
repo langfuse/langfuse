@@ -46,7 +46,7 @@ export default async function handler(
         id: true,
         name: true,
         createdAt: true,
-        members: {
+        projectMembers: {
           select: {
             user: {
               select: {
@@ -72,7 +72,7 @@ export default async function handler(
         groupKey: project.id,
         properties: {
           project_name: project.name,
-          project_owner: project.members
+          project_owner: project.projectMembers
             .map((member) => member.user.email)
             .join(","),
           created_at: project.createdAt,

@@ -19,6 +19,7 @@ declare module "next-auth" {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
       disableExpensivePostgresQueries: boolean;
+      defaultTableDateTimeOffset?: number;
     };
   }
 

@@ -537,7 +537,7 @@ export const promptRouter = createTRPCRouter({
           id: {
             in: userIds,
           },
-          memberships: {
+          projectMemberships: {
             some: {
               projectId: input.projectId,
             },
