@@ -87,7 +87,7 @@ export default function PromptVersionTable() {
     "s",
   );
 
-  const promptHistory = api.prompts.allVersions.useQuery(
+  const promptVersions = api.prompts.allVersions.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       name: promptName,
@@ -97,8 +97,8 @@ export default function PromptVersionTable() {
     { enabled: Boolean(projectId) },
   );
 
-  const promptIds = promptHistory.isSuccess
-    ? promptHistory.data?.promptVersions.map((prompt) => prompt.id)
+  const promptIds = promptVersions.isSuccess
+    ? promptVersions.data?.promptVersions.map((prompt) => prompt.id)
     : [];
 
   const promptMetrics = api.prompts.metrics.useQuery(
@@ -107,7 +107,7 @@ export default function PromptVersionTable() {
       promptIds,
     },
     {
-      enabled: Boolean(projectId) && promptHistory.isSuccess,
+      enabled: Boolean(projectId) && promptVersions.isSuccess,
       trpc: {
         context: {
           skipBatch: true,
@@ -312,19 +312,19 @@ export default function PromptVersionTable() {
       columns,
     );
 
-  if (!promptHistory.data) {
+  if (!promptVersions.data) {
     return <div>Loading...</div>;
   }
 
-  const totalCount = promptHistory?.data?.totalCount ?? 0;
+  const totalCount = promptVersions?.data?.totalCount ?? 0;
 
   const { combinedData } = joinPromptCoreAndMetricData(
-    promptHistory.data,
+    promptVersions.data,
     promptMetrics.data,
   );
 
   const rows: PromptVersionTableRow[] =
-    promptHistory.isSuccess && !!combinedData
+    promptVersions.isSuccess && !!combinedData
       ? combinedData.map((prompt) => ({
           version: prompt.version,
           labels: prompt.labels,
@@ -360,7 +360,7 @@ export default function PromptVersionTable() {
                 name: promptName ?? router.query.promptName,
                 href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
               },
-              { name: `Version Table` },
+              { name: `Metrics` },
             ]}
             actionButtons={
               <>
@@ -391,13 +391,13 @@ export default function PromptVersionTable() {
           <DataTable
             columns={columns}
             data={
-              promptHistory.isLoading
+              promptVersions.isLoading
                 ? { isLoading: true, isError: false }
-                : promptHistory.error
+                : promptVersions.error
                   ? {
                       isLoading: false,
                       isError: true,
-                      error: promptHistory.error.message,
+                      error: promptVersions.error.message,
                     }
                   : {
                       isLoading: false,

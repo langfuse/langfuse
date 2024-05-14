@@ -157,7 +157,7 @@ export const PromptDetail = () => {
                     <TabsTrigger value="editor">Editor</TabsTrigger>
                     <TabsTrigger value="metrics" asChild>
                       <Link
-                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/version-table`}
+                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
                       >
                         Metrics
                       </Link>
