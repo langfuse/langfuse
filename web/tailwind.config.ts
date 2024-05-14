@@ -18,11 +18,15 @@ module.exports = {
     },
     extend: {
       colors: {
-        "muted-foreground-indigo": "hsl(var(--muted-foreground-indigo))",
+        "primary-accent": "hsl(var(--primary-accent))",
         "muted-orange": "hsl(var(--muted-orange))",
         "muted-blue": "hsl(var(--muted-blue))",
         "muted-green": "hsl(var(--muted-green))",
-        "light-green": "hsl(var(--light-green))",
+        "muted-indigo": "hsl(var(--muted-indigo))",
+        "accent-light-green": "hsl(var(--accent-light-green))",
+        "accent-dark-green": "hsl(var(--accent-dark-green))",
+        "accent-light-blue": "hsl(var(--accent-light-blue))",
+        "accent-dark-blue": "hsl(var(--accent-dark-blue))",
 
         tremor: {
           brand: {
