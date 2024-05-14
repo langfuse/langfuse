@@ -23,7 +23,7 @@ const prismaClientSingleton = () => {
   try {
     const pool = new Pool({
       connectionString: env.DATABASE_URL,
-      ssl: { ca: env.DATABASE_SSL_CERT },
+      ...(env.DATABASE_SSL_CERT ? { ssl: { ca: env.DATABASE_SSL_CERT } } : {}),
     });
 
     const adapter = new PrismaPg(pool);
