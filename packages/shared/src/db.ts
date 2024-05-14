@@ -13,14 +13,13 @@ import {
 import { DB } from ".";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { tmpdir } from "os";
-import fs from "fs";
 
 // Instantiated according to the Prisma documentation
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
 const prismaClientSingleton = () => {
   try {
+    console.log("Creating prisma client", env.DATABASE_SSL_CERT);
     const pool = new Pool({
       connectionString: env.DATABASE_URL,
       ...(env.DATABASE_SSL_CERT ? { ssl: { ca: env.DATABASE_SSL_CERT } } : {}),
@@ -35,8 +34,7 @@ const prismaClientSingleton = () => {
           : ["error", "warn"],
     });
   } catch (e) {
-    console.error(e);
-    console.error("Failed to create prisma client");
+    console.error("Failed to create prisma client", e);
     throw e;
   }
 };
@@ -59,8 +57,7 @@ const kyselySingleton = (prismaClient: PrismaClient) => {
       })
     );
   } catch (e) {
-    console.error(e);
-    console.error("Failed to create kysely instance");
+    console.error("Failed to create kysely instance", e);
     throw e;
   }
 };
