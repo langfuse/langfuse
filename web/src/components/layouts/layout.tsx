@@ -224,7 +224,7 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <div className="fixed inset-0 bg-primary" />
+              <div className="fixed inset-0 bg-primary/80" />
             </Transition.Child>
 
             <div className="fixed inset-0 flex">
@@ -262,7 +262,7 @@ export default function Layout(props: PropsWithChildren) {
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 py-4">
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-6 py-4">
                     <LangfuseLogo
                       version
                       size="xl"
@@ -295,7 +295,7 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-60 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col border-r pt-7">
+          <div className="flex h-screen grow flex-col border-r border-border bg-background pt-7">
             <LangfuseLogo
               version
               size="xl"
@@ -314,9 +314,9 @@ export default function Layout(props: PropsWithChildren) {
                   description="What do you think about this project? What can be improved?"
                   type="feedback"
                 >
-                  <li className="hover:text-muted-foreground-indigo group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-primary hover:bg-primary-foreground">
+                  <li className="hover:text-primary-accent group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-primary hover:bg-primary-foreground">
                     <MessageSquarePlus
-                      className="group-hover:text-muted-foreground-indigo h-6 w-6 shrink-0 text-muted-foreground"
+                      className="group-hover:text-primary-accent h-6 w-6 shrink-0 text-muted-foreground"
                       aria-hidden="true"
                     />
                     Feedback
@@ -369,7 +369,7 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-background py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-background py-2 shadow-lg ring-1 ring-primary/5 focus:outline-none">
                   <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                     {session.data?.user?.email}
                   </span>
@@ -433,7 +433,7 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 shadow-lg ring-1 ring-primary/5 focus:outline-none">
                 <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                   {session.data?.user?.email}
                 </span>
@@ -526,8 +526,8 @@ const MainNavigation: React.FC<{
                 href={item.href}
                 className={clsx(
                   item.current
-                    ? "text-muted-foreground-indigo bg-primary-foreground"
-                    : "hover:text-muted-foreground-indigo text-primary hover:bg-primary-foreground",
+                    ? "text-primary-accent bg-primary-foreground"
+                    : "hover:text-primary-accent text-primary hover:bg-primary-foreground",
                   "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                 )}
                 onClick={onNavitemClick}
@@ -537,8 +537,8 @@ const MainNavigation: React.FC<{
                   <item.icon
                     className={clsx(
                       item.current
-                        ? "text-muted-foreground-indigo"
-                        : "group-hover:text-muted-foreground-indigo text-muted-foreground",
+                        ? "text-primary-accent"
+                        : "group-hover:text-primary-accent text-muted-foreground",
                       "h-6 w-6 shrink-0",
                     )}
                     aria-hidden="true"
@@ -550,8 +550,8 @@ const MainNavigation: React.FC<{
                     className={cn(
                       "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                       item.current
-                        ? "border-muted-foreground-indigo text-muted-foreground-indigo"
-                        : "group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo border-border text-muted-foreground",
+                        ? "border-primary-accent text-primary-accent"
+                        : "group-hover:border-primary-accent group-hover:text-primary-accent border-border text-muted-foreground",
                     )}
                   >
                     {item.label}
@@ -568,12 +568,12 @@ const MainNavigation: React.FC<{
                 {({ open }) => (
                   <>
                     <Disclosure.Button
-                      className="hover:text-muted-foreground-indigo group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-primary-foreground"
+                      className="hover:text-primary-accent group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-primary-foreground"
                       onClick={() => setIsOpen(!isOpen)}
                     >
                       {item.icon && (
                         <item.icon
-                          className="group-hover:text-muted-foreground-indigo h-6 w-6 shrink-0 text-muted-foreground"
+                          className="group-hover:text-primary-accent h-6 w-6 shrink-0 text-muted-foreground"
                           aria-hidden="true"
                         />
                       )}
@@ -583,8 +583,8 @@ const MainNavigation: React.FC<{
                           className={cn(
                             "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                             item.current
-                              ? "border-muted-foreground-indigo text-muted-foreground-indigo"
-                              : "group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo border-border text-muted-foreground",
+                              ? "border-primary-accent text-primary-accent"
+                              : "group-hover:border-primary-accent group-hover:text-primary-accent border-border text-muted-foreground",
                           )}
                         >
                           {item.label}
@@ -608,15 +608,15 @@ const MainNavigation: React.FC<{
                             href={subItem.href ?? "#"}
                             className={clsx(
                               subItem.current
-                                ? "text-muted-foreground-indigo bg-primary-foreground"
-                                : "hover:text-muted-foreground-indigo text-primary hover:bg-primary-foreground",
+                                ? "text-primary-accent bg-primary-foreground"
+                                : "hover:text-primary-accent text-primary hover:bg-primary-foreground",
                               "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
                             {subItem.name}
                             {subItem.label && (
-                              <span className="group-hover:border-muted-foreground-indigo group-hover:text-muted-foreground-indigo self-center whitespace-nowrap break-keep rounded-sm border border-border px-1 py-0.5 text-xs text-muted-foreground">
+                              <span className="group-hover:border-primary-accent group-hover:text-primary-accent self-center whitespace-nowrap break-keep rounded-sm border border-border px-1 py-0.5 text-xs text-muted-foreground">
                                 {subItem.label}
                               </span>
                             )}
