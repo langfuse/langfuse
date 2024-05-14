@@ -105,7 +105,7 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
-      <div className="relative max-h-dvh w-full max-w-full overflow-auto rounded-md border">
+      <div className="relative h-full max-h-dvh w-full max-w-full overflow-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -193,7 +193,7 @@ export function DataTable<TData extends object, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-24 border-b text-center"
                 >
                   Loading...
                 </TableCell>
@@ -204,7 +204,7 @@ export function DataTable<TData extends object, TValue>({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
+                      className="overflow-hidden whitespace-nowrap border-b px-2 py-1 text-xs first:pl-2"
                     >
                       <div className={cn("flex items-center", rowheighttw)}>
                         {flexRender(
@@ -243,7 +243,7 @@ export function DataTable<TData extends object, TValue>({
           <TableRow>
             <TableCell
               colSpan={columns.length}
-              className="overflow-hidden whitespace-nowrap px-0 py-2 first:pl-2"
+              className="whitespace-nowrap px-0 py-2 first:pl-2"
             >
               <DataTablePagination
                 table={table}

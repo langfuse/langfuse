@@ -14,7 +14,7 @@ export default function ModelsPage() {
   const hasWriteAccess = useHasAccess({ projectId, scope: "models:CUD" });
   const capture = usePostHogClientCapture();
   return (
-    <div>
+    <div className="h-[calc(100vh-6rem)] overflow-hidden md:h-[calc(100vh-2rem)]">
       <Header
         title="Models"
         help={{
