@@ -686,7 +686,7 @@ const TracesIOCell = ({
     <IOTableCell
       isLoading={trace.isLoading}
       data={io === "output" ? trace.data?.output : trace.data?.input}
-      className={cn(io === "output" && "bg-light-green")}
+      className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );
