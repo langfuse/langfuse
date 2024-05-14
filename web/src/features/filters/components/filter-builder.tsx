@@ -136,7 +136,7 @@ export function InlineFilterState({
     return (
       <span
         key={i}
-        className="ml-2 hidden whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs @6xl:block"
+        className="ml-2 hidden whitespace-nowrap rounded-md bg-input px-2 py-1 text-xs @6xl:block"
       >
         {filter.column}
         {filter.type === "stringObject" || filter.type === "numberObject"
