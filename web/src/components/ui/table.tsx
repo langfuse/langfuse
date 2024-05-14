@@ -44,7 +44,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "sticky bottom-0 z-10 flex w-full justify-end bg-white bg-opacity-75 font-medium backdrop-blur [&>tr]:last:border-b-0",
+      "sticky bottom-0 z-10 flex w-full  justify-end bg-white bg-opacity-75 font-medium [&>tr]:last:border-b-0",
       className,
     )}
     {...props}
@@ -74,7 +74,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "sticky top-0 z-10 border-b bg-white bg-opacity-75 px-4 text-left align-middle font-medium text-muted-foreground backdrop-blur [&:has([role=checkbox])]:pr-0",
+      "sticky top-0 z-10 border-b bg-white px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
       className,
     )}
     {...props}
