@@ -44,14 +44,14 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@langchain/anthropic": "^0.1.16",
-    "@langchain/core": "^0.1.61",
-    "@langchain/openai": "^0.0.28",
+    "@langchain/anthropic": "^0.1.17",
+    "@langchain/core": "^0.1.63",
+    "@langchain/openai": "^0.0.29",
     "@prisma/client": "^5.13.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "kysely": "^0.27.3",
-    "langchain": "^0.1.36",
+    "langchain": "^0.1.37",
     "prisma-extension-kysely": "^2.1.0",
     "zod": "^3.22.4",
     "zod-to-json-schema": "^3.22.5"
@@ -59,9 +59,9 @@
   "devDependencies": {
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
-    "@types/lodash": "^4.14.202",
+    "@types/lodash": "^4.17.1",
     "@types/node": "^20.11.29",
-    "@types/pg": "^8.11.5",
+    "@types/pg": "^8.11.6",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.7.0",
     "eslint": "^8.57.0",
