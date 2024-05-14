@@ -16,22 +16,15 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { tmpdir } from "os";
 import fs from "fs";
 
-const createFile = () => {
-  console.log("Creating file", `${tmpdir()}/server-ca.crt`);
-  return fs.writeFileSync(
-    `${tmpdir()}/server-ca.crt`,
-    String(env.DATABASE_SSL_CERT)
-  );
-};
-
-env.DATABASE_SSL_CERT ? createFile() : undefined;
-
 // Instantiated according to the Prisma documentation
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
 const prismaClientSingleton = () => {
   try {
-    const pool = new Pool({ connectionString: env.DATABASE_URL });
+    const pool = new Pool({
+      connectionString: env.DATABASE_URL,
+      ssl: { ca: env.DATABASE_SSL_CERT },
+    });
 
     const adapter = new PrismaPg(pool);
     return new PrismaClient({
