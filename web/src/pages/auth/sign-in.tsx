@@ -402,7 +402,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
             No account yet?{" "}
             <Link
               href="/auth/sign-up"
-              className="text-muted-foreground-indigo font-semibold leading-6 hover:text-indigo-500"
+              className="text-primary-accent font-semibold leading-6 hover:text-indigo-500"
             >
               Sign up
             </Link>
