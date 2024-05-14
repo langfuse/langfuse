@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHog } from "posthog-js/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   projectId,
@@ -21,7 +21,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   const usage = api.usageMetering.last30d.useQuery({
     projectId,
   });
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const project = api.projects.byId.useQuery({ projectId });
   const planLimit =
     project.data?.cloudConfig?.monthlyObservationLimit ?? 50_000;
@@ -67,7 +67,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
           <Dialog
             onOpenChange={(open) => {
               if (open) {
-                posthog.capture("project_settings:pricing_dialog_opened");
+                capture("project_settings:pricing_dialog_opened");
               }
             }}
           >

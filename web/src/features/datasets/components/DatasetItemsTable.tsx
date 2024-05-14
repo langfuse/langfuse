@@ -22,6 +22,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type RowData = {
   id: string;
@@ -47,7 +48,7 @@ export function DatasetItemsTable({
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
-
+  const capture = usePostHogClientCapture();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -208,7 +209,13 @@ export function DatasetItemsTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
-                onClick={() =>
+                onClick={() => {
+                  capture("dataset_item:archive_toggle", {
+                    status:
+                      status === DatasetStatus.ARCHIVED
+                        ? "unarchived"
+                        : "archived",
+                  });
                   mutUpdate.mutate({
                     projectId: projectId,
                     datasetId: datasetId,
@@ -217,8 +224,8 @@ export function DatasetItemsTable({
                       status === DatasetStatus.ARCHIVED
                         ? DatasetStatus.ACTIVE
                         : DatasetStatus.ARCHIVED,
-                  })
-                }
+                  });
+                }}
               >
                 <Archive className="mr-2 h-4 w-4" />
                 {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}

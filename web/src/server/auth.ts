@@ -233,7 +233,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             image: true,
             featureFlags: true,
             admin: true,
-            memberships: {
+            projectMemberships: {
               include: {
                 project: true,
               },
@@ -243,6 +243,14 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
         return {
           ...session,
+          environment: {
+            enableExperimentalFeatures:
+              env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+            disableExpensivePostgresQueries:
+              env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
+            defaultTableDateTimeOffset:
+              env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
+          },
           user:
             dbUser !== null
               ? {
@@ -252,7 +260,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   email: dbUser.email,
                   image: dbUser.image,
                   admin: dbUser.admin,
-                  projects: dbUser.memberships.map((membership) => ({
+                  projects: dbUser.projectMemberships.map((membership) => ({
                     id: membership.project.id,
                     name: membership.project.name,
                     role: membership.role,

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const IOPreview: React.FC<{
   input?: unknown;
@@ -14,7 +15,7 @@ export const IOPreview: React.FC<{
   hideIfNull?: boolean;
 }> = ({ isLoading = false, hideIfNull = false, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
-
+  const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
 
@@ -54,7 +55,9 @@ export const IOPreview: React.FC<{
       }
     }
   }
-  const outChatMlMessage = ChatMlMessageSchema.safeParse(output);
+  const outChatMlArray = ChatMlArraySchema.safeParse(
+    Array.isArray(output) ? output : [output],
+  );
 
   // Pretty view available
   const isPrettyViewAvailable = inChatMlArray.success;
@@ -65,7 +68,10 @@ export const IOPreview: React.FC<{
       {isPrettyViewAvailable ? (
         <Tabs
           value={currentView}
-          onValueChange={(v) => setCurrentView(v as "pretty" | "json")}
+          onValueChange={(v) => {
+            setCurrentView(v as "pretty" | "json"),
+              capture("trace_detail:io_mode_switch", { view: v });
+          }}
         >
           <TabsList>
             <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
@@ -75,17 +81,20 @@ export const IOPreview: React.FC<{
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <OpenAiMessageView
-          messages={inChatMlArray.data.concat(
-            outChatMlMessage.success
-              ? {
-                  ...outChatMlMessage.data,
-                  role: outChatMlMessage.data.role ?? "assistant",
-                }
-              : ChatMlMessageSchema.parse({
-                  role: "assistant",
-                  content: outputClean ? JSON.stringify(outputClean) : null,
-                }),
-          )}
+          messages={[
+            ...inChatMlArray.data,
+            ...(outChatMlArray.success
+              ? outChatMlArray.data.map((m) => ({
+                  ...m,
+                  role: m.role ?? "assistant",
+                }))
+              : [
+                  ChatMlMessageSchema.parse({
+                    role: "assistant",
+                    content: outputClean ? JSON.stringify(outputClean) : null,
+                  }),
+                ]),
+          ]}
         />
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (

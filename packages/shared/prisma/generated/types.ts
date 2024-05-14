@@ -4,13 +4,13 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
-export const MembershipRole = {
+export const ProjectRole = {
     OWNER: "OWNER",
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
     VIEWER: "VIEWER"
 } as const;
-export type MembershipRole = (typeof MembershipRole)[keyof typeof MembershipRole];
+export type ProjectRole = (typeof ProjectRole)[keyof typeof ProjectRole];
 export const ObservationType = {
     SPAN: "SPAN",
     EVENT: "EVENT",
@@ -96,7 +96,7 @@ export type AuditLog = {
     updated_at: Generated<Timestamp>;
     user_id: string;
     project_id: string;
-    user_project_role: MembershipRole;
+    user_project_role: ProjectRole;
     resource_type: string;
     resource_id: string;
     action: string;
@@ -208,17 +208,10 @@ export type LlmApiKeys = {
     secret_key: string;
     project_id: string;
 };
-export type Membership = {
-    project_id: string;
-    user_id: string;
-    role: MembershipRole;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-};
 export type MembershipInvitation = {
     id: string;
     email: string;
-    role: MembershipRole;
+    role: ProjectRole;
     project_id: string;
     sender_id: string | null;
     created_at: Generated<Timestamp>;
@@ -324,6 +317,13 @@ export type Project = {
     name: string;
     cloud_config: unknown | null;
 };
+export type ProjectMembership = {
+    project_id: string;
+    user_id: string;
+    role: ProjectRole;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type Prompt = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -342,6 +342,7 @@ export type Prompt = {
 export type Score = {
     id: string;
     timestamp: Generated<Timestamp>;
+    project_id: string | null;
     name: string;
     value: number;
     source: ScoreSource;
@@ -439,12 +440,12 @@ export type DB = {
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
     membership_invitations: MembershipInvitation;
-    memberships: Membership;
     models: Model;
     observations: Observation;
     observations_view: ObservationView;
     posthog_integrations: PosthogIntegration;
     pricings: Pricing;
+    project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
     scores: Score;

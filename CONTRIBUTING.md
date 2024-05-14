@@ -294,9 +294,39 @@ When a new release is tagged on the `main` branch (excluding prereleases), it tr
 
 At Langfuse, we utilize CSS variables to manage our theme settings across the platform.
 
-Our theming approach leverages separate CSS variables for backgrounds (--background) and foregrounds (--foreground), fully adhering to the [shadcn/ui](https://ui.shadcn.com/docs/theming) color conventions. We recommend using HSL values for these colors to enhance consistency and customization.
+Our approach leverages separate CSS variables for backgrounds (--background) and foregrounds (--foreground), fully adhering to the [shadcn/ui](https://ui.shadcn.com/docs/theming) color conventions. We recommend using HSL values for these colors to enhance consistency and customization.
 
-If you're looking to introduce new colors into our theme palette, please add your CSS variable definitions to the global.css file. Additionally, ensure these new colors are reflected in the tailwind.config.js to maintain alignment with Tailwind's utility classes.
+### Adding New Colors
+
+1. Global Definitions: Add new CSS variable definitions in the global.css file.
+2. Tailwind Configuration: Reflect these new colors in the tailwind.config.js to maintain alignment with Tailwind's utility classes.
+
+### Utility Classes
+
+- Border Color: `border`
+- Primary Text: `primary`
+- Secondary Text: `muted-foreground`
+- Hover States: Use `primary-foreground` or `accent`
+- Background: `background`
+- Main Content: `foreground`
+- Primary Color: `primary`
+- Accents: `primary-accent`
+- Selectable Items: `input`
+- Link Background: `muted-indigo`
+- Link Text: `accent-dark-blue`
+- Link Hover: `accent-light-blue`
+
+By following these guidelines, you can ensure that any contributions to our theme are consistent, maintainable, and aligned with our design system.
+
+## Using secrets stored in 1Password
+
+When applying changes to non-local environments, you may need to use secrets stored in 1Password. We use the 1Password CLI for this purpose.
+
+Example:
+
+```bash
+op run --env-file="./.env" -- pnpm --filter=shared run db:deploy
+```
 
 ## License
 

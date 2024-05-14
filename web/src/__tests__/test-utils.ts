@@ -90,7 +90,7 @@ export const setupUserAndProject = async () => {
           },
         ],
       },
-      members: {
+      projectMembers: {
         create: {
           role: "OWNER",
           userId: user.id,

@@ -16,7 +16,14 @@ export default function NewConfigsPage() {
 
   return (
     <div>
-      <Header title="Create eval config" />
+      <Header
+        title="Create eval config"
+        help={{
+          description:
+            "Eval configs let you define how your evaluations templates are applied to incoming traces in Langfuse.",
+          href: "https://langfuse.com/docs/scores/model-based-evals",
+        }}
+      />
       <EvalConfigForm
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}

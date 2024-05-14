@@ -1,3 +1,4 @@
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode, useState } from "react";
 
@@ -10,6 +11,7 @@ export type TabComponentProps = {
 
 export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const capture = usePostHogClientCapture();
   return (
     <div>
       <div className="sm:hidden">
@@ -44,7 +46,12 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                   "cursor-pointer whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}
-                onClick={() => setSelectedIndex(index)}
+                onClick={() => {
+                  setSelectedIndex(index);
+                  capture("dashboard:chart_tab_switch", {
+                    tabLabel: tab.tabTitle,
+                  });
+                }}
               >
                 {tab.tabTitle}
               </a>

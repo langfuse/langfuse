@@ -21,6 +21,7 @@ import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatase
 import { type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { useSession } from "next-auth/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewDatasetItemFromTrace = (props: {
   projectId: string;
@@ -47,6 +48,7 @@ export const NewDatasetItemFromTrace = (props: {
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
+  const capture = usePostHogClientCapture();
 
   return (
     <>
@@ -88,7 +90,12 @@ export const NewDatasetItemFromTrace = (props: {
         </div>
       ) : (
         <Button
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true);
+            capture("dataset_item:new_from_trace_form_open", {
+              object: props.observationId ? "observation" : "trace",
+            });
+          }}
           variant="secondary"
           disabled={!hasAccess}
         >

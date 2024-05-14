@@ -27,6 +27,7 @@ import {
 } from "@langfuse/shared";
 import { NonEmptyString } from "@/src/utils/zod";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -38,6 +39,7 @@ export function PopoverFilterBuilder({
   filterState: FilterState;
   onChange: Dispatch<SetStateAction<FilterState>>;
 }) {
+  const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
   const addNewFilter = () => {
@@ -75,10 +77,16 @@ export function PopoverFilterBuilder({
     <div className="flex items-center">
       <Popover
         onOpenChange={(open) => {
+          if (open) {
+            capture("table:filter_builder_open");
+          }
           // Create empty filter when opening popover
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
           if (!open) {
+            capture("table:filter_builder_close", {
+              filter: filterState,
+            });
             setWipFilterState(filterState);
           }
         }}

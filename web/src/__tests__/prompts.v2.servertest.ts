@@ -709,7 +709,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         create: {
           id: otherProjectId,
           name: "demo-app",
-          members: {
+          projectMembers: {
             create: {
               role: "OWNER",
               userId: "user-test",
