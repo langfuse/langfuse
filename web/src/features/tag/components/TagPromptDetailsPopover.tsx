@@ -46,11 +46,14 @@ export function TagPromptDetailsPopover({
         { projectId: projectId, name: promptName },
         (oldQueryData: RouterOutput["prompts"]["allVersions"] | undefined) => {
           return oldQueryData
-            ? oldQueryData.map((prompt) => {
-                return prompt.name === promptName
-                  ? { ...prompt, tags }
-                  : prompt;
-              })
+            ? {
+                promptVersions: oldQueryData.promptVersions.map((prompt) => {
+                  return prompt.name === promptName
+                    ? { ...prompt, tags }
+                    : prompt;
+                }),
+                totalCount: oldQueryData.totalCount,
+              }
             : undefined;
         },
       );

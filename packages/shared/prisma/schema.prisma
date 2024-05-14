@@ -276,6 +276,8 @@ view TraceView {
 }
 
 // Update ObservationView below when making changes to this model!
+// traceId is optional only due to timing during data injestion 
+// (traceId is not necessarily known at the time of observation creation)
 model Observation {
     id                  String           @id @default(cuid())
     traceId             String?          @map("trace_id")
