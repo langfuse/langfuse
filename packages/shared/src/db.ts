@@ -18,33 +18,46 @@ import { PrismaPg } from "@prisma/adapter-pg";
 // https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
 const prismaClientSingleton = () => {
-  const pool = new Pool({ connectionString: env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  return new PrismaClient({
-    adapter: adapter,
-    log:
-      env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error", "warn"],
-  });
+  try {
+    const pool = new Pool({ connectionString: env.DATABASE_URL });
+    console.log("instance of pool", pool instanceof Pool);
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({
+      adapter: adapter,
+      log:
+        env.NODE_ENV === "development"
+          ? ["query", "error", "warn"]
+          : ["error", "warn"],
+    });
+  } catch (e) {
+    console.error(e);
+    console.error("Failed to create prisma client");
+    throw e;
+  }
 };
 
 const kyselySingleton = (prismaClient: PrismaClient) => {
-  return prismaClient.$extends(
-    kyselyExtension({
-      kysely: (driver) =>
-        new Kysely<DB>({
-          dialect: {
-            // This is where the magic happens!
-            createDriver: () => driver,
-            // Don't forget to customize these to match your database!
-            createAdapter: () => new PostgresAdapter(),
-            createIntrospector: (db) => new PostgresIntrospector(db),
-            createQueryCompiler: () => new PostgresQueryCompiler(),
-          },
-        }),
-    })
-  );
+  try {
+    return prismaClient.$extends(
+      kyselyExtension({
+        kysely: (driver) =>
+          new Kysely<DB>({
+            dialect: {
+              // This is where the magic happens!
+              createDriver: () => driver,
+              // Don't forget to customize these to match your database!
+              createAdapter: () => new PostgresAdapter(),
+              createIntrospector: (db) => new PostgresIntrospector(db),
+              createQueryCompiler: () => new PostgresQueryCompiler(),
+            },
+          }),
+      })
+    );
+  } catch (e) {
+    console.error(e);
+    console.error("Failed to create kysely instance");
+    throw e;
+  }
 };
 declare global {
   // eslint-disable-next-line no-var

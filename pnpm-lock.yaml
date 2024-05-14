@@ -414,6 +414,9 @@ importers:
       js-tiktoken:
         specifier: ^1.0.12
         version: 1.0.12
+      kysely:
+        specifier: ^0.27.3
+        version: 0.27.3
       langchain:
         specifier: ^0.1.36
         version: 0.1.36(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(lodash@4.17.21)
