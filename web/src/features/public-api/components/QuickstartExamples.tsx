@@ -28,9 +28,9 @@ export const QuickstartExamples = ({
       </TabsList>
     </div>
     <TabsContent value="python">
-      <CodeView content="pip install langfuse" className="mb-2 bg-blue-50" />
+      <CodeView content="pip install langfuse" className="mb-2 bg-muted" />
       <CodeView
-        className="bg-blue-50"
+        className="bg-muted"
         content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
       />
       <p className="mt-3 text-xs text-muted-foreground">
@@ -56,9 +56,9 @@ export const QuickstartExamples = ({
       </p>
     </TabsContent>
     <TabsContent value="js">
-      <CodeView content="npm install langfuse" className="mb-2 bg-blue-50" />
+      <CodeView content="npm install langfuse" className="mb-2 bg-muted" />
       <CodeView
-        className="bg-blue-50"
+        className="bg-muted"
         content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
       />
       <p className="mt-3 text-xs text-muted-foreground">
@@ -89,15 +89,15 @@ export const QuickstartExamples = ({
         changing the import, Langfuse will capture all LLM calls and send them
         to Langfuse asynchronously.
       </p>
-      <CodeView content="pip install langfuse" className="my-2 bg-blue-50" />
+      <CodeView content="pip install langfuse" className="my-2 bg-muted" />
       <CodeView
         title=".env"
         content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"`}
-        className="my-2 bg-blue-50"
+        className="my-2 bg-muted"
       />
       <CodeView
         content={`# remove: import openai\n\nfrom langfuse.openai import openai`}
-        className="my-2 bg-blue-50"
+        className="my-2 bg-muted"
       />
       <p className="mt-2 text-xs text-muted-foreground">
         Use the OpenAI SDK as you would normally. See the{" "}
@@ -117,10 +117,10 @@ export const QuickstartExamples = ({
         The integration uses the Langchain callback system to automatically
         capture detailed traces of your Langchain executions.
       </p>
-      <CodeView content="pip install langfuse" className="my-2 bg-blue-50" />
+      <CodeView content="pip install langfuse" className="my-2 bg-muted" />
       <CodeView
         content={LANGCHAIN_PYTHON_CODE({ publicKey, secretKey, host })}
-        className="my-2 bg-blue-50"
+        className="my-2 bg-muted"
       />
       <p className="mt-2 text-xs text-muted-foreground">
         See the{" "}
@@ -142,11 +142,11 @@ export const QuickstartExamples = ({
       </p>
       <CodeView
         content="npm install langfuse-langchain"
-        className="my-2 bg-blue-50"
+        className="my-2 bg-muted"
       />
       <CodeView
         content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
-        className="my-2 bg-blue-50"
+        className="my-2 bg-muted"
       />
       <p className="mt-2 text-xs text-muted-foreground">
         See the{" "}
@@ -168,11 +168,11 @@ export const QuickstartExamples = ({
       </p>
       <CodeView
         content="pip install langfuse llama-index"
-        className="my-2 bg-blue-50"
+        className="my-2 bg-muted"
       />
       <CodeView
         content={LLAMA_INDEX_CODE({ publicKey, secretKey, host })}
-        className="my-2 bg-blue-50"
+        className="my-2 bg-muted"
       />
       <p className="mt-2 text-xs text-muted-foreground">
         See the{" "}
@@ -227,7 +227,7 @@ langfuse_handler = CallbackHandler(
 # <Your Langchain code here>
  
 # Add handler to run/invoke/call/chat
-chain.invoke({"input": "<user_input>"}, config={"callbacks": [langfuse_handler]})`;
+chain.invoke({"muted": "<user_muted>"}, config={"callbacks": [langfuse_handler]})`;
 
 const LANGCHAIN_JS_CODE = (p: {
   publicKey: string;
@@ -247,7 +247,7 @@ const chain = new LLMChain(...);
  
 // Add handler as callback when running the Langchain agent
 await chain.invoke(
-  { input: "<user_input>" },
+  { muted: "<user_muted>" },
   { callbacks: [langfuseHandler] }
 );`;
 
