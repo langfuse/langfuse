@@ -1,6 +1,7 @@
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
-import { githubLight } from "@uiw/codemirror-theme-github";
+import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
 import { json } from "@codemirror/lang-json";
+import { useTheme } from "next-themes";
 
 // todo: add json linting
 
@@ -15,10 +16,12 @@ export function JsonEditor({
   editable?: boolean;
   lineWrapping?: boolean;
 }) {
+  const { theme } = useTheme();
+  const codeMirrorTheme = theme === "dark" ? githubDark : githubLight;
   return (
     <CodeMirror
       value={defaultValue}
-      theme={githubLight}
+      theme={codeMirrorTheme}
       basicSetup={{
         foldGutter: true,
       }}
