@@ -364,7 +364,7 @@ export default function PromptVersionTable() {
             ]}
             actionButtons={
               <>
-                <Tabs value="table">
+                <Tabs value="metrics">
                   <TabsList>
                     <TabsTrigger value="editor" asChild>
                       <Link
@@ -373,7 +373,7 @@ export default function PromptVersionTable() {
                         Editor
                       </Link>
                     </TabsTrigger>
-                    <TabsTrigger value="table">Table</TabsTrigger>
+                    <TabsTrigger value="metrics">Metrics</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </>
