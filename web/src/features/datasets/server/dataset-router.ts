@@ -574,7 +574,7 @@ export const datasetRouter = createTRPCRouter({
           projectId: ctx.session.projectId,
           traceId: {
             in: runItems
-              .filter((ri) => !!!ri.observationId) // only include trace scores if run is not linked to an observation
+              .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
               .map((ri) => ri.traceId),
           },
         },
@@ -584,7 +584,7 @@ export const datasetRouter = createTRPCRouter({
           projectId: ctx.session.projectId,
           observationId: {
             in: runItems
-              .filter((ri) => !!ri.observationId)
+              .filter((ri) => ri.observationId !== null)
               .map((ri) => ri.observationId) as string[],
           },
         },
@@ -609,6 +609,7 @@ export const datasetRouter = createTRPCRouter({
               .map((ri) => ri.observationId)
               .filter(Boolean) as string[],
           },
+          projectId: ctx.session.projectId,
         },
         select: {
           id: true,
