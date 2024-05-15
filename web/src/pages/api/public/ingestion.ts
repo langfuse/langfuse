@@ -35,6 +35,8 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { waitUntil } from "@vercel/functions";
+import { instrumentAsync } from "@/src/utils/instrumentation";
 
 export const config = {
   api: {
@@ -106,30 +108,38 @@ export default async function handler(
           return parsed.data;
         }
       });
-    const filteredBatch: z.infer<typeof ingestionEvent>[] =
-      batch.filter(isNotNullOrUndefined);
 
-    await telemetry();
+    waitUntil(
+      instrumentAsync({ name: "wait-for-ingestion" }, async () => {
+        const filteredBatch: z.infer<typeof ingestionEvent>[] =
+          batch.filter(isNotNullOrUndefined);
 
-    const sortedBatch = sortBatch(filteredBatch);
-    const result = await handleBatch(
-      sortedBatch,
-      parsedSchema.data.metadata,
-      req,
-      authCheck,
+        await telemetry();
+
+        const sortedBatch = sortBatch(filteredBatch);
+        const result = await handleBatch(
+          sortedBatch,
+          parsedSchema.data.metadata,
+          req,
+          authCheck,
+        );
+
+        // send out REST requests to worker for all trace types
+        await sendToWorkerIfEnvironmentConfigured(
+          result.results,
+          authCheck.scope.projectId,
+        );
+
+        handleBatchResult(
+          [...validationErrors, ...result.errors],
+          result.results,
+          res,
+        );
+        return true;
+      }),
     );
 
-    // send out REST requests to worker for all trace types
-    await sendToWorkerIfEnvironmentConfigured(
-      result.results,
-      authCheck.scope.projectId,
-    );
-
-    handleBatchResult(
-      [...validationErrors, ...result.errors],
-      result.results,
-      res,
-    );
+    handleBatchResult(validationErrors, [], res); // Return early if there are validation errors
   } catch (error: unknown) {
     console.error("error handling ingestion event", error);
 

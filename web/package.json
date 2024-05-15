@@ -76,6 +76,7 @@
     "@trpc/server": "^10.45.0",
     "@uiw/codemirror-theme-github": "^4.21.25",
     "@uiw/react-codemirror": "^4.21.25",
+    "@vercel/functions": "^1.0.2",
     "add": "^2.0.6",
     "ai": "^3.0.23",
     "bcryptjs": "^2.4.3",
