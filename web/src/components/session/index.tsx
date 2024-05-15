@@ -120,6 +120,7 @@ const TraceCardList = ({
     estimateSize: () => 250,
     overscan: 5,
     scrollMargin: listVirtualizationRef.current?.offsetTop ?? 0,
+    gap: 10,
   });
 
   return (
@@ -139,7 +140,7 @@ const TraceCardList = ({
           }))
           .map(({ virtualItem, trace }) => (
             <Card
-              className="border-border-gray-150 group grid gap-3 overflow-hidden p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
+              className="border-border-gray-150 group grid w-full gap-3 overflow-hidden p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
               key={virtualItem.key}
               data-index={virtualItem.index}
               ref={virtualizer.measureElement}
@@ -190,6 +191,7 @@ const SessionIO = ({
   useEffect(() => {
     virtualizer.measure();
   }, [virtualizer]);
+
   const trace = api.traces.byId.useQuery(
     { traceId: traceId },
     {
@@ -202,11 +204,11 @@ const SessionIO = ({
       refetchOnMount: false, // prevents refetching loops
     },
   );
+
   return (
     <div
       className="col-span-2 flex flex-col gap-2 overflow-hidden p-0"
       onClick={(e) => {
-        e.stopPropagation();
         virtualizer.measure();
       }}
     >
