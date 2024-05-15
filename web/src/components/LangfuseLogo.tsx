@@ -41,10 +41,10 @@ export const LangfuseLogo = ({
         className={cn(
           "flex items-center gap-2 self-stretch rounded-md px-3 py-2 text-xs ring-1 lg:-mx-2",
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-            ? "bg-blue-100 text-blue-500 ring-blue-500"
+            ? "bg-light-blue text-dark-blue ring-dark-blue"
             : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
-              ? "bg-green-100 text-green-500 ring-green-500"
-              : "bg-red-100 text-red-500 ring-red-500",
+              ? "bg-light-green text-dark-green ring-dark-green"
+              : "bg-light-red text-dark-red ring-dark-red",
         )}
       >
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? (
