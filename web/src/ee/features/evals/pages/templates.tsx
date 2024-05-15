@@ -17,7 +17,7 @@ export default function TemplatesPage() {
   });
 
   return (
-    <div className="h-[calc(100vh-6rem)] overflow-hidden md:h-[calc(100vh-2rem)]">
+    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden md:h-[calc(100vh-2rem)]">
       <Header
         title="Eval Templates"
         help={{

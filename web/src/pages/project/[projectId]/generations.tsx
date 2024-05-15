@@ -7,7 +7,7 @@ export default function Generations() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="h-[calc(100vh-6rem)] overflow-hidden md:h-[calc(100vh-2rem)]">
+    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden md:h-[calc(100vh-2rem)]">
       <Header
         title="Generations"
         help={{
