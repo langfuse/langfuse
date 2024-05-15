@@ -1,4 +1,5 @@
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { AreaChart, LineChart } from "@tremor/react";
@@ -57,6 +58,8 @@ export function BaseTimeSeriesChart(props: {
   };
 
   const ChartComponent = props.chartType === "area" ? AreaChart : LineChart;
+  const colors = getColorsForCategories(Array.from(labels));
+
   return (
     <ChartComponent
       className={cn("mt-4", props.className)}
@@ -64,10 +67,8 @@ export function BaseTimeSeriesChart(props: {
       index="timestamp"
       categories={Array.from(labels)}
       connectNulls={props.connectNulls}
-      colors={["indigo", "cyan", "zinc", "purple"]}
-      valueFormatter={
-        props.valueFormatter ? props.valueFormatter : compactNumberFormatter
-      }
+      colors={colors}
+      valueFormatter={props.valueFormatter ?? compactNumberFormatter}
       noDataText="No data"
       showLegend={props.showLegend}
       showAnimation={true}

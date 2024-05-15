@@ -103,7 +103,9 @@ export function SSOButtons({
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        {authProviders.credentials && <Divider className="text-gray-400" />}
+        {authProviders.credentials && (
+          <Divider className="text-muted-foreground" />
+        )}
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
             <Button
@@ -282,12 +284,12 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
             Sign in to your account
           </h2>
         </div>
 
-        <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
           <div className="space-y-8">
             <CloudRegionSwitch />
             {authProviders.credentials ? (
@@ -379,7 +381,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
             // Turnstile exists copy-paste also on sign-up.tsx
             env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
               <>
-                <Divider className="text-gray-400" />
+                <Divider className="text-muted-foreground" />
                 <Turnstile
                   siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                   options={{
@@ -399,11 +401,11 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
         {!signUpDisabled &&
         env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
         authProviders.credentials ? (
-          <p className="mt-10 text-center text-sm text-gray-500">
+          <p className="mt-10 text-center text-sm text-muted-foreground">
             No account yet?{" "}
             <Link
               href="/auth/sign-up"
-              className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+              className="text-primary-accent font-semibold leading-6 hover:text-indigo-500"
             >
               Sign up
             </Link>

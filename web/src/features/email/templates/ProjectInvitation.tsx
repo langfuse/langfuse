@@ -39,7 +39,7 @@ export const ProjectInvitationTemplate = ({
       <Head />
       <Preview>{previewText}</Preview>
       <Tailwind>
-        <Body className="mx-auto my-auto bg-white font-sans">
+        <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
             <Section className="mt-8">
               <Img
@@ -67,12 +67,12 @@ export const ProjectInvitationTemplate = ({
             </Text>
             <Section className="mb-4 mt-8 text-center">
               <Button
-                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
+                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-background no-underline"
                 href={inviteLink}
               >
                 Accept Invitation
               </Button>
-              <Text className="mt-2 text-xs leading-3 text-gray-600">
+              <Text className="mt-2 text-xs leading-3 text-muted-foreground">
                 (you need to create an account)
               </Text>
             </Section>

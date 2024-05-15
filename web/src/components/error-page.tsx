@@ -18,7 +18,7 @@ export const ErrorPage = ({
 
   return (
     <div className="flex h-screen flex-col items-center justify-center">
-      <AlertCircle className="mb-4 h-12 w-12 text-red-500" />
+      <AlertCircle className="text-dark-red mb-4 h-12 w-12" />
       <h1 className="mb-4 text-xl font-bold">{title}</h1>
       <p className="mb-8 text-center">{message}</p>
       {session.status === "unauthenticated" ? (

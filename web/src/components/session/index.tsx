@@ -100,7 +100,7 @@ export const SessionPage: React.FC<{
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.map((trace) => (
           <Card
-            className="border-border-gray-150 group grid gap-3 p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
+            className="group grid gap-3 border-border p-2 shadow-none hover:border-border md:grid-cols-3"
             key={trace.id}
           >
             <SessionIO traceId={trace.id} />
@@ -111,10 +111,12 @@ export const SessionPage: React.FC<{
               >
                 Trace: {trace.name} ({trace.id})&nbsp;↗
               </Link>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 {trace.timestamp.toLocaleString()}
               </div>
-              <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
+              <div className="mb-1 mt-2 text-xs text-muted-foreground">
+                Scores
+              </div>
               <div className="flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
@@ -160,7 +162,7 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
           hideIfNull
         />
       ) : (
-        <div className="p-2 text-xs text-gray-500">
+        <div className="p-2 text-xs text-muted-foreground">
           This trace has no input or output.
         </div>
       )}

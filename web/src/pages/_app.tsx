@@ -30,7 +30,7 @@ import "core-js/features/array/to-sorted";
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
-import { ThemeProvider } from "@/src/features/darkmode/ThemeProvider";
+import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 
 const setProjectInPosthog = () => {
   // project
@@ -90,8 +90,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
             <DetailPageListsProvider>
               <ThemeProvider
                 attribute="class"
-                defaultTheme="light"
-                enableSystem={false}
+                enableSystem
                 disableTransitionOnChange
               >
                 <Layout>

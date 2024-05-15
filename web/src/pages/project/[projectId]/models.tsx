@@ -24,6 +24,7 @@ export default function ModelsPage() {
         }}
         actionButtons={
           <Button
+            variant="secondary"
             disabled={!hasWriteAccess}
             onClick={() => capture("models:new_form_open")}
             asChild
