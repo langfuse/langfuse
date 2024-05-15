@@ -262,7 +262,7 @@ export function DatasetItemsTable({
   );
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -301,6 +301,6 @@ export function DatasetItemsTable({
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }
