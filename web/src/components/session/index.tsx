@@ -208,7 +208,7 @@ const SessionIO = ({
   return (
     <div
       className="col-span-2 flex flex-col gap-2 overflow-hidden p-0"
-      onClick={(e) => {
+      onClick={() => {
         virtualizer.measure();
       }}
     >
