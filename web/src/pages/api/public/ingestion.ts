@@ -129,12 +129,6 @@ export default async function handler(
           result.results,
           authCheck.scope.projectId,
         );
-
-        handleBatchResult(
-          [...validationErrors, ...result.errors],
-          result.results,
-          res,
-        );
         return true;
       }),
     );
