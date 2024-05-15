@@ -193,10 +193,10 @@ export function DataTable<TData extends object, TValue>({
             </TableHeader>
             <TableBody>
               {data.isLoading || !data.data ? (
-                <TableRow>
+                <TableRow className="h-svh">
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 border-b text-center"
+                    className="content-start border-b text-center"
                   >
                     Loading...
                   </TableCell>
