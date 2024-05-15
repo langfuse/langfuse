@@ -13,7 +13,9 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { type RouterOutput } from "@/src/utils/types";
 
 export const SessionPage: React.FC<{
   sessionId: string;
@@ -97,11 +99,49 @@ export const SessionPage: React.FC<{
           </Badge>
         )}
       </div>
-      <div className="mt-5 flex flex-col gap-2 border-t pt-5">
-        {session.data?.traces.map((trace) => (
+      {session.data && (
+        <TraceCardList session={session.data} projectId={projectId} />
+      )}
+    </div>
+  );
+};
+
+const TraceCardList = ({
+  session,
+  projectId,
+}: {
+  session: RouterOutput["sessions"]["byId"];
+  projectId: string;
+}) => {
+  const listVirtualizationRef = useRef<HTMLDivElement | null>(null);
+
+  const virtualizer = useWindowVirtualizer({
+    count: session.traces.length,
+    estimateSize: () => 35,
+    overscan: 5,
+    scrollMargin: listVirtualizationRef.current?.offsetTop ?? 0,
+  });
+
+  return (
+    <div
+      ref={listVirtualizationRef}
+      className="mt-5 flex flex-col gap-2 border-t pt-5"
+      style={{
+        height: `${virtualizer.getTotalSize()}px`,
+      }}
+    >
+      {virtualizer
+        .getVirtualItems()
+        .map((item) => ({ item, trace: session.traces[item.index] }))
+        .map(({ item, trace }) => (
           <Card
             className="border-border-gray-150 group grid gap-3 p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
-            key={trace.id}
+            key={item.key}
+            style={{
+              transform: `translateY(${
+                item.start - virtualizer.options.scrollMargin
+              }px)`,
+            }}
           >
             <SessionIO traceId={trace.id} />
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
@@ -127,7 +167,6 @@ export const SessionPage: React.FC<{
             </div>
           </Card>
         ))}
-      </div>
     </div>
   );
 };
