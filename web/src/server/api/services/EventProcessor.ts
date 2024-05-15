@@ -410,7 +410,7 @@ export class ObservationProcessor implements EventProcessor {
     );
     if (env.CLICKHOUSE_URL) {
       const select = `
-      SELECT * FROM observations FINAL
+      SELECT id, project_id, metadata FROM observations FINAL
       WHERE id = '${this.event.body.id}'
       and project_id = '${apiScope.projectId}'
       and created_at > now() - INTERVAL 1 DAY

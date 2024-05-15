@@ -44,6 +44,7 @@ export const config = {
       sizeLimit: "4.5mb",
     },
   },
+  maxDuration: 250, // max 250 seconds runtime on vercel
 };
 
 type BatchResult = {
