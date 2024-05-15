@@ -17,16 +17,16 @@ export const StatusBadge = (props: { className?: string; type: Status }) => {
   let showDot = true;
 
   if (statusCategories.active.includes(props.type)) {
-    badgeColor = "bg-green-100 text-green-600";
-    dotColor = "animate-ping bg-green-500";
-    dotPingColor = "bg-green-600";
+    badgeColor = "bg-light-green text-dark-green";
+    dotColor = "animate-ping bg-dark-green";
+    dotPingColor = "bg-dark-green";
   } else if (statusCategories.error.includes(props.type)) {
-    badgeColor = "bg-red-100 text-red-600";
-    dotColor = "bg-red-500";
-    dotPingColor = "bg-red-600";
+    badgeColor = "bg-light-red text-dark-red";
+    dotColor = "animate-ping bg-dark-red";
+    dotPingColor = "bg-dark-red";
     showDot = false;
   } else if (statusCategories.completed.includes(props.type)) {
-    badgeColor = "bg-green-100 text-green-600";
+    badgeColor = "bg-light-green text-dark-green";
     showDot = false;
   }
 
