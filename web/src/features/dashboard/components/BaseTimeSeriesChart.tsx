@@ -64,7 +64,19 @@ export function BaseTimeSeriesChart(props: {
       index="timestamp"
       categories={Array.from(labels)}
       connectNulls={props.connectNulls}
-      colors={["indigo", "cyan", "zinc", "purple"]}
+      colors={[
+        "indigo",
+        "cyan",
+        "zinc",
+        "purple",
+        "blue",
+        "green",
+        "red",
+        "yellow",
+        "pink",
+        "orange",
+        "teal",
+      ]}
       valueFormatter={
         props.valueFormatter ? props.valueFormatter : compactNumberFormatter
       }
