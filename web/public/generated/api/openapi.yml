@@ -1851,18 +1851,11 @@ components:
           nullable: true
           description: Dataset items are upserted on their id
         status:
-          $ref: '#/components/schemas/DatasetItemStatus'
+          $ref: '#/components/schemas/DatasetStatus'
           nullable: true
           description: Defaults to ACTIVE for newly created items
       required:
         - datasetName
-    DatasetItemStatus:
-      title: DatasetItemStatus
-      type: string
-      enum:
-        - ACTIVE
-        - ARCHIVED
-      description: Status of a single dataset item
     CreateDatasetRunItemRequest:
       title: CreateDatasetRunItemRequest
       type: object
