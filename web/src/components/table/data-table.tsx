@@ -106,7 +106,9 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
-      <div className={`flex w-full max-w-full flex-1 overflow-auto`}>
+      <div
+        className={`flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto`}
+      >
         <div className="w-full overflow-auto rounded-md border">
           <Table>
             <TableHeader>
@@ -240,6 +242,7 @@ export function DataTable<TData extends object, TValue>({
             </TableBody>
           </Table>
         </div>
+        <div className="grow"></div>
       </div>
       {pagination !== undefined ? (
         <TableFooter>
