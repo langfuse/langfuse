@@ -228,12 +228,14 @@ export const PromptDetail = () => {
                 Generations using this prompt version
               </AccordionTrigger>
               <AccordionContent>
-                <Generations
-                  projectId={prompt.projectId}
-                  promptName={prompt.name}
-                  promptVersion={prompt.version}
-                  omittedFilter={["Prompt Name", "Prompt Version"]}
-                />
+                <div className="flex max-h-[calc(100vh-30rem)] flex-col">
+                  <Generations
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["Prompt Name", "Prompt Version"]}
+                  />
+                </div>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
