@@ -22,7 +22,7 @@ export async function instrumentAsync<T>(
 ): Promise<T> {
   if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
     return Sentry.startSpan(ctx, async (span) => {
-      const result = callback(span);
+      const result = await callback(span);
       span?.end();
       return result;
     });
