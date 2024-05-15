@@ -106,9 +106,7 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
-      <div
-        className={`flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto`}
-      >
+      <div className="flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto">
         <div className="w-full overflow-auto rounded-md border">
           <Table>
             <TableHeader>
@@ -245,19 +243,12 @@ export function DataTable<TData extends object, TValue>({
         <div className="grow"></div>
       </div>
       {pagination !== undefined ? (
-        <TableFooter>
-          <TableRow>
-            <TableCell
-              colSpan={columns.length}
-              className="whitespace-nowrap px-0 py-2 first:pl-2"
-            >
-              <DataTablePagination
-                table={table}
-                paginationOptions={pagination.options}
-              />
-            </TableCell>
-          </TableRow>
-        </TableFooter>
+        <div className="sticky bottom-0 z-10 flex w-full justify-end bg-white font-medium">
+          <DataTablePagination
+            table={table}
+            paginationOptions={pagination.options}
+          />
+        </div>
       ) : null}
     </>
   );
