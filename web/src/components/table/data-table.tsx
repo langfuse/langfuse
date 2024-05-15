@@ -110,7 +110,7 @@ export function DataTable<TData extends object, TValue>({
       {/* 3 rem distracted given footer height, 10 rem distracted given page
       header height */}
       <div
-        className={`relative h-full w-full max-w-full overflow-auto ${className ? className : "min-[320px]:h-[calc(100vh-3rem-18rem)] sm:h-[calc(100vh-3rem-18rem)] md:h-[calc(100vh-3rem-12rem)] lg:h-[calc(100vh-3rem-10rem)] xl:h-[calc(100vh-3rem-10rem)]"}`}
+        className={`relative h-full w-full max-w-full overflow-auto ${className ? className : "min-[320px]:h-[calc(100vh-3rem-18rem)] sm:h-[calc(100vh-3rem-18rem)] md:h-[calc(100vh-3rem-14rem)] lg:h-[calc(100vh-3rem-10rem)] xl:h-[calc(100vh-3rem-10rem)]"}`}
       >
         <div className="max-h-full overflow-auto rounded-md border">
           <Table>
@@ -246,6 +246,8 @@ export function DataTable<TData extends object, TValue>({
           </Table>
         </div>
       </div>
+      {/* ensures consistent spacing across tables with and without DataTableToolbar, h-12 given fixed height of DataTableToolbar */}
+      <div className="hidden lg:block lg:h-12"></div>
       {pagination !== undefined ? (
         <TableFooter>
           <TableRow>
