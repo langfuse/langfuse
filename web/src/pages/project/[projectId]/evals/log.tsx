@@ -12,7 +12,7 @@ export default function TemplatesPage() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="h-[calc(100vh-6rem)] overflow-hidden md:h-[calc(100vh-2rem)]">
+    <div className="h-[calc(100vh-6rem)] overflow-hidden lg:h-[calc(100vh-2rem)]">
       <Header
         title="Eval Log"
         help={{
