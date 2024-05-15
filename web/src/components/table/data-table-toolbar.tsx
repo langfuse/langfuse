@@ -51,7 +51,7 @@ export function DataTableToolbar<TData, TValue>({
   const capture = usePostHogClientCapture();
 
   return (
-    <div className="my-2 flex flex-1 flex-wrap items-center gap-2 @container">
+    <div className="my-2 flex flex-wrap items-center gap-2 @container">
       {searchConfig && (
         <div className="flex max-w-md items-center">
           <Input

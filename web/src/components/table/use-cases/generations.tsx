@@ -85,7 +85,6 @@ export type GenerationsTableProps = {
   promptName?: string;
   promptVersion?: number;
   omittedFilter?: string[];
-  tableClassName?: string;
 };
 
 export default function GenerationsTable({
@@ -93,7 +92,6 @@ export default function GenerationsTable({
   promptName,
   promptVersion,
   omittedFilter = [],
-  tableClassName,
 }: GenerationsTableProps) {
   const session = useSession();
   const capture = usePostHogClientCapture();
@@ -723,7 +721,6 @@ export default function GenerationsTable({
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
         rowHeight={rowHeight}
-        className={tableClassName}
       />
     </div>
   );
