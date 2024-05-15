@@ -159,12 +159,13 @@ export default function PromptVersionTable() {
       id: "medianLatency",
       header: "Median latency",
       cell: ({ row }) => {
-        const latency: number | undefined = row.getValue("medianLatency");
+        const latency: number | undefined | null =
+          row.getValue("medianLatency");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
 
-        return latency !== undefined ? (
+        return !!latency ? (
           <span>{formatIntervalSeconds(latency, 3)}</span>
         ) : undefined;
       },
@@ -176,12 +177,13 @@ export default function PromptVersionTable() {
       header: "Median input tokens",
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("medianInputTokens");
+        const value: number | undefined | null =
+          row.getValue("medianInputTokens");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
 
-        return value !== undefined ? <span>{String(value)}</span> : undefined;
+        return !!value ? <span>{String(value)}</span> : undefined;
       },
     },
     {
@@ -190,11 +192,12 @@ export default function PromptVersionTable() {
       header: "Median output tokens",
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("medianOutputTokens");
+        const value: number | undefined | null =
+          row.getValue("medianOutputTokens");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return value !== undefined ? <span>{String(value)}</span> : undefined;
+        return !!value ? <span>{String(value)}</span> : undefined;
       },
     },
     {
@@ -202,14 +205,12 @@ export default function PromptVersionTable() {
       id: "medianCost",
       header: "Median cost",
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("medianCost");
+        const value: number | undefined | null = row.getValue("medianCost");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
 
-        return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
-        ) : undefined;
+        return !!value ? <span>{usdFormatter(value)}</span> : undefined;
       },
       enableHiding: true,
     },
@@ -219,11 +220,14 @@ export default function PromptVersionTable() {
       header: "Generations count",
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("generationCount");
+        const value: number | undefined | null =
+          row.getValue("generationCount");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return value !== undefined ? <span>{String(value)}</span> : undefined;
+        return value === undefined || value === null ? null : (
+          <span>{String(value)}</span>
+        );
       },
     },
     {
@@ -283,12 +287,17 @@ export default function PromptVersionTable() {
       id: "lastUsed",
       header: "Last used",
       enableHiding: true,
+      headerTooltip: {
+        description:
+          "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
+        href: "https://langfuse.com/docs/prompts",
+      },
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("lastUsed");
+        const value: number | undefined | null = row.getValue("lastUsed");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return value !== undefined ? <span>{value}</span> : undefined;
+        return !!value ? <span>{value}</span> : undefined;
       },
     },
     {
@@ -296,12 +305,17 @@ export default function PromptVersionTable() {
       id: "firstUsed",
       header: "First used",
       enableHiding: true,
+      headerTooltip: {
+        description:
+          "The first time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
+        href: "https://langfuse.com/docs/prompts",
+      },
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("firstUsed");
+        const value: number | undefined | null = row.getValue("firstUsed");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        return value !== undefined ? <span>{value}</span> : undefined;
+        return !!value ? <span>{value}</span> : undefined;
       },
     },
   ];
@@ -335,8 +349,10 @@ export default function PromptVersionTable() {
           generationCount: prompt.observationCount,
           averageObservationScores: prompt.averageObservationScores,
           averageTraceScores: prompt.averageTraceScores,
-          lastUsed: prompt.lastUsed?.toLocaleString() ?? "No event yet",
-          firstUsed: prompt.firstUsed?.toLocaleString() ?? "No event yet",
+          lastUsed:
+            prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
+          firstUsed:
+            prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
         }))
       : [];
 

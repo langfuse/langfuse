@@ -592,7 +592,9 @@ function createObjects(
         const model = models[Math.floor(Math.random() * models.length)];
         const promptId =
           promptIds.get(projectId)![
-            Math.floor(Math.random() * promptIds.get(projectId)!.length)
+            Math.floor(
+              Math.random() * Math.floor(promptIds.get(projectId)!.length / 2)
+            )
           ];
 
         const generation = {
