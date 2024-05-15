@@ -152,7 +152,7 @@ const TraceCardList = ({
                 transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
               }}
             >
-              <SessionIO traceId={trace.id} virtualizer={virtualizer} />
+              <SessionIO traceId={trace.id} />
               <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
                 <Link
                   href={`/project/${projectId}/traces/${trace.id}`}
@@ -181,17 +181,7 @@ const TraceCardList = ({
   );
 };
 
-const SessionIO = ({
-  traceId,
-  virtualizer,
-}: {
-  traceId: string;
-  virtualizer: any;
-}) => {
-  useEffect(() => {
-    virtualizer.measure();
-  }, [virtualizer]);
-
+const SessionIO = ({ traceId }: { traceId: string }) => {
   const trace = api.traces.byId.useQuery(
     { traceId: traceId },
     {
@@ -206,12 +196,7 @@ const SessionIO = ({
   );
 
   return (
-    <div
-      className="col-span-2 flex flex-col gap-2 overflow-hidden p-0"
-      onClick={() => {
-        virtualizer.measure();
-      }}
-    >
+    <div className="col-span-2 flex flex-col gap-2 overflow-hidden p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"
