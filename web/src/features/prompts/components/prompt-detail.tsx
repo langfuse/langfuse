@@ -9,6 +9,7 @@ import {
   ChatMlArraySchema,
   OpenAiMessageView,
 } from "@/src/components/trace/IOPreview";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -49,10 +50,10 @@ export const PromptDetail = () => {
     { enabled: Boolean(projectId) },
   );
   const prompt = currentPromptVersion
-    ? promptHistory.data?.find(
+    ? promptHistory.data?.promptVersions.find(
         (prompt) => prompt.version === currentPromptVersion,
       )
-    : promptHistory.data?.[0];
+    : promptHistory.data?.promptVersions[0];
 
   const extractedVariables = prompt
     ? extractVariables(JSON.stringify(prompt.prompt))
@@ -143,7 +144,7 @@ export const PromptDetail = () => {
                 <DeletePromptVersion
                   promptVersionId={prompt.id}
                   version={prompt.version}
-                  countVersions={promptHistory.data.length}
+                  countVersions={promptHistory.data.totalCount}
                 />
                 <DetailPageNav
                   key="nav"
@@ -151,6 +152,18 @@ export const PromptDetail = () => {
                   path={(name) => `/project/${projectId}/prompts/${name}`}
                   listKey="prompts"
                 />
+                <Tabs value="editor">
+                  <TabsList>
+                    <TabsTrigger value="editor">Editor</TabsTrigger>
+                    <TabsTrigger value="metrics" asChild>
+                      <Link
+                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
+                      >
+                        Metrics
+                      </Link>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </>
             }
           />
@@ -229,7 +242,7 @@ export const PromptDetail = () => {
           <div className="text-m px-3 font-medium">
             <ScrollArea className="flex border-l pl-2">
               <PromptHistoryNode
-                prompts={promptHistory.data}
+                prompts={promptHistory.data.promptVersions}
                 currentPromptVersion={prompt.version}
                 setCurrentPromptVersion={setCurrentPromptVersion}
               />
