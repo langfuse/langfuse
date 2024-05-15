@@ -50,6 +50,7 @@ interface DataTableProps<TData, TValue> {
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
+  className?: string;
 }
 
 export interface AsyncTableData<T> {
@@ -71,6 +72,7 @@ export function DataTable<TData extends object, TValue>({
   orderBy,
   setOrderBy,
   rowHeight,
+  className,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
@@ -107,7 +109,9 @@ export function DataTable<TData extends object, TValue>({
     <>
       {/* 3 rem distracted given footer height, 10 rem distracted given page
       header height */}
-      <div className="relative h-full w-full max-w-full overflow-auto min-[320px]:h-[calc(100vh-3rem-18rem)] sm:h-[calc(100vh-3rem-18rem)] md:h-[calc(100vh-3rem-16rem)] lg:h-[calc(100vh-3rem-10rem)] xl:h-[calc(100vh-3rem-10rem)]">
+      <div
+        className={`relative h-full w-full max-w-full overflow-auto ${className ? className : "min-[320px]:h-[calc(100vh-3rem-18rem)] sm:h-[calc(100vh-3rem-18rem)] md:h-[calc(100vh-3rem-12rem)] lg:h-[calc(100vh-3rem-10rem)] xl:h-[calc(100vh-3rem-10rem)]"}`}
+      >
         <div className="max-h-full overflow-auto rounded-md border">
           <Table>
             <TableHeader>

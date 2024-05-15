@@ -220,6 +220,7 @@ export const PromptDetail = () => {
                   promptName={prompt.name}
                   promptVersion={prompt.version}
                   omittedFilter={["Prompt Name", "Prompt Version"]}
+                  tableClassName="xl:max-h-[calc(100vh-3rem-10rem) min-[320px]:max-h-[calc(100vh-3rem-18rem)] sm:max-h-[calc(100vh-3rem-18rem)] md:max-h-[calc(100vh-3rem-12rem)] lg:max-h-[calc(100vh-3rem-10rem)]"
                 />
               </AccordionContent>
             </AccordionItem>
