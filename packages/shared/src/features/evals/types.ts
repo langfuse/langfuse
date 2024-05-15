@@ -1,5 +1,5 @@
 import z from "zod";
-import { ModelProvider } from "../..";
+import { ModelProvider, UIModelParams } from "../..";
 
 export const langfuseObjects = [
   "trace",
@@ -77,30 +77,30 @@ export const availableEvalVariables = [
   },
 ];
 
-export const evalLLMModels = [
+export const evalLLMModels: UIModelParams[] = [
   {
-    provider: ModelProvider.OpenAI,
-    model: "gpt-3.5-turbo",
-    temperature: 1,
-    maxTemperature: 2,
-    max_tokens: 256,
-    top_p: 1,
+    provider: { value: ModelProvider.OpenAI, enabled: true },
+    model: { value: "gpt-3.5-turbo", enabled: true },
+    temperature: { value: 1, enabled: true },
+    maxTemperature: { value: 2, enabled: true },
+    max_tokens: { value: 256, enabled: true },
+    top_p: { value: 1, enabled: true },
   },
   {
-    provider: ModelProvider.OpenAI,
-    model: "gpt-4-turbo-preview",
-    temperature: 1,
-    maxTemperature: 2,
-    max_tokens: 256,
-    top_p: 1,
-  } as const,
+    provider: { value: ModelProvider.OpenAI, enabled: true },
+    model: { value: "gpt-4-turbo-preview", enabled: true },
+    temperature: { value: 1, enabled: true },
+    maxTemperature: { value: 2, enabled: true },
+    max_tokens: { value: 256, enabled: true },
+    top_p: { value: 1, enabled: true },
+  },
   {
-    provider: ModelProvider.OpenAI,
-    model: "gpt-4o",
-    temperature: 1,
-    maxTemperature: 2,
-    max_tokens: 256,
-    top_p: 1,
+    provider: { value: ModelProvider.OpenAI, enabled: true },
+    model: { value: "gpt-4o", enabled: true },
+    temperature: { value: 1, enabled: true },
+    maxTemperature: { value: 2, enabled: true },
+    max_tokens: { value: 256, enabled: true },
+    top_p: { value: 1, enabled: true },
   },
 ] as const;
 
