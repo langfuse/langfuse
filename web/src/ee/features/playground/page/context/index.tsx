@@ -375,8 +375,8 @@ function getOutputJson(
 ) {
   return JSON.stringify(
     {
-      output,
       input: messages.map((obj) => filterKeyFromObject(obj, "id")),
+      output,
       model: getFinalModelParams(modelParams),
     },
     null,

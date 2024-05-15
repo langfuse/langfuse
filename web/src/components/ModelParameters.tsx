@@ -75,7 +75,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           min={0}
           max={modelParams.maxTemperature.value}
           step={0.01}
-          tooltip="The sampling temperature. Higher values will make the output more random, while lower values like will make it more focused and deterministic."
+          tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
           updateModelParam={updateModelParamValue}
         />
         <ModelParamsSlider
