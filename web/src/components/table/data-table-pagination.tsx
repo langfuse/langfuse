@@ -33,7 +33,7 @@ export function DataTablePagination<TData>({
         {table.getFilteredRowModel().rows.length} row(s) selected. */}
       </div>
       <div className="flex flex-wrap items-center space-x-6 max-[460px]:space-x-0 lg:space-x-8">
-        <div className="flex items-center max-[460px]:space-x-1">
+        <div className="flex items-center gap-2 max-[460px]:space-x-1">
           <p className="whitespace-nowrap text-sm font-medium">Rows per page</p>
           <Select
             value={`${table.getState().pagination.pageSize}`}

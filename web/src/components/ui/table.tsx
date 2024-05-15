@@ -9,7 +9,7 @@ const Table = React.forwardRef<
   <table
     ref={ref}
     className={cn(
-      "w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto border text-sm",
+      "w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm",
       className,
     )}
     {...props}
@@ -74,7 +74,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "sticky top-0 z-10 border-b border-t bg-white px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "sticky top-0 z-10 border-b bg-white px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
       className,
     )}
     {...props}
