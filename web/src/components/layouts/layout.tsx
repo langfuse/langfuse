@@ -31,14 +31,12 @@ import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { ProjectNavigation } from "@/src/components/projectNavigation";
 import DOMPurify from "dompurify";
-import { ModeToggle } from "@/src/features/darkmode/ModeToggle";
+import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 
 const userNavigation = [
   {
-    name: "Appearance",
-    onClick: () => {
-      alert("Appearance");
-    },
+    name: "Theme",
+    onClick: () => {},
   },
   {
     name: "Sign out",
@@ -319,9 +317,9 @@ export default function Layout(props: PropsWithChildren) {
                   description="What do you think about this project? What can be improved?"
                   type="feedback"
                 >
-                  <li className="hover:text-primary-accent group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-primary hover:bg-primary-foreground">
+                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-primary hover:bg-primary-foreground hover:text-primary-accent">
                     <MessageSquarePlus
-                      className="group-hover:text-primary-accent h-6 w-6 shrink-0 text-muted-foreground"
+                      className="h-6 w-6 shrink-0 text-muted-foreground group-hover:text-primary-accent"
                       aria-hidden="true"
                     />
                     Feedback
@@ -337,7 +335,6 @@ export default function Layout(props: PropsWithChildren) {
                   currentProjectId={projectId ?? ""}
                   projects={projects}
                 />
-                <ModeToggle />
               </ul>
             </nav>
 
@@ -374,8 +371,8 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full right-0 z-10 rounded-md bg-background py-2 shadow-lg ring-1 ring-primary/5 focus:outline-none">
-                  <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
+                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 rounded-md bg-background py-2 shadow-lg ring-1 ring-primary/5 focus:outline-none">
+                  <span className="block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                     {session.data?.user?.email}
                   </span>
                   {userNavigation.map((item) => (
@@ -385,10 +382,11 @@ export default function Layout(props: PropsWithChildren) {
                           onClick={() => void item.onClick()}
                           className={cn(
                             active ? "bg-primary-foreground" : "",
-                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-primary",
+                            "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
                           )}
                         >
                           {item.name}
+                          {item.name === "Theme" && <ThemeToggle />}
                         </a>
                       )}
                     </Menu.Item>
@@ -449,10 +447,11 @@ export default function Layout(props: PropsWithChildren) {
                         onClick={() => void item.onClick()}
                         className={cn(
                           active ? "bg-primary-foreground" : "",
-                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-primary",
+                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
                         )}
                       >
                         {item.name}
+                        {item.name === "Theme" && <ThemeToggle />}
                       </a>
                     )}
                   </Menu.Item>
@@ -531,8 +530,8 @@ const MainNavigation: React.FC<{
                 href={item.href}
                 className={clsx(
                   item.current
-                    ? "text-primary-accent bg-primary-foreground"
-                    : "hover:text-primary-accent text-primary hover:bg-primary-foreground",
+                    ? "bg-primary-foreground text-primary-accent"
+                    : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
                   "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
                 )}
                 onClick={onNavitemClick}
@@ -543,7 +542,7 @@ const MainNavigation: React.FC<{
                     className={clsx(
                       item.current
                         ? "text-primary-accent"
-                        : "group-hover:text-primary-accent text-muted-foreground",
+                        : "text-muted-foreground group-hover:text-primary-accent",
                       "h-6 w-6 shrink-0",
                     )}
                     aria-hidden="true"
@@ -556,7 +555,7 @@ const MainNavigation: React.FC<{
                       "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                       item.current
                         ? "border-primary-accent text-primary-accent"
-                        : "group-hover:border-primary-accent group-hover:text-primary-accent border-border text-muted-foreground",
+                        : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
                     )}
                   >
                     {item.label}
@@ -573,12 +572,12 @@ const MainNavigation: React.FC<{
                 {({ open }) => (
                   <>
                     <Disclosure.Button
-                      className="hover:text-primary-accent group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-primary-foreground"
+                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-primary-foreground hover:text-primary-accent"
                       onClick={() => setIsOpen(!isOpen)}
                     >
                       {item.icon && (
                         <item.icon
-                          className="group-hover:text-primary-accent h-6 w-6 shrink-0 text-muted-foreground"
+                          className="h-6 w-6 shrink-0 text-muted-foreground group-hover:text-primary-accent"
                           aria-hidden="true"
                         />
                       )}
@@ -589,7 +588,7 @@ const MainNavigation: React.FC<{
                             "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                             item.current
                               ? "border-primary-accent text-primary-accent"
-                              : "group-hover:border-primary-accent group-hover:text-primary-accent border-border text-muted-foreground",
+                              : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
                           )}
                         >
                           {item.label}
@@ -613,15 +612,15 @@ const MainNavigation: React.FC<{
                             href={subItem.href ?? "#"}
                             className={clsx(
                               subItem.current
-                                ? "text-primary-accent bg-primary-foreground"
-                                : "hover:text-primary-accent text-primary hover:bg-primary-foreground",
+                                ? "bg-primary-foreground text-primary-accent"
+                                : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
                               "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
                             {subItem.name}
                             {subItem.label && (
-                              <span className="group-hover:border-primary-accent group-hover:text-primary-accent self-center whitespace-nowrap break-keep rounded-sm border border-border px-1 py-0.5 text-xs text-muted-foreground">
+                              <span className="self-center whitespace-nowrap break-keep rounded-sm border border-border px-1 py-0.5 text-xs text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent">
                                 {subItem.label}
                               </span>
                             )}
