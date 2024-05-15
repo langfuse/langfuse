@@ -117,61 +117,79 @@ const TraceCardList = ({
 
   const virtualizer = useWindowVirtualizer({
     count: session.traces.length,
-    estimateSize: () => 35,
+    estimateSize: () => 250,
     overscan: 5,
     scrollMargin: listVirtualizationRef.current?.offsetTop ?? 0,
   });
 
   return (
-    <div
-      ref={listVirtualizationRef}
-      className="mt-5 flex flex-col gap-2 border-t pt-5"
-      style={{
-        height: `${virtualizer.getTotalSize()}px`,
-      }}
-    >
-      {virtualizer
-        .getVirtualItems()
-        .map((item) => ({ item, trace: session.traces[item.index] }))
-        .map(({ item, trace }) => (
-          <Card
-            className="border-border-gray-150 group grid gap-3 p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
-            key={item.key}
-            style={{
-              transform: `translateY(${
-                item.start - virtualizer.options.scrollMargin
-              }px)`,
-            }}
-          >
-            <SessionIO traceId={trace.id} />
-            <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
-              <Link
-                href={`/project/${projectId}/traces/${trace.id}`}
-                className="text-xs hover:underline"
-              >
-                Trace: {trace.name} ({trace.id})&nbsp;↗
-              </Link>
-              <div className="text-xs text-gray-500">
-                {trace.timestamp.toLocaleString()}
+    <div className="mt-5 border-t pt-5">
+      <div
+        ref={listVirtualizationRef}
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          position: "relative",
+        }}
+      >
+        {virtualizer
+          .getVirtualItems()
+          .map((virtualItem) => ({
+            virtualItem,
+            trace: session.traces[virtualItem.index],
+          }))
+          .map(({ virtualItem, trace }) => (
+            <Card
+              className="border-border-gray-150 group grid gap-3 overflow-hidden p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                minHeight: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
+              }}
+            >
+              <SessionIO traceId={trace.id} virtualizer={virtualizer} />
+              <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
+                <Link
+                  href={`/project/${projectId}/traces/${trace.id}`}
+                  className="text-xs hover:underline"
+                >
+                  Trace: {trace.name} ({trace.id})&nbsp;↗
+                </Link>
+                <div className="text-xs text-gray-500">
+                  {trace.timestamp.toLocaleString()}
+                </div>
+                <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
+                <div className="flex flex-wrap content-start items-start gap-1">
+                  <GroupedScoreBadges scores={trace.scores} />
+                </div>
+                <ManualScoreButton
+                  projectId={projectId}
+                  traceId={trace.id}
+                  scores={trace.scores}
+                  variant="badge"
+                />
               </div>
-              <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
-              <div className="flex flex-wrap content-start items-start gap-1">
-                <GroupedScoreBadges scores={trace.scores} />
-              </div>
-              <ManualScoreButton
-                projectId={projectId}
-                traceId={trace.id}
-                scores={trace.scores}
-                variant="badge"
-              />
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))}
+      </div>
     </div>
   );
 };
 
-const SessionIO = ({ traceId }: { traceId: string }) => {
+const SessionIO = ({
+  traceId,
+  virtualizer,
+}: {
+  traceId: string;
+  virtualizer: any;
+}) => {
+  useEffect(() => {
+    virtualizer.measure();
+  }, [virtualizer]);
   const trace = api.traces.byId.useQuery(
     { traceId: traceId },
     {
@@ -185,7 +203,13 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
     },
   );
   return (
-    <div className="col-span-2 flex flex-col gap-2 p-0">
+    <div
+      className="col-span-2 flex flex-col gap-2 overflow-hidden p-0"
+      onClick={(e) => {
+        e.stopPropagation();
+        virtualizer.measure();
+      }}
+    >
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"
