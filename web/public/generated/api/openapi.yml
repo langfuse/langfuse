@@ -1850,6 +1850,10 @@ components:
           type: string
           nullable: true
           description: Dataset items are upserted on their id
+        status:
+          $ref: '#/components/schemas/DatasetStatus'
+          nullable: true
+          description: Defaults to ACTIVE for newly created items
       required:
         - datasetName
     CreateDatasetRunItemRequest:

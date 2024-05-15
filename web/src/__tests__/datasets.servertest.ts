@@ -210,11 +210,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       datasetName: "dataset-name",
       input: { key: "value2" },
       metadata: ["hello-world"],
+      status: "ARCHIVED",
     });
     expect(item2.status).toBe(200);
     expect(item2.body).toMatchObject({
       id: "dataset-item-id",
       input: { key: "value2" },
+      metadata: ["hello-world"],
+      status: "ARCHIVED",
     });
 
     const dbDatasetItem = await prisma.datasetItem.findFirst({
@@ -223,6 +226,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbDatasetItem).not.toBeNull();
     expect(dbDatasetItem?.input).toMatchObject({ key: "value2" });
     expect(dbDatasetItem?.metadata).toMatchObject(["hello-world"]);
+    expect(dbDatasetItem?.status).toBe("ARCHIVED");
   });
 
   it("should create and get a dataset run, include special characters", async () => {

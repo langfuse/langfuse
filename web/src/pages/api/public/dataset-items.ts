@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
+import { DatasetStatus, prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { jsonSchema } from "@/src/utils/zod";
 import { v4 as uuidv4 } from "uuid";
@@ -15,6 +15,7 @@ const CreateDatasetItemSchema = z.object({
   id: z.string().nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
+  status: z.nativeEnum(DatasetStatus).nullish(),
 });
 
 export default async function handler(
@@ -78,6 +79,7 @@ export default async function handler(
           metadata: itemBody.metadata ?? undefined,
           sourceTraceId: itemBody.sourceTraceId ?? undefined,
           sourceObservationId: itemBody.sourceObservationId ?? undefined,
+          status: itemBody.status ?? undefined,
         },
         update: {
           input: itemBody.input ?? undefined,
@@ -85,6 +87,7 @@ export default async function handler(
           metadata: itemBody.metadata ?? undefined,
           sourceTraceId: itemBody.sourceTraceId ?? undefined,
           sourceObservationId: itemBody.sourceObservationId ?? undefined,
+          status: itemBody.status ?? undefined,
         },
       });
 
