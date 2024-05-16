@@ -19,7 +19,7 @@ const regions =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
     ? [
         {
-          name: "EU (Staging)",
+          name: "STAGING",
           hostname: "staging.langfuse.com",
           flag: "🇪🇺",
         },
@@ -87,7 +87,7 @@ export function CloudRegionSwitch({
               },
             );
             if (region.hostname) {
-              window.location.href = `https://${region.hostname}`;
+              window.location.hostname = region.hostname;
             }
           }}
         >
