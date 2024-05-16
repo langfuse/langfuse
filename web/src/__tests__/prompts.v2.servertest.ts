@@ -788,6 +788,13 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.meta.limit).toBe(10);
       expect(body.meta.totalPages).toBe(1);
       expect(body.meta.totalItems).toBe(3);
+
+      // Validate pagination backwards compatibility
+      // https://github.com/langfuse/langfuse/issues/2068
+      expect(body.pagination?.page).toBe(1);
+      expect(body.pagination?.limit).toBe(10);
+      expect(body.pagination?.totalPages).toBe(1);
+      expect(body.pagination?.totalItems).toBe(3);
     });
 
     it("should fetch a prompt meta list with name filter", async () => {
