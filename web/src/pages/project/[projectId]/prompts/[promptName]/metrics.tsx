@@ -357,83 +357,79 @@ export default function PromptVersionTable() {
       : [];
 
   return (
-    <div className="flex flex-col xl:container md:h-[calc(100vh-2rem)]">
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-3">
-          <Header
-            title={promptName}
-            help={{
-              description:
-                "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
-              href: "https://langfuse.com/docs/prompts",
-            }}
-            breadcrumb={[
-              {
-                name: "Prompts",
-                href: `/project/${projectId}/prompts/`,
-              },
-              {
-                name: promptName ?? router.query.promptName,
-                href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
-              },
-              { name: `Metrics` },
-            ]}
-            actionButtons={
-              <>
-                <Tabs value="metrics">
-                  <TabsList>
-                    <TabsTrigger value="editor" asChild>
-                      <Link
-                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}`}
-                      >
-                        Editor
-                      </Link>
-                    </TabsTrigger>
-                    <TabsTrigger value="metrics">Metrics</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </>
-            }
-          />
-          <div className="gap-3 p-2">
-            <DataTableToolbar
-              columns={columns}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibilityState}
-            />
-          </div>
-          <DataTable
-            columns={columns}
-            data={
-              promptVersions.isLoading
-                ? { isLoading: true, isError: false }
-                : promptVersions.error
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: promptVersions.error.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: rows,
-                    }
-            }
-            pagination={{
-              pageCount: Math.ceil(totalCount / paginationState.pageSize),
-              onChange: setPaginationState,
-              state: paginationState,
-            }}
-            setOrderBy={setOrderByState}
-            orderBy={orderByState}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibilityState}
-            rowHeight={rowHeight}
-          />
-        </div>
+    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden xl:container lg:h-[calc(100vh-2rem)]">
+      <Header
+        title={promptName}
+        help={{
+          description:
+            "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
+          href: "https://langfuse.com/docs/prompts",
+        }}
+        breadcrumb={[
+          {
+            name: "Prompts",
+            href: `/project/${projectId}/prompts/`,
+          },
+          {
+            name: promptName ?? router.query.promptName,
+            href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
+          },
+          { name: `Metrics` },
+        ]}
+        actionButtons={
+          <>
+            <Tabs value="metrics">
+              <TabsList>
+                <TabsTrigger value="editor" asChild>
+                  <Link
+                    href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}`}
+                  >
+                    Editor
+                  </Link>
+                </TabsTrigger>
+                <TabsTrigger value="metrics">Metrics</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </>
+        }
+      />
+      <div className="gap-3">
+        <DataTableToolbar
+          columns={columns}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibilityState}
+        />
       </div>
+      <DataTable
+        columns={columns}
+        data={
+          promptVersions.isLoading
+            ? { isLoading: true, isError: false }
+            : promptVersions.error
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: promptVersions.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: rows,
+                }
+        }
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        setOrderBy={setOrderByState}
+        orderBy={orderByState}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibilityState}
+        rowHeight={rowHeight}
+      />
     </div>
   );
 }
