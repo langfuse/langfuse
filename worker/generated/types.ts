@@ -5,6 +5,12 @@ export type Generated<T> =
     : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export const OrganizationRole = {
+  OWNER: "OWNER",
+  MEMBER: "MEMBER",
+} as const;
+export type OrganizationRole =
+  (typeof OrganizationRole)[keyof typeof OrganizationRole];
 export const ProjectRole = {
   OWNER: "OWNER",
   ADMIN: "ADMIN",
@@ -101,6 +107,7 @@ export type AuditLog = {
   updated_at: Generated<Timestamp>;
   user_id: string;
   project_id: string;
+  org_id: string | null;
   user_project_role: ProjectRole;
   resource_type: string;
   resource_id: string;
@@ -217,6 +224,7 @@ export type MembershipInvitation = {
   id: string;
   email: string;
   role: ProjectRole;
+  org_id: string | null;
   project_id: string;
   sender_id: string | null;
   created_at: Generated<Timestamp>;
@@ -299,6 +307,22 @@ export type ObservationView = {
   calculated_total_cost: string | null;
   latency: number | null;
 };
+export type Organization = {
+  id: string;
+  name: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  cloud_config: unknown | null;
+};
+export type OrganizationMembership = {
+  id: string;
+  org_id: string;
+  user_id: string;
+  role: OrganizationRole;
+  default_project_role: ProjectRole | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type PosthogIntegration = {
   project_id: string;
   encrypted_posthog_api_key: string;
@@ -317,12 +341,14 @@ export type Pricing = {
 };
 export type Project = {
   id: string;
+  org_id: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   name: string;
   cloud_config: unknown | null;
 };
 export type ProjectMembership = {
+  org_membership_id: string | null;
   project_id: string;
   user_id: string;
   role: ProjectRole;
@@ -448,6 +474,8 @@ export type DB = {
   models: Model;
   observations: Observation;
   observations_view: ObservationView;
+  organization_memberships: OrganizationMembership;
+  organizations: Organization;
   posthog_integrations: PosthogIntegration;
   pricings: Pricing;
   project_memberships: ProjectMembership;
