@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Input } from "@/src/components/ui/input";
@@ -30,6 +30,7 @@ import {
   ModelProvider,
   type OpenAIModel,
   type OpenAIModelParams,
+  type ModelParams,
 } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
 import Link from "next/dist/client/link";
@@ -45,6 +46,7 @@ import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { Label } from "@/src/components/ui/label";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -188,27 +190,26 @@ export const InnerEvalTemplateForm = (props: {
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
+  const preFilledModel = useMemo(
+    () => getModelParamsWithEnabledFlag(props.preFilledFormValues),
+    [props.preFilledFormValues],
+  );
 
   // updates the model params based on the pre-filled data
   // either form update or from langfuse-generated template
-  const [modelParams, setModelParams] = useState<UIModelParams>({
-    model: props.preFilledFormValues?.model ?? "gpt-3.5-turbo",
-    provider:
-      props.preFilledFormValues?.modelParams.provider ?? ModelProvider.OpenAI,
-    max_tokens: props.preFilledFormValues?.modelParams.max_tokens ?? 100,
-    maxTemperature:
-      props.preFilledFormValues?.modelParams.provider === ModelProvider.OpenAI
-        ? 2
-        : 1,
-    top_p: props.preFilledFormValues?.modelParams.top_p ?? 1,
-    temperature: props.preFilledFormValues?.modelParams.temperature ?? 1,
-  });
-
-  const updateModelParam: ModelParamsContext["updateModelParam"] = (
+  const [modelParams, setModelParams] = useState<UIModelParams>(preFilledModel);
+  const updateModelParamValue: ModelParamsContext["updateModelParamValue"] = (
     key,
     value,
   ) => {
-    setModelParams((prev) => ({ ...prev, [key]: value }));
+    setModelParams((prev) => ({ ...prev, [key]: { ...prev[key], value } }));
+  };
+
+  const setModelParamEnabled: ModelParamsContext["setModelParamEnabled"] = (
+    key,
+    enabled,
+  ) => {
+    setModelParams((prev) => ({ ...prev, [key]: { ...prev[key], enabled } }));
   };
 
   // updates the form based on the pre-filled data
@@ -249,26 +250,30 @@ export const InnerEvalTemplateForm = (props: {
 
       // state for the model params is outside of the form, hence needs to be handled individually
       // also set the context for the playground
-      const model = EvalModelNames.parse(props.preFilledFormValues.model);
-      updateModelParam("model", model);
+      const model = EvalModelNames.parse(preFilledModel.model.value);
+      updateModelParamValue("model", model);
       setModelParams((prev) => ({
         ...prev,
-        ...(props.preFilledFormValues?.modelParams as UIModelParams),
+        ...preFilledModel,
       }));
 
-      const modelProvider = evalLLMModels.find(
-        (m) => m.model === model,
-      )?.provider;
+      const modelProvider = evalLLMModels.find((m) => m.model.value === model)
+        ?.provider.value;
 
       if (modelProvider) {
-        updateModelParam("provider", modelProvider); // updating the provider based on the model
-        updateModelParam(
+        updateModelParamValue("provider", modelProvider); // updating the provider based on the model
+        updateModelParamValue(
           "maxTemperature",
           modelProvider === ModelProvider.OpenAI ? 2 : 1,
         ); // setting the max value of the slider based on the provider
       }
     }
-  }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
+  }, [
+    props.preFilledFormValues,
+    preFilledModel,
+    form,
+    props.existingEvalTemplateName,
+  ]);
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -287,7 +292,7 @@ export const InnerEvalTemplateForm = (props: {
         : "eval_templates:new_form_submit",
     );
 
-    const model = EvalModelNames.safeParse(modelParams.model);
+    const model = EvalModelNames.safeParse(modelParams.model.value);
 
     if (!model.success) {
       setFormError("Please select a model.");
@@ -300,7 +305,7 @@ export const InnerEvalTemplateForm = (props: {
         projectId: props.projectId,
         prompt: values.prompt,
         model: model.data,
-        modelParams: modelParams,
+        modelParams: getFinalModelParams(modelParams),
         vars: extractedVariables ?? [],
         outputSchema: {
           score: values.outputScore,
@@ -426,9 +431,13 @@ export const InnerEvalTemplateForm = (props: {
         <div className="col-span-1 row-span-3">
           <div className="flex flex-col gap-6">
             <ModelParameters
-              {...{ modelParams, updateModelParam }}
+              {...{
+                modelParams,
+                updateModelParamValue: updateModelParamValue,
+                setModelParamEnabled,
+              }}
               availableModels={[...evalLLMModels]}
-              disabled={!props.isEditing}
+              formDisabled={!props.isEditing}
             />
             <LLMApiKeyComponent
               projectId={props.projectId}
@@ -490,7 +499,7 @@ export const LLMApiKeyComponent = (p: {
   }
 
   const getModelProvider = (model: string) => {
-    return evalLLMModels.find((m) => m.model === model)?.provider;
+    return evalLLMModels.find((m) => m.model.value === model)?.provider.value;
   };
 
   const getApiKeyForModel = (model: string) => {
@@ -502,14 +511,14 @@ export const LLMApiKeyComponent = (p: {
     <div>
       <Label>API key</Label>
       <div>
-        {getApiKeyForModel(p.modelParams.model) ? (
+        {getApiKeyForModel(p.modelParams.model.value) ? (
           <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-            {getApiKeyForModel(p.modelParams.model)?.displaySecretKey}
+            {getApiKeyForModel(p.modelParams.model.value)?.displaySecretKey}
           </span>
         ) : undefined}
       </div>
       {/* Custom form message to include a link to the already existing prompt */}
-      {!getApiKeyForModel(p.modelParams.model) ? (
+      {!getApiKeyForModel(p.modelParams.model.value) ? (
         <div className="flex flex-col text-sm font-medium text-destructive">
           {"No LLM API key found."}
 
@@ -527,3 +536,33 @@ export const LLMApiKeyComponent = (p: {
     </div>
   );
 };
+
+function getModelParamsWithEnabledFlag(
+  evalPreFill?: EvalTemplateFormPreFill,
+): UIModelParams {
+  const defaultModelParams: ModelParams & { maxTemperature: number } = {
+    model: evalPreFill?.model ?? "gpt-3.5-turbo",
+    provider: ModelProvider.OpenAI,
+    max_tokens: 100,
+    maxTemperature:
+      evalPreFill?.modelParams?.provider === ModelProvider.OpenAI ? 2 : 1,
+    top_p: 1,
+    temperature: 1,
+  };
+
+  return Object.entries({
+    ...defaultModelParams,
+    ...evalPreFill?.modelParams,
+  }).reduce(
+    (params, [key, value]) => ({
+      ...params,
+      [key]: {
+        enabled: Boolean(
+          !evalPreFill || evalPreFill.modelParams[key as keyof UIModelParams],
+        ),
+        value,
+      },
+    }),
+    {} as UIModelParams,
+  );
+}

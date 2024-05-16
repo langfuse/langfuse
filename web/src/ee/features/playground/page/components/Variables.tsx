@@ -1,10 +1,12 @@
+import { Divider } from "@tremor/react";
+
 import { usePlaygroundContext } from "../context";
 import { PromptVariableComponent } from "./PromptVariableComponent";
 
 export const Variables = () => {
   const { promptVariables } = usePlaygroundContext();
   const renderNoVariables = () => (
-    <div className="text-xs">
+    <div className="mt-4 text-xs">
       <p className="mb-2">No variables defined.</p>
       <p>
         Use handlebars in your prompts to add a variable:
@@ -21,19 +23,24 @@ export const Variables = () => {
 
           return a.name.localeCompare(b.name);
         })
-        .map((promptVariable) => {
+        .map((promptVariable, index) => {
           return (
-            <PromptVariableComponent
-              promptVariable={promptVariable}
-              key={promptVariable.name}
-            />
+            <>
+              <PromptVariableComponent
+                promptVariable={promptVariable}
+                key={promptVariable.name}
+              />
+              {index !== promptVariables.length - 1 ? (
+                <Divider className="my-2 text-gray-400" />
+              ) : null}
+            </>
           );
         })}
     </div>
   );
 
   return (
-    <div className="flex h-full flex-col space-y-4">
+    <div className="flex h-full flex-col">
       <p className="font-semibold">Variables</p>
       {promptVariables.length === 0 ? renderNoVariables() : renderVariables()}
     </div>

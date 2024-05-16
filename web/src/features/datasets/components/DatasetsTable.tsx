@@ -173,7 +173,7 @@ export function DatasetsTable(props: { projectId: string }) {
   );
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -212,6 +212,6 @@ export function DatasetsTable(props: { projectId: string }) {
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }

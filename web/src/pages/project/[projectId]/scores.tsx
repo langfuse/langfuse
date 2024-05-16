@@ -8,7 +8,7 @@ export default function ScoresPage() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div>
+    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:h-[calc(100vh-2rem)]">
       <Header
         title="Scores"
         help={{
