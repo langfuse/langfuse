@@ -27,6 +27,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useState } from "react";
+import { ScoresTablePreview } from "@/src/components/trace/ScoresTablePreview";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -184,35 +185,11 @@ export const ObservationPreview = (props: {
         )}
 
         {selectedTab === "scores" && isScoreAttached ? (
-          <div className="flex flex-col gap-2">
-            <h3>Scores</h3>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Timestamp</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead>Comment</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {props.scores
-                  .filter((s) => s.observationId === preloadedObservation.id)
-                  .map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="text-xs">
-                        {s.timestamp.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.name}</TableCell>
-                      <TableCell className="text-right text-xs">
-                        {s.value}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.comment}</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
+          <ScoresTablePreview
+            scores={props.scores.filter(
+              (s) => s.observationId === preloadedObservation.id,
+            )}
+          />
         ) : null}
       </CardContent>
     </Card>

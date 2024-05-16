@@ -8,14 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
 import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { Badge } from "@/src/components/ui/badge";
@@ -25,6 +17,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useState } from "react";
+import { ScoresTablePreview } from "@/src/components/trace/ScoresTablePreview";
 
 export const TracePreview = ({
   trace,
@@ -104,35 +97,9 @@ export const TracePreview = ({
           </>
         )}
         {selectedTab === "scores" && isScoreAttached ? (
-          <div className="mt-5 flex flex-col gap-2">
-            <h3>Scores</h3>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Timestamp</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead>Comment</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {scores
-                  .filter((s) => s.observationId === null)
-                  .map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="text-xs">
-                        {s.timestamp.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.name}</TableCell>
-                      <TableCell className="text-right text-xs">
-                        {s.value}
-                      </TableCell>
-                      <TableCell className="text-xs">{s.comment}</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
+          <ScoresTablePreview
+            scores={scores.filter((s) => s.observationId === null)}
+          />
         ) : null}
       </CardContent>
       <CardFooter></CardFooter>
