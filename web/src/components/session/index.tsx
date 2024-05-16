@@ -16,12 +16,28 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { type RouterOutput } from "@/src/utils/types";
+import {
+  DataTableRowHeightSwitch,
+  type RowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+
+// do not use the usual table row heights here
+const rowHeightMapping: Record<RowHeight, number> = {
+  s: 250,
+  m: 350,
+  l: 700,
+};
 
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const { setDetailPageList } = useDetailPageLists();
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "single-session",
+    "s",
+  );
   const session = api.sessions.byId.useQuery(
     {
       sessionId,
@@ -79,6 +95,11 @@ export const SessionPage: React.FC<{
             }
             listKey="sessions"
           />,
+          <DataTableRowHeightSwitch
+            rowHeight={rowHeight}
+            setRowHeight={setRowHeight}
+            key="height"
+          />,
         ]}
       />
       <div className="flex flex-wrap gap-2">
@@ -100,7 +121,11 @@ export const SessionPage: React.FC<{
         )}
       </div>
       {session.data && (
-        <TraceCardList session={session.data} projectId={projectId} />
+        <TraceCardList
+          session={session.data}
+          projectId={projectId}
+          rowHeight={rowHeightMapping[rowHeight]}
+        />
       )}
     </div>
   );
@@ -109,20 +134,25 @@ export const SessionPage: React.FC<{
 const TraceCardList = ({
   session,
   projectId,
+  rowHeight,
 }: {
   session: RouterOutput["sessions"]["byId"];
   projectId: string;
+  rowHeight: number;
 }) => {
   const listVirtualizationRef = useRef<HTMLDivElement | null>(null);
 
   const virtualizer = useWindowVirtualizer({
     count: session.traces.length,
-    estimateSize: () => 250,
+    estimateSize: () => rowHeight,
     overscan: 5,
     scrollMargin: listVirtualizationRef.current?.offsetTop ?? 0,
     gap: 10,
   });
-
+  useEffect(() => {
+    // re-measure when rowHeight changes to update the virtualizer
+    virtualizer.measure();
+  }, [rowHeight, virtualizer]);
   return (
     <div className="mt-5 border-t pt-5">
       <div
@@ -143,17 +173,16 @@ const TraceCardList = ({
               className="border-border-gray-150 group grid w-full gap-3 overflow-hidden p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
               key={virtualItem.key}
               data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
               style={{
                 position: "absolute",
                 top: 0,
                 left: 0,
-                minHeight: `${virtualItem.size}px`,
+                height: `${rowHeight}px`,
                 transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
               }}
             >
               <SessionIO traceId={trace.id} />
-              <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
+              <div className="-mt-1 overflow-y-auto p-1 opacity-50 transition-opacity group-hover:opacity-100">
                 <Link
                   href={`/project/${projectId}/traces/${trace.id}`}
                   className="text-xs hover:underline"
@@ -196,7 +225,7 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
   );
 
   return (
-    <div className="col-span-2 flex flex-col gap-2 overflow-hidden p-0">
+    <div className="col-span-2 flex flex-col gap-2 overflow-x-hidden overflow-y-scroll p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"
