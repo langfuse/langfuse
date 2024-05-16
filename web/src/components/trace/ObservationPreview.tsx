@@ -8,14 +8,6 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
@@ -26,7 +18,7 @@ import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScoresTablePreview } from "@/src/components/trace/ScoresTablePreview";
 
 export const ObservationPreview = (props: {
@@ -37,6 +29,10 @@ export const ObservationPreview = (props: {
   traceId: string;
 }) => {
   const [selectedTab, setSelectedTab] = useState("details");
+
+  useEffect(() => {
+    setSelectedTab("details");
+  }, [props.currentObservationId]);
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: props.currentObservationId,
