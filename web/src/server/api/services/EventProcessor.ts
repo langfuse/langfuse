@@ -409,29 +409,6 @@ export class ObservationProcessor implements EventProcessor {
       `Upserted observation ${obs.id} for project ${apiScope.projectId}`,
     );
     if (env.CLICKHOUSE_URL) {
-      const select = `
-      SELECT id, project_id, metadata FROM observations FINAL
-      WHERE id = '${this.event.body.id}'
-      and project_id = '${apiScope.projectId}'
-      and created_at > now() - INTERVAL 1 DAY
-      limit 1
-      ;
-    `;
-      console.log(
-        `Checking if observation with id ${apiScope.projectId} already exists in clickhouse ${select}`,
-      );
-      const prev = await clickhouseClient.query({
-        format: "JSONEachRow",
-        query: select,
-      });
-
-      const json = await prev.json();
-
-      if (json.length > 0) {
-        console.log(
-          `Clickhouse already has observation with id ${apiScope.projectId}, ${JSON.stringify(json)}`,
-        );
-      }
       const insert = [
         {
           id: obs.id,
@@ -472,20 +449,22 @@ export class ObservationProcessor implements EventProcessor {
       console.log(
         `Inserting observation into clickhouse, ${JSON.stringify(insert)}`,
       );
-      await clickhouseClient.insert({
-        table: "observations",
-        format: "JSONEachRow",
-        values: insert,
-      });
+      // await clickhouseClient.insert({
+      //   table: "observations",
+      //   format: "JSONEachRow",
+      //   values: insert,
+      // });
     }
     return returnObs;
   }
 }
 export class TraceProcessor implements EventProcessor {
   event: z.infer<typeof traceEvent>;
+  eventTs: Date;
 
-  constructor(event: z.infer<typeof traceEvent>) {
+  constructor(event: z.infer<typeof traceEvent>, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async process(
@@ -508,30 +487,6 @@ export class TraceProcessor implements EventProcessor {
     );
 
     if (env.CLICKHOUSE_URL) {
-      const select = `
-      SELECT * FROM traces FINAL
-      WHERE id = '${internalId}'
-      and project_id = '${apiScope.projectId}'
-      and created_at > now() - INTERVAL 1 DAY
-      limit 1
-      ;
-    `;
-      console.log(
-        `Checking if trace with id ${internalId} already exists in clickhouse ${select}`,
-      );
-      const prev = await clickhouseClient.query({
-        format: "JSONEachRow",
-        query: select,
-      });
-
-      const json = await prev.json();
-
-      if (json.length > 0) {
-        console.log(
-          `Clickhouse already has trace with id ${internalId}, ${JSON.stringify(json)}`,
-        );
-      }
-
       const insert = [
         {
           id: internalId,
@@ -552,14 +507,15 @@ export class TraceProcessor implements EventProcessor {
           session_id: body.sessionId,
           updated_at: Date.now(),
           created_at: Date.now(),
-          // ch_sign: 1,
-          // ch_version: json.length > 0 ? json[0].ch_version + 1 : 0,
+          event_ts: this.eventTs,
         },
       ];
 
-      console.log(`Inserting trace into clickhouse, ${JSON.stringify(insert)}`);
+      console.log(
+        `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`,
+      );
       await clickhouseClient.insert({
-        table: "traces",
+        table: "traces_raw",
         format: "JSONEachRow",
         values: insert,
       });

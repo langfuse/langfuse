@@ -110,31 +110,30 @@ export default async function handler(
         }
       });
 
-    waitUntil(
-      instrumentAsync({ name: "wait-for-ingestion" }, async () => {
-        const filteredBatch: z.infer<typeof ingestionEvent>[] =
-          batch.filter(isNotNullOrUndefined);
+    const filteredBatch: z.infer<typeof ingestionEvent>[] =
+      batch.filter(isNotNullOrUndefined);
 
-        await telemetry();
+    await telemetry();
 
-        const sortedBatch = sortBatch(filteredBatch);
-        const result = await handleBatch(
-          sortedBatch,
-          parsedSchema.data.metadata,
-          req,
-          authCheck,
-        );
-
-        // send out REST requests to worker for all trace types
-        await sendToWorkerIfEnvironmentConfigured(
-          result.results,
-          authCheck.scope.projectId,
-        );
-        return true;
-      }),
+    const sortedBatch = sortBatch(filteredBatch);
+    const result = await handleBatch(
+      sortedBatch,
+      parsedSchema.data.metadata,
+      req,
+      authCheck,
     );
 
-    handleBatchResult(validationErrors, [], res); // Return early if there are validation errors
+    // send out REST requests to worker for all trace types
+    await sendToWorkerIfEnvironmentConfigured(
+      result.results,
+      authCheck.scope.projectId,
+    );
+
+    handleBatchResult(
+      [...validationErrors, ...result.errors],
+      result.results,
+      res,
+    );
   } catch (error: unknown) {
     console.error("error handling ingestion event", error);
 
@@ -288,7 +287,7 @@ const handleSingleEvent = async (
   let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(cleanedEvent);
+      processor = new TraceProcessor(cleanedEvent, new Date(event.timestamp));
       break;
     case eventTypes.OBSERVATION_CREATE:
     case eventTypes.OBSERVATION_UPDATE:
