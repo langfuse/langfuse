@@ -6,10 +6,10 @@ import { type Score } from "@langfuse/shared";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 type ScoresTablePreviewRow = {
-  timestamp: string;
   name: string;
   value: number;
   source: string;
+  timestamp: string;
   comment?: string | null;
 };
 
