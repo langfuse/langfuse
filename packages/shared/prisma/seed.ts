@@ -459,7 +459,7 @@ function createObjects(
     const session =
       Math.random() > 0.3
         ? {
-            id: `session-${i % 10}`,
+            id: `session-${i % 3}`,
             projectId: projectId,
           }
         : undefined;
